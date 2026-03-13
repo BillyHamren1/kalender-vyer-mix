@@ -63,6 +63,7 @@ import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
+import NativeAppEntry from "./pages/NativeAppEntry";
 
 // Mobile staff app pages
 import MobileLogin from "./pages/mobile/MobileLogin";
