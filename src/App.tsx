@@ -170,6 +170,7 @@ const AppContent = () => {
                         <Route path="establishment" element={<LargeEstablishmentPage />} />
                         <Route path="economy" element={<LargeProjectEconomyPage />} />
                       </Route>
+                      <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
 
                       {/* Logistics Routes */}
