@@ -7,7 +7,8 @@ import { type LucideIcon,
   ChevronDown,
   PieChart,
   Truck,
-   ChevronsLeft,
+  ChevronsLeft,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const navigationItems: NavItem[] = [
     icon: Truck,
   },
   { title: "Personal", url: "/staff-management", icon: Users },
+  { title: "Personalöversikt", url: "/staff-dashboard", icon: LayoutDashboard },
 ];
 
 export function Sidebar3D() {

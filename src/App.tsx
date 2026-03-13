@@ -43,6 +43,7 @@ import MyProjects from "./pages/MyProjects";
 import StaffRevenueOverview from "./pages/StaffRevenueOverview";
 import JobDetail from "./pages/JobDetail";
 import APIDocumentation from "./pages/APIDocumentation";
+import StaffDashboard from "./pages/StaffDashboard";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
@@ -152,6 +153,7 @@ const AppContent = () => {
                       <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/staff-dashboard" element={<ProtectedRoute><MainSystemLayout><StaffDashboard /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
