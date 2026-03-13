@@ -145,10 +145,7 @@ const AppContent = () => {
                     <Routes>
                       <Route path="/" element={
                         <ProtectedRoute>
-                          {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
-                            ? <Navigate to="/scanner" replace />
-                            : <Navigate to="/projects" replace />
-                          }
+                          <Navigate to="/projects" replace />
                         </ProtectedRoute>
                       } />
                       <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
