@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { EnrichedProject } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectInsight as EnrichedProject } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -36,8 +36,8 @@ interface Props {
 const InvoiceRow: React.FC<{ project: EnrichedProject; onClose?: () => void }> = ({ project, onClose }) => {
   const navigate = useNavigate();
   const link = project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo;
-  const marginColor = project.projectedMarginPercent >= 20 ? 'text-green-600' : 
-                       project.projectedMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
+  const marginColor = project.forecastMarginPercent >= 20 ? 'text-green-600' : 
+                       project.forecastMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
 
   return (
     <tr className="border-b border-border/30 hover:bg-muted/30 transition-colors group">
@@ -52,12 +52,12 @@ const InvoiceRow: React.FC<{ project: EnrichedProject; onClose?: () => void }> =
         </div>
       </td>
       <td className="py-2.5 px-3 text-xs text-muted-foreground">{formatDate(project.eventdate)}</td>
-      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(project.expectedRevenue)}</td>
-      <td className="py-2.5 px-3 text-xs text-right text-green-600 font-medium">{formatCurrency(project.totalInvoiced)}</td>
+      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(project.quotedAmount)}</td>
+      <td className="py-2.5 px-3 text-xs text-right text-green-600 font-medium">{formatCurrency(project.invoicedAmount)}</td>
       <td className="py-2.5 px-3 text-xs text-right font-bold text-primary">{formatCurrency(project.remainingToInvoice)}</td>
-      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(project.totalCost)}</td>
+      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(project.actualCost)}</td>
       <td className={cn("py-2.5 px-3 text-xs text-right font-semibold", marginColor)}>
-        {project.projectedMarginPercent.toFixed(0)}%
+        {project.forecastMarginPercent.toFixed(0)}%
       </td>
       <td className="py-2.5 px-3">
         <EconomyStatusBadge status={project.economyStatus} />

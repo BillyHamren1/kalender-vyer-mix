@@ -4,7 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import type { ForecastBucket } from '@/hooks/useEconomyDashboard';
+import type { EconomyForecastBucket } from '@/types/economyOverview';
+
+type ForecastBucket = EconomyForecastBucket;
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(v);
@@ -30,10 +32,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const EconomyForecastPanel: React.FC<Props> = ({ forecasts }) => {
   const chartData = forecasts.map(f => ({
     name: f.label,
-    Säker: f.secure,
-    Trolig: f.probable,
-    Pipeline: f.pipeline,
-    Total: f.secure + f.probable + f.pipeline,
+    Säker: f.safeRevenue,
+    Trolig: f.likelyRevenue,
+    Pipeline: f.pipelineRevenue,
+    Total: f.safeRevenue + f.likelyRevenue + f.pipelineRevenue,
   }));
 
   const maxVal = Math.max(...chartData.map(d => d.Total));
@@ -67,11 +69,11 @@ const EconomyForecastPanel: React.FC<Props> = ({ forecasts }) => {
           {forecasts.map((f, i) => (
             <div key={f.label} className="rounded-xl border border-border/40 p-3 bg-muted/20">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{f.label}</p>
-              <p className="text-lg font-bold text-foreground mt-0.5">{formatCurrency(f.secure + f.probable + f.pipeline)} kr</p>
+              <p className="text-lg font-bold text-foreground mt-0.5">{formatCurrency(f.safeRevenue + f.likelyRevenue + f.pipelineRevenue)} kr</p>
               <div className="flex gap-2 mt-1">
-                <span className="text-[10px] text-primary font-medium">{formatCurrency(f.secure)} säker</span>
+                <span className="text-[10px] text-primary font-medium">{formatCurrency(f.safeRevenue)} säker</span>
                 <span className="text-[10px] text-muted-foreground">·</span>
-                <span className="text-[10px] text-muted-foreground">{formatCurrency(f.probable)} trolig</span>
+                <span className="text-[10px] text-muted-foreground">{formatCurrency(f.likelyRevenue)} trolig</span>
               </div>
             </div>
           ))}

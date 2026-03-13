@@ -11,7 +11,16 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { DashboardKPIs } from '@/hooks/useEconomyDashboard';
+type DashboardKPIs = {
+  invoicedThisMonth: number;
+  readyToInvoice: number;
+  forecast30: number;
+  forecast90: number;
+  totalCostsThisMonth: number;
+  projectedMarginPercent: number;
+  completedNotFullyInvoiced: number;
+  riskProjectCount: number;
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(value);

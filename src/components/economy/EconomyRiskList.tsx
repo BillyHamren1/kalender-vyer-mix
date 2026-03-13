@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ShieldAlert, ChevronRight, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { RiskItem } from '@/hooks/useEconomyDashboard';
+import type { EconomyRiskItem as RiskItem } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);

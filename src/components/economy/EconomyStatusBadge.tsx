@@ -1,7 +1,9 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { EconomyStatus } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectStatus } from '@/types/economyOverview';
+
+type EconomyStatus = EconomyProjectStatus;
 
 const STATUS_CONFIG: Record<EconomyStatus, { label: string; className: string }> = {
   'upcoming': { label: 'Kommande', className: 'border-amber-300 text-amber-700 bg-amber-50' },

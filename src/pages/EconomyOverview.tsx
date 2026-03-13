@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Banknote } from 'lucide-react';
 import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
-import { useEconomyDashboard, type EnrichedProject } from '@/hooks/useEconomyDashboard';
+import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
@@ -29,7 +30,7 @@ const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeRe
 const ProjectEconomyDashboard: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [closingProject, setClosingProject] = useState<EnrichedProject | null>(null);
+  const [closingProject, setClosingProject] = useState<EconomyProjectInsight | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
   const { kpis, forecasts, risks, invoicingQueue, completedProjects } = useEconomyDashboard(projectsWithEconomy);
@@ -83,7 +84,7 @@ const ProjectEconomyDashboard: React.FC = () => {
       <EconomyInvoicingQueue
         readyForInvoicing={invoicingQueue.readyForInvoicing}
         partiallyInvoiced={invoicingQueue.partiallyInvoiced}
-        completedNotInvoiced={invoicingQueue.completedNotInvoiced}
+        completedNotInvoiced={invoicingQueue.overdue}
         onCloseProject={setClosingProject}
       />
 

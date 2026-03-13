@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { EnrichedProject } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectInsight as EnrichedProject } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -39,9 +39,9 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
   const filtered = React.useMemo(() => {
     switch (filter) {
       case 'not-invoiced': return projects.filter(p => p.remainingToInvoice > 0);
-      case 'fully-invoiced': return projects.filter(p => p.economyStatus === 'fully-invoiced' || (p.expectedRevenue > 0 && p.totalInvoiced >= p.expectedRevenue * 0.95));
+      case 'fully-invoiced': return projects.filter(p => p.economyStatus === 'fully-invoiced' || (p.quotedAmount > 0 && p.invoicedAmount >= p.quotedAmount * 0.95));
       case 'closed': return projects.filter(p => p.economyStatus === 'economy-closed');
-      case 'risk': return projects.filter(p => p.isRisk);
+      case 'risk': return projects.filter(p => p.isRiskProject);
       default: return projects;
     }
   }, [projects, filter]);
@@ -85,8 +85,8 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
               <tbody>
                 {filtered.slice(0, 20).map(p => {
                   const link = p.projectSize === 'medium' ? `/economy/${p.id}` : p.navigateTo;
-                  const marginColor = p.projectedMarginPercent >= 20 ? 'text-green-600' :
-                                      p.projectedMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
+                  const marginColor = p.forecastMarginPercent >= 20 ? 'text-green-600' :
+                                      p.forecastMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
                   return (
                     <tr key={p.id} className="border-b border-border/30 hover:bg-muted/30 transition-colors group">
                       <td className="py-2.5 px-3">
@@ -100,17 +100,17 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-xs text-muted-foreground">{formatDate(p.eventdate)}</td>
-                      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(p.expectedRevenue)}</td>
-                      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(p.totalCost)}</td>
+                      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(p.quotedAmount)}</td>
+                      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(p.actualCost)}</td>
                       <td className={cn("py-2.5 px-3 text-xs text-right font-semibold", marginColor)}>
-                        {formatCurrency(p.projectedMargin)}
+                        {formatCurrency(p.forecastMargin)}
                       </td>
                       <td className={cn("py-2.5 px-3 text-xs text-right font-bold", marginColor)}>
-                        {p.projectedMarginPercent.toFixed(0)}%
+                        {p.forecastMarginPercent.toFixed(0)}%
                       </td>
                       <td className="py-2.5 px-3">
-                        {p.totalInvoiced > 0 ? (
-                          <span className="text-xs text-green-600 font-medium">{formatCurrency(p.totalInvoiced)}</span>
+                        {p.invoicedAmount > 0 ? (
+                          <span className="text-xs text-green-600 font-medium">{formatCurrency(p.invoicedAmount)}</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
