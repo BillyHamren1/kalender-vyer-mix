@@ -177,6 +177,10 @@ const EconomyOverview: React.FC = () => {
             <ProjectEconomyDashboard />
           </TabsContent>
 
+          <TabsContent value="billing">
+            <BillingSection />
+          </TabsContent>
+
           <TabsContent value="staff">
             <StaffEconomyView />
           </TabsContent>
