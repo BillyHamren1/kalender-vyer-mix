@@ -7,6 +7,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isSameDay,
 import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import WeekPackingsView from "@/components/warehouse-dashboard/WeekPackingsView";
 import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
