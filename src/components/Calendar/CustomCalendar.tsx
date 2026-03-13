@@ -159,10 +159,21 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <div className="custom-calendar-container weekly-view" ref={containerRef}>
           <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
             {days.map((date) => {
-              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              const dateStr = format(date, 'yyyy-MM-dd');
+              const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+              const isDropTarget = isDragging && dragOverDate === dateStr;
               return (
-                <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                <div
+                  key={dateStr}
+                  className={`weekly-day-card ${isToday ? 'is-today' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => handleDragEnter(e, dateStr)}
+                  onDragLeave={(e) => handleDragLeave(e, dateStr)}
+                  onDrop={(e) => handleDrop(e, dateStr)}
+                >
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}
+                    style={isDropTarget ? { transition: 'all 150ms ease' } : undefined}
+                  >
                     <TimeGrid {...buildTimeGridProps(date, false)} />
                   </div>
                 </div>
