@@ -291,6 +291,7 @@ export const useEconomyOverviewData = () => {
               status: entry.status,
               booking_id: primaryBookingId,
               eventdate,
+              bookingCreatedAt,
               summary: aggregated,
               timeReports: allTimeReports,
               economyClosed: allClosed || entry.status === 'completed',
