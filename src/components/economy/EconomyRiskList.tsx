@@ -30,7 +30,7 @@ const EconomyRiskList: React.FC<Props> = ({ risks }) => {
             <h2 className="text-base font-semibold">Projekt som kräver uppmärksamhet</h2>
           </div>
           {risks.length > 0 && (
-            <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive bg-destructive/5">
+            <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">
               {risks.length} projekt
             </Badge>
           )}
