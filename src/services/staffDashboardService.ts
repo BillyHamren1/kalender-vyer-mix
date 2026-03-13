@@ -10,6 +10,8 @@ export interface StaffMessage {
   booking_id: string | null;
   is_read: boolean;
   created_at: string;
+  sender_type: string;
+  sender_name: string | null;
 }
 
 export interface JobActivityItem {
@@ -26,14 +28,33 @@ export const fetchStaffMessages = async (): Promise<StaffMessage[]> => {
   const { data, error } = await supabase
     .from('staff_messages')
     .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50);
+    .order('created_at', { ascending: true })
+    .limit(200);
 
   if (error) {
     console.error('Error fetching staff messages:', error);
     return [];
   }
   return (data as StaffMessage[]) || [];
+};
+
+export const sendAdminMessage = async (content: string, adminName: string): Promise<void> => {
+  const { error } = await supabase
+    .from('staff_messages')
+    .insert({
+      staff_id: 'admin',
+      staff_name: adminName,
+      content: content.trim(),
+      message_type: 'text',
+      sender_type: 'admin',
+      sender_name: adminName,
+      is_read: true,
+    });
+
+  if (error) {
+    console.error('Error sending admin message:', error);
+    throw error;
+  }
 };
 
 export const markMessageAsRead = async (messageId: string): Promise<void> => {
@@ -117,8 +138,6 @@ export const fetchJobActivity = async (): Promise<JobActivityItem[]> => {
     });
   });
 
-  // Sort all by date descending
   items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
   return items;
 };
