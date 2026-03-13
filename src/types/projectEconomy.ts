@@ -115,6 +115,8 @@ export interface EconomySummary {
   supplierInvoicesTotal: number;
   // Product cost budget (from Booking summary.costs)
   productCostBudget: number;
+  // Product revenue (from Booking summary.revenue — what customer pays)
+  productRevenue: number;
   totalBudget: number;
   totalActual: number;
   totalDeviation: number;
