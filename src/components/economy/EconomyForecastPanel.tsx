@@ -174,7 +174,7 @@ const EconomyForecastPanel: React.FC<Props> = ({ forecasts }) => {
             <div className="flex items-start gap-2 mt-4 px-1">
               <Info className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 mt-0.5" />
               <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                Prognosen baseras på offertbelopp, fakturerade belopp och budgetdata. Projekt utan ekonomiskt underlag inkluderas inte.
+                Prognosen baseras på ordervärde, fakturerade belopp och budgetdata. Projekt utan ekonomiskt underlag inkluderas inte.
                 Säker = redan fakturerat + redo för fakturering. Trolig = starka aktiva projekt. Pipeline = kommande med preliminärt värde.
               </p>
             </div>

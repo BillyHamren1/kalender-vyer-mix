@@ -35,10 +35,11 @@ function safeParse(dateStr: string | null | undefined): Date | null {
 
 /**
  * Best guess at expected revenue for a project.
- * Uses quotes total if available, falls back to product cost budget.
+ * Uses product cost budget (order value from booking system).
+ * Quotes are not used in the planning system.
  */
 function getExpectedRevenue(s: EconomySummary): number {
-  return s.quotesTotal > 0 ? s.quotesTotal : s.productCostBudget;
+  return s.productCostBudget;
 }
 
 // ─── Status Computation ─────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ export function getEconomyMissingDataFlags(p: ProjectWithEconomy): MissingDataFl
   if (!p.booking_id) flags.push('missing-booking');
   if (!p.eventdate) flags.push('missing-eventdate');
   if (s.totalBudget === 0 && s.budgetedHours === 0) flags.push('missing-budget');
-  if (s.quotesTotal === 0 && s.productCostBudget === 0) flags.push('missing-quote');
+  if (s.productCostBudget === 0 && s.invoicesTotal === 0) flags.push('missing-quote');
   if (s.invoicesTotal === 0) flags.push('missing-invoice');
   if (p.timeReports.length === 0 && s.actualHours === 0) flags.push('missing-time-reports');
   if (s.supplierInvoicesTotal === 0 && s.purchasesTotal === 0) flags.push('missing-supplier-invoices');
