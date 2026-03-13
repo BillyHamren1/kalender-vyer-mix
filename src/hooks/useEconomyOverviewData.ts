@@ -203,15 +203,19 @@ export const useEconomyOverviewData = () => {
       // Collect all unique booking IDs
       const allBookingIds = [...new Set(entries.flatMap(e => e.booking_ids))];
 
-      // Fetch eventdates from bookings
+      // Fetch eventdates and created_at from bookings
       let eventdateMap: Record<string, string | null> = {};
+      let createdAtMap: Record<string, string | null> = {};
       if (allBookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('id, eventdate')
+          .select('id, eventdate, created_at')
           .in('id', allBookingIds);
         if (bookings) {
-          bookings.forEach(b => { eventdateMap[b.id] = b.eventdate; });
+          bookings.forEach(b => {
+            eventdateMap[b.id] = b.eventdate;
+            createdAtMap[b.id] = b.created_at;
+          });
         }
       }
 
