@@ -18,6 +18,7 @@ import { sv } from 'date-fns/locale';
 type AppState = 'home' | 'verifying' | 'manual';
 
 const MobileScannerApp: React.FC = () => {
+  const navigate = useNavigate();
   const [state, setState] = useState<AppState>('home');
   const [selectedPackingId, setSelectedPackingId] = useState<string | null>(null);
   const [isQRActive, setIsQRActive] = useState(false);
