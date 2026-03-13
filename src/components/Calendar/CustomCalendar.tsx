@@ -54,6 +54,17 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const weekStartTime = currentDate.getTime();
   const days = useWeekDays(currentDate);
 
+  // Drag-and-drop for moving events between days
+  const {
+    isDragging,
+    dragOverDate,
+    isMoving,
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    handleDrop,
+  } = useEventDragDrop(refreshEvents);
+
   // STABILIZATION: Deduplicate and stabilize event array reference
   const stableEvents = useStableEvents(events);
 
