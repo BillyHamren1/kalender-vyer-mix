@@ -17,6 +17,7 @@ import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
 import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 
 // Main system pages
+import InvoicingPage from "./pages/InvoicingPage";
 
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
@@ -169,6 +170,7 @@ const AppContent = () => {
                         <Route path="establishment" element={<LargeEstablishmentPage />} />
                         <Route path="economy" element={<LargeProjectEconomyPage />} />
                       </Route>
+                      <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
 
                       {/* Logistics Routes */}
