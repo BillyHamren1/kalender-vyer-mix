@@ -1,14 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { BarChart3, Download, CalendarIcon } from 'lucide-react';
+import { BarChart3, Download, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { format, parseISO, getYear, getMonth, subMonths, addMonths } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { parseISO, getYear, getMonth } from 'date-fns';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
@@ -21,7 +18,6 @@ const formatK = (v: number) => {
 };
 
 type TabValue = 'orderingang' | 'ordersumma';
-type QuickRange = '3m' | '6m' | '12m' | 'custom';
 
 interface Props {
   projects: EconomyProjectInsight[];
@@ -32,7 +28,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Se
 interface YoYBucket {
   monthIndex: number;
   monthName: string;
-  [key: string]: number | string; // "2025", "2025_kostnad", "2025_tb"
+  [key: string]: number | string;
 }
 
 interface YoYResult {
@@ -42,13 +38,16 @@ interface YoYResult {
   yearTotals: Record<number, { intäkt: number; kostnad: number; tb: number }>;
 }
 
-// Generic YoY computation - dateSelector picks which date field to bucket by
+interface DrillDownSelection {
+  monthIndex: number;
+  year: number;
+}
+
 function computeYoY(
   projects: EconomyProjectInsight[],
   selectedYears: number[],
   dateSelector: (p: EconomyProjectInsight) => string | null | undefined,
 ): YoYResult {
-  // Aggregate per year-month
   const yearMonthData = new Map<string, { intäkt: number; kostnad: number }>();
 
   projects.forEach(p => {
@@ -64,7 +63,6 @@ function computeYoY(
     } catch { return; }
   });
 
-  // Available years
   const availableYearsSet = new Set<number>();
   yearMonthData.forEach((_, key) => availableYearsSet.add(parseInt(key.split('-')[0])));
   const currentYear = new Date().getFullYear();
@@ -78,7 +76,6 @@ function computeYoY(
     ? selectedYears.filter(y => availableYears.includes(y)).sort()
     : availableYears.slice(-2);
 
-  // Build 12-month buckets with intäkt + kostnad + tb per year
   const buckets: YoYBucket[] = MONTH_NAMES.map((name, i) => {
     const bucket: YoYBucket = { monthIndex: i, monthName: name };
     years.forEach(y => {
@@ -91,7 +88,6 @@ function computeYoY(
     return bucket;
   });
 
-  // Year totals
   const yearTotals: Record<number, { intäkt: number; kostnad: number; tb: number }> = {};
   years.forEach(y => {
     const t = { intäkt: 0, kostnad: 0, tb: 0 };
@@ -106,22 +102,33 @@ function computeYoY(
   return { buckets, years, availableYears, yearTotals };
 }
 
-// CSV
+function getDrillDownProjects(
+  projects: EconomyProjectInsight[],
+  monthIndex: number,
+  year: number,
+  dateSelector: (p: EconomyProjectInsight) => string | null | undefined,
+): EconomyProjectInsight[] {
+  return projects.filter(p => {
+    const dateStr = dateSelector(p);
+    if (!dateStr) return false;
+    try {
+      const d = parseISO(dateStr);
+      return getYear(d) === year && getMonth(d) === monthIndex;
+    } catch { return false; }
+  });
+}
+
 function generateYoYCSV(buckets: YoYBucket[], years: number[], includeTB: boolean): string {
   const headers = ['Månad'];
   years.forEach(y => {
     headers.push(`Intäkt ${y}`);
-    if (includeTB) {
-      headers.push(`Kostnad ${y}`, `TB ${y}`);
-    }
+    if (includeTB) headers.push(`Kostnad ${y}`, `TB ${y}`);
   });
   const rows = buckets.map(b => {
     const row = [b.monthName];
     years.forEach(y => {
       row.push(String(b[String(y)] || 0));
-      if (includeTB) {
-        row.push(String(b[`${y}_kostnad`] || 0), String(b[`${y}_tb`] || 0));
-      }
+      if (includeTB) row.push(String(b[`${y}_kostnad`] || 0), String(b[`${y}_tb`] || 0));
     });
     return row.join(',');
   });
@@ -138,7 +145,6 @@ function downloadCSV(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// YoY bar colors
 const YOY_COLORS = [
   'hsl(var(--muted-foreground))',
   'hsl(var(--primary))',
@@ -148,7 +154,6 @@ const YOY_COLORS = [
 
 const YoYTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
-  // Group payload by year - filter only intäkt bars
   const intäktBars = payload.filter((p: any) => !String(p.dataKey).includes('_'));
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 shadow-lg text-sm min-w-[180px]">
@@ -176,18 +181,101 @@ const YoYTooltip = ({ active, payload, label }: any) => {
           );
         })}
       </div>
+      <p className="text-[10px] text-muted-foreground mt-2 border-t border-border/30 pt-1">Klicka för att se detaljer</p>
     </div>
   );
 };
 
-// Shared YoY view component
+const DrillDownPanel: React.FC<{
+  projects: EconomyProjectInsight[];
+  monthName: string;
+  year: number;
+  onClose: () => void;
+}> = ({ projects, monthName, year, onClose }) => {
+  const sorted = useMemo(() =>
+    [...projects].sort((a, b) => b.quotedAmount - a.quotedAmount),
+    [projects]
+  );
+  const total = sorted.reduce((s, p) => s + p.quotedAmount, 0);
+  const totalCost = sorted.reduce((s, p) => s + p.actualCost, 0);
+  const tb = total - totalCost;
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            {monthName} {year} — {sorted.length} projekt
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Summa: {formatCurrency(total)} kr · TB: <span className={cn(tb >= 0 ? 'text-green-600' : 'text-destructive')}>{formatCurrency(tb)} kr</span>
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Inga projekt i denna period.</p>
+      ) : (
+        <div className="rounded-md border border-border/40 overflow-hidden max-h-[300px] overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-muted/30 sticky top-0">
+                <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Projekt</th>
+                <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Kund</th>
+                <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Eventdatum</th>
+                <th className="text-right py-1.5 px-3 font-semibold text-muted-foreground">Intäkt</th>
+                <th className="text-right py-1.5 px-3 font-semibold text-muted-foreground">Kostnad</th>
+                <th className="text-right py-1.5 px-3 font-semibold text-muted-foreground">TB</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(p => {
+                const pTb = p.quotedAmount - p.actualCost;
+                return (
+                  <tr key={p.projectId} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
+                    <td className="py-1.5 px-3 font-medium truncate max-w-[200px]">{p.projectName}</td>
+                    <td className="py-1.5 px-3 text-muted-foreground truncate max-w-[150px]">{p.clientName}</td>
+                    <td className="py-1.5 px-3 text-muted-foreground">{p.eventdate || '–'}</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{formatCurrency(p.quotedAmount)}</td>
+                    <td className="py-1.5 px-3 text-right text-muted-foreground">{formatCurrency(p.actualCost)}</td>
+                    <td className={cn("py-1.5 px-3 text-right font-medium", pTb >= 0 ? 'text-green-600' : 'text-destructive')}>
+                      {formatCurrency(pTb)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const YoYView: React.FC<{
   data: YoYResult;
+  allProjects: EconomyProjectInsight[];
+  dateSelector: (p: EconomyProjectInsight) => string | null | undefined;
   selectedYears: number[];
   onToggleYear: (y: number) => void;
   label: string;
-}> = ({ data, selectedYears, onToggleYear, label }) => {
+}> = ({ data, allProjects, dateSelector, selectedYears, onToggleYear, label }) => {
   const { buckets, years, availableYears, yearTotals } = data;
+  const [drillDown, setDrillDown] = useState<DrillDownSelection | null>(null);
+
+  const handleBarClick = useCallback((monthIndex: number, year: number) => {
+    setDrillDown(prev =>
+      prev?.monthIndex === monthIndex && prev?.year === year ? null : { monthIndex, year }
+    );
+  }, []);
+
+  const drillDownProjects = useMemo(() => {
+    if (!drillDown) return [];
+    return getDrillDownProjects(allProjects, drillDown.monthIndex, drillDown.year, dateSelector);
+  }, [drillDown, allProjects, dateSelector]);
 
   return (
     <div className="space-y-4">
@@ -235,8 +323,19 @@ const YoYView: React.FC<{
             <Tooltip content={<YoYTooltip />} />
             {years.map((y, i) => (
               <React.Fragment key={y}>
-                <Bar dataKey={String(y)} name={String(y)} fill={YOY_COLORS[i % YOY_COLORS.length]} radius={[3, 3, 0, 0]} opacity={i === years.length - 1 ? 0.9 : 0.5} />
-                {/* Hidden bars for tooltip data */}
+                <Bar
+                  dataKey={String(y)}
+                  name={String(y)}
+                  fill={YOY_COLORS[i % YOY_COLORS.length]}
+                  radius={[3, 3, 0, 0]}
+                  opacity={i === years.length - 1 ? 0.9 : 0.5}
+                  cursor="pointer"
+                  onClick={(barData: any) => {
+                    if (barData && typeof barData.monthIndex === 'number') {
+                      handleBarClick(barData.monthIndex, y);
+                    }
+                  }}
+                />
                 <Bar dataKey={`${y}_kostnad`} hide />
               </React.Fragment>
             ))}
@@ -253,6 +352,16 @@ const YoYView: React.FC<{
           </div>
         ))}
       </div>
+
+      {/* Drill-down panel */}
+      {drillDown && (
+        <DrillDownPanel
+          projects={drillDownProjects}
+          monthName={MONTH_NAMES[drillDown.monthIndex]}
+          year={drillDown.year}
+          onClose={() => setDrillDown(null)}
+        />
+      )}
 
       {/* Table */}
       <div className="rounded-lg border border-border/40 overflow-hidden">
@@ -337,8 +446,6 @@ const YoYView: React.FC<{
   );
 };
 
-// ── Main component ──
-
 const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
   const [activeTab, setActiveTab] = useState<TabValue>('orderingang');
   const [selectedYearsIngang, setSelectedYearsIngang] = useState<number[]>([]);
@@ -368,10 +475,14 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
     downloadCSV(csv, `${activeTab}-analys.csv`);
   };
 
+  const dateSelectors = useMemo(() => ({
+    orderingang: (p: EconomyProjectInsight) => p.bookingCreatedAt,
+    ordersumma: (p: EconomyProjectInsight) => p.eventdate,
+  }), []);
+
   return (
     <Card className="border-border/40">
       <CardContent className="p-5">
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
@@ -382,7 +493,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
           </Button>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={v => setActiveTab(v as TabValue)} className="space-y-4">
           <TabsList className="h-8 p-0.5 bg-muted/50">
             <TabsTrigger value="orderingang" className="text-xs px-4 h-7">Orderingång</TabsTrigger>
@@ -391,12 +501,12 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
 
           <TabsContent value="orderingang" className="mt-0">
             <p className="text-xs text-muted-foreground mb-3">Ordervärde per månad baserat på <span className="font-semibold">när affären kommer in</span> (bokningsdatum)</p>
-            <YoYView data={orderIngång} selectedYears={selectedYearsIngang} onToggleYear={toggleYearIngang} label="Orderingång" />
+            <YoYView data={orderIngång} allProjects={projects} dateSelector={dateSelectors.orderingang} selectedYears={selectedYearsIngang} onToggleYear={toggleYearIngang} label="Orderingång" />
           </TabsContent>
 
           <TabsContent value="ordersumma" className="mt-0">
             <p className="text-xs text-muted-foreground mb-3">Ordervärde per månad baserat på <span className="font-semibold">när projektet utförs</span> (eventdatum)</p>
-            <YoYView data={orderSumma} selectedYears={selectedYearsSumma} onToggleYear={toggleYearSumma} label="Ordersumma" />
+            <YoYView data={orderSumma} allProjects={projects} dateSelector={dateSelectors.ordersumma} selectedYears={selectedYearsSumma} onToggleYear={toggleYearSumma} label="Ordersumma" />
           </TabsContent>
         </Tabs>
       </CardContent>
