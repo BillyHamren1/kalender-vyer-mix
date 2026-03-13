@@ -5,8 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Progress } from '@/components/ui/progress';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,24 +17,14 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
   Banknote, 
-  Clock, 
   CheckCircle2,
   Lock,
   PlayCircle,
   CalendarClock,
-  BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  Users,
-  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
+import { parseISO, isAfter, startOfDay } from 'date-fns';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import { useEconomyOverviewData, type ProjectWithEconomy, type ProjectSize } from '@/hooks/useEconomyOverviewData';
@@ -46,34 +34,12 @@ import { toast } from 'sonner';
 
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
-type StatusFilter = 'all' | 'ongoing' | 'completed' | 'upcoming';
-
-interface AggregatedKPIs {
-  totalProjects: number;
-  projectsWithDeviation: number;
-  totalBudget: number;
-  totalActual: number;
-  totalDeviation: number;
-  totalHoursBudgeted: number;
-  totalHoursActual: number;
-  avgDeviationPercent: number;
-  totalPurchases: number;
-  avgMargin: number;
-  projectsOnBudget: number;
-  projectsOverBudget: number;
-  projectsUnderBudget: number;
-}
-
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('sv-SE', { 
     style: 'currency', 
     currency: 'SEK',
     maximumFractionDigits: 0 
   }).format(value);
-};
-
-const formatHours = (hours: number) => {
-  return `${hours.toFixed(1)} tim`;
 };
 
 function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'upcoming' {
@@ -87,102 +53,9 @@ function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'up
   return 'ongoing';
 }
 
-function aggregateProjects(projects: ProjectWithEconomy[]): AggregatedKPIs {
-  if (!projects.length) {
-    return { totalProjects: 0, projectsWithDeviation: 0, totalBudget: 0, totalActual: 0, totalDeviation: 0, totalHoursBudgeted: 0, totalHoursActual: 0, avgDeviationPercent: 0, totalPurchases: 0, avgMargin: 0, projectsOnBudget: 0, projectsOverBudget: 0, projectsUnderBudget: 0 };
-  }
-  const totalBudget = projects.reduce((s, p) => s + p.summary.totalBudget, 0);
-  const totalActual = projects.reduce((s, p) => s + p.summary.totalActual, 0);
-  const totalHoursBudgeted = projects.reduce((s, p) => s + p.summary.budgetedHours, 0);
-  const totalHoursActual = projects.reduce((s, p) => s + p.summary.actualHours, 0);
-  const totalPurchases = projects.reduce((s, p) => s + p.summary.purchasesTotal, 0);
-  const projectsWithDeviation = projects.filter(p => p.summary.totalDeviationPercent > 100).length;
-  const projectsOverBudget = projects.filter(p => p.summary.totalDeviation > 0).length;
-  const projectsUnderBudget = projects.filter(p => p.summary.totalDeviation < 0 && p.summary.totalBudget > 0).length;
-  const projectsOnBudget = projects.length - projectsOverBudget - projectsUnderBudget;
-  
-  return {
-    totalProjects: projects.length,
-    projectsWithDeviation,
-    totalBudget,
-    totalActual,
-    totalDeviation: totalActual - totalBudget,
-    totalHoursBudgeted,
-    totalHoursActual,
-    avgDeviationPercent: totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0,
-    totalPurchases,
-    avgMargin: totalBudget > 0 ? ((totalBudget - totalActual) / totalBudget) * 100 : 0,
-    projectsOnBudget,
-    projectsOverBudget,
-    projectsUnderBudget,
-  };
-}
-
-const StatusFilterButton: React.FC<{
-  filter: StatusFilter;
-  active: boolean;
-  count: number;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  color: string;
-}> = ({ active, count, icon, label, onClick, color }) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 text-left min-w-[140px]",
-      active
-        ? "border-primary/30 bg-primary/5 shadow-sm ring-1 ring-primary/20"
-        : "border-border/50 bg-card hover:bg-muted/50 hover:border-border"
-    )}
-  >
-    <div className={cn("p-2 rounded-lg", color)}>
-      {icon}
-    </div>
-    <div>
-      <p className="text-xl font-bold text-foreground">{count}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
-    </div>
-  </button>
-);
-
-const MiniWidget: React.FC<{
-  title: string;
-  value: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  trend?: 'up' | 'down' | 'neutral';
-  className?: string;
-}> = ({ title, value, subtitle, icon, trend, className }) => (
-  <Card className={cn("border-border/40", className)}>
-    <CardContent className="pt-5 pb-4">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
-          {subtitle && (
-            <p className={cn(
-              "text-xs flex items-center gap-1",
-              trend === 'up' ? "text-destructive" : trend === 'down' ? "text-green-600" : "text-muted-foreground"
-            )}>
-              {trend === 'up' && <ArrowUpRight className="h-3 w-3" />}
-              {trend === 'down' && <ArrowDownRight className="h-3 w-3" />}
-              {subtitle}
-            </p>
-          )}
-        </div>
-        <div className="p-2.5 rounded-xl bg-muted/60">
-          {icon}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
-
 const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -225,26 +98,27 @@ const ProjectEconomyView: React.FC = () => {
     return { all: projectsWithEconomy, ongoing, completed, upcoming };
   }, [projectsWithEconomy]);
 
-  const filteredProjects = categorized[statusFilter];
-  const kpis = React.useMemo(() => aggregateProjects(filteredProjects), [filteredProjects]);
-  const allKpis = React.useMemo(() => aggregateProjects(categorized.all), [categorized.all]);
+  // Sort each category by date
+  const sortedOngoing = React.useMemo(() => 
+    [...categorized.ongoing].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
+      return da - db;
+    }), [categorized.ongoing]);
 
-  // Top deviating projects — only completed projects are meaningful
-  const topDeviating = React.useMemo(() => {
-    return [...categorized.completed]
-      .filter(p => p.summary.totalBudget > 0)
-      .sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent)
-      .slice(0, 5);
-  }, [categorized.completed]);
+  const sortedUpcoming = React.useMemo(() => 
+    [...categorized.upcoming].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : Infinity;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : Infinity;
+      return da - db;
+    }), [categorized.upcoming]);
 
-  // Budget health distribution
-  const budgetHealth = React.useMemo(() => {
-    if (!filteredProjects.length) return { onBudget: 0, warning: 0, critical: 0 };
-    const onBudget = filteredProjects.filter(p => p.summary.totalDeviationPercent <= 100).length;
-    const warning = filteredProjects.filter(p => p.summary.totalDeviationPercent > 100 && p.summary.totalDeviationPercent <= 110).length;
-    const critical = filteredProjects.filter(p => p.summary.totalDeviationPercent > 110).length;
-    return { onBudget, warning, critical };
-  }, [filteredProjects]);
+  const sortedCompleted = React.useMemo(() => 
+    [...categorized.completed].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
+      return db - da; // Most recent first
+    }), [categorized.completed]);
 
   if (isLoading) {
     return (
@@ -260,330 +134,105 @@ const ProjectEconomyView: React.FC = () => {
     );
   }
 
-  const filterLabels: Record<StatusFilter, string> = {
-    all: 'Alla projekt',
-    ongoing: 'Pågående',
-    completed: 'Avslutade',
-    upcoming: 'Kommande',
+  const renderProjectRow = (project: ProjectWithEconomy) => {
+    const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
+    const closed = project.economyClosed;
+    const dateStr = project.eventdate 
+      ? new Date(project.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '—';
+    return (
+      <div key={project.id} className={cn("flex items-center justify-between py-2.5 px-3 border-b border-border/30 last:border-0 hover:bg-muted/40 transition-colors", closed && "opacity-60")}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Link
+            to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
+            className="text-sm font-medium text-primary hover:underline truncate"
+          >
+            {project.name}
+          </Link>
+          <Badge variant="outline" className={cn(
+            "text-[10px] font-medium shrink-0",
+            project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
+            project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
+            project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
+          )}>
+            {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          <span className="text-xs text-muted-foreground w-20 text-right">{dateStr}</span>
+          <span className="text-xs font-medium w-20 text-right">{formatCurrency(project.summary.totalBudget)}</span>
+          <span className={cn("text-xs font-mono font-bold w-20 text-right", getDeviationColor(devStatus))}>
+            {project.summary.totalDeviation > 0 ? '+' : ''}{formatCurrency(project.summary.totalDeviation)}
+          </span>
+          {!closed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              onClick={() => setClosingProject(project)}
+            >
+              <Lock className="h-3 w-3 mr-1" />
+              Stäng
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
-      {/* Status filter cards */}
-      <div className="flex flex-wrap gap-3">
-        <StatusFilterButton
-          filter="all"
-          active={statusFilter === 'all'}
-          count={categorized.all.length}
-          icon={<BarChart3 className="h-4 w-4 text-primary" />}
-          label="Alla"
-          onClick={() => setStatusFilter('all')}
-          color="bg-primary/10"
-        />
-        <StatusFilterButton
-          filter="ongoing"
-          active={statusFilter === 'ongoing'}
-          count={categorized.ongoing.length}
-          icon={<PlayCircle className="h-4 w-4 text-blue-600" />}
-          label="Pågående"
-          onClick={() => setStatusFilter('ongoing')}
-          color="bg-blue-100"
-        />
-        <StatusFilterButton
-          filter="upcoming"
-          active={statusFilter === 'upcoming'}
-          count={categorized.upcoming.length}
-          icon={<CalendarClock className="h-4 w-4 text-amber-600" />}
-          label="Kommande"
-          onClick={() => setStatusFilter('upcoming')}
-          color="bg-amber-100"
-        />
-        <StatusFilterButton
-          filter="completed"
-          active={statusFilter === 'completed'}
-          count={categorized.completed.length}
-          icon={<CheckCircle2 className="h-4 w-4 text-green-600" />}
-          label="Avslutade"
-          onClick={() => setStatusFilter('completed')}
-          color="bg-green-100"
-        />
-      </div>
-
-      {/* KPI Widgets Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MiniWidget
-          title="Total budget"
-          value={formatCurrency(kpis.totalBudget)}
-          subtitle={`Faktisk: ${formatCurrency(kpis.totalActual)}`}
-          icon={<Banknote className="w-5 h-5 text-primary" />}
-          trend={kpis.totalActual > kpis.totalBudget ? 'up' : 'down'}
-        />
-        <MiniWidget
-          title="Avvikelse"
-          value={`${kpis.totalDeviation > 0 ? '+' : ''}${formatCurrency(kpis.totalDeviation)}`}
-          subtitle={`${kpis.avgDeviationPercent.toFixed(0)}% av budget`}
-          icon={kpis.totalDeviation > 0 
-            ? <TrendingUp className="w-5 h-5 text-destructive" /> 
-            : <TrendingDown className="w-5 h-5 text-green-600" />}
-          trend={kpis.totalDeviation > 0 ? 'up' : 'down'}
-        />
-        <MiniWidget
-          title="Timmar"
-          value={formatHours(kpis.totalHoursActual)}
-          subtitle={`Budget: ${formatHours(kpis.totalHoursBudgeted)}`}
-          icon={<Clock className="w-5 h-5 text-muted-foreground" />}
-          trend={kpis.totalHoursActual > kpis.totalHoursBudgeted ? 'up' : 'neutral'}
-        />
-        <MiniWidget
-          title="Inköp totalt"
-          value={formatCurrency(kpis.totalPurchases)}
-          subtitle={`${kpis.totalProjects} projekt`}
-          icon={<Wallet className="w-5 h-5 text-muted-foreground" />}
-        />
-      </div>
-
-      {/* Dashboard Widgets Row */}
+      {/* Three category containers */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Budget Health Widget */}
+        {/* Pågående */}
         <Card className="border-border/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Budgetstatus
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <PlayCircle className="h-4 w-4 text-blue-600" />
+              Pågående
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedOngoing.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-green-600 font-medium">Inom budget</span>
-                <span className="font-bold">{budgetHealth.onBudget}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.onBudget / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-green-500" />
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-amber-600 font-medium">Varning (0-10%)</span>
-                <span className="font-bold">{budgetHealth.warning}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.warning / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-amber-500" />
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-destructive font-medium">Kritisk (&gt;10%)</span>
-                <span className="font-bold">{budgetHealth.critical}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.critical / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-destructive" />
-            </div>
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedOngoing.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga pågående projekt</p>
+            ) : sortedOngoing.map(renderProjectRow)}
           </CardContent>
         </Card>
 
-        {/* Top Deviating Projects Widget */}
-        <Card className="border-border/40 lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Största avvikelser — Avslutade projekt
+        {/* Kommande */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-amber-600" />
+              Kommande
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedUpcoming.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {topDeviating.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt med budgetdata</p>
-            ) : (
-              <div className="space-y-2.5">
-                {topDeviating.map(p => {
-                  const devPercent = p.summary.totalDeviationPercent;
-                  const devStatus = getDeviationStatus(devPercent);
-                  return (
-                    <div key={p.id} className="flex items-center gap-3">
-                      <Link 
-                        to={p.navigateTo}
-                        className="text-sm font-medium text-primary hover:underline truncate flex-1 min-w-0"
-                      >
-                        {p.name}
-                      </Link>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-24">
-                          <Progress 
-                            value={Math.min(devPercent, 150)} 
-                            className={cn(
-                              "h-2",
-                              devPercent <= 100 ? "[&>div]:bg-green-500" :
-                              devPercent <= 110 ? "[&>div]:bg-amber-500" :
-                              "[&>div]:bg-destructive"
-                            )}
-                          />
-                        </div>
-                        <span className={cn("text-xs font-mono font-bold w-12 text-right", getDeviationColor(devStatus))}>
-                          {devPercent.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedUpcoming.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga kommande projekt</p>
+            ) : sortedUpcoming.map(renderProjectRow)}
+          </CardContent>
+        </Card>
+
+        {/* Senast avslutade */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Senast avslutade
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedCompleted.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedCompleted.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga avslutade projekt</p>
+            ) : sortedCompleted.map(renderProjectRow)}
           </CardContent>
         </Card>
       </div>
 
-      {/* Margin & Summary Widgets */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className={cn(
-          "border-border/40",
-          kpis.avgMargin >= 0 ? "bg-green-50/50 border-green-200/50" : "bg-destructive/5 border-destructive/20"
-        )}>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Genomsnittlig marginal</p>
-            <p className={cn("text-3xl font-bold mt-1", kpis.avgMargin >= 0 ? "text-green-600" : "text-destructive")}>
-              {kpis.avgMargin.toFixed(1)}%
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {kpis.projectsOverBudget} projekt över budget
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/40">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Personal kostnader</p>
-            <p className="text-3xl font-bold text-foreground mt-1">
-              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffActual, 0))}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              Budget: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffBudget, 0))}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/40">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Leverantörsfakturor</p>
-            <p className="text-3xl font-bold text-foreground mt-1">
-              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.supplierInvoicesTotal, 0))}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Offerter: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.quotesTotal, 0))}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Project table */}
-      <Card className="border-border/40">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center justify-between">
-            <span>{filterLabels[statusFilter]} — Projektlista</span>
-            <Badge variant="secondary" className="text-xs font-normal">
-              {filteredProjects.length} projekt
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Projekt</th>
-                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Typ</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Budget</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Faktisk</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Inköp</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
-                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Fas</th>
-                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
-                  <th className="text-center py-3 px-4 font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="text-center py-8 text-muted-foreground">
-                      Inga projekt i kategorin "{filterLabels[statusFilter]}"
-                    </td>
-                  </tr>
-                )}
-                {filteredProjects.map(project => {
-                  const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
-                  const closed = project.economyClosed;
-                  const category = categorizeProject(project);
-                  return (
-                    <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
-                      <td className="py-3 px-4">
-                        <Link
-                          to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
-                          className="text-primary hover:underline font-medium"
-                        >
-                          {project.name}
-                        </Link>
-                      </td>
-                      <td className="text-center py-3 px-4">
-                        <Badge variant="outline" className={cn(
-                          "text-[10px] font-medium",
-                          project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
-                          project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
-                          project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
-                        )}>
-                          {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
-                        </Badge>
-                      </td>
-                      <td className="text-right py-3 px-4">
-                        {formatCurrency(project.summary.totalBudget)}
-                      </td>
-                      <td className="text-right py-3 px-4">
-                        {formatCurrency(project.summary.totalActual)}
-                      </td>
-                      <td className="text-right py-3 px-4 text-muted-foreground">
-                        {formatCurrency(project.summary.purchasesTotal)}
-                      </td>
-                      <td className={cn("text-right py-3 px-4 font-medium", getDeviationColor(devStatus))}>
-                        {project.summary.totalDeviation > 0 ? '+' : ''}
-                        {formatCurrency(project.summary.totalDeviation)}
-                      </td>
-                      <td className="text-right py-3 px-4">
-                        {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
-                      </td>
-                      <td className="text-center py-3 px-4">
-                        <Badge variant="outline" className={cn(
-                          "text-[10px] font-medium",
-                          category === 'ongoing' && "border-blue-300 text-blue-700 bg-blue-50",
-                          category === 'upcoming' && "border-amber-300 text-amber-700 bg-amber-50",
-                          category === 'completed' && "border-green-300 text-green-700 bg-green-50",
-                        )}>
-                          {category === 'ongoing' ? 'PÅGÅENDE' : category === 'upcoming' ? 'KOMMANDE' : 'AVSLUTAD'}
-                        </Badge>
-                      </td>
-                      <td className="text-center py-3 px-4">
-                        <Badge variant={closed ? "secondary" : "outline"} className={cn(
-                          "text-xs",
-                          closed ? "bg-muted text-muted-foreground" : "border-green-300 text-green-700 bg-green-50"
-                        )}>
-                          {closed ? 'STÄNGD' : 'ÖPPEN'}
-                        </Badge>
-                      </td>
-                      <td className="text-center py-3 px-4">
-                        {!closed && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setClosingProject(project);
-                            }}
-                          >
-                            <Lock className="h-3.5 w-3.5 mr-1" />
-                            Stäng
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Close project dialog */}
       <AlertDialog open={!!closingProject} onOpenChange={() => setClosingProject(null)}>
