@@ -22,7 +22,7 @@ const MobileProfile = () => {
   const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-card">
+    <div className="flex flex-col min-h-screen bg-card pb-24">
       {/* Header */}
       <div className="bg-primary rounded-b-3xl shadow-md">
         {/* Safe area – täcker telefonens statusbar */}
