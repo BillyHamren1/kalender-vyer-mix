@@ -50,9 +50,9 @@ const EconomyRiskList: React.FC<Props> = ({ risks }) => {
                 <div
                   key={p.id}
                   onClick={() => navigate(link)}
-                  className="flex items-start gap-3 py-2.5 px-2 rounded-lg hover:bg-destructive/5 cursor-pointer transition-colors group"
+                  className="flex items-start gap-3 py-2.5 px-2 rounded-lg hover:bg-muted/40 cursor-pointer transition-colors group"
                 >
-                  <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className={cn("text-[9px] px-1 py-0 font-medium shrink-0", TYPE_BADGE_CLASSES[p.projectSize])}>
