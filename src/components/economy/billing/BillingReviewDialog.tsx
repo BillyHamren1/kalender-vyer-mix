@@ -146,31 +146,36 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
 
   const handleCreateFortnoxInvoice = () => {
     // Build Fortnox payload from billing data
+    const today = new Date().toISOString().split('T')[0];
+    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
     const payload = {
-      CustomerNumber: '', // Will be resolved by Fortnox integration
+      CustomerNumber: '',
+      InvoiceDate: today,
+      DueDate: dueDate,
       InvoiceRows: invoiceData.materials
         .filter(m => !m.is_package_component)
         .map(m => ({
-          ArticleNumber: m.sku || undefined,
           Description: m.name,
-          DeliveredQuantity: m.quantity,
+          Quantity: m.quantity,
           Price: m.unit_price,
+          VAT: m.vat_rate ?? 25,
         })),
     };
 
     fortnoxInvoice.mutate(
       {
-        payload: payload as any,
-        clientData: billing.client_name ? { Name: billing.client_name } : undefined,
+        payload,
+        clientData: billing.client_name ? { name: billing.client_name } : undefined,
       },
       {
         onSuccess: (data) => {
           updateBilling.mutate({
             id: billing.id,
             billing_status: 'invoiced',
-            external_invoice_id: data.externalId || null,
+            external_invoice_id: data.fortnoxInvoiceId || null,
             invoice_number: data.invoiceNumber || null,
-            invoice_date: new Date().toISOString().split('T')[0],
+            invoice_date: today,
             invoiced_amount: billing.invoiceable_amount,
           } as any);
           onClose();
