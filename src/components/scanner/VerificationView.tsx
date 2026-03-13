@@ -155,7 +155,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     loadData();
   }, [loadData]);
 
-  // Start Kolli mode - create first parcel
+  const debouncedLoadData = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      loadData();
+    }, 2000);
+  }, [loadData]);
+
   const startKolliMode = useCallback(async () => {
     try {
       const parcel = await createParcel(packingId, verifierName);
