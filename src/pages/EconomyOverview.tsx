@@ -20,6 +20,7 @@ import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
 import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
+import BillingSection from '@/components/economy/billing/BillingSection';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -156,9 +157,12 @@ const EconomyOverview: React.FC = () => {
         {/* Tabbed content */}
         <Tabs defaultValue="projects" className="space-y-6">
           <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
-            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-3">
+            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-4">
               <TabsTrigger value="projects" className={tabTriggerClass}>
                 Kontrollcenter
+              </TabsTrigger>
+              <TabsTrigger value="billing" className={tabTriggerClass}>
+                Fakturering
               </TabsTrigger>
               <TabsTrigger value="staff" className={tabTriggerClass}>
                 Personal
@@ -171,6 +175,10 @@ const EconomyOverview: React.FC = () => {
 
           <TabsContent value="projects">
             <ProjectEconomyDashboard />
+          </TabsContent>
+
+          <TabsContent value="billing">
+            <BillingSection />
           </TabsContent>
 
           <TabsContent value="staff">

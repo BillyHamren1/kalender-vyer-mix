@@ -1965,6 +1965,108 @@ export type Database = {
           },
         ]
       }
+      project_billing: {
+        Row: {
+          approved_by: string | null
+          approved_for_invoicing_at: string | null
+          billing_status: Database["public"]["Enums"]["billing_status"]
+          booking_id: string | null
+          client_name: string | null
+          closed_at: string | null
+          created_at: string
+          delivery_date: string | null
+          due_date: string | null
+          event_date: string | null
+          external_invoice_id: string | null
+          id: string
+          internal_notes: string | null
+          invoice_date: string | null
+          invoice_number: string | null
+          invoice_paid_at: string | null
+          invoice_reference: string | null
+          invoice_sent_at: string | null
+          invoiceable_amount: number | null
+          invoiced_amount: number | null
+          organization_id: string
+          project_id: string
+          project_leader: string | null
+          project_name: string
+          project_type: string
+          quoted_amount: number | null
+          review_checklist: Json | null
+          review_completed_at: string | null
+          review_status: string | null
+          total_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          approved_for_invoicing_at?: string | null
+          billing_status?: Database["public"]["Enums"]["billing_status"]
+          booking_id?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          created_at?: string
+          delivery_date?: string | null
+          due_date?: string | null
+          event_date?: string | null
+          external_invoice_id?: string | null
+          id?: string
+          internal_notes?: string | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_paid_at?: string | null
+          invoice_reference?: string | null
+          invoice_sent_at?: string | null
+          invoiceable_amount?: number | null
+          invoiced_amount?: number | null
+          organization_id?: string
+          project_id: string
+          project_leader?: string | null
+          project_name: string
+          project_type: string
+          quoted_amount?: number | null
+          review_checklist?: Json | null
+          review_completed_at?: string | null
+          review_status?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          approved_for_invoicing_at?: string | null
+          billing_status?: Database["public"]["Enums"]["billing_status"]
+          booking_id?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          created_at?: string
+          delivery_date?: string | null
+          due_date?: string | null
+          event_date?: string | null
+          external_invoice_id?: string | null
+          id?: string
+          internal_notes?: string | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_paid_at?: string | null
+          invoice_reference?: string | null
+          invoice_sent_at?: string | null
+          invoiceable_amount?: number | null
+          invoiced_amount?: number | null
+          organization_id?: string
+          project_id?: string
+          project_leader?: string | null
+          project_name?: string
+          project_type?: string
+          quoted_amount?: number | null
+          review_checklist?: Json | null
+          review_completed_at?: string | null
+          review_status?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       project_budget: {
         Row: {
           budgeted_hours: number
@@ -3451,6 +3553,15 @@ export type Database = {
     Enums: {
       app_role: "admin" | "forsaljning" | "projekt" | "lager"
       availability_type: "available" | "unavailable" | "blocked"
+      billing_status:
+        | "not_ready"
+        | "under_review"
+        | "ready_to_invoice"
+        | "invoice_created"
+        | "invoiced"
+        | "partially_paid"
+        | "paid"
+        | "overdue"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3580,6 +3691,16 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "forsaljning", "projekt", "lager"],
       availability_type: ["available", "unavailable", "blocked"],
+      billing_status: [
+        "not_ready",
+        "under_review",
+        "ready_to_invoice",
+        "invoice_created",
+        "invoiced",
+        "partially_paid",
+        "paid",
+        "overdue",
+      ],
     },
   },
 } as const
