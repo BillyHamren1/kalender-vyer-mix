@@ -12,14 +12,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Banknote } from 'lucide-react';
-import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
 import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
 import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
-import EconomyForecastPanel from '@/components/economy/EconomyForecastPanel';
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,12 +26,17 @@ import { toast } from 'sonner';
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 const ProjectEconomyDashboard: React.FC = () => {
-  const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
   const [closingProject, setClosingProject] = useState<EconomyProjectInsight | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
-  const { kpis, forecasts, risks, invoicingQueue, completedProjects } = useEconomyDashboard(projectsWithEconomy);
+  const {
+    isLoading,
+    dashboardSummary,
+    invoicingQueue,
+    completedProjects,
+    riskProjects,
+  } = useEconomyDashboard();
 
   const handleCloseProject = async () => {
     if (!closingProject) return;
@@ -62,14 +65,11 @@ const ProjectEconomyDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
         <Skeleton className="h-64 rounded-xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Skeleton className="h-72 rounded-xl" />
-          <Skeleton className="h-72 rounded-xl" />
-        </div>
+        <Skeleton className="h-48 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
       </div>
     );
@@ -77,10 +77,10 @@ const ProjectEconomyDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 1. TOP KPI ROW */}
-      <EconomyKpiCards kpis={kpis} />
+      {/* A. KPI-rad */}
+      <EconomyKpiCards summary={dashboardSummary} />
 
-      {/* 2. INVOICING CENTER */}
+      {/* B. Faktureringscenter */}
       <EconomyInvoicingQueue
         readyForInvoicing={invoicingQueue.readyForInvoicing}
         partiallyInvoiced={invoicingQueue.partiallyInvoiced}
@@ -88,13 +88,10 @@ const ProjectEconomyDashboard: React.FC = () => {
         onCloseProject={setClosingProject}
       />
 
-      {/* 3. FORECASTS + RISK SIDE BY SIDE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <EconomyForecastPanel forecasts={forecasts} />
-        <EconomyRiskList risks={risks} />
-      </div>
+      {/* C. Risklista */}
+      <EconomyRiskList risks={riskProjects} />
 
-      {/* 4. COMPLETED PROJECTS */}
+      {/* D. Avslutade projekt */}
       <EconomyCompletedProjects projects={completedProjects} />
 
       {/* Close project dialog */}
