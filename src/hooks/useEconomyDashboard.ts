@@ -67,8 +67,9 @@ export interface UseEconomyDashboardResult {
   ongoingProjects: EconomyProjectInsight[];
   readyForInvoicingProjects: EconomyProjectInsight[];
 
-  // Forecasts
   forecasts: EconomyForecastBucket[];
+  forecastDrivers: ForecastDrivers;
+  leadershipMetrics: LeadershipMetrics;
 
   // Grouped by status
   byStatus: Record<EconomyProjectStatus, EconomyProjectInsight[]>;
