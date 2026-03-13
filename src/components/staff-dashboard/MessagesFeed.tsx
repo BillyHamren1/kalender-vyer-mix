@@ -44,6 +44,7 @@ const MessagesFeed = ({ messages, isLoading }: MessagesFeedProps) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const adminName = user?.email || 'Admin';
+  const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
