@@ -225,26 +225,27 @@ const ProjectEconomyView: React.FC = () => {
     return { all: projectsWithEconomy, ongoing, completed, upcoming };
   }, [projectsWithEconomy]);
 
-  const filteredProjects = categorized[statusFilter];
-  const kpis = React.useMemo(() => aggregateProjects(filteredProjects), [filteredProjects]);
-  const allKpis = React.useMemo(() => aggregateProjects(categorized.all), [categorized.all]);
+  // Sort each category by date
+  const sortedOngoing = React.useMemo(() => 
+    [...categorized.ongoing].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
+      return da - db;
+    }), [categorized.ongoing]);
 
-  // Top deviating projects — only completed projects are meaningful
-  const topDeviating = React.useMemo(() => {
-    return [...categorized.completed]
-      .filter(p => p.summary.totalBudget > 0)
-      .sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent)
-      .slice(0, 5);
-  }, [categorized.completed]);
+  const sortedUpcoming = React.useMemo(() => 
+    [...categorized.upcoming].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : Infinity;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : Infinity;
+      return da - db;
+    }), [categorized.upcoming]);
 
-  // Budget health distribution
-  const budgetHealth = React.useMemo(() => {
-    if (!filteredProjects.length) return { onBudget: 0, warning: 0, critical: 0 };
-    const onBudget = filteredProjects.filter(p => p.summary.totalDeviationPercent <= 100).length;
-    const warning = filteredProjects.filter(p => p.summary.totalDeviationPercent > 100 && p.summary.totalDeviationPercent <= 110).length;
-    const critical = filteredProjects.filter(p => p.summary.totalDeviationPercent > 110).length;
-    return { onBudget, warning, critical };
-  }, [filteredProjects]);
+  const sortedCompleted = React.useMemo(() => 
+    [...categorized.completed].sort((a, b) => {
+      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
+      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
+      return db - da; // Most recent first
+    }), [categorized.completed]);
 
   if (isLoading) {
     return (
