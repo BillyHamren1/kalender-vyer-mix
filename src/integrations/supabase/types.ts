@@ -3553,15 +3553,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "forsaljning" | "projekt" | "lager"
       availability_type: "available" | "unavailable" | "blocked"
-      billing_status:
-        | "not_ready"
-        | "under_review"
-        | "ready_to_invoice"
-        | "invoice_created"
-        | "invoiced"
-        | "partially_paid"
-        | "paid"
-        | "overdue"
+      billing_status: "draft" | "ready" | "invoiced"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3691,16 +3683,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "forsaljning", "projekt", "lager"],
       availability_type: ["available", "unavailable", "blocked"],
-      billing_status: [
-        "not_ready",
-        "under_review",
-        "ready_to_invoice",
-        "invoice_created",
-        "invoiced",
-        "partially_paid",
-        "paid",
-        "overdue",
-      ],
+      billing_status: ["draft", "ready", "invoiced"],
     },
   },
 } as const

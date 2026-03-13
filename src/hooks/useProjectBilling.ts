@@ -2,15 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type BillingStatus = 
-  | 'not_ready'
-  | 'under_review'
-  | 'ready_to_invoice'
-  | 'invoice_created'
-  | 'invoiced'
-  | 'partially_paid'
-  | 'paid'
-  | 'overdue';
+export type BillingStatus = 'draft' | 'ready' | 'invoiced';
 
 export type ReviewStatus = 'pending' | 'in_review' | 'needs_completion' | 'approved';
 
@@ -46,9 +38,6 @@ export interface ProjectBilling {
   external_invoice_id: string | null;
   invoice_reference: string | null;
   invoice_date: string | null;
-  due_date: string | null;
-  invoice_sent_at: string | null;
-  invoice_paid_at: string | null;
   review_status: ReviewStatus;
   review_completed_at: string | null;
   approved_for_invoicing_at: string | null;
@@ -111,7 +100,7 @@ export function useCreateProjectBilling() {
         .upsert({
           project_id: params.project_id,
           project_type: params.project_type,
-          billing_status: 'under_review',
+          billing_status: 'draft',
           project_name: params.project_name,
           client_name: params.client_name ?? null,
           booking_id: params.booking_id ?? null,
@@ -158,7 +147,6 @@ export function useUpdateProjectBilling() {
   });
 }
 
-// Convenience: advance billing status
 export function useAdvanceBillingStatus() {
   const update = useUpdateProjectBilling();
   
@@ -166,16 +154,10 @@ export function useAdvanceBillingStatus() {
     ...update,
     advance: (id: string, newStatus: BillingStatus, extras?: Partial<ProjectBilling>) => {
       const timestampFields: Partial<ProjectBilling> = {};
-      if (newStatus === 'ready_to_invoice') {
+      if (newStatus === 'ready') {
         timestampFields.approved_for_invoicing_at = new Date().toISOString();
         timestampFields.review_status = 'approved';
         timestampFields.review_completed_at = new Date().toISOString();
-      }
-      if (newStatus === 'invoiced') {
-        timestampFields.invoice_sent_at = new Date().toISOString();
-      }
-      if (newStatus === 'paid') {
-        timestampFields.invoice_paid_at = new Date().toISOString();
       }
       
       return update.mutate({
@@ -191,29 +173,13 @@ export function useAdvanceBillingStatus() {
 // Group billing records by status
 export function groupByBillingStatus(items: ProjectBilling[]) {
   const groups: Record<BillingStatus, ProjectBilling[]> = {
-    not_ready: [],
-    under_review: [],
-    ready_to_invoice: [],
-    invoice_created: [],
+    draft: [],
+    ready: [],
     invoiced: [],
-    partially_paid: [],
-    paid: [],
-    overdue: [],
   };
   
   for (const item of items) {
-    // Check for overdue
-    if (
-      item.due_date &&
-      new Date(item.due_date) < new Date() &&
-      item.billing_status !== 'paid' &&
-      item.billing_status !== 'partially_paid' &&
-      ['invoiced', 'invoice_created'].includes(item.billing_status)
-    ) {
-      groups.overdue.push(item);
-    } else {
-      groups[item.billing_status].push(item);
-    }
+    groups[item.billing_status].push(item);
   }
   
   return groups;

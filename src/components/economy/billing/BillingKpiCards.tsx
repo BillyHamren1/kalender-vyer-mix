@@ -3,9 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Search,
   FileCheck,
-  Send,
-  AlertTriangle,
-  Banknote,
+  Receipt,
+  FileWarning,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ProjectBilling, BillingStatus } from '@/hooks/useProjectBilling';
@@ -21,26 +20,23 @@ interface KpiDef {
   count: number;
   icon: React.ReactNode;
   iconBg: string;
-  highlight?: boolean;
   filterKey: FilterTab;
 }
 
 interface Props {
-  underReview: ProjectBilling[];
-  readyToInvoice: ProjectBilling[];
-  invoiced: ProjectBilling[];
-  overdue: ProjectBilling[];
-  paidThisMonth: ProjectBilling[];
+  draft: ProjectBilling[];
+  ready: ProjectBilling[];
+  invoicedThisMonth: ProjectBilling[];
+  uninvoicedValue: number;
   onFilterClick?: (filter: FilterTab) => void;
   activeFilter?: FilterTab;
 }
 
 const BillingKpiCards: React.FC<Props> = ({
-  underReview,
-  readyToInvoice,
-  invoiced,
-  overdue,
-  paidThisMonth,
+  draft,
+  ready,
+  invoicedThisMonth,
+  uninvoicedValue,
   onFilterClick,
   activeFilter,
 }) => {
@@ -50,49 +46,40 @@ const BillingKpiCards: React.FC<Props> = ({
   const kpis: KpiDef[] = [
     {
       title: 'Att granska',
-      amount: sum(underReview, 'invoiceable_amount'),
-      count: underReview.length,
+      amount: sum(draft, 'invoiceable_amount'),
+      count: draft.length,
       icon: <Search className="w-4 h-4 text-amber-600" />,
       iconBg: 'bg-amber-50 dark:bg-amber-950/30',
-      filterKey: 'under_review',
+      filterKey: 'draft',
     },
     {
       title: 'Redo att fakturera',
-      amount: sum(readyToInvoice, 'invoiceable_amount'),
-      count: readyToInvoice.length,
+      amount: sum(ready, 'invoiceable_amount'),
+      count: ready.length,
       icon: <FileCheck className="w-4 h-4 text-blue-600" />,
       iconBg: 'bg-blue-50 dark:bg-blue-950/30',
-      filterKey: 'ready_to_invoice',
+      filterKey: 'ready',
     },
     {
-      title: 'Skickat, obetalt',
-      amount: sum(invoiced, 'invoiced_amount'),
-      count: invoiced.length,
-      icon: <Send className="w-4 h-4 text-purple-600" />,
-      iconBg: 'bg-purple-50 dark:bg-purple-950/30',
+      title: 'Fakturerat denna månad',
+      amount: sum(invoicedThisMonth, 'invoiced_amount'),
+      count: invoicedThisMonth.length,
+      icon: <Receipt className="w-4 h-4 text-green-600" />,
+      iconBg: 'bg-green-50 dark:bg-green-950/30',
       filterKey: 'invoiced',
     },
     {
-      title: 'Förfallet',
-      amount: sum(overdue, 'invoiced_amount'),
-      count: overdue.length,
-      icon: <AlertTriangle className="w-4 h-4 text-destructive" />,
-      iconBg: 'bg-destructive/10',
-      highlight: overdue.length > 0,
-      filterKey: 'overdue',
-    },
-    {
-      title: 'Inbetalt denna månad',
-      amount: sum(paidThisMonth, 'invoiced_amount'),
-      count: paidThisMonth.length,
-      icon: <Banknote className="w-4 h-4 text-green-600" />,
-      iconBg: 'bg-green-50 dark:bg-green-950/30',
-      filterKey: 'paid',
+      title: 'Ofakturerat värde',
+      amount: uninvoicedValue,
+      count: draft.length + ready.length,
+      icon: <FileWarning className="w-4 h-4 text-muted-foreground" />,
+      iconBg: 'bg-muted',
+      filterKey: 'all',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {kpis.map((kpi) => {
         const isActive = activeFilter === kpi.filterKey;
         return (
@@ -101,7 +88,6 @@ const BillingKpiCards: React.FC<Props> = ({
             onClick={() => onFilterClick?.(isActive ? 'all' : kpi.filterKey)}
             className={cn(
               'border-border/40 transition-all cursor-pointer hover:shadow-md',
-              kpi.highlight && 'ring-1 ring-destructive/20 border-destructive/30',
               isActive && 'ring-1 ring-primary/30 border-primary/40 shadow-md'
             )}
           >
