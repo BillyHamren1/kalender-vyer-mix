@@ -7,7 +7,8 @@ import { type LucideIcon,
   ChevronDown,
   PieChart,
   Truck,
-   ChevronsLeft,
+  ChevronsLeft,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
