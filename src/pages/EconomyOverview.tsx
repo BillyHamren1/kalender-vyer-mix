@@ -56,7 +56,6 @@ function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'up
 const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
