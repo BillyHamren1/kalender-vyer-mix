@@ -224,7 +224,6 @@ const DrillDownPanel: React.FC<{
             <thead>
               <tr className="bg-muted/30 sticky top-0">
                 <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Projekt</th>
-                <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Kund</th>
                 <th className="text-left py-1.5 px-3 font-semibold text-muted-foreground">Eventdatum</th>
                 <th className="text-right py-1.5 px-3 font-semibold text-muted-foreground">Intäkt</th>
                 <th className="text-right py-1.5 px-3 font-semibold text-muted-foreground">Kostnad</th>
@@ -235,9 +234,8 @@ const DrillDownPanel: React.FC<{
               {sorted.map(p => {
                 const pTb = p.quotedAmount - p.actualCost;
                 return (
-                  <tr key={p.projectId} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
-                    <td className="py-1.5 px-3 font-medium truncate max-w-[200px]">{p.projectName}</td>
-                    <td className="py-1.5 px-3 text-muted-foreground truncate max-w-[150px]">{p.clientName}</td>
+                  <tr key={p.id} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
+                    <td className="py-1.5 px-3 font-medium truncate max-w-[250px]">{p.name}</td>
                     <td className="py-1.5 px-3 text-muted-foreground">{p.eventdate || '–'}</td>
                     <td className="py-1.5 px-3 text-right font-medium">{formatCurrency(p.quotedAmount)}</td>
                     <td className="py-1.5 px-3 text-right text-muted-foreground">{formatCurrency(p.actualCost)}</td>
