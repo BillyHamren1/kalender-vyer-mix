@@ -53,6 +53,12 @@ export function useDashboardEvents(
   currentDate: Date,
   activeCategories: EventCategory[]
 ) {
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'dashboard-events-realtime',
+    tables: ['calendar_events', 'bookings', 'transport_assignments'],
+    queryKeys: [['dashboard-planning'], ['dashboard-warehouse'], ['dashboard-logistics']],
+  });
   const { start, end } = getDateRange(viewMode, currentDate);
   const startStr = format(start, 'yyyy-MM-dd');
   const endStr = format(end, 'yyyy-MM-dd');
