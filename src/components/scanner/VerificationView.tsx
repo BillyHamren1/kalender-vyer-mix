@@ -83,13 +83,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Debounced background sync ref
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const debouncedLoadData = useCallback(() => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      loadData();
-    }, 2000);
-  }, [loadData]);
-
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
@@ -113,6 +106,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
     setProgress({ total, verified, percentage });
   }, []);
+
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
