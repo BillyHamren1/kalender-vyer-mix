@@ -68,6 +68,7 @@ interface BookingData {
   assigned_to_project?: boolean;
   map_drawing_url?: string;
   economics_data?: Record<string, number> | null;
+  organization_id?: string;
 }
 
 /**
