@@ -146,49 +146,20 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     </div>
   );
 
-  // If read-only, skip the edit popovers and dialogs
+  // If read-only, just render the card with double-click for details
   if (readOnly) {
     return (
-      <EventHoverCard 
-        event={event}
-        onDoubleClick={handleViewDetails}
-        disabled={false}
-      >
+      <div onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
         {eventCardContent}
-      </EventHoverCard>
+      </div>
     );
   }
 
   return (
     <>
-      <EventHoverCard 
-        event={event}
-        onDoubleClick={handleViewDetails}
-        disabled={isPopoverOpen}
-      >
-        <QuickTimeEditPopover
-          event={event}
-          onUpdate={onEventResize}
-          onMoveDate={() => {
-            // EDIT CONTROLLER: Gate move-date behind mutex
-            const granted = moveDateHandlers.onOpen(event);
-            if (granted) {
-              setShowDateDialog(true);
-            }
-          }}
-          onOpenChange={(open) => {
-            setIsPopoverOpen(open);
-            // EDIT CONTROLLER: Track quick-time edit state
-            if (open) {
-              quickTimeHandlers.onOpen(event, true); // force — popover is primary
-            } else {
-              quickTimeHandlers.onClose();
-            }
-          }}
-        >
-          {eventCardContent}
-        </QuickTimeEditPopover>
-      </EventHoverCard>
+      <div onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
+        {eventCardContent}
+      </div>
       
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
