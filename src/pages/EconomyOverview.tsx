@@ -84,7 +84,7 @@ const ProjectEconomyDashboard: React.FC = () => {
       <EconomyInvoicingQueue
         readyForInvoicing={invoicingQueue.readyForInvoicing}
         partiallyInvoiced={invoicingQueue.partiallyInvoiced}
-        completedNotInvoiced={invoicingQueue.completedNotInvoiced}
+        completedNotInvoiced={invoicingQueue.overdue}
         onCloseProject={setClosingProject}
       />
 

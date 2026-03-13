@@ -52,12 +52,12 @@ const InvoiceRow: React.FC<{ project: EnrichedProject; onClose?: () => void }> =
         </div>
       </td>
       <td className="py-2.5 px-3 text-xs text-muted-foreground">{formatDate(project.eventdate)}</td>
-      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(project.expectedRevenue)}</td>
-      <td className="py-2.5 px-3 text-xs text-right text-green-600 font-medium">{formatCurrency(project.totalInvoiced)}</td>
+      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(project.quotedAmount)}</td>
+      <td className="py-2.5 px-3 text-xs text-right text-green-600 font-medium">{formatCurrency(project.invoicedAmount)}</td>
       <td className="py-2.5 px-3 text-xs text-right font-bold text-primary">{formatCurrency(project.remainingToInvoice)}</td>
-      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(project.totalCost)}</td>
+      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(project.actualCost)}</td>
       <td className={cn("py-2.5 px-3 text-xs text-right font-semibold", marginColor)}>
-        {project.projectedMarginPercent.toFixed(0)}%
+        {project.forecastMarginPercent.toFixed(0)}%
       </td>
       <td className="py-2.5 px-3">
         <EconomyStatusBadge status={project.economyStatus} />
