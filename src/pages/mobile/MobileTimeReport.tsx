@@ -96,7 +96,7 @@ const MobileTimeReport = () => {
         </div>
       </div>
 
-      <div className="flex-1 px-4 py-2.5 space-y-2.5">
+      <div className="flex-1 px-4 py-2.5 pb-24 space-y-2.5">
         {/* Active timers */}
         {activeTimers.size > 0 && (
           <div className="space-y-2">
