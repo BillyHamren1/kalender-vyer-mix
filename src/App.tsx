@@ -17,6 +17,7 @@ import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
 import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 
 // Main system pages
+import InvoicingPage from "./pages/InvoicingPage";
 
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
