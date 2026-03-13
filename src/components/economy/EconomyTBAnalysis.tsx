@@ -476,6 +476,9 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
                 })}
               </div>
             </div>
+
+            <div className={cn("grid gap-3", orderYoY.years.length <= 2 ? "grid-cols-2" : `grid-cols-${Math.min(orderYoY.years.length, 4)}`)}>
+              {orderYoY.years.map((y, i) => (
                 <div key={y} className={cn("rounded-xl border p-4", i === orderYoY.years.length - 1 ? "border-primary/20 bg-primary/5" : "border-border/40 bg-muted/10")}>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{y}</p>
                   <p className="text-2xl font-bold text-foreground">{formatCurrency(orderSummary[y] || 0)} kr</p>
