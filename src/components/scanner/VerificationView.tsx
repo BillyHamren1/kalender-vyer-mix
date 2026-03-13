@@ -219,29 +219,39 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       toast.success(`${result.productName} verifierad!`);
       
+      // Optimistic local update — find item by SKU and increment
+      setItems(prev => {
+        const updated = prev.map(item => {
+          if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
+            return { ...item, quantity_packed: Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack) };
+          }
+          return item;
+        });
+        recalcProgress(updated);
+        return updated;
+      });
+
       // If in Kolli mode, assign scanned item to active parcel
       if (isKolliMode && activeParcel) {
-        // Find the item that was just verified
-        const itemsData = await fetchPackingListItems(packingId);
-        const justVerifiedItem = (itemsData as PackingItem[]).find(
+        const matchedItem = items.find(
           item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()
         );
-        if (justVerifiedItem) {
-          await assignItemToParcel(justVerifiedItem.id, activeParcel.id);
-          setItemParcelMap(prev => ({ ...prev, [justVerifiedItem.id]: activeParcel.parcel_number }));
+        if (matchedItem) {
+          await assignItemToParcel(matchedItem.id, activeParcel.id);
+          setItemParcelMap(prev => ({ ...prev, [matchedItem.id]: activeParcel.parcel_number }));
           toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
         }
       }
       
-      // Refresh data
-      loadData();
+      // Debounced background sync
+      debouncedLoadData();
     } else {
       toast.error(result.error);
     }
 
     // Close QR scanner after scan
     setIsQRActive(false);
-  }, [packingId, verifierName, loadData, isKolliMode, activeParcel]);
+  }, [packingId, verifierName, debouncedLoadData, isKolliMode, activeParcel, items, recalcProgress]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
@@ -255,6 +265,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       toast.success(isCurrentlyPacked ? 'Avmarkerad' : 'Markerad som packad');
       
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(item => {
+          if (item.id === itemId) {
+            const newPacked = isCurrentlyPacked ? 0 : Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack);
+            return { ...item, quantity_packed: newPacked };
+          }
+          return item;
+        });
+        recalcProgress(updated);
+        return updated;
+      });
+      
       // If in Kolli mode and we're packing (not unpacking), assign to parcel
       if (isKolliMode && activeParcel && !isCurrentlyPacked) {
         await assignItemToParcel(itemId, activeParcel.id);
@@ -262,11 +285,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
       }
       
-      loadData();
+      // Debounced background sync
+      debouncedLoadData();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, loadData, isKolliMode, activeParcel]);
+  }, [verifierName, debouncedLoadData, isKolliMode, activeParcel, recalcProgress]);
 
   if (isLoading) {
     return (
