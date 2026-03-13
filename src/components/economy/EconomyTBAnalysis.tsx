@@ -7,7 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { BarChart3, Download, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell } from 'recharts';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval, parseISO, isBefore, subMonths, addMonths, getYear, getMonth } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
