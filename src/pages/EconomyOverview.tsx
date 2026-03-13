@@ -19,6 +19,9 @@ import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
 import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
+import EconomyForecastPanel from '@/components/economy/EconomyForecastPanel';
+import EconomyLeadershipSummary from '@/components/economy/EconomyLeadershipSummary';
+import EconomyForecastDrivers from '@/components/economy/EconomyForecastDrivers';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -36,6 +39,9 @@ const ProjectEconomyDashboard: React.FC = () => {
     invoicingQueue,
     completedProjects,
     riskProjects,
+    forecasts,
+    forecastDrivers,
+    leadershipMetrics,
   } = useEconomyDashboard();
 
   const handleCloseProject = async () => {
@@ -68,9 +74,11 @@ const ProjectEconomyDashboard: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
+        <Skeleton className="h-24 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
         <Skeleton className="h-48 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
       </div>
     );
   }
@@ -80,7 +88,10 @@ const ProjectEconomyDashboard: React.FC = () => {
       {/* A. KPI-rad */}
       <EconomyKpiCards summary={dashboardSummary} />
 
-      {/* B. Faktureringscenter */}
+      {/* B. Ledningsöverblick */}
+      <EconomyLeadershipSummary metrics={leadershipMetrics} />
+
+      {/* C. Faktureringscenter */}
       <EconomyInvoicingQueue
         readyForInvoicing={invoicingQueue.readyForInvoicing}
         partiallyInvoiced={invoicingQueue.partiallyInvoiced}
@@ -88,10 +99,16 @@ const ProjectEconomyDashboard: React.FC = () => {
         onCloseProject={setClosingProject}
       />
 
-      {/* C. Risklista */}
+      {/* D. Prognos & framåtblick */}
+      <EconomyForecastPanel forecasts={forecasts} />
+
+      {/* E. Vad driver prognosen */}
+      <EconomyForecastDrivers drivers={forecastDrivers} />
+
+      {/* F. Risklista */}
       <EconomyRiskList risks={riskProjects} />
 
-      {/* D. Avslutade projekt */}
+      {/* G. Avslutade projekt */}
       <EconomyCompletedProjects projects={completedProjects} />
 
       {/* Close project dialog */}
