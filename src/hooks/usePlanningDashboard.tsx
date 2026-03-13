@@ -29,10 +29,17 @@ import { useRealtimeInvalidation } from "./useRealtimeInvalidation";
 export const usePlanningDashboard = (currentWeekStart: Date) => {
   const queryClient = useQueryClient();
 
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'planning-dashboard-realtime',
+    tables: ['staff_assignments', 'booking_staff_assignments', 'bookings', 'calendar_events'],
+    queryKeys: [['planning-dashboard']],
+  });
+
   const statsQuery = useQuery<PlanningStats>({
     queryKey: ['planning-dashboard', 'stats'],
     queryFn: fetchPlanningStats,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const locationsQuery = useQuery<StaffLocation[]>({
