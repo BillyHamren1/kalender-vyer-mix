@@ -161,7 +161,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Medelstort projekt"
               >
                 <FolderKanban className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Medel</span>
+                <span>Medel</span>
               </Button>
               <Button
                 variant="ghost"
