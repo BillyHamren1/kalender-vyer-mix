@@ -290,6 +290,15 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
     if (r !== 'custom') { setCustomFrom(undefined); setCustomTo(undefined); }
   };
 
+  const toggleYear = (year: number) => {
+    setSelectedYears(prev => {
+      if (prev.includes(year)) {
+        return prev.filter(y => y !== year);
+      }
+      return [...prev, year].sort();
+    });
+  };
+
   const handleFromSelect = (d: Date | undefined) => { setCustomFrom(d); setQuickRange('custom'); setFromOpen(false); };
   const handleToSelect = (d: Date | undefined) => { setCustomTo(d); setQuickRange('custom'); setToOpen(false); };
 
