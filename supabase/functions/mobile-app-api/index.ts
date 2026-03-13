@@ -135,6 +135,8 @@ Deno.serve(async (req) => {
         return await handleCreateComment(supabase, staffId, data, organizationId)
       case 'upload_file':
         return await handleUploadFile(supabase, staffId, data, organizationId)
+      case 'send_message':
+        return await handleSendMessage(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
