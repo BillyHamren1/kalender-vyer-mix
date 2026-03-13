@@ -42,8 +42,8 @@ function groupByDate(messages: StaffMessage[]) {
 
 const MessagesFeed = ({ messages, isLoading }: MessagesFeedProps) => {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
-  const [input, setInput] = useState('');
+  const { user } = useAuth();
+  const adminName = user?.email || 'Admin';
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
