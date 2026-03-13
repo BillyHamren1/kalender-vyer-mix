@@ -233,6 +233,7 @@ export const useEconomyOverviewData = () => {
         // For projects with a single booking
         const primaryBookingId = entry.booking_ids[0] ?? null;
         const eventdate = primaryBookingId ? (eventdateMap[primaryBookingId] ?? null) : null;
+        const bookingCreatedAt = primaryBookingId ? (createdAtMap[primaryBookingId] ?? null) : null;
 
         if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
           return {
