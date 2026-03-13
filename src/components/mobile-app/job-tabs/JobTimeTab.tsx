@@ -1,35 +1,19 @@
 import { useState, useEffect } from 'react';
-import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
+import { MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Clock, Loader2 } from 'lucide-react';
 
 interface JobTimeTabProps {
   bookingId: string;
+  timeReports?: any[];
 }
 
-const JobTimeTab = ({ bookingId }: JobTimeTabProps) => {
-  const [reports, setReports] = useState<MobileTimeReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    mobileApi.getTimeReports()
-      .then(res => {
-        // Filter to this booking
-        const filtered = res.time_reports.filter(r => r.booking_id === bookingId);
-        setReports(filtered);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, [bookingId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
+const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
+  const reports: MobileTimeReport[] = (timeReports || []).filter(
+    (r: any) => r.booking_id === bookingId
+  );
+  const isLoading = false;
 
   if (reports.length === 0) {
     return (

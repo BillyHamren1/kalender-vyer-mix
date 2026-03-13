@@ -200,7 +200,7 @@ const MobileExpenses = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleCameraClick}
                   className="w-full h-20 rounded-xl border border-dashed border-primary/25 flex flex-col items-center justify-center gap-1 bg-primary/5 transition-colors"
                 >
                   <Camera className="w-5 h-5 text-primary/70" />
