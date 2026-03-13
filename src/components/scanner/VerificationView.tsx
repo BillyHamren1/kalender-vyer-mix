@@ -80,7 +80,39 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Stable item order map (item.id -> initial index)
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
 
-  // Kolli mode state
+  // Debounced background sync ref
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedLoadData = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      loadData();
+    }, 2000);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, []);
+
+  // Recalculate progress locally
+  const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
+    const parentProductIds = new Set<string>();
+    updatedItems.forEach(item => {
+      const pid = item.booking_products?.parent_product_id;
+      if (pid) parentProductIds.add(pid);
+    });
+    const countable = updatedItems.filter(item => {
+      const productId = item.booking_products?.id;
+      return !productId || !parentProductIds.has(productId);
+    });
+    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
+    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
+    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
+    setProgress({ total, verified, percentage });
+  }, []);
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
