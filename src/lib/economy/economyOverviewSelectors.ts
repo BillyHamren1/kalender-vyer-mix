@@ -473,26 +473,8 @@ export function getRiskProjects(projects: EconomyProjectInsight[]): EconomyRiskI
       reasons.push('Avslutat men ej fakturerat');
     }
 
-    // Missing supplier invoices (only relevant for non-upcoming)
-    if (
-      p.missingDataFlags.includes('missing-supplier-invoices') &&
-      !['upcoming', 'economy-closed'].includes(p.economyStatus)
-    ) {
-      reasons.push('Saknar leverantörsfakturor');
-    }
-
-    // Missing time reports (relevant for active/completed)
-    if (
-      p.missingDataFlags.includes('missing-time-reports') &&
-      !['upcoming', 'economy-closed'].includes(p.economyStatus)
-    ) {
-      reasons.push('Saknar tidrapporter');
-    }
-
-    // Missing budget AND quote
-    if (p.missingDataFlags.includes('missing-budget') && p.missingDataFlags.includes('missing-quote')) {
-      reasons.push('Saknar budget och offertdata');
-    }
+    // Note: Missing data (supplier invoices, time reports, budget) is NOT treated
+    // as a risk — it's normal for many projects to not have all data filled in.
 
     if (reasons.length > 0) {
       risks.push({ project: p, reasons });

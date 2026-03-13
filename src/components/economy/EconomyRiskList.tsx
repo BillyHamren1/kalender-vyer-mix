@@ -63,7 +63,7 @@ const EconomyRiskList: React.FC<Props> = ({ risks }) => {
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {reasons.map((r, i) => (
-                        <span key={i} className="text-[10px] text-destructive/80 bg-destructive/5 px-1.5 py-0.5 rounded font-medium">
+                        <span key={i} className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-medium">
                           {r}
                         </span>
                       ))}
