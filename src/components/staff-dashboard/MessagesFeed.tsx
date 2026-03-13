@@ -77,7 +77,6 @@ const MessagesFeed = ({ messages, isLoading }: MessagesFeedProps) => {
     if (!input.trim() || sending) return;
     setSending(true);
     try {
-      const adminName = profile?.full_name || profile?.email || 'Admin';
       await sendAdminMessage(input, adminName);
       setInput('');
       queryClient.invalidateQueries({ queryKey: ['staff-dashboard-messages'] });
