@@ -22,7 +22,7 @@ const EconomyRiskList: React.FC<Props> = ({ risks }) => {
   const navigate = useNavigate();
 
   return (
-    <Card className={cn("border-border/40", risks.length > 0 && "border-destructive/20")}>
+    <Card className="border-border/40">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
