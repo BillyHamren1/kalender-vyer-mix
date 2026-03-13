@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useProjectBilling';
 import BillingKpiCards from './BillingKpiCards';
 import BillingPipeline from './BillingPipeline';
-import BillingReviewPanel from './BillingReviewPanel';
+import BillingReviewDialog from './BillingReviewDialog';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 const BillingSection: React.FC = () => {
