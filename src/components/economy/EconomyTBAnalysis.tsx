@@ -7,8 +7,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { BarChart3, Download, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell } from 'recharts';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval, parseISO, isBefore, subMonths, addMonths } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell, Legend } from 'recharts';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval, parseISO, isBefore, subMonths, addMonths, getYear, getMonth } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 
@@ -22,6 +22,7 @@ const formatK = (v: number) => {
 };
 
 type QuickRange = '3m' | '6m' | '12m' | 'custom';
+type TabValue = 'tb' | 'revenue' | 'orderingang';
 
 interface Props {
   projects: EconomyProjectInsight[];
@@ -38,6 +39,7 @@ interface MonthBucket {
   isPast: boolean;
 }
 
+// ── Compute buckets by eventdate ──
 function computeBuckets(projects: EconomyProjectInsight[], from: Date, to: Date): MonthBucket[] {
   const now = new Date();
   const months = eachMonthOfInterval({ start: startOfMonth(from), end: startOfMonth(to) });
@@ -49,9 +51,7 @@ function computeBuckets(projects: EconomyProjectInsight[], from: Date, to: Date)
     const label = format(monthDate, 'MMM yy', { locale: sv });
     const isPast = isBefore(mEnd, now);
 
-    let intäkt = 0;
-    let kostnad = 0;
-    let projectCount = 0;
+    let intäkt = 0, kostnad = 0, projectCount = 0;
 
     projects.forEach(p => {
       if (!p.eventdate) return;
@@ -74,6 +74,56 @@ function computeBuckets(projects: EconomyProjectInsight[], from: Date, to: Date)
   });
 }
 
+// ── Compute order intake YoY ──
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+interface OrderYoYBucket {
+  monthIndex: number;
+  monthName: string;
+  [key: string]: number | string; // year keys like "2025", "2026"
+}
+
+function computeOrderIntakeYoY(projects: EconomyProjectInsight[], from: Date, to: Date): { buckets: OrderYoYBucket[]; years: number[] } {
+  // Group by booking created_at month+year
+  const yearMonthMap = new Map<string, number>(); // "2025-03" -> sum
+
+  projects.forEach(p => {
+    const dateStr = p.bookingCreatedAt;
+    if (!dateStr) return;
+    try {
+      const d = parseISO(dateStr);
+      if (isBefore(d, from) && isBefore(to, d)) return; // skip if completely outside
+      const key = `${getYear(d)}-${String(getMonth(d)).padStart(2, '0')}`;
+      yearMonthMap.set(key, (yearMonthMap.get(key) || 0) + p.quotedAmount);
+    } catch { return; }
+  });
+
+  // Determine years present
+  const yearsSet = new Set<number>();
+  yearMonthMap.forEach((_, key) => yearsSet.add(parseInt(key.split('-')[0])));
+  
+  // If no data, use current + previous year
+  const currentYear = new Date().getFullYear();
+  if (yearsSet.size === 0) {
+    yearsSet.add(currentYear - 1);
+    yearsSet.add(currentYear);
+  }
+  const years = Array.from(yearsSet).sort();
+
+  // Build 12-month buckets
+  const buckets: OrderYoYBucket[] = MONTH_NAMES.map((name, i) => {
+    const bucket: OrderYoYBucket = { monthIndex: i, monthName: name };
+    years.forEach(y => {
+      const key = `${y}-${String(i).padStart(2, '0')}`;
+      bucket[String(y)] = yearMonthMap.get(key) || 0;
+    });
+    return bucket;
+  });
+
+  return { buckets, years };
+}
+
+// ── CSV helpers ──
 function generateCSV(buckets: MonthBucket[], mode: 'tb' | 'revenue'): string {
   if (mode === 'revenue') {
     const header = 'Månad,Intäkt,Antal projekt,Typ';
@@ -82,6 +132,12 @@ function generateCSV(buckets: MonthBucket[], mode: 'tb' | 'revenue'): string {
   }
   const header = 'Månad,Intäkt,Kostnad,TB,TB%,Antal projekt';
   const rows = buckets.map(b => `${b.label},${b.intäkt},${b.kostnad},${b.tb},${b.tbPercent.toFixed(1)}%,${b.projectCount}`);
+  return [header, ...rows].join('\n');
+}
+
+function generateOrderCSV(buckets: OrderYoYBucket[], years: number[]): string {
+  const header = ['Månad', ...years.map(String)].join(',');
+  const rows = buckets.map(b => [b.monthName, ...years.map(y => b[String(y)] || 0)].join(','));
   return [header, ...rows].join('\n');
 }
 
@@ -95,7 +151,7 @@ function downloadCSV(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ── Tooltips ────────────────────────────────────────────────────────────────
+// ── Tooltips ──
 
 const TBTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
@@ -134,10 +190,35 @@ const RevenueTooltip = ({ active, payload }: any) => {
   );
 };
 
-// ── Main component ──────────────────────────────────────────────────────────
+const OrderTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 shadow-lg text-sm min-w-[140px]">
+      <p className="font-semibold mb-2 text-foreground">{label}</p>
+      <div className="space-y-1">
+        {payload.map((p: any) => (
+          <div key={p.dataKey} className="flex justify-between gap-4">
+            <span style={{ color: p.color }} className="font-medium">{p.dataKey}</span>
+            <span className="font-bold">{formatCurrency(p.value)} kr</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── YoY bar colors ──
+const YOY_COLORS = [
+  'hsl(var(--muted-foreground))',
+  'hsl(var(--primary))',
+  'hsl(142 71% 45%)',
+  'hsl(280 70% 50%)',
+];
+
+// ── Main component ──
 
 const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
-  const [activeTab, setActiveTab] = useState<'tb' | 'revenue'>('tb');
+  const [activeTab, setActiveTab] = useState<TabValue>('tb');
   const [quickRange, setQuickRange] = useState<QuickRange>('6m');
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
   const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
@@ -162,6 +243,11 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
     [projects, dateRange],
   );
 
+  const orderYoY = useMemo(
+    () => computeOrderIntakeYoY(projects, dateRange.from, dateRange.to),
+    [projects, dateRange],
+  );
+
   const summary = useMemo(() => {
     const past = buckets.filter(b => b.isPast);
     const future = buckets.filter(b => !b.isPast);
@@ -179,10 +265,23 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
     };
   }, [buckets]);
 
+  const orderSummary = useMemo(() => {
+    const totals: Record<number, number> = {};
+    orderYoY.years.forEach(y => {
+      totals[y] = orderYoY.buckets.reduce((s, b) => s + (Number(b[String(y)]) || 0), 0);
+    });
+    return totals;
+  }, [orderYoY]);
+
   const handleExport = () => {
-    const csv = generateCSV(buckets, activeTab);
-    const label = activeTab === 'tb' ? 'tb-analys' : 'intäkt';
-    downloadCSV(csv, `${label}-${format(dateRange.from, 'yyyy-MM')}-${format(dateRange.to, 'yyyy-MM')}.csv`);
+    if (activeTab === 'orderingang') {
+      const csv = generateOrderCSV(orderYoY.buckets, orderYoY.years);
+      downloadCSV(csv, `orderingang-yoy.csv`);
+    } else {
+      const csv = generateCSV(buckets, activeTab as 'tb' | 'revenue');
+      const label = activeTab === 'tb' ? 'tb-analys' : 'intäkt';
+      downloadCSV(csv, `${label}-${format(dateRange.from, 'yyyy-MM')}-${format(dateRange.to, 'yyyy-MM')}.csv`);
+    }
   };
 
   const handleQuickRange = (r: QuickRange) => {
@@ -190,21 +289,13 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
     if (r !== 'custom') { setCustomFrom(undefined); setCustomTo(undefined); }
   };
 
-  const handleFromSelect = (d: Date | undefined) => {
-    setCustomFrom(d);
-    setQuickRange('custom');
-    setFromOpen(false);
-  };
-  const handleToSelect = (d: Date | undefined) => {
-    setCustomTo(d);
-    setQuickRange('custom');
-    setToOpen(false);
-  };
+  const handleFromSelect = (d: Date | undefined) => { setCustomFrom(d); setQuickRange('custom'); setFromOpen(false); };
+  const handleToSelect = (d: Date | undefined) => { setCustomTo(d); setQuickRange('custom'); setToOpen(false); };
 
   return (
     <Card className="border-border/40">
       <CardContent className="p-5">
-        {/* Header row */}
+        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
@@ -212,7 +303,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Quick range buttons */}
             <div className="flex bg-muted/50 rounded-lg p-0.5">
               {(['3m', '6m', '12m'] as const).map(r => (
                 <button key={r} onClick={() => handleQuickRange(r)}
@@ -223,7 +313,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               ))}
             </div>
 
-            {/* Date pickers */}
             <div className="flex items-center gap-1">
               <Popover open={fromOpen} onOpenChange={setFromOpen}>
                 <PopoverTrigger asChild>
@@ -251,22 +340,21 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
             </div>
 
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={handleExport}>
-              <Download className="h-3.5 w-3.5" />
-              Exportera
+              <Download className="h-3.5 w-3.5" />Exportera
             </Button>
           </div>
         </div>
 
-        {/* Tabs: TB / Intäkt */}
-        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'tb' | 'revenue')} className="space-y-4">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as TabValue)} className="space-y-4">
           <TabsList className="h-8 p-0.5 bg-muted/50">
             <TabsTrigger value="tb" className="text-xs px-4 h-7">Täckningsbidrag</TabsTrigger>
             <TabsTrigger value="revenue" className="text-xs px-4 h-7">Intäkt</TabsTrigger>
+            <TabsTrigger value="orderingang" className="text-xs px-4 h-7">Orderingång</TabsTrigger>
           </TabsList>
 
-          {/* ── TB Tab ───────────────────────────── */}
+          {/* ── TB Tab ── */}
           <TabsContent value="tb" className="space-y-4 mt-0">
-            {/* Summary cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-border/40 p-4 bg-muted/10">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Faktiskt TB</p>
@@ -291,7 +379,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               </div>
             </div>
 
-            {/* Chart */}
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={buckets} barCategoryGap="20%">
@@ -311,7 +398,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               </ResponsiveContainer>
             </div>
 
-            {/* Legend */}
             <div className="flex items-center gap-4 justify-center">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-sm bg-primary opacity-85" /> Intäkt</div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-sm bg-muted-foreground opacity-40" /> Kostnad</div>
@@ -320,9 +406,8 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
             </div>
           </TabsContent>
 
-          {/* ── Revenue Tab ──────────────────────── */}
+          {/* ── Revenue Tab (by eventdate) ── */}
           <TabsContent value="revenue" className="space-y-4 mt-0">
-            {/* Summary cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-border/40 p-4 bg-muted/10">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Faktisk intäkt</p>
@@ -337,11 +422,10 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               <div className="rounded-xl border border-primary/20 p-4 bg-primary/5">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total intäkt</p>
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(summary.totIntäkt)} kr</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Hela perioden</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Per eventdatum</p>
               </div>
             </div>
 
-            {/* Chart */}
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={buckets} barCategoryGap="25%">
@@ -358,70 +442,170 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               </ResponsiveContainer>
             </div>
 
-            {/* Legend */}
             <div className="flex items-center gap-4 justify-center">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-sm bg-primary opacity-90" /> Faktisk</div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-sm bg-primary opacity-45" /> Prognos</div>
             </div>
           </TabsContent>
+
+          {/* ── Orderingång Tab (YoY by created_at) ── */}
+          <TabsContent value="orderingang" className="space-y-4 mt-0">
+            <div className={cn("grid gap-3", orderYoY.years.length <= 2 ? "grid-cols-2" : `grid-cols-${Math.min(orderYoY.years.length, 4)}`)}>
+              {orderYoY.years.map((y, i) => (
+                <div key={y} className={cn("rounded-xl border p-4", i === orderYoY.years.length - 1 ? "border-primary/20 bg-primary/5" : "border-border/40 bg-muted/10")}>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{y}</p>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(orderSummary[y] || 0)} kr</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total orderingång</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={orderYoY.buckets} barCategoryGap="15%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.3} />
+                  <XAxis dataKey="monthName" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={formatK} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={50} />
+                  <Tooltip content={<OrderTooltip />} />
+                  {orderYoY.years.map((y, i) => (
+                    <Bar key={y} dataKey={String(y)} name={String(y)} fill={YOY_COLORS[i % YOY_COLORS.length]} radius={[3, 3, 0, 0]} opacity={i === orderYoY.years.length - 1 ? 0.9 : 0.5} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex items-center gap-4 justify-center">
+              {orderYoY.years.map((y, i) => (
+                <div key={y} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: YOY_COLORS[i % YOY_COLORS.length], opacity: i === orderYoY.years.length - 1 ? 0.9 : 0.5 }} />
+                  {y}
+                </div>
+              ))}
+            </div>
+          </TabsContent>
         </Tabs>
 
-        {/* Monthly table — shared */}
-        <div className="mt-5 rounded-lg border border-border/40 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/30">
-                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Månad</th>
-                <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt</th>
-                {activeTab === 'tb' && <>
-                  <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Kostnad</th>
-                  <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB</th>
-                  <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB%</th>
-                </>}
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Projekt</th>
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Typ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buckets.map(b => {
-                const tbColor = b.tb > 0 ? 'text-green-600' : b.tb < 0 ? 'text-destructive' : 'text-muted-foreground';
-                return (
-                  <tr key={b.month} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
-                    <td className="py-2 px-3 text-xs font-medium capitalize">{b.label}</td>
-                    <td className="py-2 px-3 text-xs text-right font-medium">{formatCurrency(b.intäkt)}</td>
-                    {activeTab === 'tb' && <>
-                      <td className="py-2 px-3 text-xs text-right text-muted-foreground">{formatCurrency(b.kostnad)}</td>
-                      <td className={cn("py-2 px-3 text-xs text-right font-semibold", tbColor)}>{formatCurrency(b.tb)}</td>
-                      <td className={cn("py-2 px-3 text-xs text-right font-medium", tbColor)}>{b.tbPercent.toFixed(0)}%</td>
-                    </>}
-                    <td className="py-2 px-3 text-xs text-center text-muted-foreground">{b.projectCount}</td>
-                    <td className="py-2 px-3 text-center">
-                      <Badge variant="outline" className={cn("text-[9px] px-1.5", b.isPast ? 'bg-muted/50' : 'bg-primary/10 text-primary')}>
-                        {b.isPast ? 'Faktisk' : 'Prognos'}
-                      </Badge>
+        {/* Monthly table */}
+        {activeTab !== 'orderingang' && (
+          <div className="mt-5 rounded-lg border border-border/40 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/30">
+                  <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Månad</th>
+                  <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt</th>
+                  {activeTab === 'tb' && <>
+                    <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Kostnad</th>
+                    <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB</th>
+                    <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB%</th>
+                  </>}
+                  <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Projekt</th>
+                  <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Typ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buckets.map(b => {
+                  const tbColor = b.tb > 0 ? 'text-green-600' : b.tb < 0 ? 'text-destructive' : 'text-muted-foreground';
+                  return (
+                    <tr key={b.month} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
+                      <td className="py-2 px-3 text-xs font-medium capitalize">{b.label}</td>
+                      <td className="py-2 px-3 text-xs text-right font-medium">{formatCurrency(b.intäkt)}</td>
+                      {activeTab === 'tb' && <>
+                        <td className="py-2 px-3 text-xs text-right text-muted-foreground">{formatCurrency(b.kostnad)}</td>
+                        <td className={cn("py-2 px-3 text-xs text-right font-semibold", tbColor)}>{formatCurrency(b.tb)}</td>
+                        <td className={cn("py-2 px-3 text-xs text-right font-medium", tbColor)}>{b.tbPercent.toFixed(0)}%</td>
+                      </>}
+                      <td className="py-2 px-3 text-xs text-center text-muted-foreground">{b.projectCount}</td>
+                      <td className="py-2 px-3 text-center">
+                        <Badge variant="outline" className={cn("text-[9px] px-1.5", b.isPast ? 'bg-muted/50' : 'bg-primary/10 text-primary')}>
+                          {b.isPast ? 'Faktisk' : 'Prognos'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border/40 bg-muted/20 font-semibold">
+                  <td className="py-2.5 px-3 text-xs">Totalt</td>
+                  <td className="py-2.5 px-3 text-xs text-right font-bold">{formatCurrency(summary.totIntäkt)}</td>
+                  {activeTab === 'tb' && <>
+                    <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(summary.totKostnad)}</td>
+                    <td className={cn("py-2.5 px-3 text-xs text-right font-bold", summary.totTB >= 0 ? 'text-green-600' : 'text-destructive')}>
+                      {formatCurrency(summary.totTB)}
                     </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border/40 bg-muted/20 font-semibold">
-                <td className="py-2.5 px-3 text-xs">Totalt</td>
-                <td className="py-2.5 px-3 text-xs text-right font-bold">{formatCurrency(summary.totIntäkt)}</td>
-                {activeTab === 'tb' && <>
-                  <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(summary.totKostnad)}</td>
-                  <td className={cn("py-2.5 px-3 text-xs text-right font-bold", summary.totTB >= 0 ? 'text-green-600' : 'text-destructive')}>
-                    {formatCurrency(summary.totTB)}
-                  </td>
-                  <td className={cn("py-2.5 px-3 text-xs text-right font-bold", summary.totTB >= 0 ? 'text-green-600' : 'text-destructive')}>
-                    {summary.totTBPct.toFixed(0)}%
-                  </td>
-                </>}
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                    <td className={cn("py-2.5 px-3 text-xs text-right font-bold", summary.totTB >= 0 ? 'text-green-600' : 'text-destructive')}>
+                      {summary.totTBPct.toFixed(0)}%
+                    </td>
+                  </>}
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* Order intake table */}
+        {activeTab === 'orderingang' && (
+          <div className="mt-5 rounded-lg border border-border/40 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/30">
+                  <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Månad</th>
+                  {orderYoY.years.map(y => (
+                    <th key={y} className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{y}</th>
+                  ))}
+                  {orderYoY.years.length === 2 && (
+                    <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Δ%</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {orderYoY.buckets.map(b => {
+                  const vals = orderYoY.years.map(y => Number(b[String(y)]) || 0);
+                  const delta = orderYoY.years.length === 2 && vals[0] > 0
+                    ? ((vals[1] - vals[0]) / vals[0]) * 100
+                    : null;
+                  return (
+                    <tr key={b.monthIndex} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
+                      <td className="py-2 px-3 text-xs font-medium">{b.monthName}</td>
+                      {vals.map((v, i) => (
+                        <td key={i} className="py-2 px-3 text-xs text-right font-medium">{formatCurrency(v)}</td>
+                      ))}
+                      {delta !== null && (
+                        <td className={cn("py-2 px-3 text-xs text-right font-semibold", delta >= 0 ? 'text-green-600' : 'text-destructive')}>
+                          {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%
+                        </td>
+                      )}
+                      {orderYoY.years.length === 2 && vals[0] === 0 && vals[1] === 0 && (
+                        <td className="py-2 px-3 text-xs text-right text-muted-foreground">–</td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border/40 bg-muted/20 font-semibold">
+                  <td className="py-2.5 px-3 text-xs">Totalt</td>
+                  {orderYoY.years.map(y => (
+                    <td key={y} className="py-2.5 px-3 text-xs text-right font-bold">{formatCurrency(orderSummary[y] || 0)}</td>
+                  ))}
+                  {orderYoY.years.length === 2 && (
+                    <td className={cn("py-2.5 px-3 text-xs text-right font-bold",
+                      orderSummary[orderYoY.years[0]] > 0
+                        ? ((orderSummary[orderYoY.years[1]] - orderSummary[orderYoY.years[0]]) / orderSummary[orderYoY.years[0]] * 100) >= 0
+                          ? 'text-green-600' : 'text-destructive'
+                        : 'text-muted-foreground'
+                    )}>
+                      {orderSummary[orderYoY.years[0]] > 0
+                        ? `${((orderSummary[orderYoY.years[1]] - orderSummary[orderYoY.years[0]]) / orderSummary[orderYoY.years[0]] * 100) >= 0 ? '+' : ''}${((orderSummary[orderYoY.years[1]] - orderSummary[orderYoY.years[0]]) / orderSummary[orderYoY.years[0]] * 100).toFixed(0)}%`
+                        : '–'}
+                    </td>
+                  )}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
