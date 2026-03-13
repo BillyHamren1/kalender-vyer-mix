@@ -63,6 +63,7 @@ import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
+import NativeAppEntry from "./pages/NativeAppEntry";
 
 // Mobile staff app pages
 import MobileLogin from "./pages/mobile/MobileLogin";
@@ -125,6 +126,9 @@ const AppContent = () => {
                 {/* Public transport partner response page - no auth */}
                 <Route path="/transport-svar" element={<TransportResponse />} />
 
+                {/* Native app entry – module chooser */}
+                <Route path="/native-start" element={<MobileAuthProvider><NativeAppEntry /></MobileAuthProvider>} />
+
                 {/* Mobile Staff App - Completely isolated system (own auth) */}
                 <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
                 <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
@@ -141,10 +145,7 @@ const AppContent = () => {
                     <Routes>
                       <Route path="/" element={
                         <ProtectedRoute>
-                          {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
-                            ? <Navigate to="/scanner" replace />
-                            : <Navigate to="/projects" replace />
-                          }
+                          <Navigate to="/projects" replace />
                         </ProtectedRoute>
                       } />
                       <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />

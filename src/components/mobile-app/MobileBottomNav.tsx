@@ -1,6 +1,7 @@
-import { Briefcase, Clock, Receipt, User } from 'lucide-react';
+import { Briefcase, Clock, Receipt, User, ScanLine } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { isNativePlatform, setLastModule } from '@/utils/nativeModule';
 
 const tabs = [
   { path: '/m', label: 'Jobb', icon: Briefcase, exact: true },
@@ -12,10 +13,16 @@ const tabs = [
 const MobileBottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const native = isNativePlatform();
 
   const isActive = (tab: typeof tabs[0]) => {
     if (tab.exact) return location.pathname === tab.path;
     return location.pathname.startsWith(tab.path);
+  };
+
+  const switchToScanner = () => {
+    setLastModule('scanner');
+    navigate('/scanner');
   };
 
   return (
@@ -52,6 +59,19 @@ const MobileBottomNav = () => {
             </button>
           );
         })}
+
+        {/* Module switcher – only in native app */}
+        {native && (
+          <button
+            onClick={switchToScanner}
+            className="relative flex-1 flex flex-col items-center justify-center gap-1 text-muted-foreground/60 active:text-foreground transition-all duration-200"
+          >
+            <div className="flex items-center justify-center w-10 h-8 rounded-xl">
+              <ScanLine className="w-[22px] h-[22px]" />
+            </div>
+            <span className="text-[10px] leading-none font-medium">Scanner</span>
+          </button>
+        )}
       </div>
     </nav>
   );
