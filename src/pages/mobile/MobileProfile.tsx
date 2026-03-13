@@ -2,8 +2,9 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
 import { useMobileTimeReports } from '@/hooks/useMobileData';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight } from 'lucide-react';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 
 
 const MobileProfile = () => {
