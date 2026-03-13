@@ -168,4 +168,10 @@ export const mobileApi = {
     file_data: string;
     file_type: string;
   }) => callApi<{ success: boolean; url: string }>('upload_file', data),
+
+  sendMessage: (data: {
+    content: string;
+    message_type?: 'text' | 'urgent';
+    booking_id?: string;
+  }) => callApi<{ success: boolean; message: any }>('send_message', data),
 };

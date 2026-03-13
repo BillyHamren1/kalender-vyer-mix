@@ -1181,3 +1181,52 @@ async function handleGetProjectPurchases(supabase: any, data: { booking_id: stri
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+async function handleSendMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { content, message_type, booking_id } = data
+
+  if (!content || !content.trim()) {
+    return new Response(
+      JSON.stringify({ error: 'Message content is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get staff name
+  const { data: staffMember } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  const staffName = staffMember?.name || 'Okänd'
+
+  const { data: message, error } = await supabase
+    .from('staff_messages')
+    .insert({
+      staff_id: staffId,
+      staff_name: staffName,
+      content: content.trim(),
+      message_type: message_type || 'text',
+      booking_id: booking_id || null,
+      organization_id: organizationId
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Send message error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to send message' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`Message sent by staff ${staffId}: ${message.id}`)
+
+  return new Response(
+    JSON.stringify({ success: true, message }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
