@@ -117,6 +117,7 @@ const emptySummary: EconomySummary = {
   invoiceDeviation: 0,
   supplierInvoicesTotal: 0,
   productCostBudget: 0,
+  productRevenue: 0,
   totalBudget: 0,
   totalActual: 0,
   totalDeviation: 0,
@@ -264,6 +265,7 @@ export const useEconomyOverviewData = () => {
               aggregated.invoicesTotal += s.summary.invoicesTotal;
               aggregated.supplierInvoicesTotal += s.summary.supplierInvoicesTotal;
               aggregated.productCostBudget += s.summary.productCostBudget;
+              aggregated.productRevenue += s.summary.productRevenue;
               aggregated.totalBudget += s.summary.totalBudget;
               aggregated.totalActual += s.summary.totalActual;
               allTimeReports = [...allTimeReports, ...s.timeReports];
