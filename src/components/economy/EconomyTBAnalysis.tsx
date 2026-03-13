@@ -193,6 +193,7 @@ const DrillDownPanel: React.FC<{
   year: number;
   onClose: () => void;
 }> = ({ projects, monthName, year, onClose }) => {
+  const navigate = useNavigate();
   const sorted = useMemo(() =>
     [...projects].sort((a, b) => b.quotedAmount - a.quotedAmount),
     [projects]
