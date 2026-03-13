@@ -85,8 +85,8 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
               <tbody>
                 {filtered.slice(0, 20).map(p => {
                   const link = p.projectSize === 'medium' ? `/economy/${p.id}` : p.navigateTo;
-                  const marginColor = p.projectedMarginPercent >= 20 ? 'text-green-600' :
-                                      p.projectedMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
+                  const marginColor = p.forecastMarginPercent >= 20 ? 'text-green-600' :
+                                      p.forecastMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
                   return (
                     <tr key={p.id} className="border-b border-border/30 hover:bg-muted/30 transition-colors group">
                       <td className="py-2.5 px-3">
