@@ -242,6 +242,7 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            bookingCreatedAt,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
             economyClosed: entry.status === 'completed',
