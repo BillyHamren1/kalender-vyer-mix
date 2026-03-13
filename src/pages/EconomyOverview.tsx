@@ -20,6 +20,7 @@ import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
 import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
+import BillingSection from '@/components/economy/billing/BillingSection';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
