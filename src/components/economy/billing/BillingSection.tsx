@@ -102,7 +102,7 @@ const BillingSection: React.FC = () => {
       )}
 
       {/* Review panel */}
-      <BillingReviewPanel
+      <BillingReviewDialog
         billing={selectedBilling}
         open={!!selectedBilling}
         onClose={() => setSelectedBilling(null)}
