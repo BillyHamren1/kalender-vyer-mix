@@ -30,7 +30,7 @@ const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeRe
 const ProjectEconomyDashboard: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [closingProject, setClosingProject] = useState<EnrichedProject | null>(null);
+  const [closingProject, setClosingProject] = useState<EconomyProjectInsight | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
   const { kpis, forecasts, risks, invoicingQueue, completedProjects } = useEconomyDashboard(projectsWithEconomy);
