@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -22,9 +22,11 @@ import {
   Lock,
   PlayCircle,
   CalendarClock,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { parseISO, isAfter, startOfDay } from 'date-fns';
+import { parseISO, isAfter, startOfDay, format } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import { useEconomyOverviewData, type ProjectWithEconomy, type ProjectSize } from '@/hooks/useEconomyOverviewData';
@@ -134,47 +136,47 @@ const ProjectEconomyView: React.FC = () => {
     );
   }
 
-  const renderProjectRow = (project: ProjectWithEconomy) => {
+  const TYPE_BADGE_CLASSES: Record<string, string> = {
+    small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
+    medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
+    large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
+  };
+  const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
+    try { return format(new Date(dateStr), 'd MMM yyyy', { locale: sv }); } catch { return '—'; }
+  };
+
+  const navigate = useNavigate();
+
+  const EconomyProjectRow = ({ project }: { project: ProjectWithEconomy }) => {
     const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
     const closed = project.economyClosed;
-    const dateStr = project.eventdate 
-      ? new Date(project.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '—';
+    const link = project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo;
     return (
-      <div key={project.id} className={cn("flex items-center justify-between py-2.5 px-3 border-b border-border/30 last:border-0 hover:bg-muted/40 transition-colors", closed && "opacity-60")}>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Link
-            to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
-            className="text-sm font-medium text-primary hover:underline truncate"
-          >
-            {project.name}
-          </Link>
-          <Badge variant="outline" className={cn(
-            "text-[10px] font-medium shrink-0",
-            project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
-            project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
-            project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
-          )}>
-            {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
+      <div
+        onClick={() => navigate(link)}
+        className={cn(
+          "flex items-center justify-between py-2.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group",
+          closed && "opacity-60"
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${TYPE_BADGE_CLASSES[project.projectSize]}`}>
+            {TYPE_LABELS[project.projectSize]}
           </Badge>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{project.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{formatDate(project.eventdate)}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <span className="text-xs text-muted-foreground w-20 text-right">{dateStr}</span>
-          <span className="text-xs font-medium w-20 text-right">{formatCurrency(project.summary.totalBudget)}</span>
-          <span className={cn("text-xs font-mono font-bold w-20 text-right", getDeviationColor(devStatus))}>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-muted-foreground">{formatDate(project.eventdate)}</span>
+          <span className={cn("text-xs font-mono font-semibold", getDeviationColor(devStatus))}>
             {project.summary.totalDeviation > 0 ? '+' : ''}{formatCurrency(project.summary.totalDeviation)}
           </span>
-          {!closed && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-              onClick={() => setClosingProject(project)}
-            >
-              <Lock className="h-3 w-3 mr-1" />
-              Stäng
-            </Button>
-          )}
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
         </div>
       </div>
     );
@@ -185,50 +187,50 @@ const ProjectEconomyView: React.FC = () => {
       {/* Three category containers */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Pågående */}
-        <Card className="border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PlayCircle className="h-4 w-4 text-blue-600" />
-              Pågående
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <PlayCircle className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Pågående</h3>
               <Badge variant="secondary" className="text-[10px] ml-auto">{sortedOngoing.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
-            {sortedOngoing.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Inga pågående projekt</p>
-            ) : sortedOngoing.map(renderProjectRow)}
+            </div>
+            <div className="divide-y divide-border/50">
+              {sortedOngoing.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Inga pågående projekt</p>
+              ) : sortedOngoing.map(p => <EconomyProjectRow key={p.id} project={p} />)}
+            </div>
           </CardContent>
         </Card>
 
         {/* Kommande */}
-        <Card className="border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-amber-600" />
-              Kommande
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Kommande</h3>
               <Badge variant="secondary" className="text-[10px] ml-auto">{sortedUpcoming.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
-            {sortedUpcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Inga kommande projekt</p>
-            ) : sortedUpcoming.map(renderProjectRow)}
+            </div>
+            <div className="divide-y divide-border/50">
+              {sortedUpcoming.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Inga kommande projekt</p>
+              ) : sortedUpcoming.map(p => <EconomyProjectRow key={p.id} project={p} />)}
+            </div>
           </CardContent>
         </Card>
 
         {/* Senast avslutade */}
-        <Card className="border-border/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              Senast avslutade
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Senast avslutade</h3>
               <Badge variant="secondary" className="text-[10px] ml-auto">{sortedCompleted.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
-            {sortedCompleted.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Inga avslutade projekt</p>
-            ) : sortedCompleted.map(renderProjectRow)}
+            </div>
+            <div className="divide-y divide-border/50">
+              {sortedCompleted.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Inga avslutade projekt</p>
+              ) : sortedCompleted.map(p => <EconomyProjectRow key={p.id} project={p} />)}
+            </div>
           </CardContent>
         </Card>
       </div>
