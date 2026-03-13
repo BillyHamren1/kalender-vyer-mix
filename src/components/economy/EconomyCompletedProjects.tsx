@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { EnrichedProject } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectInsight as EnrichedProject } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);

@@ -4,7 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import type { ForecastBucket } from '@/hooks/useEconomyDashboard';
+import type { EconomyForecastBucket } from '@/types/economyOverview';
+
+type ForecastBucket = EconomyForecastBucket;
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(v);

@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Banknote } from 'lucide-react';
 import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
-import { useEconomyDashboard, type EnrichedProject } from '@/hooks/useEconomyDashboard';
+import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
+import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
