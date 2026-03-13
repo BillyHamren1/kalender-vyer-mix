@@ -236,8 +236,12 @@ const DrillDownPanel: React.FC<{
               {sorted.map(p => {
                 const pTb = p.quotedAmount - p.actualCost;
                 return (
-                  <tr key={p.id} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
-                    <td className="py-1.5 px-3 font-medium truncate max-w-[250px]">{p.name}</td>
+                  <tr
+                    key={p.id}
+                    onClick={() => navigate(p.projectSize === 'medium' ? `/economy/${p.id}` : p.navigateTo)}
+                    className="border-t border-border/20 hover:bg-muted/40 transition-colors cursor-pointer"
+                  >
+                    <td className="py-1.5 px-3 font-medium truncate max-w-[250px] text-primary hover:underline">{p.name}</td>
                     <td className="py-1.5 px-3 text-muted-foreground">{p.eventdate || '–'}</td>
                     <td className="py-1.5 px-3 text-right font-medium">{formatCurrency(p.quotedAmount)}</td>
                     <td className="py-1.5 px-3 text-right text-muted-foreground">{formatCurrency(p.actualCost)}</td>
