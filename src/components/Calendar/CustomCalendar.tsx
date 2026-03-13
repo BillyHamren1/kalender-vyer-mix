@@ -192,14 +192,20 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
           <div className="carousel-3d-container">
             {days.map((date, index) => {
+              const dateStr = format(date, 'yyyy-MM-dd');
               const position = getPositionFromCenter(index);
               const isCenter = position === 0;
-              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+              const isDropTarget = isDragging && dragOverDate === dateStr;
               return (
                 <div
-                  key={format(date, 'yyyy-MM-dd')}
+                  key={dateStr}
                   className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
                   data-position={position}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => handleDragEnter(e, dateStr)}
+                  onDragLeave={(e) => handleDragLeave(e, dateStr)}
+                  onDrop={(e) => handleDrop(e, dateStr)}
                 >
                   {!isCenter && (
                     <div
@@ -207,7 +213,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                       onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
                     />
                   )}
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}>
                     <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
                   </div>
                 </div>
