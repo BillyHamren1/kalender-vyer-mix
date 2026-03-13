@@ -34,34 +34,12 @@ import { toast } from 'sonner';
 
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
-type StatusFilter = 'all' | 'ongoing' | 'completed' | 'upcoming';
-
-interface AggregatedKPIs {
-  totalProjects: number;
-  projectsWithDeviation: number;
-  totalBudget: number;
-  totalActual: number;
-  totalDeviation: number;
-  totalHoursBudgeted: number;
-  totalHoursActual: number;
-  avgDeviationPercent: number;
-  totalPurchases: number;
-  avgMargin: number;
-  projectsOnBudget: number;
-  projectsOverBudget: number;
-  projectsUnderBudget: number;
-}
-
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('sv-SE', { 
     style: 'currency', 
     currency: 'SEK',
     maximumFractionDigits: 0 
   }).format(value);
-};
-
-const formatHours = (hours: number) => {
-  return `${hours.toFixed(1)} tim`;
 };
 
 function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'upcoming' {
@@ -74,98 +52,6 @@ function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'up
   } catch {}
   return 'ongoing';
 }
-
-function aggregateProjects(projects: ProjectWithEconomy[]): AggregatedKPIs {
-  if (!projects.length) {
-    return { totalProjects: 0, projectsWithDeviation: 0, totalBudget: 0, totalActual: 0, totalDeviation: 0, totalHoursBudgeted: 0, totalHoursActual: 0, avgDeviationPercent: 0, totalPurchases: 0, avgMargin: 0, projectsOnBudget: 0, projectsOverBudget: 0, projectsUnderBudget: 0 };
-  }
-  const totalBudget = projects.reduce((s, p) => s + p.summary.totalBudget, 0);
-  const totalActual = projects.reduce((s, p) => s + p.summary.totalActual, 0);
-  const totalHoursBudgeted = projects.reduce((s, p) => s + p.summary.budgetedHours, 0);
-  const totalHoursActual = projects.reduce((s, p) => s + p.summary.actualHours, 0);
-  const totalPurchases = projects.reduce((s, p) => s + p.summary.purchasesTotal, 0);
-  const projectsWithDeviation = projects.filter(p => p.summary.totalDeviationPercent > 100).length;
-  const projectsOverBudget = projects.filter(p => p.summary.totalDeviation > 0).length;
-  const projectsUnderBudget = projects.filter(p => p.summary.totalDeviation < 0 && p.summary.totalBudget > 0).length;
-  const projectsOnBudget = projects.length - projectsOverBudget - projectsUnderBudget;
-  
-  return {
-    totalProjects: projects.length,
-    projectsWithDeviation,
-    totalBudget,
-    totalActual,
-    totalDeviation: totalActual - totalBudget,
-    totalHoursBudgeted,
-    totalHoursActual,
-    avgDeviationPercent: totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0,
-    totalPurchases,
-    avgMargin: totalBudget > 0 ? ((totalBudget - totalActual) / totalBudget) * 100 : 0,
-    projectsOnBudget,
-    projectsOverBudget,
-    projectsUnderBudget,
-  };
-}
-
-const StatusFilterButton: React.FC<{
-  filter: StatusFilter;
-  active: boolean;
-  count: number;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  color: string;
-}> = ({ active, count, icon, label, onClick, color }) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 text-left min-w-[140px]",
-      active
-        ? "border-primary/30 bg-primary/5 shadow-sm ring-1 ring-primary/20"
-        : "border-border/50 bg-card hover:bg-muted/50 hover:border-border"
-    )}
-  >
-    <div className={cn("p-2 rounded-lg", color)}>
-      {icon}
-    </div>
-    <div>
-      <p className="text-xl font-bold text-foreground">{count}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
-    </div>
-  </button>
-);
-
-const MiniWidget: React.FC<{
-  title: string;
-  value: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  trend?: 'up' | 'down' | 'neutral';
-  className?: string;
-}> = ({ title, value, subtitle, icon, trend, className }) => (
-  <Card className={cn("border-border/40", className)}>
-    <CardContent className="pt-5 pb-4">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
-          {subtitle && (
-            <p className={cn(
-              "text-xs flex items-center gap-1",
-              trend === 'up' ? "text-destructive" : trend === 'down' ? "text-green-600" : "text-muted-foreground"
-            )}>
-              {trend === 'up' && <ArrowUpRight className="h-3 w-3" />}
-              {trend === 'down' && <ArrowDownRight className="h-3 w-3" />}
-              {subtitle}
-            </p>
-          )}
-        </div>
-        <div className="p-2.5 rounded-xl bg-muted/60">
-          {icon}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
 
 const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
