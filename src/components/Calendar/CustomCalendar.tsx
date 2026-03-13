@@ -7,6 +7,7 @@ import { useCarouselState } from '@/hooks/useCarouselState';
 import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
+import { useEventDragDrop } from '@/hooks/useEventDragDrop';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
