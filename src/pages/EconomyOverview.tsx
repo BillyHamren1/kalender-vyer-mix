@@ -261,209 +261,101 @@ const ProjectEconomyView: React.FC = () => {
     );
   }
 
-  const filterLabels: Record<StatusFilter, string> = {
-    all: 'Alla projekt',
-    ongoing: 'Pågående',
-    completed: 'Avslutade',
-    upcoming: 'Kommande',
+  const renderProjectRow = (project: ProjectWithEconomy) => {
+    const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
+    const closed = project.economyClosed;
+    const dateStr = project.eventdate 
+      ? new Date(project.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '—';
+    return (
+      <div key={project.id} className={cn("flex items-center justify-between py-2.5 px-3 border-b border-border/30 last:border-0 hover:bg-muted/40 transition-colors", closed && "opacity-60")}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Link
+            to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
+            className="text-sm font-medium text-primary hover:underline truncate"
+          >
+            {project.name}
+          </Link>
+          <Badge variant="outline" className={cn(
+            "text-[10px] font-medium shrink-0",
+            project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
+            project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
+            project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
+          )}>
+            {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          <span className="text-xs text-muted-foreground w-20 text-right">{dateStr}</span>
+          <span className="text-xs font-medium w-20 text-right">{formatCurrency(project.summary.totalBudget)}</span>
+          <span className={cn("text-xs font-mono font-bold w-20 text-right", getDeviationColor(devStatus))}>
+            {project.summary.totalDeviation > 0 ? '+' : ''}{formatCurrency(project.summary.totalDeviation)}
+          </span>
+          {!closed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              onClick={() => setClosingProject(project)}
+            >
+              <Lock className="h-3 w-3 mr-1" />
+              Stäng
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
-      {/* Status filter cards */}
-      <div className="flex flex-wrap gap-3">
-        <StatusFilterButton
-          filter="all"
-          active={statusFilter === 'all'}
-          count={categorized.all.length}
-          icon={<BarChart3 className="h-4 w-4 text-primary" />}
-          label="Alla"
-          onClick={() => setStatusFilter('all')}
-          color="bg-primary/10"
-        />
-        <StatusFilterButton
-          filter="ongoing"
-          active={statusFilter === 'ongoing'}
-          count={categorized.ongoing.length}
-          icon={<PlayCircle className="h-4 w-4 text-blue-600" />}
-          label="Pågående"
-          onClick={() => setStatusFilter('ongoing')}
-          color="bg-blue-100"
-        />
-        <StatusFilterButton
-          filter="upcoming"
-          active={statusFilter === 'upcoming'}
-          count={categorized.upcoming.length}
-          icon={<CalendarClock className="h-4 w-4 text-amber-600" />}
-          label="Kommande"
-          onClick={() => setStatusFilter('upcoming')}
-          color="bg-amber-100"
-        />
-        <StatusFilterButton
-          filter="completed"
-          active={statusFilter === 'completed'}
-          count={categorized.completed.length}
-          icon={<CheckCircle2 className="h-4 w-4 text-green-600" />}
-          label="Avslutade"
-          onClick={() => setStatusFilter('completed')}
-          color="bg-green-100"
-        />
-      </div>
-
-      {/* KPI Widgets Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MiniWidget
-          title="Total budget"
-          value={formatCurrency(kpis.totalBudget)}
-          subtitle={`Faktisk: ${formatCurrency(kpis.totalActual)}`}
-          icon={<Banknote className="w-5 h-5 text-primary" />}
-          trend={kpis.totalActual > kpis.totalBudget ? 'up' : 'down'}
-        />
-        <MiniWidget
-          title="Avvikelse"
-          value={`${kpis.totalDeviation > 0 ? '+' : ''}${formatCurrency(kpis.totalDeviation)}`}
-          subtitle={`${kpis.avgDeviationPercent.toFixed(0)}% av budget`}
-          icon={kpis.totalDeviation > 0 
-            ? <TrendingUp className="w-5 h-5 text-destructive" /> 
-            : <TrendingDown className="w-5 h-5 text-green-600" />}
-          trend={kpis.totalDeviation > 0 ? 'up' : 'down'}
-        />
-        <MiniWidget
-          title="Timmar"
-          value={formatHours(kpis.totalHoursActual)}
-          subtitle={`Budget: ${formatHours(kpis.totalHoursBudgeted)}`}
-          icon={<Clock className="w-5 h-5 text-muted-foreground" />}
-          trend={kpis.totalHoursActual > kpis.totalHoursBudgeted ? 'up' : 'neutral'}
-        />
-        <MiniWidget
-          title="Inköp totalt"
-          value={formatCurrency(kpis.totalPurchases)}
-          subtitle={`${kpis.totalProjects} projekt`}
-          icon={<Wallet className="w-5 h-5 text-muted-foreground" />}
-        />
-      </div>
-
-      {/* Dashboard Widgets Row */}
+      {/* Three category containers */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Budget Health Widget */}
+        {/* Pågående */}
         <Card className="border-border/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Budgetstatus
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <PlayCircle className="h-4 w-4 text-blue-600" />
+              Pågående
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedOngoing.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-green-600 font-medium">Inom budget</span>
-                <span className="font-bold">{budgetHealth.onBudget}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.onBudget / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-green-500" />
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-amber-600 font-medium">Varning (0-10%)</span>
-                <span className="font-bold">{budgetHealth.warning}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.warning / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-amber-500" />
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-destructive font-medium">Kritisk (&gt;10%)</span>
-                <span className="font-bold">{budgetHealth.critical}</span>
-              </div>
-              <Progress value={filteredProjects.length ? (budgetHealth.critical / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-destructive" />
-            </div>
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedOngoing.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga pågående projekt</p>
+            ) : sortedOngoing.map(renderProjectRow)}
           </CardContent>
         </Card>
 
-        {/* Top Deviating Projects Widget */}
-        <Card className="border-border/40 lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Största avvikelser — Avslutade projekt
+        {/* Kommande */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-amber-600" />
+              Kommande
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedUpcoming.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {topDeviating.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt med budgetdata</p>
-            ) : (
-              <div className="space-y-2.5">
-                {topDeviating.map(p => {
-                  const devPercent = p.summary.totalDeviationPercent;
-                  const devStatus = getDeviationStatus(devPercent);
-                  return (
-                    <div key={p.id} className="flex items-center gap-3">
-                      <Link 
-                        to={p.navigateTo}
-                        className="text-sm font-medium text-primary hover:underline truncate flex-1 min-w-0"
-                      >
-                        {p.name}
-                      </Link>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-24">
-                          <Progress 
-                            value={Math.min(devPercent, 150)} 
-                            className={cn(
-                              "h-2",
-                              devPercent <= 100 ? "[&>div]:bg-green-500" :
-                              devPercent <= 110 ? "[&>div]:bg-amber-500" :
-                              "[&>div]:bg-destructive"
-                            )}
-                          />
-                        </div>
-                        <span className={cn("text-xs font-mono font-bold w-12 text-right", getDeviationColor(devStatus))}>
-                          {devPercent.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Margin & Summary Widgets */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className={cn(
-          "border-border/40",
-          kpis.avgMargin >= 0 ? "bg-green-50/50 border-green-200/50" : "bg-destructive/5 border-destructive/20"
-        )}>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Genomsnittlig marginal</p>
-            <p className={cn("text-3xl font-bold mt-1", kpis.avgMargin >= 0 ? "text-green-600" : "text-destructive")}>
-              {kpis.avgMargin.toFixed(1)}%
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {kpis.projectsOverBudget} projekt över budget
-            </p>
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedUpcoming.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga kommande projekt</p>
+            ) : sortedUpcoming.map(renderProjectRow)}
           </CardContent>
         </Card>
 
+        {/* Senast avslutade */}
         <Card className="border-border/40">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Personal kostnader</p>
-            <p className="text-3xl font-bold text-foreground mt-1">
-              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffActual, 0))}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              Budget: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffBudget, 0))}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/40">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Leverantörsfakturor</p>
-            <p className="text-3xl font-bold text-foreground mt-1">
-              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.supplierInvoicesTotal, 0))}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Offerter: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.quotesTotal, 0))}
-            </p>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Senast avslutade
+              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedCompleted.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {sortedCompleted.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Inga avslutade projekt</p>
+            ) : sortedCompleted.map(renderProjectRow)}
           </CardContent>
         </Card>
       </div>
