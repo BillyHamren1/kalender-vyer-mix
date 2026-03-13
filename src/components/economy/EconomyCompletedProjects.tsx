@@ -100,17 +100,17 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-xs text-muted-foreground">{formatDate(p.eventdate)}</td>
-                      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(p.expectedRevenue)}</td>
-                      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(p.totalCost)}</td>
+                      <td className="py-2.5 px-3 text-xs text-right font-medium">{formatCurrency(p.quotedAmount)}</td>
+                      <td className="py-2.5 px-3 text-xs text-right text-muted-foreground">{formatCurrency(p.actualCost)}</td>
                       <td className={cn("py-2.5 px-3 text-xs text-right font-semibold", marginColor)}>
-                        {formatCurrency(p.projectedMargin)}
+                        {formatCurrency(p.forecastMargin)}
                       </td>
                       <td className={cn("py-2.5 px-3 text-xs text-right font-bold", marginColor)}>
-                        {p.projectedMarginPercent.toFixed(0)}%
+                        {p.forecastMarginPercent.toFixed(0)}%
                       </td>
                       <td className="py-2.5 px-3">
-                        {p.totalInvoiced > 0 ? (
-                          <span className="text-xs text-green-600 font-medium">{formatCurrency(p.totalInvoiced)}</span>
+                        {p.invoicedAmount > 0 ? (
+                          <span className="text-xs text-green-600 font-medium">{formatCurrency(p.invoicedAmount)}</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

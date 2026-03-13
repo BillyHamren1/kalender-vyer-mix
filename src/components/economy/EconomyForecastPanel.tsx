@@ -69,11 +69,11 @@ const EconomyForecastPanel: React.FC<Props> = ({ forecasts }) => {
           {forecasts.map((f, i) => (
             <div key={f.label} className="rounded-xl border border-border/40 p-3 bg-muted/20">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{f.label}</p>
-              <p className="text-lg font-bold text-foreground mt-0.5">{formatCurrency(f.secure + f.probable + f.pipeline)} kr</p>
+              <p className="text-lg font-bold text-foreground mt-0.5">{formatCurrency(f.safeRevenue + f.likelyRevenue + f.pipelineRevenue)} kr</p>
               <div className="flex gap-2 mt-1">
-                <span className="text-[10px] text-primary font-medium">{formatCurrency(f.secure)} säker</span>
+                <span className="text-[10px] text-primary font-medium">{formatCurrency(f.safeRevenue)} säker</span>
                 <span className="text-[10px] text-muted-foreground">·</span>
-                <span className="text-[10px] text-muted-foreground">{formatCurrency(f.probable)} trolig</span>
+                <span className="text-[10px] text-muted-foreground">{formatCurrency(f.likelyRevenue)} trolig</span>
               </div>
             </div>
           ))}
