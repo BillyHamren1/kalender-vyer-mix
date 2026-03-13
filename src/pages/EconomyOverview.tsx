@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import {
   Lock,
   PlayCircle,
   CalendarClock,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseISO, isAfter, startOfDay } from 'date-fns';
