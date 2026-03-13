@@ -15,13 +15,14 @@ interface TeamManagerProps {
   onAddTeam: (teamName: string) => void;
   onRemoveTeam: (teamId: string) => void;
   teamCount: number;
+  onClose?: () => void;
 }
 
 const formSchema = z.object({
   teamName: z.string().min(1, { message: "Team name is required" }).max(30, { message: "Team name cannot exceed 30 characters" })
 });
 
-const TeamManager = ({ teams, onAddTeam, onRemoveTeam, teamCount }: TeamManagerProps) => {
+const TeamManager = ({ teams, onAddTeam, onRemoveTeam, teamCount, onClose }: TeamManagerProps) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -96,13 +97,13 @@ const TeamManager = ({ teams, onAddTeam, onRemoveTeam, teamCount }: TeamManagerP
       <div className="mt-6 text-right">
         <Button
           variant="outline"
-          onClick={() => window.location.reload()}
+          onClick={() => onClose?.()}
           className="mr-2"
         >
           Avbryt
         </Button>
         <Button 
-          onClick={() => window.location.reload()}
+          onClick={() => onClose?.()}
           className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
         >
           Klar

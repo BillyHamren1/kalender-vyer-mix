@@ -11,46 +11,52 @@ import {
   ActivePacking,
   PackingTask
 } from '@/services/warehouseDashboardService';
-
-const REFETCH_INTERVAL = 30000; // 30 seconds
+import { useRealtimeInvalidation } from './useRealtimeInvalidation';
 
 export const useWarehouseDashboard = () => {
-  // Warehouse stats query
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'warehouse-dashboard-realtime',
+    tables: ['packing_projects', 'packing_list_items', 'packing_tasks', 'bookings'],
+    queryKeys: [
+      ['warehouse-stats'],
+      ['warehouse-upcoming-jobs'],
+      ['warehouse-urgent-packings'],
+      ['warehouse-active-packings'],
+      ['warehouse-tasks-attention'],
+    ],
+  });
+
   const statsQuery = useQuery<WarehouseStats>({
     queryKey: ['warehouse-stats'],
     queryFn: fetchWarehouseStats,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: 300000,
   });
 
-  // Upcoming jobs query
   const upcomingJobsQuery = useQuery<UpcomingJob[]>({
     queryKey: ['warehouse-upcoming-jobs'],
     queryFn: fetchUpcomingJobs,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: 300000,
   });
 
-  // Urgent packings query
   const urgentPackingsQuery = useQuery<UrgentPacking[]>({
     queryKey: ['warehouse-urgent-packings'],
     queryFn: fetchUrgentPackings,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: 300000,
   });
 
-  // Active packings query
   const activePackingsQuery = useQuery<ActivePacking[]>({
     queryKey: ['warehouse-active-packings'],
     queryFn: fetchActivePackings,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: 300000,
   });
 
-  // Tasks needing attention query
   const tasksQuery = useQuery<PackingTask[]>({
     queryKey: ['warehouse-tasks-attention'],
     queryFn: fetchPackingTasksAttention,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: 300000,
   });
 
-  // Combined loading state
   const isLoading = 
     statsQuery.isLoading ||
     upcomingJobsQuery.isLoading ||
@@ -58,7 +64,6 @@ export const useWarehouseDashboard = () => {
     activePackingsQuery.isLoading ||
     tasksQuery.isLoading;
 
-  // Refetch all data
   const refetchAll = () => {
     statsQuery.refetch();
     upcomingJobsQuery.refetch();
@@ -68,29 +73,22 @@ export const useWarehouseDashboard = () => {
   };
 
   return {
-    // Data
     stats: statsQuery.data || { upcomingJobs: 0, activePackings: 0, urgentPackings: 0, overdueTasks: 0 },
     upcomingJobs: upcomingJobsQuery.data || [],
     urgentPackings: urgentPackingsQuery.data || [],
     activePackings: activePackingsQuery.data || [],
     tasksAttention: tasksQuery.data || [],
-    
-    // Loading states
     isLoading,
     isStatsLoading: statsQuery.isLoading,
     isUpcomingLoading: upcomingJobsQuery.isLoading,
     isUrgentLoading: urgentPackingsQuery.isLoading,
     isActiveLoading: activePackingsQuery.isLoading,
     isTasksLoading: tasksQuery.isLoading,
-    
-    // Error states
     statsError: statsQuery.error,
     upcomingError: upcomingJobsQuery.error,
     urgentError: urgentPackingsQuery.error,
     activeError: activePackingsQuery.error,
     tasksError: tasksQuery.error,
-    
-    // Actions
     refetchAll
   };
 };

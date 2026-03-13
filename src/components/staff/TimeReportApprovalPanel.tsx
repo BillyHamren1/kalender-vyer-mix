@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 
 interface PendingTimeReport {
   id: string;
@@ -31,6 +32,13 @@ interface PendingTimeReport {
 
 export const TimeReportApprovalPanel: React.FC = () => {
   const queryClient = useQueryClient();
+
+  // Realtime instead of polling
+  useRealtimeInvalidation({
+    channelName: 'time-reports-realtime',
+    tables: ['time_reports'],
+    queryKeys: [['pending-time-reports']],
+  });
 
   const { data: pendingReports = [], isLoading } = useQuery({
     queryKey: ['pending-time-reports'],
@@ -75,7 +83,7 @@ export const TimeReportApprovalPanel: React.FC = () => {
         created_at: report.created_at
       }));
     },
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 300000, // 5 min fallback
   });
 
   const approveMutation = useMutation({

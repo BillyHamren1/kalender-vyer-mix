@@ -7,6 +7,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isSameDay,
 import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import WeekPackingsView from "@/components/warehouse-dashboard/WeekPackingsView";
 import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
@@ -38,6 +39,20 @@ const WarehouseDashboard = () => {
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
+
+  // Realtime subscriptions for warehouse dashboard
+  useRealtimeInvalidation({
+    channelName: 'warehouse-page-realtime',
+    tables: ['packing_projects', 'packing_list_items', 'transport_assignments', 'bookings'],
+    queryKeys: [
+      ['warehouse-week-packings'],
+      ['warehouse-new-jobs'],
+      ['warehouse-active-packings'],
+      ['warehouse-completed-packings'],
+      ['warehouse-staff-utilization'],
+      ['warehouse-transports'],
+    ],
+  });
 
   const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
   const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
@@ -284,7 +299,7 @@ const WarehouseDashboard = () => {
         } as TransportItem;
       });
     },
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 

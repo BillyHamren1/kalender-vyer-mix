@@ -54,6 +54,7 @@ const TeamManagementDialog: React.FC<TeamManagementDialogProps> = ({
           onAddTeam={onAddTeam} 
           onRemoveTeam={onRemoveTeam} 
           teamCount={teamCount}
+          onClose={() => setDialogOpen(false)}
         />
       </DialogContent>
     </Dialog>

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 export type EventCategory = 'planning' | 'warehouse' | 'logistics';
 export type DashboardViewMode = 'day' | 'week' | 'month';
@@ -52,6 +53,12 @@ export function useDashboardEvents(
   currentDate: Date,
   activeCategories: EventCategory[]
 ) {
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'dashboard-events-realtime',
+    tables: ['calendar_events', 'bookings', 'transport_assignments'],
+    queryKeys: [['dashboard-planning'], ['dashboard-warehouse'], ['dashboard-logistics']],
+  });
   const { start, end } = getDateRange(viewMode, currentDate);
   const startStr = format(start, 'yyyy-MM-dd');
   const endStr = format(end, 'yyyy-MM-dd');
@@ -246,6 +253,6 @@ export function useDashboardStats() {
         upcomingRigs: rigsRes.count || 0,
       };
     },
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 }

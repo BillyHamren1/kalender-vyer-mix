@@ -1,107 +1,87 @@
 
+# Steg 4: Regression Test Layer ✅ Klart
 
-# Eliminera reload-hämtningar — fullständig plan
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
 
-## Tre åtgärdsområden
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
 
-### 1. Ta bort `window.location.reload()` i TeamManager
+## Totalt: 159 tester i 7 filer, alla gröna.
 
-**Fil:** `src/components/Calendar/TeamManager.tsx`
+---
 
-TeamManager har två knappar ("Avbryt" och "Klar") som båda gör hård reload. Istället:
+# Steg 1: SAFE NOW ✅ Klart
 
-- Lägg till en `onClose` callback i `TeamManagerProps`
-- "Avbryt" anropar `onClose()` — stänger dialogen utan sideffekter
-- "Klar" anropar `onClose()` — teamdata är redan uppdaterad via `onAddTeam`/`onRemoveTeam`
-- Föräldern (den komponent som renderar TeamManager i en Dialog) ansvarar för att invalidera relevanta queries via `queryClient.invalidateQueries()`
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
 
-### 2. Ersätt polling med Supabase Realtime i dashboard-hooks
+---
 
-Projektet har redan ett etablerat mönster för Realtime (10 hooks använder `postgres_changes`). Samma mönster appliceras på de 7 hooks som idag pollar var 30:e sekund.
+# Steg 2: SAFE NEXT ✅ Klart
 
-**Strategi:** Skapa en generisk `useRealtimeInvalidation`-hook som prenumererar på tabelländringar och invaliderar rätt query-keys. Polling (`refetchInterval`) tas bort helt eller behålls som fallback med längre intervall (5 min).
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
 
-| Hook | Tabeller att lyssna på |
-|------|----------------------|
-| `useDashboard` | `bookings`, `calendar_events`, `staff_assignments`, `projects` |
-| `useDashboardEvents` | `calendar_events`, `bookings` |
-| `usePlanningDashboard` | `staff_assignments`, `booking_staff_assignments`, `bookings`, `calendar_events` |
-| `useWarehouseDashboard` | `packing_projects`, `packing_list_items`, `packing_tasks`, `bookings` |
-| `useJobsListRealTime` | Har redan Realtime — ta bort `refetchInterval: 30000` |
-| `TimeReportApprovalPanel` | `time_reports` (inline query) |
-| `WarehouseDashboard` (inline) | `packing_projects`, `packing_list_items` |
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
 
-**Implementering per hook:**
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
 
-```text
-useEffect(() => {
-  const channel = supabase
-    .channel('dashboard-realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' },
-      () => queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    )
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' },
-      () => queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    )
-    .subscribe();
-  return () => { supabase.removeChannel(channel); };
-}, [queryClient]);
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
-Varje hook får sin egen kanal med relevanta tabeller. `refetchInterval` tas bort eller sätts till 300000 (5 min) som fallback.
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-### 3. Optimera scanner-appens datahämtning
-
-**Filer:** `src/components/scanner/VerificationView.tsx`, `ManualChecklistView.tsx`
-
-Idag: varje scan → `loadData()` → hämtar hela packlistan från servern → hittar uppdaterat item.
-
-**Ny strategi — optimistisk lokal uppdatering:**
-
-1. Efter lyckad `verifyProductBySku` / checkbox-toggle:
-   - Uppdatera `items`-state lokalt (markera item som verifierad, öka `quantity_packed`)
-   - Räkna om progress lokalt
-   - Visa resultat direkt
-
-2. Bakgrundssynk:
-   - Kör `loadData()` tyst i bakgrunden efter 2 sekunder (debounce)
-   - Om bakgrundsdata avviker, uppdatera state tyst
-
-3. Behåll manuell refresh-knapp som hård `loadData()` för edge cases
-
-**Konkret ändring i `handleScan`:**
-```text
-// Istället för:
-loadData();
-
-// Gör:
-setItems(prev => prev.map(item =>
-  item.id === updatedItemId
-    ? { ...item, quantity_packed: item.quantity_packed + 1, ... }
-    : item
-));
-// Debounced background sync
-debouncedLoadData();
-```
-
-## Filer som ändras
-
-| Fil | Ändring |
-|-----|---------|
-| `src/components/Calendar/TeamManager.tsx` | Ersätt reload med `onClose` callback |
-| Förälder till TeamManager (Dialog-komponent) | Skicka `onClose` + invalidera queries |
-| `src/hooks/useDashboard.tsx` | Realtime + ta bort polling |
-| `src/hooks/useDashboardEvents.ts` | Realtime + ta bort polling |
-| `src/hooks/usePlanningDashboard.tsx` | Realtime + ta bort polling |
-| `src/hooks/useWarehouseDashboard.tsx` | Realtime + ta bort polling |
-| `src/hooks/useJobsListRealTime.tsx` | Ta bort `refetchInterval` (har redan RT) |
-| `src/components/staff/TimeReportApprovalPanel.tsx` | Realtime + ta bort polling |
-| `src/pages/WarehouseDashboard.tsx` | Realtime + ta bort polling |
-| `src/components/scanner/VerificationView.tsx` | Optimistisk uppdatering + debounced sync |
-| `src/components/scanner/ManualChecklistView.tsx` | Optimistisk uppdatering + debounced sync |
-
-## Risker
-
-- Supabase Realtime kräver att Realtime är aktiverat på tabellerna i Supabase Dashboard. Tabeller som `staff_assignments`, `calendar_events`, `bookings` används redan i Realtime-prenumerationer, så de bör redan vara aktiverade. Övriga tabeller (`packing_projects`, `packing_list_items`, `packing_tasks`, `time_reports`) kan behöva aktiveras manuellt.
-- Optimistisk uppdatering i scannern kräver att `verifyProductBySku`-svaret innehåller tillräcklig info för att identifiera rätt item — behöver verifieras.
-
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`

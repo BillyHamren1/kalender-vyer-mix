@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -80,7 +80,33 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Stable item order map (item.id -> initial index)
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
 
-  // Kolli mode state
+  // Debounced background sync ref
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, []);
+
+  // Recalculate progress locally
+  const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
+    const parentProductIds = new Set<string>();
+    updatedItems.forEach(item => {
+      const pid = item.booking_products?.parent_product_id;
+      if (pid) parentProductIds.add(pid);
+    });
+    const countable = updatedItems.filter(item => {
+      const productId = item.booking_products?.id;
+      return !productId || !parentProductIds.has(productId);
+    });
+    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
+    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
+    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
+    setProgress({ total, verified, percentage });
+  }, []);
+
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
@@ -129,7 +155,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     loadData();
   }, [loadData]);
 
-  // Start Kolli mode - create first parcel
+  const debouncedLoadData = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      loadData();
+    }, 2000);
+  }, [loadData]);
+
   const startKolliMode = useCallback(async () => {
     try {
       const parcel = await createParcel(packingId, verifierName);
@@ -187,29 +219,39 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       toast.success(`${result.productName} verifierad!`);
       
+      // Optimistic local update — find item by SKU and increment
+      setItems(prev => {
+        const updated = prev.map(item => {
+          if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
+            return { ...item, quantity_packed: Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack) };
+          }
+          return item;
+        });
+        recalcProgress(updated);
+        return updated;
+      });
+
       // If in Kolli mode, assign scanned item to active parcel
       if (isKolliMode && activeParcel) {
-        // Find the item that was just verified
-        const itemsData = await fetchPackingListItems(packingId);
-        const justVerifiedItem = (itemsData as PackingItem[]).find(
+        const matchedItem = items.find(
           item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()
         );
-        if (justVerifiedItem) {
-          await assignItemToParcel(justVerifiedItem.id, activeParcel.id);
-          setItemParcelMap(prev => ({ ...prev, [justVerifiedItem.id]: activeParcel.parcel_number }));
+        if (matchedItem) {
+          await assignItemToParcel(matchedItem.id, activeParcel.id);
+          setItemParcelMap(prev => ({ ...prev, [matchedItem.id]: activeParcel.parcel_number }));
           toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
         }
       }
       
-      // Refresh data
-      loadData();
+      // Debounced background sync
+      debouncedLoadData();
     } else {
       toast.error(result.error);
     }
 
     // Close QR scanner after scan
     setIsQRActive(false);
-  }, [packingId, verifierName, loadData, isKolliMode, activeParcel]);
+  }, [packingId, verifierName, debouncedLoadData, isKolliMode, activeParcel, items, recalcProgress]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
@@ -223,6 +265,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       toast.success(isCurrentlyPacked ? 'Avmarkerad' : 'Markerad som packad');
       
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(item => {
+          if (item.id === itemId) {
+            const newPacked = isCurrentlyPacked ? 0 : Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack);
+            return { ...item, quantity_packed: newPacked };
+          }
+          return item;
+        });
+        recalcProgress(updated);
+        return updated;
+      });
+      
       // If in Kolli mode and we're packing (not unpacking), assign to parcel
       if (isKolliMode && activeParcel && !isCurrentlyPacked) {
         await assignItemToParcel(itemId, activeParcel.id);
@@ -230,11 +285,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
       }
       
-      loadData();
+      // Debounced background sync
+      debouncedLoadData();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, loadData, isKolliMode, activeParcel]);
+  }, [verifierName, debouncedLoadData, isKolliMode, activeParcel, recalcProgress]);
 
   if (isLoading) {
     return (

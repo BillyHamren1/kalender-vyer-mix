@@ -24,62 +24,70 @@ import {
   UnopenedBooking
 } from "@/services/planningDashboardService";
 import { format } from "date-fns";
+import { useRealtimeInvalidation } from "./useRealtimeInvalidation";
 
 export const usePlanningDashboard = (currentWeekStart: Date) => {
   const queryClient = useQueryClient();
 
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'planning-dashboard-realtime',
+    tables: ['staff_assignments', 'booking_staff_assignments', 'bookings', 'calendar_events'],
+    queryKeys: [['planning-dashboard']],
+  });
+
   const statsQuery = useQuery<PlanningStats>({
     queryKey: ['planning-dashboard', 'stats'],
     queryFn: fetchPlanningStats,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const locationsQuery = useQuery<StaffLocation[]>({
     queryKey: ['planning-dashboard', 'locations'],
     queryFn: fetchStaffLocations,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const availableQuery = useQuery<AvailableStaff[]>({
     queryKey: ['planning-dashboard', 'available'],
     queryFn: fetchAvailableStaff,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const projectsQuery = useQuery<OngoingProject[]>({
     queryKey: ['planning-dashboard', 'projects'],
     queryFn: fetchOngoingProjects,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const completedQuery = useQuery<CompletedToday[]>({
     queryKey: ['planning-dashboard', 'completed'],
     queryFn: fetchCompletedToday,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const allStaffQuery = useQuery<AllStaffMember[]>({
     queryKey: ['planning-dashboard', 'all-staff'],
     queryFn: fetchAllStaff,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const weekAssignmentsQuery = useQuery<DayAssignment[]>({
     queryKey: ['planning-dashboard', 'week-assignments'],
     queryFn: fetchWeekAssignments,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const weekProjectsQuery = useQuery<WeekProject[]>({
     queryKey: ['planning-dashboard', 'week-projects', format(currentWeekStart, 'yyyy-MM-dd')],
     queryFn: () => fetchWeekProjects(currentWeekStart),
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const unopenedBookingsQuery = useQuery<UnopenedBooking[]>({
     queryKey: ['planning-dashboard', 'unopened-bookings'],
     queryFn: fetchUnopenedBookings,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const isLoading = 
