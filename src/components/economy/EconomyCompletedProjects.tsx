@@ -39,9 +39,9 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
   const filtered = React.useMemo(() => {
     switch (filter) {
       case 'not-invoiced': return projects.filter(p => p.remainingToInvoice > 0);
-      case 'fully-invoiced': return projects.filter(p => p.economyStatus === 'fully-invoiced' || (p.expectedRevenue > 0 && p.totalInvoiced >= p.expectedRevenue * 0.95));
+      case 'fully-invoiced': return projects.filter(p => p.economyStatus === 'fully-invoiced' || (p.quotedAmount > 0 && p.invoicedAmount >= p.quotedAmount * 0.95));
       case 'closed': return projects.filter(p => p.economyStatus === 'economy-closed');
-      case 'risk': return projects.filter(p => p.isRisk);
+      case 'risk': return projects.filter(p => p.isRiskProject);
       default: return projects;
     }
   }, [projects, filter]);
