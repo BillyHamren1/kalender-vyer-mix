@@ -149,6 +149,7 @@ export interface EconomyProjectInsight {
   status: string;
   booking_id: string | null;
   eventdate: string | null;
+  bookingCreatedAt: string | null;
   navigateTo: string;
 
   // Derived status

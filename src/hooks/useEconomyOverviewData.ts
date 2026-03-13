@@ -12,6 +12,7 @@ export interface ProjectWithEconomy {
   status: string;
   booking_id: string | null;
   eventdate: string | null;
+  bookingCreatedAt: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
   economyClosed: boolean;
@@ -202,15 +203,19 @@ export const useEconomyOverviewData = () => {
       // Collect all unique booking IDs
       const allBookingIds = [...new Set(entries.flatMap(e => e.booking_ids))];
 
-      // Fetch eventdates from bookings
+      // Fetch eventdates and created_at from bookings
       let eventdateMap: Record<string, string | null> = {};
+      let createdAtMap: Record<string, string | null> = {};
       if (allBookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('id, eventdate')
+          .select('id, eventdate, created_at')
           .in('id', allBookingIds);
         if (bookings) {
-          bookings.forEach(b => { eventdateMap[b.id] = b.eventdate; });
+          bookings.forEach(b => {
+            eventdateMap[b.id] = b.eventdate;
+            createdAtMap[b.id] = b.created_at;
+          });
         }
       }
 
@@ -228,6 +233,7 @@ export const useEconomyOverviewData = () => {
         // For projects with a single booking
         const primaryBookingId = entry.booking_ids[0] ?? null;
         const eventdate = primaryBookingId ? (eventdateMap[primaryBookingId] ?? null) : null;
+        const bookingCreatedAt = primaryBookingId ? (createdAtMap[primaryBookingId] ?? null) : null;
 
         if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
           return {
@@ -236,6 +242,7 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            bookingCreatedAt,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
             economyClosed: entry.status === 'completed',
@@ -284,6 +291,7 @@ export const useEconomyOverviewData = () => {
               status: entry.status,
               booking_id: primaryBookingId,
               eventdate,
+              bookingCreatedAt,
               summary: aggregated,
               timeReports: allTimeReports,
               economyClosed: allClosed || entry.status === 'completed',
@@ -300,6 +308,7 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            bookingCreatedAt,
             summary,
             timeReports,
             economyClosed: economyClosed || entry.status === 'completed',
@@ -314,6 +323,7 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            bookingCreatedAt,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
             economyClosed: entry.status === 'completed',
