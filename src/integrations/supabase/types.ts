@@ -2861,6 +2861,8 @@ export type Database = {
           is_read: boolean
           message_type: string
           organization_id: string
+          sender_name: string | null
+          sender_type: string
           staff_id: string
           staff_name: string
         }
@@ -2872,6 +2874,8 @@ export type Database = {
           is_read?: boolean
           message_type?: string
           organization_id?: string
+          sender_name?: string | null
+          sender_type?: string
           staff_id: string
           staff_name: string
         }
@@ -2883,6 +2887,8 @@ export type Database = {
           is_read?: boolean
           message_type?: string
           organization_id?: string
+          sender_name?: string | null
+          sender_type?: string
           staff_id?: string
           staff_name?: string
         }
