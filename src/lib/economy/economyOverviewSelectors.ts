@@ -539,3 +539,82 @@ export function getReadyForInvoicingProjects(projects: EconomyProjectInsight[]):
     .filter(p => p.isReadyForInvoicing)
     .sort((a, b) => b.remainingToInvoice - a.remainingToInvoice);
 }
+
+// ─── Forecast Drivers ───────────────────────────────────────────────────────
+
+export interface ForecastDrivers {
+  /** Top projects by forecast revenue (biggest impact on income) */
+  topRevenue: EconomyProjectInsight[];
+  /** Top projects with worst margin (biggest risk to profitability) */
+  topMarginRisk: EconomyProjectInsight[];
+  /** Top projects with most remaining to invoice (biggest invoicing actions) */
+  topRemainingToInvoice: EconomyProjectInsight[];
+}
+
+/**
+ * Returns the top 5 projects driving the forecast in three dimensions:
+ * revenue impact, margin risk, and invoicing backlog.
+ */
+export function getForecastDrivers(projects: EconomyProjectInsight[], limit = 5): ForecastDrivers {
+  // Only include projects with economic data
+  const withData = projects.filter(p => p.quotedAmount > 0 || p.actualCost > 0);
+
+  const topRevenue = [...withData]
+    .sort((a, b) => b.forecastRevenue - a.forecastRevenue)
+    .slice(0, limit);
+
+  const topMarginRisk = [...withData]
+    .filter(p => p.forecastMarginPercent < 30 && !p.isEconomyClosed)
+    .sort((a, b) => a.forecastMarginPercent - b.forecastMarginPercent)
+    .slice(0, limit);
+
+  const topRemainingToInvoice = [...withData]
+    .filter(p => p.remainingToInvoice > 0)
+    .sort((a, b) => b.remainingToInvoice - a.remainingToInvoice)
+    .slice(0, limit);
+
+  return { topRevenue, topMarginRisk, topRemainingToInvoice };
+}
+
+// ─── Leadership Summary ─────────────────────────────────────────────────────
+
+export interface LeadershipMetrics {
+  /** Expected revenue next 30 days (safe + likely) */
+  revenue30: number;
+  /** Expected revenue next 90 days (safe + likely) */
+  revenue90: number;
+  /** Expected margin next 90 days in % */
+  margin90Percent: number;
+  /** Ratio of safe revenue to total forecast (0-1) */
+  safeRatio90: number;
+  /** Number of projects contributing to forecast */
+  forecastProjectCount: number;
+  /** Total pipeline (uncertain) revenue */
+  pipelineTotal: number;
+}
+
+/**
+ * Computes leadership-level summary metrics from forecasts.
+ */
+export function getLeadershipMetrics(
+  forecasts: EconomyForecastBucket[],
+  projects: EconomyProjectInsight[],
+): LeadershipMetrics {
+  const f30 = forecasts[0];
+  const f90 = forecasts[2];
+
+  const revenue30 = f30 ? f30.safeRevenue + f30.likelyRevenue : 0;
+  const revenue90 = f90 ? f90.safeRevenue + f90.likelyRevenue : 0;
+  const margin90Percent = f90?.forecastMarginPercent ?? 0;
+
+  const totalForecast90 = f90 ? f90.safeRevenue + f90.likelyRevenue + f90.pipelineRevenue : 0;
+  const safeRatio90 = totalForecast90 > 0 ? (f90?.safeRevenue ?? 0) / totalForecast90 : 0;
+
+  const forecastProjectCount = projects.filter(p =>
+    p.quotedAmount > 0 && !p.isEconomyClosed
+  ).length;
+
+  const pipelineTotal = f90?.pipelineRevenue ?? 0;
+
+  return { revenue30, revenue90, margin90Percent, safeRatio90, forecastProjectCount, pipelineTotal };
+}
