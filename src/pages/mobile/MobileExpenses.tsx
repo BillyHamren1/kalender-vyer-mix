@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { takePhotoBase64 } from '@/utils/capacitorCamera';
 
 const categories = ['Material', 'Transport', 'Mat', 'Verktyg', 'Övrigt'];
 
@@ -40,6 +41,16 @@ const MobileExpenses = () => {
       setReceiptBase64(result);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCameraClick = async () => {
+    const base64 = await takePhotoBase64();
+    if (base64) {
+      setReceiptPreview(base64);
+      setReceiptBase64(base64);
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   const handleSubmit = async () => {
@@ -189,7 +200,7 @@ const MobileExpenses = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleCameraClick}
                   className="w-full h-20 rounded-xl border border-dashed border-primary/25 flex flex-col items-center justify-center gap-1 bg-primary/5 transition-colors"
                 >
                   <Camera className="w-5 h-5 text-primary/70" />

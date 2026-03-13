@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote, MessageSquare, Send, Loader2 } from 'lucide-react';
 import InspectionWizard from '@/components/mobile-app/inspection/InspectionWizard';
+import { mobileApi } from '@/services/mobileApiService';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 
 interface JobInfoTabProps {
   booking: any;
   bookingId: string;
+  onCommentsUpdated?: () => void;
 }
 
 // --- Product grouping logic (mirrors desktop ProductsList.tsx) ---
@@ -53,7 +57,6 @@ const groupProducts = (products: ProductItem[]): ProductGroup[] => {
   const groups: ProductGroup[] = [];
   const childProducts = products.filter(p => isChildProduct(p));
 
-  // Build child map by both parent_product_id AND parent_package_id
   const childrenByParentId = new Map<string, ProductItem[]>();
   for (const child of childProducts) {
     const parentId = child.parent_product_id || child.parent_package_id;
@@ -77,7 +80,6 @@ const groupProducts = (products: ProductItem[]): ProductGroup[] => {
       currentParent = product;
       currentSequentialChildren = [];
     } else {
-      // Only add to sequential group if no ID-based parent link
       if (!product.parent_product_id && !product.parent_package_id) {
         currentSequentialChildren.push(product);
       }
@@ -172,12 +174,87 @@ const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
   );
 };
 
+// --- Comments section ---
+
+const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdated }: { bookingId: string; comments: any[]; onCommentsUpdated?: () => void }) => {
+  const [comments, setComments] = useState(initialComments || []);
+  const [newComment, setNewComment] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!newComment.trim()) return;
+    setIsSending(true);
+    try {
+      await mobileApi.createComment({ booking_id: bookingId, content: newComment.trim() });
+      // Optimistic update
+      setComments(prev => [...prev, {
+        id: `temp-${Date.now()}`,
+        content: newComment.trim(),
+        author_name: 'Du',
+        created_at: new Date().toISOString(),
+      }]);
+      setNewComment('');
+      toast.success('Kommentar skickad');
+      onCommentsUpdated?.();
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte skicka kommentar');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-muted-foreground" />
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Kommentarer</p>
+      </div>
+
+      {comments.length > 0 && (
+        <div className="space-y-2 max-h-60 overflow-y-auto">
+          {comments.map((c: any) => (
+            <div key={c.id} className="bg-muted/50 rounded-lg p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-semibold text-foreground">{c.author_name}</span>
+                {c.created_at && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {format(parseISO(c.created_at), 'd MMM HH:mm', { locale: sv })}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-foreground/80 whitespace-pre-wrap">{c.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Textarea
+          value={newComment}
+          onChange={e => setNewComment(e.target.value)}
+          placeholder="Skriv en kommentar..."
+          className="min-h-[40px] rounded-xl text-sm flex-1"
+          rows={1}
+        />
+        <button
+          onClick={handleSend}
+          disabled={isSending || !newComment.trim()}
+          className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 disabled:opacity-50 active:scale-95 transition-all"
+        >
+          {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- Main component ---
 
-const JobInfoTab = ({ booking, bookingId }: JobInfoTabProps) => {
+const JobInfoTab = ({ booking, bookingId, onCommentsUpdated }: JobInfoTabProps) => {
   const [showInspection, setShowInspection] = useState(false);
   const products: ProductItem[] = booking.products || [];
   const groups = groupProducts(products);
+  const comments = booking.project?.comments || [];
 
   return (
     <div className="space-y-4">
@@ -219,6 +296,9 @@ const JobInfoTab = ({ booking, bookingId }: JobInfoTabProps) => {
           </div>
         </div>
       )}
+
+      {/* Comments */}
+      <CommentsSection bookingId={bookingId} comments={comments} onCommentsUpdated={onCommentsUpdated} />
 
       {/* Products - grouped hierarchy */}
       {groups.length > 0 && (

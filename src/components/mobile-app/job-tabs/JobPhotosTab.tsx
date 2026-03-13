@@ -65,18 +65,22 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
     if (!file) return;
 
     setIsUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
         const base64 = ev.target?.result as string;
         await uploadBase64(base64, file.name, file.type);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      toast.error('Uppladdning misslyckades');
-    } finally {
+      } catch {
+        toast.error('Uppladdning misslyckades');
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      toast.error('Kunde inte läsa filen');
       setIsUploading(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   if (isLoading) {
