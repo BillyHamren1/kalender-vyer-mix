@@ -19,9 +19,7 @@ import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
 import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
-import EconomyForecastPanel from '@/components/economy/EconomyForecastPanel';
-import EconomyLeadershipSummary from '@/components/economy/EconomyLeadershipSummary';
-import EconomyForecastDrivers from '@/components/economy/EconomyForecastDrivers';
+import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -39,9 +37,7 @@ const ProjectEconomyDashboard: React.FC = () => {
     invoicingQueue,
     completedProjects,
     riskProjects,
-    forecasts,
-    forecastDrivers,
-    leadershipMetrics,
+    projectInsights,
   } = useEconomyDashboard();
 
   const handleCloseProject = async () => {
@@ -74,9 +70,6 @@ const ProjectEconomyDashboard: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
         <Skeleton className="h-48 rounded-xl" />
       </div>
@@ -88,8 +81,8 @@ const ProjectEconomyDashboard: React.FC = () => {
       {/* A. KPI-rad */}
       <EconomyKpiCards summary={dashboardSummary} />
 
-      {/* B. Ledningsöverblick */}
-      <EconomyLeadershipSummary metrics={leadershipMetrics} />
+      {/* B. TB-analys — intäkt, kostnad, täckningsbidrag per månad */}
+      <EconomyTBAnalysis projects={projectInsights} />
 
       {/* C. Faktureringscenter */}
       <EconomyInvoicingQueue
@@ -99,16 +92,10 @@ const ProjectEconomyDashboard: React.FC = () => {
         onCloseProject={setClosingProject}
       />
 
-      {/* D. Prognos & framåtblick */}
-      <EconomyForecastPanel forecasts={forecasts} />
-
-      {/* E. Vad driver prognosen */}
-      <EconomyForecastDrivers drivers={forecastDrivers} />
-
-      {/* F. Risklista */}
+      {/* D. Risklista */}
       <EconomyRiskList risks={riskProjects} />
 
-      {/* G. Avslutade projekt */}
+      {/* E. Avslutade projekt */}
       <EconomyCompletedProjects projects={completedProjects} />
 
       {/* Close project dialog */}
@@ -139,7 +126,7 @@ const EconomyOverview: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-8 max-w-[1600px]">
-        {/* Premium Header */}
+        {/* Header */}
         <div className="relative mb-8">
           <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
@@ -159,7 +146,7 @@ const EconomyOverview: React.FC = () => {
                   Ekonomiskt kontrollcenter
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
-                  Ledningsöverblick · Fakturering · Prognoser · Risk
+                  TB-analys · Fakturering · Risk
                 </p>
               </div>
             </div>
