@@ -18,12 +18,10 @@ import {
   AlertTriangle,
   Check,
   FileText,
-  Banknote,
-  ArrowLeft,
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import {
   useProjectBillingList,
@@ -36,7 +34,6 @@ import {
 import BillingKpiCards from './BillingKpiCards';
 import BillingStatusBadge from './BillingStatusBadge';
 import BillingReviewDialog from './BillingReviewDialog';
-import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -50,25 +47,18 @@ type FilterTab = 'all' | BillingStatus;
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: 'all', label: 'Alla' },
-  { key: 'under_review', label: 'Att granska' },
-  { key: 'ready_to_invoice', label: 'Redo' },
-  { key: 'invoice_created', label: 'Skapad' },
-  { key: 'invoiced', label: 'Fakturerad' },
-  { key: 'overdue', label: 'Förfallen' },
-  { key: 'paid', label: 'Betald' },
+  { key: 'draft', label: 'Utkast' },
+  { key: 'ready', label: 'Redo' },
+  { key: 'invoiced', label: 'Fakturerade' },
 ];
 
 /** Priority score — lower = higher priority in list */
-function getPriority(item: ProjectBilling, isOverdue: boolean): number {
+function getPriority(item: ProjectBilling): number {
   const hasWarning = !item.client_name || item.invoiceable_amount <= 0;
   if (hasWarning) return 0;
-  if (isOverdue) return 1;
-  if (item.billing_status === 'under_review') return 2;
-  if (item.billing_status === 'ready_to_invoice') return 3;
-  if (item.billing_status === 'invoice_created') return 4;
-  if (item.billing_status === 'invoiced') return 5;
-  if (item.billing_status === 'partially_paid') return 6;
-  if (item.billing_status === 'paid') return 10;
+  if (item.billing_status === 'draft') return 2;
+  if (item.billing_status === 'ready') return 3;
+  if (item.billing_status === 'invoiced') return 10;
   return 7;
 }
 
@@ -95,37 +85,29 @@ const BillingSection: React.FC = () => {
 
   const grouped = useMemo(() => groupByBillingStatus(billingItems), [billingItems]);
 
-  // Build a set of overdue IDs for quick lookup
-  const overdueIds = useMemo(() => new Set(grouped.overdue.map(i => i.id)), [grouped.overdue]);
-
-  const paidThisMonth = useMemo(() => {
+  const invoicedThisMonth = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
-    return grouped.paid.filter(p => {
-      if (!p.invoice_paid_at) return false;
-      const d = new Date(p.invoice_paid_at);
+    return grouped.invoiced.filter(p => {
+      if (!p.approved_for_invoicing_at) return false;
+      const d = new Date(p.approved_for_invoicing_at);
       return isWithinInterval(d, { start: monthStart, end: monthEnd });
     });
-  }, [grouped.paid]);
+  }, [grouped.invoiced]);
 
-  const sentUnpaid = useMemo(
-    () => [...grouped.invoiced, ...grouped.invoice_created],
-    [grouped.invoiced, grouped.invoice_created]
-  );
+  const uninvoicedValue = useMemo(() => {
+    return [...grouped.draft, ...grouped.ready].reduce((s, p) => s + (p.invoiceable_amount ?? 0), 0);
+  }, [grouped.draft, grouped.ready]);
 
   // Filtered & sorted list
   const filteredItems = useMemo(() => {
     let items = billingItems;
 
-    // Tab filter
-    if (activeTab === 'overdue') {
-      items = grouped.overdue;
-    } else if (activeTab !== 'all') {
+    if (activeTab !== 'all') {
       items = grouped[activeTab] ?? [];
     }
 
-    // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       items = items.filter(i =>
@@ -137,15 +119,13 @@ const BillingSection: React.FC = () => {
       );
     }
 
-    // Sort by priority
     return [...items].sort((a, b) => {
-      const pa = getPriority(a, overdueIds.has(a.id));
-      const pb = getPriority(b, overdueIds.has(b.id));
+      const pa = getPriority(a);
+      const pb = getPriority(b);
       if (pa !== pb) return pa - pb;
-      // Secondary: most recent first
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
-  }, [billingItems, activeTab, searchQuery, grouped, overdueIds]);
+  }, [billingItems, activeTab, searchQuery, grouped]);
 
   const handleSave = (id: string, updates: Partial<ProjectBilling>) => {
     updateBilling.mutate({ id, ...updates } as any);
@@ -172,22 +152,15 @@ const BillingSection: React.FC = () => {
 
   const hasAnyItems = billingItems.length > 0;
 
-  // Tab counts
   const tabCounts: Record<FilterTab, number> = {
     all: billingItems.length,
-    not_ready: grouped.not_ready.length,
-    under_review: grouped.under_review.length,
-    ready_to_invoice: grouped.ready_to_invoice.length,
-    invoice_created: grouped.invoice_created.length,
+    draft: grouped.draft.length,
+    ready: grouped.ready.length,
     invoiced: grouped.invoiced.length,
-    partially_paid: grouped.partially_paid.length,
-    paid: grouped.paid.length,
-    overdue: grouped.overdue.length,
   };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center gap-2">
         <Receipt className="h-5 w-5 text-primary" />
         <h2 className="text-base font-semibold text-foreground">Fakturering</h2>
@@ -208,21 +181,17 @@ const BillingSection: React.FC = () => {
         </Card>
       ) : (
         <>
-          {/* KPI cards */}
           <BillingKpiCards
-            underReview={grouped.under_review}
-            readyToInvoice={grouped.ready_to_invoice}
-            invoiced={sentUnpaid}
-            overdue={grouped.overdue}
-            paidThisMonth={paidThisMonth}
+            draft={grouped.draft}
+            ready={grouped.ready}
+            invoicedThisMonth={invoicedThisMonth}
+            uninvoicedValue={uninvoicedValue}
             onFilterClick={(filter) => setActiveTab(filter)}
             activeFilter={activeTab}
           />
 
-          {/* Filter tabs + Search */}
           <Card className="border-border/40">
             <CardContent className="p-0">
-              {/* Tabs row */}
               <div className="flex items-center justify-between border-b border-border/40 px-4">
                 <div className="flex items-center gap-0 overflow-x-auto">
                   {TABS.map(tab => {
@@ -263,7 +232,6 @@ const BillingSection: React.FC = () => {
                 </div>
               </div>
 
-              {/* Table */}
               {filteredItems.length === 0 ? (
                 <EmptyState tab={activeTab} searchQuery={searchQuery} />
               ) : (
@@ -278,7 +246,6 @@ const BillingSection: React.FC = () => {
                         <th className="text-left py-2.5 px-4">Status</th>
                         <th className="text-right py-2.5 px-4">Belopp</th>
                         <th className="text-left py-2.5 px-4 hidden lg:table-cell">Stängd</th>
-                        <th className="text-left py-2.5 px-4 hidden xl:table-cell">Förfaller</th>
                         <th className="text-right py-2.5 px-4 w-10"></th>
                       </tr>
                     </thead>
@@ -287,7 +254,6 @@ const BillingSection: React.FC = () => {
                         <BillingRow
                           key={item.id}
                           item={item}
-                          isOverdue={overdueIds.has(item.id)}
                           onOpen={() => setSelectedBilling(item)}
                           onQuickAdvance={handleQuickAdvance}
                         />
@@ -301,7 +267,6 @@ const BillingSection: React.FC = () => {
         </>
       )}
 
-      {/* Review dialog */}
       <BillingReviewDialog
         billing={selectedBilling}
         open={!!selectedBilling}
@@ -316,12 +281,10 @@ const BillingSection: React.FC = () => {
 /* ─── TABLE ROW ─── */
 const BillingRow: React.FC<{
   item: ProjectBilling;
-  isOverdue: boolean;
   onOpen: () => void;
   onQuickAdvance: (item: ProjectBilling, status: BillingStatus) => void;
-}> = ({ item, isOverdue, onOpen, onQuickAdvance }) => {
+}> = ({ item, onOpen, onQuickAdvance }) => {
   const warnings = getWarnings(item);
-  const displayStatus = isOverdue ? 'overdue' as BillingStatus : item.billing_status;
 
   return (
     <tr
@@ -331,7 +294,6 @@ const BillingRow: React.FC<{
         warnings.length > 0 && 'bg-amber-50/30 dark:bg-amber-950/5'
       )}
     >
-      {/* Warning indicator */}
       <td className="py-3 px-4">
         {warnings.length > 0 ? (
           <span
@@ -347,7 +309,6 @@ const BillingRow: React.FC<{
         )}
       </td>
 
-      {/* Project name */}
       <td className="py-3 px-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground truncate max-w-[240px] group-hover:text-primary transition-colors">
@@ -359,7 +320,6 @@ const BillingRow: React.FC<{
         </div>
       </td>
 
-      {/* Client */}
       <td className="py-3 px-4 hidden md:table-cell">
         <p className={cn(
           'text-sm truncate max-w-[160px]',
@@ -369,47 +329,28 @@ const BillingRow: React.FC<{
         </p>
       </td>
 
-      {/* Leader */}
       <td className="py-3 px-4 hidden lg:table-cell">
         <p className="text-sm text-muted-foreground truncate max-w-[120px]">
           {item.project_leader || '—'}
         </p>
       </td>
 
-      {/* Status */}
       <td className="py-3 px-4">
-        <BillingStatusBadge status={displayStatus} />
+        <BillingStatusBadge status={item.billing_status} />
       </td>
 
-      {/* Amount */}
       <td className="py-3 px-4 text-right">
         <p className="text-sm font-semibold text-foreground whitespace-nowrap">
           {formatCurrency(item.invoiceable_amount)}
         </p>
       </td>
 
-      {/* Closed date */}
       <td className="py-3 px-4 hidden lg:table-cell">
         <p className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDate(item.closed_at)}
         </p>
       </td>
 
-      {/* Due date */}
-      <td className="py-3 px-4 hidden xl:table-cell">
-        {item.due_date ? (
-          <p className={cn(
-            'text-xs whitespace-nowrap',
-            isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'
-          )}>
-            {formatDate(item.due_date)}
-          </p>
-        ) : (
-          <p className="text-xs text-muted-foreground/40">—</p>
-        )}
-      </td>
-
-      {/* Actions */}
       <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
         <QuickActions item={item} onAdvance={onQuickAdvance} onOpen={onOpen} />
       </td>
@@ -436,34 +377,16 @@ const QuickActions: React.FC<{
           Öppna granskning
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {item.billing_status === 'under_review' && (
-          <>
-            <DropdownMenuItem onClick={() => onAdvance(item, 'ready_to_invoice')} className="gap-2 text-xs">
-              <Check className="h-3.5 w-3.5" />
-              Godkänn för fakturering
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onAdvance(item, 'under_review')} className="gap-2 text-xs text-amber-600">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Markera för komplettering
-            </DropdownMenuItem>
-          </>
-        )}
-        {item.billing_status === 'ready_to_invoice' && (
-          <DropdownMenuItem onClick={() => onAdvance(item, 'invoice_created')} className="gap-2 text-xs">
-            <FileText className="h-3.5 w-3.5" />
-            Markera faktura skapad
+        {item.billing_status === 'draft' && (
+          <DropdownMenuItem onClick={() => onAdvance(item, 'ready')} className="gap-2 text-xs">
+            <Check className="h-3.5 w-3.5" />
+            Godkänn för fakturering
           </DropdownMenuItem>
         )}
-        {item.billing_status === 'invoice_created' && (
+        {item.billing_status === 'ready' && (
           <DropdownMenuItem onClick={() => onAdvance(item, 'invoiced')} className="gap-2 text-xs">
-            <Receipt className="h-3.5 w-3.5" />
-            Markera som fakturerad
-          </DropdownMenuItem>
-        )}
-        {(item.billing_status === 'invoiced' || item.billing_status === 'overdue') && (
-          <DropdownMenuItem onClick={() => onAdvance(item, 'paid')} className="gap-2 text-xs">
-            <Banknote className="h-3.5 w-3.5" />
-            Markera som betald
+            <FileText className="h-3.5 w-3.5" />
+            Skapa faktura i Fortnox
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -474,14 +397,9 @@ const QuickActions: React.FC<{
 /* ─── EMPTY STATE ─── */
 const EMPTY_TEXTS: Record<FilterTab, { title: string; sub: string }> = {
   all: { title: 'Inga projekt i faktureringskön', sub: 'Projekt som stängs operativt visas här automatiskt' },
-  not_ready: { title: 'Inga projekt ej redo', sub: '' },
-  under_review: { title: 'Inga projekt att granska just nu', sub: 'Alla projekt har passerat granskningsstadiet' },
-  ready_to_invoice: { title: 'Alla godkända projekt är redan fakturerade', sub: 'Granska fler projekt för att få dem redo' },
-  invoice_created: { title: 'Inga fakturor skapade', sub: 'Godkänn projekt för att skapa fakturaunderlag' },
-  invoiced: { title: 'Inga utestående fakturor', sub: 'Alla fakturor är antingen betalda eller ej skapade' },
-  partially_paid: { title: 'Inga delbetalda', sub: '' },
-  paid: { title: 'Inga betalda projekt denna period', sub: 'Betalda projekt visas här' },
-  overdue: { title: 'Inga förfallna fakturor', sub: 'Alla utestående fakturor är inom betalningsvillkoren' },
+  draft: { title: 'Inga projekt att granska just nu', sub: 'Alla projekt har passerat granskningsstadiet' },
+  ready: { title: 'Alla godkända projekt är redan fakturerade', sub: 'Granska fler projekt för att få dem redo' },
+  invoiced: { title: 'Inga fakturerade projekt', sub: 'Godkänn och skapa fakturor för att se dem här' },
 };
 
 const EmptyState: React.FC<{ tab: FilterTab; searchQuery: string }> = ({ tab, searchQuery }) => {
