@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 export type EventCategory = 'planning' | 'warehouse' | 'logistics';
 export type DashboardViewMode = 'day' | 'week' | 'month';
