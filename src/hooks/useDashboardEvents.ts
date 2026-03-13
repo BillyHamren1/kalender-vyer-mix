@@ -253,6 +253,6 @@ export function useDashboardStats() {
         upcomingRigs: rigsRes.count || 0,
       };
     },
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 }

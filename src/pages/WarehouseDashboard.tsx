@@ -299,7 +299,7 @@ const WarehouseDashboard = () => {
         } as TransportItem;
       });
     },
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 

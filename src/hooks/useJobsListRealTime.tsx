@@ -11,7 +11,7 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
   const { data: jobsList = [], isLoading, error, refetch } = useQuery({
     queryKey: ['jobsList', filters],
     queryFn: () => fetchJobsList(filters),
-    refetchInterval: 30000, // Fallback polling every 30 seconds
+    // No polling — real-time subscriptions handle updates
   });
 
   // Set up real-time subscriptions

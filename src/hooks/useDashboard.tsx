@@ -13,42 +13,50 @@ import {
   StaffTodayStatus,
   RecentActivity
 } from "@/services/dashboardService";
+import { useRealtimeInvalidation } from "./useRealtimeInvalidation";
 
 export const useDashboard = () => {
+  // Realtime subscriptions replace polling
+  useRealtimeInvalidation({
+    channelName: 'dashboard-realtime',
+    tables: ['bookings', 'calendar_events', 'projects', 'staff_assignments'],
+    queryKeys: [['dashboard']],
+  });
+
   const statsQuery = useQuery<DashboardStats>({
     queryKey: ['dashboard', 'stats'],
     queryFn: fetchDashboardStats,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 300000, // 5 min fallback
   });
 
   const eventsQuery = useQuery<UpcomingEvent[]>({
     queryKey: ['dashboard', 'events'],
     queryFn: () => fetchUpcomingEvents(7),
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const tasksQuery = useQuery<AttentionTask[]>({
     queryKey: ['dashboard', 'tasks'],
     queryFn: fetchAttentionTasks,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const projectsQuery = useQuery<ActiveProject[]>({
     queryKey: ['dashboard', 'projects'],
     queryFn: fetchActiveProjects,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const staffQuery = useQuery<StaffTodayStatus>({
     queryKey: ['dashboard', 'staff'],
     queryFn: fetchTodayStaffStatus,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const activityQuery = useQuery<RecentActivity[]>({
     queryKey: ['dashboard', 'activity'],
     queryFn: fetchRecentActivity,
-    refetchInterval: 30000,
+    refetchInterval: 300000,
   });
 
   const isLoading = 

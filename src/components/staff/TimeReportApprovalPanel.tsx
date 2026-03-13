@@ -83,7 +83,7 @@ export const TimeReportApprovalPanel: React.FC = () => {
         created_at: report.created_at
       }));
     },
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 300000, // 5 min fallback
   });
 
   const approveMutation = useMutation({
