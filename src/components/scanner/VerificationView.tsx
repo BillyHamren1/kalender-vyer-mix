@@ -88,7 +88,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     syncTimerRef.current = setTimeout(() => {
       loadData();
     }, 2000);
-  }, []);
+  }, [loadData]);
 
   // Cleanup timer on unmount
   useEffect(() => {
