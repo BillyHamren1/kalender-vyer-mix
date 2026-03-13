@@ -571,13 +571,14 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
                       {vals.map((v, i) => (
                         <td key={i} className="py-2 px-3 text-xs text-right font-medium">{formatCurrency(v)}</td>
                       ))}
-                      {delta !== null && (
-                        <td className={cn("py-2 px-3 text-xs text-right font-semibold", delta >= 0 ? 'text-green-600' : 'text-destructive')}>
-                          {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%
+                      {orderYoY.years.length === 2 && (
+                        <td className={cn("py-2 px-3 text-xs text-right font-semibold",
+                          vals[0] > 0 ? (((vals[1] - vals[0]) / vals[0]) * 100 >= 0 ? 'text-green-600' : 'text-destructive') : 'text-muted-foreground'
+                        )}>
+                          {vals[0] > 0
+                            ? `${((vals[1] - vals[0]) / vals[0]) * 100 >= 0 ? '+' : ''}${(((vals[1] - vals[0]) / vals[0]) * 100).toFixed(0)}%`
+                            : vals[1] > 0 ? 'Ny' : '–'}
                         </td>
-                      )}
-                      {orderYoY.years.length === 2 && vals[0] === 0 && vals[1] === 0 && (
-                        <td className="py-2 px-3 text-xs text-right text-muted-foreground">–</td>
                       )}
                     </tr>
                   );
