@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import StaffItem from './StaffItem';
 import TeamVisibilityControl from './TeamVisibilityControl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
