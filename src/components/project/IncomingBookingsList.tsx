@@ -171,7 +171,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Stort projekt"
               >
                 <Building2 className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Stort</span>
+                <span>Stort</span>
               </Button>
               <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
             </div>
