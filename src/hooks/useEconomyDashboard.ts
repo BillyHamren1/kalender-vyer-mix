@@ -37,6 +37,10 @@ import {
   getOngoingProjects,
   getReadyForInvoicingProjects,
   getAllForecasts,
+  getForecastDrivers,
+  getLeadershipMetrics,
+  type ForecastDrivers,
+  type LeadershipMetrics,
 } from '@/lib/economy/economyOverviewSelectors';
 
 export interface UseEconomyDashboardResult {
@@ -63,8 +67,9 @@ export interface UseEconomyDashboardResult {
   ongoingProjects: EconomyProjectInsight[];
   readyForInvoicingProjects: EconomyProjectInsight[];
 
-  // Forecasts
   forecasts: EconomyForecastBucket[];
+  forecastDrivers: ForecastDrivers;
+  leadershipMetrics: LeadershipMetrics;
 
   // Grouped by status
   byStatus: Record<EconomyProjectStatus, EconomyProjectInsight[]>;
@@ -162,6 +167,18 @@ export function useEconomyDashboard(
     [projectInsights],
   );
 
+  // 11. Forecast drivers
+  const forecastDrivers = useMemo(
+    () => getForecastDrivers(projectInsights),
+    [projectInsights],
+  );
+
+  // 12. Leadership metrics
+  const leadershipMetrics = useMemo(
+    () => getLeadershipMetrics(forecasts, projectInsights),
+    [forecasts, projectInsights],
+  );
+
   // 10. Group by status
   const byStatus = useMemo(() => {
     const map: Record<EconomyProjectStatus, EconomyProjectInsight[]> = {
@@ -204,6 +221,8 @@ export function useEconomyDashboard(
     ongoingProjects,
     readyForInvoicingProjects,
     forecasts,
+    forecastDrivers,
+    leadershipMetrics,
     byStatus,
 
     // Legacy compat
