@@ -35,10 +35,11 @@ function safeParse(dateStr: string | null | undefined): Date | null {
 
 /**
  * Best guess at expected revenue for a project.
- * Uses quotes total if available, falls back to product cost budget.
+ * Uses product cost budget (order value from booking system).
+ * Quotes are not used in the planning system.
  */
 function getExpectedRevenue(s: EconomySummary): number {
-  return s.quotesTotal > 0 ? s.quotesTotal : s.productCostBudget;
+  return s.productCostBudget;
 }
 
 // ─── Status Computation ─────────────────────────────────────────────────────
