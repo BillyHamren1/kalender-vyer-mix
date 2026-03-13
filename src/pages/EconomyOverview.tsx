@@ -168,7 +168,7 @@ const ProjectEconomyView: React.FC = () => {
           </Badge>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{project.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{project.client || '—'}</p>
+            <p className="text-xs text-muted-foreground truncate">{formatDate(project.eventdate)}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
