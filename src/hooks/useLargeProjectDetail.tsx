@@ -17,7 +17,7 @@ import {
   fetchLargeProjectGanttSteps,
   saveLargeProjectGanttSteps,
 } from "@/services/largeProjectService";
-import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
+import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
 import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
@@ -107,6 +107,17 @@ export const useLargeProjectDetail = (projectId: string) => {
       toast.success(`Status ändrad till "${LARGE_PROJECT_STATUS_LABELS[status]}"`);
     },
     onError: () => toast.error('Kunde inte uppdatera status'),
+  });
+
+  // General project update mutation
+  const updateProjectMutation = useMutation({
+    mutationFn: (updates: Partial<LargeProject>) => updateLargeProject(projectId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      toast.success('Projektet uppdaterat');
+    },
+    onError: () => toast.error('Kunde inte uppdatera projektet'),
   });
 
   // Task mutations
@@ -216,6 +227,7 @@ export const useLargeProjectDetail = (projectId: string) => {
     comments,
     ganttSteps,
     isLoading: projectQuery.isLoading,
+    updateProject: updateProjectMutation.mutate,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
