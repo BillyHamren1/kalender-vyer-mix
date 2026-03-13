@@ -562,9 +562,6 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
               <tbody>
                 {orderYoY.buckets.map(b => {
                   const vals = orderYoY.years.map(y => Number(b[String(y)]) || 0);
-                  const delta = orderYoY.years.length === 2 && vals[0] > 0
-                    ? ((vals[1] - vals[0]) / vals[0]) * 100
-                    : null;
                   return (
                     <tr key={b.monthIndex} className="border-t border-border/20 hover:bg-muted/20 transition-colors">
                       <td className="py-2 px-3 text-xs font-medium">{b.monthName}</td>
