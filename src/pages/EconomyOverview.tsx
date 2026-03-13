@@ -24,7 +24,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
+import { parseISO, isAfter, startOfDay } from 'date-fns';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import { useEconomyOverviewData, type ProjectWithEconomy, type ProjectSize } from '@/hooks/useEconomyOverviewData';
