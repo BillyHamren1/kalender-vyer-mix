@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,51 +11,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-import { 
-  Banknote, 
-  CheckCircle2,
-  Lock,
-  PlayCircle,
-  CalendarClock,
-  ChevronRight,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { parseISO, isAfter, startOfDay, format } from 'date-fns';
-import { sv } from 'date-fns/locale';
-import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
+import { Banknote } from 'lucide-react';
+import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
+import { useEconomyDashboard, type EnrichedProject } from '@/hooks/useEconomyDashboard';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
-import { useEconomyOverviewData, type ProjectWithEconomy, type ProjectSize } from '@/hooks/useEconomyOverviewData';
+import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
+import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
+import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
+import EconomyForecastPanel from '@/components/economy/EconomyForecastPanel';
+import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('sv-SE', { 
-    style: 'currency', 
-    currency: 'SEK',
-    maximumFractionDigits: 0 
-  }).format(value);
-};
-
-function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'upcoming' {
-  if (p.economyClosed || p.status === 'completed') return 'completed';
-  if (!p.eventdate) return 'ongoing';
-  try {
-    const eventDate = parseISO(p.eventdate);
-    const today = startOfDay(new Date());
-    if (isAfter(eventDate, today)) return 'upcoming';
-  } catch {}
-  return 'ongoing';
-}
-
-const ProjectEconomyView: React.FC = () => {
+const ProjectEconomyDashboard: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
+  const [closingProject, setClosingProject] = useState<EnrichedProject | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+
+  const { kpis, forecasts, risks, invoicingQueue, completedProjects } = useEconomyDashboard(projectsWithEconomy);
 
   const handleCloseProject = async () => {
     if (!closingProject) return;
@@ -85,156 +58,43 @@ const ProjectEconomyView: React.FC = () => {
     }
   };
 
-  // Categorize projects
-  const categorized = React.useMemo(() => {
-    if (!projectsWithEconomy?.length) return { all: [], ongoing: [], completed: [], upcoming: [] };
-    const ongoing: ProjectWithEconomy[] = [];
-    const completed: ProjectWithEconomy[] = [];
-    const upcoming: ProjectWithEconomy[] = [];
-    projectsWithEconomy.forEach(p => {
-      const cat = categorizeProject(p);
-      if (cat === 'ongoing') ongoing.push(p);
-      else if (cat === 'completed') completed.push(p);
-      else upcoming.push(p);
-    });
-    return { all: projectsWithEconomy, ongoing, completed, upcoming };
-  }, [projectsWithEconomy]);
-
-  // Sort each category by date
-  const sortedOngoing = React.useMemo(() => 
-    [...categorized.ongoing].sort((a, b) => {
-      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
-      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
-      return da - db;
-    }), [categorized.ongoing]);
-
-  const sortedUpcoming = React.useMemo(() => 
-    [...categorized.upcoming].sort((a, b) => {
-      const da = a.eventdate ? new Date(a.eventdate).getTime() : Infinity;
-      const db = b.eventdate ? new Date(b.eventdate).getTime() : Infinity;
-      return da - db;
-    }), [categorized.upcoming]);
-
-  const sortedCompleted = React.useMemo(() => 
-    [...categorized.completed].sort((a, b) => {
-      const da = a.eventdate ? new Date(a.eventdate).getTime() : 0;
-      const db = b.eventdate ? new Date(b.eventdate).getTime() : 0;
-      return db - da; // Most recent first
-    }), [categorized.completed]);
-
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28" />)}
+        <Skeleton className="h-64 rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Skeleton className="h-72 rounded-xl" />
+          <Skeleton className="h-72 rounded-xl" />
         </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
 
-  const TYPE_BADGE_CLASSES: Record<string, string> = {
-    small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
-    medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
-    large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
-  };
-  const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
-
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return '—';
-    try { return format(new Date(dateStr), 'd MMM yyyy', { locale: sv }); } catch { return '—'; }
-  };
-
-  const navigate = useNavigate();
-
-  const EconomyProjectRow = ({ project }: { project: ProjectWithEconomy }) => {
-    const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
-    const closed = project.economyClosed;
-    const link = project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo;
-    return (
-      <div
-        onClick={() => navigate(link)}
-        className={cn(
-          "flex items-center justify-between py-2.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group",
-          closed && "opacity-60"
-        )}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${TYPE_BADGE_CLASSES[project.projectSize]}`}>
-            {TYPE_LABELS[project.projectSize]}
-          </Badge>
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{project.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{formatDate(project.eventdate)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-muted-foreground">{formatDate(project.eventdate)}</span>
-          <span className={cn("text-xs font-mono font-semibold", getDeviationColor(devStatus))}>
-            {project.summary.totalDeviation > 0 ? '+' : ''}{formatCurrency(project.summary.totalDeviation)}
-          </span>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      {/* Three category containers */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Pågående */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <PlayCircle className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Pågående</h3>
-              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedOngoing.length}</Badge>
-            </div>
-            <div className="divide-y divide-border/50">
-              {sortedOngoing.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Inga pågående projekt</p>
-              ) : sortedOngoing.map(p => <EconomyProjectRow key={p.id} project={p} />)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* 1. TOP KPI ROW */}
+      <EconomyKpiCards kpis={kpis} />
 
-        {/* Kommande */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Kommande</h3>
-              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedUpcoming.length}</Badge>
-            </div>
-            <div className="divide-y divide-border/50">
-              {sortedUpcoming.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Inga kommande projekt</p>
-              ) : sortedUpcoming.map(p => <EconomyProjectRow key={p.id} project={p} />)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* 2. INVOICING CENTER */}
+      <EconomyInvoicingQueue
+        readyForInvoicing={invoicingQueue.readyForInvoicing}
+        partiallyInvoiced={invoicingQueue.partiallyInvoiced}
+        completedNotInvoiced={invoicingQueue.completedNotInvoiced}
+        onCloseProject={setClosingProject}
+      />
 
-        {/* Senast avslutade */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast avslutade</h3>
-              <Badge variant="secondary" className="text-[10px] ml-auto">{sortedCompleted.length}</Badge>
-            </div>
-            <div className="divide-y divide-border/50">
-              {sortedCompleted.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Inga avslutade projekt</p>
-              ) : sortedCompleted.map(p => <EconomyProjectRow key={p.id} project={p} />)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* 3. FORECASTS + RISK SIDE BY SIDE */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <EconomyForecastPanel forecasts={forecasts} />
+        <EconomyRiskList risks={risks} />
       </div>
 
+      {/* 4. COMPLETED PROJECTS */}
+      <EconomyCompletedProjects projects={completedProjects} />
 
       {/* Close project dialog */}
       <AlertDialog open={!!closingProject} onOpenChange={() => setClosingProject(null)}>
@@ -281,10 +141,10 @@ const EconomyOverview: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Ekonomiöversikt
+                  Ekonomiskt kontrollcenter
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
-                  Översikt över projekt- och personalekonomi
+                  Ledningsöverblick · Fakturering · Prognoser · Risk
                 </p>
               </div>
             </div>
@@ -296,7 +156,7 @@ const EconomyOverview: React.FC = () => {
           <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
             <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-3">
               <TabsTrigger value="projects" className={tabTriggerClass}>
-                Projekt
+                Kontrollcenter
               </TabsTrigger>
               <TabsTrigger value="staff" className={tabTriggerClass}>
                 Personal
@@ -308,7 +168,7 @@ const EconomyOverview: React.FC = () => {
           </div>
 
           <TabsContent value="projects">
-            <ProjectEconomyView />
+            <ProjectEconomyDashboard />
           </TabsContent>
 
           <TabsContent value="staff">
