@@ -30,16 +30,6 @@ function processEconomyBatchData(batchData: BatchEconomyData) {
   const quotes = batchData.quotes ?? [];
   const invoices = batchData.invoices ?? [];
   const productCosts = batchData.product_costs ?? null;
-  if (productCosts) {
-    console.log('[Economy] productCosts shape:', JSON.stringify({
-      hasSummary: !!productCosts?.summary,
-      summaryRevenue: productCosts?.summary?.revenue,
-      summaryCosts: productCosts?.summary?.costs,
-      productsCount: productCosts?.products?.length,
-      firstProduct: productCosts?.products?.[0],
-      raw: typeof productCosts === 'object' ? Object.keys(productCosts) : typeof productCosts,
-    }));
-  }
   const supplierInvoices = Array.isArray(batchData.supplier_invoices) ? batchData.supplier_invoices : [];
 
   // Map time reports from external format to StaffTimeReport[]
