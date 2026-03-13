@@ -47,7 +47,7 @@ interface TimeGridProps {
   };
 }
 
-// Event Wrapper Component
+// Event Wrapper Component — outer draggable shell sits above Radix popovers
 const EventWrapper: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
@@ -56,8 +56,28 @@ const EventWrapper: React.FC<{
   onEventResize?: () => Promise<void>;
   readOnly?: boolean;
 }> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (readOnly) {
+      e.preventDefault();
+      return;
+    }
+    const data: DraggedEventData = {
+      id: event.id,
+      title: event.title,
+      start: typeof event.start === 'string' ? event.start : new Date(event.start).toISOString(),
+      end: typeof event.end === 'string' ? event.end : new Date(event.end).toISOString(),
+      bookingId: event.bookingId,
+      eventType: event.eventType,
+      resourceId: event.resourceId,
+    };
+    e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
+    e.dataTransfer.effectAllowed = 'move';
+  }, [event, readOnly]);
+
   return (
     <div
+      draggable={!readOnly}
+      onDragStart={handleDragStart}
       style={{
         position: 'absolute',
         top: `${position.top}px`,
@@ -65,7 +85,8 @@ const EventWrapper: React.FC<{
         left: '4px',
         right: '4px',
         zIndex: 25,
-        pointerEvents: 'auto'
+        pointerEvents: 'auto',
+        cursor: readOnly ? 'default' : 'grab',
       }}
     >
       <CustomEvent
