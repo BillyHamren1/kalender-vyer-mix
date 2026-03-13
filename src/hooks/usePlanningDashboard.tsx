@@ -24,6 +24,7 @@ import {
   UnopenedBooking
 } from "@/services/planningDashboardService";
 import { format } from "date-fns";
+import { useRealtimeInvalidation } from "./useRealtimeInvalidation";
 
 export const usePlanningDashboard = (currentWeekStart: Date) => {
   const queryClient = useQueryClient();
