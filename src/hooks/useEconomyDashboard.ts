@@ -221,6 +221,8 @@ export function useEconomyDashboard(
     ongoingProjects,
     readyForInvoicingProjects,
     forecasts,
+    forecastDrivers,
+    leadershipMetrics,
     byStatus,
 
     // Legacy compat
