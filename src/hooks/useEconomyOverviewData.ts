@@ -308,6 +308,7 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            bookingCreatedAt,
             summary,
             timeReports,
             economyClosed: economyClosed || entry.status === 'completed',
