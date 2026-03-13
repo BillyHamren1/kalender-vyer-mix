@@ -34,6 +34,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Kalender", url: "/calendar" },
       { title: "Personalhantering", url: "/staff-management" },
+      { title: "Kommunikation", url: "/communication" },
     ],
   },
   {
