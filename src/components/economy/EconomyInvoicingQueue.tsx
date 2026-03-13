@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Receipt, ChevronRight, ExternalLink, Lock } from 'lucide-react';
+import { Receipt, ExternalLink, Lock, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { EconomyProjectInsight as EnrichedProject } from '@/types/economyOverview';
+import type { EconomyProjectInsight } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -27,16 +27,16 @@ const TYPE_BADGE_CLASSES: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
 
 interface Props {
-  readyForInvoicing: EnrichedProject[];
-  partiallyInvoiced: EnrichedProject[];
-  completedNotInvoiced: EnrichedProject[];
-  onCloseProject?: (project: EnrichedProject) => void;
+  readyForInvoicing: EconomyProjectInsight[];
+  partiallyInvoiced: EconomyProjectInsight[];
+  completedNotInvoiced: EconomyProjectInsight[];
+  onCloseProject?: (project: EconomyProjectInsight) => void;
 }
 
-const InvoiceRow: React.FC<{ project: EnrichedProject; onClose?: () => void }> = ({ project, onClose }) => {
+const InvoiceRow: React.FC<{ project: EconomyProjectInsight; onClose?: () => void }> = ({ project, onClose }) => {
   const navigate = useNavigate();
   const link = project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo;
-  const marginColor = project.forecastMarginPercent >= 20 ? 'text-green-600' : 
+  const marginColor = project.forecastMarginPercent >= 20 ? 'text-green-600' :
                        project.forecastMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
 
   return (
@@ -84,6 +84,7 @@ const tabClass = "text-xs px-3 py-1.5 data-[state=active]:bg-primary/10 data-[st
 
 const EconomyInvoicingQueue: React.FC<Props> = ({ readyForInvoicing, partiallyInvoiced, completedNotInvoiced, onCloseProject }) => {
   const totalReady = readyForInvoicing.reduce((s, p) => s + p.remainingToInvoice, 0);
+  const allEmpty = readyForInvoicing.length === 0 && partiallyInvoiced.length === 0 && completedNotInvoiced.length === 0;
 
   const TableHeader = () => (
     <thead>
@@ -101,9 +102,12 @@ const EconomyInvoicingQueue: React.FC<Props> = ({ readyForInvoicing, partiallyIn
     </thead>
   );
 
-  const renderTable = (projects: EnrichedProject[]) => (
+  const renderTable = (projects: EconomyProjectInsight[]) => (
     projects.length === 0 ? (
-      <p className="text-sm text-muted-foreground text-center py-8">Inga projekt i denna kategori</p>
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <FileText className="h-8 w-8 text-muted-foreground/30 mb-2" />
+        <p className="text-sm text-muted-foreground">Inga projekt i denna kategori</p>
+      </div>
     ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -133,23 +137,31 @@ const EconomyInvoicingQueue: React.FC<Props> = ({ readyForInvoicing, partiallyIn
           )}
         </div>
 
-        <Tabs defaultValue="ready" className="space-y-3">
-          <TabsList className="h-auto p-1 bg-muted/40 gap-1">
-            <TabsTrigger value="ready" className={tabClass}>
-              Redo för fakturering ({readyForInvoicing.length})
-            </TabsTrigger>
-            <TabsTrigger value="partial" className={tabClass}>
-              Delvis fakturerade ({partiallyInvoiced.length})
-            </TabsTrigger>
-            <TabsTrigger value="overdue" className={tabClass}>
-              Försenade ({completedNotInvoiced.length})
-            </TabsTrigger>
-          </TabsList>
+        {allEmpty ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Receipt className="h-10 w-10 text-muted-foreground/20 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Inga projekt att fakturera just nu</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Alla projekt är antingen fullt fakturerade eller inte redo ännu</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="ready" className="space-y-3">
+            <TabsList className="h-auto p-1 bg-muted/40 gap-1">
+              <TabsTrigger value="ready" className={tabClass}>
+                Redo för fakturering ({readyForInvoicing.length})
+              </TabsTrigger>
+              <TabsTrigger value="partial" className={tabClass}>
+                Delvis fakturerade ({partiallyInvoiced.length})
+              </TabsTrigger>
+              <TabsTrigger value="overdue" className={tabClass}>
+                Försenade ({completedNotInvoiced.length})
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="ready">{renderTable(readyForInvoicing)}</TabsContent>
-          <TabsContent value="partial">{renderTable(partiallyInvoiced)}</TabsContent>
-          <TabsContent value="overdue">{renderTable(completedNotInvoiced)}</TabsContent>
-        </Tabs>
+            <TabsContent value="ready">{renderTable(readyForInvoicing)}</TabsContent>
+            <TabsContent value="partial">{renderTable(partiallyInvoiced)}</TabsContent>
+            <TabsContent value="overdue">{renderTable(completedNotInvoiced)}</TabsContent>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   );

@@ -4,12 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { CheckCircle2, ChevronRight } from 'lucide-react';
+import { CheckCircle2, ChevronRight, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import EconomyStatusBadge from './EconomyStatusBadge';
-import type { EconomyProjectInsight as EnrichedProject } from '@/types/economyOverview';
+import type { EconomyProjectInsight } from '@/types/economyOverview';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -29,7 +29,7 @@ const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', l
 type CompletedFilter = 'all' | 'not-invoiced' | 'fully-invoiced' | 'closed' | 'risk';
 
 interface Props {
-  projects: EnrichedProject[];
+  projects: EconomyProjectInsight[];
 }
 
 const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
@@ -65,7 +65,11 @@ const EconomyCompletedProjects: React.FC<Props> = ({ projects }) => {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Inga projekt matchar filtret</p>
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <FolderOpen className="h-10 w-10 text-muted-foreground/20 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Inga projekt matchar filtret</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Prova att ändra filter ovan</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
