@@ -33,6 +33,13 @@ interface PendingTimeReport {
 export const TimeReportApprovalPanel: React.FC = () => {
   const queryClient = useQueryClient();
 
+  // Realtime instead of polling
+  useRealtimeInvalidation({
+    channelName: 'time-reports-realtime',
+    tables: ['time_reports'],
+    queryKeys: [['pending-time-reports']],
+  });
+
   const { data: pendingReports = [], isLoading } = useQuery({
     queryKey: ['pending-time-reports'],
     queryFn: async (): Promise<PendingTimeReport[]> => {
