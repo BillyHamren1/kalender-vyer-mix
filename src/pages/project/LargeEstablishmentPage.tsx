@@ -59,7 +59,7 @@ const formatTime = (timeStr: string | null | undefined) => {
 
 const LargeEstablishmentPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const { project } = detail;
+  const { project, updateProject } = detail;
   const bookings = project?.bookings || [];
 
   const [search, setSearch] = useState('');
@@ -67,6 +67,8 @@ const LargeEstablishmentPage = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterPhase, setFilterPhase] = useState<'all' | 'rig' | 'event' | 'rigdown'>('all');
+  const [startDateOpen, setStartDateOpen] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
 
   const getBooking = (lpb: LargeProjectBooking): BookingWithTimes | undefined =>
     lpb.booking as unknown as BookingWithTimes | undefined;
