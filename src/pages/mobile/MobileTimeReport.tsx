@@ -135,13 +135,13 @@ const MobileTimeReport = () => {
         )}
 
         {/* Report form */}
-        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-4 shadow-md">
+        <div className="rounded-xl border border-primary/20 bg-card px-4 py-3 space-y-4 shadow-md">
           <h2 className="font-bold text-sm text-foreground">Ny tidrapport</h2>
 
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb</Label>
             <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-              <SelectTrigger className="h-10 rounded-xl text-sm">
+              <SelectTrigger className="h-10 rounded-lg text-sm">
                 <SelectValue placeholder="Välj jobb..." />
               </SelectTrigger>
               <SelectContent>
@@ -156,28 +156,28 @@ const MobileTimeReport = () => {
 
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-10 rounded-xl text-sm" />
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-10 rounded-lg text-sm" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-10 rounded-xl text-sm" />
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-10 rounded-lg text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-10 rounded-xl text-sm" />
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-10 rounded-lg text-sm" />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast (h)</Label>
-              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-10 rounded-xl text-sm" />
+              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-10 rounded-lg text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
-              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-10 rounded-xl text-sm" />
+              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-10 rounded-lg text-sm" />
             </div>
           </div>
 
@@ -187,7 +187,7 @@ const MobileTimeReport = () => {
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Vad gjorde du..."
-              className="rounded-xl min-h-[64px] text-sm"
+              className="rounded-lg min-h-[64px] text-sm"
             />
           </div>
 
@@ -200,7 +200,7 @@ const MobileTimeReport = () => {
             <Button 
               onClick={handleSubmit} 
               disabled={isSaving} 
-              className="rounded-xl gap-2 h-10 px-5 text-sm font-semibold active:scale-[0.98] transition-all"
+              className="rounded-lg gap-2 h-10 px-5 text-sm font-semibold active:scale-[0.98] transition-all"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Spara
