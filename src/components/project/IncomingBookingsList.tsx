@@ -151,7 +151,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Litet projekt"
               >
                 <Briefcase className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Litet</span>
+                <span>Litet</span>
               </Button>
               <Button
                 variant="ghost"
@@ -161,7 +161,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Medelstort projekt"
               >
                 <FolderKanban className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Medel</span>
+                <span>Medel</span>
               </Button>
               <Button
                 variant="ghost"
@@ -171,7 +171,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Stort projekt"
               >
                 <Building2 className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Stort</span>
+                <span>Stort</span>
               </Button>
               <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
             </div>
