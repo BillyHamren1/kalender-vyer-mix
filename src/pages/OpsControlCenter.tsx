@@ -42,8 +42,9 @@ const OpsControlCenter = () => {
   }, []);
 
   const handleOpenDM = useCallback((staffId: string, staffName: string) => {
-    setSidePanel({ type: 'dm', staffId, staffName });
-  }, []);
+    const staff = timeline.find(s => s.id === staffId);
+    setSidePanel({ type: 'dm', staffId, staffName, assignments: staff?.assignments || [] });
+  }, [timeline]);
 
   return (
     <div className="flex h-screen overflow-hidden">
