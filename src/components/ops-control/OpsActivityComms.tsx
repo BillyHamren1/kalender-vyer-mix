@@ -26,13 +26,13 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
     setSending(true);
     try {
-      await sendAdminMessage(msg, profile?.full_name || 'Admin');
+      await sendAdminMessage(msg, user?.email?.split('@')[0] || 'Admin');
       setMsg('');
       queryClient.invalidateQueries({ queryKey: ['ops-control', 'messages'] });
     } finally {
