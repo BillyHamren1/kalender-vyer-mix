@@ -16,6 +16,7 @@ interface Props {
   mapJobs: OpsMapJob[];
   isLoading: boolean;
   focusCoords?: { lat: number; lng: number } | null;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
