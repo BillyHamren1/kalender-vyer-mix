@@ -40,7 +40,7 @@ const statusConfig = {
   off_duty: { dot: 'bg-muted-foreground/40', label: 'Ej i tjänst' },
 };
 
-const OpsStaffTimeline = ({ timeline, isLoading }: Props) => {
+const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timelineRef = useRef<HTMLDivElement>(null);
