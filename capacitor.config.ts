@@ -1,8 +1,19 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+/**
+ * Default Capacitor config — used for development / web preview.
+ * 
+ * For production native builds, use:
+ *   - capacitor.time.config.ts    (EventFlow Time)
+ *   - capacitor.scanner.config.ts (EventFlow Scanner)
+ * 
+ * Copy the desired config to capacitor.config.ts before building:
+ *   cp capacitor.time.config.ts capacitor.config.ts
+ *   VITE_APP_MODE=time npm run build && npx cap sync
+ */
 const config: CapacitorConfig = {
-  appId: 'se.eventflow.scanner',
-  appName: 'EventFlow Scanner',
+  appId: 'se.eventflow.time',
+  appName: 'EventFlow Time',
   webDir: 'dist',
   android: {
     allowMixedContent: true,
