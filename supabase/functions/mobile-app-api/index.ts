@@ -1575,7 +1575,74 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
       .update({ is_read_by: readBy })
       .eq('id', broadcast_id)
       .eq('organization_id', organizationId)
+}
+
+// ==================== PUSH TOKEN HANDLERS ====================
+
+async function handleRegisterPushToken(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { push_token, platform } = data || {}
+  if (!push_token) {
+    return new Response(
+      JSON.stringify({ error: 'push_token is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
+
+  // Get staff name
+  const { data: staff } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  console.log(`[mobile-app-api] Registering push token for ${staff?.name || staffId}, platform: ${platform || 'android'}`)
+
+  const { error } = await supabase
+    .from('device_tokens')
+    .upsert({
+      staff_id: staffId,
+      token: push_token,
+      platform: platform || 'android',
+      organization_id: organizationId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'staff_id,token' })
+
+  if (error) {
+    console.error('[mobile-app-api] Failed to register push token:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to register push token' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleUnregisterPushToken(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { push_token } = data || {}
+  if (!push_token) {
+    return new Response(
+      JSON.stringify({ error: 'push_token is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  await supabase
+    .from('device_tokens')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('token', push_token)
+    .eq('organization_id', organizationId)
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
 
   return new Response(
     JSON.stringify({ success: true }),
