@@ -11,20 +11,27 @@ export interface OpsMetrics {
   conflictsDetected: number;
 }
 
+export interface OpsTimelineAssignment {
+  bookingId: string;
+  client: string;
+  teamId: string;
+  startTime: string | null;
+  endTime: string | null;
+  eventType: string | null;
+  deliveryAddress: string | null;
+  bookingNumber: string | null;
+}
+
 export interface OpsTimelineStaff {
   id: string;
   name: string;
   color: string | null;
   role: string | null;
-  assignments: {
-    bookingId: string;
-    client: string;
-    teamId: string;
-    startTime: string | null;
-    endTime: string | null;
-    eventType: string | null;
-    deliveryAddress: string | null;
-  }[];
+  status: 'available' | 'assigned' | 'off_duty';
+  assignments: OpsTimelineAssignment[];
+  hasConflict: boolean;
+  currentJob: OpsTimelineAssignment | null;
+  nextJob: OpsTimelineAssignment | null;
 }
 
 export interface OpsJobQueueItem {
