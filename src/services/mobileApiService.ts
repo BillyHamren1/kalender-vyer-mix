@@ -174,4 +174,28 @@ export const mobileApi = {
     message_type?: 'text' | 'urgent';
     booking_id?: string;
   }) => callApi<{ success: boolean; message: any }>('send_message', data),
+
+  // Direct messages
+  getDirectMessages: () =>
+    callApi<{ conversations: any[] }>('get_direct_messages'),
+
+  sendDirectMessage: (data: { recipient_id: string; content: string }) =>
+    callApi<{ success: boolean; message: any }>('send_direct_message', data),
+
+  markDMRead: (senderId: string) =>
+    callApi<{ success: boolean }>('mark_dm_read', { sender_id: senderId }),
+
+  // Job chat
+  getJobMessages: (bookingId: string) =>
+    callApi<{ messages: any[] }>('get_job_messages', { booking_id: bookingId }),
+
+  sendJobMessage: (data: { booking_id: string; content: string }) =>
+    callApi<{ success: boolean }>('send_job_message', data),
+
+  // Broadcasts
+  getBroadcasts: () =>
+    callApi<{ broadcasts: any[] }>('get_broadcasts'),
+
+  markBroadcastRead: (broadcastId: string) =>
+    callApi<{ success: boolean }>('mark_broadcast_read', { broadcast_id: broadcastId }),
 };

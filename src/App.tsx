@@ -46,6 +46,7 @@ import APIDocumentation from "./pages/APIDocumentation";
 import StaffDashboard from "./pages/StaffDashboard";
 import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
+import MobileInbox from "./pages/mobile/MobileInbox";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
@@ -140,6 +141,7 @@ const AppContent = () => {
                 <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                <Route path="/m/inbox" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
 
 
                 {/* Main System Routes - Protected (wrapped in AuthProvider) */}

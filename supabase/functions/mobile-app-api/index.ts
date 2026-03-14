@@ -143,6 +143,10 @@ Deno.serve(async (req) => {
         return await handleSendDirectMessage(supabase, staffId, data, organizationId)
       case 'mark_dm_read':
         return await handleMarkDMRead(supabase, staffId, data, organizationId)
+      case 'get_job_messages':
+        return await handleGetJobMessages(supabase, staffId, data, organizationId)
+      case 'send_job_message':
+        return await handleSendJobMessage(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
@@ -1234,6 +1238,88 @@ async function handleSendMessage(supabase: any, staffId: string, data: any, orga
   }
 
   console.log(`Message sent by staff ${staffId}: ${message.id}`)
+
+  return new Response(
+    JSON.stringify({ success: true, message }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ============= Job Messages Handlers =============
+
+async function handleGetJobMessages(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { booking_id } = data
+
+  if (!booking_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: messages, error } = await supabase
+    .from('job_messages')
+    .select('*')
+    .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
+    .eq('is_archived', false)
+    .order('created_at', { ascending: true })
+    .limit(200)
+
+  if (error) {
+    console.error('Get job messages error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch job messages' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ messages: messages || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleSendJobMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { booking_id, content } = data
+
+  if (!booking_id || !content?.trim()) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id and content are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get staff name
+  const { data: staffMember } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  const senderName = staffMember?.name || 'Okänd'
+
+  const { data: message, error } = await supabase
+    .from('job_messages')
+    .insert({
+      booking_id,
+      sender_id: staffId,
+      sender_name: senderName,
+      sender_role: 'staff',
+      content: content.trim(),
+      organization_id: organizationId,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Send job message error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to send job message' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   return new Response(
     JSON.stringify({ success: true, message }),

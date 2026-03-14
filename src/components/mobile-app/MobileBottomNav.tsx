@@ -1,4 +1,4 @@
-import { Briefcase, Clock, Receipt, User, ScanLine } from 'lucide-react';
+import { Briefcase, Clock, Receipt, User, MessageCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { isNativePlatform, setLastModule } from '@/utils/nativeModule';
@@ -6,6 +6,7 @@ import { isNativePlatform, setLastModule } from '@/utils/nativeModule';
 const tabs = [
   { path: '/m', label: 'Jobb', icon: Briefcase, exact: true },
   { path: '/m/report', label: 'Tid', icon: Clock },
+  { path: '/m/inbox', label: 'Meddelanden', icon: MessageCircle },
   { path: '/m/expenses', label: 'Utlägg', icon: Receipt },
   { path: '/m/profile', label: 'Profil', icon: User },
 ];
