@@ -46,6 +46,7 @@ import APIDocumentation from "./pages/APIDocumentation";
 import StaffDashboard from "./pages/StaffDashboard";
 import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
+import MobileInbox from "./pages/mobile/MobileInbox";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
