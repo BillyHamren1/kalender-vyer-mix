@@ -684,6 +684,42 @@ export type Database = {
           },
         ]
       }
+      job_messages: {
+        Row: {
+          booking_id: string
+          content: string
+          created_at: string
+          id: string
+          is_archived: boolean
+          organization_id: string
+          sender_id: string
+          sender_name: string
+          sender_role: string
+        }
+        Insert: {
+          booking_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          organization_id?: string
+          sender_id: string
+          sender_name: string
+          sender_role?: string
+        }
+        Update: {
+          booking_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          organization_id?: string
+          sender_id?: string
+          sender_name?: string
+          sender_role?: string
+        }
+        Relationships: []
+      }
       job_staff_assignments: {
         Row: {
           assignment_date: string

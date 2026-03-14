@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { OpsJobQueueItem } from '@/services/opsControlService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, Clock, Eye, RefreshCw, MapPin, Users, Send, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Clock, Eye, RefreshCw, MapPin, Users, Send, ChevronRight, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { sendAdminMessage } from '@/services/staffDashboardService';
@@ -12,6 +12,7 @@ interface Props {
   jobs: OpsJobQueueItem[];
   isLoading: boolean;
   onFocusJob?: (job: OpsJobQueueItem) => void;
+  onOpenChat?: (bookingId: string, label: string) => void;
 }
 
 const issueConfig = {
@@ -21,7 +22,7 @@ const issueConfig = {
   recently_modified: { icon: RefreshCw, label: 'Ändrad', cls: 'text-blue-600 bg-blue-500/10', rowCls: '' },
 };
 
-const OpsJobQueue = ({ jobs, isLoading, onFocusJob }: Props) => {
+const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -149,6 +150,18 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob }: Props) => {
                           onClick={(e) => { e.stopPropagation(); onFocusJob(job); }}
                         >
                           <MapPin className="w-3 h-3 inline mr-0.5" />Visa på karta
+                        </button>
+                      )}
+                      {onOpenChat && (
+                        <button
+                          className="text-[10px] font-medium px-2 py-1 rounded bg-muted text-foreground hover:bg-muted/80 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const label = job.bookingNumber ? `#${job.bookingNumber} — ${job.client}` : job.client;
+                            onOpenChat(job.bookingId, label);
+                          }}
+                        >
+                          <MessageCircle className="w-3 h-3 inline mr-0.5" />Jobbchatt
                         </button>
                       )}
                     </div>

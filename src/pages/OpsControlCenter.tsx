@@ -5,6 +5,7 @@ import OpsStaffTimeline from '@/components/ops-control/OpsStaffTimeline';
 import OpsJobQueue from '@/components/ops-control/OpsJobQueue';
 import OpsActivityComms from '@/components/ops-control/OpsActivityComms';
 import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
+import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import { OpsJobQueueItem } from '@/services/opsControlService';
 
 const OpsControlCenter = () => {
@@ -19,6 +20,7 @@ const OpsControlCenter = () => {
   } = useOpsControl();
 
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [chatJob, setChatJob] = useState<{ bookingId: string; label: string } | null>(null);
 
   const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
     if (job.latitude && job.longitude) {
@@ -26,48 +28,71 @@ const OpsControlCenter = () => {
     }
   }, []);
 
+  const handleOpenChat = useCallback((bookingId: string, label: string) => {
+    setChatJob({ bookingId, label });
+  }, []);
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* TOP: Operations Bar */}
-      <div className="shrink-0 border-b border-border bg-card px-4 py-2">
-        <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
-      </div>
-
-      {/* MAIN AREA */}
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
-        {/* Left: Staff Timeline */}
-        <div className="border-r border-border overflow-hidden p-3">
-          <OpsStaffTimeline timeline={timeline} isLoading={isLoadingTimeline} />
+    <div className="flex h-screen overflow-hidden">
+      {/* Main content */}
+      <div className={`flex flex-col flex-1 min-w-0 ${chatJob ? 'mr-0' : ''}`}>
+        {/* TOP: Operations Bar */}
+        <div className="shrink-0 border-b border-border bg-card px-4 py-2">
+          <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
         </div>
 
-        {/* Right: Live Map */}
-        <div className="min-h-0">
-          <OpsLiveMap
-            locations={locations}
-            mapJobs={mapJobs}
-            isLoading={isLoadingLocations || isLoadingMapJobs}
-            focusCoords={focusCoords}
+        {/* MAIN AREA */}
+        <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
+          {/* Left: Staff Timeline */}
+          <div className="border-r border-border overflow-hidden p-3">
+            <OpsStaffTimeline timeline={timeline} isLoading={isLoadingTimeline} />
+          </div>
+
+          {/* Right: Live Map */}
+          <div className="min-h-0">
+            <OpsLiveMap
+              locations={locations}
+              mapJobs={mapJobs}
+              isLoading={isLoadingLocations || isLoadingMapJobs}
+              focusCoords={focusCoords}
+            />
+          </div>
+        </div>
+
+        {/* BOTTOM AREA */}
+        <div className="shrink-0 h-[260px] border-t border-border grid grid-cols-2 gap-0">
+          {/* Left: Job Queue */}
+          <div className="border-r border-border overflow-y-auto p-3">
+            <OpsJobQueue
+              jobs={jobQueue}
+              isLoading={isLoadingJobQueue}
+              onFocusJob={handleFocusJob}
+              onOpenChat={handleOpenChat}
+            />
+          </div>
+
+          {/* Right: Activity & Comms */}
+          <div className="overflow-y-auto p-3">
+            <OpsActivityComms
+              activity={activity}
+              isLoadingActivity={isLoadingActivity}
+              messages={messages}
+              isLoadingMessages={isLoadingMessages}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Job Chat Side Panel */}
+      {chatJob && (
+        <div className="shrink-0 w-80 border-l border-border animate-in slide-in-from-right duration-200">
+          <OpsJobChat
+            bookingId={chatJob.bookingId}
+            bookingLabel={chatJob.label}
+            onClose={() => setChatJob(null)}
           />
         </div>
-      </div>
-
-      {/* BOTTOM AREA */}
-      <div className="shrink-0 h-[260px] border-t border-border grid grid-cols-2 gap-0">
-        {/* Left: Job Queue */}
-        <div className="border-r border-border overflow-y-auto p-3">
-          <OpsJobQueue jobs={jobQueue} isLoading={isLoadingJobQueue} onFocusJob={handleFocusJob} />
-        </div>
-
-        {/* Right: Activity & Comms */}
-        <div className="overflow-y-auto p-3">
-          <OpsActivityComms
-            activity={activity}
-            isLoadingActivity={isLoadingActivity}
-            messages={messages}
-            isLoadingMessages={isLoadingMessages}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 };
