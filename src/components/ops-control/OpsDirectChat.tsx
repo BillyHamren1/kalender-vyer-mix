@@ -5,8 +5,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format, isToday } from 'date-fns';
-import { Send, X, MessageCircle } from 'lucide-react';
+import { Send, X, MessageCircle, Zap } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const QUICK_MESSAGES = [
+  'Försenad?',
+  'Bekräfta ankomst',
+  'Ring mig',
+  'Uppdatera ETA',
+  'Allt ok?',
+  'Behöver hjälp?',
+];
 
 interface Props {
   staffId: string;
@@ -110,6 +119,38 @@ const OpsDirectChat = ({ staffId, staffName, onClose }: Props) => {
             );
           })
         )}
+      </div>
+
+      {/* Quick shortcuts */}
+      <div className="shrink-0 border-t border-border px-3 pt-1.5 pb-0.5">
+        <div className="flex items-center gap-1 mb-1">
+          <Zap className="w-2.5 h-2.5 text-primary" />
+          <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Snabbmeddelanden</span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {QUICK_MESSAGES.map((qm) => (
+            <button
+              key={qm}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-accent text-foreground border border-border hover:border-accent transition-colors"
+              onClick={() => setMsg(qm)}
+              onDoubleClick={async () => {
+                setMsg(qm);
+                setSending(true);
+                try {
+                  await sendDirectMessage(myId, myName, 'planner', staffId, staffName, qm);
+                  setMsg('');
+                  queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+                } catch {
+                  toast.error('Kunde inte skicka meddelande');
+                } finally {
+                  setSending(false);
+                }
+              }}
+            >
+              {qm}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Input */}
