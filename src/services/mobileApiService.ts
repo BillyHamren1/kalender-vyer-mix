@@ -198,4 +198,11 @@ export const mobileApi = {
 
   markBroadcastRead: (broadcastId: string) =>
     callApi<{ success: boolean }>('mark_broadcast_read', { broadcast_id: broadcastId }),
+
+  // Push notifications
+  registerPushToken: (pushToken: string, platform?: string) =>
+    callApi<{ success: boolean }>('register_push_token', { push_token: pushToken, platform: platform || 'android' }),
+
+  unregisterPushToken: (pushToken: string) =>
+    callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
 };
