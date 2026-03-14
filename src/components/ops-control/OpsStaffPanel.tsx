@@ -21,7 +21,7 @@ const statusColors = {
   off_duty: 'bg-muted-foreground/40',
 };
 
-const OpsStaffPanel = ({ staff, onClose }: Props) => {
+const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
   const navigate = useNavigate();
 
   return (
