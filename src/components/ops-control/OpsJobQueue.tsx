@@ -152,6 +152,18 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                           <MapPin className="w-3 h-3 inline mr-0.5" />Visa på karta
                         </button>
                       )}
+                      {onOpenChat && (
+                        <button
+                          className="text-[10px] font-medium px-2 py-1 rounded bg-muted text-foreground hover:bg-muted/80 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const label = job.bookingNumber ? `#${job.bookingNumber} — ${job.client}` : job.client;
+                            onOpenChat(job.bookingId, label);
+                          }}
+                        >
+                          <MessageCircle className="w-3 h-3 inline mr-0.5" />Jobbchatt
+                        </button>
+                      )}
                     </div>
 
                     {/* Quick message */}
