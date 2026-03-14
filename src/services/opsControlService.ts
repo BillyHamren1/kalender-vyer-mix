@@ -213,8 +213,9 @@ export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
   };
 };
 
-export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
-  const today = format(new Date(), 'yyyy-MM-dd');
+export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]> => {
+  const targetDate = date || new Date();
+  const dateStr = format(targetDate, 'yyyy-MM-dd');
   const now = new Date();
 
   const [staffResult, assignmentsResult, bookingAssignmentsResult, availabilityResult] = await Promise.all([
