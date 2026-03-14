@@ -20,6 +20,7 @@ const OpsControlCenter = () => {
   const {
     metrics, isLoadingMetrics,
     timeline, isLoadingTimeline,
+    timelineDate, goToNextDay, goToPrevDay, goToToday,
     jobQueue, isLoadingJobQueue,
     locations, isLoadingLocations,
     mapJobs, isLoadingMapJobs,
