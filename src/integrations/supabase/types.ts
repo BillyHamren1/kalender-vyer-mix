@@ -537,6 +537,36 @@ export type Database = {
           },
         ]
       }
+      device_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          platform: string
+          staff_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          platform?: string
+          staff_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          platform?: string
+          staff_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       direct_messages: {
         Row: {
           content: string
@@ -2694,6 +2724,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_notification_log: {
+        Row: {
+          body: string
+          data: Json | null
+          error_message: string | null
+          id: string
+          notification_type: string
+          organization_id: string
+          sent_at: string
+          staff_id: string
+          success: boolean
+          title: string
+        }
+        Insert: {
+          body: string
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          organization_id?: string
+          sent_at?: string
+          staff_id: string
+          success?: boolean
+          title: string
+        }
+        Update: {
+          body?: string
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          organization_id?: string
+          sent_at?: string
+          staff_id?: string
+          success?: boolean
+          title?: string
+        }
+        Relationships: []
       }
       staff_accounts: {
         Row: {

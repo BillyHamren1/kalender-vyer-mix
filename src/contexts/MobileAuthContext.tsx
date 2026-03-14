@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } from '@/services/mobileApiService';
+import { initPushNotifications, unregisterPushNotifications } from '@/services/pushNotificationService';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
@@ -34,6 +35,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mobileApi.me().then(res => {
         setStaff(res.staff);
         setAuth(token, res.staff);
+        initPushNotifications(res.staff.id);
       }).catch(() => {
         clearAuth();
         setStaff(null);
@@ -47,9 +49,11 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
+    initPushNotifications(res.staff.id);
   }, []);
 
   const logout = useCallback(() => {
+    unregisterPushNotifications();
     clearAuth();
     setStaff(null);
   }, []);
