@@ -36,8 +36,6 @@ serve(async (req) => {
           <INCLUDE>PhotoTime</INCLUDE>
           <INCLUDE>ContentType</INCLUDE>
           <INCLUDE>Direction</INCLUDE>
-          <INCLUDE>RoadNumber</INCLUDE>
-          <INCLUDE>County</INCLUDE>
           <INCLUDE>Type</INCLUDE>
         </QUERY>
       </REQUEST>
