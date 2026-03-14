@@ -12,6 +12,7 @@ interface Props {
   jobs: OpsJobQueueItem[];
   isLoading: boolean;
   onFocusJob?: (job: OpsJobQueueItem) => void;
+  onOpenChat?: (bookingId: string, label: string) => void;
 }
 
 const issueConfig = {
