@@ -304,6 +304,18 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
           <span className="flex items-center gap-1 text-[10px] text-emerald-600">
             {onSiteCount} på plats
           </span>
+          <button
+            onClick={handleToggleCameras}
+            disabled={camerasLoading}
+            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+              showCameras
+                ? 'bg-blue-500 text-white font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            } ${camerasLoading ? 'opacity-50' : ''}`}
+          >
+            <Camera className="w-3 h-3" />
+            {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
+          </button>
         </div>
       </div>
 
