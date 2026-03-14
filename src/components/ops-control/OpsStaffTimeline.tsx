@@ -13,6 +13,7 @@ import OpsAssignmentTooltip from './OpsAssignmentTooltip';
 interface Props {
   timeline: OpsTimelineStaff[];
   isLoading: boolean;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 const HOUR_START = 6;
