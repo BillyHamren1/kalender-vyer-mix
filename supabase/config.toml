@@ -132,3 +132,6 @@ verify_jwt = false
 
 [functions.push-notification-trigger]
 verify_jwt = false
+
+[functions.trafikverket-cameras]
+verify_jwt = false
