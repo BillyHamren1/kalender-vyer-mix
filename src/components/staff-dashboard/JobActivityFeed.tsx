@@ -1,5 +1,5 @@
 import { JobActivityItem } from '@/services/staffDashboardService';
-import { MessageCircle, Image, Clock } from 'lucide-react';
+import { MessageCircle, Image, Clock, Mail, Radio, MessagesSquare } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -9,10 +9,13 @@ interface JobActivityFeedProps {
   isLoading: boolean;
 }
 
-const typeConfig = {
+const typeConfig: Record<string, { icon: any; label: string; color: string }> = {
   comment: { icon: MessageCircle, label: 'Kommentar', color: 'text-primary bg-primary/10' },
   file: { icon: Image, label: 'Bild/fil', color: 'text-accent-foreground bg-accent' },
   time_report: { icon: Clock, label: 'Tidrapport', color: 'text-primary bg-primary/10' },
+  direct_message: { icon: Mail, label: 'DM', color: 'text-accent-foreground bg-accent' },
+  broadcast: { icon: Radio, label: 'Broadcast', color: 'text-destructive bg-destructive/10' },
+  job_message: { icon: MessagesSquare, label: 'Jobbchatt', color: 'text-primary bg-primary/10' },
 };
 
 const JobActivityFeed = ({ activity, isLoading }: JobActivityFeedProps) => {
@@ -33,7 +36,7 @@ const JobActivityFeed = ({ activity, isLoading }: JobActivityFeedProps) => {
           <p className="text-xs text-muted-foreground text-center py-8">Ingen aktivitet senaste 24h</p>
         ) : (
           activity.map((item) => {
-            const cfg = typeConfig[item.type];
+            const cfg = typeConfig[item.type] || typeConfig.comment;
             const Icon = cfg.icon;
             return (
               <div key={item.id} className="rounded-xl border border-border bg-card px-3 py-2.5">
