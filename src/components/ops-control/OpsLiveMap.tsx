@@ -15,6 +15,7 @@ interface Props {
   locations: StaffLocation[];
   mapJobs: OpsMapJob[];
   isLoading: boolean;
+  focusCoords?: { lat: number; lng: number } | null;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
@@ -34,7 +35,7 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
-const OpsLiveMap = ({ locations, mapJobs, isLoading }: Props) => {
+const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -167,6 +168,12 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading }: Props) => {
       }
     }
   }, [mapReady, locations, mapJobs, clearMarkers]);
+
+  // Focus from external trigger
+  useEffect(() => {
+    if (!focusCoords || !map.current || !mapReady) return;
+    map.current.flyTo({ center: [focusCoords.lng, focusCoords.lat], zoom: 14, duration: 800 });
+  }, [focusCoords, mapReady]);
 
   // Handle zoom to job's assigned staff (highlight)
   useEffect(() => {
