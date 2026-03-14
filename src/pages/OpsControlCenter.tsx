@@ -128,6 +128,7 @@ const OpsControlCenter = () => {
             <OpsDirectChat
               staffId={sidePanel.staffId}
               staffName={sidePanel.staffName}
+              staffAssignments={sidePanel.assignments}
               onClose={() => setSidePanel(null)}
             />
           )}
