@@ -130,7 +130,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
         .setHTML(`
           <div style="font-family: system-ui, sans-serif;">
             <div style="font-size: 12px; font-weight: 700; margin-bottom: 4px;">${cam.name}</div>
-            ${cam.roadNumber ? `<div style="font-size: 10px; color: #6b7280; margin-bottom: 4px;">Väg ${cam.roadNumber}${cam.direction ? ` · ${cam.direction}` : ''}</div>` : ''}
+            ${cam.direction ? `<div style="font-size: 10px; color: #6b7280; margin-bottom: 4px;">${cam.direction}</div>` : ''}
             <img src="${cam.photoUrl}" alt="${cam.name}" style="width: 100%; border-radius: 6px; margin-top: 4px;" loading="lazy" onerror="this.style.display='none'" />
             ${cam.photoTime ? `<div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">Uppdaterad: ${new Date(cam.photoTime).toLocaleString('sv-SE')}</div>` : ''}
           </div>
