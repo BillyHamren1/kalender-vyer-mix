@@ -35,6 +35,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mobileApi.me().then(res => {
         setStaff(res.staff);
         setAuth(token, res.staff);
+        initPushNotifications(res.staff.id);
       }).catch(() => {
         clearAuth();
         setStaff(null);
