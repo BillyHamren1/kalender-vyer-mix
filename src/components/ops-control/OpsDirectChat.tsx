@@ -121,6 +121,38 @@ const OpsDirectChat = ({ staffId, staffName, onClose }: Props) => {
         )}
       </div>
 
+      {/* Quick shortcuts */}
+      <div className="shrink-0 border-t border-border px-3 pt-1.5 pb-0.5">
+        <div className="flex items-center gap-1 mb-1">
+          <Zap className="w-2.5 h-2.5 text-amber-500" />
+          <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Snabbmeddelanden</span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {QUICK_MESSAGES.map((qm) => (
+            <button
+              key={qm}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-accent text-foreground border border-border hover:border-accent transition-colors"
+              onClick={() => setMsg(qm)}
+              onDoubleClick={async () => {
+                setMsg(qm);
+                setSending(true);
+                try {
+                  await sendDirectMessage(myId, myName, 'planner', staffId, staffName, qm);
+                  setMsg('');
+                  queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+                } catch {
+                  toast.error('Kunde inte skicka meddelande');
+                } finally {
+                  setSending(false);
+                }
+              }}
+            >
+              {qm}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Input */}
       <div className="shrink-0 border-t border-border px-3 py-2">
         <div className="flex gap-1.5">
