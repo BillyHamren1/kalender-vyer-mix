@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { OpsJobQueueItem } from '@/services/opsControlService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, Clock, Eye, RefreshCw, MapPin, Users, Send, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Clock, Eye, RefreshCw, MapPin, Users, Send, ChevronRight, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { sendAdminMessage } from '@/services/staffDashboardService';
