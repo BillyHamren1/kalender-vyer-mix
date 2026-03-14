@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "generate-icons": "node scripts/generate-icons.js",
+    "generate-icons:time": "APP_MODE=time node scripts/generate-icons.js",
+    "generate-icons:scanner": "APP_MODE=scanner node scripts/generate-icons.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
