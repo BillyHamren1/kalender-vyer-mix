@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "generate-icons": "node scripts/generate-icons.js",
+    "generate-icons:time": "APP_MODE=time node scripts/generate-icons.js",
+    "generate-icons:scanner": "APP_MODE=scanner node scripts/generate-icons.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -86,6 +89,7 @@
     "react-resizable-panels": "^2.1.3",
     "react-router-dom": "^6.26.2",
     "recharts": "^2.12.7",
+    "sharp": "^0.34.5",
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
