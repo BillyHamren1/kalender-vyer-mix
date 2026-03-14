@@ -36,8 +36,6 @@ serve(async (req) => {
           <INCLUDE>PhotoTime</INCLUDE>
           <INCLUDE>ContentType</INCLUDE>
           <INCLUDE>Direction</INCLUDE>
-          <INCLUDE>RoadNumber</INCLUDE>
-          <INCLUDE>County</INCLUDE>
           <INCLUDE>Type</INCLUDE>
         </QUERY>
       </REQUEST>
@@ -84,8 +82,6 @@ serve(async (req) => {
         photoUrl: cam.PhotoUrl || null,
         photoTime: cam.PhotoTime || null,
         direction: cam.Direction || null,
-        roadNumber: cam.RoadNumber || null,
-        county: cam.County || null,
         type: cam.Type || null,
       }
     }).filter((c: any) => c.lat && c.lng && c.photoUrl)
