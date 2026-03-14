@@ -110,16 +110,29 @@ export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
 
 export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
   const today = format(new Date(), 'yyyy-MM-dd');
+  const now = new Date();
 
-  const [staffResult, assignmentsResult, bookingAssignmentsResult] = await Promise.all([
-    supabase.from('staff_members' as any).select('id, name, color, role').eq('is_active', true).order('name'),
+  const [staffResult, assignmentsResult, bookingAssignmentsResult, availabilityResult] = await Promise.all([
+    supabase.from('staff_members' as any).select('id, name, color, role, is_active').order('name'),
     supabase.from('staff_assignments').select('staff_id, team_id').eq('assignment_date', today),
     supabase.from('booking_staff_assignments').select('staff_id, booking_id, team_id').eq('assignment_date', today),
+    supabase.from('staff_availability' as any).select('staff_id, availability_type').lte('start_date', today).gte('end_date', today),
   ]);
 
   const staff = (staffResult.data || []) as any[];
   const assignments = assignmentsResult.data || [];
   const bookingAssignments = bookingAssignmentsResult.data || [];
+  const availability = (availabilityResult.data || []) as any[];
+
+  // Availability map
+  const availMap = new Map<string, string>();
+  for (const a of availability) availMap.set(a.staff_id, a.availability_type);
+
+  // Assigned staff set
+  const assignedStaffIds = new Set([
+    ...assignments.map(a => a.staff_id),
+    ...bookingAssignments.map(a => a.staff_id),
+  ]);
 
   // Get unique booking IDs
   const bookingIds = [...new Set(bookingAssignments.map(a => a.booking_id))];
@@ -128,38 +141,32 @@ export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
   if (bookingIds.length > 0) {
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('id, client, deliveryaddress, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+      .select('id, client, deliveryaddress, booking_number')
       .in('id', bookingIds);
     for (const b of (bookings || [])) bookingsMap.set(b.id, b);
   }
 
-  // Get calendar events for today to derive times
-  const todayStart = startOfDay(new Date()).toISOString();
-  const todayEnd = endOfDay(new Date()).toISOString();
+  // Get calendar events for today
+  const todayStart = startOfDay(now).toISOString();
+  const todayEnd = endOfDay(now).toISOString();
   const { data: events } = await supabase
     .from('calendar_events')
     .select('booking_id, start_time, end_time, event_type, delivery_address')
     .gte('start_time', todayStart)
     .lte('start_time', todayEnd);
 
-  const eventsByBooking = new Map<string, typeof events>();
+  const eventsByBooking = new Map<string, any[]>();
   for (const e of (events || [])) {
     if (!e.booking_id) continue;
     if (!eventsByBooking.has(e.booking_id)) eventsByBooking.set(e.booking_id, []);
     eventsByBooking.get(e.booking_id)!.push(e);
   }
 
-  // Build staff timeline
-  const assignedStaffIds = new Set([
-    ...assignments.map(a => a.staff_id),
-    ...bookingAssignments.map(a => a.staff_id),
-  ]);
-
   return staff
-    .filter(s => assignedStaffIds.has(s.id))
+    .filter(s => s.is_active)
     .map(s => {
       const staffBookingAssigns = bookingAssignments.filter(a => a.staff_id === s.id);
-      const assignmentList = staffBookingAssigns.map(a => {
+      const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns.map(a => {
         const booking = bookingsMap.get(a.booking_id);
         const calEvents = eventsByBooking.get(a.booking_id) || [];
         const firstEvent = calEvents[0];
@@ -171,16 +178,63 @@ export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
           endTime: firstEvent?.end_time || null,
           eventType: firstEvent?.event_type || null,
           deliveryAddress: firstEvent?.delivery_address || booking?.deliveryaddress || null,
+          bookingNumber: booking?.booking_number || null,
         };
       });
+
+      // Sort by start time
+      assignmentList.sort((a, b) => {
+        if (!a.startTime) return 1;
+        if (!b.startTime) return -1;
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
+
+      // Detect overlapping assignments (conflict)
+      let hasConflict = false;
+      for (let i = 0; i < assignmentList.length - 1; i++) {
+        const curr = assignmentList[i];
+        const next = assignmentList[i + 1];
+        if (curr.endTime && next.startTime && new Date(curr.endTime) > new Date(next.startTime)) {
+          hasConflict = true;
+          break;
+        }
+      }
+
+      // Current and next job
+      let currentJob: OpsTimelineAssignment | null = null;
+      let nextJob: OpsTimelineAssignment | null = null;
+      for (const a of assignmentList) {
+        if (a.startTime && a.endTime) {
+          const start = new Date(a.startTime);
+          const end = new Date(a.endTime);
+          if (start <= now && end >= now) currentJob = a;
+          else if (start > now && !nextJob) nextJob = a;
+        }
+      }
+
+      // Status
+      const isAssigned = assignedStaffIds.has(s.id);
+      const avail = availMap.get(s.id);
+      let status: OpsTimelineStaff['status'] = 'off_duty';
+      if (isAssigned) status = 'assigned';
+      else if (avail === 'available') status = 'available';
 
       return {
         id: s.id,
         name: s.name,
         color: s.color,
         role: s.role,
+        status,
         assignments: assignmentList,
+        hasConflict,
+        currentJob,
+        nextJob,
       };
+    })
+    // Sort: assigned first, then available, then off_duty
+    .sort((a, b) => {
+      const order = { assigned: 0, available: 1, off_duty: 2 };
+      return order[a.status] - order[b.status];
     });
 };
 
