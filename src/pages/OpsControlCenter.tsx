@@ -29,6 +29,7 @@ const OpsControlCenter = () => {
 
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
 
   const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
     if (job.latitude && job.longitude) {
