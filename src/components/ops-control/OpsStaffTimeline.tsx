@@ -307,7 +307,7 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM }: Props) => {
 
       {/* Staff detail panel (slide-in) */}
       {selectedStaff && (
-        <OpsStaffPanel staff={selectedStaff} onClose={() => setSelectedStaff(null)} />
+        <OpsStaffPanel staff={selectedStaff} onClose={() => setSelectedStaff(null)} onOpenDM={onOpenDM} />
       )}
 
       {/* Assignment tooltip */}
