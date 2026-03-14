@@ -143,6 +143,10 @@ Deno.serve(async (req) => {
         return await handleSendDirectMessage(supabase, staffId, data, organizationId)
       case 'mark_dm_read':
         return await handleMarkDMRead(supabase, staffId, data, organizationId)
+      case 'get_job_messages':
+        return await handleGetJobMessages(supabase, staffId, data, organizationId)
+      case 'send_job_message':
+        return await handleSendJobMessage(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
