@@ -126,11 +126,10 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
     cameras.forEach(cam => {
       const el = document.createElement('div');
       el.style.cssText = `
-        width: 28px; height: 28px; border-radius: 50%;
+        width: 22px; height: 22px; border-radius: 50%;
         background: #3b82f6; border: 2px solid white;
         box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         cursor: pointer; display: flex; align-items: center; justify-content: center;
-        pointer-events: auto; position: relative; z-index: 1;
       `;
       el.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>`;
 
