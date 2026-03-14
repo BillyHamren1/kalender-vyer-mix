@@ -15,6 +15,7 @@ interface Props {
   locations: StaffLocation[];
   mapJobs: OpsMapJob[];
   isLoading: boolean;
+  focusCoords?: { lat: number; lng: number } | null;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
