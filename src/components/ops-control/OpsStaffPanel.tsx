@@ -1,11 +1,12 @@
 import { OpsTimelineStaff } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
-import { X, MapPin, Clock, Briefcase, ChevronRight } from 'lucide-react';
+import { X, MapPin, Clock, Briefcase, ChevronRight, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Props {
   staff: OpsTimelineStaff;
   onClose: () => void;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 const statusLabels = {
