@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchOpsMetrics, fetchOpsTimeline, fetchOpsJobQueue, fetchOpsMapJobs, OpsMetrics, OpsTimelineStaff, OpsJobQueueItem, OpsMapJob } from '@/services/opsControlService';
 import { fetchStaffMessages, fetchJobActivity, StaffMessage, JobActivityItem } from '@/services/staffDashboardService';
 import { fetchStaffLocations, StaffLocation } from '@/services/planningDashboardService';
 import { useRealtimeInvalidation } from './useRealtimeInvalidation';
+import { addDays, format } from 'date-fns';
 
 export const useOpsControl = () => {
+  const [timelineDate, setTimelineDate] = useState<Date>(new Date());
+
   useRealtimeInvalidation({
     channelName: 'ops-control-realtime',
     tables: ['calendar_events', 'staff_assignments', 'booking_staff_assignments', 'bookings', 'staff_messages', 'project_comments', 'broadcast_messages'],
@@ -17,9 +21,10 @@ export const useOpsControl = () => {
     refetchInterval: 60000,
   });
 
+  const dateKey = format(timelineDate, 'yyyy-MM-dd');
   const timelineQuery = useQuery<OpsTimelineStaff[]>({
-    queryKey: ['ops-control', 'timeline'],
-    queryFn: fetchOpsTimeline,
+    queryKey: ['ops-control', 'timeline', dateKey],
+    queryFn: () => fetchOpsTimeline(timelineDate),
     refetchInterval: 120000,
   });
 
@@ -53,11 +58,19 @@ export const useOpsControl = () => {
     refetchInterval: 60000,
   });
 
+  const goToNextDay = () => setTimelineDate(prev => addDays(prev, 1));
+  const goToPrevDay = () => setTimelineDate(prev => addDays(prev, -1));
+  const goToToday = () => setTimelineDate(new Date());
+
   return {
     metrics: metricsQuery.data,
     isLoadingMetrics: metricsQuery.isLoading,
     timeline: timelineQuery.data || [],
     isLoadingTimeline: timelineQuery.isLoading,
+    timelineDate,
+    goToNextDay,
+    goToPrevDay,
+    goToToday,
     jobQueue: jobQueueQuery.data || [],
     isLoadingJobQueue: jobQueueQuery.isLoading,
     locations: locationsQuery.data || [],

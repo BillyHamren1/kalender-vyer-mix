@@ -20,6 +20,7 @@ const OpsControlCenter = () => {
   const {
     metrics, isLoadingMetrics,
     timeline, isLoadingTimeline,
+    timelineDate, goToNextDay, goToPrevDay, goToToday,
     jobQueue, isLoadingJobQueue,
     locations, isLoadingLocations,
     mapJobs, isLoadingMapJobs,
@@ -68,7 +69,15 @@ const OpsControlCenter = () => {
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
           {/* Left: Staff Timeline */}
           <div className="border-r border-border overflow-hidden p-3">
-            <OpsStaffTimeline timeline={timeline} isLoading={isLoadingTimeline} onOpenDM={handleOpenDM} />
+            <OpsStaffTimeline
+              timeline={timeline}
+              isLoading={isLoadingTimeline}
+              onOpenDM={handleOpenDM}
+              date={timelineDate}
+              onNextDay={goToNextDay}
+              onPrevDay={goToPrevDay}
+              onToday={goToToday}
+            />
           </div>
 
           {/* Right: Live Map */}

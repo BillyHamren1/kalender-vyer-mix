@@ -128,6 +128,8 @@ export interface OpsTimelineStaff {
   hasConflict: boolean;
   currentJob: OpsTimelineAssignment | null;
   nextJob: OpsTimelineAssignment | null;
+  teamId: string | null;
+  teamName: string | null;
 }
 
 export interface OpsJobQueueItem {
@@ -211,15 +213,16 @@ export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
   };
 };
 
-export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
-  const today = format(new Date(), 'yyyy-MM-dd');
+export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]> => {
+  const targetDate = date || new Date();
+  const dateStr = format(targetDate, 'yyyy-MM-dd');
   const now = new Date();
 
   const [staffResult, assignmentsResult, bookingAssignmentsResult, availabilityResult] = await Promise.all([
     supabase.from('staff_members' as any).select('id, name, color, role, is_active').order('name'),
-    supabase.from('staff_assignments').select('staff_id, team_id').eq('assignment_date', today),
-    supabase.from('booking_staff_assignments').select('staff_id, booking_id, team_id').eq('assignment_date', today),
-    supabase.from('staff_availability' as any).select('staff_id, availability_type').lte('start_date', today).gte('end_date', today),
+    supabase.from('staff_assignments').select('staff_id, team_id').eq('assignment_date', dateStr),
+    supabase.from('booking_staff_assignments').select('staff_id, booking_id, team_id').eq('assignment_date', dateStr),
+    supabase.from('staff_availability' as any).select('staff_id, availability_type').lte('start_date', dateStr).gte('end_date', dateStr),
   ]);
 
   const staff = (staffResult.data || []) as any[];
@@ -249,14 +252,14 @@ export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
     for (const b of (bookings || [])) bookingsMap.set(b.id, b);
   }
 
-  // Get calendar events for today
-  const todayStart = startOfDay(now).toISOString();
-  const todayEnd = endOfDay(now).toISOString();
+  // Get calendar events for target date
+  const dayStart = startOfDay(targetDate).toISOString();
+  const dayEnd = endOfDay(targetDate).toISOString();
   const { data: events } = await supabase
     .from('calendar_events')
     .select('booking_id, start_time, end_time, event_type, delivery_address')
-    .gte('start_time', todayStart)
-    .lte('start_time', todayEnd);
+    .gte('start_time', dayStart)
+    .lte('start_time', dayEnd);
 
   const eventsByBooking = new Map<string, any[]>();
   for (const e of (events || [])) {
@@ -322,6 +325,12 @@ export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
       if (isAssigned) status = 'assigned';
       else if (avail === 'available') status = 'available';
 
+      // Get primary team assignment
+      const staffTeamAssign = assignments.filter(a => a.staff_id === s.id)[0];
+      const teamId = staffTeamAssign?.team_id || staffBookingAssigns[0]?.team_id || null;
+      // Derive team name from team_id pattern "team-N"
+      const teamName = teamId ? teamId.replace('team-', 'Team ') : null;
+
       return {
         id: s.id,
         name: s.name,
@@ -332,6 +341,8 @@ export const fetchOpsTimeline = async (): Promise<OpsTimelineStaff[]> => {
         hasConflict,
         currentJob,
         nextJob,
+        teamId,
+        teamName,
       };
     })
     // Sort: assigned first, then available, then off_duty
