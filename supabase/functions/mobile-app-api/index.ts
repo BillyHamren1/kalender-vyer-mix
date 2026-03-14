@@ -143,6 +143,10 @@ Deno.serve(async (req) => {
         return await handleSendDirectMessage(supabase, staffId, data, organizationId)
       case 'mark_dm_read':
         return await handleMarkDMRead(supabase, staffId, data, organizationId)
+      case 'get_broadcasts':
+        return await handleGetBroadcasts(supabase, staffId, organizationId)
+      case 'mark_broadcast_read':
+        return await handleMarkBroadcastRead(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
