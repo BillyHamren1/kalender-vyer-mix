@@ -36,7 +36,7 @@ const JobActivityFeed = ({ activity, isLoading }: JobActivityFeedProps) => {
           <p className="text-xs text-muted-foreground text-center py-8">Ingen aktivitet senaste 24h</p>
         ) : (
           activity.map((item) => {
-            const cfg = typeConfig[item.type];
+            const cfg = typeConfig[item.type] || typeConfig.comment;
             const Icon = cfg.icon;
             return (
               <div key={item.id} className="rounded-xl border border-border bg-card px-3 py-2.5">
