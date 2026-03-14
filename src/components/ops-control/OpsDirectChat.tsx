@@ -124,7 +124,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose }: Props) => {
       {/* Quick shortcuts */}
       <div className="shrink-0 border-t border-border px-3 pt-1.5 pb-0.5">
         <div className="flex items-center gap-1 mb-1">
-          <Zap className="w-2.5 h-2.5 text-amber-500" />
+          <Zap className="w-2.5 h-2.5 text-primary" />
           <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Snabbmeddelanden</span>
         </div>
         <div className="flex flex-wrap gap-1">
