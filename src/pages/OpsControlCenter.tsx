@@ -8,12 +8,12 @@ import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
-import { OpsJobQueueItem } from '@/services/opsControlService';
+import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
 import { Radio } from 'lucide-react';
 
 type SidePanel =
   | { type: 'job-chat'; bookingId: string; label: string }
-  | { type: 'dm'; staffId: string; staffName: string }
+  | { type: 'dm'; staffId: string; staffName: string; assignments: OpsTimelineAssignment[] }
   | null;
 
 const OpsControlCenter = () => {
@@ -42,8 +42,9 @@ const OpsControlCenter = () => {
   }, []);
 
   const handleOpenDM = useCallback((staffId: string, staffName: string) => {
-    setSidePanel({ type: 'dm', staffId, staffName });
-  }, []);
+    const staff = timeline.find(s => s.id === staffId);
+    setSidePanel({ type: 'dm', staffId, staffName, assignments: staff?.assignments || [] });
+  }, [timeline]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -127,6 +128,7 @@ const OpsControlCenter = () => {
             <OpsDirectChat
               staffId={sidePanel.staffId}
               staffName={sidePanel.staffName}
+              staffAssignments={sidePanel.assignments}
               onClose={() => setSidePanel(null)}
             />
           )}

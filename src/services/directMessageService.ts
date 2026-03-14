@@ -10,11 +10,14 @@ export interface DirectMessage {
   content: string;
   is_read: boolean;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  booking_id?: string | null;
 }
 
 /**
  * Fetch conversation between two participants (sorted by time).
- * Uses LEAST/GREATEST index pattern for bidirectional lookup.
  */
 export const fetchDirectMessages = async (
   participantA: string,
@@ -36,7 +39,7 @@ export const fetchDirectMessages = async (
 };
 
 /**
- * Send a direct message from planner to staff (or vice versa).
+ * Send a direct message with optional file attachment and job tag.
  */
 export const sendDirectMessage = async (
   senderId: string,
@@ -45,22 +48,69 @@ export const sendDirectMessage = async (
   recipientId: string,
   recipientName: string,
   content: string,
+  options?: {
+    fileUrl?: string;
+    fileName?: string;
+    fileType?: string;
+    bookingId?: string;
+  },
 ): Promise<void> => {
+  const insertData: Record<string, unknown> = {
+    sender_id: senderId,
+    sender_name: senderName,
+    sender_type: senderType,
+    recipient_id: recipientId,
+    recipient_name: recipientName,
+    content: content.trim(),
+  };
+
+  if (options?.fileUrl) {
+    insertData.file_url = options.fileUrl;
+    insertData.file_name = options.fileName || 'file';
+    insertData.file_type = options.fileType || 'application/octet-stream';
+  }
+  if (options?.bookingId) {
+    insertData.booking_id = options.bookingId;
+  }
+
   const { error } = await supabase
     .from('direct_messages')
-    .insert({
-      sender_id: senderId,
-      sender_name: senderName,
-      sender_type: senderType,
-      recipient_id: recipientId,
-      recipient_name: recipientName,
-      content: content.trim(),
-    });
+    .insert(insertData as any);
 
   if (error) {
     console.error('Error sending direct message:', error);
     throw error;
   }
+};
+
+/**
+ * Upload a file for direct messages and return the public URL.
+ */
+export const uploadDMFile = async (
+  file: File,
+  senderId: string,
+): Promise<{ url: string; fileName: string; fileType: string }> => {
+  const ext = file.name.split('.').pop() || 'bin';
+  const path = `dm-files/${senderId}/${Date.now()}_${file.name}`;
+
+  const { error } = await supabase.storage
+    .from('project-files')
+    .upload(path, file, { upsert: false });
+
+  if (error) {
+    console.error('Error uploading DM file:', error);
+    throw error;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('project-files')
+    .getPublicUrl(path);
+
+  return {
+    url: urlData.publicUrl,
+    fileName: file.name,
+    fileType: file.type || `application/${ext}`,
+  };
 };
 
 /**
@@ -95,7 +145,7 @@ export const fetchUnreadDMCount = async (recipientId: string): Promise<number> =
 };
 
 /**
- * Get DM inbox for a staff member (grouped by conversation partner, latest message).
+ * Get DM inbox for a staff member.
  */
 export const fetchDMInbox = async (staffId: string): Promise<DirectMessage[]> => {
   const { data, error } = await supabase
