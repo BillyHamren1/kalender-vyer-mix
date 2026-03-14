@@ -375,6 +375,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
                 Öppna jobb →
               </button>
             )}
+            {onOpenDM && (
+              <button
+                className="w-full text-[10px] font-medium bg-primary text-primary-foreground rounded py-1 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+                onClick={() => onOpenDM(staffPanel.id, staffPanel.name)}
+              >
+                <MessageCircle className="w-3 h-3" />
+                Direktmeddelande
+              </button>
+            )}
             <button
               className="w-full text-[10px] font-medium text-primary hover:underline text-left"
               onClick={() => navigate(`/staff/${staffPanel.id}`)}
