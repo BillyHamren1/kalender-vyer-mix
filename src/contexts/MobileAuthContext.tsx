@@ -49,6 +49,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
+    initPushNotifications(res.staff.id);
   }, []);
 
   const logout = useCallback(() => {
