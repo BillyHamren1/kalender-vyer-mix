@@ -69,7 +69,17 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
           style: 'mapbox://styles/mapbox/navigation-day-v1',
           center: [15.5, 58.5],
           zoom: 5,
+          projection: 'globe',
           attributionControl: false,
+        });
+        map.current.on('style.load', () => {
+          map.current?.setFog({
+            color: 'rgb(186, 210, 235)',
+            'high-color': 'rgb(36, 92, 223)',
+            'horizon-blend': 0.02,
+            'space-color': 'rgb(11, 11, 25)',
+            'star-intensity': 0.6,
+          });
         });
         map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
         map.current.on('load', () => { if (!cancelled) setMapReady(true); });
