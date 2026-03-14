@@ -16,7 +16,7 @@ export interface StaffMessage {
 
 export interface JobActivityItem {
   id: string;
-  type: 'comment' | 'file' | 'time_report';
+  type: 'comment' | 'file' | 'time_report' | 'direct_message' | 'broadcast' | 'job_message';
   author: string;
   content: string;
   project_name?: string;
