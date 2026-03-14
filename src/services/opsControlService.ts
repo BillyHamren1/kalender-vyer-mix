@@ -252,9 +252,9 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
     for (const b of (bookings || [])) bookingsMap.set(b.id, b);
   }
 
-  // Get calendar events for today
-  const todayStart = startOfDay(now).toISOString();
-  const todayEnd = endOfDay(now).toISOString();
+  // Get calendar events for target date
+  const dayStart = startOfDay(targetDate).toISOString();
+  const dayEnd = endOfDay(targetDate).toISOString();
   const { data: events } = await supabase
     .from('calendar_events')
     .select('booking_id, start_time, end_time, event_type, delivery_address')
