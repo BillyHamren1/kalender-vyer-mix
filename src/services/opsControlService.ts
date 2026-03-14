@@ -1,6 +1,102 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, addHours } from "date-fns";
 
+// === Map-specific types ===
+export interface OpsMapJob {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string;
+  deliveryAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  eventType: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  assignedStaff: { id: string; name: string }[];
+  isActive: boolean;
+}
+
+export const fetchOpsMapJobs = async (): Promise<OpsMapJob[]> => {
+  const now = new Date();
+  const todayStart = startOfDay(now).toISOString();
+  const todayEnd = endOfDay(now).toISOString();
+  const today = format(now, 'yyyy-MM-dd');
+
+  // Get today's calendar events with booking info
+  const { data: events } = await supabase
+    .from('calendar_events')
+    .select('booking_id, start_time, end_time, event_type, delivery_address')
+    .gte('start_time', todayStart)
+    .lte('start_time', todayEnd);
+
+  if (!events?.length) return [];
+
+  const bookingIds = [...new Set(events.filter(e => e.booking_id).map(e => e.booking_id!))];
+  if (!bookingIds.length) return [];
+
+  const [bookingsResult, assignmentsResult] = await Promise.all([
+    supabase.from('bookings')
+      .select('id, booking_number, client, deliveryaddress, delivery_latitude, delivery_longitude')
+      .in('id', bookingIds),
+    supabase.from('booking_staff_assignments')
+      .select('booking_id, staff_id')
+      .eq('assignment_date', today)
+      .in('booking_id', bookingIds),
+  ]);
+
+  const bookingMap = new Map((bookingsResult.data || []).map(b => [b.id, b]));
+
+  // Get staff names
+  const staffIds = [...new Set((assignmentsResult.data || []).map(a => a.staff_id))];
+  let staffMap = new Map<string, string>();
+  if (staffIds.length > 0) {
+    const { data: staffData } = await supabase
+      .from('staff_members' as any)
+      .select('id, name')
+      .in('id', staffIds);
+    staffMap = new Map((staffData || []).map((s: any) => [s.id, s.name]));
+  }
+
+  // Group assignments by booking
+  const assignmentsByBooking = new Map<string, { id: string; name: string }[]>();
+  for (const a of (assignmentsResult.data || [])) {
+    if (!assignmentsByBooking.has(a.booking_id)) assignmentsByBooking.set(a.booking_id, []);
+    assignmentsByBooking.get(a.booking_id)!.push({ id: a.staff_id, name: staffMap.get(a.staff_id) || 'Okänd' });
+  }
+
+  // Build per-booking (dedup)
+  const seen = new Set<string>();
+  const jobs: OpsMapJob[] = [];
+
+  for (const e of events) {
+    if (!e.booking_id || seen.has(e.booking_id)) continue;
+    seen.add(e.booking_id);
+
+    const booking = bookingMap.get(e.booking_id);
+    if (!booking) continue;
+
+    const start = e.start_time ? new Date(e.start_time) : null;
+    const end = e.end_time ? new Date(e.end_time) : null;
+    const isActive = !!(start && end && start <= now && end >= now);
+
+    jobs.push({
+      bookingId: e.booking_id,
+      bookingNumber: booking.booking_number,
+      client: booking.client,
+      deliveryAddress: e.delivery_address || booking.deliveryaddress,
+      latitude: booking.delivery_latitude,
+      longitude: booking.delivery_longitude,
+      eventType: e.event_type,
+      startTime: e.start_time,
+      endTime: e.end_time,
+      assignedStaff: assignmentsByBooking.get(e.booking_id) || [],
+      isActive,
+    });
+  }
+
+  return jobs;
+};
+
 export interface OpsMetrics {
   totalJobsToday: number;
   staffScheduledToday: number;
