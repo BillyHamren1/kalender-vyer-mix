@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ interface Props {
   mapJobs: OpsMapJob[];
   isLoading: boolean;
   focusCoords?: { lat: number; lng: number } | null;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
@@ -35,7 +36,7 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
-const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords }: Props) => {
+const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -372,6 +373,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords }: Props) => {
                 onClick={() => navigate(`/booking/${staffPanel.bookingId}`)}
               >
                 Öppna jobb →
+              </button>
+            )}
+            {onOpenDM && (
+              <button
+                className="w-full text-[10px] font-medium bg-primary text-primary-foreground rounded py-1 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+                onClick={() => onOpenDM(staffPanel.id, staffPanel.name)}
+              >
+                <MessageCircle className="w-3 h-3" />
+                Direktmeddelande
               </button>
             )}
             <button

@@ -6,7 +6,13 @@ import OpsJobQueue from '@/components/ops-control/OpsJobQueue';
 import OpsActivityComms from '@/components/ops-control/OpsActivityComms';
 import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
+import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import { OpsJobQueueItem } from '@/services/opsControlService';
+
+type SidePanel =
+  | { type: 'job-chat'; bookingId: string; label: string }
+  | { type: 'dm'; staffId: string; staffName: string }
+  | null;
 
 const OpsControlCenter = () => {
   const {
@@ -20,7 +26,7 @@ const OpsControlCenter = () => {
   } = useOpsControl();
 
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [chatJob, setChatJob] = useState<{ bookingId: string; label: string } | null>(null);
+  const [sidePanel, setSidePanel] = useState<SidePanel>(null);
 
   const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
     if (job.latitude && job.longitude) {
@@ -29,13 +35,17 @@ const OpsControlCenter = () => {
   }, []);
 
   const handleOpenChat = useCallback((bookingId: string, label: string) => {
-    setChatJob({ bookingId, label });
+    setSidePanel({ type: 'job-chat', bookingId, label });
+  }, []);
+
+  const handleOpenDM = useCallback((staffId: string, staffName: string) => {
+    setSidePanel({ type: 'dm', staffId, staffName });
   }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Main content */}
-      <div className={`flex flex-col flex-1 min-w-0 ${chatJob ? 'mr-0' : ''}`}>
+      <div className="flex flex-col flex-1 min-w-0">
         {/* TOP: Operations Bar */}
         <div className="shrink-0 border-b border-border bg-card px-4 py-2">
           <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
@@ -45,7 +55,7 @@ const OpsControlCenter = () => {
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
           {/* Left: Staff Timeline */}
           <div className="border-r border-border overflow-hidden p-3">
-            <OpsStaffTimeline timeline={timeline} isLoading={isLoadingTimeline} />
+            <OpsStaffTimeline timeline={timeline} isLoading={isLoadingTimeline} onOpenDM={handleOpenDM} />
           </div>
 
           {/* Right: Live Map */}
@@ -55,6 +65,7 @@ const OpsControlCenter = () => {
               mapJobs={mapJobs}
               isLoading={isLoadingLocations || isLoadingMapJobs}
               focusCoords={focusCoords}
+              onOpenDM={handleOpenDM}
             />
           </div>
         </div>
@@ -83,14 +94,22 @@ const OpsControlCenter = () => {
         </div>
       </div>
 
-      {/* Job Chat Side Panel */}
-      {chatJob && (
-        <div className="shrink-0 w-80 border-l border-border animate-in slide-in-from-right duration-200">
-          <OpsJobChat
-            bookingId={chatJob.bookingId}
-            bookingLabel={chatJob.label}
-            onClose={() => setChatJob(null)}
-          />
+      {/* Side Panel */}
+      {sidePanel && (
+        <div className="shrink-0 w-80 animate-in slide-in-from-right duration-200">
+          {sidePanel.type === 'job-chat' ? (
+            <OpsJobChat
+              bookingId={sidePanel.bookingId}
+              bookingLabel={sidePanel.label}
+              onClose={() => setSidePanel(null)}
+            />
+          ) : (
+            <OpsDirectChat
+              staffId={sidePanel.staffId}
+              staffName={sidePanel.staffName}
+              onClose={() => setSidePanel(null)}
+            />
+          )}
         </div>
       )}
     </div>

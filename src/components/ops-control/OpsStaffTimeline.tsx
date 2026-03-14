@@ -13,6 +13,7 @@ import OpsAssignmentTooltip from './OpsAssignmentTooltip';
 interface Props {
   timeline: OpsTimelineStaff[];
   isLoading: boolean;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 const HOUR_START = 6;
@@ -39,7 +40,7 @@ const statusConfig = {
   off_duty: { dot: 'bg-muted-foreground/40', label: 'Ej i tjänst' },
 };
 
-const OpsStaffTimeline = ({ timeline, isLoading }: Props) => {
+const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -306,7 +307,7 @@ const OpsStaffTimeline = ({ timeline, isLoading }: Props) => {
 
       {/* Staff detail panel (slide-in) */}
       {selectedStaff && (
-        <OpsStaffPanel staff={selectedStaff} onClose={() => setSelectedStaff(null)} />
+        <OpsStaffPanel staff={selectedStaff} onClose={() => setSelectedStaff(null)} onOpenDM={onOpenDM} />
       )}
 
       {/* Assignment tooltip */}

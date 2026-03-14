@@ -1,11 +1,12 @@
 import { OpsTimelineStaff } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
-import { X, MapPin, Clock, Briefcase, ChevronRight } from 'lucide-react';
+import { X, MapPin, Clock, Briefcase, ChevronRight, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Props {
   staff: OpsTimelineStaff;
   onClose: () => void;
+  onOpenDM?: (staffId: string, staffName: string) => void;
 }
 
 const statusLabels = {
@@ -20,7 +21,7 @@ const statusColors = {
   off_duty: 'bg-muted-foreground/40',
 };
 
-const OpsStaffPanel = ({ staff, onClose }: Props) => {
+const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
   const navigate = useNavigate();
 
   return (
@@ -145,7 +146,16 @@ const OpsStaffPanel = ({ staff, onClose }: Props) => {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-3 shrink-0">
+      <div className="border-t border-border p-3 shrink-0 space-y-1.5">
+        {onOpenDM && (
+          <button
+            className="w-full text-xs font-medium bg-primary text-primary-foreground rounded-lg py-1.5 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+            onClick={() => onOpenDM(staff.id, staff.name)}
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Skicka direktmeddelande
+          </button>
+        )}
         <button
           className="w-full text-xs font-medium text-primary hover:underline"
           onClick={() => navigate(`/staff/${staff.id}`)}
