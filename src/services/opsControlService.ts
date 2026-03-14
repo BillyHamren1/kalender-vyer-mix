@@ -137,9 +137,16 @@ export interface OpsJobQueueItem {
   eventDate: string | null;
   rigDate: string | null;
   deliveryAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
   status: string | null;
   assignedStaffCount: number;
-  issue: 'no_staff' | 'unopened' | 'starting_soon';
+  assignedStaffNames: string[];
+  startTime: string | null;
+  endTime: string | null;
+  eventType: string | null;
+  updatedAt: string;
+  issue: 'no_staff' | 'unopened' | 'starting_soon' | 'recently_modified';
 }
 
 export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
