@@ -7,19 +7,19 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
+
+// ── App Shells (native-mode wrappers) ──────────────────────────────
+import TimeAppShell from "@/shells/TimeAppShell";
+import ScannerAppShell from "@/shells/ScannerAppShell";
 
 // Layouts
 import MainSystemLayout from "@/components/layouts/MainSystemLayout";
 import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
-import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 
 // Main system pages
 import InvoicingPage from "./pages/InvoicingPage";
-
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import TimeReportApprovals from "./pages/TimeReportApprovals";
@@ -47,7 +47,6 @@ import APIDocumentation from "./pages/APIDocumentation";
 import StaffDashboard from "./pages/StaffDashboard";
 import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
-import MobileInbox from "./pages/mobile/MobileInbox";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
@@ -65,11 +64,11 @@ import PackingVerify from "./pages/PackingVerify";
 import WarehouseEconomy from "./pages/WarehouseEconomy";
 import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
 import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
-import MobileScannerApp from "./pages/MobileScannerApp";
-import ScannerLogin from "./pages/scanner/ScannerLogin";
-import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 
-// Mobile staff app pages
+// Mobile staff app pages (web mode only — native uses shells)
+import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
+import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
+import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 import MobileLogin from "./pages/mobile/MobileLogin";
 import MobileJobs from "./pages/mobile/MobileJobs";
 import MobileJobDetail from "./pages/mobile/MobileJobDetail";
@@ -77,6 +76,10 @@ import MobileTimeReport from "./pages/mobile/MobileTimeReport";
 import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
 import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
+import MobileInbox from "./pages/mobile/MobileInbox";
+import MobileScannerApp from "./pages/MobileScannerApp";
+import ScannerLogin from "./pages/scanner/ScannerLogin";
+import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -113,8 +116,6 @@ const AppContent = () => {
     setLastPath,
   };
 
-  const defaultRoute = getDefaultRoute();
-
   return (
     <PlannerStoreProvider>
       <CalendarContext.Provider value={contextValue}>
@@ -123,120 +124,116 @@ const AppContent = () => {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <Toaster />
-             <BrowserRouter>
-                <Routes>
-                {/* Auth Routes - Not Protected */}
-                <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
-                <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
+            <BrowserRouter>
+              {/* ── Native app modes get their dedicated shell ── */}
+              {APP_MODE === 'time' && <TimeAppShell />}
+              {APP_MODE === 'scanner' && <ScannerAppShell />}
 
-                {/* Public transport partner response page - no auth */}
-                <Route path="/transport-svar" element={<TransportResponse />} />
-
-                {/* Mobile Staff App - Completely isolated system (own auth) */}
-                {/* In scanner-app mode, redirect /m routes to scanner */}
-                {APP_MODE === 'scanner' ? (
-                  <>
-                    <Route path="/m/login" element={<Navigate to="/scanner/login" replace />} />
-                    <Route path="/m" element={<Navigate to="/scanner" replace />} />
-                    <Route path="/m/*" element={<Navigate to="/scanner" replace />} />
-                  </>
-                ) : (
-                  <>
-                    <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
-                    <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/job/:id" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                    <Route path="/m/inbox" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                  </>
-                )}
-
-                {/* Main System Routes - Protected (wrapped in AuthProvider) */}
-                <Route path="/*" element={
-                  <AuthProvider>
-                    <Routes>
-                      <Route path="/" element={
-                        <ProtectedRoute>
-                          <Navigate to={defaultRoute} replace />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/staff-dashboard" element={<ProtectedRoute><MainSystemLayout><StaffDashboard /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/communication" element={<ProtectedRoute><MainSystemLayout><CommunicationPage /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
-                        <Route index element={<ProjectViewPage />} />
-                        <Route path="establishment" element={<EstablishmentPage />} />
-                        <Route path="economy" element={<ProjectEconomyPage />} />
-                      </Route>
-                      <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
-                      <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
-                        <Route index element={<LargeProjectViewPage />} />
-                        <Route path="establishment" element={<LargeEstablishmentPage />} />
-                        <Route path="economy" element={<LargeProjectEconomyPage />} />
-                      </Route>
-                      <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
-
-                      {/* Logistics Routes */}
-                      <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-
-                      {/* Warehouse System Routes */}
-                      <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/calendar" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/packing" element={<ProtectedRoute><WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/packing/:packingId" element={<ProtectedRoute><WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/packing/:packingId/verify" element={<ProtectedRoute><PackingVerify /></ProtectedRoute>} />
-                      <Route path="/warehouse/economy" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
-                      <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
-                      
-                      {/* Scanner App — in time-app mode, redirect scanner routes to time */}
-                      {APP_MODE === 'time' ? (
-                        <>
-                          <Route path="/scanner" element={<Navigate to="/m" replace />} />
-                          <Route path="/scanner/login" element={<Navigate to="/m/login" replace />} />
-                        </>
-                      ) : (
-                        <>
-                          <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
-                          <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
-                        </>
-                      )}
-
-                      {/* Fallback */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </AuthProvider>
-                } />
-              </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </CalendarContext.Provider>
+              {/* ── Web mode: full system with all routes ── */}
+              {APP_MODE === 'web' && <WebRoutes />}
+            </BrowserRouter>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </CalendarContext.Provider>
     </PlannerStoreProvider>
   );
 };
 
 /**
+ * WebRoutes — the full web application with all routes.
+ * Only rendered when APP_MODE === 'web'.
+ */
+const WebRoutes: React.FC = () => {
+  const defaultRoute = getDefaultRoute();
+
+  return (
+    <Routes>
+      {/* Auth Routes - Not Protected */}
+      <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
+      <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
+
+      {/* Public transport partner response page - no auth */}
+      <Route path="/transport-svar" element={<TransportResponse />} />
+
+      {/* Mobile Staff App (accessible via web too) */}
+      <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
+      <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/job/:id" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/inbox" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+
+      {/* Main System Routes - Protected (wrapped in AuthProvider) */}
+      <Route path="/*" element={
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Navigate to={defaultRoute} replace />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff-dashboard" element={<ProtectedRoute><MainSystemLayout><StaffDashboard /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/communication" element={<ProtectedRoute><MainSystemLayout><CommunicationPage /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
+              <Route index element={<ProjectViewPage />} />
+              <Route path="establishment" element={<EstablishmentPage />} />
+              <Route path="economy" element={<ProjectEconomyPage />} />
+            </Route>
+            <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
+            <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
+              <Route index element={<LargeProjectViewPage />} />
+              <Route path="establishment" element={<LargeEstablishmentPage />} />
+              <Route path="economy" element={<LargeProjectEconomyPage />} />
+            </Route>
+            <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
+
+            {/* Logistics Routes */}
+            <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+
+            {/* Warehouse System Routes */}
+            <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/calendar" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/packing" element={<ProtectedRoute><WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/packing/:packingId" element={<ProtectedRoute><WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/packing/:packingId/verify" element={<ProtectedRoute><PackingVerify /></ProtectedRoute>} />
+            <Route path="/warehouse/economy" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
+            <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
+            
+            {/* Scanner App (accessible via web) */}
+            <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
+            <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
+
+            {/* Fallback */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
+      } />
+    </Routes>
+  );
+};
+
+/**
  * Bridge component: syncs legacy CalendarContext state into PlannerStore.
- * This ensures the store stays in sync during the gradual migration.
  * LEGACY — remove once CalendarContext is fully replaced by PlannerStore.
  */
 const LegacyStateBridge: React.FC<{ lastViewedDate: Date; lastPath: string }> = ({ lastViewedDate, lastPath }) => {
