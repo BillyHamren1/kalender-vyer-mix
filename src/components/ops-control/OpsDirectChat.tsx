@@ -5,8 +5,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format, isToday } from 'date-fns';
-import { Send, X, MessageCircle } from 'lucide-react';
+import { Send, X, MessageCircle, Zap } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const QUICK_MESSAGES = [
+  'Försenad?',
+  'Bekräfta ankomst',
+  'Ring mig',
+  'Uppdatera ETA',
+  'Allt ok?',
+  'Behöver hjälp?',
+];
 
 interface Props {
   staffId: string;
