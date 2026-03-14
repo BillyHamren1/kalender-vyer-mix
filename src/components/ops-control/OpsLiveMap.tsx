@@ -44,12 +44,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
   const map = useRef<mapboxgl.Map | null>(null);
   const staffMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const jobMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const cameraMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupsRef = useRef<mapboxgl.Popup[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OpsMapJob | null>(null);
   const [staffPanel, setStaffPanel] = useState<StaffLocation | null>(null);
   const [quickMsg, setQuickMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [showCameras, setShowCameras] = useState(false);
+  const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
   // Init map
   useEffect(() => {
