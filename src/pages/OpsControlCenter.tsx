@@ -106,6 +106,14 @@ const OpsControlCenter = () => {
         </div>
       </div>
 
+      {/* Broadcast Dialog */}
+      <OpsBroadcastDialog
+        open={broadcastOpen}
+        onOpenChange={setBroadcastOpen}
+        jobQueue={jobQueue}
+        timeline={timeline}
+      />
+
       {/* Side Panel */}
       {sidePanel && (
         <div className="shrink-0 w-80 animate-in slide-in-from-right duration-200">
