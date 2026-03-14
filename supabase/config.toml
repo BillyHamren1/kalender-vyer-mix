@@ -126,3 +126,9 @@ verify_jwt = false
 
 [functions.scanner-api]
 verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.push-notification-trigger]
+verify_jwt = false

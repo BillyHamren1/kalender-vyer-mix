@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } from '@/services/mobileApiService';
+import { initPushNotifications, unregisterPushNotifications } from '@/services/pushNotificationService';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
