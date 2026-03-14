@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchOpsMetrics, fetchOpsTimeline, fetchOpsJobQueue, OpsMetrics, OpsTimelineStaff, OpsJobQueueItem } from '@/services/opsControlService';
+import { fetchOpsMetrics, fetchOpsTimeline, fetchOpsJobQueue, fetchOpsMapJobs, OpsMetrics, OpsTimelineStaff, OpsJobQueueItem, OpsMapJob } from '@/services/opsControlService';
 import { fetchStaffMessages, fetchJobActivity, StaffMessage, JobActivityItem } from '@/services/staffDashboardService';
 import { fetchStaffLocations, StaffLocation } from '@/services/planningDashboardService';
 import { useRealtimeInvalidation } from './useRealtimeInvalidation';
@@ -14,7 +14,7 @@ export const useOpsControl = () => {
   const metricsQuery = useQuery<OpsMetrics>({
     queryKey: ['ops-control', 'metrics'],
     queryFn: fetchOpsMetrics,
-    refetchInterval: 60000, // 1 min for ops
+    refetchInterval: 60000,
   });
 
   const timelineQuery = useQuery<OpsTimelineStaff[]>({
@@ -32,6 +32,12 @@ export const useOpsControl = () => {
   const locationsQuery = useQuery<StaffLocation[]>({
     queryKey: ['ops-control', 'locations'],
     queryFn: fetchStaffLocations,
+    refetchInterval: 120000,
+  });
+
+  const mapJobsQuery = useQuery<OpsMapJob[]>({
+    queryKey: ['ops-control', 'map-jobs'],
+    queryFn: fetchOpsMapJobs,
     refetchInterval: 120000,
   });
 
@@ -56,6 +62,8 @@ export const useOpsControl = () => {
     isLoadingJobQueue: jobQueueQuery.isLoading,
     locations: locationsQuery.data || [],
     isLoadingLocations: locationsQuery.isLoading,
+    mapJobs: mapJobsQuery.data || [],
+    isLoadingMapJobs: mapJobsQuery.isLoading,
     messages: messagesQuery.data || [],
     isLoadingMessages: messagesQuery.isLoading,
     activity: activityQuery.data || [],
