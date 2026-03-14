@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useTrafficCameras, TrafficCamera } from '@/hooks/useTrafficCameras';
 
 interface Props {
   locations: StaffLocation[];
