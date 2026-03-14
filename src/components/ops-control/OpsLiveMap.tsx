@@ -169,6 +169,12 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords }: Props) => {
     }
   }, [mapReady, locations, mapJobs, clearMarkers]);
 
+  // Focus from external trigger
+  useEffect(() => {
+    if (!focusCoords || !map.current || !mapReady) return;
+    map.current.flyTo({ center: [focusCoords.lng, focusCoords.lat], zoom: 14, duration: 800 });
+  }, [focusCoords, mapReady]);
+
   // Handle zoom to job's assigned staff (highlight)
   useEffect(() => {
     if (!selectedJob || !map.current || !mapReady) return;
