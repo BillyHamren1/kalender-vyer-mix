@@ -495,6 +495,45 @@ export type Database = {
           },
         ]
       }
+      direct_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean
+          organization_id: string
+          recipient_id: string
+          recipient_name: string
+          sender_id: string
+          sender_name: string
+          sender_type: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          organization_id?: string
+          recipient_id: string
+          recipient_name: string
+          sender_id: string
+          sender_name: string
+          sender_type?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          organization_id?: string
+          recipient_id?: string
+          recipient_name?: string
+          sender_id?: string
+          sender_name?: string
+          sender_type?: string
+        }
+        Relationships: []
+      }
       establishment_subtasks: {
         Row: {
           assigned_to: string | null
