@@ -325,6 +325,12 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
       if (isAssigned) status = 'assigned';
       else if (avail === 'available') status = 'available';
 
+      // Get primary team assignment
+      const staffTeamAssign = assignments.filter(a => a.staff_id === s.id)[0];
+      const teamId = staffTeamAssign?.team_id || staffBookingAssigns[0]?.team_id || null;
+      // Derive team name from team_id pattern "team-N"
+      const teamName = teamId ? teamId.replace('team-', 'Team ') : null;
+
       return {
         id: s.id,
         name: s.name,
@@ -335,6 +341,8 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
         hasConflict,
         currentJob,
         nextJob,
+        teamId,
+        teamName,
       };
     })
     // Sort: assigned first, then available, then off_duty
