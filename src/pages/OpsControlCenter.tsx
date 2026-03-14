@@ -8,12 +8,12 @@ import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
-import { OpsJobQueueItem } from '@/services/opsControlService';
+import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
 import { Radio } from 'lucide-react';
 
 type SidePanel =
   | { type: 'job-chat'; bookingId: string; label: string }
-  | { type: 'dm'; staffId: string; staffName: string }
+  | { type: 'dm'; staffId: string; staffName: string; assignments: OpsTimelineAssignment[] }
   | null;
 
 const OpsControlCenter = () => {
