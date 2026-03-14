@@ -220,9 +220,9 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
 
   const [staffResult, assignmentsResult, bookingAssignmentsResult, availabilityResult] = await Promise.all([
     supabase.from('staff_members' as any).select('id, name, color, role, is_active').order('name'),
-    supabase.from('staff_assignments').select('staff_id, team_id').eq('assignment_date', today),
-    supabase.from('booking_staff_assignments').select('staff_id, booking_id, team_id').eq('assignment_date', today),
-    supabase.from('staff_availability' as any).select('staff_id, availability_type').lte('start_date', today).gte('end_date', today),
+    supabase.from('staff_assignments').select('staff_id, team_id').eq('assignment_date', dateStr),
+    supabase.from('booking_staff_assignments').select('staff_id, booking_id, team_id').eq('assignment_date', dateStr),
+    supabase.from('staff_availability' as any).select('staff_id, availability_type').lte('start_date', dateStr).gte('end_date', dateStr),
   ]);
 
   const staff = (staffResult.data || []) as any[];
