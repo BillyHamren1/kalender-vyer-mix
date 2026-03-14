@@ -345,46 +345,64 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const now = new Date();
   const twoHoursFromNow = addHours(now, 2);
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 
   // Get bookings active today
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_number, client, eventdate, rigdaydate, deliveryaddress, status, viewed')
+    .select('id, booking_number, client, eventdate, rigdaydate, deliveryaddress, delivery_latitude, delivery_longitude, status, viewed, updated_at')
     .or(`rigdaydate.eq.${today},eventdate.eq.${today},rigdowndate.eq.${today}`)
     .neq('status', 'CANCELLED')
     .order('eventdate');
 
   if (!bookings?.length) return [];
 
-  // Get staff assignments for today
-  const { data: assignments } = await supabase
-    .from('booking_staff_assignments')
-    .select('booking_id, staff_id')
-    .eq('assignment_date', today);
+  const bookingIds = bookings.map(b => b.id);
 
-  const staffCountMap = new Map<string, number>();
-  for (const a of (assignments || [])) {
-    staffCountMap.set(a.booking_id, (staffCountMap.get(a.booking_id) || 0) + 1);
+  // Parallel fetches
+  const [assignmentsResult, soonEventsResult, eventsResult] = await Promise.all([
+    supabase.from('booking_staff_assignments').select('booking_id, staff_id').eq('assignment_date', today).in('booking_id', bookingIds),
+    supabase.from('calendar_events').select('booking_id').gte('start_time', now.toISOString()).lte('start_time', twoHoursFromNow.toISOString()),
+    supabase.from('calendar_events').select('booking_id, start_time, end_time, event_type').gte('start_time', startOfDay(now).toISOString()).lte('start_time', endOfDay(now).toISOString()).in('booking_id', bookingIds),
+  ]);
+
+  // Staff count + names
+  const staffByBooking = new Map<string, string[]>();
+  const staffIds = new Set<string>();
+  for (const a of (assignmentsResult.data || [])) {
+    if (!staffByBooking.has(a.booking_id)) staffByBooking.set(a.booking_id, []);
+    staffByBooking.get(a.booking_id)!.push(a.staff_id);
+    staffIds.add(a.staff_id);
   }
 
-  // Get calendar events starting soon
-  const { data: soonEvents } = await supabase
-    .from('calendar_events')
-    .select('booking_id')
-    .gte('start_time', now.toISOString())
-    .lte('start_time', twoHoursFromNow.toISOString());
+  let staffNameMap = new Map<string, string>();
+  if (staffIds.size > 0) {
+    const { data: staffData } = await supabase.from('staff_members' as any).select('id, name').in('id', [...staffIds]);
+    staffNameMap = new Map((staffData || []).map((s: any) => [s.id, s.name]));
+  }
 
-  const soonBookingIds = new Set((soonEvents || []).map(e => e.booking_id).filter(Boolean));
+  const soonBookingIds = new Set((soonEventsResult.data || []).map(e => e.booking_id).filter(Boolean));
+
+  // Events by booking
+  const eventsByBooking = new Map<string, any>();
+  for (const e of (eventsResult.data || [])) {
+    if (e.booking_id && !eventsByBooking.has(e.booking_id)) eventsByBooking.set(e.booking_id, e);
+  }
 
   const queue: OpsJobQueueItem[] = [];
 
   for (const b of bookings) {
-    const staffCount = staffCountMap.get(b.id) || 0;
-    let issue: OpsJobQueueItem['issue'] | null = null;
+    const staffIdList = staffByBooking.get(b.id) || [];
+    const staffCount = staffIdList.length;
+    const staffNames = staffIdList.map(id => staffNameMap.get(id) || 'Okänd');
+    const event = eventsByBooking.get(b.id);
+    const recentlyModified = b.updated_at && b.updated_at >= oneHourAgo;
 
+    let issue: OpsJobQueueItem['issue'] | null = null;
     if (staffCount === 0) issue = 'no_staff';
-    else if (!b.viewed) issue = 'unopened';
     else if (soonBookingIds.has(b.id)) issue = 'starting_soon';
+    else if (!b.viewed) issue = 'unopened';
+    else if (recentlyModified) issue = 'recently_modified';
 
     if (issue) {
       queue.push({
@@ -394,15 +412,22 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
         eventDate: b.eventdate,
         rigDate: b.rigdaydate,
         deliveryAddress: b.deliveryaddress,
+        latitude: b.delivery_latitude,
+        longitude: b.delivery_longitude,
         status: b.status,
         assignedStaffCount: staffCount,
+        assignedStaffNames: staffNames,
+        startTime: event?.start_time || null,
+        endTime: event?.end_time || null,
+        eventType: event?.event_type || null,
+        updatedAt: b.updated_at,
         issue,
       });
     }
   }
 
   return queue.sort((a, b) => {
-    const priority = { no_staff: 0, starting_soon: 1, unopened: 2 };
+    const priority = { no_staff: 0, starting_soon: 1, unopened: 2, recently_modified: 3 };
     return priority[a.issue] - priority[b.issue];
   });
 };
