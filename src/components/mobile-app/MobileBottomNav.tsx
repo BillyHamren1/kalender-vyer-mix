@@ -1,7 +1,6 @@
 import { Briefcase, Clock, Receipt, User, MessageCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { isNativePlatform, setLastModule } from '@/utils/nativeModule';
 
 const tabs = [
   { path: '/m', label: 'Jobb', icon: Briefcase, exact: true },
@@ -14,16 +13,10 @@ const tabs = [
 const MobileBottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const native = isNativePlatform();
 
   const isActive = (tab: typeof tabs[0]) => {
     if (tab.exact) return location.pathname === tab.path;
     return location.pathname.startsWith(tab.path);
-  };
-
-  const switchToScanner = () => {
-    setLastModule('scanner');
-    navigate('/scanner');
   };
 
   return (
@@ -60,8 +53,6 @@ const MobileBottomNav = () => {
             </button>
           );
         })}
-
-        {/* Scanner module switcher – hidden for now */}
       </div>
     </nav>
   );

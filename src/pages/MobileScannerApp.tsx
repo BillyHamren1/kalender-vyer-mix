@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Clock } from 'lucide-react';
+import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { isNativePlatform, setLastModule } from '@/utils/nativeModule';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
 import { QRScanner } from '@/components/scanner/QRScanner';
@@ -201,20 +200,6 @@ const MobileScannerApp: React.FC = () => {
           <p className="text-xs opacity-80">QR & RFID-verifiering</p>
         </div>
         <div className="flex items-center gap-2">
-          {isNativePlatform() && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                setLastModule('report');
-                navigate('/m');
-              }}
-            >
-              <Clock className="h-4 w-4" />
-              <span className="text-xs">Tid</span>
-            </Button>
-          )}
           <Button 
             variant="secondary" 
             size="sm"

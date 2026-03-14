@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
+import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 
 // Layouts
 import MainSystemLayout from "@/components/layouts/MainSystemLayout";
@@ -67,7 +68,6 @@ import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
-import NativeAppEntry from "./pages/NativeAppEntry";
 
 // Mobile staff app pages
 import MobileLogin from "./pages/mobile/MobileLogin";
@@ -113,6 +113,8 @@ const AppContent = () => {
     setLastPath,
   };
 
+  const defaultRoute = getDefaultRoute();
+
   return (
     <PlannerStoreProvider>
       <CalendarContext.Provider value={contextValue}>
@@ -130,19 +132,26 @@ const AppContent = () => {
                 {/* Public transport partner response page - no auth */}
                 <Route path="/transport-svar" element={<TransportResponse />} />
 
-                {/* Native app entry – module chooser */}
-                <Route path="/native-start" element={<MobileAuthProvider><NativeAppEntry /></MobileAuthProvider>} />
-
                 {/* Mobile Staff App - Completely isolated system (own auth) */}
-                <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
-                <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/job/:id" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-                <Route path="/m/inbox" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
-
+                {/* In scanner-app mode, redirect /m routes to scanner */}
+                {APP_MODE === 'scanner' ? (
+                  <>
+                    <Route path="/m/login" element={<Navigate to="/scanner/login" replace />} />
+                    <Route path="/m" element={<Navigate to="/scanner" replace />} />
+                    <Route path="/m/*" element={<Navigate to="/scanner" replace />} />
+                  </>
+                ) : (
+                  <>
+                    <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
+                    <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/job/:id" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                    <Route path="/m/inbox" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                  </>
+                )}
 
                 {/* Main System Routes - Protected (wrapped in AuthProvider) */}
                 <Route path="/*" element={
@@ -150,7 +159,7 @@ const AppContent = () => {
                     <Routes>
                       <Route path="/" element={
                         <ProtectedRoute>
-                          <Navigate to="/projects" replace />
+                          <Navigate to={defaultRoute} replace />
                         </ProtectedRoute>
                       } />
                       <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
@@ -198,9 +207,18 @@ const AppContent = () => {
                       <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       
-                      {/* Mobile Scanner App - uses MobileAuth */}
-                      <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
-                      <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
+                      {/* Scanner App — in time-app mode, redirect scanner routes to time */}
+                      {APP_MODE === 'time' ? (
+                        <>
+                          <Route path="/scanner" element={<Navigate to="/m" replace />} />
+                          <Route path="/scanner/login" element={<Navigate to="/m/login" replace />} />
+                        </>
+                      ) : (
+                        <>
+                          <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
+                          <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
+                        </>
+                      )}
 
                       {/* Fallback */}
                       <Route path="*" element={<NotFound />} />
