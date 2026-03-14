@@ -128,6 +128,8 @@ export interface OpsTimelineStaff {
   hasConflict: boolean;
   currentJob: OpsTimelineAssignment | null;
   nextJob: OpsTimelineAssignment | null;
+  teamId: string | null;
+  teamName: string | null;
 }
 
 export interface OpsJobQueueItem {
