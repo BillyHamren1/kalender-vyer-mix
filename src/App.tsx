@@ -157,6 +157,7 @@ const AppContent = () => {
                       <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-dashboard" element={<ProtectedRoute><MainSystemLayout><StaffDashboard /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/communication" element={<ProtectedRoute><MainSystemLayout><CommunicationPage /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
