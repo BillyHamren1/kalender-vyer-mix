@@ -258,8 +258,8 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
   const { data: events } = await supabase
     .from('calendar_events')
     .select('booking_id, start_time, end_time, event_type, delivery_address')
-    .gte('start_time', todayStart)
-    .lte('start_time', todayEnd);
+    .gte('start_time', dayStart)
+    .lte('start_time', dayEnd);
 
   const eventsByBooking = new Map<string, any[]>();
   for (const e of (events || [])) {
