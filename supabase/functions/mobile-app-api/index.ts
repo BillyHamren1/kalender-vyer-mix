@@ -1236,3 +1236,157 @@ async function handleSendMessage(supabase: any, staffId: string, data: any, orga
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+// ============= Direct Messages Handlers =============
+
+async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string) {
+  // Get all DM conversations for this staff member
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) {
+    console.error('Get DMs error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch direct messages' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Group by conversation partner for inbox view
+  const conversations = new Map<string, { partner_id: string, partner_name: string, last_message: any, unread_count: number, messages: any[] }>()
+
+  for (const msg of (data || [])) {
+    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
+    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+
+    if (!conversations.has(partnerId)) {
+      conversations.set(partnerId, {
+        partner_id: partnerId,
+        partner_name: partnerName,
+        last_message: msg,
+        unread_count: 0,
+        messages: [],
+      })
+    }
+
+    const conv = conversations.get(partnerId)!
+    conv.messages.push(msg)
+    if (!msg.is_read && msg.recipient_id === staffId) {
+      conv.unread_count++
+    }
+  }
+
+  const inbox = Array.from(conversations.values())
+    .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
+
+  return new Response(
+    JSON.stringify({ conversations: inbox }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { recipient_id, content } = data
+
+  if (!recipient_id || !content?.trim()) {
+    return new Response(
+      JSON.stringify({ error: 'recipient_id and content are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get staff name
+  const { data: staffMember } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  const senderName = staffMember?.name || 'Okänd'
+
+  // Get recipient name
+  let recipientName = 'Planerare'
+  const { data: recipientStaff } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', recipient_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (recipientStaff) {
+    recipientName = recipientStaff.name
+  } else {
+    // Might be a planner (auth user)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('user_id', recipient_id)
+      .single()
+    if (profile) recipientName = profile.full_name || profile.email || 'Planerare'
+  }
+
+  const { data: message, error } = await supabase
+    .from('direct_messages')
+    .insert({
+      sender_id: staffId,
+      sender_name: senderName,
+      sender_type: 'staff',
+      recipient_id,
+      recipient_name: recipientName,
+      content: content.trim(),
+      organization_id: organizationId,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Send DM error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to send direct message' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, message }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { sender_id } = data
+
+  if (!sender_id) {
+    return new Response(
+      JSON.stringify({ error: 'sender_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { error } = await supabase
+    .from('direct_messages')
+    .update({ is_read: true })
+    .eq('recipient_id', staffId)
+    .eq('sender_id', sender_id)
+    .eq('organization_id', organizationId)
+    .eq('is_read', false)
+
+  if (error) {
+    console.error('Mark DM read error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to mark messages as read' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
