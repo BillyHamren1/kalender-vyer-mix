@@ -332,6 +332,12 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
             <span className="w-2.5 h-2.5 bg-primary rotate-45 rounded-[2px] shrink-0" style={{ transform: 'rotate(45deg)', width: 8, height: 8 }} />
             Jobb
           </span>
+          {showCameras && (
+            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
+              Kamera
+            </span>
+          )}
         </div>
       </div>
 
