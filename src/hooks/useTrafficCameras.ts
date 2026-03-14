@@ -11,8 +11,6 @@ export interface TrafficCamera {
   photoUrl: string;
   photoTime: string | null;
   direction: string | null;
-  roadNumber: string | null;
-  county: string | null;
   type: string | null;
 }
 
