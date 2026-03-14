@@ -53,6 +53,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const logout = useCallback(() => {
+    unregisterPushNotifications();
     clearAuth();
     setStaff(null);
   }, []);
