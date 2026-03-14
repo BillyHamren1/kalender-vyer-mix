@@ -22,7 +22,7 @@ const issueConfig = {
   recently_modified: { icon: RefreshCw, label: 'Ändrad', cls: 'text-blue-600 bg-blue-500/10', rowCls: '' },
 };
 
-const OpsJobQueue = ({ jobs, isLoading, onFocusJob }: Props) => {
+const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
