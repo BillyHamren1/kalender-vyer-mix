@@ -1394,3 +1394,101 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+// ============= Broadcast Handlers =============
+
+async function handleGetBroadcasts(supabase: any, staffId: string, organizationId: string) {
+  const today = new Date().toISOString().split('T')[0]
+
+  // Get all broadcasts from today for this organization
+  const { data, error } = await supabase
+    .from('broadcast_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .gte('created_at', `${today}T00:00:00`)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.error('Get broadcasts error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch broadcasts' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Filter broadcasts relevant to this staff member
+  // Get staff's booking assignments for today
+  const { data: assignments } = await supabase
+    .from('booking_staff_assignments')
+    .select('booking_id')
+    .eq('staff_id', staffId)
+    .eq('assignment_date', today)
+    .eq('organization_id', organizationId)
+
+  const staffBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
+
+  const relevantBroadcasts = (data || []).filter((b: any) => {
+    switch (b.audience) {
+      case 'all_today':
+        return true // staff is scheduled today (they have assignments)
+      case 'active_staff':
+        return true // let client filter; server can't know real-time active status perfectly
+      case 'job_staff':
+        return staffBookingIds.has(b.audience_booking_id)
+      case 'selected_staff':
+        return (b.audience_staff_ids || []).includes(staffId)
+      default:
+        return false
+    }
+  }).map((b: any) => ({
+    ...b,
+    is_read: (b.is_read_by || []).includes(staffId),
+  }))
+
+  return new Response(
+    JSON.stringify({ broadcasts: relevantBroadcasts }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { broadcast_id } = data
+
+  if (!broadcast_id) {
+    return new Response(
+      JSON.stringify({ error: 'broadcast_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get current is_read_by array and append staffId if not present
+  const { data: broadcast } = await supabase
+    .from('broadcast_messages')
+    .select('is_read_by')
+    .eq('id', broadcast_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (!broadcast) {
+    return new Response(
+      JSON.stringify({ error: 'Broadcast not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const readBy: string[] = broadcast.is_read_by || []
+  if (!readBy.includes(staffId)) {
+    readBy.push(staffId)
+    await supabase
+      .from('broadcast_messages')
+      .update({ is_read_by: readBy })
+      .eq('id', broadcast_id)
+      .eq('organization_id', organizationId)
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
