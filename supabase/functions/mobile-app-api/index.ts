@@ -137,6 +137,12 @@ Deno.serve(async (req) => {
         return await handleUploadFile(supabase, staffId, data, organizationId)
       case 'send_message':
         return await handleSendMessage(supabase, staffId, data, organizationId)
+      case 'get_direct_messages':
+        return await handleGetDirectMessages(supabase, staffId, organizationId)
+      case 'send_direct_message':
+        return await handleSendDirectMessage(supabase, staffId, data, organizationId)
+      case 'mark_dm_read':
+        return await handleMarkDMRead(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
