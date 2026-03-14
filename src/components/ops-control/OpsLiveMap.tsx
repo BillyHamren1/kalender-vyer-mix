@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useTrafficCameras, TrafficCamera } from '@/hooks/useTrafficCameras';
 
 interface Props {
   locations: StaffLocation[];
@@ -43,12 +44,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
   const map = useRef<mapboxgl.Map | null>(null);
   const staffMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const jobMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const cameraMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupsRef = useRef<mapboxgl.Popup[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OpsMapJob | null>(null);
   const [staffPanel, setStaffPanel] = useState<StaffLocation | null>(null);
   const [quickMsg, setQuickMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [showCameras, setShowCameras] = useState(false);
+  const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
   // Init map
   useEffect(() => {
@@ -84,6 +88,61 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
     popupsRef.current.forEach(p => p.remove());
     popupsRef.current = [];
   }, []);
+
+  const clearCameraMarkers = useCallback(() => {
+    cameraMarkersRef.current.forEach(m => m.remove());
+    cameraMarkersRef.current = [];
+  }, []);
+
+  // Toggle cameras
+  const handleToggleCameras = useCallback(async () => {
+    if (showCameras) {
+      setShowCameras(false);
+      clearCameraMarkers();
+    } else {
+      setShowCameras(true);
+      await fetchCameras();
+    }
+  }, [showCameras, fetchCameras, clearCameraMarkers]);
+
+  // Render camera markers
+  useEffect(() => {
+    if (!mapReady || !map.current || !showCameras || cameras.length === 0) {
+      if (!showCameras) clearCameraMarkers();
+      return;
+    }
+    clearCameraMarkers();
+
+    cameras.forEach(cam => {
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #3b82f6; border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: transform 0.15s;
+      `;
+      el.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>`;
+      el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.3)'; });
+      el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
+
+      const popup = new mapboxgl.Popup({ offset: 15, maxWidth: '320px', closeButton: true })
+        .setHTML(`
+          <div style="font-family: system-ui, sans-serif;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 4px;">${cam.name}</div>
+            ${cam.roadNumber ? `<div style="font-size: 10px; color: #6b7280; margin-bottom: 4px;">Väg ${cam.roadNumber}${cam.direction ? ` · ${cam.direction}` : ''}</div>` : ''}
+            <img src="${cam.photoUrl}" alt="${cam.name}" style="width: 100%; border-radius: 6px; margin-top: 4px;" loading="lazy" onerror="this.style.display='none'" />
+            ${cam.photoTime ? `<div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">Uppdaterad: ${new Date(cam.photoTime).toLocaleString('sv-SE')}</div>` : ''}
+          </div>
+        `);
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([cam.lng, cam.lat])
+        .setPopup(popup)
+        .addTo(map.current!);
+      cameraMarkersRef.current.push(marker);
+    });
+  }, [mapReady, showCameras, cameras, clearCameraMarkers]);
 
   // Render markers
   useEffect(() => {
@@ -245,6 +304,18 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
           <span className="flex items-center gap-1 text-[10px] text-emerald-600">
             {onSiteCount} på plats
           </span>
+          <button
+            onClick={handleToggleCameras}
+            disabled={camerasLoading}
+            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+              showCameras
+                ? 'bg-blue-500 text-white font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            } ${camerasLoading ? 'opacity-50' : ''}`}
+          >
+            <Camera className="w-3 h-3" />
+            {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
+          </button>
         </div>
       </div>
 
@@ -261,6 +332,12 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
             <span className="w-2.5 h-2.5 bg-primary rotate-45 rounded-[2px] shrink-0" style={{ transform: 'rotate(45deg)', width: 8, height: 8 }} />
             Jobb
           </span>
+          {showCameras && (
+            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
+              Kamera
+            </span>
+          )}
         </div>
       </div>
 
