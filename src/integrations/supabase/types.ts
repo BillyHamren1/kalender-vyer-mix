@@ -428,6 +428,48 @@ export type Database = {
           },
         ]
       }
+      broadcast_messages: {
+        Row: {
+          audience: string
+          audience_booking_id: string | null
+          audience_staff_ids: string[] | null
+          category: string
+          content: string
+          created_at: string
+          id: string
+          is_read_by: string[]
+          organization_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Insert: {
+          audience?: string
+          audience_booking_id?: string | null
+          audience_staff_ids?: string[] | null
+          category?: string
+          content: string
+          created_at?: string
+          id?: string
+          is_read_by?: string[]
+          organization_id?: string
+          sender_id: string
+          sender_name: string
+        }
+        Update: {
+          audience?: string
+          audience_booking_id?: string | null
+          audience_staff_ids?: string[] | null
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_read_by?: string[]
+          organization_id?: string
+          sender_id?: string
+          sender_name?: string
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           booking_id: string | null

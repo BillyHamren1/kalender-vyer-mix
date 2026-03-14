@@ -7,7 +7,9 @@ import OpsActivityComms from '@/components/ops-control/OpsActivityComms';
 import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
+import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
 import { OpsJobQueueItem } from '@/services/opsControlService';
+import { Radio } from 'lucide-react';
 
 type SidePanel =
   | { type: 'job-chat'; bookingId: string; label: string }
@@ -27,6 +29,7 @@ const OpsControlCenter = () => {
 
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
 
   const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
     if (job.latitude && job.longitude) {
@@ -47,8 +50,17 @@ const OpsControlCenter = () => {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* TOP: Operations Bar */}
-        <div className="shrink-0 border-b border-border bg-card px-4 py-2">
-          <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
+        <div className="shrink-0 border-b border-border bg-card px-4 py-2 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
+          </div>
+          <button
+            onClick={() => setBroadcastOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+          >
+            <Radio className="w-3.5 h-3.5" />
+            Broadcast
+          </button>
         </div>
 
         {/* MAIN AREA */}
@@ -93,6 +105,14 @@ const OpsControlCenter = () => {
           </div>
         </div>
       </div>
+
+      {/* Broadcast Dialog */}
+      <OpsBroadcastDialog
+        open={broadcastOpen}
+        onOpenChange={setBroadcastOpen}
+        jobQueue={jobQueue}
+        timeline={timeline}
+      />
 
       {/* Side Panel */}
       {sidePanel && (
