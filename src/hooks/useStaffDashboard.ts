@@ -6,7 +6,7 @@ import { useRealtimeInvalidation } from './useRealtimeInvalidation';
 export const useStaffDashboard = () => {
   useRealtimeInvalidation({
     channelName: 'staff-dashboard-realtime',
-    tables: ['staff_messages', 'project_comments', 'project_files', 'time_reports'],
+    tables: ['staff_messages', 'project_comments', 'project_files', 'time_reports', 'direct_messages', 'broadcast_messages', 'job_messages'],
     queryKeys: [['staff-dashboard-messages'], ['staff-dashboard-activity'], ['staff-dashboard-locations']],
   });
 
