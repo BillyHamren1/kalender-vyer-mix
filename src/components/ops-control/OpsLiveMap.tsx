@@ -89,6 +89,61 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
     popupsRef.current = [];
   }, []);
 
+  const clearCameraMarkers = useCallback(() => {
+    cameraMarkersRef.current.forEach(m => m.remove());
+    cameraMarkersRef.current = [];
+  }, []);
+
+  // Toggle cameras
+  const handleToggleCameras = useCallback(async () => {
+    if (showCameras) {
+      setShowCameras(false);
+      clearCameraMarkers();
+    } else {
+      setShowCameras(true);
+      await fetchCameras();
+    }
+  }, [showCameras, fetchCameras, clearCameraMarkers]);
+
+  // Render camera markers
+  useEffect(() => {
+    if (!mapReady || !map.current || !showCameras || cameras.length === 0) {
+      if (!showCameras) clearCameraMarkers();
+      return;
+    }
+    clearCameraMarkers();
+
+    cameras.forEach(cam => {
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #3b82f6; border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: transform 0.15s;
+      `;
+      el.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>`;
+      el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.3)'; });
+      el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
+
+      const popup = new mapboxgl.Popup({ offset: 15, maxWidth: '320px', closeButton: true })
+        .setHTML(`
+          <div style="font-family: system-ui, sans-serif;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 4px;">${cam.name}</div>
+            ${cam.roadNumber ? `<div style="font-size: 10px; color: #6b7280; margin-bottom: 4px;">Väg ${cam.roadNumber}${cam.direction ? ` · ${cam.direction}` : ''}</div>` : ''}
+            <img src="${cam.photoUrl}" alt="${cam.name}" style="width: 100%; border-radius: 6px; margin-top: 4px;" loading="lazy" onerror="this.style.display='none'" />
+            ${cam.photoTime ? `<div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">Uppdaterad: ${new Date(cam.photoTime).toLocaleString('sv-SE')}</div>` : ''}
+          </div>
+        `);
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([cam.lng, cam.lat])
+        .setPopup(popup)
+        .addTo(map.current!);
+      cameraMarkersRef.current.push(marker);
+    });
+  }, [mapReady, showCameras, cameras, clearCameraMarkers]);
+
   // Render markers
   useEffect(() => {
     if (!mapReady || !map.current) return;
