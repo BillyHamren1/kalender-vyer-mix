@@ -151,6 +151,10 @@ Deno.serve(async (req) => {
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
         return await handleMarkBroadcastRead(supabase, staffId, data, organizationId)
+      case 'register_push_token':
+        return await handleRegisterPushToken(supabase, staffId, data, organizationId)
+      case 'unregister_push_token':
+        return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
