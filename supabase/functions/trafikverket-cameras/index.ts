@@ -65,8 +65,8 @@ serve(async (req) => {
       let lng: number | null = null
       const geo = cam.Geometry?.WGS84
       if (geo) {
-        // Format: "POINT (lng lat)"
-        const match = geo.match(/POINT\s*\(\s*([\d.]+)\s+([\d.]+)\s*\)/)
+        // Format: "POINT (lng lat)" - coordinates can be negative
+        const match = geo.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/)
         if (match) {
           lng = parseFloat(match[1])
           lat = parseFloat(match[2])
