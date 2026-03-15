@@ -20,7 +20,7 @@ const MobileBottomNav = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border/60 safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border/60">
       <div className="flex items-stretch h-[68px] max-w-lg mx-auto px-2">
         {tabs.map(tab => {
           const active = isActive(tab);
@@ -54,6 +54,8 @@ const MobileBottomNav = () => {
           );
         })}
       </div>
+      {/* Bottom safe area spacer — covers Android gesture bar & iPhone home indicator */}
+      <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
     </nav>
   );
 };
