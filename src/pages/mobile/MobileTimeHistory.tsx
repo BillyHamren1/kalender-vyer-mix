@@ -63,7 +63,15 @@ const MobileTimeHistory = () => {
     });
   }, [reports, listInterval]);
 
-  // Build all days in interval with their reports (ascending order)
+  const filteredTravelLogs = useMemo(() => {
+    return travelLogs.filter(l => {
+      if (!l.end_time) return false;
+      const d = parseISO(l.report_date);
+      return isWithinInterval(d, listInterval);
+    });
+  }, [travelLogs, listInterval]);
+
+  // Build all days in interval with their reports and travel logs (ascending order)
   const groupedListReports = useMemo(() => {
     const days = eachDayOfInterval(listInterval);
     const reportMap = new Map<string, MobileTimeReport[]>();
@@ -72,11 +80,17 @@ const MobileTimeHistory = () => {
       if (!reportMap.has(key)) reportMap.set(key, []);
       reportMap.get(key)!.push(r);
     });
+    const travelMap = new Map<string, MobileTravelLog[]>();
+    filteredTravelLogs.forEach(l => {
+      const key = l.report_date;
+      if (!travelMap.has(key)) travelMap.set(key, []);
+      travelMap.get(key)!.push(l);
+    });
     return days.map(day => {
       const key = format(day, 'yyyy-MM-dd');
-      return { dateKey: key, day, reports: reportMap.get(key) || [] };
+      return { dateKey: key, day, reports: reportMap.get(key) || [], travels: travelMap.get(key) || [] };
     });
-  }, [filteredListReports, listInterval]);
+  }, [filteredListReports, filteredTravelLogs, listInterval]);
 
   const filteredTotalHours = filteredListReports.reduce((s, r) => s + r.hours_worked, 0);
 
