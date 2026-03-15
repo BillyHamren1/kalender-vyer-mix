@@ -143,6 +143,14 @@ const PlanningDashboard = () => {
         <DashboardAllProjects />
       </div>
 
+      {/* Kommunikation */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-[hsl(var(--heading))] mb-3">Kommunikation</h2>
+        <div className="max-w-3xl rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden" style={{ maxHeight: 480 }}>
+          <MessagesFeed messages={messages} isLoading={isLoadingMessages} />
+        </div>
+      </div>
+
       {/* Dialogs */}
       <CreateProjectWizard
         open={isCreateOpen}
