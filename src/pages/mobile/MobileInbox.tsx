@@ -200,7 +200,7 @@ const MobileInbox = () => {
   // === INBOX LIST VIEW ===
   if (view === 'list') {
     return (
-      <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
+      <div className="flex flex-col min-h-screen pb-24 bg-background">
         <MobileHeroHeader
           eyebrow="MEDDELANDEN"
           title="Inkorg"
@@ -340,7 +340,7 @@ const MobileInbox = () => {
   if (view === 'broadcast-detail' && activeBroadcast) {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
     return (
-      <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
+      <div className="flex flex-col min-h-screen pb-24 bg-background">
         <MobileBackHeader
           title="Broadcast"
           onBack={goBack}
@@ -372,7 +372,7 @@ const MobileInbox = () => {
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     return (
-      <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
+      <div className="flex flex-col min-h-screen pb-24 bg-background">
         <MobileBackHeader
           title={activeDM.partner_name}
           onBack={goBack}
@@ -428,7 +428,7 @@ const MobileInbox = () => {
   // === JOB THREAD ===
   if (view === 'job-thread' && activeJob) {
     return (
-      <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
+      <div className="flex flex-col min-h-screen pb-24 bg-background">
         <MobileBackHeader
           title={activeJob.client}
           onBack={goBack}
