@@ -1,7 +1,17 @@
+/**
+ * LEGACY FALLBACK — Web Bluetooth RFID hook
+ * 
+ * This hook uses Web Bluetooth API and HID keyboard input for generic
+ * Bluetooth RFID scanners. NOT suitable for Zebra enterprise devices.
+ * 
+ * For Zebra TC22 + RFD4030:
+ *   Use useScannerController from '@/hooks/scanner/useScannerController'
+ *   which integrates with DataWedgeBridge and ZebraRfidBridge.
+ * 
+ * This file is kept for non-Zebra Bluetooth scanner compatibility only.
+ * @deprecated Use useScannerController for Zebra enterprise scanning
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-// Type declarations for Web Bluetooth API
-declare global {
   interface Navigator {
     bluetooth?: {
       requestDevice(options: RequestDeviceOptions): Promise<BluetoothDeviceWeb>;
