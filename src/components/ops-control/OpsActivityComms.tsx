@@ -84,15 +84,28 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
         actor: item.author, description, context: item.project_name || null, category,
       });
     }
+    // Group staff messages by sender (conversation) — only show latest per person
     const staffMsgs = messages.filter(m => m.sender_type === 'staff');
-    for (const m of staffMsgs.slice(-15)) {
+    const latestBySender = new Map<string, StaffMessage>();
+    const countBySender = new Map<string, number>();
+    for (const m of staffMsgs) {
+      const key = m.staff_name || m.sender_name || 'Personal';
+      countBySender.set(key, (countBySender.get(key) || 0) + 1);
+      const existing = latestBySender.get(key);
+      if (!existing || new Date(m.created_at) > new Date(existing.created_at)) {
+        latestBySender.set(key, m);
+      }
+    }
+    for (const [senderName, m] of latestBySender) {
       const isUrgent = m.message_type === 'urgent';
+      const msgCount = countBySender.get(senderName) || 1;
+      const preview = m.content.length > 50 ? m.content.slice(0, 47) + '…' : m.content;
       events.push({
         id: `msg-${m.id}`, timestamp: m.created_at,
         icon: isUrgent ? AlertTriangle : MessageCircle,
         iconCls: isUrgent ? 'text-destructive' : 'text-primary',
-        actor: m.staff_name || m.sender_name || 'Personal',
-        description: m.content.length > 60 ? m.content.slice(0, 57) + '…' : m.content,
+        actor: senderName,
+        description: msgCount > 1 ? `(${msgCount}) ${preview}` : preview,
         context: null, category: 'message',
       });
     }
