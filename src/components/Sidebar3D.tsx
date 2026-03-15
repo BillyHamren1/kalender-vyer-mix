@@ -29,13 +29,14 @@ const navigationItems: NavItem[] = [
   },
   {
     title: "Personal",
-    url: "/dashboard",
+    url: "/ops-control",
     icon: Users,
     children: [
-      { title: "Operativ överblick", url: "/dashboard" },
+      { title: "Planeringsdashboard", url: "/ops-control" },
       { title: "Dashboard", url: "/staff-dashboard" },
       { title: "Kalender", url: "/calendar" },
       { title: "Personalhantering", url: "/staff-management" },
+      { title: "Planeringsdashboard", url: "/dashboard" },
       { title: "Kommunikation", url: "/communication" },
     ],
   },
