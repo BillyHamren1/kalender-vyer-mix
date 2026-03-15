@@ -201,9 +201,10 @@ const MobileInbox = () => {
   if (view === 'list') {
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <MobileBackHeader
-          title="Meddelanden"
-          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : undefined}
+        <MobileHeroHeader
+          eyebrow="MEDDELANDEN"
+          title="Inkorg"
+          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : 'Inga olästa'}
           backTo="/m"
         />
 

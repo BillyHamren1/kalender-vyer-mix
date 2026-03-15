@@ -81,7 +81,7 @@ const MobileTimeReport = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      <MobileHeroHeader title="Tidrapportering" subtitle="Rapportera arbetstid" />
+      <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
 
       <div className="flex-1 px-4 py-2.5 pb-24 space-y-2.5">
         {/* Active timers */}

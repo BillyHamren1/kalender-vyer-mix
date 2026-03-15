@@ -104,6 +104,7 @@ const MobileExpenses = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
+        eyebrow="UTLÄGG"
         title="Utlägg"
         subtitle="Kvitton & inköp"
         rightAction={

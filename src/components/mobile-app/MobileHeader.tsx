@@ -76,7 +76,7 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
   return (
     <div className="bg-primary rounded-b-2xl shadow-md">
       <div className="safe-area-top" style={{ minHeight: '44px' }} />
-      <div className="px-5 pb-4">
+      <div className="px-5 pb-5 min-h-[60px] flex flex-col justify-end">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
