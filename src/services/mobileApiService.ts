@@ -205,4 +205,23 @@ export const mobileApi = {
 
   unregisterPushToken: (pushToken: string) =>
     callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
+
+  // Travel logs
+  createTravelLog: (data: {
+    from_address?: string;
+    from_latitude?: number;
+    from_longitude?: number;
+    description?: string;
+    auto_detected?: boolean;
+  }) => callApi<{ success: boolean; travel_log: any }>('create_travel_log', data),
+
+  stopTravelLog: (data: {
+    travel_log_id: string;
+    to_address?: string;
+    to_latitude?: number;
+    to_longitude?: number;
+  }) => callApi<{ success: boolean; travel_log: any }>('stop_travel_log', data),
+
+  getTravelLogs: (limit?: number) =>
+    callApi<{ travel_logs: MobileTravelLog[] }>('get_travel_logs', { limit }),
 };
