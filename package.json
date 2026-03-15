@@ -10,6 +10,12 @@
     "generate-icons": "node scripts/generate-icons.js",
     "generate-icons:time": "APP_MODE=time node scripts/generate-icons.js",
     "generate-icons:scanner": "APP_MODE=scanner node scripts/generate-icons.js",
+    "build:time": "VITE_APP_MODE=time vite build",
+    "build:scanner": "VITE_APP_MODE=scanner vite build",
+    "android:time": "node scripts/build-android.js time",
+    "android:scanner": "node scripts/build-android.js scanner",
+    "android:time:sync": "node scripts/build-android.js time --sync-only",
+    "android:scanner:sync": "node scripts/build-android.js scanner --sync-only",
     "lint": "eslint .",
     "preview": "vite preview"
   },
