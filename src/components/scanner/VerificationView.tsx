@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Radio } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   verifyProductBySku, 
@@ -17,6 +17,9 @@ import {
 } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
+import { ScannerModeIndicator } from './ScannerModeIndicator';
+import { useScannerController } from '@/hooks/scanner/useScannerController';
+import { ScanEvent } from '@/services/scanner/types';
 
 interface VerificationViewProps {
   packingId: string;
