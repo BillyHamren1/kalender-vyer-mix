@@ -93,6 +93,7 @@ const MobileTimeHistory = () => {
   }, [filteredListReports, filteredTravelLogs, listInterval]);
 
   const filteredTotalHours = filteredListReports.reduce((s, r) => s + r.hours_worked, 0);
+  const filteredTravelHours = filteredTravelLogs.reduce((s, l) => s + l.hours_worked, 0);
 
   const listPeriodLabel = listFilter === 'week'
     ? `${format(listInterval.start, 'd MMM', { locale: sv })} – ${format(listInterval.end, 'd MMM yyyy', { locale: sv })}`
