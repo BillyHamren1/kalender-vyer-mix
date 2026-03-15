@@ -151,8 +151,12 @@ Deno.serve(async (req) => {
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
         return await handleMarkBroadcastRead(supabase, staffId, data, organizationId)
-      case 'register_push_token':
-        return await handleRegisterPushToken(supabase, staffId, data, organizationId)
+      case 'register_push_token': {
+        console.log(`[mobile-app-api] [router] entering register_push_token for staff=${staffId}, org=${organizationId}`)
+        const registerResponse = await handleRegisterPushToken(supabase, staffId, data, organizationId)
+        console.log(`[mobile-app-api] [router] register_push_token completed with status=${registerResponse.status}`)
+        return registerResponse
+      }
       case 'unregister_push_token':
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
       case 'create_travel_log':
