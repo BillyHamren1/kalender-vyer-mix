@@ -38,7 +38,7 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
-const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Props) => {
+const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, routePolyline }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const mapContainer = useRef<HTMLDivElement>(null);
