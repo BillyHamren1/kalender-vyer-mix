@@ -1,87 +1,90 @@
 
-# Steg 4: Regression Test Layer ✅ Klart
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+# AI-driven Staff Route Planning med Mapbox
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+## Bakgrund
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+Projektet använder redan **Mapbox** genomgående:
+- `MAPBOX_PUBLIC_TOKEN` finns som secret
+- Mapbox Directions API används i `LogisticsMapWidget.tsx` för ruttvisning
+- OpsLiveMap använder Mapbox GL JS med globe-projektion
+- Den befintliga `optimize-logistics-route` edge function använder Google Routes API — men för den nya staff-rutten ska vi använda **Mapbox Optimization API** istället
 
----
+## Plan
 
-# Steg 1: SAFE NOW ✅ Klart
+### 1. Ny Edge Function: `supabase/functions/optimize-staff-route/index.ts`
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+**Input:** `{ staff_id, date, start_lat?, start_lng? }`
 
----
+**Logik:**
+1. Hämta `booking_staff_assignments` för given personal + datum
+2. Joina med `bookings` för koordinater och `calendar_events` för tider
+3. Anropa **Mapbox Optimization API v1** (`https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coordinates}`) — detta optimerar waypoint-ordning och returnerar polyline + distans/tid
+4. Fallback: nearest-neighbor (redan beprövad pattern i kodbasen)
+5. Anropa **Lovable AI Gateway (Gemini)** för naturliga ruttförslag ("undvik E4 under rusningstid", "stopp 2 och 3 ligger nära — gruppera")
+6. Returnera: `{ optimized_order, stops[], total_distance_km, total_duration_min, polyline (GeoJSON), ai_suggestions }`
 
-# Steg 2: SAFE NEXT ✅ Klart
+**Secrets som behövs:** `MAPBOX_PUBLIC_TOKEN` (finns), `LOVABLE_API_KEY` (finns)
 
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+### 2. Ny Service: `src/services/staffRouteService.ts`
 
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+- `optimizeStaffRoute(staffId, date)` — anropar edge function
+- Returnerar optimerad stoppordning, polyline-geometri, AI-tips
 
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+### 3. UI: "Optimera rutt"-knapp i OpsStaffTimeline
 
----
+- Visas på personalrader med 2+ uppdrag som har koordinater
+- Klick → anropar `optimizeStaffRoute`, visar toast med avstånd/tid
+- Ritar rutt-polyline på OpsLiveMap
 
-# Steg 3: LATER ✅ Klart (utom 3d)
+### 4. UI: Ny sidopanel `OpsStaffRoute.tsx`
 
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+- Öppnas via befintligt `sidePanel`-mönster i `OpsControlCenter`
+- Visar: ordnad stopplista, avstånd, tid, AI-förslag från Gemini
+- "Visa på karta"-knapp fokuserar kartan och ritar polyline
 
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+### 5. OpsLiveMap: Stöd för rutt-polyline
 
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+- Ny prop `routePolyline` (GeoJSON LineString)
+- Renderas som färgad linje (samma pattern som `LogisticsMapWidget` highlight-route)
 
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+## Filer att skapa
 
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+| Fil | Syfte |
+|-----|-------|
+| `supabase/functions/optimize-staff-route/index.ts` | Mapbox Optimization API + Gemini AI |
+| `src/services/staffRouteService.ts` | Klient-service för ruttoptimering |
+| `src/components/ops-control/OpsStaffRoute.tsx` | Sidopanel med ruttdetaljer + AI-tips |
 
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+## Filer att ändra
 
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+| Fil | Ändring |
+|-----|---------|
+| `src/components/ops-control/OpsStaffTimeline.tsx` | Lägg till "Optimera rutt"-knapp per personalrad |
+| `src/components/ops-control/OpsLiveMap.tsx` | Stöd för att rita en staff-route polyline |
+| `src/pages/OpsControlCenter.tsx` | Ny `staff-route` sidopaneltyp |
+| `supabase/config.toml` | Registrera nya edge function |
+
+## Mapbox Optimization API
+
+Används istället för Google Routes API. Endpoint:
+```
+GET https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coords}
+  ?access_token={MAPBOX_PUBLIC_TOKEN}
+  &geometries=geojson
+  &overview=full
+  &roundtrip=false
+  &source=first
 ```
 
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+Returnerar optimerad waypoint-ordning + full GeoJSON-geometri — perfekt för att rita på kartan direkt.
 
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
+## Testplan
+
+1. Personal med 2+ uppdrag → "Optimera rutt" visas
+2. Klick → edge function returnerar ordnade stopp + polyline
+3. Rutt-polyline renderas på OpsLiveMap
+4. Sidopanel visar stopplista + AI-förslag
+5. Personal med 0–1 uppdrag → ingen knapp
+6. Fallback fungerar om Mapbox API inte svarar
+
