@@ -501,6 +501,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
+      {/* Scanner mode indicator */}
+      <ScannerModeIndicator
+        currentMode={scannerController.currentMode}
+        isBarcodeReady={scannerController.isBarcodeReady}
+        isRfidReady={scannerController.isRfidReady}
+        isReaderConnected={scannerController.isReaderConnected}
+        scanCount={scannerController.scanCount}
+      />
+
       {/* Compact Progress + QR + Kolli buttons inline */}
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
