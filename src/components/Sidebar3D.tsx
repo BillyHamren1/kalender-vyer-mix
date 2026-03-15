@@ -271,16 +271,15 @@ export function Sidebar3D() {
 
                 {/* ── Sub-items ── */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-6 pl-4 border-l border-border/40 space-y-1 mt-1">
+                  <div className="ml-7 pl-4 border-l border-border/30 space-y-1 mt-1">
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
-                      const childHovered = hoveredUrl === child.url;
                       return (
                         <NavLink
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-2 rounded-[8px] px-3 py-2 text-sm transition-colors",
+                            "flex items-center gap-2 rounded-[8px] px-3 py-2.5 text-[14px] transition-colors",
                             childActive
                               ? "bg-muted/30 text-foreground"
                               : "text-muted-foreground hover:bg-muted/20"
