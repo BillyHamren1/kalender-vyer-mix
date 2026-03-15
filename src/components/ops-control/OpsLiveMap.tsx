@@ -18,6 +18,7 @@ interface Props {
   isLoading: boolean;
   focusCoords?: { lat: number; lng: number } | null;
   onOpenDM?: (staffId: string, staffName: string) => void;
+  routePolyline?: GeoJSON.LineString | null;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
