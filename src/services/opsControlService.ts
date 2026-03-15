@@ -358,12 +358,13 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
   const twoHoursFromNow = addHours(now, 2);
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 
-  // Get bookings active today
+  // Get bookings active today — ONLY confirmed bookings that are assigned to a project
   const { data: bookings } = await supabase
     .from('bookings')
     .select('id, booking_number, client, eventdate, rigdaydate, deliveryaddress, delivery_latitude, delivery_longitude, status, viewed, updated_at')
     .or(`rigdaydate.eq.${today},eventdate.eq.${today},rigdowndate.eq.${today}`)
-    .neq('status', 'CANCELLED')
+    .eq('status', 'CONFIRMED')
+    .eq('assigned_to_project', true)
     .order('eventdate');
 
   if (!bookings?.length) return [];
