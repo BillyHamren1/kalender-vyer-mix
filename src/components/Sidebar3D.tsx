@@ -130,14 +130,14 @@ export function Sidebar3D() {
         className={cn(
           "sticky top-0 z-40 h-screen shrink-0 flex-col transition-all duration-500 ease-out",
           "hidden lg:flex",
-          isCollapsed ? "w-14" : "w-48"
+          isCollapsed ? "w-14" : "w-56"
         )}
         style={{ background: "hsl(var(--sidebar-background))" }}
       >
         {/* Right edge separator */}
         <div
           className="absolute right-0 top-0 bottom-0 w-px"
-          style={{ background: "hsl(200 18% 66%)" }}
+          style={{ background: "hsl(200 15% 85%)" }}
         />
 
         {/* Collapse/Expand Button */}
@@ -145,8 +145,8 @@ export function Sidebar3D() {
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
             "absolute -right-4 z-50 flex items-center justify-center",
-            "w-8 h-8 rounded-full bg-card border-2 border-primary shadow-md",
-            "hover:shadow-lg hover:scale-110 transition-all"
+            "w-8 h-8 rounded-full bg-card border border-border shadow-sm",
+            "hover:shadow-md hover:scale-110 transition-all"
           )}
           style={{ top: 36 }}
           title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
@@ -160,7 +160,7 @@ export function Sidebar3D() {
         </button>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 pt-2 pb-4 space-y-px">
+        <nav className="flex-1 px-3 pt-2 pb-4 space-y-1">
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const active = isItemActive(item);
