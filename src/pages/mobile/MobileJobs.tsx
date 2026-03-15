@@ -62,8 +62,9 @@ const MobileJobs = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
-        eyebrow="Välkommen"
+        eyebrow="MINA JOBB"
         title={staff?.name?.split(' ')[0] || 'Hej'}
+        subtitle="Dagens uppdrag"
         rightAction={
           <button
             onClick={() => refetch()}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
 import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info } from 'lucide-react';
-import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
+import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -201,10 +201,10 @@ const MobileInbox = () => {
   if (view === 'list') {
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <MobileBackHeader
-          title="Meddelanden"
-          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : undefined}
-          backTo="/m"
+        <MobileHeroHeader
+          eyebrow="MEDDELANDEN"
+          title="Inkorg"
+          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : 'Inga olästa'}
         />
 
         <div className="flex-1 overflow-y-auto">
