@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action, token, data } = body
 
-    console.log(`Mobile API action: ${action}`)
+    console.log(`[mobile-app-api] incoming action=${action}, hasToken=${!!token}, hasData=${!!data}`)
 
     // Actions that don't require authentication
     if (action === 'login') {
@@ -151,8 +151,12 @@ Deno.serve(async (req) => {
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
         return await handleMarkBroadcastRead(supabase, staffId, data, organizationId)
-      case 'register_push_token':
-        return await handleRegisterPushToken(supabase, staffId, data, organizationId)
+      case 'register_push_token': {
+        console.log(`[mobile-app-api] [router] entering register_push_token for staff=${staffId}, org=${organizationId}`)
+        const registerResponse = await handleRegisterPushToken(supabase, staffId, data, organizationId)
+        console.log(`[mobile-app-api] [router] register_push_token completed with status=${registerResponse.status}`)
+        return registerResponse
+      }
       case 'unregister_push_token':
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
       case 'create_travel_log':
@@ -1581,13 +1585,23 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
       .update({ is_read_by: readBy })
       .eq('id', broadcast_id)
       .eq('organization_id', organizationId)
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
 
 // ==================== PUSH TOKEN HANDLERS ====================
 
 async function handleRegisterPushToken(supabase: any, staffId: string, data: any, organizationId: string) {
   const { push_token, platform } = data || {}
+
+  console.log(`[mobile-app-api] [register_push_token] handler start staff=${staffId} org=${organizationId} platform=${platform || 'android'} hasToken=${!!push_token}`)
+
   if (!push_token) {
+    console.error('[mobile-app-api] [register_push_token] push_token missing in payload')
     return new Response(
       JSON.stringify({ error: 'push_token is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1602,7 +1616,7 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     .eq('organization_id', organizationId)
     .single()
 
-  console.log(`[mobile-app-api] Registering push token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
+  console.log(`[mobile-app-api] [register_push_token] upsert token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
 
   const { error } = await supabase
     .from('device_tokens')
@@ -1615,13 +1629,14 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     }, { onConflict: 'staff_id,token' })
 
   if (error) {
-    console.error('[mobile-app-api] Failed to register push token:', error)
+    console.error('[mobile-app-api] [register_push_token] failed:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to register push token' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
+  console.log(`[mobile-app-api] [register_push_token] success staff=${staffId}`)
   return new Response(
     JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1770,12 +1785,6 @@ async function handleGetTravelLogs(supabase: any, staffId: string, data: any, or
 
   return new Response(
     JSON.stringify({ travel_logs: logs || [] }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-  return new Response(
-    JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
