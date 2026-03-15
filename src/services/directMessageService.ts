@@ -81,6 +81,25 @@ export const sendDirectMessage = async (
     console.error('Error sending direct message:', error);
     throw error;
   }
+
+  // Trigger push notification to recipient (fire-and-forget)
+  try {
+    supabase.functions.invoke('push-notification-trigger', {
+      body: {
+        type: 'INSERT',
+        table: 'direct_messages',
+        record: {
+          sender_id: senderId,
+          sender_name: senderName,
+          recipient_id: recipientId,
+          content: content.trim(),
+          organization_id: '', // resolved by push-notification-trigger via device_tokens
+        },
+      },
+    }).catch(err => console.error('Push trigger failed:', err));
+  } catch {
+    // Don't block DM send if push fails
+  }
 };
 
 /**

@@ -1457,6 +1457,51 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
     )
   }
 
+  // ── Trigger push notification to recipient ──
+  try {
+    console.log(`[DM Push] message created id=${message.id}, sender=${staffId}, recipient=${recipient_id}`)
+    
+    // Fetch recipient device tokens
+    const { data: tokens, error: tokenErr } = await supabase
+      .from('device_tokens')
+      .select('token, staff_id, platform')
+      .eq('staff_id', recipient_id)
+      .eq('organization_id', organizationId)
+    
+    console.log(`[DM Push] recipient=${recipient_id} device_tokens_found=${tokens?.length ?? 0}${tokenErr ? ' tokenError=' + tokenErr.message : ''}`)
+    
+    if (tokens && tokens.length > 0) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      
+      console.log(`[DM Push] calling send-push-notification for ${tokens.length} device(s)`)
+      
+      const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify({
+          staff_ids: [recipient_id],
+          title: `Meddelande från ${senderName}`,
+          body: content.trim().substring(0, 100),
+          notification_type: 'message',
+          data: { sender_id: staffId, message_type: 'direct' },
+          organization_id: organizationId,
+        }),
+      })
+      
+      const pushResult = await pushRes.json()
+      console.log(`[DM Push] result: sent=${pushResult.sent}, failed=${pushResult.failed}`)
+    } else {
+      console.log(`[DM Push] no device tokens for recipient ${recipient_id}, skipping push`)
+    }
+  } catch (pushErr) {
+    console.error('[DM Push] failed to send push notification:', pushErr)
+    // Don't fail the DM send if push fails
+  }
+
   return new Response(
     JSON.stringify({ success: true, message }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
