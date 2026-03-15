@@ -161,3 +161,58 @@ export const fetchDMInbox = async (staffId: string): Promise<DirectMessage[]> =>
   }
   return (data as DirectMessage[]) || [];
 };
+
+export interface GroupedConversation {
+  recipientId: string;
+  recipientName: string;
+  lastMessage: string;
+  lastTimestamp: string;
+  unreadCount: number;
+  isSentByMe: boolean;
+}
+
+/**
+ * Get DM inbox grouped by conversation partner.
+ */
+export const fetchDMInboxGrouped = async (myId: string): Promise<GroupedConversation[]> => {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error('Error fetching grouped DM inbox:', error);
+    return [];
+  }
+
+  const msgs = (data as DirectMessage[]) || [];
+  const convMap = new Map<string, GroupedConversation>();
+
+  for (const m of msgs) {
+    const isMe = m.sender_id === myId;
+    const partnerId = isMe ? m.recipient_id : m.sender_id;
+    const partnerName = isMe ? m.recipient_name : m.sender_name;
+
+    if (!convMap.has(partnerId)) {
+      convMap.set(partnerId, {
+        recipientId: partnerId,
+        recipientName: partnerName,
+        lastMessage: m.content,
+        lastTimestamp: m.created_at,
+        unreadCount: 0,
+        isSentByMe: isMe,
+      });
+    }
+
+    if (!isMe && !m.is_read) {
+      const conv = convMap.get(partnerId)!;
+      conv.unreadCount++;
+    }
+  }
+
+  return Array.from(convMap.values()).sort(
+    (a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()
+  );
+};

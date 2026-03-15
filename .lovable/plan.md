@@ -1,84 +1,87 @@
 
+# Steg 4: Regression Test Layer ✅ Klart
 
-# Uppgradera kommunikation i Ops Control Center
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
 
-## Nuläge
-Bottom-right panelen i `/ops-control` har två tabs: **Operationslogg** och **Chatt**. Chatten är en enkel broadcast-liknande kanal (`staff_messages`) utan möjlighet att:
-- Starta ny DM-konversation med specifik personal
-- Se en konversationslista / inbox
-- Växla mellan DM-konversationer direkt från överblicken
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
 
-DM-funktionalitet finns redan i sidopanelen (`OpsDirectChat`) men kräver att man klickar på en person i tidslinjen/kartan.
+## Totalt: 159 tester i 7 filer, alla gröna.
 
-## Plan
+---
 
-Ersätt nuvarande "Chatt"-tab i `OpsActivityComms` med en **mini-inbox** som visar konversationer och låter planeraren starta nya.
+# Steg 1: SAFE NOW ✅ Klart
 
-### Ny tab-struktur (3 tabs)
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
 
-```text
-OPERATIONSLOGG | KONVERSATIONER | BROADCAST-LOGG
+---
+
+# Steg 2: SAFE NEXT ✅ Klart
+
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
-### Tab: Konversationer (nytt)
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-**Överst**: Knapp "+ Nytt meddelande" → öppnar dropdown med sökbar personallista (från `timeline`-datan som redan finns). Klick på person → öppnar `OpsDirectChat` i sidopanelen (redan implementerat via `handleOpenDM`).
-
-**Lista**: Senaste DM-konversationer grupperade per mottagare, visar:
-- Namn + oläst-badge
-- Senaste meddelandet (trunkerat)  
-- Tidsstämpel
-- Klick → öppnar sidopanel-DM
-
-**Datakälla**: Ny funktion `fetchDMInboxGrouped(plannerId)` som hämtar senaste DM per unik motpart och grupperar dem.
-
-### Tab: Broadcast-logg (ersätter nuvarande "Chatt")
-
-Visar skickade broadcasts + staff_messages (nuvarande chatt-tab logiken behålls här).
-
-### Filer som ändras
-
-1. **`src/components/ops-control/OpsActivityComms.tsx`** — Utöka från 2 till 3 tabs, lägg till konversationslista-UI med "Nytt meddelande"-knapp och DM-lista
-2. **`src/services/directMessageService.ts`** — Lägg till `fetchDMInboxGrouped()` som returnerar unika konversationer med senaste meddelande, oläst-count
-3. **`src/pages/OpsControlCenter.tsx`** — Skicka `onOpenDM` och `timeline` som props till `OpsActivityComms` så att konversationslistan kan öppna DM-sidopanelen
-
-### Konversationslista-logik
-
-```typescript
-// Ny funktion i directMessageService.ts
-export const fetchDMInboxGrouped = async (myId: string) => {
-  // Hämta alla DMs för planeraren, gruppera per motpart
-  // Returnera: { recipientId, recipientName, lastMessage, lastTimestamp, unreadCount }[]
-};
-```
-
-### UI-flöde
-
-```text
-┌─────────────────────────────────────────┐
-│ OPERATIONSLOGG  KONVERSATIONER  BC-LOGG │
-├─────────────────────────────────────────┤
-│ [+ Nytt meddelande]                     │
-│                                         │
-│ ● Anna Svensson              20:54      │
-│   "Bra, tack!"                          │
-│                                         │
-│   Erik Persson                20:30     │
-│   "Ok, jag är på väg"                   │
-│                                         │
-│   Joel Habegger              19:15      │
-│   "Bekräftar ankomst"                   │
-└─────────────────────────────────────────┘
-  Klick → öppnar OpsDirectChat i sidopanelen
-```
-
-### "Nytt meddelande"-dropdown
-
-Klick på knappen visar en sökbar lista över all personal från `timeline`. Välj person → triggar `onOpenDM(staffId, staffName)` → sidopanelen öppnas med DM-chatten.
-
-### Vad som INTE ändras
-- `OpsDirectChat` (sidopanelen) — redan komplett med quick messages, bilagor, jobb-tagg
-- `OpsBroadcastDialog` — redan komplett
-- Routing, appMode-system
-- Operationsloggen
-
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
