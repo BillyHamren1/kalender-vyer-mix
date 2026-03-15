@@ -208,6 +208,11 @@ console.log(`
 ║  App ID:   ${config.appId}
 ║  Mode:     ${mode}
 ║  
+║  Firebase / FCM:
+║    Ensure google-services.json is placed at:
+║    android/app/google-services.json
+║    (Firebase project must use package: ${config.appId})
+║  
 ║  Next steps:
 ║    npx cap open android
 ║    — or —
