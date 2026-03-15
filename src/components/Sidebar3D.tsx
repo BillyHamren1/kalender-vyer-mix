@@ -174,10 +174,10 @@ export function Sidebar3D() {
 
             /* ── Icon ── */
             const iconEl = (
-              <div className="w-4 h-4 flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 flex items-center justify-center shrink-0">
                 <item.icon
                   className={cn(
-                    "w-[14px] h-[14px]",
+                    "w-5 h-5",
                     active ? "text-primary" : "text-foreground/60"
                   )}
                   strokeWidth={1.8}
