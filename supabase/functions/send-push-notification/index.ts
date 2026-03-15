@@ -80,9 +80,24 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const firebaseKeyJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY')
+    let firebaseKeyJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY')
     if (!firebaseKeyJson) {
       throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not configured')
+    }
+
+    // Debug: log first/last chars to detect wrapping issues
+    console.log(`[FCM] Secret length=${firebaseKeyJson.length}, first10=${JSON.stringify(firebaseKeyJson.slice(0, 10))}, last10=${JSON.stringify(firebaseKeyJson.slice(-10))}`)
+
+    // Handle double-quoted or escaped JSON from secrets manager
+    firebaseKeyJson = firebaseKeyJson.trim()
+    if (firebaseKeyJson.startsWith('"') && firebaseKeyJson.endsWith('"')) {
+      console.log('[FCM] Secret appears double-quoted, unwrapping...')
+      try {
+        firebaseKeyJson = JSON.parse(firebaseKeyJson) // unwrap the outer string
+      } catch {
+        // strip quotes manually
+        firebaseKeyJson = firebaseKeyJson.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+      }
     }
 
     let serviceAccount: any
@@ -90,6 +105,7 @@ Deno.serve(async (req) => {
       serviceAccount = JSON.parse(firebaseKeyJson)
     } catch (parseErr) {
       console.error('[FCM] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON:', parseErr.message)
+      console.error('[FCM] First 100 chars:', firebaseKeyJson.slice(0, 100))
       throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is malformed JSON')
     }
 
