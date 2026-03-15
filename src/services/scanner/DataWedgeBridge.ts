@@ -1,62 +1,75 @@
 /**
  * DataWedgeBridge — Zebra DataWedge integration for barcode scanning
  * 
- * On Zebra TC22 (and other TC/MC/EC series), DataWedge sends scan data
- * to the app via Android Intents (broadcasts). In a Capacitor WebView,
- * we receive these through a custom Capacitor plugin that listens for
- * the DataWedge broadcast and forwards it to the WebView via 
- * window events or plugin callbacks.
+ * Connects to the native DataWedgePlugin (Capacitor) which receives
+ * Android broadcast intents from Zebra DataWedge and forwards them
+ * as plugin events to the WebView.
  * 
- * === ANDROID NATIVE SETUP REQUIRED ===
+ * On non-native platforms (web), falls back to simulated events
+ * dispatched on window for testing.
  * 
- * To complete this integration, the following must be done in the 
- * Android native project:
+ * === DEVICE CONFIGURATION ===
  * 
- * 1. Create a Capacitor plugin: DataWedgePlugin.java
- *    - Register a BroadcastReceiver for DataWedge intents
- *    - Forward scan data to WebView via plugin events
- * 
- * 2. Configure DataWedge on the Zebra device:
- *    - Profile name: "EventFlow Scanner"
- *    - Intent output enabled
- *    - Intent action: "se.eventflow.scanner.SCAN"
- *    - Intent delivery: Broadcast
- *    - Intent category: default
- *    - Barcode input enabled
- *    - Keystroke output DISABLED (we use intent, not keystroke)
- * 
- * 3. Register the plugin in MainActivity.java
- * 
- * The bridge below handles the WebView side of this integration.
- * It listens for events dispatched by the native plugin and 
- * normalizes them into ScanEvent format.
- * 
- * === INTERIM APPROACH ===
- * Until the native plugin is built, DataWedge can be configured to 
- * use "Keystroke output" mode, which types the barcode as keyboard
- * input. The KeyboardFallbackBridge handles this case.
+ * DataWedge must be configured on the Zebra device:
+ *   - Profile name: "EventFlow Scanner"
+ *   - Intent output: Enabled
+ *   - Intent action: se.eventflow.scanner.SCAN
+ *   - Intent delivery: Broadcast
+ *   - Intent category: default
+ *   - Barcode input: Enabled
+ *   - Keystroke output: DISABLED
  */
 
 import { ScanEvent, DataWedgeIntentData } from './types';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 type DataWedgeCallback = (scan: ScanEvent) => void;
 
-// Custom event name dispatched by the native Capacitor plugin
-const DATAWEDGE_EVENT = 'datawedge:scan';
+// ── Native Plugin Interface ──────────────────────────────────────
 
-// DataWedge intent action (must match device config)
-const DATAWEDGE_ACTION = 'se.eventflow.scanner.SCAN';
+interface DataWedgePluginInterface {
+  sendCommand(options: { command: string; parameter: string }): Promise<void>;
+  isListening(): Promise<{ listening: boolean }>;
+  addListener(
+    eventName: 'datawedge_scan',
+    callback: (data: NativeScanPayload) => void
+  ): Promise<{ remove: () => void }>;
+}
 
-let listener: ((e: Event) => void) | null = null;
+interface NativeScanPayload {
+  data: string;
+  symbology: string;
+  source: string;
+  timestamp: number;
+  rawExtras?: Record<string, string>;
+}
+
+// Register the native plugin (no-op on web, connects on Android)
+const DataWedge = registerPlugin<DataWedgePluginInterface>('DataWedge');
+
+// ── State ────────────────────────────────────────────────────────
+
+let pluginListener: { remove: () => void } | null = null;
+let windowListener: ((e: Event) => void) | null = null;
 let isActive = false;
 let callback: DataWedgeCallback | null = null;
 let scanCounter = 0;
 
+// Custom event name for web fallback / simulation
+const DATAWEDGE_WEB_EVENT = 'datawedge:scan';
+
+// DataWedge intent action (must match device config)
+const DATAWEDGE_ACTION = 'se.eventflow.scanner.SCAN';
+
+// ── Start Listener ───────────────────────────────────────────────
+
 /**
  * Start listening for DataWedge scan events.
  * 
- * The native Capacitor plugin dispatches CustomEvents on `window`
- * with the scan data in `event.detail`.
+ * On native Android: registers a Capacitor plugin event listener
+ * that receives forwarded DataWedge broadcast intents.
+ * 
+ * On web: falls back to window CustomEvent listener for testing.
  */
 export function startDataWedgeListener(onScan: DataWedgeCallback): void {
   if (isActive) {
@@ -67,10 +80,55 @@ export function startDataWedgeListener(onScan: DataWedgeCallback): void {
   callback = onScan;
   isActive = true;
 
-  listener = (event: Event) => {
+  if (Capacitor.isNativePlatform()) {
+    // Native path — listen to Capacitor plugin events from DataWedgePlugin.java
+    startNativeListener();
+  } else {
+    // Web fallback — listen to window events (for simulation/testing)
+    startWebFallbackListener();
+  }
+}
+
+async function startNativeListener(): Promise<void> {
+  try {
+    pluginListener = await DataWedge.addListener('datawedge_scan', (payload: NativeScanPayload) => {
+      console.log('[DataWedge] Native scan received:', payload.data, 'symbology:', payload.symbology);
+      
+      if (!payload.data) {
+        console.warn('[DataWedge] Native event with empty data, ignoring');
+        return;
+      }
+
+      scanCounter++;
+      const scanEvent: ScanEvent = {
+        id: `dw_${Date.now()}_${scanCounter}`,
+        type: 'barcode',
+        source: 'zebra_datawedge',
+        value: payload.data,
+        timestamp: payload.timestamp || Date.now(),
+        rawData: JSON.stringify(payload),
+        symbology: payload.symbology || undefined,
+        deviceInfo: 'Zebra DataWedge (native)',
+        isDuplicate: false,
+      };
+
+      callback?.(scanEvent);
+    });
+
+    console.log('[DataWedge] Native Capacitor plugin listener registered');
+  } catch (error) {
+    console.error('[DataWedge] Failed to register native listener:', error);
+    // Fall back to web listener
+    console.log('[DataWedge] Falling back to web event listener');
+    startWebFallbackListener();
+  }
+}
+
+function startWebFallbackListener(): void {
+  windowListener = (event: Event) => {
     const detail = (event as CustomEvent<DataWedgeIntentData>).detail;
     if (!detail?.data) {
-      console.warn('[DataWedge] Received event with no data:', detail);
+      console.warn('[DataWedge] Web event with no data:', detail);
       return;
     }
 
@@ -83,29 +141,41 @@ export function startDataWedgeListener(onScan: DataWedgeCallback): void {
       timestamp: Date.now(),
       rawData: JSON.stringify(detail),
       symbology: detail.labelType || undefined,
-      deviceInfo: 'Zebra DataWedge',
+      deviceInfo: 'Zebra DataWedge (web fallback)',
       isDuplicate: false,
     };
 
     callback?.(scanEvent);
   };
 
-  window.addEventListener(DATAWEDGE_EVENT, listener);
-  console.log('[DataWedge] Listener registered, waiting for scans...');
+  window.addEventListener(DATAWEDGE_WEB_EVENT, windowListener);
+  console.log('[DataWedge] Web fallback listener registered');
 }
+
+// ── Stop Listener ────────────────────────────────────────────────
 
 /**
  * Stop listening for DataWedge events.
  */
 export function stopDataWedgeListener(): void {
-  if (listener) {
-    window.removeEventListener(DATAWEDGE_EVENT, listener);
-    listener = null;
+  if (pluginListener) {
+    pluginListener.remove();
+    pluginListener = null;
+    console.log('[DataWedge] Native plugin listener removed');
   }
+
+  if (windowListener) {
+    window.removeEventListener(DATAWEDGE_WEB_EVENT, windowListener);
+    windowListener = null;
+    console.log('[DataWedge] Web fallback listener removed');
+  }
+
   callback = null;
   isActive = false;
-  console.log('[DataWedge] Listener removed');
+  console.log('[DataWedge] All listeners removed');
 }
+
+// ── Status ───────────────────────────────────────────────────────
 
 /**
  * Check if DataWedge listener is active.
@@ -128,10 +198,10 @@ export function resetDataWedgeScanCount(): void {
   scanCounter = 0;
 }
 
+// ── DataWedge Commands ───────────────────────────────────────────
+
 /**
  * Send a command to DataWedge via the native plugin.
- * 
- * TODO: Implement in native Capacitor plugin
  * 
  * Common commands:
  * - SWITCH_TO_PROFILE: Switch DataWedge profile
@@ -139,27 +209,33 @@ export function resetDataWedgeScanCount(): void {
  * - SCANNER_INPUT_PLUGIN: Enable/disable scanner
  * 
  * @example
- * sendDataWedgeCommand('SWITCH_TO_PROFILE', { PROFILE_NAME: 'EventFlow Scanner' });
+ * sendDataWedgeCommand('SWITCH_TO_PROFILE', 'EventFlow Scanner');
  */
 export async function sendDataWedgeCommand(
   command: string, 
-  extras?: Record<string, string>
+  parameter?: string
 ): Promise<void> {
-  // TODO: Call native plugin to send DataWedge API intent
-  // Example Android implementation:
-  // Intent i = new Intent();
-  // i.setAction("com.symbol.datawedge.api.ACTION");
-  // i.putExtra(command, extras);
-  // context.sendBroadcast(i);
-  console.log(`[DataWedge] Command: ${command}`, extras);
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await DataWedge.sendCommand({ command, parameter: parameter || '' });
+      console.log(`[DataWedge] Command sent: ${command}`, parameter);
+    } catch (error) {
+      console.error(`[DataWedge] Command failed: ${command}`, error);
+    }
+  } else {
+    console.log(`[DataWedge] Command (web no-op): ${command}`, parameter);
+  }
 }
+
+// ── Simulation (for testing without Zebra hardware) ──────────────
 
 /**
  * Simulate a DataWedge scan (for testing without Zebra hardware).
- * Dispatches the same CustomEvent that the native plugin would.
+ * On native: dispatches through the same plugin event path (if possible).
+ * On web: dispatches a CustomEvent on window.
  */
 export function simulateDataWedgeScan(barcode: string, symbology?: string): void {
-  const event = new CustomEvent<DataWedgeIntentData>(DATAWEDGE_EVENT, {
+  const event = new CustomEvent<DataWedgeIntentData>(DATAWEDGE_WEB_EVENT, {
     detail: {
       action: DATAWEDGE_ACTION,
       data: barcode,
