@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, RefreshCw } from "lucide-react";
+import { LayoutDashboard, RefreshCw, MessageSquare, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCalendarImport } from "@/hooks/useCalendarImport";
 import { useStaffDashboard } from "@/hooks/useStaffDashboard";
 import MessagesFeed from "@/components/staff-dashboard/MessagesFeed";
+import { cn } from "@/lib/utils";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
