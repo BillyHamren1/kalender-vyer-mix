@@ -145,6 +145,8 @@ const OpsControlCenter = () => {
               isLoadingActivity={isLoadingActivity}
               messages={messages}
               isLoadingMessages={isLoadingMessages}
+              onOpenDM={handleOpenDM}
+              timeline={timeline}
             />
           </div>
         </div>
