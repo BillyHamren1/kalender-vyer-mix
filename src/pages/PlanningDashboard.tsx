@@ -7,6 +7,8 @@ import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, s
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCalendarImport } from "@/hooks/useCalendarImport";
+import { useStaffDashboard } from "@/hooks/useStaffDashboard";
+import MessagesFeed from "@/components/staff-dashboard/MessagesFeed";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
