@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } from '@/services/mobileApiService';
 import { initPushNotifications, unregisterPushNotifications } from '@/services/pushNotificationService';
 
@@ -23,6 +23,8 @@ export const useMobileAuth = () => useContext(MobileAuthContext);
 export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [staff, setStaff] = useState<MobileStaff | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initializedPushForStaffIdRef = useRef<string | null>(null);
+  const pushInitTimeoutRef = useRef<number | null>(null);
 
   // Check existing session on mount
   useEffect(() => {
@@ -35,8 +37,6 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mobileApi.me().then(res => {
         setStaff(res.staff);
         setAuth(token, res.staff);
-        // Fire-and-forget — never block UI on push init
-        initPushNotifications(res.staff.id);
       }).catch(() => {
         clearAuth();
         setStaff(null);
@@ -46,15 +46,41 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  useEffect(() => {
+    if (!staff?.id) return;
+    if (initializedPushForStaffIdRef.current === staff.id) return;
+
+    if (pushInitTimeoutRef.current !== null) {
+      window.clearTimeout(pushInitTimeoutRef.current);
+    }
+
+    pushInitTimeoutRef.current = window.setTimeout(() => {
+      if (initializedPushForStaffIdRef.current === staff.id) return;
+      initializedPushForStaffIdRef.current = staff.id;
+      initPushNotifications(staff.id);
+      pushInitTimeoutRef.current = null;
+    }, 800);
+
+    return () => {
+      if (pushInitTimeoutRef.current !== null) {
+        window.clearTimeout(pushInitTimeoutRef.current);
+        pushInitTimeoutRef.current = null;
+      }
+    };
+  }, [staff?.id]);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
-    // Fire-and-forget — never block login on push init
-    initPushNotifications(res.staff.id);
   }, []);
 
   const logout = useCallback(() => {
+    if (pushInitTimeoutRef.current !== null) {
+      window.clearTimeout(pushInitTimeoutRef.current);
+      pushInitTimeoutRef.current = null;
+    }
+    initializedPushForStaffIdRef.current = null;
     unregisterPushNotifications();
     clearAuth();
     setStaff(null);
