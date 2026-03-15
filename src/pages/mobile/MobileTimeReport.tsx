@@ -71,7 +71,7 @@ const MobileTimeReport = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader title="Tidrapportering" />
+        <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
