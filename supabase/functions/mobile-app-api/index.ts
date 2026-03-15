@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action, token, data } = body
 
-    console.log(`Mobile API action: ${action}`)
+    console.log(`[mobile-app-api] incoming action=${action}, hasToken=${!!token}, hasData=${!!data}`)
 
     // Actions that don't require authentication
     if (action === 'login') {
