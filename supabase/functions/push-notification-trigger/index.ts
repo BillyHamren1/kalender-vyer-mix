@@ -81,7 +81,26 @@ async function handleDirectMessage(supabase: any, record: any) {
   const senderName = record.sender_name || 'Planerare'
   const content = record.content?.substring(0, 100) || ''
   const recipientId = record.recipient_id
-  const organizationId = record.organization_id
+  let organizationId = record.organization_id
+
+  console.log(`[DM Push Trigger] sender=${record.sender_id}, recipient=${recipientId}, org=${organizationId}`)
+
+  // If org_id is missing, resolve from device_tokens
+  if (!organizationId) {
+    const { data: token } = await supabase
+      .from('device_tokens')
+      .select('organization_id')
+      .eq('staff_id', recipientId)
+      .limit(1)
+      .single()
+    organizationId = token?.organization_id || ''
+    console.log(`[DM Push Trigger] resolved org_id from device_tokens: ${organizationId}`)
+  }
+
+  if (!organizationId) {
+    console.log(`[DM Push Trigger] no organization_id found, skipping push`)
+    return
+  }
 
   await sendPush(
     supabase,
