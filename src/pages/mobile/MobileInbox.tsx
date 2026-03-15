@@ -201,20 +201,11 @@ const MobileInbox = () => {
   if (view === 'list') {
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        {/* Header */}
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/m')} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
-            <div>
-              <h1 className="text-lg font-bold text-primary-foreground">Meddelanden</h1>
-              {totalUnread > 0 && (
-                <p className="text-xs text-primary-foreground/70">{totalUnread} olästa</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <MobileBackHeader
+          title="Meddelanden"
+          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : undefined}
+          backTo="/m"
+        />
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
