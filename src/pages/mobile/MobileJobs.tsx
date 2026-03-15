@@ -90,6 +90,7 @@ const MobileJobs = () => {
       )}
 
       <GeofenceStatusBar isTracking={isTracking} activeTimers={activeTimers} />
+      <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
