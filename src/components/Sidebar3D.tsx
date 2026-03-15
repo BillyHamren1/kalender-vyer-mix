@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { type LucideIcon,
+import {
+  type LucideIcon,
   Calendar,
   Users,
   FolderKanban,
@@ -8,17 +9,23 @@ import { type LucideIcon,
   PieChart,
   Truck,
   ChevronsLeft,
-  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface NavChild {
+  title: string;
+  url: string;
+  icon?: LucideIcon;
+  badge?: number;
+}
 
 interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  children?: { title: string; url: string }[];
+  badge?: number;
+  children?: NavChild[];
 }
-
 
 const navigationItems: NavItem[] = [
   {
@@ -49,6 +56,33 @@ const navigationItems: NavItem[] = [
     icon: Truck,
   },
 ];
+
+/* ─── Collapsed Tooltip ─── */
+function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
+  return (
+    <div
+      className={cn(
+        "absolute left-full ml-3 px-3 py-2 rounded-[8px] pointer-events-none",
+        "bg-foreground text-background text-sm font-medium whitespace-nowrap",
+        "transition-opacity duration-200",
+        show ? "opacity-100" : "opacity-0"
+      )}
+    >
+      {/* Arrow */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 -left-[14px]"
+        style={{
+          width: 0,
+          height: 0,
+          borderWidth: 8,
+          borderStyle: "solid",
+          borderColor: "transparent hsl(var(--foreground)) transparent transparent",
+        }}
+      />
+      {label}
+    </div>
+  );
+}
 
 export function Sidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -87,217 +121,205 @@ export function Sidebar3D() {
     );
   };
 
+  const isChildActive = (url: string) => location.pathname === url;
+
   return (
     <>
       {/* ── Desktop Sidebar ── */}
       <aside
         className={cn(
-          "relative z-40 h-screen shrink-0 transition-all duration-500 ease-out",
-          "hidden md:flex flex-col",
-          isCollapsed ? "w-16" : "w-56"
+          "sticky top-0 z-40 h-screen shrink-0 flex-col transition-all duration-500 ease-out",
+          "hidden lg:flex",
+          isCollapsed ? "w-14" : "w-48"
         )}
-        style={{
-          background: "hsl(var(--sidebar-background))",
-          borderRight: "1px solid hsl(var(--border) / 0.4)",
-        }}
+        style={{ background: "hsl(var(--sidebar-background))" }}
       >
+        {/* Right edge separator */}
+        <div
+          className="absolute right-0 top-0 bottom-0 w-px"
+          style={{ background: "hsl(200 18% 66%)" }}
+        />
 
-        {/* Content */}
-        <div className="flex flex-col h-full px-3 py-4">
-
-          {/* Toggle button */}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+        {/* Collapse/Expand Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={cn(
+            "absolute -right-4 z-50 flex items-center justify-center",
+            "w-8 h-8 rounded-full bg-card border-2 border-primary shadow-md",
+            "hover:shadow-lg hover:scale-110 transition-all"
+          )}
+          style={{ top: 36 }}
+          title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+        >
+          <ChevronsLeft
             className={cn(
-              "absolute top-4 -right-4 z-50 flex items-center justify-center",
-              "w-8 h-8 rounded-full border-2 border-primary bg-background",
-              "text-primary hover:bg-primary/5 transition-colors shadow-md"
+              "w-4 h-4 text-primary transition-transform duration-300",
+              isCollapsed && "rotate-180"
             )}
-            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
-          >
-            <ChevronsLeft size={16} className={cn("transition-transform", isCollapsed && "rotate-180")} />
-          </button>
+          />
+        </button>
 
-          {/* ── Nav ── */}
-          <nav className="flex-1 space-y-1 pt-8">
-            {navigationItems.map((item) => {
-              const hasChildren = !!item.children?.length;
-              const active = isItemActive(item);
-              const expanded = expandedItems.includes(item.url);
-              const hovered = hoveredUrl === item.url;
+        {/* Navigation */}
+        <nav className="flex-1 px-3 pt-2 pb-4 space-y-px">
+          {navigationItems.map((item) => {
+            const hasChildren = !!item.children?.length;
+            const active = isItemActive(item);
+            const expanded = expandedItems.includes(item.url);
+            const hovered = hoveredUrl === item.url;
 
-              const sharedMouseProps = {
-                onMouseEnter: () => setHoveredUrl(item.url),
-                onMouseLeave: () => setHoveredUrl(null),
-              };
+            const sharedMouseProps = {
+              onMouseEnter: () => setHoveredUrl(item.url),
+              onMouseLeave: () => setHoveredUrl(null),
+            };
 
-              const iconEl = (
-                <div
+            /* ── Icon ── */
+            const iconEl = (
+              <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                <item.icon
                   className={cn(
-                    "flex items-center justify-center shrink-0 rounded-xl transition-colors",
-                    isCollapsed ? "w-10 h-10" : "w-10 h-10",
-                    active
-                      ? "bg-primary/10"
-                      : "bg-muted/60"
+                    "w-[14px] h-[14px]",
+                    active ? "text-primary" : "text-foreground/60"
                   )}
-                >
-                  <item.icon
-                    size={18}
-                    strokeWidth={1.8}
-                    color={active ? "hsl(184 60% 38%)" : "hsl(var(--foreground) / 0.45)"}
-                  />
-                </div>
-              );
-
-              const labelEl = !isCollapsed && (
-                <span
-                  className="transition-colors"
-                  style={{
-                    fontSize: 15,
-                    lineHeight: 1.2,
-                    letterSpacing: "-0.01em",
-                    fontWeight: active ? 600 : 500,
-                    color: active
-                      ? "hsl(var(--foreground))"
-                      : "hsl(var(--foreground) / 0.55)",
-                    flex: 1,
-                  }}
-                >
-                  {item.title}
-                </span>
-              );
-
-              const itemClassName = cn(
-                "relative flex items-center gap-3 w-full rounded-2xl transition-all duration-150",
-                isCollapsed ? "justify-center px-1 py-1.5" : "px-2 py-2",
-                active && "bg-primary/[0.06]"
-              );
-
-              return (
-                <div key={item.url}>
-                  {hasChildren ? (
-                    <button
-                      onClick={() => {
-                        navigate(item.url);
-                        toggleExpanded(item.url);
-                      }}
-                      className={itemClassName}
-                      style={{
-                        background: active
-                          ? "hsl(184 60% 38% / 0.06)"
-                          : hovered
-                          ? "hsl(var(--foreground) / 0.03)"
-                          : "transparent",
-                      }}
-                      {...sharedMouseProps}
-                    >
-                      {iconEl}
-                      {labelEl}
-                      {!isCollapsed && (
-                        <ChevronDown
-                          size={14}
-                          strokeWidth={2}
-                          style={{
-                            color: "hsl(var(--foreground) / 0.35)",
-                            transition: "transform 200ms",
-                            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                    </button>
-                  ) : (
-                    <NavLink
-                      to={item.url}
-                      className={itemClassName}
-                      style={{
-                        background: active
-                          ? "hsl(184 60% 38% / 0.06)"
-                          : hovered
-                          ? "hsl(var(--foreground) / 0.03)"
-                          : "transparent",
-                      }}
-                      {...sharedMouseProps}
-                    >
-                      {iconEl}
-                      {labelEl}
-                    </NavLink>
-                  )}
-
-                  {/* Sub-items */}
-                  {hasChildren && !isCollapsed && expanded && (
-                    <div className="ml-14 mt-0.5 space-y-0.5">
-                      {item.children!.map((child) => {
-                        const childActive = location.pathname === child.url;
-                        const childHovered = hoveredUrl === child.url;
-                        return (
-                          <NavLink
-                            key={child.url}
-                            to={child.url}
-                            className="block rounded-lg px-3 py-2 transition-colors"
-                            style={{
-                              fontSize: 13,
-                              fontWeight: childActive ? 600 : 500,
-                              color: childActive
-                                ? "hsl(184 60% 38%)"
-                                : "hsl(var(--foreground) / 0.50)",
-                              background: childActive
-                                ? "hsl(184 60% 38% / 0.06)"
-                                : childHovered
-                                ? "hsl(var(--foreground) / 0.03)"
-                                : "transparent",
-                            }}
-                            onMouseEnter={() => setHoveredUrl(child.url)}
-                            onMouseLeave={() => setHoveredUrl(null)}
-                          >
-                            {child.title}
-                          </NavLink>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </nav>
-
-          {/* ── Bottom ── */}
-          <div
-            className="pt-3"
-            style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
-          >
-            <div
-              className={cn(
-                "flex items-center gap-2.5 px-2 py-1.5",
-                isCollapsed && "justify-center"
-              )}
-            >
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: "hsl(184 55% 38% / 0.12)" }}
-              >
-                <Users size={15} style={{ color: "hsl(184 60% 38%)" }} />
+                  strokeWidth={1.8}
+                />
               </div>
-              {!isCollapsed && (
-                <span
-                  className="font-medium"
-                  style={{
-                    fontSize: 11,
-                    color: "hsl(var(--foreground))",
-                    opacity: 0.38,
-                  }}
-                >
-                  EventFlow v1.0
-                </span>
-              )}
-            </div>
-          </div>
+            );
+
+            /* ── Label ── */
+            const labelEl = !isCollapsed && (
+              <span
+                className={cn(
+                  "text-[13px] leading-none tracking-[-0.005em] transition-colors flex-1",
+                  active
+                    ? "font-semibold text-foreground"
+                    : "font-medium text-foreground/[0.72]"
+                )}
+              >
+                {item.title}
+              </span>
+            );
+
+            /* ── Badge ── */
+            const badgeEl = !isCollapsed && item.badge ? (
+              <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
+                {item.badge}
+              </span>
+            ) : null;
+
+            /* ── Shared item classes ── */
+            const itemClassName = cn(
+              "relative flex items-center gap-3 rounded-md transition-all duration-150",
+              isCollapsed
+                ? "justify-center px-2 py-[10px]"
+                : active
+                ? "py-[9px] pl-[9px] pr-3 border-l-[2.5px]"
+                : "py-[9px] pl-[11px] pr-3 border-l-[2px] border-transparent"
+            );
+
+            /* ── Active/hover styles ── */
+            const itemStyle = {
+              ...(active && !isCollapsed
+                ? {
+                    background: "hsl(200 14% 93%)",
+                    borderLeftColor: "hsl(184 55% 38%)",
+                  }
+                : {}),
+              ...(active && isCollapsed
+                ? { background: "hsl(200 14% 93%)" }
+                : {}),
+              ...(!active && hovered
+                ? { background: "hsl(200 14% 50% / 0.08)" }
+                : {}),
+            };
+
+            return (
+              <div key={item.url} className="relative">
+                {hasChildren ? (
+                  <button
+                    onClick={() => {
+                      navigate(item.url);
+                      toggleExpanded(item.url);
+                    }}
+                    className={cn(itemClassName, "w-full")}
+                    style={itemStyle}
+                    {...sharedMouseProps}
+                  >
+                    {iconEl}
+                    {labelEl}
+                    {badgeEl}
+                    {!isCollapsed && (
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200",
+                          expanded && "rotate-180"
+                        )}
+                      />
+                    )}
+                    {isCollapsed && (
+                      <CollapsedTooltip label={item.title} show={hovered} />
+                    )}
+                  </button>
+                ) : (
+                  <NavLink
+                    to={item.url}
+                    className={cn(itemClassName)}
+                    style={itemStyle}
+                    {...sharedMouseProps}
+                  >
+                    {iconEl}
+                    {labelEl}
+                    {badgeEl}
+                    {isCollapsed && (
+                      <CollapsedTooltip label={item.title} show={hovered} />
+                    )}
+                  </NavLink>
+                )}
+
+                {/* ── Sub-items ── */}
+                {hasChildren && !isCollapsed && expanded && (
+                  <div className="ml-6 pl-4 border-l border-border/40 space-y-1 mt-1">
+                    {item.children!.map((child) => {
+                      const childActive = isChildActive(child.url);
+                      const childHovered = hoveredUrl === child.url;
+                      return (
+                        <NavLink
+                          key={child.url}
+                          to={child.url}
+                          className={cn(
+                            "flex items-center gap-2 rounded-[8px] px-3 py-2 text-sm transition-colors",
+                            childActive
+                              ? "bg-muted/30 text-foreground"
+                              : "text-muted-foreground hover:bg-muted/20"
+                          )}
+                          onMouseEnter={() => setHoveredUrl(child.url)}
+                          onMouseLeave={() => setHoveredUrl(null)}
+                        >
+                          {child.icon && (
+                            <child.icon className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                          <span>{child.title}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* ── Bottom Section ── */}
+        <div
+          className="mx-0"
+          style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
+        >
+          <div className="p-4" />
         </div>
       </aside>
 
       {/* ── Mobile Bottom Nav ── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
         style={{
           background: "hsl(var(--sidebar-background) / 0.90)",
           backdropFilter: "blur(24px)",
@@ -335,7 +357,6 @@ export function Sidebar3D() {
                   className="relative z-10"
                   color={active ? "hsl(184 60% 38%)" : "hsl(var(--muted-foreground))"}
                 />
-
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"
                   style={{
