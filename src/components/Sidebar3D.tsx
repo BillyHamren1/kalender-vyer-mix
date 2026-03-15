@@ -36,6 +36,7 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", url: "/staff-dashboard" },
       { title: "Kalender", url: "/calendar" },
       { title: "Personalhantering", url: "/staff-management" },
+      { title: "Planeringsdashboard", url: "/dashboard" },
       { title: "Kommunikation", url: "/communication" },
     ],
   },

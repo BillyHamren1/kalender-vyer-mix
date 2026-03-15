@@ -7,6 +7,8 @@ import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, s
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCalendarImport } from "@/hooks/useCalendarImport";
+import { useStaffDashboard } from "@/hooks/useStaffDashboard";
+import MessagesFeed from "@/components/staff-dashboard/MessagesFeed";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
@@ -33,6 +35,7 @@ const PlanningDashboard = () => {
 
   const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
   const { isImporting, triggerImport } = useCalendarImport();
+  const { messages, isLoadingMessages } = useStaffDashboard();
 
 
   // Navigation handlers
@@ -61,7 +64,7 @@ const PlanningDashboard = () => {
     <PageContainer>
       <PageHeader
         icon={LayoutDashboard}
-        title="Dashboard"
+        title="Planeringsdashboard"
         subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
       >
         <Button 
@@ -138,6 +141,14 @@ const PlanningDashboard = () => {
       {/* Alla projekt */}
       <div className="mb-6">
         <DashboardAllProjects />
+      </div>
+
+      {/* Kommunikation */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-[hsl(var(--heading))] mb-3">Kommunikation</h2>
+        <div className="max-w-3xl rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden" style={{ maxHeight: 480 }}>
+          <MessagesFeed messages={messages} isLoading={isLoadingMessages} />
+        </div>
       </div>
 
       {/* Dialogs */}
