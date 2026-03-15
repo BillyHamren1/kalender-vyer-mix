@@ -85,7 +85,21 @@ Deno.serve(async (req) => {
       throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not configured')
     }
 
-    const serviceAccount = JSON.parse(firebaseKeyJson)
+    let serviceAccount: any
+    try {
+      serviceAccount = JSON.parse(firebaseKeyJson)
+    } catch (parseErr) {
+      console.error('[FCM] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON:', parseErr.message)
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is malformed JSON')
+    }
+
+    if (!serviceAccount.client_email || !serviceAccount.private_key || !serviceAccount.project_id) {
+      console.error('[FCM] Service account missing required fields. Has client_email:', !!serviceAccount.client_email, 'private_key:', !!serviceAccount.private_key, 'project_id:', !!serviceAccount.project_id)
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY missing required fields')
+    }
+
+    console.log(`[FCM] Using project: ${serviceAccount.project_id}, email: ${serviceAccount.client_email}`)
+
     const accessToken = await getAccessToken(serviceAccount)
     const projectId = serviceAccount.project_id
 
