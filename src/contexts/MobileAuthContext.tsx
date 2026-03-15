@@ -35,7 +35,10 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mobileApi.me().then(res => {
         setStaff(res.staff);
         setAuth(token, res.staff);
-        initPushNotifications(res.staff.id);
+        // Fire-and-forget — never block UI on push init
+        initPushNotifications(res.staff.id).catch(err =>
+          console.error('[Push] Background init failed:', err)
+        );
       }).catch(() => {
         clearAuth();
         setStaff(null);
@@ -49,7 +52,10 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
-    initPushNotifications(res.staff.id);
+    // Fire-and-forget — never block login on push init
+    initPushNotifications(res.staff.id).catch(err =>
+      console.error('[Push] Post-login init failed:', err)
+    );
   }, []);
 
   const logout = useCallback(() => {
