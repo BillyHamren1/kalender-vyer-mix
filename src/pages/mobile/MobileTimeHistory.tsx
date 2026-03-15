@@ -333,13 +333,17 @@ const MobileTimeHistory = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Slut</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Tim</span>
               </div>
-              {groupedListReports.map(({ dateKey, reports: dateReports }, idx) => {
-                const hasReports = dateReports.length > 0;
+              {groupedListReports.map(({ dateKey, reports: dateReports, travels: dateTravels }, idx) => {
+                const hasContent = dateReports.length > 0 || dateTravels.length > 0;
                 const isLast = idx === groupedListReports.length - 1;
                 const dayNum = format(parseISO(dateKey), 'd');
                 const dayName = format(parseISO(dateKey), 'EEE', { locale: sv });
+                const allEntries = [
+                  ...dateReports.map(r => ({ type: 'report' as const, data: r })),
+                  ...dateTravels.map(t => ({ type: 'travel' as const, data: t })),
+                ];
 
-                if (!hasReports) {
+                if (!hasContent) {
                   return (
                     <div key={dateKey} className={cn(
                       "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
@@ -356,12 +360,26 @@ const MobileTimeHistory = () => {
                   );
                 }
 
-                return dateReports.map((report, rIdx) => {
-                  const isLastRow = isLast && rIdx === dateReports.length - 1;
+                return allEntries.map((entry, rIdx) => {
+                  const isLastRow = isLast && rIdx === allEntries.length - 1;
+                  const isTravel = entry.type === 'travel';
+                  const id = entry.data.id;
+                  const hours = entry.data.hours_worked;
+                  const startTime = isTravel
+                    ? (entry.data as MobileTravelLog).start_time?.slice(11, 16)
+                    : (entry.data as MobileTimeReport).start_time?.slice(0, 5);
+                  const endTime = isTravel
+                    ? (entry.data as MobileTravelLog).end_time?.slice(11, 16)
+                    : (entry.data as MobileTimeReport).end_time?.slice(0, 5);
+                  const label = isTravel
+                    ? '🚗 Förflyttning'
+                    : ((entry.data as MobileTimeReport).bookings?.client || 'Okänt');
+
                   return (
-                    <div key={report.id} className={cn(
+                    <div key={id} className={cn(
                       "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
-                      !isLastRow && "border-b border-border/50"
+                      !isLastRow && "border-b border-border/50",
+                      isTravel && "bg-primary/5"
                     )}>
                       <div className="min-w-0">
                         {rIdx === 0 && (
@@ -370,18 +388,18 @@ const MobileTimeHistory = () => {
                             <span className="text-xs text-muted-foreground capitalize">{dayName}</span>
                           </div>
                         )}
-                        <p className={cn("text-xs text-foreground font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]")}>
-                          {report.bookings?.client || 'Okänt'}
+                        <p className={cn("text-xs font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]", isTravel ? "text-primary" : "text-foreground")}>
+                          {label}
                         </p>
                       </div>
                       <span className="text-xs font-medium text-foreground tabular-nums text-center">
-                        {report.start_time?.slice(0, 5) || '–'}
+                        {startTime || '–'}
                       </span>
                       <span className="text-xs font-medium text-foreground tabular-nums text-center">
-                        {report.end_time?.slice(0, 5) || '–'}
+                        {endTime || '–'}
                       </span>
-                      <span className="text-sm font-bold text-foreground tabular-nums text-right">
-                        {report.hours_worked}
+                      <span className={cn("text-sm font-bold tabular-nums text-right", isTravel ? "text-primary" : "text-foreground")}>
+                        {hours}
                       </span>
                     </div>
                   );
@@ -389,10 +407,12 @@ const MobileTimeHistory = () => {
               })}
               {/* Total row */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
-                <span className="text-xs font-bold text-foreground uppercase">Totalt</span>
+                <span className="text-xs font-bold text-foreground uppercase">
+                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {Math.round(filteredTravelHours * 10) / 10}h förflyttning)</span>}
+                </span>
                 <span />
                 <span />
-                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours}</span>
+                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours + Math.round(filteredTravelHours * 10) / 10}</span>
               </div>
             </div>
 
