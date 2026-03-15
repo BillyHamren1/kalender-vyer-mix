@@ -80,33 +80,72 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    let firebaseKeyJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY')
-    if (!firebaseKeyJson) {
+    let firebaseKeyRaw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY')
+    if (!firebaseKeyRaw) {
       throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not configured')
     }
 
-    // Debug: log first/last chars to detect wrapping issues
-    console.log(`[FCM] Secret length=${firebaseKeyJson.length}, first10=${JSON.stringify(firebaseKeyJson.slice(0, 10))}, last10=${JSON.stringify(firebaseKeyJson.slice(-10))}`)
+    // Debug: log raw shape to diagnose secrets manager escaping
+    console.log(`[FCM] Secret raw length=${firebaseKeyRaw.length}, first20=${JSON.stringify(firebaseKeyRaw.slice(0, 20))}, last20=${JSON.stringify(firebaseKeyRaw.slice(-20))}`)
 
-    // Handle double-quoted or escaped JSON from secrets manager
-    firebaseKeyJson = firebaseKeyJson.trim()
-    if (firebaseKeyJson.startsWith('"') && firebaseKeyJson.endsWith('"')) {
-      console.log('[FCM] Secret appears double-quoted, unwrapping...')
+    // Aggressively unwrap: secrets manager may double-quote, triple-escape, etc.
+    let serviceAccount: any = null
+    let parseAttempts: string[] = []
+
+    // Attempt 1: parse as-is
+    try {
+      serviceAccount = JSON.parse(firebaseKeyRaw)
+      parseAttempts.push('direct: OK')
+    } catch (e) {
+      parseAttempts.push(`direct: ${e.message}`)
+    }
+
+    // Attempt 2: if result is a string (double-encoded), parse again
+    if (typeof serviceAccount === 'string') {
       try {
-        firebaseKeyJson = JSON.parse(firebaseKeyJson) // unwrap the outer string
-      } catch {
-        // strip quotes manually
-        firebaseKeyJson = firebaseKeyJson.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+        serviceAccount = JSON.parse(serviceAccount)
+        parseAttempts.push('double-decode: OK')
+      } catch (e) {
+        parseAttempts.push(`double-decode: ${e.message}`)
+        serviceAccount = null
       }
     }
 
-    let serviceAccount: any
-    try {
-      serviceAccount = JSON.parse(firebaseKeyJson)
-    } catch (parseErr) {
-      console.error('[FCM] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON:', parseErr.message)
-      console.error('[FCM] First 100 chars:', firebaseKeyJson.slice(0, 100))
-      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is malformed JSON')
+    // Attempt 3: strip outer quotes and unescape
+    if (!serviceAccount || typeof serviceAccount !== 'object') {
+      let cleaned = firebaseKeyRaw.trim()
+      // Strip wrapping quotes
+      while (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+        cleaned = cleaned.slice(1, -1)
+      }
+      // Unescape common patterns
+      cleaned = cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+      try {
+        serviceAccount = JSON.parse(cleaned)
+        parseAttempts.push('cleaned: OK')
+      } catch (e) {
+        parseAttempts.push(`cleaned: ${e.message}`)
+      }
+    }
+
+    // Attempt 4: regex extract the JSON object
+    if (!serviceAccount || typeof serviceAccount !== 'object') {
+      const match = firebaseKeyRaw.match(/\{[\s\S]*\}/)
+      if (match) {
+        try {
+          serviceAccount = JSON.parse(match[0])
+          parseAttempts.push('regex-extract: OK')
+        } catch (e) {
+          parseAttempts.push(`regex-extract: ${e.message}`)
+        }
+      }
+    }
+
+    console.log(`[FCM] Parse attempts: ${parseAttempts.join(' | ')}`)
+
+    if (!serviceAccount || typeof serviceAccount !== 'object') {
+      console.error('[FCM] All parse attempts failed. First 200 chars:', firebaseKeyRaw.slice(0, 200))
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY could not be parsed as JSON after multiple attempts')
     }
 
     if (!serviceAccount.client_email || !serviceAccount.private_key || !serviceAccount.project_id) {
