@@ -70,8 +70,19 @@ async function sendPush(supabase: any, staffIds: string[], title: string, body: 
       }),
     })
     
-    const result = await res.json()
-    console.log(`Push result: sent=${result.sent}, failed=${result.failed}`)
+    const rawText = await res.text()
+    console.log(`[sendPush] HTTP ${res.status}, raw response: ${rawText}`)
+    
+    try {
+      const result = JSON.parse(rawText)
+      if (res.ok) {
+        console.log(`Push result: sent=${result.sent ?? 0}, failed=${result.failed ?? 0}`)
+      } else {
+        console.error(`Push send failed: ${result.error || rawText}`)
+      }
+    } catch {
+      console.error(`Push response not JSON: ${rawText}`)
+    }
   } catch (err) {
     console.error('Failed to call send-push-notification:', err)
   }

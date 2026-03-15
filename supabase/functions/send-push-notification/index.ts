@@ -85,7 +85,21 @@ Deno.serve(async (req) => {
       throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not configured')
     }
 
-    const serviceAccount = JSON.parse(firebaseKeyJson)
+    let serviceAccount: any
+    try {
+      serviceAccount = JSON.parse(firebaseKeyJson)
+    } catch (parseErr) {
+      console.error('[FCM] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON:', parseErr.message)
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is malformed JSON')
+    }
+
+    if (!serviceAccount.client_email || !serviceAccount.private_key || !serviceAccount.project_id) {
+      console.error('[FCM] Service account missing required fields. Has client_email:', !!serviceAccount.client_email, 'private_key:', !!serviceAccount.private_key, 'project_id:', !!serviceAccount.project_id)
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY missing required fields')
+    }
+
+    console.log(`[FCM] Using project: ${serviceAccount.project_id}, email: ${serviceAccount.client_email}`)
+
     const accessToken = await getAccessToken(serviceAccount)
     const projectId = serviceAccount.project_id
 
@@ -172,17 +186,21 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Log the notification
-        await supabase.from('push_notification_log').insert({
-          staff_id: deviceToken.staff_id,
-          title,
-          body,
-          notification_type,
-          data: data || {},
-          success: fcmRes.ok,
-          error_message: fcmRes.ok ? null : JSON.stringify(fcmData),
-          organization_id,
-        })
+        // Log the notification (non-fatal if table doesn't exist)
+        try {
+          await supabase.from('push_notification_log').insert({
+            staff_id: deviceToken.staff_id,
+            title,
+            body,
+            notification_type,
+            data: data || {},
+            success: fcmRes.ok,
+            error_message: fcmRes.ok ? null : JSON.stringify(fcmData),
+            organization_id,
+          })
+        } catch (logErr) {
+          console.warn(`[FCM] Failed to log notification (table may not exist):`, logErr.message)
+        }
       } catch (err) {
         failCount++
         console.error(`Error sending to device:`, err)
