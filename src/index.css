@@ -190,6 +190,16 @@
   .hover\:shadow-xl:hover  { box-shadow: 0 2px 8px hsl(200 15% 15% / 0.08) !important; }
 }
 
+/* === Safe Area Utilities === */
+@layer utilities {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 @keyframes ping {
   75%, 100% {
     transform: scale(2);
