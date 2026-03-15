@@ -155,6 +155,12 @@ Deno.serve(async (req) => {
         return await handleRegisterPushToken(supabase, staffId, data, organizationId)
       case 'unregister_push_token':
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
+      case 'create_travel_log':
+        return await handleCreateTravelLog(supabase, staffId, data, organizationId)
+      case 'stop_travel_log':
+        return await handleStopTravelLog(supabase, staffId, data, organizationId)
+      case 'get_travel_logs':
+        return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
