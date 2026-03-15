@@ -48,8 +48,8 @@ const MobileLogin = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Safe area – täcker telefonens statusbar */}
-      <div className="bg-background" style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+      {/* Safe area top */}
+      <div className="bg-background safe-area-top" style={{ minHeight: '44px' }} />
       {/* Top section */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-lg"

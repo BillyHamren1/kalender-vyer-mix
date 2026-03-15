@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
 import { useMobileTimeReports } from '@/hooks/useMobileData';
 import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare } from 'lucide-react';
+import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 
@@ -24,22 +25,15 @@ const MobileProfile = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      {/* Header */}
-      <div className="bg-primary rounded-b-3xl shadow-md">
-        {/* Safe area – täcker telefonens statusbar */}
-        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
-        <div className="px-5 pb-8">
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
-              <User className="w-8 h-8 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">{staff.name}</h1>
-            {staff.role && (
-              <p className="text-xs text-primary-foreground/60 mt-0.5 font-medium">{staff.role}</p>
-            )}
+      <MobileProfileHeader
+        name={staff.name}
+        role={staff.role}
+        avatar={
+          <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
+            <User className="w-8 h-8 text-primary-foreground" />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex-1 px-4 py-3 space-y-2.5 -mt-3">
         {/* Contact info */}

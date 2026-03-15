@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 
 const MobileTimeReport = () => {
   const { data: bookings = [], isLoading } = useMobileBookings();
@@ -70,13 +71,7 @@ const MobileTimeReport = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <div className="bg-primary rounded-b-3xl shadow-md">
-          {/* Safe area – täcker telefonens statusbar */}
-          <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
-          <div className="px-5 pb-5">
-            <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
-          </div>
-        </div>
+        <MobileHeroHeader title="Tidrapportering" />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
@@ -86,15 +81,7 @@ const MobileTimeReport = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      {/* Header */}
-      <div className="bg-primary rounded-b-3xl shadow-md">
-        {/* Safe area – täcker telefonens statusbar */}
-        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
-        <div className="px-5 pb-5">
-          <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
-          <p className="text-xs text-primary-foreground/60 font-medium mt-0.5">Rapportera arbetstid</p>
-        </div>
-      </div>
+      <MobileHeroHeader title="Tidrapportering" subtitle="Rapportera arbetstid" />
 
       <div className="flex-1 px-4 py-2.5 pb-24 space-y-2.5">
         {/* Active timers */}

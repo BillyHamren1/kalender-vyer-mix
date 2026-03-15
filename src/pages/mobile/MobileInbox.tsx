@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
 import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info } from 'lucide-react';
+import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -200,20 +201,11 @@ const MobileInbox = () => {
   if (view === 'list') {
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        {/* Header */}
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/m')} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
-            <div>
-              <h1 className="text-lg font-bold text-primary-foreground">Meddelanden</h1>
-              {totalUnread > 0 && (
-                <p className="text-xs text-primary-foreground/70">{totalUnread} olästa</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <MobileBackHeader
+          title="Meddelanden"
+          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : undefined}
+          backTo="/m"
+        />
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -349,19 +341,11 @@ const MobileInbox = () => {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={goBack} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold text-primary-foreground flex items-center gap-1.5">
-                <Radio className="w-4 h-4" />
-                Broadcast
-              </h1>
-            </div>
-          </div>
-        </div>
+        <MobileBackHeader
+          title="Broadcast"
+          onBack={goBack}
+          titlePrefix={<Radio className="w-4 h-4 text-primary-foreground" />}
+        />
         <div className="flex-1 p-4">
           <div className={cn(
             "rounded-2xl border p-5",
@@ -389,17 +373,15 @@ const MobileInbox = () => {
     );
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={goBack} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
+        <MobileBackHeader
+          title={activeDM.partner_name}
+          onBack={goBack}
+          titlePrefix={
             <div className="w-7 h-7 rounded-full bg-primary-foreground/20 flex items-center justify-center">
               <span className="text-xs font-bold text-primary-foreground">{activeDM.partner_name.charAt(0)}</span>
             </div>
-            <h1 className="text-sm font-bold text-primary-foreground truncate">{activeDM.partner_name}</h1>
-          </div>
-        </div>
+          }
+        />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {sortedMessages.map(msg => {
@@ -447,15 +429,11 @@ const MobileInbox = () => {
   if (view === 'job-thread' && activeJob) {
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={goBack} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
-            <Briefcase className="w-4 h-4 text-primary-foreground" />
-            <h1 className="text-sm font-bold text-primary-foreground truncate">{activeJob.client}</h1>
-          </div>
-        </div>
+        <MobileBackHeader
+          title={activeJob.client}
+          onBack={goBack}
+          titlePrefix={<Briefcase className="w-4 h-4 text-primary-foreground" />}
+        />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {activeJobMessages.length === 0 && (
