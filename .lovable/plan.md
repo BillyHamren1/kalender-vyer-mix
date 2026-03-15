@@ -1,4 +1,29 @@
 
+# Steg 5: Automatisk förflyttningsspårning ✅ Klart
+
+## Databasändringar
+- ✅ `travel_time_logs`-tabell skapad med RLS (org_filter + service_role)
+- Kolumner: staff_id, report_date, start/end_time, hours_worked, from/to address+coords, auto_detected, description
+
+## Edge Function
+- ✅ `mobile-app-api` utökad med tre nya actions:
+  - `create_travel_log` — startar ny förflyttningslogg med startposition
+  - `stop_travel_log` — stoppar pågående logg, beräknar hours_worked, sparar slutposition
+  - `get_travel_logs` — hämtar egna loggar (max 50)
+
+## Frontend — nya filer
+- ✅ `src/hooks/useTravelDetection.ts` — GPS-baserad rörelsedetektering (speed > 2 m/s i 30s = start, < 1 m/s i 60s = stopp), reverse geocoding via Mapbox
+- ✅ `src/components/mobile-app/TravelBanner.tsx` — aktiv förflyttningsindikator med timer, bil-ikon, stopknapp
+
+## Frontend — uppdaterade filer
+- ✅ `src/services/mobileApiService.ts` — nya API-metoder + `MobileTravelLog` interface
+- ✅ `src/hooks/useMobileData.ts` — ny `useMobileTravelLogs()` hook
+- ✅ `src/pages/mobile/MobileJobs.tsx` — TravelBanner visas på jobbsidan
+- ✅ `src/pages/mobile/MobileProfile.tsx` — reshistorik med senaste 3 resor, totaltid
+- ✅ `src/pages/mobile/MobileTimeHistory.tsx` — förflyttningstid visas som 🚗-markerade rader i tidrapportlistan
+
+---
+
 # Steg 4: Regression Test Layer ✅ Klart
 
 ## Nya testfiler:
