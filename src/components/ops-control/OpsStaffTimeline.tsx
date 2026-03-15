@@ -149,6 +149,8 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
     const cfg = statusConfig[staff.status];
     const isDragOver = dragOverStaffId === staff.id;
     const isConflict = staff.hasConflict;
+    // Show route button if 2+ assignments with coordinates (we approximate by having 2+ assignments)
+    const canOptimizeRoute = staff.assignments.length >= 2 && onOptimizeRoute;
 
     return (
       <div
