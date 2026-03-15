@@ -240,12 +240,14 @@ export function Sidebar3D() {
                     {labelEl}
                     {badgeEl}
                     {!isCollapsed && (
-                      <ChevronDown
-                        className={cn(
-                          "w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200",
-                          expanded && "rotate-180"
-                        )}
-                      />
+                      <span className="border rounded p-1 hover:bg-muted/50 transition-colors">
+                        <ChevronDown
+                          className={cn(
+                            "w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200",
+                            expanded && "rotate-180"
+                          )}
+                        />
+                      </span>
                     )}
                     {isCollapsed && (
                       <CollapsedTooltip label={item.title} show={hovered} />
