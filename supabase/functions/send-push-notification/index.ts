@@ -186,17 +186,21 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Log the notification
-        await supabase.from('push_notification_log').insert({
-          staff_id: deviceToken.staff_id,
-          title,
-          body,
-          notification_type,
-          data: data || {},
-          success: fcmRes.ok,
-          error_message: fcmRes.ok ? null : JSON.stringify(fcmData),
-          organization_id,
-        })
+        // Log the notification (non-fatal if table doesn't exist)
+        try {
+          await supabase.from('push_notification_log').insert({
+            staff_id: deviceToken.staff_id,
+            title,
+            body,
+            notification_type,
+            data: data || {},
+            success: fcmRes.ok,
+            error_message: fcmRes.ok ? null : JSON.stringify(fcmData),
+            organization_id,
+          })
+        } catch (logErr) {
+          console.warn(`[FCM] Failed to log notification (table may not exist):`, logErr.message)
+        }
       } catch (err) {
         failCount++
         console.error(`Error sending to device:`, err)
