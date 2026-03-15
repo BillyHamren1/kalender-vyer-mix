@@ -1,0 +1,231 @@
+/**
+ * ScannerDebugPanel — Diagnostic view for Zebra scanner testing
+ * 
+ * Shows scanner state, recent events, reader status, and simulation tools.
+ * Essential for testing on TC22 + RFD4030 hardware.
+ */
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Bug, Wifi, WifiOff, Radio, Bluetooth, Smartphone, Monitor,
+  ChevronDown, ChevronUp, Zap, Tag, BarChart3 
+} from 'lucide-react';
+import { useScannerController } from '@/hooks/scanner/useScannerController';
+import { ScanEvent } from '@/services/scanner/types';
+
+interface ScannerDebugPanelProps {
+  onClose?: () => void;
+}
+
+export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose }) => {
+  const scanner = useScannerController({ autoInit: false });
+  const [expanded, setExpanded] = useState(true);
+  const [simBarcode, setSimBarcode] = useState('TEST-SKU-001');
+  const [simEpc, setSimEpc] = useState('E200001234567890');
+
+  const { debugInfo, lastScan, scanCount, recentScans, recentRfidTags, queueStats } = scanner;
+
+  const statusColor = (ok: boolean) => ok ? 'bg-green-500' : 'bg-red-500';
+
+  const formatScan = (scan: ScanEvent) => {
+    const time = new Date(scan.timestamp).toLocaleTimeString('sv-SE');
+    return `${time} | ${scan.source} | ${scan.value}${scan.isDuplicate ? ' (dup)' : ''}`;
+  };
+
+  return (
+    <Card className="border-amber-500/50 bg-card">
+      <CardHeader className="py-2 px-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <CardTitle className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <Bug className="h-4 w-4 text-amber-500" />
+            <span>Scanner Debug</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px]">
+              {debugInfo.platform}
+            </Badge>
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
+        </CardTitle>
+      </CardHeader>
+
+      {expanded && (
+        <CardContent className="px-3 pb-3 space-y-3">
+          {/* Platform Info */}
+          <div className="grid grid-cols-2 gap-1 text-[11px]">
+            <div className="flex items-center gap-1.5">
+              {debugInfo.isCapacitor ? <Smartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+              <span>{debugInfo.isCapacitor ? 'Native (Capacitor)' : 'Web Browser'}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span>Zebra: {debugInfo.isZebraDevice ? '✅ Ja' : '❌ Nej'}</span>
+            </div>
+          </div>
+
+          {/* Status Indicators */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</p>
+            <div className="grid grid-cols-2 gap-1 text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.dataWedgeListenerActive)}`} />
+                <span>DataWedge</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.rfidListenerActive)}`} />
+                <span>RFID Listener</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.readerConnectionStatus === 'connected')}`} />
+                <span>Reader: {debugInfo.readerConnectionStatus}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.cameraAvailable)}`} />
+                <span>Kamera</span>
+              </div>
+            </div>
+            {debugInfo.readerModel && (
+              <p className="text-[10px] text-muted-foreground">Modell: {debugInfo.readerModel}</p>
+            )}
+          </div>
+
+          {/* Scan Stats */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Session</p>
+            <div className="grid grid-cols-3 gap-2 text-[11px]">
+              <div className="bg-muted/50 rounded p-1.5 text-center">
+                <p className="font-bold text-sm">{scanCount}</p>
+                <p className="text-[9px] text-muted-foreground">Scans</p>
+              </div>
+              <div className="bg-muted/50 rounded p-1.5 text-center">
+                <p className="font-bold text-sm">{recentRfidTags.length}</p>
+                <p className="text-[9px] text-muted-foreground">RFID tags</p>
+              </div>
+              <div className="bg-muted/50 rounded p-1.5 text-center">
+                <p className="font-bold text-sm">{queueStats.pending}</p>
+                <p className="text-[9px] text-muted-foreground">I kö</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Last Scan */}
+          {lastScan && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Senaste scan</p>
+              <div className="bg-muted/50 rounded p-2 font-mono text-[10px] break-all">
+                <p><strong>Typ:</strong> {lastScan.type} ({lastScan.source})</p>
+                <p><strong>Värde:</strong> {lastScan.value}</p>
+                {lastScan.symbology && <p><strong>Symbologi:</strong> {lastScan.symbology}</p>}
+                {lastScan.rssi !== undefined && <p><strong>RSSI:</strong> {lastScan.rssi} dBm</p>}
+                <p><strong>Tid:</strong> {new Date(lastScan.timestamp).toLocaleTimeString('sv-SE')}</p>
+                {lastScan.isDuplicate && <p className="text-amber-600">⚠️ Duplikat</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Scans */}
+          {recentScans.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Senaste scans ({recentScans.length})
+              </p>
+              <div className="bg-muted/50 rounded p-2 max-h-24 overflow-y-auto space-y-0.5">
+                {recentScans.slice(0, 10).map(s => (
+                  <p key={s.id} className={`font-mono text-[9px] ${s.isDuplicate ? 'text-muted-foreground' : ''}`}>
+                    {formatScan(s)}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Raw Payload */}
+          {debugInfo.lastNativePayload && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Native Payload</p>
+              <pre className="bg-muted/50 rounded p-2 text-[9px] font-mono overflow-x-auto max-h-16">
+                {debugInfo.lastNativePayload}
+              </pre>
+            </div>
+          )}
+
+          {/* Simulation Tools */}
+          <div className="space-y-2 border-t pt-2">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              🧪 Simulering (test utan hårdvara)
+            </p>
+            
+            {/* Barcode simulation */}
+            <div className="flex gap-1.5">
+              <Input
+                value={simBarcode}
+                onChange={e => setSimBarcode(e.target.value)}
+                placeholder="Streckkod..."
+                className="h-7 text-xs flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 px-2"
+                onClick={() => scanner.simulateBarcode(simBarcode)}
+              >
+                <Zap className="h-3 w-3" />
+                Scan
+              </Button>
+            </div>
+
+            {/* RFID simulation */}
+            <div className="flex gap-1.5">
+              <Input
+                value={simEpc}
+                onChange={e => setSimEpc(e.target.value)}
+                placeholder="EPC tag ID..."
+                className="h-7 text-xs flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 px-2"
+                onClick={() => scanner.simulateRfid(simEpc)}
+              >
+                <Tag className="h-3 w-3" />
+                RFID
+              </Button>
+            </div>
+
+            {/* Reader simulation */}
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs flex-1"
+                onClick={() => scanner.simulateReader(true)}
+              >
+                <Wifi className="h-3 w-3 mr-1" />
+                Reader Connected
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs flex-1"
+                onClick={() => scanner.simulateReader(false)}
+              >
+                <WifiOff className="h-3 w-3 mr-1" />
+                Disconnected
+              </Button>
+            </div>
+          </div>
+
+          {onClose && (
+            <Button size="sm" variant="ghost" onClick={onClose} className="w-full h-7 text-xs">
+              Stäng debug
+            </Button>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+};
