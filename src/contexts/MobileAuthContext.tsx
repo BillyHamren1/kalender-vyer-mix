@@ -51,9 +51,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAuth(res.token, res.staff);
     setStaff(res.staff);
     // Fire-and-forget — never block login on push init
-    initPushNotifications(res.staff.id).catch(err =>
-      console.error('[Push] Post-login init failed:', err)
-    );
+    initPushNotifications(res.staff.id);
   }, []);
 
   const logout = useCallback(() => {
