@@ -77,13 +77,7 @@ const MobileTimeReport = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <div className="bg-primary rounded-b-3xl shadow-md">
-          {/* Safe area – täcker telefonens statusbar */}
-          <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
-          <div className="px-5 pb-5">
-            <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
-          </div>
-        </div>
+        <MobileHeroHeader title="Tidrapportering" />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
