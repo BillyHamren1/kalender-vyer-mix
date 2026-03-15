@@ -61,11 +61,11 @@
     --gradient-page: hsl(200 15% 96%);
 
     /* === SIDEBAR (Premium Enterprise) === */
-    --sidebar-background: 200 12% 99%;  /* nära-vit, tydlig mot grå bg */
-    --sidebar-foreground: 184 15% 30%;
-    --sidebar-primary: 184 55% 38%;
+    --sidebar-background: 210 17% 98%;
+    --sidebar-foreground: 184 25% 18%;
+    --sidebar-primary: 184 60% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 14% 93%;
+    --sidebar-accent: 184 30% 92%;
     --sidebar-accent-foreground: 184 25% 12%;
     --sidebar-border: 200 10% 88%;
     --sidebar-ring: 184 55% 38%;
