@@ -1,3 +1,10 @@
+/**
+ * LEGACY FALLBACK — Web Bluetooth RFID UI component
+ * 
+ * For Zebra TC22 + RFD4030, use the central ScannerService instead.
+ * This component is kept for non-Zebra Bluetooth scanner compatibility.
+ * @deprecated Use useScannerController + ScannerDebugPanel for Zebra
+ */
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

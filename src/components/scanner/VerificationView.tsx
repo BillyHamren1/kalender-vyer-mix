@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Radio } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   verifyProductBySku, 
@@ -17,6 +17,9 @@ import {
 } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
+import { ScannerModeIndicator } from './ScannerModeIndicator';
+import { useScannerController } from '@/hooks/scanner/useScannerController';
+import { ScanEvent } from '@/services/scanner/types';
 
 interface VerificationViewProps {
   packingId: string;
@@ -75,8 +78,26 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScan, setLastScan] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean } | null>(null);
   
+  // Ref to hold handleScan so scanner controller can call it
+  const handleScanRef = useRef<(value: string) => void>(() => {});
+
+  // Central scanner controller — receives DataWedge + RFID + keyboard scans
+  const scannerController = useScannerController({
+    onScan: useCallback((scan: ScanEvent) => {
+      if (scan.isDuplicate) return;
+      if (scan.type === 'barcode') {
+        handleScanRef.current(scan.value);
+      }
+      // RFID scans during verification: could match SKU mapped to EPC
+      if (scan.type === 'rfid') {
+        toast.info(`RFID: ${scan.value}`, { duration: 2000 });
+      }
+    }, []),
+    autoInit: true,
+  });
+
   // Stable item order map (item.id -> initial index)
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
 
@@ -210,7 +231,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Try to verify product by SKU
     const result = await verifyProductBySku(packingId, scannedValue, verifierName);
     
-    setLastScan({
+    setLastScanResult({
       value: scannedValue,
       result: result.success ? `✅ ${result.productName}` : result.error || 'Okänt fel',
       success: result.success
@@ -252,6 +273,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Close QR scanner after scan
     setIsQRActive(false);
   }, [packingId, verifierName, debouncedLoadData, isKolliMode, activeParcel, items, recalcProgress]);
+
+  // Keep ref updated so scanner controller can call handleScan
+  useEffect(() => {
+    handleScanRef.current = handleScan;
+  }, [handleScan]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
@@ -475,6 +501,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
+      {/* Scanner mode indicator */}
+      <ScannerModeIndicator
+        currentMode={scannerController.currentMode}
+        isBarcodeReady={scannerController.isBarcodeReady}
+        isRfidReady={scannerController.isRfidReady}
+        isReaderConnected={scannerController.isReaderConnected}
+        scanCount={scannerController.scanCount}
+      />
+
       {/* Compact Progress + QR + Kolli buttons inline */}
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
@@ -506,12 +541,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       </div>
 
       {/* Last scan result - compact */}
-      {lastScan && (
+      {lastScanResult && (
         <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs ${
-          lastScan.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+          lastScanResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          <span className="font-mono truncate">{lastScan.value}</span>
-          <span className="font-medium">{lastScan.result}</span>
+          <span className="font-mono truncate">{lastScanResult.value}</span>
+          <span className="font-medium">{lastScanResult.result}</span>
         </div>
       )}
 

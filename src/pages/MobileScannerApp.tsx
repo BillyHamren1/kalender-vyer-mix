@@ -3,13 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera } from 'lucide-react';
+import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
 import { QRScanner } from '@/components/scanner/QRScanner';
+import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
+import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
 import { parseScanResult, fetchActivePackings } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
+import { useScannerController } from '@/hooks/scanner/useScannerController';
+import { ScanEvent } from '@/services/scanner/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -24,6 +28,41 @@ const MobileScannerApp: React.FC = () => {
   const [packings, setPackings] = useState<PackingWithBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDebug, setShowDebug] = useState(false);
+
+  // Central scanner controller — handles DataWedge, RFID, keyboard fallback
+  const scanner = useScannerController({
+    onScan: useCallback((scan: ScanEvent) => {
+      // Only process scans when on home screen
+      if (scan.isDuplicate) return;
+      
+      console.log('[MobileScannerApp] Scan received:', scan.source, scan.value);
+      
+      if (scan.type === 'barcode') {
+        handleBarcodeScan(scan.value);
+      }
+      // RFID scans on home screen: show info
+      if (scan.type === 'rfid') {
+        toast.info(`RFID tag: ${scan.value}`, { duration: 2000 });
+      }
+    }, []),
+    initialMode: 'barcode',
+    autoInit: true,
+  });
+
+  // Handle barcode scan (from any source)
+  const handleBarcodeScan = useCallback((scannedValue: string) => {
+    const result = parseScanResult(scannedValue);
+    
+    if (result.type === 'packing_id' && result.packingId) {
+      setSelectedPackingId(result.packingId);
+      setState('verifying');
+      setIsQRActive(false);
+      toast.success('Packlista hittad!');
+    } else {
+      toast.error('QR-koden innehåller inte en giltig packlista');
+    }
+  }, []);
 
   // Fetch packings on mount
   useEffect(() => {
@@ -60,19 +99,12 @@ const MobileScannerApp: React.FC = () => {
     return { inProgress, upcoming };
   }, [filteredPackings]);
 
-  // Handle QR scan from home screen
+  // Handle QR scan from camera
   const handleHomeScan = useCallback((scannedValue: string) => {
-    const result = parseScanResult(scannedValue);
-    
-    if (result.type === 'packing_id' && result.packingId) {
-      setSelectedPackingId(result.packingId);
-      setState('verifying');
-      setIsQRActive(false);
-      toast.success('Packlista hittad!');
-    } else {
-      toast.error('QR-koden innehåller inte en giltig packlista');
-    }
-  }, []);
+    // Camera scans go through the same flow
+    scanner.submitManualScan(scannedValue, 'camera');
+    handleBarcodeScan(scannedValue);
+  }, [scanner, handleBarcodeScan]);
 
   // Handle packing selection with mode
   const handleSelectPacking = (packingId: string, mode: 'verifying' | 'manual') => {
@@ -197,9 +229,17 @@ const MobileScannerApp: React.FC = () => {
       <header className="bg-primary text-primary-foreground p-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Lagerscanner</h1>
-          <p className="text-xs opacity-80">QR & RFID-verifiering</p>
+          <p className="text-xs opacity-80">Zebra TC22 • Streckkod & RFID</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 h-8 w-8"
+            onClick={() => setShowDebug(!showDebug)}
+          >
+            <Bug className="h-4 w-4" />
+          </Button>
           <Button 
             variant="secondary" 
             size="sm"
@@ -211,6 +251,32 @@ const MobileScannerApp: React.FC = () => {
           </Button>
         </div>
       </header>
+
+      {/* Scanner mode indicator */}
+      <div className="px-3 pt-2">
+        <ScannerModeIndicator
+          currentMode={scanner.currentMode}
+          isBarcodeReady={scanner.isBarcodeReady}
+          isRfidReady={scanner.isRfidReady}
+          isReaderConnected={scanner.isReaderConnected}
+          scanCount={scanner.scanCount}
+          warning={scanner.warning}
+        />
+      </div>
+
+      {/* Warning banner */}
+      {scanner.warning && (
+        <div className="mx-3 mt-2 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-md text-[11px]">
+          {scanner.warning}
+        </div>
+      )}
+
+      {/* Debug Panel */}
+      {showDebug && (
+        <div className="px-3 pt-2">
+          <ScannerDebugPanel onClose={() => setShowDebug(false)} />
+        </div>
+      )}
 
       {/* Search */}
       <div className="p-3 border-b">
@@ -242,7 +308,6 @@ const MobileScannerApp: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* In progress section */}
             {inProgress.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -254,7 +319,6 @@ const MobileScannerApp: React.FC = () => {
               </section>
             )}
 
-            {/* Upcoming section */}
             {upcoming.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -271,10 +335,10 @@ const MobileScannerApp: React.FC = () => {
 
       {/* Footer */}
       <footer className="p-3 text-center text-xs text-muted-foreground border-t">
-        <p>v1.0.0 • Native Scanner App</p>
+        <p>v2.0.0 • Zebra Enterprise Scanner</p>
       </footer>
 
-      {/* QR Scanner overlay */}
+      {/* QR Scanner overlay (camera fallback) */}
       <QRScanner 
         isActive={isQRActive}
         onScan={handleHomeScan}
