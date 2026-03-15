@@ -91,7 +91,7 @@ const MobileExpenses = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader title="Utlägg" />
+        <MobileHeroHeader eyebrow="UTLÄGG" title="Utlägg" subtitle="Kvitton & inköp" />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
