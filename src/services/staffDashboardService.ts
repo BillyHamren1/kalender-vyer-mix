@@ -147,7 +147,7 @@ export const fetchJobActivity = async (): Promise<JobActivityItem[]> => {
     .limit(20);
 
   dms?.forEach((d: any) => {
-    const direction = d.sender_type === 'planner' ? `Planerare → ${d.recipient_name}` : `${d.sender_name} → Planerare`;
+    const direction = `${d.sender_name} → ${d.recipient_name}`;
     items.push({
       id: `dm-${d.id}`,
       type: 'direct_message',
