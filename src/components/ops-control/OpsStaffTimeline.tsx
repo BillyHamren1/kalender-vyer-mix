@@ -7,7 +7,7 @@ import { sv } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
+import { AlertTriangle, ChevronRight, ChevronLeft, Calendar, Route } from 'lucide-react';
 import OpsStaffPanel from './OpsStaffPanel';
 import OpsAssignmentTooltip from './OpsAssignmentTooltip';
 
