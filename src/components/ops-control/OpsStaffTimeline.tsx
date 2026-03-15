@@ -15,6 +15,7 @@ interface Props {
   timeline: OpsTimelineStaff[];
   isLoading: boolean;
   onOpenDM?: (staffId: string, staffName: string) => void;
+  onOptimizeRoute?: (staffId: string, staffName: string) => void;
   date: Date;
   onNextDay: () => void;
   onPrevDay: () => void;
