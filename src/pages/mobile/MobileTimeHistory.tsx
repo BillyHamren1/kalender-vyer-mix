@@ -16,6 +16,7 @@ const MobileTimeHistory = () => {
   const { staff } = useMobileAuth();
   const navigate = useNavigate();
   const { data: reports = [], isLoading } = useMobileTimeReports();
+  const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
