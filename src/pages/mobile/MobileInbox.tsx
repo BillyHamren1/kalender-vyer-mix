@@ -341,19 +341,11 @@ const MobileInbox = () => {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
     return (
       <div className="flex flex-col h-[calc(100vh-68px)] bg-background">
-        <div className="bg-gradient-to-br from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <button onClick={goBack} className="p-2 -ml-1 rounded-xl active:scale-95">
-              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold text-primary-foreground flex items-center gap-1.5">
-                <Radio className="w-4 h-4" />
-                Broadcast
-              </h1>
-            </div>
-          </div>
-        </div>
+        <MobileBackHeader
+          title="Broadcast"
+          onBack={goBack}
+          titlePrefix={<Radio className="w-4 h-4 text-primary-foreground" />}
+        />
         <div className="flex-1 p-4">
           <div className={cn(
             "rounded-2xl border p-5",
