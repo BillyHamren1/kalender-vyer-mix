@@ -231,7 +231,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Try to verify product by SKU
     const result = await verifyProductBySku(packingId, scannedValue, verifierName);
     
-    setLastScan({
+    setLastScanResult({
       value: scannedValue,
       result: result.success ? `✅ ${result.productName}` : result.error || 'Okänt fel',
       success: result.success
@@ -527,12 +527,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       </div>
 
       {/* Last scan result - compact */}
-      {lastScan && (
+      {lastScanResult && (
         <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs ${
-          lastScan.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+          lastScanResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          <span className="font-mono truncate">{lastScan.value}</span>
-          <span className="font-medium">{lastScan.result}</span>
+          <span className="font-mono truncate">{lastScanResult.value}</span>
+          <span className="font-medium">{lastScanResult.result}</span>
         </div>
       )}
 
