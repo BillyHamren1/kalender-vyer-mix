@@ -4,6 +4,7 @@ import { useMobileBookings, useMobileBookingPurchases, useInvalidateMobileData }
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Receipt, Camera, Plus, Loader2, Check, Image } from 'lucide-react';
+import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
