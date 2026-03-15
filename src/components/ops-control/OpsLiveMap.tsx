@@ -18,6 +18,7 @@ interface Props {
   isLoading: boolean;
   focusCoords?: { lat: number; lng: number } | null;
   onOpenDM?: (staffId: string, staffName: string) => void;
+  routePolyline?: GeoJSON.LineString | null;
 }
 
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
@@ -37,7 +38,7 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
-const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Props) => {
+const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, routePolyline }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -241,6 +242,65 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM }: Pr
     if (!focusCoords || !map.current || !mapReady) return;
     map.current.flyTo({ center: [focusCoords.lng, focusCoords.lat], zoom: 14, duration: 800 });
   }, [focusCoords, mapReady]);
+
+  // Render route polyline
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const sourceId = 'staff-route-line';
+    const layerId = 'staff-route-layer';
+    const casingId = 'staff-route-casing';
+
+    // Clean up existing
+    if (map.current.getLayer(casingId)) map.current.removeLayer(casingId);
+    if (map.current.getLayer(layerId)) map.current.removeLayer(layerId);
+    if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+
+    if (!routePolyline) return;
+
+    map.current.addSource(sourceId, {
+      type: 'geojson',
+      data: { type: 'Feature', properties: {}, geometry: routePolyline },
+    });
+
+    // Casing (outline)
+    map.current.addLayer({
+      id: casingId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 8,
+        'line-opacity': 0.6,
+      },
+    });
+
+    // Main line
+    map.current.addLayer({
+      id: layerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': 'hsl(184, 55%, 38%)',
+        'line-width': 5,
+        'line-opacity': 0.85,
+      },
+    });
+
+    // Fit to route bounds
+    const coords = routePolyline.coordinates as [number, number][];
+    if (coords.length > 1) {
+      const bounds = new mapboxgl.LngLatBounds();
+      coords.forEach(c => bounds.extend(c));
+      map.current.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 800 });
+    }
+
+    return () => {
+      if (!map.current) return;
+      if (map.current.getLayer(casingId)) map.current.removeLayer(casingId);
+      if (map.current.getLayer(layerId)) map.current.removeLayer(layerId);
+      if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+    };
+  }, [routePolyline, mapReady]);
 
   // Handle zoom to job's assigned staff (highlight)
   useEffect(() => {

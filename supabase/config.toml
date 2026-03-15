@@ -135,3 +135,6 @@ verify_jwt = false
 
 [functions.trafikverket-cameras]
 verify_jwt = false
+
+[functions.optimize-staff-route]
+verify_jwt = false

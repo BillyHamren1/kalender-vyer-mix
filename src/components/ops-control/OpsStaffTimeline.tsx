@@ -7,7 +7,7 @@ import { sv } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
+import { AlertTriangle, ChevronRight, ChevronLeft, Calendar, Route } from 'lucide-react';
 import OpsStaffPanel from './OpsStaffPanel';
 import OpsAssignmentTooltip from './OpsAssignmentTooltip';
 
@@ -15,6 +15,7 @@ interface Props {
   timeline: OpsTimelineStaff[];
   isLoading: boolean;
   onOpenDM?: (staffId: string, staffName: string) => void;
+  onOptimizeRoute?: (staffId: string, staffName: string) => void;
   date: Date;
   onNextDay: () => void;
   onPrevDay: () => void;
@@ -45,7 +46,7 @@ const statusConfig = {
   off_duty: { dot: 'bg-muted-foreground/40', label: 'Ej i tjänst' },
 };
 
-const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, date, onNextDay, onPrevDay, onToday }: Props) => {
+const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date, onNextDay, onPrevDay, onToday }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,8 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, date, onNextDay, onPr
     const cfg = statusConfig[staff.status];
     const isDragOver = dragOverStaffId === staff.id;
     const isConflict = staff.hasConflict;
+    // Show route button if 2+ assignments with coordinates (we approximate by having 2+ assignments)
+    const canOptimizeRoute = staff.assignments.length >= 2 && onOptimizeRoute;
 
     return (
       <div
@@ -184,6 +187,15 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, date, onNextDay, onPr
             </div>
           </div>
           {isConflict && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
+          {canOptimizeRoute && (
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded hover:bg-primary/10 text-muted-foreground hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-all"
+              title="Optimera rutt"
+              onClick={(e) => { e.stopPropagation(); onOptimizeRoute!(staff.id, staff.name); }}
+            >
+              <Route className="w-3 h-3" />
+            </button>
+          )}
           <ChevronRight className="w-3 h-3 text-muted-foreground/30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 

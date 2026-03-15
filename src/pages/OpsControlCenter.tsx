@@ -8,12 +8,17 @@ import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
+import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
+import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import { Radio } from 'lucide-react';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 type SidePanel =
   | { type: 'job-chat'; bookingId: string; label: string }
   | { type: 'dm'; staffId: string; staffName: string; assignments: OpsTimelineAssignment[] }
+  | { type: 'staff-route'; staffName: string; route: StaffRouteResult }
   | null;
 
 const OpsControlCenter = () => {
@@ -31,6 +36,7 @@ const OpsControlCenter = () => {
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [routePolyline, setRoutePolyline] = useState<GeoJSON.LineString | null>(null);
 
   const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
     if (job.latitude && job.longitude) {
@@ -46,6 +52,32 @@ const OpsControlCenter = () => {
     const staff = timeline.find(s => s.id === staffId);
     setSidePanel({ type: 'dm', staffId, staffName, assignments: staff?.assignments || [] });
   }, [timeline]);
+
+  const handleOptimizeRoute = useCallback(async (staffId: string, staffName: string) => {
+    const dateStr = format(timelineDate, 'yyyy-MM-dd');
+    toast.loading('Optimerar rutt...', { id: 'route-opt' });
+    try {
+      const result = await optimizeStaffRoute(staffId, dateStr);
+      toast.success(`Rutt optimerad: ${result.total_distance_km} km, ~${result.total_duration_min} min`, { id: 'route-opt' });
+      setSidePanel({ type: 'staff-route', staffName, route: result });
+      if (result.polyline) {
+        setRoutePolyline(result.polyline);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Kunde inte optimera rutt', { id: 'route-opt' });
+    }
+  }, [timelineDate]);
+
+  const handleShowRouteOnMap = useCallback(() => {
+    if (sidePanel?.type === 'staff-route' && sidePanel.route.polyline) {
+      setRoutePolyline(sidePanel.route.polyline);
+    }
+  }, [sidePanel]);
+
+  const handleClosePanel = useCallback(() => {
+    setSidePanel(null);
+    setRoutePolyline(null);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -73,6 +105,7 @@ const OpsControlCenter = () => {
               timeline={timeline}
               isLoading={isLoadingTimeline}
               onOpenDM={handleOpenDM}
+              onOptimizeRoute={handleOptimizeRoute}
               date={timelineDate}
               onNextDay={goToNextDay}
               onPrevDay={goToPrevDay}
@@ -88,6 +121,7 @@ const OpsControlCenter = () => {
               isLoading={isLoadingLocations || isLoadingMapJobs}
               focusCoords={focusCoords}
               onOpenDM={handleOpenDM}
+              routePolyline={routePolyline}
             />
           </div>
         </div>
@@ -131,14 +165,21 @@ const OpsControlCenter = () => {
             <OpsJobChat
               bookingId={sidePanel.bookingId}
               bookingLabel={sidePanel.label}
-              onClose={() => setSidePanel(null)}
+              onClose={handleClosePanel}
+            />
+          ) : sidePanel.type === 'staff-route' ? (
+            <OpsStaffRoute
+              staffName={sidePanel.staffName}
+              route={sidePanel.route}
+              onClose={handleClosePanel}
+              onShowOnMap={handleShowRouteOnMap}
             />
           ) : (
             <OpsDirectChat
               staffId={sidePanel.staffId}
               staffName={sidePanel.staffName}
               staffAssignments={sidePanel.assignments}
-              onClose={() => setSidePanel(null)}
+              onClose={handleClosePanel}
             />
           )}
         </div>
