@@ -187,6 +187,15 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
             </div>
           </div>
           {isConflict && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
+          {canOptimizeRoute && (
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded hover:bg-primary/10 text-muted-foreground hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-all"
+              title="Optimera rutt"
+              onClick={(e) => { e.stopPropagation(); onOptimizeRoute!(staff.id, staff.name); }}
+            >
+              <Route className="w-3 h-3" />
+            </button>
+          )}
           <ChevronRight className="w-3 h-3 text-muted-foreground/30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
