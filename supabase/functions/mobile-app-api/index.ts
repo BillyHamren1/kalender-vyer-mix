@@ -1602,7 +1602,7 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     .eq('organization_id', organizationId)
     .single()
 
-  console.log(`[mobile-app-api] Registering push token for ${staff?.name || staffId}, platform: ${platform || 'android'}`)
+  console.log(`[mobile-app-api] Registering push token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
 
   const { error } = await supabase
     .from('device_tokens')
