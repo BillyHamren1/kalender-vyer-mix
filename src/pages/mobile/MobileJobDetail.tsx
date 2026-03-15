@@ -6,6 +6,7 @@ import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMob
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2 } from 'lucide-react';
+import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
