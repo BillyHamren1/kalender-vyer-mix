@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { mobileApi, MobileBooking, MobileTimeReport, MobilePurchase } from '@/services/mobileApiService';
+import { mobileApi, MobileBooking, MobileTimeReport, MobilePurchase, MobileTravelLog } from '@/services/mobileApiService';
 
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
