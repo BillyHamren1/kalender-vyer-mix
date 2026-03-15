@@ -31,6 +31,7 @@ const PlanningDashboard = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [commOpen, setCommOpen] = useState(false);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
