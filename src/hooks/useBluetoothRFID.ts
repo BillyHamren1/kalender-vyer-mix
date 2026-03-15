@@ -12,6 +12,9 @@
  * @deprecated Use useScannerController for Zebra enterprise scanning
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+
+// Type declarations for Web Bluetooth API
+declare global {
   interface Navigator {
     bluetooth?: {
       requestDevice(options: RequestDeviceOptions): Promise<BluetoothDeviceWeb>;
