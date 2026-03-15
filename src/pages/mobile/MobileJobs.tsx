@@ -90,7 +90,7 @@ const MobileJobs = () => {
             </span>
           </div>
         </div>
-      )
+      )}
 
       <GeofenceStatusBar isTracking={isTracking} activeTimers={activeTimers} />
 
