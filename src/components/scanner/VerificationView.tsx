@@ -274,6 +274,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     setIsQRActive(false);
   }, [packingId, verifierName, debouncedLoadData, isKolliMode, activeParcel, items, recalcProgress]);
 
+  // Keep ref updated so scanner controller can call handleScan
+  useEffect(() => {
+    handleScanRef.current = handleScan;
+  }, [handleScan]);
+
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
     if (isParent) {
