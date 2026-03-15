@@ -1585,13 +1585,23 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
       .update({ is_read_by: readBy })
       .eq('id', broadcast_id)
       .eq('organization_id', organizationId)
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
 
 // ==================== PUSH TOKEN HANDLERS ====================
 
 async function handleRegisterPushToken(supabase: any, staffId: string, data: any, organizationId: string) {
   const { push_token, platform } = data || {}
+
+  console.log(`[mobile-app-api] [register_push_token] handler start staff=${staffId} org=${organizationId} platform=${platform || 'android'} hasToken=${!!push_token}`)
+
   if (!push_token) {
+    console.error('[mobile-app-api] [register_push_token] push_token missing in payload')
     return new Response(
       JSON.stringify({ error: 'push_token is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1606,7 +1616,7 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     .eq('organization_id', organizationId)
     .single()
 
-  console.log(`[mobile-app-api] Registering push token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
+  console.log(`[mobile-app-api] [register_push_token] upsert token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
 
   const { error } = await supabase
     .from('device_tokens')
@@ -1619,13 +1629,14 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     }, { onConflict: 'staff_id,token' })
 
   if (error) {
-    console.error('[mobile-app-api] Failed to register push token:', error)
+    console.error('[mobile-app-api] [register_push_token] failed:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to register push token' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
+  console.log(`[mobile-app-api] [register_push_token] success staff=${staffId}`)
   return new Response(
     JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
