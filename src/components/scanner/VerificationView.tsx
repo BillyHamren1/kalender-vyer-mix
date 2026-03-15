@@ -78,8 +78,26 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScan, setLastScan] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean } | null>(null);
   
+  // Ref to hold handleScan so scanner controller can call it
+  const handleScanRef = useRef<(value: string) => void>(() => {});
+
+  // Central scanner controller — receives DataWedge + RFID + keyboard scans
+  const scannerController = useScannerController({
+    onScan: useCallback((scan: ScanEvent) => {
+      if (scan.isDuplicate) return;
+      if (scan.type === 'barcode') {
+        handleScanRef.current(scan.value);
+      }
+      // RFID scans during verification: could match SKU mapped to EPC
+      if (scan.type === 'rfid') {
+        toast.info(`RFID: ${scan.value}`, { duration: 2000 });
+      }
+    }, []),
+    autoInit: true,
+  });
+
   // Stable item order map (item.id -> initial index)
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
 
