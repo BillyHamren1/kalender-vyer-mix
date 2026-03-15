@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Register custom Capacitor plugins before super.onCreate
         registerPlugin(DataWedgePlugin.class);
+        registerPlugin(ZebraRfidPlugin.class);
 
         super.onCreate(savedInstanceState);
     }

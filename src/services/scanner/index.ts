@@ -21,6 +21,8 @@ export {
   startRfidListener,
   stopRfidListener,
   isRfidListening,
+  connectRfidReader,
+  disconnectRfidReader,
   startRfidInventory,
   stopRfidInventory,
   triggerRfidRead,
@@ -28,6 +30,8 @@ export {
   getRecentTags,
   getUniqueTagCount,
   clearRecentTags,
+  getTagReadCount,
+  resetTagCounter,
   simulateRfidTag,
   simulateReaderStatus,
 } from './ZebraRfidBridge';
