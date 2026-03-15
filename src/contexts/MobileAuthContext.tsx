@@ -36,9 +36,7 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setStaff(res.staff);
         setAuth(token, res.staff);
         // Fire-and-forget — never block UI on push init
-        initPushNotifications(res.staff.id).catch(err =>
-          console.error('[Push] Background init failed:', err)
-        );
+        initPushNotifications(res.staff.id);
       }).catch(() => {
         clearAuth();
         setStaff(null);
