@@ -58,6 +58,25 @@ export interface MobileTimeReport {
   } | null;
 }
 
+export interface MobileTravelLog {
+  id: string;
+  staff_id: string;
+  report_date: string;
+  start_time: string;
+  end_time: string | null;
+  hours_worked: number;
+  from_address: string | null;
+  from_latitude: number | null;
+  from_longitude: number | null;
+  to_address: string | null;
+  to_latitude: number | null;
+  to_longitude: number | null;
+  description: string | null;
+  auto_detected: boolean;
+  created_at: string;
+}
+
+
 export interface MobilePurchase {
   id: string;
   description: string;
@@ -205,4 +224,23 @@ export const mobileApi = {
 
   unregisterPushToken: (pushToken: string) =>
     callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
+
+  // Travel logs
+  createTravelLog: (data: {
+    from_address?: string;
+    from_latitude?: number;
+    from_longitude?: number;
+    description?: string;
+    auto_detected?: boolean;
+  }) => callApi<{ success: boolean; travel_log: any }>('create_travel_log', data),
+
+  stopTravelLog: (data: {
+    travel_log_id: string;
+    to_address?: string;
+    to_latitude?: number;
+    to_longitude?: number;
+  }) => callApi<{ success: boolean; travel_log: any }>('stop_travel_log', data),
+
+  getTravelLogs: (limit?: number) =>
+    callApi<{ travel_logs: MobileTravelLog[] }>('get_travel_logs', { limit }),
 };

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { mobileApi, MobileBooking, MobileTimeReport, MobilePurchase } from '@/services/mobileApiService';
+import { mobileApi, MobileBooking, MobileTimeReport, MobilePurchase, MobileTravelLog } from '@/services/mobileApiService';
 
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
@@ -49,12 +49,21 @@ export function useMobileBookingPurchases(bookings: MobileBooking[]) {
   });
 }
 
+export function useMobileTravelLogs() {
+  return useQuery({
+    queryKey: ['mobile-travel-logs'],
+    queryFn: () => mobileApi.getTravelLogs().then(r => r.travel_logs),
+    staleTime: STALE_TIME,
+  });
+}
+
 export function useInvalidateMobileData() {
   const queryClient = useQueryClient();
   return {
     invalidateTimeReports: () => queryClient.invalidateQueries({ queryKey: ['mobile-time-reports'] }),
     invalidateBookings: () => queryClient.invalidateQueries({ queryKey: ['mobile-bookings'] }),
     invalidatePurchases: () => queryClient.invalidateQueries({ queryKey: ['mobile-purchases'] }),
+    invalidateTravelLogs: () => queryClient.invalidateQueries({ queryKey: ['mobile-travel-logs'] }),
     invalidateBookingDetails: (id?: string) => 
       queryClient.invalidateQueries({ queryKey: id ? ['mobile-booking-details', id] : ['mobile-booking-details'] }),
   };

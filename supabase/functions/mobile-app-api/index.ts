@@ -155,6 +155,12 @@ Deno.serve(async (req) => {
         return await handleRegisterPushToken(supabase, staffId, data, organizationId)
       case 'unregister_push_token':
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
+      case 'create_travel_log':
+        return await handleCreateTravelLog(supabase, staffId, data, organizationId)
+      case 'stop_travel_log':
+        return await handleStopTravelLog(supabase, staffId, data, organizationId)
+      case 'get_travel_logs':
+        return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -1640,6 +1646,130 @@ async function handleUnregisterPushToken(supabase: any, staffId: string, data: a
 
   return new Response(
     JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ==================== TRAVEL LOG HANDLERS ====================
+
+async function handleCreateTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { from_address, from_latitude, from_longitude, description, auto_detected } = data || {}
+
+  const { data: log, error } = await supabase
+    .from('travel_time_logs')
+    .insert({
+      staff_id: staffId,
+      organization_id: organizationId,
+      report_date: new Date().toISOString().split('T')[0],
+      start_time: new Date().toISOString(),
+      from_address: from_address || null,
+      from_latitude: from_latitude || null,
+      from_longitude: from_longitude || null,
+      description: description || null,
+      auto_detected: auto_detected !== false,
+      hours_worked: 0,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Create travel log error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to create travel log' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`Travel log created: ${log.id} by staff ${staffId}`)
+
+  return new Response(
+    JSON.stringify({ success: true, travel_log: log }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleStopTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { travel_log_id, to_address, to_latitude, to_longitude } = data || {}
+
+  if (!travel_log_id) {
+    return new Response(
+      JSON.stringify({ error: 'travel_log_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get the existing log to calculate hours
+  const { data: existing, error: fetchError } = await supabase
+    .from('travel_time_logs')
+    .select('start_time')
+    .eq('id', travel_log_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchError || !existing) {
+    return new Response(
+      JSON.stringify({ error: 'Travel log not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const endTime = new Date()
+  const startTime = new Date(existing.start_time)
+  const hoursWorked = Math.round(((endTime.getTime() - startTime.getTime()) / 3600000) * 100) / 100
+
+  const { data: updated, error } = await supabase
+    .from('travel_time_logs')
+    .update({
+      end_time: endTime.toISOString(),
+      hours_worked: hoursWorked,
+      to_address: to_address || null,
+      to_latitude: to_latitude || null,
+      to_longitude: to_longitude || null,
+    })
+    .eq('id', travel_log_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Stop travel log error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to stop travel log' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}`)
+
+  return new Response(
+    JSON.stringify({ success: true, travel_log: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetTravelLogs(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { limit: queryLimit } = data || {}
+
+  const { data: logs, error } = await supabase
+    .from('travel_time_logs')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .order('start_time', { ascending: false })
+    .limit(queryLimit || 50)
+
+  if (error) {
+    console.error('Get travel logs error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch travel logs' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ travel_logs: logs || [] }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

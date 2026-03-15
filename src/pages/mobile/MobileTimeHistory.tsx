@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MobileTimeReport } from '@/services/mobileApiService';
-import { useMobileTimeReports } from '@/hooks/useMobileData';
+import { MobileTimeReport, MobileTravelLog } from '@/services/mobileApiService';
+import { useMobileTimeReports, useMobileTravelLogs } from '@/hooks/useMobileData';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ const MobileTimeHistory = () => {
   const { staff } = useMobileAuth();
   const navigate = useNavigate();
   const { data: reports = [], isLoading } = useMobileTimeReports();
+  const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -62,7 +63,15 @@ const MobileTimeHistory = () => {
     });
   }, [reports, listInterval]);
 
-  // Build all days in interval with their reports (ascending order)
+  const filteredTravelLogs = useMemo(() => {
+    return travelLogs.filter(l => {
+      if (!l.end_time) return false;
+      const d = parseISO(l.report_date);
+      return isWithinInterval(d, listInterval);
+    });
+  }, [travelLogs, listInterval]);
+
+  // Build all days in interval with their reports and travel logs (ascending order)
   const groupedListReports = useMemo(() => {
     const days = eachDayOfInterval(listInterval);
     const reportMap = new Map<string, MobileTimeReport[]>();
@@ -71,13 +80,20 @@ const MobileTimeHistory = () => {
       if (!reportMap.has(key)) reportMap.set(key, []);
       reportMap.get(key)!.push(r);
     });
+    const travelMap = new Map<string, MobileTravelLog[]>();
+    filteredTravelLogs.forEach(l => {
+      const key = l.report_date;
+      if (!travelMap.has(key)) travelMap.set(key, []);
+      travelMap.get(key)!.push(l);
+    });
     return days.map(day => {
       const key = format(day, 'yyyy-MM-dd');
-      return { dateKey: key, day, reports: reportMap.get(key) || [] };
+      return { dateKey: key, day, reports: reportMap.get(key) || [], travels: travelMap.get(key) || [] };
     });
-  }, [filteredListReports, listInterval]);
+  }, [filteredListReports, filteredTravelLogs, listInterval]);
 
   const filteredTotalHours = filteredListReports.reduce((s, r) => s + r.hours_worked, 0);
+  const filteredTravelHours = filteredTravelLogs.reduce((s, l) => s + l.hours_worked, 0);
 
   const listPeriodLabel = listFilter === 'week'
     ? `${format(listInterval.start, 'd MMM', { locale: sv })} – ${format(listInterval.end, 'd MMM yyyy', { locale: sv })}`
@@ -317,13 +333,17 @@ const MobileTimeHistory = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Slut</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Tim</span>
               </div>
-              {groupedListReports.map(({ dateKey, reports: dateReports }, idx) => {
-                const hasReports = dateReports.length > 0;
+              {groupedListReports.map(({ dateKey, reports: dateReports, travels: dateTravels }, idx) => {
+                const hasContent = dateReports.length > 0 || dateTravels.length > 0;
                 const isLast = idx === groupedListReports.length - 1;
                 const dayNum = format(parseISO(dateKey), 'd');
                 const dayName = format(parseISO(dateKey), 'EEE', { locale: sv });
+                const allEntries = [
+                  ...dateReports.map(r => ({ type: 'report' as const, data: r })),
+                  ...dateTravels.map(t => ({ type: 'travel' as const, data: t })),
+                ];
 
-                if (!hasReports) {
+                if (!hasContent) {
                   return (
                     <div key={dateKey} className={cn(
                       "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
@@ -340,12 +360,26 @@ const MobileTimeHistory = () => {
                   );
                 }
 
-                return dateReports.map((report, rIdx) => {
-                  const isLastRow = isLast && rIdx === dateReports.length - 1;
+                return allEntries.map((entry, rIdx) => {
+                  const isLastRow = isLast && rIdx === allEntries.length - 1;
+                  const isTravel = entry.type === 'travel';
+                  const id = entry.data.id;
+                  const hours = entry.data.hours_worked;
+                  const startTime = isTravel
+                    ? (entry.data as MobileTravelLog).start_time?.slice(11, 16)
+                    : (entry.data as MobileTimeReport).start_time?.slice(0, 5);
+                  const endTime = isTravel
+                    ? (entry.data as MobileTravelLog).end_time?.slice(11, 16)
+                    : (entry.data as MobileTimeReport).end_time?.slice(0, 5);
+                  const label = isTravel
+                    ? '🚗 Förflyttning'
+                    : ((entry.data as MobileTimeReport).bookings?.client || 'Okänt');
+
                   return (
-                    <div key={report.id} className={cn(
+                    <div key={id} className={cn(
                       "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
-                      !isLastRow && "border-b border-border/50"
+                      !isLastRow && "border-b border-border/50",
+                      isTravel && "bg-primary/5"
                     )}>
                       <div className="min-w-0">
                         {rIdx === 0 && (
@@ -354,18 +388,18 @@ const MobileTimeHistory = () => {
                             <span className="text-xs text-muted-foreground capitalize">{dayName}</span>
                           </div>
                         )}
-                        <p className={cn("text-xs text-foreground font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]")}>
-                          {report.bookings?.client || 'Okänt'}
+                        <p className={cn("text-xs font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]", isTravel ? "text-primary" : "text-foreground")}>
+                          {label}
                         </p>
                       </div>
                       <span className="text-xs font-medium text-foreground tabular-nums text-center">
-                        {report.start_time?.slice(0, 5) || '–'}
+                        {startTime || '–'}
                       </span>
                       <span className="text-xs font-medium text-foreground tabular-nums text-center">
-                        {report.end_time?.slice(0, 5) || '–'}
+                        {endTime || '–'}
                       </span>
-                      <span className="text-sm font-bold text-foreground tabular-nums text-right">
-                        {report.hours_worked}
+                      <span className={cn("text-sm font-bold tabular-nums text-right", isTravel ? "text-primary" : "text-foreground")}>
+                        {hours}
                       </span>
                     </div>
                   );
@@ -373,10 +407,12 @@ const MobileTimeHistory = () => {
               })}
               {/* Total row */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
-                <span className="text-xs font-bold text-foreground uppercase">Totalt</span>
+                <span className="text-xs font-bold text-foreground uppercase">
+                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {Math.round(filteredTravelHours * 10) / 10}h förflyttning)</span>}
+                </span>
                 <span />
                 <span />
-                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours}</span>
+                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours + Math.round(filteredTravelHours * 10) / 10}</span>
               </div>
             </div>
 

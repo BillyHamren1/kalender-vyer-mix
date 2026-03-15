@@ -3426,6 +3426,81 @@ export type Database = {
           },
         ]
       }
+      travel_time_logs: {
+        Row: {
+          auto_detected: boolean
+          created_at: string
+          description: string | null
+          end_time: string | null
+          from_address: string | null
+          from_latitude: number | null
+          from_longitude: number | null
+          hours_worked: number
+          id: string
+          organization_id: string
+          report_date: string
+          staff_id: string
+          start_time: string
+          to_address: string | null
+          to_latitude: number | null
+          to_longitude: number | null
+          updated_at: string
+        }
+        Insert: {
+          auto_detected?: boolean
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          from_address?: string | null
+          from_latitude?: number | null
+          from_longitude?: number | null
+          hours_worked?: number
+          id?: string
+          organization_id?: string
+          report_date?: string
+          staff_id: string
+          start_time?: string
+          to_address?: string | null
+          to_latitude?: number | null
+          to_longitude?: number | null
+          updated_at?: string
+        }
+        Update: {
+          auto_detected?: boolean
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          from_address?: string | null
+          from_latitude?: number | null
+          from_longitude?: number | null
+          hours_worked?: number
+          id?: string
+          organization_id?: string
+          report_date?: string
+          staff_id?: string
+          start_time?: string
+          to_address?: string | null
+          to_latitude?: number | null
+          to_longitude?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_time_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "travel_time_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
