@@ -63,7 +63,7 @@ const PlanningDashboard = () => {
     <PageContainer>
       <PageHeader
         icon={LayoutDashboard}
-        title="Dashboard"
+        title="Planeringsdashboard"
         subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
       >
         <Button 
