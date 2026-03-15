@@ -96,8 +96,22 @@ async function handleDirectMessage(supabase: any, record: any) {
 
   console.log(`[DM Push Trigger] sender=${record.sender_id}, recipient=${recipientId}, org=${organizationId}`)
 
-  // If org_id is missing, resolve from device_tokens
+  // If org_id is missing from webhook payload, resolve it
   if (!organizationId) {
+    // Try 1: read from direct_messages table (service_role bypasses RLS)
+    const { data: dmRow } = await supabase
+      .from('direct_messages')
+      .select('organization_id')
+      .eq('id', record.id)
+      .single()
+    organizationId = dmRow?.organization_id || ''
+    if (organizationId) {
+      console.log(`[DM Push Trigger] resolved org_id from direct_messages table: ${organizationId}`)
+    }
+  }
+
+  if (!organizationId) {
+    // Try 2: from device_tokens
     const { data: token } = await supabase
       .from('device_tokens')
       .select('organization_id')
@@ -105,11 +119,26 @@ async function handleDirectMessage(supabase: any, record: any) {
       .limit(1)
       .single()
     organizationId = token?.organization_id || ''
-    console.log(`[DM Push Trigger] resolved org_id from device_tokens: ${organizationId}`)
+    if (organizationId) {
+      console.log(`[DM Push Trigger] resolved org_id from device_tokens: ${organizationId}`)
+    }
   }
 
   if (!organizationId) {
-    console.log(`[DM Push Trigger] no organization_id found, skipping push`)
+    // Try 3: from profiles (sender is likely authenticated user)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', record.sender_id)
+      .single()
+    organizationId = profile?.organization_id || ''
+    if (organizationId) {
+      console.log(`[DM Push Trigger] resolved org_id from profiles: ${organizationId}`)
+    }
+  }
+
+  if (!organizationId) {
+    console.log(`[DM Push Trigger] no organization_id found after all fallbacks, skipping push`)
     return
   }
 
