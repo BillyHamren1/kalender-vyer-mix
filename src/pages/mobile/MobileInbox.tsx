@@ -205,7 +205,6 @@ const MobileInbox = () => {
           eyebrow="MEDDELANDEN"
           title="Inkorg"
           subtitle={totalUnread > 0 ? `${totalUnread} olästa` : 'Inga olästa'}
-          backTo="/m"
         />
 
         <div className="flex-1 overflow-y-auto">
