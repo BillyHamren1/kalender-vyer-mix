@@ -81,6 +81,34 @@ export const sendDirectMessage = async (
     console.error('Error sending direct message:', error);
     throw error;
   }
+
+  // Trigger push notification to recipient (fire-and-forget)
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token && supabaseUrl) {
+      fetch(`${supabaseUrl}/functions/v1/push-notification-trigger`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          type: 'INSERT',
+          table: 'direct_messages',
+          record: {
+            sender_id: senderId,
+            sender_name: senderName,
+            recipient_id: recipientId,
+            content: content.trim(),
+            organization_id: (insertData as any).organization_id || '',
+          },
+        }),
+      }).catch(err => console.error('Push trigger failed:', err));
+    }
+  } catch (e) {
+    // Don't block DM send if push fails
+  }
 };
 
 /**
