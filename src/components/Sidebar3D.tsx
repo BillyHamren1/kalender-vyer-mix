@@ -210,22 +210,14 @@ export function Sidebar3D() {
             const itemClassName = cn(
               "relative flex items-center gap-3 rounded-md transition-all duration-150",
               isCollapsed
-                ? "justify-center px-2 py-[10px]"
-                : active
-                ? "py-[9px] pl-[9px] pr-3 border-l-[2.5px]"
-                : "py-[9px] pl-[11px] pr-3 border-l-[2px] border-transparent"
+                ? "justify-center px-2 py-3"
+                : "py-3 px-3"
             );
 
             /* ── Active/hover styles ── */
             const itemStyle = {
-              ...(active && !isCollapsed
-                ? {
-                    background: "hsl(200 14% 93%)",
-                    borderLeftColor: "hsl(184 55% 38%)",
-                  }
-                : {}),
-              ...(active && isCollapsed
-                ? { background: "hsl(200 14% 93%)" }
+              ...(active
+                ? { background: "hsl(var(--accent))" }
                 : {}),
               ...(!active && hovered
                 ? { background: "hsl(200 14% 50% / 0.08)" }
