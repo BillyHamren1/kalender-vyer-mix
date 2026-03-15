@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MobileTimeReport } from '@/services/mobileApiService';
-import { useMobileTimeReports } from '@/hooks/useMobileData';
+import { MobileTimeReport, MobileTravelLog } from '@/services/mobileApiService';
+import { useMobileTimeReports, useMobileTravelLogs } from '@/hooks/useMobileData';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
