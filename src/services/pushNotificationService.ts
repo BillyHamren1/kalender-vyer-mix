@@ -5,7 +5,11 @@ import { mobileApi } from './mobileApiService';
 let initialized = false;
 let initializing = false;
 
-export async function initPushNotifications(staffId: string): Promise<void> {
+/**
+ * Fire-and-forget push init — NEVER await this from auth/startup.
+ * Calling code should use: initPushNotifications(staffId); // no await
+ */
+export function initPushNotifications(staffId: string): void {
   if (initialized || initializing) {
     console.log('[Push] Already initialized or initializing, skipping');
     return;
@@ -18,66 +22,102 @@ export async function initPushNotifications(staffId: string): Promise<void> {
 
   initializing = true;
 
+  // Run the entire flow asynchronously — never blocks the caller
+  _doInit(staffId).catch((err) => {
+    console.error('[Push] Init error (caught at top level):', err);
+  }).finally(() => {
+    initializing = false;
+  });
+}
+
+async function _doInit(staffId: string): Promise<void> {
+  // 1. Request permission — with safety timeout
+  let permResult: { receive: string };
   try {
-    // 1. Request permission
-    const permResult = await PushNotifications.requestPermissions();
-    if (permResult.receive !== 'granted') {
-      console.log('[Push] Permission not granted');
-      initializing = false;
-      return;
-    }
+    permResult = await withTimeout(
+      PushNotifications.requestPermissions(),
+      8000,
+      '[Push] requestPermissions timed out'
+    );
+  } catch (err) {
+    console.warn('[Push] Permission request failed or timed out:', err);
+    return;
+  }
 
-    // 2. Clean slate — remove any old listeners first
+  if (permResult.receive !== 'granted') {
+    console.log('[Push] Permission not granted');
+    return;
+  }
+
+  // 2. Clean slate — remove old listeners (non-critical, wrap defensively)
+  try {
     await PushNotifications.removeAllListeners();
+  } catch (err) {
+    console.warn('[Push] removeAllListeners failed:', err);
+  }
 
-    // 3. Set up ALL listeners BEFORE calling register()
-    // This prevents the race condition where register() fires the
-    // 'registration' event before the listener is attached (Android)
-    PushNotifications.addListener('registration', async (token) => {
-      console.log('[Push] Token received:', token.value.slice(0, 20) + '...');
-      try {
-        await mobileApi.registerPushToken(token.value);
-        console.log('[Push] Token registered with server');
-      } catch (err) {
-        console.error('[Push] Failed to register token with server:', err);
-      }
+  // 3. Set up ALL listeners BEFORE calling register()
+  PushNotifications.addListener('registration', (token) => {
+    console.log('[Push] Token received:', token.value?.slice(0, 20) + '...');
+    // Save token async — never block on this
+    mobileApi.registerPushToken(token.value).then(() => {
+      console.log('[Push] Token registered with server');
+    }).catch((err) => {
+      console.error('[Push] Failed to register token with server:', err);
     });
+  });
 
-    PushNotifications.addListener('registrationError', (error) => {
-      console.error('[Push] Registration error:', error);
-    });
+  PushNotifications.addListener('registrationError', (error) => {
+    console.error('[Push] Registration error:', error);
+  });
 
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('[Push] Notification received in foreground:', notification);
-    });
+  PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    console.log('[Push] Notification received in foreground:', notification);
+  });
 
-    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      console.log('[Push] Notification tapped:', action);
-      const data = action.notification.data;
+  PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+    console.log('[Push] Notification tapped:', action);
+    const data = action.notification.data;
 
-      if (data?.notification_type === 'message') {
-        window.location.href = '/m/inbox';
-      } else if (data?.notification_type === 'assignment') {
-        window.location.href = data.booking_id ? `/m/job/${data.booking_id}` : '/m';
-      } else if (data?.notification_type === 'schedule') {
-        window.location.href = data.booking_id ? `/m/job/${data.booking_id}` : '/m';
-      } else if (data?.notification_type === 'broadcast') {
-        window.location.href = '/m/inbox';
-      } else {
-        window.location.href = '/m';
-      }
-    });
+    if (data?.notification_type === 'message') {
+      window.location.href = '/m/inbox';
+    } else if (data?.notification_type === 'assignment') {
+      window.location.href = data.booking_id ? `/m/job/${data.booking_id}` : '/m';
+    } else if (data?.notification_type === 'schedule') {
+      window.location.href = data.booking_id ? `/m/job/${data.booking_id}` : '/m';
+    } else if (data?.notification_type === 'broadcast') {
+      window.location.href = '/m/inbox';
+    } else {
+      window.location.href = '/m';
+    }
+  });
 
-    // 4. NOW register with APNs/FCM — listeners are already in place
-    await PushNotifications.register();
-
+  // 4. Register with APNs/FCM — timeout-protected so it can never hang
+  try {
+    await withTimeout(
+      PushNotifications.register(),
+      10000,
+      '[Push] register() timed out'
+    );
     initialized = true;
     console.log('[Push] Push notifications initialized');
   } catch (err) {
-    console.error('[Push] Init error:', err);
-  } finally {
-    initializing = false;
+    // register() timed out or threw — not fatal, token may still arrive
+    // via the 'registration' listener later
+    console.warn('[Push] register() failed or timed out, continuing:', err);
+    initialized = true; // Mark as initialized so we don't retry endlessly
   }
+}
+
+/** Race a promise against a timeout — prevents indefinite hangs */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
 }
 
 export async function unregisterPushNotifications(): Promise<void> {
