@@ -1,87 +1,105 @@
 
-# Steg 4: Regression Test Layer ✅ Klart
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+## Plan: Automatisk förflyttningsspårning ("Under förflyttning")
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+### Sammanfattning
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+Bygga ett system där appen automatiskt detekterar när en anställd är i rörelse (baserat på GPS-hastighet), startar en timer kopplad till ett speciellt "Under förflyttning"-projekt, sparar från- och tilladress, och visar det tydligt i tidrapporter — men dolt från den vanliga jobblistan.
 
----
+### Problemanalys
 
-# Steg 1: SAFE NOW ✅ Klart
+Nuvarande system kräver att `time_reports.booking_id` pekar på en booking i `bookings`-tabellen (FK constraint). Förflyttning är inte kopplat till en specifik booking. Vi behöver antingen:
+- En ny tabell för restid (renare separation)
+- Eller en sentinel-booking per organisation
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+**Vald approach: Ny tabell `travel_time_logs`** — detta ger ren separation, inga FK-hacks, och gör det enkelt att filtrera bort restid från vanlig tidrapportering och tvärtom.
 
----
+### Databasändringar
 
-# Steg 2: SAFE NEXT ✅ Klart
+**Ny tabell: `travel_time_logs`**
 
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
-
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
-
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
-
----
-
-# Steg 3: LATER ✅ Klart (utom 3d)
-
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
-
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
-
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
-
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
-
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
-
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
-
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+```text
+travel_time_logs
+├── id (uuid PK)
+├── staff_id (text, FK staff_members)
+├── organization_id (uuid, FK organizations)
+├── report_date (date)
+├── start_time (timestamptz)
+├── end_time (timestamptz, nullable)
+├── hours_worked (numeric)
+├── from_address (text, nullable)
+├── from_latitude (float8, nullable)
+├── from_longitude (float8, nullable)
+├── to_address (text, nullable)
+├── to_latitude (float8, nullable)
+├── to_longitude (float8, nullable)
+├── description (text, nullable)
+├── auto_detected (boolean, default true)
+├── created_at (timestamptz)
+├── updated_at (timestamptz)
 ```
 
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+RLS: Org-filter + staff can only see own rows.
 
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
+### Edge Function-ändringar
+
+**`mobile-app-api/index.ts`** — nya actions:
+- `create_travel_log` — spara en förflyttningsrapport (med from/to-adresser)
+- `get_travel_logs` — hämta egna resloggar
+- `stop_travel_log` — avsluta pågående resa (sätter end_time, beräknar hours_worked)
+
+Dessa kräver **inte** booking_staff_assignments-validering (alla anställda har detta implicit).
+
+### Frontend-ändringar
+
+#### 1. Ny hook: `useTravelDetection.ts`
+- Använder befintlig `navigator.geolocation.watchPosition`
+- Beräknar hastighet från `coords.speed` (> 2 m/s ≈ 7 km/h = i rörelse)
+- Kräver stabil rörelse i 30-60 sekunder innan start (undviker false positives)
+- Vid start: spara aktuell position → reverse geocode till adress
+- Vid stopp (hastighet < 1 m/s i 60s): spara slutposition → reverse geocode
+- Skickar `create_travel_log` / `stop_travel_log` till backend
+
+#### 2. Reverse geocoding
+Använda befintlig `geocode-address` edge function eller Mapbox reverse geocode med befintlig token.
+
+#### 3. UI: Aktiv förflyttningsindikator (global)
+- I `MobileJobs.tsx` och övriga mobile-sidor: visa en tydlig "Under förflyttning"-banner med pågående timer
+- Liknande befintlig `GeofenceStatusBar` men med bil-ikon och rutt-info
+
+#### 4. UI: Profilsidan (`MobileProfile.tsx`)
+- Nytt kort: "Under förflyttning" med historik-lista
+- Visa totalt restid denna månad
+- Länk till detaljvy med alla resor (från/till-adress, tid)
+
+#### 5. UI: Tidrapporthistorik (`MobileTimeHistory`)
+- Visa förflyttningstid som separata poster markerade med 🚗 eller bil-ikon
+- Tydlig visuell skillnad från vanliga tidrapporter
+
+#### 6. Admin/planering: Personalens tidrapporter
+- `StaffDetail.tsx` tidrapporter-tab: inkludera förflyttningstid som egen sektion
+- Aggregera i ekonomirapporter om önskat
+
+### Integritet
+- RLS: `staff_id = current_staff_id` — ingen ser andras resor
+- Admin kan se via service_role i planerarvyn
+
+### Implementationsordning
+
+1. Skapa `travel_time_logs`-tabell med RLS
+2. Lägga till `create_travel_log`, `get_travel_logs`, `stop_travel_log` i mobile-app-api
+3. Bygga `useTravelDetection` hook med hastighetsbaserad detektering
+4. Lägga till reverse geocoding-anrop
+5. Bygga förflyttningsbanner-komponent
+6. Uppdatera MobileProfile med reshistorik
+7. Uppdatera tidrapporthistorik med förflyttningsposter
+8. Uppdatera personaldetaljvyn (admin) med förflyttningsdata
+
+### Tekniska detaljer
+
+**Rörelsedetektering**: `coords.speed` från Geolocation API ger hastighet i m/s. Tröskel ~2 m/s (7.2 km/h) för att särskilja gång/bilkörning. Debounce 30s för att undvika korta rörelser.
+
+**Adressupplösning**: Mapbox reverse geocoding (`https://api.mapbox.com/geocoding/v5/mapbox.places/{lng},{lat}.json`) med befintlig MAPBOX_PUBLIC_TOKEN.
+
+**Risker**: GPS-precision inomhus, batteriförbrukning (hanteras genom att återanvända befintlig `watchPosition` från geofencing istället för ny).
+
