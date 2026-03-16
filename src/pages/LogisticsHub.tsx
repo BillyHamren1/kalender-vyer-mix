@@ -67,6 +67,11 @@ const LogisticsHub: React.FC = () => {
           </div>
         </div>
 
+        {/* Weekly Weather */}
+        <div className="mb-6">
+          <LogisticsWeeklyWeatherWidget />
+        </div>
+
         {/* Tabbed content */}
         <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
           <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
