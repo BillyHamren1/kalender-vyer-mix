@@ -140,10 +140,16 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
     }
 
     // Check if events already exist for this booking
-    const { data: existingEvents, error: checkError } = await supabase
+    let existingEventsQuery = supabase
       .from('calendar_events')
       .select('id, event_type, start_time, end_time')
       .eq('booking_id', bookingId);
+
+    if (booking?.organization_id) {
+      existingEventsQuery = existingEventsQuery.eq('organization_id', booking.organization_id);
+    }
+
+    const { data: existingEvents, error: checkError } = await existingEventsQuery;
 
     if (checkError) {
       console.error('Error checking existing events:', checkError);
