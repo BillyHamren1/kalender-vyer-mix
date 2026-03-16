@@ -35,7 +35,7 @@ const navigationItems: NavItem[] = [
     children: [{ title: "Mina projekt", url: "/my-projects" }],
   },
   {
-    title: "Personal",
+    title: "Logistikplanering",
     url: "/ops-control",
     icon: Users,
     children: [
@@ -51,7 +51,7 @@ const navigationItems: NavItem[] = [
     icon: PieChart,
   },
   {
-    title: "Logistikplanering",
+    title: "Transportplanering",
     url: "/logistics/planning",
     icon: Truck,
   },
