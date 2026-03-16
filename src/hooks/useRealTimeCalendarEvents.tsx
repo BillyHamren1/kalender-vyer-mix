@@ -70,6 +70,7 @@ export const useRealTimeCalendarEvents = () => {
             return {
               ...event,
               bookingNumber: booking.booking_number,
+              bookingStatus: booking.status,
               extendedProps: {
                 ...event.extendedProps,
                 client: booking.client,
@@ -84,6 +85,7 @@ export const useRealTimeCalendarEvents = () => {
                 products: booking.booking_products || [],
                 bookingNumber: booking.booking_number,
                 booking_id: booking.id,
+                bookingStatus: booking.status,
                 assignedProjectId: booking.assigned_project_id,
                 assignedProjectName: booking.assigned_project_name,
                 assignedToProject: booking.assigned_to_project
