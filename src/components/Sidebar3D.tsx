@@ -173,13 +173,13 @@ export function Sidebar3D() {
 
             /* ── Icon ── */
             const iconEl = (
-              <div className="w-5 h-5 flex items-center justify-center shrink-0">
+              <div className="w-[18px] h-[18px] flex items-center justify-center shrink-0">
                 <item.icon
                   className={cn(
-                    "w-5 h-5",
-                    active ? "text-primary" : "text-foreground/60"
+                    "w-[18px] h-[18px]",
+                    active ? "text-primary" : "text-foreground/50"
                   )}
-                  strokeWidth={1.8}
+                  strokeWidth={1.5}
                 />
               </div>
             );
