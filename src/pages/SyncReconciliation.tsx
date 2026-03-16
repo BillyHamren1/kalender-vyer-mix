@@ -131,7 +131,15 @@ const SyncReconciliation = () => {
   const formatValue = (val: any) => {
     if (val === null || val === undefined) return <span className="text-muted-foreground italic">tom</span>;
     if (typeof val === 'boolean') return val ? 'Ja' : 'Nej';
+    if (typeof val === 'object') return String(JSON.stringify(val));
     return String(val);
+  };
+
+  const safeClientName = (client: any): string => {
+    if (!client) return 'Okänd';
+    if (typeof client === 'string') return client;
+    if (typeof client === 'object' && client.name) return client.name;
+    return String(client);
   };
 
   return (
