@@ -86,16 +86,22 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     }));
 
     // Medium projects
-    projects.forEach(p => items.push({
-      id: p.id,
-      name: p.name,
-      type: 'medium',
-      date: p.booking?.eventdate ?? null,
-      status: p.status,
-      subtitle: p.booking?.client ?? p.project_leader ?? null,
-      navigateTo: `/project/${p.id}`,
-      bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
-    }));
+    projects.forEach(p => {
+      const client = p.booking?.client;
+      const bookingNum = p.booking?.booking_number;
+      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      items.push({
+        id: p.id,
+        name: displayName,
+        type: 'medium',
+        date: p.booking?.eventdate ?? null,
+        status: p.status,
+        subtitle: p.booking?.deliveryaddress ?? null,
+        address: p.booking?.deliveryaddress ?? null,
+        navigateTo: `/project/${p.id}`,
+        bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
+      });
+    });
 
     // Large projects
     largeProjects.forEach(lp => items.push({
