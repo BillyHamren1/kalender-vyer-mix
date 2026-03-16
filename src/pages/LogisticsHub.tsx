@@ -46,24 +46,21 @@ const LogisticsHub: React.FC = () => {
             <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-primary/3 rounded-full blur-2xl" />
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div
-                className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
-                style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
-              >
-                <Truck className="h-7 w-7 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Logistikplanering
-                </h1>
-                <p className="text-muted-foreground mt-0.5">
-                  Transport, rutter och fordonshantering
-                </p>
-              </div>
+          <div className="flex items-center gap-4 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
+            <div
+              className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
+              style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
+            >
+              <Truck className="h-7 w-7 text-primary-foreground" />
             </div>
-            <LogisticsWeeklyWeatherWidget />
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                Transportplanering
+              </h1>
+              <p className="text-muted-foreground mt-0.5">
+                Transport, rutter och fordonshantering
+              </p>
+            </div>
           </div>
         </div>
 
