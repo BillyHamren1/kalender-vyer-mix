@@ -189,9 +189,12 @@ const MyProjects: React.FC = () => {
                 <CardContent className="py-3 px-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      {/* Row 1: Name + badges */}
+                      {/* Row 1: Client name + booking number + badges */}
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 className="font-semibold text-base text-foreground truncate">{project.name}</h3>
+                        <h3 className="font-semibold text-base text-foreground truncate">
+                          {project.clientName || project.name}
+                          {project.bookingNumber && ` #${project.bookingNumber}`}
+                        </h3>
                         <span className={cn(
                           "text-xs font-medium px-2 py-0.5 rounded-full",
                           STATUS_BADGE[project.status] || 'bg-muted text-muted-foreground'
@@ -213,22 +216,9 @@ const MyProjects: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Row 2: Meta info */}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                        {project.clientName && <span>{project.clientName}</span>}
-                        {project.eventDate && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            {format(parseISO(project.eventDate), 'd MMM yyyy', { locale: sv })}
-                          </span>
-                        )}
-                        {project.nextDeadline && (
-                          <span className={cn("flex items-center gap-1", isOverdue && "text-destructive font-medium")}>
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            {isOverdue ? 'Försenad: ' : 'Deadline: '}
-                            {format(parseISO(project.nextDeadline), 'd MMM', { locale: sv })}
-                          </span>
-                        )}
+                      {/* Row 2: Address */}
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {project.address || 'Ingen adress angiven'}
                       </div>
 
                       {/* Row 3: Progress */}
