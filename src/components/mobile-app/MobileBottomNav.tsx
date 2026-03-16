@@ -1,11 +1,12 @@
 import { Briefcase, Clock, Receipt, User, MessageCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
 
 const tabs = [
   { path: '/m', label: 'Jobb', icon: Briefcase, exact: true },
   { path: '/m/report', label: 'Tid', icon: Clock },
-  { path: '/m/inbox', label: 'Meddelanden', icon: MessageCircle },
+  { path: '/m/inbox', label: 'Meddelanden', icon: MessageCircle, showBadge: true },
   { path: '/m/expenses', label: 'Utlägg', icon: Receipt },
   { path: '/m/profile', label: 'Profil', icon: User },
 ];
@@ -13,6 +14,7 @@ const tabs = [
 const MobileBottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { count: unreadCount } = useUnreadMessageCount();
 
   const isActive = (tab: typeof tabs[0]) => {
     if (tab.exact) return location.pathname === tab.path;
@@ -26,6 +28,7 @@ const MobileBottomNav = () => {
       <div className="flex items-stretch h-[68px] max-w-lg mx-auto px-2">
         {tabs.map(tab => {
           const active = isActive(tab);
+          const badge = tab.showBadge && unreadCount > 0 && !active;
           return (
             <button
               key={tab.path}
@@ -41,10 +44,15 @@ const MobileBottomNav = () => {
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-full bg-primary" />
               )}
               <div className={cn(
-                "flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200",
+                "relative flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200",
                 active && "bg-primary/10"
               )}>
                 <tab.icon className={cn("w-[22px] h-[22px] transition-all", active && "stroke-[2.5]")} />
+                {badge && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </div>
               <span className={cn(
                 "text-[10px] leading-none transition-all",

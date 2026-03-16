@@ -73,6 +73,33 @@ async function _doInit(staffId: string): Promise<void> {
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
     console.log('[Push] Notification received in foreground:', notification);
+    
+    // Dispatch custom event so hooks/components can react (e.g. badge refresh)
+    window.dispatchEvent(new CustomEvent('push-notification-received', {
+      detail: notification,
+    }));
+
+    // Show in-app toast using sonner (imported dynamically to avoid circular deps)
+    const title = notification.title || 'Nytt meddelande';
+    const body = notification.body || '';
+    const data = notification.data || {};
+
+    // Use dynamic import to avoid pulling toast into the push init chain
+    import('sonner').then(({ toast }) => {
+      toast(title, {
+        description: body,
+        duration: 5000,
+        action: data.notification_type === 'message' ? {
+          label: 'Visa',
+          onClick: () => { window.location.href = '/m/inbox'; },
+        } : data.notification_type === 'assignment' || data.notification_type === 'schedule' ? {
+          label: 'Visa',
+          onClick: () => { window.location.href = data.booking_id ? `/m/job/${data.booking_id}` : '/m'; },
+        } : undefined,
+      });
+    }).catch(() => {
+      // Fallback: silent — notification is still in the system tray
+    });
   });
 
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
