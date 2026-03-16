@@ -20,6 +20,7 @@ interface UnifiedProject {
   date: string | null;
   status: string;
   subtitle: string | null;
+  address: string | null;
   navigateTo: string;
   bookingCancelled?: boolean;
 }
@@ -74,26 +75,33 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     // Jobs (small)
     jobs.forEach(j => items.push({
       id: j.id,
-      name: j.name,
+      name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
       type: 'small',
       date: j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
-      subtitle: j.booking?.client ?? null,
+      subtitle: j.booking?.deliveryAddress ?? null,
+      address: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       bookingCancelled: j.booking?.status === 'CANCELLED',
     }));
 
     // Medium projects
-    projects.forEach(p => items.push({
-      id: p.id,
-      name: p.name,
-      type: 'medium',
-      date: p.booking?.eventdate ?? null,
-      status: p.status,
-      subtitle: p.booking?.client ?? p.project_leader ?? null,
-      navigateTo: `/project/${p.id}`,
-      bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
-    }));
+    projects.forEach(p => {
+      const client = p.booking?.client;
+      const bookingNum = p.booking?.booking_number;
+      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      items.push({
+        id: p.id,
+        name: displayName,
+        type: 'medium',
+        date: p.booking?.eventdate ?? null,
+        status: p.status,
+        subtitle: p.booking?.deliveryaddress ?? null,
+        address: p.booking?.deliveryaddress ?? null,
+        navigateTo: `/project/${p.id}`,
+        bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
+      });
+    });
 
     // Large projects
     largeProjects.forEach(lp => items.push({
@@ -103,6 +111,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       date: lp.start_date ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
+      address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
     }));
 

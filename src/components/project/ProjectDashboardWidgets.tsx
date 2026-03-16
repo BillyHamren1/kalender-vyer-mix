@@ -40,21 +40,28 @@ const ProjectDashboardWidgets = () => {
   const unified = useMemo<UnifiedItem[]>(() => {
     const items: UnifiedItem[] = [];
     jobs.forEach(j => items.push({
-      id: j.id, name: j.name, type: 'small',
+      id: j.id, 
+      name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name, 
+      type: 'small',
       date: j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
-      subtitle: j.booking?.client ?? null,
+      subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       updatedAt: j.updatedAt,
     }));
-    projects.forEach(p => items.push({
-      id: p.id, name: p.name, type: 'medium',
-      date: p.booking?.eventdate ?? null,
-      status: p.status,
-      subtitle: p.booking?.client ?? p.project_leader ?? null,
-      navigateTo: `/project/${p.id}`,
-      updatedAt: p.updated_at,
-    }));
+    projects.forEach(p => {
+      const client = p.booking?.client;
+      const bookingNum = p.booking?.booking_number;
+      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      items.push({
+        id: p.id, name: displayName, type: 'medium',
+        date: p.booking?.eventdate ?? null,
+        status: p.status,
+        subtitle: p.booking?.deliveryaddress ?? null,
+        navigateTo: `/project/${p.id}`,
+        updatedAt: p.updated_at,
+      });
+    });
     largeProjects.forEach(lp => items.push({
       id: lp.id, name: lp.name, type: 'large',
       date: lp.start_date ?? null,
