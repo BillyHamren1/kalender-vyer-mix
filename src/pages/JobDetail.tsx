@@ -500,78 +500,140 @@ const JobDetail = () => {
                 {fullBooking && fullBooking.products && fullBooking.products.length > 0 && (
                   <Collapsible>
                     <Card>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors group">
-                          <CardTitle className="flex items-center justify-between text-base">
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4" />
-                              Produkter ({fullBooking.products.length})
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Package className="h-4 w-4" />
+                          Produkter ({fullBooking.products.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-1">
+                          {groupedProducts.slice(0, 10).map((group) => (
+                            <div key={group.parent.id}>
+                              {group.accessories.length > 0 ? (
+                                <Collapsible
+                                  open={openProducts.has(group.parent.id)}
+                                  onOpenChange={() => toggleProduct(group.parent.id)}
+                                >
+                                  <CollapsibleTrigger asChild>
+                                    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        {openProducts.has(group.parent.id) ? (
+                                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        ) : (
+                                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        )}
+                                        <span className="text-sm truncate">{group.parent.name}</span>
+                                        <Badge variant="secondary" className="text-xs shrink-0">
+                                          {group.parent.quantity} st
+                                        </Badge>
+                                        {!openProducts.has(group.parent.id) && (
+                                          <Badge variant="outline" className="text-xs shrink-0">
+                                            +{group.accessories.length}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    <div className="ml-6 space-y-1 border-l-2 border-muted pl-3 py-1">
+                                      {group.accessories.map((acc) => (
+                                        <div key={acc.id} className="flex items-center justify-between p-1.5 text-sm">
+                                          <span className="text-muted-foreground truncate">
+                                            {acc.name.replace(/^[└L],?\s*/, '')}
+                                          </span>
+                                          <Badge variant="outline" className="text-xs shrink-0">
+                                            {acc.quantity} st
+                                          </Badge>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ) : (
+                                <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <div className="w-4" />
+                                    <span className="text-sm truncate">{group.parent.name}</span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-xs shrink-0">
+                                    {group.parent.quantity} st
+                                  </Badge>
+                                </div>
+                              )}
                             </div>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent>
-                          <div className="space-y-1">
-                            {groupedProducts.map((group) => (
-                          <div key={group.parent.id}>
-                            {group.accessories.length > 0 ? (
-                              <Collapsible
-                                open={openProducts.has(group.parent.id)}
-                                onOpenChange={() => toggleProduct(group.parent.id)}
-                              >
-                                <CollapsibleTrigger asChild>
-                                  <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      {openProducts.has(group.parent.id) ? (
-                                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                                      )}
-                                      <span className="text-sm truncate">{group.parent.name}</span>
+                          ))}
+                        </div>
+                        {groupedProducts.length > 10 && (
+                          <CollapsibleContent>
+                            <div className="space-y-1">
+                              {groupedProducts.slice(10).map((group) => (
+                                <div key={group.parent.id}>
+                                  {group.accessories.length > 0 ? (
+                                    <Collapsible
+                                      open={openProducts.has(group.parent.id)}
+                                      onOpenChange={() => toggleProduct(group.parent.id)}
+                                    >
+                                      <CollapsibleTrigger asChild>
+                                        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
+                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            {openProducts.has(group.parent.id) ? (
+                                              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                            ) : (
+                                              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                            )}
+                                            <span className="text-sm truncate">{group.parent.name}</span>
+                                            <Badge variant="secondary" className="text-xs shrink-0">
+                                              {group.parent.quantity} st
+                                            </Badge>
+                                            {!openProducts.has(group.parent.id) && (
+                                              <Badge variant="outline" className="text-xs shrink-0">
+                                                +{group.accessories.length}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </CollapsibleTrigger>
+                                      <CollapsibleContent>
+                                        <div className="ml-6 space-y-1 border-l-2 border-muted pl-3 py-1">
+                                          {group.accessories.map((acc) => (
+                                            <div key={acc.id} className="flex items-center justify-between p-1.5 text-sm">
+                                              <span className="text-muted-foreground truncate">
+                                                {acc.name.replace(/^[└L],?\s*/, '')}
+                                              </span>
+                                              <Badge variant="outline" className="text-xs shrink-0">
+                                                {acc.quantity} st
+                                              </Badge>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </CollapsibleContent>
+                                    </Collapsible>
+                                  ) : (
+                                    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <div className="w-4" />
+                                        <span className="text-sm truncate">{group.parent.name}</span>
+                                      </div>
                                       <Badge variant="secondary" className="text-xs shrink-0">
                                         {group.parent.quantity} st
                                       </Badge>
-                                      {!openProducts.has(group.parent.id) && (
-                                        <Badge variant="outline" className="text-xs shrink-0">
-                                          +{group.accessories.length}
-                                        </Badge>
-                                      )}
                                     </div>
-                                  </div>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                  <div className="ml-6 space-y-1 border-l-2 border-muted pl-3 py-1">
-                                    {group.accessories.map((acc) => (
-                                      <div key={acc.id} className="flex items-center justify-between p-1.5 text-sm">
-                                        <span className="text-muted-foreground truncate">
-                                          {acc.name.replace(/^[└L],?\s*/, '')}
-                                        </span>
-                                        <Badge variant="outline" className="text-xs shrink-0">
-                                          {acc.quantity} st
-                                        </Badge>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            ) : (
-                              <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div className="w-4" />
-                                  <span className="text-sm truncate">{group.parent.name}</span>
+                                  )}
                                 </div>
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  {group.parent.quantity} st
-                                </Badge>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        )}
+                        {groupedProducts.length > 10 && (
+                          <CollapsibleTrigger asChild>
+                            <button className="w-full mt-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors border-t border-border">
+                              <span className="group-data-[state=closed]:inline hidden">Visa mindre</span>
+                              <span className="group-data-[state=open]:hidden">Visa alla {groupedProducts.length} produkter</span>
+                            </button>
+                          </CollapsibleTrigger>
+                        )}
+                      </CardContent>
                     </Card>
                   </Collapsible>
                 )}
