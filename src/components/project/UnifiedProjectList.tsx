@@ -80,6 +80,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.client ?? null,
       navigateTo: `/jobs/${j.id}`,
+      bookingCancelled: j.booking?.status === 'CANCELLED',
     }));
 
     // Medium projects
