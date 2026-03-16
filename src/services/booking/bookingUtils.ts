@@ -1,11 +1,19 @@
 
 import { Booking } from '@/types/booking';
 
+// Safely extract client name — the external API sometimes returns client as an object
+const safeClientName = (client: any): string => {
+  if (!client) return '';
+  if (typeof client === 'string') return client;
+  if (typeof client === 'object' && client.name) return client.name;
+  return String(client);
+};
+
 export const transformBookingData = (dbBooking: any): Booking => {
   return {
     id: dbBooking.id,
     bookingNumber: dbBooking.booking_number,
-    client: dbBooking.client,
+    client: safeClientName(dbBooking.client),
     rigDayDate: dbBooking.rigdaydate,
     eventDate: dbBooking.eventdate,
     rigDownDate: dbBooking.rigdowndate,
