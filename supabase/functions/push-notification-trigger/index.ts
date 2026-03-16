@@ -18,7 +18,6 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { type, record, old_record } = body
 
-    // Determine notification type and build payload
     const table = record ? (body.table || '') : ''
     
     console.log(`Push trigger: type=${type}, table=${table}`)
@@ -96,9 +95,7 @@ async function handleDirectMessage(supabase: any, record: any) {
 
   console.log(`[DM Push Trigger] sender=${record.sender_id}, recipient=${recipientId}, org=${organizationId}`)
 
-  // If org_id is missing from webhook payload, resolve it
   if (!organizationId) {
-    // Try 1: read from direct_messages table (service_role bypasses RLS)
     const { data: dmRow } = await supabase
       .from('direct_messages')
       .select('organization_id')
@@ -111,7 +108,6 @@ async function handleDirectMessage(supabase: any, record: any) {
   }
 
   if (!organizationId) {
-    // Try 2: from device_tokens
     const { data: token } = await supabase
       .from('device_tokens')
       .select('organization_id')
@@ -125,7 +121,6 @@ async function handleDirectMessage(supabase: any, record: any) {
   }
 
   if (!organizationId) {
-    // Try 3: from profiles (sender is likely authenticated user)
     const { data: profile } = await supabase
       .from('profiles')
       .select('organization_id')
@@ -152,7 +147,130 @@ async function handleDirectMessage(supabase: any, record: any) {
     { sender_id: record.sender_id, chat_type: 'direct' }
   )
 }
-...
+
+async function handleBroadcast(supabase: any, record: any) {
+  const category = record.category || 'info'
+  const content = record.content?.substring(0, 100) || ''
+  const audience = record.audience
+  const organizationId = record.organization_id
+  
+  const categoryLabels: Record<string, string> = {
+    weather: '🌧️ Vädervarning',
+    urgent: '🚨 Brådskande',
+    schedule: '📅 Schemauppdatering',
+    logistics: '🚛 Logistikmeddelande',
+    info: 'ℹ️ Meddelande',
+  }
+  
+  const title = categoryLabels[category] || 'Meddelande från Operations'
+
+  let staffIds: string[] = []
+
+  if (audience === 'selected_staff' && record.audience_staff_ids) {
+    staffIds = record.audience_staff_ids
+  } else if (audience === 'job_staff' && record.audience_booking_id) {
+    const { data: assignments } = await supabase
+      .from('booking_staff_assignments')
+      .select('staff_id')
+      .eq('booking_id', record.audience_booking_id)
+      .eq('organization_id', organizationId)
+    staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
+  } else {
+    const today = new Date().toISOString().split('T')[0]
+    const { data: assignments } = await supabase
+      .from('staff_assignments')
+      .select('staff_id')
+      .eq('assignment_date', today)
+      .eq('organization_id', organizationId)
+    staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
+  }
+
+  if (staffIds.length > 0) {
+    await sendPush(supabase, staffIds, title, content, 'broadcast', organizationId, {
+      broadcast_id: record.id,
+      category,
+    })
+  }
+}
+
+async function handleNewAssignment(supabase: any, record: any) {
+  const staffId = record.staff_id
+  const bookingId = record.booking_id
+  const organizationId = record.organization_id
+  const date = record.assignment_date
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('client, booking_number')
+    .eq('id', bookingId)
+    .single()
+
+  const clientName = booking?.client || 'Okänt jobb'
+  const bookingNum = booking?.booking_number ? ` #${booking.booking_number}` : ''
+
+  await sendPush(
+    supabase,
+    [staffId],
+    `Nytt uppdrag${bookingNum}`,
+    `${clientName} – ${date}`,
+    'assignment',
+    organizationId,
+    { booking_id: bookingId, date }
+  )
+}
+
+async function handleScheduleChange(supabase: any, record: any, oldRecord: any) {
+  if (!oldRecord) return
+  
+  const organizationId = record.organization_id
+  
+  const scheduleFields = ['rigdaydate', 'eventdate', 'rigdowndate', 'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time']
+  const changed = scheduleFields.some(f => record[f] !== oldRecord[f])
+  
+  if (!changed) return
+
+  const { data: assignments } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id')
+    .eq('booking_id', record.id)
+    .eq('organization_id', organizationId)
+
+  const staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
+  
+  if (staffIds.length === 0) return
+
+  const clientName = record.client || 'Jobb'
+  const bookingNum = record.booking_number ? ` #${record.booking_number}` : ''
+
+  await sendPush(
+    supabase,
+    staffIds,
+    `Schema uppdaterat${bookingNum}`,
+    `${clientName} har uppdaterade tider`,
+    'schedule',
+    organizationId,
+    { booking_id: record.id }
+  )
+}
+
+async function handleJobMessage(supabase: any, record: any) {
+  const senderName = record.sender_name || 'Planerare'
+  const content = record.content?.substring(0, 100) || ''
+  const bookingId = record.booking_id
+  const organizationId = record.organization_id
+  const senderId = record.sender_id
+
+  const { data: assignments } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id')
+    .eq('booking_id', bookingId)
+    .eq('organization_id', organizationId)
+
+  const staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
+    .filter(id => id !== senderId)
+  
+  if (staffIds.length === 0) return
+
   await sendPush(
     supabase,
     staffIds,
