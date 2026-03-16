@@ -131,7 +131,15 @@ const SyncReconciliation = () => {
   const formatValue = (val: any) => {
     if (val === null || val === undefined) return <span className="text-muted-foreground italic">tom</span>;
     if (typeof val === 'boolean') return val ? 'Ja' : 'Nej';
+    if (typeof val === 'object') return String(JSON.stringify(val));
     return String(val);
+  };
+
+  const safeClientName = (client: any): string => {
+    if (!client) return 'Okänd';
+    if (typeof client === 'string') return client;
+    if (typeof client === 'object' && client.name) return client.name;
+    return String(client);
   };
 
   return (
@@ -242,7 +250,7 @@ const SyncReconciliation = () => {
                         <CardTitle className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            <span className="font-semibold">{first.client}</span>
+                            <span className="font-semibold">{safeClientName(first.client)}</span>
                             {first.bookingNumber && (
                               <Badge variant="outline" className="text-xs">#{first.bookingNumber}</Badge>
                             )}

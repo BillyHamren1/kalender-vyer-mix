@@ -1,6 +1,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Job, JobStaffAssignment } from '@/types/job';
 
+// Safely extract client name — the external API sometimes returns client as an object
+const safeClientName = (client: any): string => {
+  if (!client) return '';
+  if (typeof client === 'string') return client;
+  if (typeof client === 'object' && client.name) return client.name;
+  return String(client);
+};
+
 // Transform database job to frontend Job type
 const transformJob = (dbJob: any): Job => ({
   id: dbJob.id,
@@ -10,7 +18,7 @@ const transformJob = (dbJob: any): Job => ({
   createdAt: dbJob.created_at,
   updatedAt: dbJob.updated_at,
   booking: dbJob.bookings ? {
-    client: dbJob.bookings.client,
+    client: safeClientName(dbJob.bookings.client),
     bookingNumber: dbJob.bookings.booking_number,
     deliveryAddress: dbJob.bookings.deliveryaddress,
     rigDayDate: dbJob.bookings.rigdaydate,
