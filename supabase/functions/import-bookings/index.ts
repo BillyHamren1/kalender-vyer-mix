@@ -2499,6 +2499,7 @@ serve(async (req) => {
             .from('calendar_events')
             .select('id, event_type, start_time, booking_id, resource_id')
             .eq('booking_id', bookingData.id)
+            .eq('organization_id', bookingData.organization_id)
 
           const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
           console.log(`Found ${existingEvents?.length || 0} existing calendar events for booking ${bookingData.id}`)
