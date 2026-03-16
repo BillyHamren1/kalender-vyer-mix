@@ -64,12 +64,8 @@ const LogisticsHub: React.FC = () => {
                 </p>
               </div>
             </div>
+            <LogisticsWeeklyWeatherWidget />
           </div>
-        </div>
-
-        {/* Weekly Weather */}
-        <div className="mb-6">
-          <LogisticsWeeklyWeatherWidget />
         </div>
 
         {/* Tabbed content */}
