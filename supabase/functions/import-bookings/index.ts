@@ -1467,6 +1467,7 @@ serve(async (req) => {
               .from('calendar_events')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .limit(1);
             
             if (!calCheckError && (!existingCalEvents || existingCalEvents.length === 0)) {
