@@ -224,6 +224,9 @@ const WebRoutes: React.FC = () => {
             <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
             <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
 
+            {/* Hidden admin sync tool */}
+            <Route path="/admin/sync" element={<ProtectedRoute><MainSystemLayout><SyncReconciliation /></MainSystemLayout></ProtectedRoute>} />
+
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
           </Routes>
