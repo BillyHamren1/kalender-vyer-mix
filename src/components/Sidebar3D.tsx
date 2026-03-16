@@ -112,10 +112,8 @@ export function Sidebar3D() {
 
   const isItemActive = (item: NavItem) => {
     if (item.children?.length) {
-      return (
-        location.pathname === item.url ||
-        item.children.some((child) => location.pathname === child.url)
-      );
+      // Only highlight parent if it's the exact route, not when a child is active
+      return location.pathname === item.url;
     }
     return (
       location.pathname === item.url ||
