@@ -54,7 +54,7 @@ const CommunicationPage = () => {
       const { data } = await supabase
         .from('staff_members' as any)
         .select('id, name')
-        .order('name');
+        .order('name') as any;
       return (data || []) as { id: string; name: string }[];
     },
   });
