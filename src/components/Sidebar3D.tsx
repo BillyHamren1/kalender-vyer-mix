@@ -44,7 +44,6 @@ const navigationItems: NavItem[] = [
     icon: Users,
     children: [
       { title: "Kalender", url: "/calendar" },
-      { title: "Kommunikation", url: "/communication" },
       { title: "Transportplanering", url: "/logistics/planning", icon: Truck },
     ],
   },
