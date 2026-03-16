@@ -498,16 +498,23 @@ const JobDetail = () => {
 
                 {/* Products */}
                 {fullBooking && fullBooking.products && fullBooking.products.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Package className="h-4 w-4" />
-                        Produkter ({fullBooking.products.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-1">
-                        {groupedProducts.map((group) => (
+                  <Collapsible>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                          <CardTitle className="flex items-center justify-between text-base">
+                            <div className="flex items-center gap-2">
+                              <Package className="h-4 w-4" />
+                              Produkter ({fullBooking.products.length})
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-90" />
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className="space-y-1">
+                            {groupedProducts.map((group) => (
                           <div key={group.parent.id}>
                             {group.accessories.length > 0 ? (
                               <Collapsible
