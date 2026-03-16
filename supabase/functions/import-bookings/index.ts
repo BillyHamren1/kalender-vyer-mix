@@ -809,8 +809,7 @@ const reconnectPackingListItems = async (
 const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
   const fields = [
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
-    'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
-    'assigned_project_id', 'assigned_project_name', 'assigned_to_project'
+    'delivery_city', 'delivery_postal_code', 'status', 'booking_number'
   ];
   
   for (const field of fields) {
