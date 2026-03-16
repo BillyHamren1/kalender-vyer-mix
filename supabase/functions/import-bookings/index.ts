@@ -2560,7 +2560,13 @@ serve(async (req) => {
 
             // Use smart team assignment for each event
             for (const event of calendarEvents) {
-              const assignedTeam = await getNextTeamAssignment(supabase, event.event_type, event.date, bookingData.id);
+              const assignedTeam = await getNextTeamAssignment(
+                supabase,
+                event.event_type,
+                event.date,
+                bookingData.id,
+                bookingData.organization_id || organizationId
+              );
               
               // Track team distribution
               if (results.team_distribution[assignedTeam] !== undefined) {
