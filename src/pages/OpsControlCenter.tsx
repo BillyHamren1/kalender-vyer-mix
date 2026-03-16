@@ -12,6 +12,7 @@ import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import { Radio } from 'lucide-react';
+import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/LogisticsWeeklyWeatherWidget';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -84,17 +85,22 @@ const OpsControlCenter = () => {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* TOP: Operations Bar */}
-        <div className="shrink-0 border-b border-border bg-card px-4 py-2 flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
+        <div className="shrink-0 border-b border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
+            </div>
+            <button
+              onClick={() => setBroadcastOpen(true)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              Broadcast
+            </button>
           </div>
-          <button
-            onClick={() => setBroadcastOpen(true)}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            Broadcast
-          </button>
+          <div className="mt-2">
+            <LogisticsWeeklyWeatherWidget />
+          </div>
         </div>
 
         {/* MAIN AREA */}
