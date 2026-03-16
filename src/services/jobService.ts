@@ -53,7 +53,7 @@ export const fetchJobs = async (): Promise<Job[]> => {
   if (bookingIds.length > 0) {
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('id, client, booking_number, deliveryaddress, rigdaydate, eventdate, rigdowndate, status')
+      .select('id, client, booking_number, deliveryaddress, delivery_city, rigdaydate, eventdate, rigdowndate, status')
       .in('id', bookingIds);
     
     if (bookings) {
