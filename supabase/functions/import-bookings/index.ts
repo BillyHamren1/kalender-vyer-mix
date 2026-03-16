@@ -1430,7 +1430,7 @@ serve(async (req) => {
             total_costs: externalBooking.totals.total_costs,
             gross_margin: externalBooking.totals.gross_margin,
           } : null),
-          organization_id: existingBooking?.organization_id || organizationId
+          organization_id: organizationId
         }
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
