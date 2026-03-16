@@ -569,9 +569,11 @@ const JobDetail = () => {
                             )}
                           </div>
                         ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
                 )}
 
                 {/* Attachments */}
