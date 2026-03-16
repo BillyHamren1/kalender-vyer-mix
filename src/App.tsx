@@ -48,6 +48,7 @@ import StaffDashboard from "./pages/StaffDashboard";
 import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
 import NotFound from "./pages/NotFound";
+import SyncReconciliation from "./pages/SyncReconciliation";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
 import TransportResponse from "./pages/TransportResponse";
@@ -222,6 +223,9 @@ const WebRoutes: React.FC = () => {
             {/* Scanner App (accessible via web) */}
             <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
             <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
+
+            {/* Hidden admin sync tool */}
+            <Route path="/admin/sync" element={<ProtectedRoute><MainSystemLayout><SyncReconciliation /></MainSystemLayout></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
