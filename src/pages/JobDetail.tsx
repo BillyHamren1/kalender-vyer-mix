@@ -501,7 +501,7 @@ const JobDetail = () => {
                   <Collapsible>
                     <Card>
                       <CollapsibleTrigger asChild>
-                        <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                        <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors group">
                           <CardTitle className="flex items-center justify-between text-base">
                             <div className="flex items-center gap-2">
                               <Package className="h-4 w-4" />
