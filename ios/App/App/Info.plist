@@ -46,10 +46,10 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>EventFlow uses the camera to scan barcodes, QR codes, and capture images for work-related tasks.</string>
+	<string>EventFlow Time uses the camera to capture images related to work tasks.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>EventFlow uses the photo library when selecting or attaching images related to work tasks.</string>
+	<string>EventFlow Time uses the photo library when selecting or attaching images related to work tasks.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>EventFlow may save images to your photo library when handling work-related media.</string>
+	<string>EventFlow Time may save images to your photo library when handling work-related media.</string>
 </dict>
 </plist>

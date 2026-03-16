@@ -23,9 +23,9 @@ const config: CapacitorConfig = {
     contentInset: 'automatic',
     backgroundColor: '#0A0A0B',
     infoPlist: {
-      NSCameraUsageDescription: 'EventFlow uses the camera to scan barcodes, QR codes, and capture images for work-related tasks.',
-      NSPhotoLibraryUsageDescription: 'EventFlow uses the photo library when selecting or attaching images related to work tasks.',
-      NSPhotoLibraryAddUsageDescription: 'EventFlow may save images to your photo library when handling work-related media.',
+      NSCameraUsageDescription: 'EventFlow Time uses the camera to capture images related to work tasks.',
+      NSPhotoLibraryUsageDescription: 'EventFlow Time uses the photo library when selecting or attaching images related to work tasks.',
+      NSPhotoLibraryAddUsageDescription: 'EventFlow Time may save images to your photo library when handling work-related media.',
     },
   },
   plugins: {
