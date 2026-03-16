@@ -182,6 +182,8 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       nextDeadline: upcoming[0] || null,
       role: project.role,
       projectLeader: project.project_leader,
+      bookingNumber: null,
+      address: null,
     });
   }
 
