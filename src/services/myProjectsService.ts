@@ -77,10 +77,16 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
   if (bookingIds.length > 0) {
     const { data } = await supabase
       .from('bookings')
-      .select('id, client, eventdate')
+      .select('id, client, eventdate, booking_number, deliveryaddress, delivery_city')
       .in('id', bookingIds);
     (data || []).forEach(b => {
-      bookingsMap[b.id] = { client: b.client, eventdate: b.eventdate };
+      const addressParts = [b.deliveryaddress, b.delivery_city].filter(Boolean);
+      bookingsMap[b.id] = { 
+        client: b.client, 
+        eventdate: b.eventdate, 
+        bookingNumber: b.booking_number,
+        address: addressParts.length > 0 ? addressParts.join(', ') : null,
+      };
     });
   }
 
