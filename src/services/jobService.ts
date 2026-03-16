@@ -20,7 +20,7 @@ const transformJob = (dbJob: any): Job => ({
   booking: dbJob.bookings ? {
     client: safeClientName(dbJob.bookings.client),
     bookingNumber: dbJob.bookings.booking_number,
-    deliveryAddress: dbJob.bookings.deliveryaddress,
+    deliveryAddress: [dbJob.bookings.deliveryaddress, dbJob.bookings.delivery_city].filter(Boolean).join(', ') || null,
     rigDayDate: dbJob.bookings.rigdaydate,
     eventDate: dbJob.bookings.eventdate,
     rigDownDate: dbJob.bookings.rigdowndate,
@@ -53,7 +53,7 @@ export const fetchJobs = async (): Promise<Job[]> => {
   if (bookingIds.length > 0) {
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('id, client, booking_number, deliveryaddress, rigdaydate, eventdate, rigdowndate, status')
+      .select('id, client, booking_number, deliveryaddress, delivery_city, rigdaydate, eventdate, rigdowndate, status')
       .in('id', bookingIds);
     
     if (bookings) {

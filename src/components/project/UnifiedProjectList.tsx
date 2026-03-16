@@ -90,14 +90,16 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
       const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      const addressParts = [p.booking?.deliveryaddress, p.booking?.delivery_city].filter(Boolean);
+      const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({
         id: p.id,
         name: displayName,
         type: 'medium',
         date: p.booking?.eventdate ?? null,
         status: p.status,
-        subtitle: p.booking?.deliveryaddress ?? null,
-        address: p.booking?.deliveryaddress ?? null,
+        subtitle: fullAddress,
+        address: fullAddress,
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
       });
