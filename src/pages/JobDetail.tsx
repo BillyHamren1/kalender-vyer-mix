@@ -507,7 +507,7 @@ const JobDetail = () => {
                               <Package className="h-4 w-4" />
                               Produkter ({fullBooking.products.length})
                             </div>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-90" />
+                            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                           </CardTitle>
                         </CardHeader>
                       </CollapsibleTrigger>
