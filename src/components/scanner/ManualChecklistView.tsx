@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -71,7 +71,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const [items, setItems] = useState<PackingItem[]>([]);
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
-  const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
+  const itemOrderRef = useRef<Record<string, number>>({});
   const [tappedItemId, setTappedItemId] = useState<string | null>(null);
   const [staffFirstName, setStaffFirstName] = useState<string>('');
   const [isSigned, setIsSigned] = useState(false);
@@ -91,9 +91,9 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isBackground = false) => {
     try {
-      setIsLoading(true);
+      if (!isBackground) setIsLoading(true);
       const [packingData, itemsData, parcelsData] = await Promise.all([
         fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
@@ -107,28 +107,47 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       }
       const typedItems = itemsData as PackingItem[];
       let finalItems: PackingItem[];
-      if (Object.keys(itemOrder).length === 0) {
+      if (Object.keys(itemOrderRef.current).length === 0) {
         const order: Record<string, number> = {};
         typedItems.forEach((item, idx) => { order[item.id] = idx; });
-        setItemOrder(order);
+        itemOrderRef.current = order;
         finalItems = typedItems;
       } else {
-        finalItems = [...typedItems].sort(
-          (a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999)
+        const sorted = [...typedItems].sort(
+          (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
         );
+        
+        if (isBackground) {
+          // Merge: keep higher quantity_packed to avoid reverting optimistic updates
+          setItems(prev => {
+            const prevMap = new Map(prev.map(i => [i.id, i]));
+            const merged = sorted.map(serverItem => {
+              const localItem = prevMap.get(serverItem.id);
+              if (localItem && localItem.quantity_packed > serverItem.quantity_packed) {
+                return { ...serverItem, quantity_packed: localItem.quantity_packed };
+              }
+              return serverItem;
+            });
+            recalcProgress(merged);
+            return merged;
+          });
+          setItemParcelMap(parcelsData);
+          return; // skip the rest for background
+        }
+        finalItems = sorted;
       }
       setItems(finalItems);
       recalcProgress(finalItems);
       setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error loading packing data:', err);
-      toast.error('Kunde inte ladda packlista');
+      if (!isBackground) toast.error('Kunde inte ladda packlista');
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   }, [packingId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(false); }, [loadData]);
 
   const startKolliMode = useCallback(async () => {
     try {
@@ -156,7 +175,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const exitKolliMode = useCallback(async () => {
     setIsKolliMode(false);
     setActiveParcel(null);
-    await loadData();
+    await loadData(false);
     toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
@@ -259,7 +278,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
             <p className="text-xs text-muted-foreground truncate">{packing.booking.client}</p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={loadData} className="shrink-0 h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
