@@ -20,6 +20,7 @@ interface UnifiedProject {
   date: string | null;
   status: string;
   subtitle: string | null;
+  address: string | null;
   navigateTo: string;
   bookingCancelled?: boolean;
 }
