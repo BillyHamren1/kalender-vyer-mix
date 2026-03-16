@@ -8,33 +8,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
  * we must set organization_id explicitly.
  */
 async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
-  const queryWithRetry = async (queryFn: () => Promise<{data: any, error: any}>, retries = 2): Promise<{data: any, error: any}> => {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      const result = await queryFn();
-      if (!result.error) return result;
-      if (attempt < retries) {
-        console.warn(`[resolveOrganizationId] Retry ${attempt + 1}/${retries} after error: ${result.error?.message?.substring(0, 100)}`);
-        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-      }
-    }
-    return await queryFn();
-  };
-
-  if (explicitOrgId) {
-    const { data, error } = await queryWithRetry(() =>
-      supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
-    );
-    if (error || !data) {
-      throw new Error(`Organization not found: ${explicitOrgId}. Create it first via manage-organization.`);
-    }
-    return data.id;
+  if (!explicitOrgId) {
+    throw new Error('organization_id is required. All callers must provide it explicitly to prevent cross-tenant data leakage.');
   }
-  console.warn('[import-bookings] DEPRECATION WARNING: organization_id not provided, falling back to first org. Hub must send organization_id explicitly.');
-  const { data, error } = await queryWithRetry(() =>
-    supabase.from('organizations').select('id').limit(1).single()
-  );
+
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('id', explicitOrgId)
+    .single();
+
   if (error || !data) {
-    throw new Error('Failed to resolve organization_id: ' + (error?.message || 'no organizations found'));
+    throw new Error(`Organization not found: ${explicitOrgId}. Create it first via manage-organization.`);
   }
   return data.id;
 }

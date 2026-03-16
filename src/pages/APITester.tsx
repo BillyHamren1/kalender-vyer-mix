@@ -142,12 +142,22 @@ const APITester = () => {
         clientName: clientName || undefined
       };
       
+      // Fetch user's organization_id from profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .single();
+      if (!profile?.organization_id) throw new Error('No organization_id found in profile');
+
       // Call the import-bookings function using the Supabase client
       const { data, error } = await supabase.functions.invoke(
         'import-bookings',
         {
           method: 'POST',
-          body: { ...filters }
+          body: { ...filters, organization_id: profile.organization_id }
         }
       );
       
