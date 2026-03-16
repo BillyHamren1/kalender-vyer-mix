@@ -3,6 +3,9 @@ import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
+import { deleteCalendarEvent } from '@/services/eventService';
+import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import QuickTimeEditPopover from './QuickTimeEditPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
@@ -41,6 +44,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   const eventColor = getEventColor(event.eventType);
 
+  // Check if booking is cancelled
+  const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
+
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
     if (event.bookingId) {
@@ -69,6 +75,19 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [event, handleEventClick]);
 
+  // Handle removing a cancelled event from the calendar
+  const handleRemoveCancelledEvent = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      await deleteCalendarEvent(event.id);
+      toast.success('Avbokad händelse borttagen från kalendern');
+    } catch (error) {
+      console.error('Error removing cancelled event:', error);
+      toast.error('Kunde inte ta bort händelsen');
+    }
+  }, [event.id]);
+
   // Check if this is a warehouse event with source changes
   const hasSourceChanges = event.extendedProps?.has_source_changes === true && 
                            event.extendedProps?.manually_adjusted !== true;
@@ -77,11 +96,21 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const getDynamicStyles = (): React.CSSProperties => {
     const baseStyles: React.CSSProperties = {
       ...style,
-      backgroundColor: eventColor,
+      backgroundColor: isCancelled ? '#FEE2E2' : eventColor,
       cursor: 'pointer',
       position: 'relative' as const,
-      color: '#000000'
+      color: '#000000',
+      opacity: isCancelled ? 0.75 : 1,
     };
+    
+    // Cancelled events get a red dashed border
+    if (isCancelled) {
+      return {
+        ...baseStyles,
+        border: '2px dashed #EF4444',
+        boxShadow: '0 0 6px rgba(239, 68, 68, 0.3)',
+      };
+    }
     
     // Add orange border + animation for warehouse events with changes
     if (hasSourceChanges) {
@@ -109,8 +138,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       style={getDynamicStyles()}
     >
       <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+        {/* Cancelled badge */}
+        {isCancelled && (
+          <div 
+            className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
+          >
+            AVBOKAD
+          </div>
+        )}
         {/* Changed badge for warehouse events */}
-        {hasSourceChanges && (
+        {hasSourceChanges && !isCancelled && (
           <div 
             className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
           >
@@ -118,13 +155,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           </div>
         )}
         {/* Read-only events no longer show a badge */}
-        <div className="event-title" style={{ color: '#000000' }}>
+        <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
           {event.title}
         </div>
         <div 
-          className="event-booking" 
+          className={`event-booking ${isCancelled ? 'line-through' : ''}`}
           style={{ 
-            color: '#000000',
+            color: isCancelled ? '#991B1B' : '#000000',
             fontSize: '10px'
           }}
         >
@@ -132,15 +169,25 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         </div>
         {deliveryCity && (
           <div 
-            className="event-city" 
+            className={`event-city ${isCancelled ? 'line-through' : ''}`}
             style={{ 
-              color: '#000000',
+              color: isCancelled ? '#991B1B' : '#000000',
               fontSize: '10px',
               opacity: 0.8
             }}
           >
             {deliveryCity}
           </div>
+        )}
+        {/* Trash icon for cancelled events */}
+        {isCancelled && (
+          <button
+            onClick={handleRemoveCancelledEvent}
+            className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-red-100 hover:bg-red-300 transition-colors z-20"
+            title="Ta bort från kalendern"
+          >
+            <Trash2 className="h-3 w-3 text-red-700" />
+          </button>
         )}
       </div>
     </div>
