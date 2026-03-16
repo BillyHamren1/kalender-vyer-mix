@@ -43,7 +43,7 @@ const navigationItems: NavItem[] = [
     url: "/ops-control",
     icon: Users,
     children: [
-      { title: "Kalender", url: "/calendar" },
+      { title: "Personalplanering", url: "/calendar" },
       { title: "Transportplanering", url: "/logistics/planning", icon: Truck },
     ],
   },
