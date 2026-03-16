@@ -270,7 +270,7 @@ export function Sidebar3D() {
 
                 {/* ── Sub-items ── */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-7 pl-4 border-l border-border/30 space-y-1 mt-1">
+                  <div className="ml-7 pl-4 border-l border-border/30 space-y-0.5 mt-0.5">
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
                       return (
