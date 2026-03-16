@@ -12,6 +12,8 @@ export interface MyProjectItem {
   nextDeadline: string | null;
   role: 'leader' | 'assigned';
   projectLeader: string | null;
+  bookingNumber: string | null;
+  address: string | null;
 }
 
 export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]> => {
@@ -71,14 +73,20 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
     .map(p => p.booking_id)
     .filter((id): id is string => !!id);
   
-  let bookingsMap: Record<string, { client: string; eventdate: string | null }> = {};
+  let bookingsMap: Record<string, { client: string; eventdate: string | null; bookingNumber: string | null; address: string | null }> = {};
   if (bookingIds.length > 0) {
     const { data } = await supabase
       .from('bookings')
-      .select('id, client, eventdate')
+      .select('id, client, eventdate, booking_number, deliveryaddress, delivery_city')
       .in('id', bookingIds);
     (data || []).forEach(b => {
-      bookingsMap[b.id] = { client: b.client, eventdate: b.eventdate };
+      const addressParts = [b.deliveryaddress, b.delivery_city].filter(Boolean);
+      bookingsMap[b.id] = { 
+        client: b.client, 
+        eventdate: b.eventdate, 
+        bookingNumber: b.booking_number,
+        address: addressParts.length > 0 ? addressParts.join(', ') : null,
+      };
     });
   }
 
@@ -105,6 +113,8 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       nextDeadline: upcoming[0] || null,
       role: project.role,
       projectLeader: project.project_leader,
+      bookingNumber: booking?.bookingNumber || null,
+      address: booking?.address || null,
     });
   }
 
@@ -172,6 +182,8 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       nextDeadline: upcoming[0] || null,
       role: project.role,
       projectLeader: project.project_leader,
+      bookingNumber: null,
+      address: null,
     });
   }
 
