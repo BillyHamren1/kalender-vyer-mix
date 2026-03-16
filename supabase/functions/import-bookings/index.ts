@@ -1480,6 +1480,7 @@ serve(async (req) => {
               .from('warehouse_calendar_events')
               .select('id, source_rig_date, source_event_date, source_rigdown_date')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .limit(1);
             
             if (!whCheckError) {
