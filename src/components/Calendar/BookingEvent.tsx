@@ -14,7 +14,10 @@ const BookingEvent: React.FC<BookingEventProps> = ({
   style,
   onClick
 }) => {
+  const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
+
   const getEventTypeColor = (eventType: string) => {
+    if (isCancelled) return '#FEE2E2';
     switch(eventType) {
       case 'rig':
         return '#F2FCE2';
@@ -36,19 +39,22 @@ const BookingEvent: React.FC<BookingEventProps> = ({
       style={{
         ...style,
         backgroundColor: getEventTypeColor(event.eventType || 'event'),
-        color: '#333',
-        pointerEvents: 'auto' // Ensure hover events work
+        color: isCancelled ? '#991B1B' : '#333',
+        pointerEvents: 'auto',
+        opacity: isCancelled ? 0.75 : 1,
+        border: isCancelled ? '2px dashed #EF4444' : undefined,
       }}
       onClick={onClick}
     >
-      <div className="font-medium truncate text-gray-800">
+      <div className={`font-medium truncate ${isCancelled ? 'line-through text-red-800' : 'text-gray-800'}`}>
+        {isCancelled && <span className="text-[8px] font-bold text-red-600 mr-1">AVBOKAD</span>}
         {event.title}
       </div>
-      <div className="text-xs text-gray-600">
+      <div className={`text-xs ${isCancelled ? 'line-through text-red-600' : 'text-gray-600'}`}>
         {startTime} - {endTime}
       </div>
       {event.bookingNumber && (
-        <div className="text-xs text-gray-500">
+        <div className={`text-xs ${isCancelled ? 'line-through text-red-500' : 'text-gray-500'}`}>
           #{event.bookingNumber}
         </div>
       )}
