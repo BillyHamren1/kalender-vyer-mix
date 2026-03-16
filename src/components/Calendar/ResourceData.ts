@@ -16,12 +16,14 @@ export interface CalendarEvent extends EventInput {
   bookingId?: string;
   bookingNumber?: string;
   booking_number?: string;
+  bookingStatus?: string;
   eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking';
   deliveryAddress?: string;
   viewed?: boolean;
   extendedProps?: {
     bookingNumber?: string;
     booking_id?: string;
+    bookingStatus?: string;
     deliveryCity?: string;
     delivery_city?: string;
     has_source_changes?: boolean;
