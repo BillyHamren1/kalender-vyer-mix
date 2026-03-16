@@ -159,7 +159,7 @@ export function Sidebar3D() {
         </button>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 pt-2 pb-4 space-y-1">
+        <nav className="flex-1 px-3 pt-8 pb-4 space-y-0.5">
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const active = isItemActive(item);
@@ -173,13 +173,13 @@ export function Sidebar3D() {
 
             /* ── Icon ── */
             const iconEl = (
-              <div className="w-5 h-5 flex items-center justify-center shrink-0">
+              <div className="w-[18px] h-[18px] flex items-center justify-center shrink-0">
                 <item.icon
                   className={cn(
-                    "w-5 h-5",
-                    active ? "text-primary" : "text-foreground/60"
+                    "w-[18px] h-[18px]",
+                    active ? "text-primary" : "text-foreground/50"
                   )}
-                  strokeWidth={1.8}
+                  strokeWidth={1.5}
                 />
               </div>
             );
@@ -188,10 +188,10 @@ export function Sidebar3D() {
             const labelEl = !isCollapsed && (
               <span
                 className={cn(
-                  "text-[15px] leading-none tracking-[-0.005em] transition-colors flex-1",
+                  "text-[13.5px] leading-none tracking-[-0.01em] transition-colors flex-1",
                   active
                     ? "font-semibold text-foreground"
-                    : "font-medium text-foreground/80"
+                    : "font-normal text-foreground/70"
                 )}
               >
                 {item.title}
@@ -207,10 +207,10 @@ export function Sidebar3D() {
 
             /* ── Shared item classes ── */
             const itemClassName = cn(
-              "relative flex items-center gap-3 rounded-md transition-all duration-150",
+              "relative flex items-center gap-3 rounded-lg transition-all duration-150",
               isCollapsed
-                ? "justify-center px-2 py-3"
-                : "py-3 px-3"
+                ? "justify-center px-2 py-2.5"
+                : "py-2 px-2.5"
             );
 
             /* ── Active/hover styles ── */
@@ -239,10 +239,10 @@ export function Sidebar3D() {
                     {labelEl}
                     {badgeEl}
                     {!isCollapsed && (
-                      <span className="border rounded p-1 hover:bg-muted/50 transition-colors">
+                      <span className="border rounded p-0.5 hover:bg-muted/50 transition-colors">
                         <ChevronDown
                           className={cn(
-                            "w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200",
+                            "w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200",
                             expanded && "rotate-180"
                           )}
                         />
@@ -270,7 +270,7 @@ export function Sidebar3D() {
 
                 {/* ── Sub-items ── */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-7 pl-4 border-l border-border/30 space-y-1 mt-1">
+                  <div className="ml-7 pl-4 border-l border-border/30 space-y-0.5 mt-0.5">
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
                       return (
@@ -278,7 +278,7 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-2 rounded-[8px] px-3 py-2.5 text-[14px] transition-colors",
+                            "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
                             childActive
                               ? "bg-muted/30 text-foreground"
                               : "text-muted-foreground hover:bg-muted/20"
