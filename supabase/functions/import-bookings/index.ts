@@ -2068,7 +2068,8 @@ serve(async (req) => {
             await supabase
               .from('calendar_events')
               .delete()
-              .eq('booking_id', existingBooking.id);
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
           }
 
           // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
