@@ -74,10 +74,14 @@ export const fetchJobById = async (jobId: string): Promise<Job | null> => {
     .from('jobs')
     .select('*')
     .eq('id', jobId)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Error fetching job:', error);
+    return null;
+  }
+
+  if (!data) {
     return null;
   }
 
@@ -85,28 +89,37 @@ export const fetchJobById = async (jobId: string): Promise<Job | null> => {
   let bookingData = undefined;
   let products: any[] = [];
   let attachments: any[] = [];
-  
+
   if (data.booking_id) {
-    const { data: booking } = await supabase
+    const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select('*')
       .eq('id', data.booking_id)
-      .single();
-    bookingData = booking;
-    
-    // Fetch products
-    const { data: productData } = await supabase
-      .from('booking_products')
-      .select('*')
-      .eq('booking_id', data.booking_id);
-    products = productData || [];
-    
-    // Fetch attachments
-    const { data: attachmentData } = await supabase
-      .from('booking_attachments')
-      .select('*')
-      .eq('booking_id', data.booking_id);
-    attachments = attachmentData || [];
+      .eq('organization_id', data.organization_id)
+      .maybeSingle();
+
+    if (bookingError) {
+      console.error('Error fetching booking for job:', bookingError);
+    }
+
+    bookingData = booking ?? undefined;
+
+    // Fetch products/attachments only when booking is visible in the same tenant
+    if (bookingData) {
+      const { data: productData } = await supabase
+        .from('booking_products')
+        .select('*')
+        .eq('booking_id', data.booking_id)
+        .eq('organization_id', data.organization_id);
+      products = productData || [];
+
+      const { data: attachmentData } = await supabase
+        .from('booking_attachments')
+        .select('*')
+        .eq('booking_id', data.booking_id)
+        .eq('organization_id', data.organization_id);
+      attachments = attachmentData || [];
+    }
   }
 
   const job = transformJob({ ...data, bookings: bookingData });
