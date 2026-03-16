@@ -1162,11 +1162,11 @@ serve(async (req) => {
       }
     }
 
-    // Get existing bookings for comparison
+    // Get existing bookings for comparison — ONLY within current tenant
     const { data: existingBookings } = await supabase
       .from('bookings')
       .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id')
-
+      .eq('organization_id', organizationId)
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
     
