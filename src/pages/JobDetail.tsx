@@ -498,7 +498,7 @@ const JobDetail = () => {
 
                 {/* Products */}
                 {fullBooking && fullBooking.products && fullBooking.products.length > 0 && (
-                  <Collapsible>
+                  <Collapsible className="group">
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
