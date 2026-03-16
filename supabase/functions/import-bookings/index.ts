@@ -603,7 +603,13 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
  * Smart team assignment that distributes bookings evenly across teams
  * Only assigns teams for NEW events, never overrides existing assignments
  */
-const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate: string, bookingId: string): Promise<string> => {
+const getNextTeamAssignment = async (
+  supabase: any,
+  eventType: string,
+  eventDate: string,
+  bookingId: string,
+  organizationId: string
+): Promise<string> => {
   // EVENT type events always go to team-11 (Live column)
   if (eventType === 'event') {
     console.log(`Assigning EVENT type to team-11 (Live) for booking ${bookingId}`);
@@ -613,10 +619,11 @@ const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
   
   try {
-    // Check existing events for this date to find the team with least events
+    // Check existing events for this date in the SAME organization
     const { data: existingEvents } = await supabase
       .from('calendar_events')
       .select('resource_id')
+      .eq('organization_id', organizationId)
       .eq('event_type', eventType)
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
@@ -1173,7 +1180,7 @@ serve(async (req) => {
     // Get existing bookings for comparison
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code')
+      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id')
 
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
@@ -1438,7 +1445,7 @@ serve(async (req) => {
             total_costs: externalBooking.totals.total_costs,
             gross_margin: externalBooking.totals.gross_margin,
           } : null),
-          organization_id: organizationId
+          organization_id: existingBooking?.organization_id || organizationId
         }
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
@@ -1460,6 +1467,7 @@ serve(async (req) => {
               .from('calendar_events')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .limit(1);
             
             if (!calCheckError && (!existingCalEvents || existingCalEvents.length === 0)) {
@@ -1472,6 +1480,7 @@ serve(async (req) => {
               .from('warehouse_calendar_events')
               .select('id, source_rig_date, source_event_date, source_rigdown_date')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .limit(1);
             
             if (!whCheckError) {
@@ -1495,7 +1504,8 @@ serve(async (req) => {
             const { data: existingProducts, error: productCheckError } = await supabase
               .from('booking_products')
               .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components')
-              .eq('booking_id', existingBooking.id);
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
             
             if (!productCheckError && existingProducts) {
               // Check if any accessory is missing parent_product_id
@@ -2058,7 +2068,8 @@ serve(async (req) => {
             await supabase
               .from('calendar_events')
               .delete()
-              .eq('booking_id', existingBooking.id);
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
           }
 
           // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
@@ -2488,6 +2499,7 @@ serve(async (req) => {
             .from('calendar_events')
             .select('id, event_type, start_time, booking_id, resource_id')
             .eq('booking_id', bookingData.id)
+            .eq('organization_id', bookingData.organization_id)
 
           const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
           console.log(`Found ${existingEvents?.length || 0} existing calendar events for booking ${bookingData.id}`)
@@ -2548,7 +2560,13 @@ serve(async (req) => {
 
             // Use smart team assignment for each event
             for (const event of calendarEvents) {
-              const assignedTeam = await getNextTeamAssignment(supabase, event.event_type, event.date, bookingData.id);
+              const assignedTeam = await getNextTeamAssignment(
+                supabase,
+                event.event_type,
+                event.date,
+                bookingData.id,
+                bookingData.organization_id || organizationId
+              );
               
               // Track team distribution
               if (results.team_distribution[assignedTeam] !== undefined) {
@@ -2568,7 +2586,7 @@ serve(async (req) => {
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam,
-                  organization_id: organizationId
+                  organization_id: bookingData.organization_id || organizationId
                 }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
 
               if (eventError) {
