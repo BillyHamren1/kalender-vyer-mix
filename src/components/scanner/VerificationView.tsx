@@ -98,8 +98,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     autoInit: true,
   });
 
-  // Stable item order map (item.id -> initial index)
-  const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
+  // Stable item order — useRef to avoid stale closure in loadData
+  const itemOrderRef = useRef<Record<string, number>>({});
 
   // Debounced background sync ref
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,10 +132,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
 
-  // Load packing data
-  const loadData = useCallback(async () => {
+  // Load packing data — supports silent background refresh
+  const loadData = useCallback(async (isBackground = false) => {
     try {
-      setIsLoading(true);
+      if (!isBackground) setIsLoading(true);
       
       const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
         fetchPackingForScanner(packingId),
@@ -146,40 +146,61 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
       setPacking(packingData);
       
-      // Stabilize item order: lock to first-load order
+      // Stabilize item order: lock to first-load order using ref
       const typedItems = itemsData as PackingItem[];
-      if (Object.keys(itemOrder).length === 0) {
+      if (Object.keys(itemOrderRef.current).length === 0) {
         // First load — save the order
         const order: Record<string, number> = {};
         typedItems.forEach((item, idx) => { order[item.id] = idx; });
-        setItemOrder(order);
+        itemOrderRef.current = order;
         setItems(typedItems);
       } else {
         // Subsequent loads — sort according to saved order
         const stableSorted = [...typedItems].sort(
-          (a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999)
+          (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
         );
-        setItems(stableSorted);
+        
+        if (isBackground) {
+          // Merge: keep the higher quantity_packed to avoid reverting optimistic updates
+          setItems(prev => {
+            const prevMap = new Map(prev.map(i => [i.id, i]));
+            return stableSorted.map(serverItem => {
+              const localItem = prevMap.get(serverItem.id);
+              if (localItem && localItem.quantity_packed > serverItem.quantity_packed) {
+                return { ...serverItem, quantity_packed: localItem.quantity_packed };
+              }
+              return serverItem;
+            });
+          });
+        } else {
+          setItems(stableSorted);
+        }
       }
       
-      setProgress(progressData);
+      if (!isBackground) {
+        setProgress(progressData);
+      } else {
+        // During background sync, recalc from merged items
+        // (will be done after setItems via the merged data)
+      }
       setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error loading packing data:', err);
-      toast.error('Kunde inte ladda packlista');
+      if (!isBackground) toast.error('Kunde inte ladda packlista');
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   }, [packingId]);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [loadData]);
 
-  const debouncedLoadData = useCallback(() => {
+  // Silent background refresh (no spinner, preserves optimistic state)
+  const debouncedBackgroundSync = useCallback(() => {
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      loadData();
+      loadData(true);
     }, 2000);
   }, [loadData]);
 
@@ -215,7 +236,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     setIsKolliMode(false);
     setActiveParcel(null);
     // Refresh data to show final parcel assignments
-    await loadData();
+    await loadData(false);
     toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
@@ -223,8 +244,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const handleScan = useCallback(async (scannedValue: string) => {
     const scanResult = parseScanResult(scannedValue);
     
+    // Ignore packing_id scans while already verifying
     if (scanResult.type === 'packing_id') {
-      toast.info('QR-kod innehåller packlista-ID');
+      toast.info('QR-kod innehåller packlista-ID — ignoreras under verifiering');
       return;
     }
 
@@ -264,15 +286,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         }
       }
       
-      // Debounced background sync
-      debouncedLoadData();
+      // Silent background sync
+      debouncedBackgroundSync();
     } else {
       toast.error(result.error);
     }
 
     // Close QR scanner after scan
     setIsQRActive(false);
-  }, [packingId, verifierName, debouncedLoadData, isKolliMode, activeParcel, items, recalcProgress]);
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, items, recalcProgress]);
 
   // Keep ref updated so scanner controller can call handleScan
   useEffect(() => {
@@ -311,12 +333,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
       }
       
-      // Debounced background sync
-      debouncedLoadData();
+      // Silent background sync
+      debouncedBackgroundSync();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, debouncedLoadData, isKolliMode, activeParcel, recalcProgress]);
+  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
 
   if (isLoading) {
     return (
@@ -496,7 +518,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <p className="text-xs text-muted-foreground truncate">{packing.booking.client}</p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={loadData} className="shrink-0 h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
