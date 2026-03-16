@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, ChevronRight, Calendar, FolderKanban } from 'lucide-react';
+import { Trash2, ChevronRight, Calendar, FolderKanban, AlertTriangle } from 'lucide-react';
 import { fetchJobs, deleteJob } from '@/services/jobService';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
