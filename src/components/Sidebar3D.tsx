@@ -188,10 +188,10 @@ export function Sidebar3D() {
             const labelEl = !isCollapsed && (
               <span
                 className={cn(
-                  "text-[15px] leading-none tracking-[-0.005em] transition-colors flex-1",
+                  "text-[13.5px] leading-none tracking-[-0.01em] transition-colors flex-1",
                   active
                     ? "font-semibold text-foreground"
-                    : "font-medium text-foreground/80"
+                    : "font-normal text-foreground/70"
                 )}
               >
                 {item.title}
