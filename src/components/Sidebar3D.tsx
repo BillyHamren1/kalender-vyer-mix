@@ -43,7 +43,7 @@ const navigationItems: NavItem[] = [
     url: "/ops-control",
     icon: Users,
     children: [
-      { title: "Personalplanering", url: "/calendar" },
+      { title: "Personalplanering", url: "/calendar", icon: Calendar },
       { title: "Transportplanering", url: "/logistics/planning", icon: Truck },
     ],
   },
@@ -286,7 +286,7 @@ export function Sidebar3D() {
 
                 {/* ── Sub-items ── */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-6 pl-4 border-l border-border/40 space-y-1 mt-0.5">
+                  <div className="ml-5 pl-3 border-l border-border/40 space-y-0.5 mt-0.5">
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
                       return (
@@ -294,7 +294,7 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-2 rounded-[8px] px-3 py-2 text-sm transition-colors",
+                            "flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[12px] transition-colors",
                             childActive
                               ? "bg-muted/30 text-foreground"
                               : "text-muted-foreground hover:bg-muted/20"
