@@ -88,7 +88,7 @@ const OpsControlCenter = () => {
         <div className="shrink-0 border-b border-border bg-card px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <OpsMetricsBar metrics={metrics} isLoading={isLoadingMetrics} />
+              <LogisticsWeeklyWeatherWidget />
             </div>
             <button
               onClick={() => setBroadcastOpen(true)}
@@ -97,9 +97,6 @@ const OpsControlCenter = () => {
               <Radio className="w-3.5 h-3.5" />
               Broadcast
             </button>
-          </div>
-          <div className="mt-2">
-            <LogisticsWeeklyWeatherWidget />
           </div>
         </div>
 
