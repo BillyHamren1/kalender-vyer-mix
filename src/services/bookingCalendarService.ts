@@ -187,7 +187,8 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
         event_type: eventType,
         booking_id: booking.id,
         booking_number: booking.booking_number || booking.id,
-        delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided'
+        delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided',
+        organization_id: booking.organization_id
       };
 
       const existingEvent = existingEventMap.get(eventType);
