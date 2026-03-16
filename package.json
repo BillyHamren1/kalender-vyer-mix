@@ -16,6 +16,10 @@
     "android:scanner": "node scripts/build-android.js scanner",
     "android:time:sync": "node scripts/build-android.js time --sync-only",
     "android:scanner:sync": "node scripts/build-android.js scanner --sync-only",
+    "ios:time": "node scripts/build-ios.js time",
+    "ios:scanner": "node scripts/build-ios.js scanner",
+    "ios:time:sync": "node scripts/build-ios.js time --sync-only",
+    "ios:scanner:sync": "node scripts/build-ios.js scanner --sync-only",
     "lint": "eslint .",
     "preview": "vite preview"
   },
