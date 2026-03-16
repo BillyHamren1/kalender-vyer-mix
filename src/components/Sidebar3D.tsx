@@ -278,7 +278,7 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-2 rounded-[8px] px-3 py-2.5 text-[14px] transition-colors",
+                            "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
                             childActive
                               ? "bg-muted/30 text-foreground"
                               : "text-muted-foreground hover:bg-muted/20"
