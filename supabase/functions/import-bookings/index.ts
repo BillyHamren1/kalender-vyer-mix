@@ -2049,10 +2049,12 @@ serve(async (req) => {
             continue
           }
 
-          // Only clear and recreate calendar events if booking data has MEANINGFULLY changed
-          if (hasChanged) {
-            console.log(`Recreating calendar events for changed booking ${existingBooking.id}`)
-            // Clear existing calendar events
+          // Only clear calendar events if actual DATE fields changed (not metadata)
+          const datesChanged = ['rigdaydate', 'eventdate', 'rigdowndate'].some(f =>
+            (bookingData[f] || '') !== (existingBooking[f] || '')
+          );
+          if (datesChanged) {
+            console.log(`Dates changed — recreating calendar events for booking ${existingBooking.id}`)
             await supabase
               .from('calendar_events')
               .delete()
