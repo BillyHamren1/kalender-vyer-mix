@@ -12,6 +12,8 @@ export interface MyProjectItem {
   nextDeadline: string | null;
   role: 'leader' | 'assigned';
   projectLeader: string | null;
+  bookingNumber: string | null;
+  address: string | null;
 }
 
 export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]> => {
