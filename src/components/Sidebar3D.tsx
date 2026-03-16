@@ -166,6 +166,13 @@ export function Sidebar3D() {
         <nav className="flex-1 px-2 pt-2 pb-4 space-y-px overflow-y-auto">
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
+            const hasActiveChild =
+              hasChildren &&
+              item.children!.some(
+                (child) =>
+                  location.pathname === child.url ||
+                  location.pathname.startsWith(child.url + "/")
+              );
             const active = isItemActive(item);
             const expanded = expandedItems.includes(item.url);
             const hovered = hoveredUrl === item.url;
@@ -173,7 +180,10 @@ export function Sidebar3D() {
 
             const sharedMouseProps = {
               onMouseEnter: () => setHoveredUrl(item.url),
-              onMouseLeave: () => { setHoveredUrl(null); setPressedUrl(null); },
+              onMouseLeave: () => {
+                setHoveredUrl(null);
+                setPressedUrl(null);
+              },
               onMouseDown: () => setPressedUrl(item.url),
               onMouseUp: () => setPressedUrl(null),
             };
@@ -184,7 +194,11 @@ export function Sidebar3D() {
                 <item.icon
                   className={cn(
                     "w-[14px] h-[14px]",
-                    active ? "text-primary" : "text-foreground/60"
+                    active
+                      ? "text-primary"
+                      : hasActiveChild
+                        ? "text-foreground/55"
+                        : "text-foreground/60"
                   )}
                   strokeWidth={1.8}
                 />
@@ -198,7 +212,9 @@ export function Sidebar3D() {
                   "text-[13px] leading-none tracking-[-0.005em] truncate flex-1",
                   active
                     ? "font-semibold text-foreground"
-                    : "font-medium text-foreground/[0.72]"
+                    : hasActiveChild
+                      ? "font-medium text-foreground/[0.68]"
+                      : "font-medium text-foreground/[0.72]"
                 )}
               >
                 {item.title}
@@ -223,21 +239,23 @@ export function Sidebar3D() {
             );
 
             /* ── Active/hover/press styles ── */
-            const itemStyle: React.CSSProperties = {
-              ...(active
+            const itemStyle: React.CSSProperties = active
+              ? {
+                  background: "hsl(200 14% 93%)",
+                  borderLeft: "2.5px solid hsl(184 55% 38%)",
+                }
+              : hasActiveChild
                 ? {
-                    background: "hsl(200 14% 93%)",
-                    borderLeft: "2.5px solid hsl(184 55% 38%)",
+                    borderLeft: "2px solid transparent",
                   }
                 : {
                     borderLeft: "2px solid transparent",
-                  }),
-              ...(!active && pressed
-                ? { background: "hsl(200 14% 50% / 0.13)" }
-                : !active && hovered
-                  ? { background: "hsl(200 14% 50% / 0.08)" }
-                  : {}),
-            };
+                    ...(pressed
+                      ? { background: "hsl(200 14% 50% / 0.13)" }
+                      : hovered
+                        ? { background: "hsl(200 14% 50% / 0.08)" }
+                        : {}),
+                  };
 
             return (
               <div key={item.url} className="relative">
