@@ -48,6 +48,7 @@ import StaffDashboard from "./pages/StaffDashboard";
 import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
 import NotFound from "./pages/NotFound";
+import SyncReconciliation from "./pages/SyncReconciliation";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
 import TransportResponse from "./pages/TransportResponse";

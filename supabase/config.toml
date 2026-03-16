@@ -138,3 +138,6 @@ verify_jwt = false
 
 [functions.optimize-staff-route]
 verify_jwt = false
+
+[functions.sync-reconciliation]
+verify_jwt = false
