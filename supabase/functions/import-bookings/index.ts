@@ -2075,9 +2075,24 @@ serve(async (req) => {
             .eq('booking_id', existingBooking.id);
           oldProducts = oldProductsData || null;
           
-          // 3. Delete attachments only if products have changed (attachments are always fully replaced)
+          // 3. Delete ONLY externally-imported attachments when products change
+          // Preserve locally uploaded files (stored in our own Supabase storage)
           if (needsProductUpdate) {
-            await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
+            const { data: existingAtts } = await supabase
+              .from('booking_attachments')
+              .select('id, url')
+              .eq('booking_id', existingBooking.id);
+            
+            const localStorageHost = 'pihrhltinhewhoxefjxv.supabase.co';
+            const externalAttIds = (existingAtts || [])
+              .filter((a: any) => !a.url?.includes(localStorageHost))
+              .map((a: any) => a.id);
+            
+            if (externalAttIds.length > 0) {
+              await supabase.from('booking_attachments')
+                .delete()
+                .in('id', externalAttIds);
+            }
           }
 
           // Store references for packing reconnection after products are merged
