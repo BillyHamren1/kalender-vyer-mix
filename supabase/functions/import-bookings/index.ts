@@ -2586,7 +2586,7 @@ serve(async (req) => {
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam,
-                  organization_id: organizationId
+                  organization_id: bookingData.organization_id || organizationId
                 }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
 
               if (eventError) {
