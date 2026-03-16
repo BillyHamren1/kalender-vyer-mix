@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Briefcase, Calendar, MapPin, ArrowLeft, Users, Plus, X, 
   ExternalLink, Building, Phone, Mail, User, Package, FileText,
-  Truck, Clock, ChevronDown, ChevronRight
+  Truck, Clock, ChevronDown, ChevronRight, Paperclip
 } from 'lucide-react';
+import { FileUpload } from '@/components/booking/FileUpload';
 import { 
   fetchJobById, 
   updateJobStatus, 
