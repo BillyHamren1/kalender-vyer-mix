@@ -310,10 +310,10 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[12px] transition-colors",
+                            "flex items-center gap-1.5 rounded-[8px] border px-2 py-1.5 text-[12px] transition-colors",
                             childActive
-                              ? "bg-muted/30 text-foreground"
-                              : "text-muted-foreground hover:bg-muted/20"
+                              ? "border-primary/40 bg-primary/15 text-primary font-semibold"
+                              : "border-transparent text-muted-foreground hover:bg-muted/20 hover:text-foreground"
                           )}
                           onMouseEnter={() => setHoveredUrl(child.url)}
                           onMouseLeave={() => setHoveredUrl(null)}

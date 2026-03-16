@@ -3,7 +3,6 @@ import { Truck } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate, useLocation } from 'react-router-dom';
-import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/LogisticsWeeklyWeatherWidget';
 
 const LogisticsPlanning = React.lazy(() => import('./LogisticsPlanning'));
 const LogisticsRoutes = React.lazy(() => import('./LogisticsRoutes'));

@@ -12,6 +12,7 @@ import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import { Radio } from 'lucide-react';
+import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/LogisticsWeeklyWeatherWidget';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
