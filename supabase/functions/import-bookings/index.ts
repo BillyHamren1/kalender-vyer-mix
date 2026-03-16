@@ -1504,7 +1504,8 @@ serve(async (req) => {
             const { data: existingProducts, error: productCheckError } = await supabase
               .from('booking_products')
               .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components')
-              .eq('booking_id', existingBooking.id);
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
             
             if (!productCheckError && existingProducts) {
               // Check if any accessory is missing parent_product_id
