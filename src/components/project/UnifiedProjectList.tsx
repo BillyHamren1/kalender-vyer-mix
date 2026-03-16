@@ -75,11 +75,12 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     // Jobs (small)
     jobs.forEach(j => items.push({
       id: j.id,
-      name: j.name,
+      name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
       type: 'small',
       date: j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
-      subtitle: j.booking?.client ?? null,
+      subtitle: j.booking?.deliveryAddress ?? null,
+      address: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       bookingCancelled: j.booking?.status === 'CANCELLED',
     }));
