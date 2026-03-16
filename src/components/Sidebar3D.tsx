@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   type LucideIcon,
+  TrendingUp,
   Calendar,
   Users,
-  FolderKanban,
+  Receipt,
+  Sparkles,
+  PenTool,
   ChevronDown,
+  ChevronsLeft,
+  FolderKanban,
   PieChart,
   Truck,
-  ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +71,6 @@ function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
         show ? "opacity-100" : "opacity-0"
       )}
     >
-      {/* Arrow */}
       <div
         className="absolute top-1/2 -translate-y-1/2 -left-[14px]"
         style={{
@@ -87,6 +90,7 @@ export function Sidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null);
+  const [pressedUrl, setPressedUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -127,16 +131,16 @@ export function Sidebar3D() {
       {/* ── Desktop Sidebar ── */}
       <aside
         className={cn(
-          "sticky top-0 z-40 h-screen shrink-0 flex-col transition-all duration-500 ease-out",
+          "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-500 ease-out",
           "hidden lg:flex",
-          isCollapsed ? "w-14" : "w-56"
+          isCollapsed ? "w-14" : "w-48"
         )}
         style={{ background: "hsl(var(--sidebar-background))" }}
       >
         {/* Right edge separator */}
         <div
           className="absolute right-0 top-0 bottom-0 w-px"
-          style={{ background: "hsl(200 15% 85%)" }}
+          style={{ background: "hsl(200 18% 66%)" }}
         />
 
         {/* Collapse/Expand Button */}
@@ -144,42 +148,48 @@ export function Sidebar3D() {
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
             "absolute -right-4 z-50 flex items-center justify-center",
-            "w-8 h-8 rounded-full bg-card border border-border shadow-sm",
-            "hover:shadow-md hover:scale-110 transition-all"
+            "w-8 h-8 rounded-full bg-card border-2 border-primary text-primary shadow-md",
+            "hover:shadow-lg hover:scale-110 transition-all"
           )}
           style={{ top: 36 }}
           title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
         >
           <ChevronsLeft
             className={cn(
-              "w-4 h-4 text-primary transition-transform duration-300",
+              "w-4 h-4 transition-transform duration-300",
               isCollapsed && "rotate-180"
             )}
           />
         </button>
 
+        {/* Top padding */}
+        <div className="pt-4 pb-1" />
+
         {/* Navigation */}
-        <nav className="flex-1 px-3 pt-8 pb-4 space-y-0.5">
+        <nav className="flex-1 px-3 pt-2 pb-4 space-y-px overflow-y-auto">
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const active = isItemActive(item);
             const expanded = expandedItems.includes(item.url);
             const hovered = hoveredUrl === item.url;
+            const pressed = pressedUrl === item.url;
 
             const sharedMouseProps = {
               onMouseEnter: () => setHoveredUrl(item.url),
-              onMouseLeave: () => setHoveredUrl(null),
+              onMouseLeave: () => { setHoveredUrl(null); setPressedUrl(null); },
+              onMouseDown: () => setPressedUrl(item.url),
+              onMouseUp: () => setPressedUrl(null),
             };
 
             /* ── Icon ── */
             const iconEl = (
-              <div className="w-[18px] h-[18px] flex items-center justify-center shrink-0">
+              <div className="shrink-0 flex items-center justify-center w-4 h-4">
                 <item.icon
                   className={cn(
-                    "w-[18px] h-[18px]",
-                    active ? "text-primary" : "text-foreground/50"
+                    "w-[14px] h-[14px]",
+                    active ? "text-primary" : "text-foreground/60"
                   )}
-                  strokeWidth={1.5}
+                  strokeWidth={1.8}
                 />
               </div>
             );
@@ -188,10 +198,10 @@ export function Sidebar3D() {
             const labelEl = !isCollapsed && (
               <span
                 className={cn(
-                  "text-[13.5px] leading-none tracking-[-0.01em] transition-colors flex-1",
+                  "text-[13px] leading-none tracking-[-0.005em] truncate flex-1",
                   active
                     ? "font-semibold text-foreground"
-                    : "font-normal text-foreground/70"
+                    : "font-medium text-foreground/[0.72]"
                 )}
               >
                 {item.title}
@@ -205,22 +215,31 @@ export function Sidebar3D() {
               </span>
             ) : null;
 
-            /* ── Shared item classes ── */
+            /* ── Item classes ── */
             const itemClassName = cn(
-              "relative flex items-center gap-3 rounded-lg transition-all duration-150",
+              "relative flex items-center gap-3 rounded-md transition-all duration-150",
               isCollapsed
-                ? "justify-center px-2 py-2.5"
-                : "py-2 px-2.5"
+                ? "justify-center px-2 py-[10px]"
+                : active
+                  ? "py-[9px] pl-[9px] pr-3"
+                  : "py-[9px] pl-[11px] pr-3"
             );
 
-            /* ── Active/hover styles ── */
-            const itemStyle = {
+            /* ── Active/hover/press styles ── */
+            const itemStyle: React.CSSProperties = {
               ...(active
-                ? { background: "hsl(var(--accent))" }
-                : {}),
-              ...(!active && hovered
-                ? { background: "hsl(200 14% 50% / 0.08)" }
-                : {}),
+                ? {
+                    background: "hsl(200 14% 93%)",
+                    borderLeft: "2.5px solid hsl(184 55% 38%)",
+                  }
+                : {
+                    borderLeft: "2px solid transparent",
+                  }),
+              ...(!active && pressed
+                ? { background: "hsl(200 14% 50% / 0.13)" }
+                : !active && hovered
+                  ? { background: "hsl(200 14% 50% / 0.08)" }
+                  : {}),
             };
 
             return (
@@ -268,7 +287,7 @@ export function Sidebar3D() {
 
                 {/* ── Sub-items ── */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-7 pl-4 border-l border-border/30 space-y-0.5 mt-0.5">
+                  <div className="ml-6 pl-4 border-l border-border/40 space-y-1 mt-0.5">
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
                       return (
@@ -276,7 +295,7 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
+                            "flex items-center gap-2 rounded-[8px] px-3 py-2 text-sm transition-colors",
                             childActive
                               ? "bg-muted/30 text-foreground"
                               : "text-muted-foreground hover:bg-muted/20"
@@ -298,7 +317,7 @@ export function Sidebar3D() {
           })}
         </nav>
 
-        {/* ── Bottom Section ── */}
+        {/* ── Divider + Bottom Section ── */}
         <div
           className="mx-0"
           style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
