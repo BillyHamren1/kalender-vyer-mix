@@ -24,6 +24,7 @@ const transformJob = (dbJob: any): Job => ({
     rigDayDate: dbJob.bookings.rigdaydate,
     eventDate: dbJob.bookings.eventdate,
     rigDownDate: dbJob.bookings.rigdowndate,
+    status: dbJob.bookings.status,
   } : undefined,
 });
 
