@@ -20,7 +20,7 @@ const transformJob = (dbJob: any): Job => ({
   booking: dbJob.bookings ? {
     client: safeClientName(dbJob.bookings.client),
     bookingNumber: dbJob.bookings.booking_number,
-    deliveryAddress: dbJob.bookings.deliveryaddress,
+    deliveryAddress: [dbJob.bookings.deliveryaddress, dbJob.bookings.delivery_city].filter(Boolean).join(', ') || null,
     rigDayDate: dbJob.bookings.rigdaydate,
     eventDate: dbJob.bookings.eventdate,
     rigDownDate: dbJob.bookings.rigdowndate,
