@@ -51,6 +51,7 @@ export const useRealTimeCalendarEvents = () => {
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
+              status,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
