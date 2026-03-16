@@ -21,6 +21,7 @@ interface UnifiedProject {
   status: string;
   subtitle: string | null;
   navigateTo: string;
+  bookingCancelled?: boolean;
 }
 
 interface UnifiedProjectListProps {
