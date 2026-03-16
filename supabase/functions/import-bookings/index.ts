@@ -2567,7 +2567,8 @@ serve(async (req) => {
                   end_time: event.end_time,
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
-                  resource_id: assignedTeam
+                  resource_id: assignedTeam,
+                  organization_id: organizationId
                 }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
 
               if (eventError) {
