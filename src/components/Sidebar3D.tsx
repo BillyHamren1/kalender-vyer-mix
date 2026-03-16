@@ -166,7 +166,7 @@ export function Sidebar3D() {
         <div className="pt-4 pb-1" />
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 pt-2 pb-4 space-y-px overflow-y-auto">
+        <nav className="flex-1 px-2 pt-2 pb-4 space-y-px overflow-y-auto">
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const active = isItemActive(item);
