@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Briefcase, Calendar, MapPin, ArrowLeft, Users, Plus, X, 
   ExternalLink, Building, Phone, Mail, User, Package, FileText,
-  Truck, Clock, ChevronDown, ChevronRight
+  Truck, Clock, ChevronDown, ChevronRight, Paperclip
 } from 'lucide-react';
+import { FileUpload } from '@/components/booking/FileUpload';
 import { 
   fetchJobById, 
   updateJobStatus, 
@@ -567,31 +568,43 @@ const JobDetail = () => {
                 )}
 
                 {/* Attachments */}
-                {fullBooking && fullBooking.attachments && fullBooking.attachments.length > 0 && (
+                {fullBooking && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <FileText className="h-4 w-4" />
-                        Bilagor ({fullBooking.attachments.length})
+                      <CardTitle className="flex items-center justify-between text-base">
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="h-4 w-4" />
+                          Bilagor {fullBooking.attachments && fullBooking.attachments.length > 0 && `(${fullBooking.attachments.length})`}
+                        </div>
+                        <FileUpload
+                          bookingId={job.bookingId!}
+                          onFileUploaded={(attachment) => {
+                            queryClient.invalidateQueries({ queryKey: ['job', id] });
+                          }}
+                        />
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
-                        {fullBooking.attachments.map((attachment) => (
-                          <a
-                            key={attachment.id}
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 text-sm"
-                          >
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <span className="truncate text-primary hover:underline">
-                              {attachment.fileName || 'Bilaga'}
-                            </span>
-                          </a>
-                        ))}
-                      </div>
+                      {fullBooking.attachments && fullBooking.attachments.length > 0 ? (
+                        <div className="space-y-2">
+                          {fullBooking.attachments.map((attachment) => (
+                            <a
+                              key={attachment.id}
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 text-sm"
+                            >
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate text-primary hover:underline">
+                                {attachment.fileName || 'Bilaga'}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">Inga bilagor</p>
+                      )}
                     </CardContent>
                   </Card>
                 )}

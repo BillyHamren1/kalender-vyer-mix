@@ -117,11 +117,15 @@ async function syncAllAttachments(
     .from('booking_attachments')
     .select('url')
     .eq('booking_id', bookingId);
-  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
+  
+  // Strip query params for dedup comparison to avoid duplicates from cache-busting params
+  const stripQueryParams = (url: string) => url.split('?')[0];
+  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => stripQueryParams(a.url)));
 
   const insertAttachment = async (url: string, fileName: string, fileType: string) => {
-    if (!url || seenUrls.has(url)) return;
-    seenUrls.add(url);
+    const baseUrl = stripQueryParams(url);
+    if (!url || seenUrls.has(baseUrl)) return;
+    seenUrls.add(baseUrl);
     const { error } = await supabase
       .from('booking_attachments')
       .insert({ booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId });
