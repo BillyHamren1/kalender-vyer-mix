@@ -239,10 +239,10 @@ export function Sidebar3D() {
                     {labelEl}
                     {badgeEl}
                     {!isCollapsed && (
-                      <span className="border rounded p-1 hover:bg-muted/50 transition-colors">
+                      <span className="border rounded p-0.5 hover:bg-muted/50 transition-colors">
                         <ChevronDown
                           className={cn(
-                            "w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200",
+                            "w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200",
                             expanded && "rotate-180"
                           )}
                         />
