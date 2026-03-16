@@ -809,8 +809,7 @@ const reconnectPackingListItems = async (
 const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
   const fields = [
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
-    'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
-    'assigned_project_id', 'assigned_project_name', 'assigned_to_project'
+    'delivery_city', 'delivery_postal_code', 'status', 'booking_number'
   ];
   
   for (const field of fields) {
@@ -2050,10 +2049,12 @@ serve(async (req) => {
             continue
           }
 
-          // Only clear and recreate calendar events if booking data has MEANINGFULLY changed
-          if (hasChanged) {
-            console.log(`Recreating calendar events for changed booking ${existingBooking.id}`)
-            // Clear existing calendar events
+          // Only clear calendar events if actual DATE fields changed (not metadata)
+          const datesChanged = ['rigdaydate', 'eventdate', 'rigdowndate'].some(f =>
+            (bookingData[f] || '') !== (existingBooking[f] || '')
+          );
+          if (datesChanged) {
+            console.log(`Dates changed — recreating calendar events for booking ${existingBooking.id}`)
             await supabase
               .from('calendar_events')
               .delete()
@@ -2566,7 +2567,8 @@ serve(async (req) => {
                   end_time: event.end_time,
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
-                  resource_id: assignedTeam
+                  resource_id: assignedTeam,
+                  organization_id: organizationId
                 }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
 
               if (eventError) {
