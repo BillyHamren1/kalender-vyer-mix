@@ -92,6 +92,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       status: p.status,
       subtitle: p.booking?.client ?? p.project_leader ?? null,
       navigateTo: `/project/${p.id}`,
+      bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
     }));
 
     // Large projects
