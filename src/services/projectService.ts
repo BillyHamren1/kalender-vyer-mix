@@ -16,7 +16,8 @@ export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
         contact_name,
         contact_phone,
         contact_email,
-        booking_number
+        booking_number,
+        status
       )
     `)
     .order('created_at', { ascending: false });

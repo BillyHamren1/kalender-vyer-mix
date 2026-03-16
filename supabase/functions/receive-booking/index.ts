@@ -106,7 +106,9 @@ serve(async (req) => {
 })
 
 /**
- * Handle booking.cancelled: update status and clean up all related data
+ * Handle booking.cancelled: update status but KEEP calendar events visible
+ * Calendar events are kept so users can see the cancellation visually (strikethrough)
+ * and manually remove them via a trash icon in the calendar UI.
  */
 async function handleCancellation(
   supabaseUrl: string,
@@ -166,21 +168,12 @@ async function handleCancellation(
     console.log(`receive-booking: ✅ Booking ${bookingId} status set to CANCELLED`)
   }
 
-  // 2. Delete calendar events
-  const { error: calError, count: calCount } = await supabase
-    .from('calendar_events')
-    .delete({ count: 'exact' })
-    .eq('booking_id', bookingId)
-    .eq('organization_id', organizationId)
+  // 2. KEEP calendar events — they will be shown with strikethrough in the UI
+  // Users can manually remove them via a trash icon in the calendar
+  actions.push('calendar_events_kept_for_visibility')
+  console.log(`receive-booking: ℹ️ Calendar events kept for booking ${bookingId} (visual cancellation indicator)`)
 
-  if (calError) {
-    console.error(`receive-booking: Failed to delete calendar_events`, calError)
-  } else {
-    actions.push(`deleted_${calCount || 0}_calendar_events`)
-    console.log(`receive-booking: ✅ Deleted ${calCount || 0} calendar events`)
-  }
-
-  // 3. Delete warehouse calendar events
+  // 3. Delete warehouse calendar events (these are operational, not needed for visibility)
   const { error: whError, count: whCount } = await supabase
     .from('warehouse_calendar_events')
     .delete({ count: 'exact' })
@@ -262,7 +255,7 @@ async function handleCancellation(
 
 /**
  * Handle booking.offer: downgrade from confirmed to offer
- * Remove calendar events but keep projects/jobs intact
+ * Remove calendar events (offers don't appear in planning calendar)
  */
 async function handleOfferDowngrade(
   supabaseUrl: string,
@@ -274,7 +267,6 @@ async function handleOfferDowngrade(
 
   console.log(`receive-booking: Handling OFFER DOWNGRADE for booking ${bookingId} in org ${organizationId}`)
 
-  // Check if booking exists locally
   const { data: existing, error: fetchError } = await supabase
     .from('bookings')
     .select('id, status')
@@ -349,8 +341,6 @@ async function handleOfferDowngrade(
     actions.push(`deleted_${whCount || 0}_warehouse_calendar_events`)
     console.log(`receive-booking: ✅ Deleted ${whCount || 0} warehouse calendar events`)
   }
-
-  // Note: Projects and jobs are kept intact for offer downgrades
 
   console.log(`receive-booking: ✅ Offer downgrade complete for ${bookingId}. Actions: ${actions.join(', ')}`)
 

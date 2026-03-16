@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, ChevronRight, Calendar, FolderKanban } from 'lucide-react';
+import { Trash2, ChevronRight, Calendar, FolderKanban, AlertTriangle } from 'lucide-react';
 import { fetchJobs, deleteJob } from '@/services/jobService';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
@@ -21,6 +21,7 @@ interface UnifiedProject {
   status: string;
   subtitle: string | null;
   navigateTo: string;
+  bookingCancelled?: boolean;
 }
 
 interface UnifiedProjectListProps {
@@ -79,6 +80,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.client ?? null,
       navigateTo: `/jobs/${j.id}`,
+      bookingCancelled: j.booking?.status === 'CANCELLED',
     }));
 
     // Medium projects
@@ -90,6 +92,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       status: p.status,
       subtitle: p.booking?.client ?? p.project_leader ?? null,
       navigateTo: `/project/${p.id}`,
+      bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
     }));
 
     // Large projects
@@ -175,20 +178,28 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
           <div
             key={`${project.type}-${project.id}`}
             onClick={() => navigate(project.navigateTo)}
-            className="group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+            className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''}`}
           >
             {/* Type badge */}
             <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
               {TYPE_LABELS[project.type]}
             </Badge>
 
+            {/* Cancelled badge */}
+            {project.bookingCancelled && (
+              <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                AVBOKAD
+              </Badge>
+            )}
+
             {/* Name + subtitle */}
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-foreground truncate group-hover/row:text-primary transition-colors">
+              <h4 className={`text-sm font-medium truncate group-hover/row:text-primary transition-colors ${project.bookingCancelled ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                 {project.name}
               </h4>
               {project.subtitle && (
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{project.subtitle}</p>
+                <p className={`text-[11px] truncate mt-0.5 ${project.bookingCancelled ? 'line-through text-muted-foreground/60' : 'text-muted-foreground'}`}>{project.subtitle}</p>
               )}
             </div>
 

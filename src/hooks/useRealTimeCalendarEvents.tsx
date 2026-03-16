@@ -51,6 +51,7 @@ export const useRealTimeCalendarEvents = () => {
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
+              status,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
@@ -69,6 +70,7 @@ export const useRealTimeCalendarEvents = () => {
             return {
               ...event,
               bookingNumber: booking.booking_number,
+              bookingStatus: booking.status,
               extendedProps: {
                 ...event.extendedProps,
                 client: booking.client,
@@ -83,6 +85,7 @@ export const useRealTimeCalendarEvents = () => {
                 products: booking.booking_products || [],
                 bookingNumber: booking.booking_number,
                 booking_id: booking.id,
+                bookingStatus: booking.status,
                 assignedProjectId: booking.assigned_project_id,
                 assignedProjectName: booking.assigned_project_name,
                 assignedToProject: booking.assigned_to_project
