@@ -39,7 +39,6 @@ const navigationItems: NavItem[] = [
     url: "/ops-control",
     icon: Users,
     children: [
-      { title: "Planeringsdashboard", url: "/ops-control" },
       { title: "Kalender", url: "/calendar" },
       { title: "Personalhantering", url: "/staff-management" },
       { title: "Kommunikation", url: "/communication" },
