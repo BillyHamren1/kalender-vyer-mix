@@ -1487,7 +1487,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
           title: `Meddelande från ${senderName}`,
           body: content.trim().substring(0, 100),
           notification_type: 'message',
-          data: { sender_id: staffId, message_type: 'direct' },
+          data: { sender_id: staffId, chat_type: 'direct' },
           organization_id: organizationId,
         }),
       })

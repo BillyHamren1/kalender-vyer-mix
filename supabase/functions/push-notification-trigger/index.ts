@@ -149,138 +149,10 @@ async function handleDirectMessage(supabase: any, record: any) {
     content,
     'message',
     organizationId,
-    { sender_id: record.sender_id, message_type: 'direct' }
+    { sender_id: record.sender_id, chat_type: 'direct' }
   )
 }
-
-async function handleBroadcast(supabase: any, record: any) {
-  const category = record.category || 'info'
-  const content = record.content?.substring(0, 100) || ''
-  const audience = record.audience
-  const organizationId = record.organization_id
-  
-  const categoryLabels: Record<string, string> = {
-    weather: '🌧️ Vädervarning',
-    urgent: '🚨 Brådskande',
-    schedule: '📅 Schemauppdatering',
-    logistics: '🚛 Logistikmeddelande',
-    info: 'ℹ️ Meddelande',
-  }
-  
-  const title = categoryLabels[category] || 'Meddelande från Operations'
-
-  let staffIds: string[] = []
-
-  if (audience === 'selected_staff' && record.audience_staff_ids) {
-    staffIds = record.audience_staff_ids
-  } else if (audience === 'job_staff' && record.audience_booking_id) {
-    const { data: assignments } = await supabase
-      .from('booking_staff_assignments')
-      .select('staff_id')
-      .eq('booking_id', record.audience_booking_id)
-      .eq('organization_id', organizationId)
-    staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
-  } else {
-    // all_today or active_staff - get all staff with device tokens
-    const today = new Date().toISOString().split('T')[0]
-    const { data: assignments } = await supabase
-      .from('staff_assignments')
-      .select('staff_id')
-      .eq('assignment_date', today)
-      .eq('organization_id', organizationId)
-    staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
-  }
-
-  if (staffIds.length > 0) {
-    await sendPush(supabase, staffIds, title, content, 'broadcast', organizationId, {
-      broadcast_id: record.id,
-      category,
-    })
-  }
-}
-
-async function handleNewAssignment(supabase: any, record: any) {
-  const staffId = record.staff_id
-  const bookingId = record.booking_id
-  const organizationId = record.organization_id
-  const date = record.assignment_date
-
-  // Get booking info
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select('client, booking_number')
-    .eq('id', bookingId)
-    .single()
-
-  const clientName = booking?.client || 'Okänt jobb'
-  const bookingNum = booking?.booking_number ? ` #${booking.booking_number}` : ''
-
-  await sendPush(
-    supabase,
-    [staffId],
-    `Nytt uppdrag${bookingNum}`,
-    `${clientName} – ${date}`,
-    'assignment',
-    organizationId,
-    { booking_id: bookingId, date }
-  )
-}
-
-async function handleScheduleChange(supabase: any, record: any, oldRecord: any) {
-  if (!oldRecord) return
-  
-  const organizationId = record.organization_id
-  
-  // Check if relevant schedule fields changed
-  const scheduleFields = ['rigdaydate', 'eventdate', 'rigdowndate', 'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time']
-  const changed = scheduleFields.some(f => record[f] !== oldRecord[f])
-  
-  if (!changed) return
-
-  // Get staff assigned to this booking
-  const { data: assignments } = await supabase
-    .from('booking_staff_assignments')
-    .select('staff_id')
-    .eq('booking_id', record.id)
-    .eq('organization_id', organizationId)
-
-  const staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
-  
-  if (staffIds.length === 0) return
-
-  const clientName = record.client || 'Jobb'
-  const bookingNum = record.booking_number ? ` #${record.booking_number}` : ''
-
-  await sendPush(
-    supabase,
-    staffIds,
-    `Schema uppdaterat${bookingNum}`,
-    `${clientName} har uppdaterade tider`,
-    'schedule',
-    organizationId,
-    { booking_id: record.id }
-  )
-}
-
-async function handleJobMessage(supabase: any, record: any) {
-  const senderName = record.sender_name || 'Planerare'
-  const content = record.content?.substring(0, 100) || ''
-  const bookingId = record.booking_id
-  const organizationId = record.organization_id
-  const senderId = record.sender_id
-
-  // Get staff assigned to this booking (exclude sender)
-  const { data: assignments } = await supabase
-    .from('booking_staff_assignments')
-    .select('staff_id')
-    .eq('booking_id', bookingId)
-    .eq('organization_id', organizationId)
-
-  const staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
-    .filter(id => id !== senderId)
-  
-  if (staffIds.length === 0) return
-
+...
   await sendPush(
     supabase,
     staffIds,
@@ -288,6 +160,6 @@ async function handleJobMessage(supabase: any, record: any) {
     content,
     'message',
     organizationId,
-    { booking_id: bookingId, message_type: 'job' }
+    { booking_id: bookingId, chat_type: 'job' }
   )
 }
