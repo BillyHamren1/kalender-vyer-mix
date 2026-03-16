@@ -603,7 +603,13 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
  * Smart team assignment that distributes bookings evenly across teams
  * Only assigns teams for NEW events, never overrides existing assignments
  */
-const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate: string, bookingId: string): Promise<string> => {
+const getNextTeamAssignment = async (
+  supabase: any,
+  eventType: string,
+  eventDate: string,
+  bookingId: string,
+  organizationId: string
+): Promise<string> => {
   // EVENT type events always go to team-11 (Live column)
   if (eventType === 'event') {
     console.log(`Assigning EVENT type to team-11 (Live) for booking ${bookingId}`);
@@ -613,10 +619,11 @@ const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
   
   try {
-    // Check existing events for this date to find the team with least events
+    // Check existing events for this date in the SAME organization
     const { data: existingEvents } = await supabase
       .from('calendar_events')
       .select('resource_id')
+      .eq('organization_id', organizationId)
       .eq('event_type', eventType)
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
