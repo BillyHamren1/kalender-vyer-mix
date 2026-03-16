@@ -217,12 +217,12 @@ export function Sidebar3D() {
 
             /* ── Item classes ── */
             const itemClassName = cn(
-              "relative flex items-center justify-start gap-3 rounded-md text-left transition-all duration-150",
+              "relative flex items-center justify-start gap-2.5 rounded-md text-left transition-all duration-150",
               isCollapsed
                 ? "justify-center px-2 py-[10px]"
                 : active
-                  ? "py-[9px] pl-[9px] pr-3"
-                  : "py-[9px] pl-[11px] pr-3"
+                  ? "py-[9px] pl-[7px] pr-2"
+                  : "py-[9px] pl-[9px] pr-2"
             );
 
             /* ── Active/hover/press styles ── */
