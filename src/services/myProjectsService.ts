@@ -73,7 +73,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
     .map(p => p.booking_id)
     .filter((id): id is string => !!id);
   
-  let bookingsMap: Record<string, { client: string; eventdate: string | null }> = {};
+  let bookingsMap: Record<string, { client: string; eventdate: string | null; bookingNumber: string | null; address: string | null }> = {};
   if (bookingIds.length > 0) {
     const { data } = await supabase
       .from('bookings')
