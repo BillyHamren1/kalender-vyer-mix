@@ -133,7 +133,7 @@ export function Sidebar3D() {
         className={cn(
           "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-500 ease-out",
           "hidden lg:flex",
-          isCollapsed ? "w-14" : "w-48"
+          isCollapsed ? "w-14" : "w-56"
         )}
         style={{ background: "hsl(var(--sidebar-background))" }}
       >
