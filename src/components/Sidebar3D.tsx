@@ -44,19 +44,19 @@ const navigationItems: NavItem[] = [
     icon: Users,
     children: [
       { title: "Kalender", url: "/calendar" },
-      { title: "Personalhantering", url: "/staff-management" },
       { title: "Kommunikation", url: "/communication" },
+      { title: "Transportplanering", url: "/logistics/planning", icon: Truck },
     ],
+  },
+  {
+    title: "Personalhantering",
+    url: "/staff-management",
+    icon: Users,
   },
   {
     title: "Ekonomiöversikt",
     url: "/economy",
     icon: PieChart,
-  },
-  {
-    title: "Transportplanering",
-    url: "/logistics/planning",
-    icon: Truck,
   },
 ];
 
