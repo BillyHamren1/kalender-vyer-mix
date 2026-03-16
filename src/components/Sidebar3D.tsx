@@ -51,7 +51,7 @@ const navigationItems: NavItem[] = [
     icon: PieChart,
   },
   {
-    title: "Logistikplanering",
+    title: "Transportplanering",
     url: "/logistics/planning",
     icon: Truck,
   },
