@@ -111,6 +111,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       date: lp.start_date ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
+      address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
     }));
 
