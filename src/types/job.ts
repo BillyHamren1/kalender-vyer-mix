@@ -13,6 +13,7 @@ export interface Job {
     rigDayDate: string | null;
     eventDate: string | null;
     rigDownDate: string | null;
+    status?: string | null;
   };
   // Full booking data for job detail page
   fullBooking?: {
