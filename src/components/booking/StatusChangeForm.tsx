@@ -129,6 +129,10 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   };
 

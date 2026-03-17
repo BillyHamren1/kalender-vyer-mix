@@ -29,10 +29,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       // Filter by flags first
       const candidates = allBookings.filter((b) => {
-        if (b.status !== 'CONFIRMED') return false;
-        if (b.assignedToProject) return false;
-        if (b.largeProjectId) return false;
-        return true;
+        const isConfirmedNew = b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
+        const isCancelledNew = b.status === 'CANCELLED' && !b.assignedToProject && !b.largeProjectId;
+        return isConfirmedNew || isCancelledNew;
       });
 
       if (candidates.length === 0) return [];
