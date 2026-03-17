@@ -925,7 +925,8 @@ const expandPackageComponents = async (
  */
 const syncPackingListAfterExpansion = async (
   supabase: any,
-  bookingId: string
+  bookingId: string,
+  orgId: string
 ): Promise<number> => {
   const { data: packingProject } = await supabase
     .from('packing_projects')
@@ -964,7 +965,8 @@ const syncPackingListAfterExpansion = async (
     packing_id: packingProject.id,
     booking_product_id: p.id,
     quantity_to_pack: p.quantity || 1,
-    quantity_packed: 0
+    quantity_packed: 0,
+    organization_id: orgId
   }));
 
   const { error: insertError } = await supabase
@@ -1041,6 +1043,7 @@ serve(async (req) => {
       .from('sync_state')
       .upsert({
         sync_type: 'booking_import',
+        organization_id: organizationId,
         last_sync_status: 'in_progress',
         last_sync_mode: syncMode,
         metadata: { 
@@ -1808,7 +1811,7 @@ serve(async (req) => {
             }
             
             // SYNC packing list items for all products (including expanded components)
-            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id);
+            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId);
             if (recoveryPackingSynced > 0) {
               console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
@@ -2329,7 +2332,7 @@ serve(async (req) => {
           }
           
           // SYNC packing list items for expanded components
-          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id);
+          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id, organizationId);
           if (mainPackingSynced > 0) {
             console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
           }
@@ -2365,7 +2368,8 @@ serve(async (req) => {
                 packing_id: packingIdForReconnection,
                 booking_product_id: product.id,
                 quantity_to_pack: product.quantity || 1,
-                quantity_packed: 0
+                quantity_packed: 0,
+                organization_id: organizationId
               }));
               
               const { error: insertError } = await supabase
@@ -2626,6 +2630,7 @@ serve(async (req) => {
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
+          organization_id: organizationId,
           last_sync_timestamp: finalTimestamp,
           last_sync_mode: syncMode,
           last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
