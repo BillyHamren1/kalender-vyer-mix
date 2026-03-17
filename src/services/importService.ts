@@ -51,6 +51,11 @@ export interface ImportFilters {
  * @param silent - If true, suppresses all toast notifications (for background imports)
  */
 export const importBookings = async (filters: ImportFilters = {}, silent: boolean = false): Promise<ImportResults> => {
+  // Scanner mode: never run booking imports
+  if (isScannerApp) {
+    return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
+  }
+
   const syncType = 'booking_import';
   const startTime = Date.now();
   let syncMode: SyncMode;
