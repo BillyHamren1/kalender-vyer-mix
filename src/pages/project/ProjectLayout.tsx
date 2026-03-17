@@ -107,6 +107,7 @@ const ProjectLayout = () => {
     : "overview";
 
   return (
+    <>
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
