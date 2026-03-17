@@ -1053,6 +1053,7 @@ serve(async (req) => {
           historical_mode: isHistoricalImport
         },
         updated_at: currentTimestamp
+      }, { onConflict: 'sync_type' }
       })
 
     if (syncStateError) {
