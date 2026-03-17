@@ -26,12 +26,33 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     queryFn: async () => {
       const allBookings = await fetchBookings();
 
-      return allBookings.filter((b) => {
+      // Filter by flags first
+      const candidates = allBookings.filter((b) => {
         if (b.status !== 'CONFIRMED') return false;
         if (b.assignedToProject) return false;
         if (b.largeProjectId) return false;
         return true;
       });
+
+      if (candidates.length === 0) return [];
+
+      // Cross-check: also exclude bookings that actually have active jobs/projects
+      // despite flags being wrong (data inconsistency protection)
+      const candidateIds = candidates.map(b => b.id);
+      
+      const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
+        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).neq('status', 'completed'),
+        supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
+      ]);
+
+      const assignedIds = new Set([
+        ...(activeJobs || []).map(j => j.booking_id),
+        ...(activeProjects || []).map(p => p.booking_id),
+        ...(largeLinks || []).map(l => l.booking_id),
+      ]);
+
+      return candidates.filter(b => !assignedIds.has(b.id));
     }
   });
 
