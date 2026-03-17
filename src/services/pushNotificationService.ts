@@ -153,6 +153,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export async function unregisterPushNotifications(): Promise<void> {
+  const isScanner = import.meta.env.VITE_APP_MODE === 'scanner';
+  if (isScanner) return;
   if (!Capacitor.isNativePlatform()) return;
 
   try {
