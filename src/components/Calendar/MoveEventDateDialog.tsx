@@ -36,7 +36,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   onOpenChange,
   event,
   resources = [],
-  onUpdate
+  onUpdate,
+  exactTimeNeeded = false
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
