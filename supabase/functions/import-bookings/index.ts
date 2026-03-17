@@ -2629,6 +2629,7 @@ serve(async (req) => {
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
+          organization_id: organizationId,
           last_sync_timestamp: finalTimestamp,
           last_sync_mode: syncMode,
           last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
