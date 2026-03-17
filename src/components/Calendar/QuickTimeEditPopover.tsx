@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
-import { Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
 
 
