@@ -79,6 +79,7 @@ const JobDetail = () => {
   const [selectedStaffId, setSelectedStaffId] = React.useState<string>('');
   const [selectedDate, setSelectedDate] = React.useState<string>('');
   const [openProducts, setOpenProducts] = React.useState<Set<string>>(new Set());
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
