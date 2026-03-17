@@ -1219,9 +1219,10 @@ async function handleGetProjectPurchases(supabase: any, data: { booking_id: stri
     .maybeSingle()
 
   if (!project) {
+    // No project exists for this booking yet — return empty purchases
     return new Response(
-      JSON.stringify({ error: 'No project found for this booking' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ purchases: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
