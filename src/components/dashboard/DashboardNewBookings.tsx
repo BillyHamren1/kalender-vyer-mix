@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, Briefcase, FolderKanban, Building2, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Inbox, Calendar, Briefcase, FolderKanban, Building2, ArrowUpRight, Sparkles, XCircle, Trash2, Undo2 } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
 import { supabase } from '@/integrations/supabase/client';
 import { createJobFromBooking } from '@/services/jobService';
@@ -22,21 +22,20 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
       const allBookings = await fetchBookings();
 
-      // Filter by flags first
       const candidates = allBookings.filter((b) => {
-        return b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
+        const isConfirmedNew = b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
+        const isCancelledNew = b.status === 'CANCELLED' && !b.assignedToProject && !b.largeProjectId;
+        return isConfirmedNew || isCancelledNew;
       });
 
       if (candidates.length === 0) return [];
 
-      // Cross-check against actual relations to prevent ghost entries
       const candidateIds = candidates.map(b => b.id);
       
       const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
@@ -55,12 +54,17 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
     },
   });
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+    queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+  };
+
   const createJobMutation = useMutation({
     mutationFn: createJobFromBooking,
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      invalidateAll();
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success('Projekt litet skapat');
       navigate(`/jobs/${job.id}`);
     },
@@ -68,6 +72,47 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
       toast.error('Kunde inte skapa litet projekt');
       console.error('Error creating small project:', error);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      await Promise.all([
+        supabase.from('calendar_events').delete().eq('booking_id', bookingId),
+        supabase.from('booking_products').delete().eq('booking_id', bookingId),
+        supabase.from('booking_attachments').delete().eq('booking_id', bookingId),
+        supabase.from('booking_staff_assignments').delete().eq('booking_id', bookingId),
+        supabase.from('booking_changes').delete().eq('booking_id', bookingId),
+        supabase.from('jobs').delete().eq('booking_id', bookingId),
+      ]);
+      const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast.success('Bokning borttagen från planning');
+    },
+    onError: (error) => {
+      toast.error('Kunde inte ta bort bokningen');
+      console.error('Error deleting booking:', error);
+    }
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'CONFIRMED' })
+        .eq('id', bookingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast.success('Bokning återställd till bekräftad');
+    },
+    onError: (error) => {
+      toast.error('Kunde inte återställa bokningen');
+      console.error('Error restoring booking:', error);
+    }
   });
 
   const formatDate = (dateStr: string) => {
@@ -121,7 +166,6 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
       <div className="h-1.5 bg-gradient-to-r from-amber-400/60 via-amber-500 to-amber-400/60" />
 
       <div className="p-5">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-500/5 ring-1 ring-amber-500/20">
@@ -142,18 +186,25 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
         </div>
 
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-          {bookings.map(booking => (
+          {bookings.map(booking => {
+            const isCancelled = booking.status === 'CANCELLED';
+            return (
               <div
                 key={booking.id}
-                className="group relative rounded-xl border bg-gradient-to-br from-background to-muted/20 hover:shadow-sm transition-all duration-200 border-border/50 hover:border-primary/30"
+                className={`group relative rounded-xl border bg-gradient-to-br from-background to-muted/20 hover:shadow-sm transition-all duration-200 ${isCancelled ? 'border-destructive/30 hover:border-destructive/50' : 'border-border/50 hover:border-primary/30'}`}
               >
                 <div className="flex items-center gap-3 px-3 py-2.5">
-                  {/* Left: booking info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-sm leading-tight truncate group-hover:text-primary transition-colors text-foreground">
+                      <h4 className={`font-semibold text-sm leading-tight truncate group-hover:text-primary transition-colors ${isCancelled ? 'text-destructive line-through' : 'text-foreground'}`}>
                         {booking.client}
                       </h4>
+                      {isCancelled && (
+                        <Badge variant="destructive" className="h-4 px-1.5 text-[10px] font-medium shrink-0">
+                          <XCircle className="w-2.5 h-2.5 mr-0.5" />
+                          Avbokad
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       {booking.bookingNumber && (
@@ -168,39 +219,67 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
                     </div>
                   </div>
 
-                  {/* Right: project type buttons */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => createJobMutation.mutate(booking.id)}
-                      disabled={createJobMutation.isPending}
-                      className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
-                      title="Litet projekt"
-                    >
-                      <Briefcase className="w-3 h-3" />
-                      Litet
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onCreateProject(booking.id)}
-                      className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
-                      title="Medel projekt"
-                    >
-                      <FolderKanban className="w-3 h-3" />
-                      Medel
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onCreateLargeProject(booking.id)}
-                      className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
-                      title="Stort projekt"
-                    >
-                      <Building2 className="w-3 h-3" />
-                      Stort
-                    </Button>
+                    {isCancelled ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(booking.id)}
+                          disabled={deleteMutation.isPending}
+                          className="gap-1 h-7 px-2 text-xs rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive/60"
+                          title="Ta bort från planning"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Ta bort
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => restoreMutation.mutate(booking.id)}
+                          disabled={restoreMutation.isPending}
+                          className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                          title="Återställ till bekräftad"
+                        >
+                          <Undo2 className="w-3 h-3" />
+                          Ångra
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => createJobMutation.mutate(booking.id)}
+                          disabled={createJobMutation.isPending}
+                          className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                          title="Litet projekt"
+                        >
+                          <Briefcase className="w-3 h-3" />
+                          Litet
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onCreateProject(booking.id)}
+                          className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                          title="Medel projekt"
+                        >
+                          <FolderKanban className="w-3 h-3" />
+                          Medel
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onCreateLargeProject(booking.id)}
+                          className="gap-1 h-7 px-2 text-xs rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                          title="Stort projekt"
+                        >
+                          <Building2 className="w-3 h-3" />
+                          Stort
+                        </Button>
+                      </>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -213,7 +292,8 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
                   </div>
                 </div>
               </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
