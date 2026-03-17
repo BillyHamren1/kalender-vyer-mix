@@ -14,6 +14,7 @@ export interface StaffLocation {
   longitude: number | null;
   isWorking: boolean;
   lastReportTime: string | null;
+  isGps: boolean; // true = live GPS, false = fallback to booking address
 }
 
 // Available staff for booking
