@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2 } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -53,6 +53,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [quickMsg, setQuickMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [showCameras, setShowCameras] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
   // Init map
@@ -349,8 +351,21 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const totalOnMap = locations.filter(l => l.latitude && l.longitude).length;
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+    // Trigger map resize after transition
+    setTimeout(() => map.current?.resize(), 50);
+  }, []);
+
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div
+      ref={wrapperRef}
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 bg-background'
+          : 'relative w-full h-full overflow-hidden'
+      }
+    >
       <div ref={mapContainer} className="w-full h-full" />
 
       {/* Loading */}
@@ -386,6 +401,19 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           </button>
         </div>
       </div>
+
+      {/* Fullscreen toggle */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 z-20 w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
+        title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
+      >
+        {isFullscreen ? (
+          <Minimize2 className="w-4 h-4 text-foreground" />
+        ) : (
+          <Maximize2 className="w-4 h-4 text-muted-foreground" />
+        )}
+      </button>
 
       {/* Legend */}
       <div className="absolute bottom-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow border border-border">
