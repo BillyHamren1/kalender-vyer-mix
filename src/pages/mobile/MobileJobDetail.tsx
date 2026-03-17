@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
