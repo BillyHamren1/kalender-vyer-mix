@@ -67,7 +67,7 @@ export function setGpsSettings(settings: GpsSettings) {
   localStorage.setItem(GPS_SETTINGS_KEY, JSON.stringify(settings));
 }
 
-export function useGeofencing(bookings: MobileBooking[]) {
+export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const [activeTimers, setActiveTimers] = useState<Map<string, ActiveTimer>>(loadTimers);
   const [userPosition, setUserPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [isTracking, setIsTracking] = useState(false);
