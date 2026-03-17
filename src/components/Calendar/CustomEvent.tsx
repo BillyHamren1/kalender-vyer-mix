@@ -41,6 +41,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Dialog state for date move — LEGACY: still uses local state,
   // but now gated by editController for conflict prevention
   const [showDateDialog, setShowDateDialog] = useState(false);
+  const availableResources = useMemo(() => loadResourcesFromStorage(), []);
 
   const eventColor = getEventColor(event.eventType);
 
