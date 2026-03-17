@@ -691,15 +691,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     <div className={`shrink-0 rounded-full flex items-center justify-center ${
                       isChild ? 'w-4 h-4' : 'w-5 h-5'
                     } ${
-                      isComplete 
-                        ? 'bg-green-500' 
-                        : isPartial 
-                          ? 'bg-amber-500' 
-                          : isParent
-                            ? 'border-2 border-dashed border-muted-foreground/30'
-                            : 'border-2 border-muted-foreground/40'
+                      isOverscan
+                        ? 'bg-red-500 animate-pulse'
+                        : isComplete 
+                          ? 'bg-green-500' 
+                          : isPartial 
+                            ? 'bg-amber-500' 
+                            : isParent
+                              ? 'border-2 border-dashed border-muted-foreground/30'
+                              : 'border-2 border-muted-foreground/40'
                     }`}>
-                      {isComplete && <Check className="text-white w-2.5 h-2.5" />}
+                      {isOverscan && <AlertCircle className="text-white w-2.5 h-2.5" />}
+                      {isComplete && !isOverscan && <Check className="text-white w-2.5 h-2.5" />}
                       {isPartial && <span className="text-white text-[8px] font-bold">{packed}</span>}
                     </div>
                     
