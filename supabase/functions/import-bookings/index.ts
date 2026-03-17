@@ -2332,7 +2332,7 @@ serve(async (req) => {
           }
           
           // SYNC packing list items for expanded components
-          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id);
+          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id, organizationId);
           if (mainPackingSynced > 0) {
             console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
           }
