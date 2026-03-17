@@ -33,14 +33,21 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     if (token && storedStaff) {
       setStaff(storedStaff);
-      // Verify token is still valid in background
-      mobileApi.me().then(res => {
-        setStaff(res.staff);
-        setAuth(token, res.staff);
-      }).catch(() => {
-        clearAuth();
-        setStaff(null);
-      }).finally(() => setIsLoading(false));
+      // Verify token is still valid in background with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      );
+      Promise.race([mobileApi.me(), timeoutPromise])
+        .then((res: any) => {
+          setStaff(res.staff);
+          setAuth(token, res.staff);
+        })
+        .catch((err) => {
+          console.warn('[MobileAuth] Session verify failed:', err.message);
+          clearAuth();
+          setStaff(null);
+        })
+        .finally(() => setIsLoading(false));
     } else {
       setIsLoading(false);
     }
