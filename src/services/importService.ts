@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { smartUpdateBookingCalendar } from "./bookingCalendarService";
 import { cleanupDuplicateCalendarEvents } from "./duplicateCleanupService";
+import { isScannerApp } from "@/config/appMode";
 import { 
   getSyncState, 
   updateSyncState, 
@@ -50,6 +51,11 @@ export interface ImportFilters {
  * @param silent - If true, suppresses all toast notifications (for background imports)
  */
 export const importBookings = async (filters: ImportFilters = {}, silent: boolean = false): Promise<ImportResults> => {
+  // Scanner mode: never run booking imports
+  if (isScannerApp) {
+    return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
+  }
+
   const syncType = 'booking_import';
   const startTime = Date.now();
   let syncMode: SyncMode;
@@ -320,6 +326,10 @@ export const forceHistoricalSync = async (filters: Omit<ImportFilters, 'syncMode
  * Import bookings quietly in the background, with intelligent sync mode selection
  */
 export const quietImportBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
+  // Scanner mode: never run booking imports
+  if (isScannerApp) {
+    return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
+  }
   try {
     // Resolve organization_id from user profile
     let organizationId: string | undefined;

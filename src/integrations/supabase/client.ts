@@ -5,14 +5,18 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpaHJobHRpbmhld2hveGVmanh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczNDQ4NjksImV4cCI6MjA2MjkyMDg2OX0.O6n8eaVB-ZcKPLWFK0EhWK22bMS31PFulNgksw5RSVk";
 
+// Scanner mode: disable session persistence and auto-refresh to prevent
+// stale web tokens from triggering import/sync cascades on startup.
+const isScannerBuild = import.meta.env.VITE_APP_MODE === 'scanner';
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+    persistSession: !isScannerBuild,
+    autoRefreshToken: !isScannerBuild,
+    detectSessionInUrl: !isScannerBuild,
     storageKey: 'eventflow-planning-auth',
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },

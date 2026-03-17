@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
+import { isScannerApp } from '@/config/appMode';
 
 interface BackgroundImportState {
   isRunning: boolean;
@@ -14,6 +15,10 @@ const STORAGE_KEY = 'background_import_state';
 
 export const useBackgroundImport = () => {
   const [state, setState] = useState<BackgroundImportState>(() => {
+    // Scanner mode: never import bookings
+    if (isScannerApp) {
+      return { isRunning: false, lastImport: null, nextImport: null, importCount: 0 };
+    }
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -70,6 +75,9 @@ export const useBackgroundImport = () => {
 
   // Single stable effect for the interval — no dependency on callbacks that change
   useEffect(() => {
+    // Scanner mode: no background import
+    if (isScannerApp) return;
+
     const timer = setTimeout(() => performImport(), 1000);
     const interval = setInterval(() => performImport(), IMPORT_INTERVAL);
     intervalRef.current = interval;
