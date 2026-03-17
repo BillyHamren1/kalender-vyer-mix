@@ -70,11 +70,19 @@ export async function recomputeBookingAssignment(bookingId: string): Promise<voi
       .eq('id', bookingId);
     if (error) throw new Error(`Kunde inte uppdatera bokning: ${error.message}`);
   } else {
-    // No active links — clear all flags
+    // No active links — check if booking is cancelled/offer before clearing
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('status')
+      .eq('id', bookingId)
+      .single();
+
+    const isCancelledOrOffer = booking?.status === 'CANCELLED' || booking?.status === 'OFFER';
+
     const { error } = await supabase
       .from('bookings')
       .update({
-        assigned_to_project: false,
+        assigned_to_project: isCancelledOrOffer ? true : false,
         assigned_project_id: null,
         assigned_project_name: null,
         large_project_id: null,

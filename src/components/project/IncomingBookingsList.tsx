@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, FolderKanban, Briefcase, Building2, ChevronRight, XCircle } from 'lucide-react';
+import { Inbox, Calendar, MapPin, FolderKanban, Briefcase, Building2, ChevronRight } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
 import { supabase } from '@/integrations/supabase/client';
 import { createJobFromBooking } from '@/services/jobService';
@@ -29,9 +29,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       // Filter by flags first
       const candidates = allBookings.filter((b) => {
-        const isConfirmedNew = b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
-        const isCancelledNew = b.status === 'CANCELLED' && !b.assignedToProject && !b.largeProjectId;
-        return isConfirmedNew || isCancelledNew;
+        return b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
       });
 
       if (candidates.length === 0) return [];
@@ -120,12 +118,10 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       {/* Compact bookings list */}
       <div className="divide-y divide-border/30">
-        {bookings.map(booking => {
-          const isCancelled = booking.status === 'CANCELLED';
-          return (
+        {bookings.map(booking => (
             <div 
               key={booking.id}
-              className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors ${isCancelled ? 'bg-red-50/30' : ''}`}
+              className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors"
             >
               {/* Left: Client info - clickable */}
               <div 
@@ -133,15 +129,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 onClick={() => navigate(`/booking/${booking.id}`)}
               >
                 <div className="flex items-center gap-2">
-                  <h4 className={`text-sm font-medium truncate group-hover:text-primary transition-colors ${isCancelled ? 'text-red-700 line-through' : 'text-foreground'}`}>
+                  <h4 className="text-sm font-medium truncate group-hover:text-primary transition-colors text-foreground">
                     {booking.client}
                   </h4>
-                  {isCancelled && (
-                    <Badge className="h-4 px-1.5 text-[10px] font-medium bg-red-100 text-red-700 border-0 shrink-0">
-                      <XCircle className="w-2.5 h-2.5 mr-0.5" />
-                      Avbokad
-                    </Badge>
-                  )}
                   {booking.bookingNumber && (
                     <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
                       #{booking.bookingNumber}
@@ -162,48 +152,43 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 </div>
               </div>
 
-              {/* Right: Action buttons (hidden for cancelled) */}
+              {/* Right: Action buttons */}
               <div className="flex items-center gap-1 shrink-0">
-                {!isCancelled && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => createJobMutation.mutate(booking.id)}
-                      disabled={createJobMutation.isPending}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Litet projekt"
-                    >
-                      <Briefcase className="w-3.5 h-3.5" />
-                      <span>Litet</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onCreateProject(booking.id)}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Medelstort projekt"
-                    >
-                      <FolderKanban className="w-3.5 h-3.5" />
-                      <span>Medel</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onCreateLargeProject?.(booking.id)}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Stort projekt"
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>Stort</span>
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => createJobMutation.mutate(booking.id)}
+                  disabled={createJobMutation.isPending}
+                  className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
+                  title="Litet projekt"
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span>Litet</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCreateProject(booking.id)}
+                  className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
+                  title="Medelstort projekt"
+                >
+                  <FolderKanban className="w-3.5 h-3.5" />
+                  <span>Medel</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCreateLargeProject?.(booking.id)}
+                  className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
+                  title="Stort projekt"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Stort</span>
+                </Button>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
               </div>
             </div>
-          );
-        })}
+        ))}
       </div>
     </div>
   );
