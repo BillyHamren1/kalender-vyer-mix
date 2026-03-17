@@ -99,16 +99,20 @@ export const CalendarContext = createContext<CalendarContextType>({
   setLastPath: () => {},
 });
 
+/**
+ * Runs hooks that require auth/org context — only for web & time modes.
+ * Scanner mode must boot cleanly without these.
+ */
+const WebTimeBootstrap: React.FC = () => {
+  useBackgroundImport();
+  useSsoListener();
+  return null;
+};
+
 // Inner component that uses the background import hook
 const AppContent = () => {
   const [lastViewedDate, setLastViewedDate] = useState(new Date());
   const [lastPath, setLastPath] = useState('');
-  
-  // Centralized background import - runs once at app level
-  useBackgroundImport();
-  
-  // SSO listener for EventFlow Hub integration
-  useSsoListener();
 
   const contextValue = {
     lastViewedDate,
