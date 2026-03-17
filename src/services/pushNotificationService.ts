@@ -10,6 +10,11 @@ let initializing = false;
  * Calling code should use: initPushNotifications(staffId); // no await
  */
 export function initPushNotifications(staffId: string): void {
+  const isScanner = import.meta.env.VITE_APP_MODE === 'scanner';
+  if (isScanner) {
+    console.log('[Push] Scanner mode — push notifications disabled');
+    return;
+  }
   if (initialized || initializing) {
     console.log('[Push] Already initialized or initializing, skipping');
     return;
