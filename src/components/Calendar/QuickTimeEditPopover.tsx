@@ -33,6 +33,7 @@ interface QuickTimeEditPopoverProps {
   onUpdate?: () => void;
   onMoveDate?: () => void;
   onOpenChange?: (open: boolean) => void;
+  exactTimeNeeded?: boolean;
 }
 
 const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
