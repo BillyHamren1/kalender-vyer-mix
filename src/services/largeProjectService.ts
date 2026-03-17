@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { recomputeBookingAssignment } from "@/services/bookingAssignmentService";
 import type { 
   LargeProject, 
   LargeProjectWithBookings, 
