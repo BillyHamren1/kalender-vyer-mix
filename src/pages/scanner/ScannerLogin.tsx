@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, ScanLine } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import AppLogo from '@/components/shared/AppLogo';
 
 const ScannerLogin = () => {
   const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
@@ -45,11 +46,7 @@ const ScannerLogin = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <ScanLine className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Scanner</h1>
-          <p className="text-sm text-muted-foreground">Logga in för att komma åt packlistor</p>
+          <AppLogo mode="scanner" size="lg" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

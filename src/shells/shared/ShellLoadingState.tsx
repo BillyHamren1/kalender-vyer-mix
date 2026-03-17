@@ -1,21 +1,16 @@
 import React from 'react';
-import { Loader2, Clock, ScanLine } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useShell } from '../ShellContext';
+import AppLogo from '@/components/shared/AppLogo';
 
 const ShellLoadingState: React.FC = () => {
-  const { mode, appName } = useShell();
-
-  const Icon = mode === 'scanner' ? ScanLine : Clock;
+  const { mode } = useShell();
+  const logoMode = mode === 'scanner' ? 'scanner' : 'time';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <Icon className="h-8 w-8 text-primary" />
-      </div>
-      <div className="text-center space-y-1">
-        <h2 className="text-lg font-bold text-foreground">{appName}</h2>
-        <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto" />
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
+      <AppLogo mode={logoMode} size="md" showTagline={false} />
+      <Loader2 className="h-5 w-5 animate-spin text-primary" />
     </div>
   );
 };
