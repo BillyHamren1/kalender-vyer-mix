@@ -351,8 +351,21 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const totalOnMap = locations.filter(l => l.latitude && l.longitude).length;
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+    // Trigger map resize after transition
+    setTimeout(() => map.current?.resize(), 50);
+  }, []);
+
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div
+      ref={wrapperRef}
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 bg-background'
+          : 'relative w-full h-full overflow-hidden'
+      }
+    >
       <div ref={mapContainer} className="w-full h-full" />
 
       {/* Loading */}
