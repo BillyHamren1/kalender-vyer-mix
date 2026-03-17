@@ -4,7 +4,8 @@ import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, Zap } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
+import AppLogo from '@/components/shared/AppLogo';
 
 const MobileLogin = () => {
   const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
