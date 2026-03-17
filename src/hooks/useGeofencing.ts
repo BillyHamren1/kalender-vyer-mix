@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MobileBooking } from '@/services/mobileApiService';
+import { supabase } from '@/integrations/supabase/client';
 
 const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
@@ -76,6 +77,7 @@ export function useGeofencing(bookings: MobileBooking[]) {
   const watchIdRef = useRef<number | null>(null);
   const triggeredEnterRef = useRef<Set<string>>(new Set());
   const triggeredExitRef = useRef<Set<string>>(new Set());
+  const lastLocationReportRef = useRef<number>(0);
 
   // Persist timers on change
   useEffect(() => {
@@ -91,7 +93,27 @@ export function useGeofencing(bookings: MobileBooking[]) {
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setUserPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const { latitude, longitude, accuracy, speed } = pos.coords;
+        setUserPosition({ lat: latitude, lng: longitude });
+
+        // Throttled upsert to staff_locations (max every 30s)
+        const now = Date.now();
+        if (now - lastLocationReportRef.current >= 30000) {
+          lastLocationReportRef.current = now;
+          const staffId = localStorage.getItem('eventflow-mobile-staff-id');
+          if (staffId) {
+            supabase.from('staff_locations').upsert({
+              staff_id: staffId,
+              latitude,
+              longitude,
+              accuracy: accuracy ?? null,
+              speed: speed ?? null,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'staff_id' }).then(({ error }) => {
+              if (error) console.warn('Location report failed:', error.message);
+            });
+          }
+        }
       },
       (err) => {
         console.warn('GPS error:', err.message);

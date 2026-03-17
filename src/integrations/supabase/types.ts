@@ -2970,6 +2970,44 @@ export type Database = {
           },
         ]
       }
+      staff_locations: {
+        Row: {
+          accuracy: number | null
+          latitude: number
+          longitude: number
+          organization_id: string
+          speed: number | null
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          accuracy?: number | null
+          latitude: number
+          longitude: number
+          organization_id?: string
+          speed?: number | null
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          accuracy?: number | null
+          latitude?: number
+          longitude?: number
+          organization_id?: string
+          speed?: number | null
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_locations_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_members: {
         Row: {
           address: string | null

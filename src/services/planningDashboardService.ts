@@ -14,6 +14,7 @@ export interface StaffLocation {
   longitude: number | null;
   isWorking: boolean;
   lastReportTime: string | null;
+  isGps: boolean; // true = live GPS, false = fallback to booking address
 }
 
 // Available staff for booking
@@ -336,6 +337,15 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
 
   const bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
 
+  // Get live GPS positions
+  const staffIds = (assignments || []).map(a => a.staff_id);
+  const { data: gpsData } = await supabase
+    .from('staff_locations')
+    .select('staff_id, latitude, longitude')
+    .in('staff_id', staffIds.length > 0 ? staffIds : ['none']);
+
+  const gpsMap = new Map(gpsData?.map(g => [g.staff_id, g]) || []);
+
   // Map team IDs to names
   const teamNames: Record<string, string> = {
     'team-1': 'Team 1',
@@ -357,6 +367,9 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     const booking = bookingId ? bookingMap.get(bookingId) : null;
     const report = staffReportMap.get(assignment.staff_id);
 
+    const gpsLoc = gpsMap.get(staffMember.id);
+    const hasGps = !!gpsLoc;
+
     return {
       id: staffMember.id,
       name: staffMember.name,
@@ -365,10 +378,11 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       bookingId: bookingId || null,
       bookingClient: booking?.client || null,
       deliveryAddress: booking?.deliveryaddress || null,
-      latitude: booking?.delivery_latitude || null,
-      longitude: booking?.delivery_longitude || null,
+      latitude: hasGps ? gpsLoc.latitude : (booking?.delivery_latitude || null),
+      longitude: hasGps ? gpsLoc.longitude : (booking?.delivery_longitude || null),
       isWorking: workingStaffIds.has(assignment.staff_id),
-      lastReportTime: report?.created_at || null
+      lastReportTime: report?.created_at || null,
+      isGps: hasGps,
     };
   });
 };
