@@ -57,15 +57,15 @@ const ProjectLayout = () => {
   };
 
   const handleDeleteProject = async () => {
-    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    if (!confirm(`Ta bort medelprojekt: "${project?.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
     try {
       await deleteProject(projectId!);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-      toast.success('Projekt borttaget');
+      toast.success('Medelprojekt borttaget');
       navigate('/projects');
-    } catch {
-      toast.error('Kunde inte ta bort projekt');
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte ta bort projekt');
     }
   };
 
