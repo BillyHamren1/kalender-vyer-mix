@@ -1811,7 +1811,7 @@ serve(async (req) => {
             }
             
             // SYNC packing list items for all products (including expanded components)
-            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id);
+            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId);
             if (recoveryPackingSynced > 0) {
               console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
