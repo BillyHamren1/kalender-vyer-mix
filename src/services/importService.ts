@@ -326,6 +326,10 @@ export const forceHistoricalSync = async (filters: Omit<ImportFilters, 'syncMode
  * Import bookings quietly in the background, with intelligent sync mode selection
  */
 export const quietImportBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
+  // Scanner mode: never run booking imports
+  if (isScannerApp) {
+    return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
+  }
   try {
     // Resolve organization_id from user profile
     let organizationId: string | undefined;
