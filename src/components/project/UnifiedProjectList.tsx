@@ -156,7 +156,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   }, [unified, search, statusFilter, typeFilter]);
 
   const handleDelete = (project: UnifiedProject) => {
-    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    const typeLabel = TYPE_LABELS[project.type];
+    if (!confirm(`Ta bort ${typeLabel} projekt: "${project.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
     if (project.type === 'small') deleteJobMutation.mutate(project.id);
     else if (project.type === 'medium') deleteProjectMutation.mutate(project.id);
     else deleteLargeMutation.mutate(project.id);
