@@ -257,10 +257,14 @@ export function Sidebar3D() {
             );
 
             /* ── Badge ── */
-            const badgeEl = !isCollapsed && item.badge ? (
-              <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
-                {item.badge}
-              </span>
+            const badgeEl = item.badge ? (
+              isCollapsed ? (
+                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
+              ) : (
+                <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )
             ) : null;
 
             /* ── Item classes ── */
