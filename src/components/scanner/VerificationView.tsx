@@ -255,18 +255,24 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     
     setLastScanResult({
       value: scannedValue,
-      result: result.success ? `✅ ${result.productName}` : result.error || 'Okänt fel',
-      success: result.success
+      result: result.success 
+        ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
+        : result.error || 'Okänt fel',
+      success: result.success && !result.overscan
     });
 
     if (result.success) {
-      toast.success(`${result.productName} verifierad!`);
+      if (result.overscan) {
+        toast.warning(`⚠️ FÖR MÅNGA SKANNADE! ${result.productName}`, { duration: 5000 });
+      } else {
+        toast.success(`${result.productName} verifierad!`);
+      }
       
-      // Optimistic local update — find item by SKU and increment
+      // Optimistic local update — allow going above quantity_to_pack
       setItems(prev => {
         const updated = prev.map(item => {
           if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
-            return { ...item, quantity_packed: Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack) };
+            return { ...item, quantity_packed: (item.quantity_packed || 0) + 1 };
           }
           return item;
         });
