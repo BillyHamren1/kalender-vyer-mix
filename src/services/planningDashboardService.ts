@@ -337,6 +337,15 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
 
   const bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
 
+  // Get live GPS positions
+  const staffIds = (assignments || []).map(a => a.staff_id);
+  const { data: gpsData } = await supabase
+    .from('staff_locations')
+    .select('staff_id, latitude, longitude')
+    .in('staff_id', staffIds.length > 0 ? staffIds : ['none']);
+
+  const gpsMap = new Map(gpsData?.map(g => [g.staff_id, g]) || []);
+
   // Map team IDs to names
   const teamNames: Record<string, string> = {
     'team-1': 'Team 1',
