@@ -77,6 +77,7 @@ export function useGeofencing(bookings: MobileBooking[]) {
   const watchIdRef = useRef<number | null>(null);
   const triggeredEnterRef = useRef<Set<string>>(new Set());
   const triggeredExitRef = useRef<Set<string>>(new Set());
+  const lastLocationReportRef = useRef<number>(0);
 
   // Persist timers on change
   useEffect(() => {
