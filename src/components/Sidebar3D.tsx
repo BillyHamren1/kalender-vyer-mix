@@ -15,6 +15,7 @@ import {
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface NavChild {
   title: string;
@@ -31,7 +32,7 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const navigationItems: NavItem[] = [
+const baseNavigationItems: NavItem[] = [
   {
     title: "Projekt",
     url: "/projects",
@@ -58,6 +59,33 @@ const navigationItems: NavItem[] = [
     icon: PieChart,
   },
 ];
+
+function useUnviewedBookingsCount() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { count: c } = await supabase
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('viewed', false)
+        .eq('status', 'CONFIRMED');
+      setCount(c ?? 0);
+    };
+    fetch();
+
+    const channel = supabase
+      .channel('sidebar-unviewed-bookings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetch();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  return count;
+}
 
 /* ─── Collapsed Tooltip ─── */
 function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
@@ -92,6 +120,13 @@ export function Sidebar3D() {
   const [pressedUrl, setPressedUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const unviewedCount = useUnviewedBookingsCount();
+
+  const navigationItems = baseNavigationItems.map(item =>
+    item.url === '/projects' && unviewedCount > 0
+      ? { ...item, badge: unviewedCount }
+      : item
+  );
 
   // Auto-expand parent if a child route is active
   useEffect(() => {
@@ -222,10 +257,14 @@ export function Sidebar3D() {
             );
 
             /* ── Badge ── */
-            const badgeEl = !isCollapsed && item.badge ? (
-              <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
-                {item.badge}
-              </span>
+            const badgeEl = item.badge ? (
+              isCollapsed ? (
+                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
+              ) : (
+                <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )
             ) : null;
 
             /* ── Item classes ── */
@@ -375,6 +414,9 @@ export function Sidebar3D() {
                     className="absolute inset-0 rounded-xl"
                     style={{ background: "hsl(184 60% 38% / 0.08)" }}
                   />
+                )}
+                {item.badge && (
+                  <span className="absolute top-1.5 right-2 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background z-20" />
                 )}
                 <item.icon
                   size={20}
