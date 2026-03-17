@@ -2629,7 +2629,7 @@ serve(async (req) => {
     if (!isHistoricalImport) {
       const { error: syncError } = await supabase
         .from('sync_state')
-        .upsert({
+      .upsert({
           sync_type: 'booking_import',
           organization_id: organizationId,
           last_sync_timestamp: finalTimestamp,
@@ -2637,7 +2637,7 @@ serve(async (req) => {
           last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
           metadata: { results },
           updated_at: finalTimestamp
-        })
+        }, { onConflict: 'sync_type' })
 
       if (syncError) {
         console.error('Error saving sync state:', syncError)
