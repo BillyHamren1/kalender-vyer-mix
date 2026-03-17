@@ -41,7 +41,8 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   children,
   onUpdate,
   onMoveDate,
-  onOpenChange
+  onOpenChange,
+  exactTimeNeeded = false
 }) => {
   const [open, setOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
