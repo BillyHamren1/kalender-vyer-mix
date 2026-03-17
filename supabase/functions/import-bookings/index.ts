@@ -1041,6 +1041,7 @@ serve(async (req) => {
       .from('sync_state')
       .upsert({
         sync_type: 'booking_import',
+        organization_id: organizationId,
         last_sync_status: 'in_progress',
         last_sync_mode: syncMode,
         metadata: { 
