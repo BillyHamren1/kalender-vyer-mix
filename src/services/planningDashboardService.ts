@@ -358,6 +358,9 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     const booking = bookingId ? bookingMap.get(bookingId) : null;
     const report = staffReportMap.get(assignment.staff_id);
 
+    const gpsLoc = gpsMap.get(staffMember.id);
+    const hasGps = !!gpsLoc;
+
     return {
       id: staffMember.id,
       name: staffMember.name,
@@ -366,10 +369,11 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       bookingId: bookingId || null,
       bookingClient: booking?.client || null,
       deliveryAddress: booking?.deliveryaddress || null,
-      latitude: booking?.delivery_latitude || null,
-      longitude: booking?.delivery_longitude || null,
+      latitude: hasGps ? gpsLoc.latitude : (booking?.delivery_latitude || null),
+      longitude: hasGps ? gpsLoc.longitude : (booking?.delivery_longitude || null),
       isWorking: workingStaffIds.has(assignment.staff_id),
-      lastReportTime: report?.created_at || null
+      lastReportTime: report?.created_at || null,
+      isGps: hasGps,
     };
   });
 };
