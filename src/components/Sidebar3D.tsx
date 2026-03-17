@@ -60,32 +60,7 @@ const baseNavigationItems: NavItem[] = [
   },
 ];
 
-function useUnviewedBookingsCount() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const fetch = async () => {
-      const { count: c } = await supabase
-        .from('bookings')
-        .select('id', { count: 'exact', head: true })
-        .eq('viewed', false)
-        .eq('status', 'CONFIRMED');
-      setCount(c ?? 0);
-    };
-    fetch();
-
-    const channel = supabase
-      .channel('sidebar-unviewed-bookings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetch();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  return count;
-}
+// Badge count now comes from shared useProjectInboxCount hook
 
 /* ─── Collapsed Tooltip ─── */
 function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
