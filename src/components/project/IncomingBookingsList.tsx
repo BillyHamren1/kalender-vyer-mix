@@ -34,7 +34,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         if (b.assignedToProject) return false;
         if (b.largeProjectId) return false;
         
-        const dates = [b.eventDate, b.rigDate, b.rigDownDate].filter(Boolean);
+        const dates = [b.eventDate, b.rigDayDate, b.rigDownDate].filter(Boolean);
         if (dates.length === 0) return false;
         return dates.some(d => d! >= todayStr);
       });
