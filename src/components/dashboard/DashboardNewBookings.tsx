@@ -94,9 +94,16 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 
   const restoreMutation = useMutation({
     mutationFn: async (bookingId: string) => {
+      // Check if a project/job already exists for this booking
+      const [{ count: jobCount }, { count: projectCount }, { data: booking }] = await Promise.all([
+        supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('booking_id', bookingId),
+        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('booking_id', bookingId),
+        supabase.from('bookings').select('large_project_id, assigned_project_id').eq('id', bookingId).single(),
+      ]);
+      const hasProject = (jobCount ?? 0) > 0 || (projectCount ?? 0) > 0 || !!booking?.large_project_id || !!booking?.assigned_project_id;
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'CONFIRMED', assigned_to_project: false })
+        .update({ status: 'CONFIRMED', assigned_to_project: hasProject })
         .eq('id', bookingId);
       if (error) throw error;
     },
