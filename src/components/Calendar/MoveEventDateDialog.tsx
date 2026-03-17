@@ -6,9 +6,10 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
+import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -18,9 +19,11 @@ interface MoveEventDateDialogProps {
     title: string;
     start: string | Date;
     end: string | Date;
+    resourceId?: string;
     bookingId?: string;
     eventType?: string;
   };
+  resources?: Array<{ id: string; title: string }>;
   onUpdate?: () => void;
 }
 
@@ -28,46 +31,50 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   open,
   onOpenChange,
   event,
+  resources = [],
   onUpdate
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize date when dialog opens
+  // Initialize when dialog opens
   useEffect(() => {
     if (open && event) {
       const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
       setSelectedDate(eventStart);
+      setSelectedResourceId(event.resourceId || undefined);
     }
   }, [open, event]);
 
   const handleMove = async () => {
     if (!selectedDate) {
-      toast.error('Please select a date');
+      toast.error('Välj ett datum');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Extract original times in UTC to preserve them
       const startTimeStr = extractUTCTime(event.start);
       const endTimeStr = extractUTCTime(event.end);
-
-      // Build new date string from selected calendar date (YYYY-MM-DD)
       const newDateStr = format(selectedDate, 'yyyy-MM-dd');
-
-      // Build new UTC ISO strings preserving original times
       const newStartISO = buildUTCDateTime(newDateStr, startTimeStr);
       const newEndISO = buildUTCDateTime(newDateStr, endTimeStr);
 
-      // Update calendar event in database
-      await updateCalendarEvent(event.id, {
+      const updatePayload: any = {
         start: newStartISO,
         end: newEndISO
-      });
+      };
 
-      // CRITICAL: Also update the booking date/time fields to keep data in sync
+      // Include resourceId change if different
+      if (selectedResourceId && selectedResourceId !== event.resourceId) {
+        updatePayload.resourceId = selectedResourceId;
+      }
+
+      await updateCalendarEvent(event.id, updatePayload);
+
+      // Also update the booking date/time fields to keep data in sync
       if (event.bookingId && event.eventType) {
         const bookingFields = {
           'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
@@ -87,21 +94,20 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         }
       }
 
-      toast.success('Event moved', {
-        description: `${event.title} moved to ${format(selectedDate, 'MMM d, yyyy')}`
+      const teamName = resources.find(r => r.id === selectedResourceId)?.title;
+      const movedToTeam = selectedResourceId !== event.resourceId && teamName
+        ? ` → ${teamName}`
+        : '';
+
+      toast.success('Händelse flyttad', {
+        description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${movedToTeam}`
       });
 
       onOpenChange(false);
-      
-      // Trigger refresh
-      if (onUpdate) {
-        onUpdate();
-      }
+      if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error moving event:', error);
-      toast.error('Failed to move event', {
-        description: 'Please try again'
-      });
+      toast.error('Kunde inte flytta händelsen');
     } finally {
       setIsSubmitting(false);
     }
@@ -113,23 +119,40 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
-            Move Event to Date
+            Flytta händelse
           </DialogTitle>
           <DialogDescription>
-            Select a new date for this event. The time will remain the same.
+            Välj ny dag och/eller team. Tiden behålls.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="text-sm font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
-              Current date: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'MMM d, yyyy')}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Time: {extractUTCTime(event.start)} - {extractUTCTime(event.end)}
+              Nuvarande: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'd MMM yyyy')} · {extractUTCTime(event.start)}–{extractUTCTime(event.end)}
             </div>
           </div>
+
+          {/* Team selector */}
+          {resources.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Users className="h-4 w-4" />
+                Team
+              </label>
+              <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Välj team" />
+                </SelectTrigger>
+                <SelectContent>
+                  {resources.map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex justify-center">
             <Calendar
@@ -148,13 +171,13 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
-            Cancel
+            Avbryt
           </Button>
           <Button
             onClick={handleMove}
             disabled={isSubmitting || !selectedDate}
           >
-            {isSubmitting ? 'Moving...' : 'Move Event'}
+            {isSubmitting ? 'Flyttar...' : 'Flytta'}
           </Button>
         </DialogFooter>
       </DialogContent>
