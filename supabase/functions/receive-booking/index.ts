@@ -71,30 +71,31 @@ serve(async (req) => {
     if (organization_id) importPayload.organization_id = organization_id
     if (event_type) importPayload.event_type = event_type
 
-    const importResponse = await fetch(`${supabaseUrl}/functions/v1/import-bookings`, {
+    // Fire-and-forget: trigger import-bookings without awaiting the response
+    // This prevents the booking system's ~16s webhook timeout from being exceeded.
+    // If the edge runtime terminates early, the background sync (every 30s) will catch it.
+    fetch(`${supabaseUrl}/functions/v1/import-bookings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify(importPayload),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await res.text().catch(() => 'no body')
+        console.error(`receive-booking: import-bookings background call failed (${res.status}): ${body}`)
+      } else {
+        console.log(`receive-booking: import-bookings background call succeeded for ${booking_id}`)
+      }
+    }).catch(err => {
+      console.error(`receive-booking: import-bookings background call error:`, err)
     })
 
-    const importResult = await importResponse.json()
-
-    if (!importResponse.ok) {
-      console.error(`receive-booking: import-bookings failed with status ${importResponse.status}`, importResult)
-      return new Response(
-        JSON.stringify({ error: 'Sync failed', details: importResult }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log(`receive-booking: Sync completed for booking ${booking_id}`, importResult)
-
+    // Respond immediately — booking system gets a fast 202
     return new Response(
-      JSON.stringify({ success: true, booking_id, event_type: event_type || 'unknown', sync_result: importResult }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, accepted: true, booking_id, event_type: event_type || 'unknown' }),
+      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     console.error('receive-booking: Unexpected error', error)
