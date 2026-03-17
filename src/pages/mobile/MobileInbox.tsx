@@ -98,9 +98,9 @@ const MobileInbox = () => {
     setActiveBroadcast(b);
     setView('broadcast-detail');
     if (!b.is_read) {
+      markBroadcastReadOptimistic(b.id);
       try {
         await mobileApi.markBroadcastRead(b.id);
-        setBroadcasts(prev => prev.map(br => br.id === b.id ? { ...br, is_read: true } : br));
       } catch { /* ignore */ }
     }
   };
