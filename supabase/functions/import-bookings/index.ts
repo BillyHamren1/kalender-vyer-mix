@@ -925,7 +925,8 @@ const expandPackageComponents = async (
  */
 const syncPackingListAfterExpansion = async (
   supabase: any,
-  bookingId: string
+  bookingId: string,
+  orgId: string
 ): Promise<number> => {
   const { data: packingProject } = await supabase
     .from('packing_projects')
