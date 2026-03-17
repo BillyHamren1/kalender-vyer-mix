@@ -415,6 +415,9 @@ export function Sidebar3D() {
                     style={{ background: "hsl(184 60% 38% / 0.08)" }}
                   />
                 )}
+                {item.badge && (
+                  <span className="absolute top-1.5 right-2 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background z-20" />
+                )}
                 <item.icon
                   size={20}
                   className="relative z-10"
