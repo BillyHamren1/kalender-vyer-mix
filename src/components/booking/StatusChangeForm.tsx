@@ -125,6 +125,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       // Always re-sync with server
       queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
     }
   };
 
