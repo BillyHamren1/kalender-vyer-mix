@@ -27,7 +27,7 @@ const MobileJobs = () => {
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
 
-  const { activeTimers, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings);
+  const { activeTimers, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
   const { travelState, elapsedSeconds, manualStopTravel } = useTravelDetection();
 
   const handleGeofenceConfirm = () => {

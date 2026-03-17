@@ -23,6 +23,7 @@ type TabKey = typeof tabs[number];
 const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { staff } = useMobileAuth();
   const { data: bookingData, isLoading } = useMobileBookingDetails(id);
   const { invalidateTimeReports, invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
@@ -30,7 +31,7 @@ const MobileJobDetail = () => {
   const [timerElapsed, setTimerElapsed] = useState(0);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr);
+  const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
 

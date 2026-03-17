@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
