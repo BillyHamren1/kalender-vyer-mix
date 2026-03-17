@@ -83,6 +83,15 @@ if (!existsSync(srcConfig)) {
 writeFileSync(dstConfig, readFileSync(srcConfig, 'utf-8'));
 console.log(`  ✅ ${config.configFile} → capacitor.config.ts`);
 
+// ── Step 1b: Generate icons for correct mode ──────────────────
+console.log('\n1️⃣b Generating icons...');
+try {
+  run(`APP_MODE=${mode} node scripts/generate-icons.js`);
+  console.log('  ✅ Icons generated for ' + mode);
+} catch (e) {
+  console.warn('  ⚠ Icon generation failed (sharp not installed?). Continuing...');
+}
+
 // ── Step 2: Build frontend ─────────────────────────────────────
 if (!skipBuild && !syncOnly) {
   console.log('\n2️⃣  Building frontend...');
