@@ -1005,6 +1005,10 @@ serve(async (req) => {
       booking_id: singleBookingId = null,
     } = body;
 
+    const normalizedSingleBookingId = typeof singleBookingId === 'string'
+      ? singleBookingId.trim()
+      : (singleBookingId ? String(singleBookingId) : null);
+
     // Resolve organization_id for all INSERTs (service_role bypasses RLS, so auth.uid() is null)
     // Accept explicit organization_id from payload (sent by Hub/receive-booking)
     const explicitOrgId = body?.organization_id;
@@ -1012,7 +1016,7 @@ serve(async (req) => {
     console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
     
     const isHistoricalImport = historicalMode || forceHistoricalImport;
-    const isSingleBookingRefresh = !!singleBookingId;
+    const isSingleBookingRefresh = !!normalizedSingleBookingId;
     
     console.log(`Starting import with sync mode: ${syncMode}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
@@ -1063,9 +1067,9 @@ serve(async (req) => {
     const apiParams = new URLSearchParams();
     apiParams.append('organization_id', organizationId);
     
-    if (isSingleBookingRefresh) {
-      apiParams.append('booking_id', singleBookingId);
-      console.log(`Single booking refresh mode: fetching booking ${singleBookingId}`);
+    if (isSingleBookingRefresh && normalizedSingleBookingId) {
+      apiParams.append('booking_id', normalizedSingleBookingId);
+      console.log(`Single booking refresh mode: fetching booking ${normalizedSingleBookingId}`);
     } else if (syncMode === 'incremental' && lastSyncTimestamp && !isHistoricalImport) {
       const sinceDate = new Date(lastSyncTimestamp).toISOString();
       apiParams.append('since', sinceDate);
@@ -1107,34 +1111,53 @@ serve(async (req) => {
       throw new Error('All fetch attempts failed');
     };
 
-    const externalResponse = await fetchWithRetry(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${importApiKey}`,
-        'x-api-key': importApiKey,
-        'Content-Type': 'application/json'
-      }
-    })
+    const requestHeaders = {
+      'Authorization': `Bearer ${importApiKey}`,
+      'x-api-key': importApiKey,
+      'Content-Type': 'application/json'
+    };
 
-    if (!externalResponse.ok) {
-      // Try to get error details from response body
-      let errorDetails = '';
-      try {
-        const errorBody = await externalResponse.text();
-        errorDetails = errorBody.substring(0, 500); // Limit to 500 chars
-        console.error(`External API error response body: ${errorDetails}`);
-      } catch (e) {
-        console.error('Could not read external API error response body');
+    const fetchExternalData = async (url: string) => {
+      const externalResponse = await fetchWithRetry(url, { headers: requestHeaders });
+
+      if (!externalResponse.ok) {
+        let errorDetails = '';
+        try {
+          const errorBody = await externalResponse.text();
+          errorDetails = errorBody.substring(0, 500);
+          console.error(`External API error response body: ${errorDetails}`);
+        } catch {
+          console.error('Could not read external API error response body');
+        }
+        throw new Error(`External API error: ${externalResponse.status}${errorDetails ? ` - ${errorDetails}` : ''}`)
       }
-      throw new Error(`External API error: ${externalResponse.status}${errorDetails ? ` - ${errorDetails}` : ''}`)
+
+      const payload = await externalResponse.json();
+      if (!payload?.data || !Array.isArray(payload.data)) {
+        throw new Error('Invalid external API response format - expected data array')
+      }
+      return payload;
+    };
+
+    let externalData = await fetchExternalData(apiUrl);
+
+    // For booking-specific syncs: poll using booking_id (never timestamp-only) before giving up.
+    if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {
+      const bookingPollAttempts = 3;
+      for (let attempt = 1; attempt <= bookingPollAttempts; attempt++) {
+        const delayMs = 1500 * attempt;
+        console.log(`[Single booking poll] No data yet for ${normalizedSingleBookingId}. Retrying with booking_id in ${delayMs}ms (attempt ${attempt}/${bookingPollAttempts})`);
+        await new Promise((r) => setTimeout(r, delayMs));
+
+        externalData = await fetchExternalData(apiUrl);
+        if (externalData.data.length > 0) {
+          console.log(`[Single booking poll] Found booking ${normalizedSingleBookingId} on attempt ${attempt}`);
+          break;
+        }
+      }
     }
 
-    const externalData = await externalResponse.json()
-    console.log(`Fetched ${externalData.data?.length || 0} bookings from external API`)
-
-    // Handle the response format from export-bookings function
-    if (!externalData.data || !Array.isArray(externalData.data)) {
-      throw new Error('Invalid external API response format - expected data array')
-    }
+    console.log(`Fetched ${externalData.data.length} bookings from external API`)
 
     const results = {
       total: 0,
@@ -2618,14 +2641,13 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP using UPSERT - but only for non-historical imports
+    // SAVE SYNC TIMESTAMP using UPSERT - but only for non-historical, non-single-booking imports
     const finalTimestamp = new Date().toISOString()
     console.log(`Saving sync timestamp: ${finalTimestamp}`)
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
     
-    // Only update sync timestamp for non-historical imports
-    if (!isHistoricalImport) {
+    if (!isHistoricalImport && !isSingleBookingRefresh) {
       const { error: syncError } = await supabase
         .from('sync_state')
       .upsert({
@@ -2643,6 +2665,8 @@ serve(async (req) => {
       } else {
         console.log('Sync timestamp saved successfully')
       }
+    } else if (isSingleBookingRefresh) {
+      console.log('Single booking refresh: NOT updating sync timestamp to avoid moving incremental window')
     } else {
       console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
     }
