@@ -363,7 +363,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       className={
         isFullscreen
           ? 'fixed inset-4 z-50 bg-background rounded-2xl shadow-2xl border border-border overflow-hidden'
-          : 'relative w-full h-full overflow-hidden'
+          : 'relative w-full h-full overflow-hidden rounded-xl border-2 border-border'
       }
     >
       <div ref={mapContainer} className="w-full h-full" />
