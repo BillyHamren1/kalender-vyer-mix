@@ -16,6 +16,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import DashboardCancelledBookings from "@/components/dashboard/DashboardCancelledBookings";
 import DashboardAllProjects from "@/components/dashboard/DashboardAllProjects";
 
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
