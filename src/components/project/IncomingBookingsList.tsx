@@ -25,18 +25,12 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
       const allBookings = await fetchBookings();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().slice(0, 10);
-      
-      return allBookings.filter(b => {
+
+      return allBookings.filter((b) => {
         if (b.status !== 'CONFIRMED') return false;
         if (b.assignedToProject) return false;
         if (b.largeProjectId) return false;
-        
-        const dates = [b.eventDate, b.rigDayDate, b.rigDownDate].filter(Boolean);
-        if (dates.length === 0) return false;
-        return dates.some(d => d! >= todayStr);
+        return true;
       });
     }
   });
