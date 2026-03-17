@@ -50,13 +50,8 @@ const categoryLabels: Record<string, string> = {
 const MobileInbox = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
+  const { dmConversations, broadcasts, jobConversations, isLoading: loading, markDMReadOptimistic, appendDMMessage, markBroadcastReadOptimistic } = useMobileInbox();
   const [view, setView] = useState<InboxView>('list');
-  const [loading, setLoading] = useState(true);
-
-  // Data
-  const [dmConversations, setDmConversations] = useState<DMConversation[]>([]);
-  const [jobConversations, setJobConversations] = useState<{ bookingId: string; client: string; lastMessage: string; lastTime: string; unread: boolean }[]>([]);
-  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
 
   // Thread state
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
@@ -66,41 +61,6 @@ const MobileInbox = () => {
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const fetchAll = useCallback(async () => {
-    if (!staff) return;
-    setLoading(true);
-    try {
-      const [dmRes, broadcastRes, bookingsRes] = await Promise.all([
-        mobileApi.getDirectMessages(),
-        mobileApi.getBroadcasts(),
-        mobileApi.getBookings(),
-      ]);
-
-      setDmConversations(dmRes.conversations || []);
-      setBroadcasts((broadcastRes.broadcasts || []).map((b: any) => ({
-        ...b,
-        is_read: b.is_read ?? false,
-      })));
-
-      // Build job conversations from bookings that have job messages
-      // We'll show all assigned bookings as potential chat threads
-      const jobs = (bookingsRes.bookings || []).slice(0, 20).map((b: any) => ({
-        bookingId: b.id,
-        client: b.client,
-        lastMessage: '',
-        lastTime: '',
-        unread: false,
-      }));
-      setJobConversations(jobs);
-    } catch (err) {
-      console.error('Inbox fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [staff]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Auto-scroll chat
   useEffect(() => {
