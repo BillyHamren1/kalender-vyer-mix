@@ -22,9 +22,52 @@ const ProjectLayout = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
+
+  const handleConvert = async (targetType: ProjectType) => {
+    if (!project?.booking_id) {
+      toast.error('Projektet har ingen kopplad bokning');
+      return;
+    }
+    if (!confirm(`Ändra till ${targetType === 'small' ? 'litet' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+
+    const current = { type: 'medium' as const, id: projectId! };
+    try {
+      if (targetType === 'medium') return;
+      if (targetType === 'small') {
+        const newId = await convertToSmall(current, project.booking_id);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        toast.success('Konverterat till litet projekt');
+        navigate(`/jobs/${newId}`);
+      } else {
+        await prepareConvertToLarge(current, project.booking_id);
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        setLargeProjectBookingId(project.booking_id);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte konvertera');
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    try {
+      await deleteProject(projectId!);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      toast.success('Projekt borttaget');
+      navigate('/projects');
+    } catch {
+      toast.error('Kunde inte ta bort projekt');
+    }
+  };
 
   if (isLoading) {
     return (
