@@ -104,6 +104,11 @@ const PlanningDashboard = () => {
             </div>
           </PageHeader>
 
+          {/* Cancelled Bookings */}
+          <div className="mb-4">
+            <DashboardCancelledBookings />
+          </div>
+
           {/* New Bookings */}
           <div className="mb-4">
             <DashboardNewBookings
