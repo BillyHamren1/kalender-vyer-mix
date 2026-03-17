@@ -264,8 +264,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       if (result.overscan) {
         toast.warning(`⚠️ FÖR MÅNGA SKANNADE! ${result.productName}`, { duration: 5000 });
-      } else {
-        toast.success(`${result.productName} verifierad!`);
       }
       
       // Optimistic local update — allow going above quantity_to_pack
@@ -317,7 +315,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
     
     if (result.success) {
-      toast.success(isCurrentlyPacked ? 'Avmarkerad' : 'Markerad som packad');
+      // No toast for normal pack/unpack — the UI update is enough
       
       // Optimistic local update
       setItems(prev => {
