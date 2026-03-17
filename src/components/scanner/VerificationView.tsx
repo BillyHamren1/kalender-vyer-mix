@@ -244,9 +244,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const handleScan = useCallback(async (scannedValue: string) => {
     const scanResult = parseScanResult(scannedValue);
     
-    // Ignore packing_id scans while already verifying
+    // Ignore packing_id scans while already verifying (silent)
     if (scanResult.type === 'packing_id') {
-      toast.info('QR-kod innehåller packlista-ID — ignoreras under verifiering');
       return;
     }
 
@@ -262,13 +261,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     });
 
     if (result.success) {
-      if (result.overscan) {
-        toast.warning(`⚠️ FÖR MÅNGA SKANNADE! ${result.productName}`, { duration: 5000 });
-      }
-      
-      // Optimistic local update — allow going above quantity_to_pack
+      // Optimistic local update — update ONLY the row returned by API
       setItems(prev => {
         const updated = prev.map(item => {
+          if (result.itemId) {
+            return item.id === result.itemId
+              ? { ...item, quantity_packed: (item.quantity_packed || 0) + 1 }
+              : item;
+          }
+
+          // Fallback for older API responses
           if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
             return { ...item, quantity_packed: (item.quantity_packed || 0) + 1 };
           }
@@ -279,15 +281,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       });
 
       // If in Kolli mode, assign scanned item to active parcel
-      if (isKolliMode && activeParcel) {
-        const matchedItem = items.find(
-          item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()
-        );
-        if (matchedItem) {
-          await assignItemToParcel(matchedItem.id, activeParcel.id);
-          setItemParcelMap(prev => ({ ...prev, [matchedItem.id]: activeParcel.parcel_number }));
-          toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
-        }
+      if (isKolliMode && activeParcel && result.itemId) {
+        await assignItemToParcel(result.itemId, activeParcel.id);
+        setItemParcelMap(prev => ({ ...prev, [result.itemId as string]: activeParcel.parcel_number }));
       }
       
       // Silent background sync
@@ -298,7 +294,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
     // Close QR scanner after scan
     setIsQRActive(false);
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, items, recalcProgress]);
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
 
   // Keep ref updated so scanner controller can call handleScan
   useEffect(() => {
@@ -334,7 +330,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       if (isKolliMode && activeParcel && !isCurrentlyPacked) {
         await assignItemToParcel(itemId, activeParcel.id);
         setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-        toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
       }
       
       // Silent background sync
