@@ -202,9 +202,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     );
   }
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (moveDateHandlers.canOpen()) {
+      moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
+      setShowDateDialog(true);
+    }
+  }, [moveDateHandlers, event.id, event.title]);
+
   return (
     <>
-      <div onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
+      <div onDoubleClick={handleViewDetails} onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
         {eventCardContent}
       </div>
       
