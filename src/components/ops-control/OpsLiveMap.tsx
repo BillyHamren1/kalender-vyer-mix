@@ -53,6 +53,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [quickMsg, setQuickMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [showCameras, setShowCameras] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
   // Init map
