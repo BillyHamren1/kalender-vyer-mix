@@ -661,7 +661,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 // Format display name: UPPERCASE for main, Title Case for children
                 const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
                 
-                const isComplete = packed >= total && total > 0;
+                const isOverscan = packed > total && total > 0;
+                const isComplete = packed >= total && total > 0 && !isOverscan;
                 const isPartial = packed > 0 && packed < total;
                 
                 // Get parcel number if assigned
