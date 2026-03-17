@@ -2367,7 +2367,8 @@ serve(async (req) => {
                 packing_id: packingIdForReconnection,
                 booking_product_id: product.id,
                 quantity_to_pack: product.quantity || 1,
-                quantity_packed: 0
+                quantity_packed: 0,
+                organization_id: organizationId
               }));
               
               const { error: insertError } = await supabase
