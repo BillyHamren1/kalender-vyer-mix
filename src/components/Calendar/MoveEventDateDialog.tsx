@@ -133,6 +133,15 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
+        {exactTimeNeeded && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              Denna bokning har bestämda tider. Är du säker att du vill ändra?
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-4 py-4">
           <div className="space-y-1">
             <div className="text-sm font-medium">{event.title}</div>
