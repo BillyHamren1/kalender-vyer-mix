@@ -206,10 +206,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     e.preventDefault();
     e.stopPropagation();
     if (moveDateHandlers.canOpen()) {
-      moveDateHandlers.onOpen();
+      moveDateHandlers.onOpen({ id: event.id, title: event.title });
       setShowDateDialog(true);
     }
-  }, [moveDateHandlers]);
+  }, [moveDateHandlers, event.id, event.title]);
 
   return (
     <>
