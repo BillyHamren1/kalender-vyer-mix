@@ -1,8 +1,15 @@
+import { useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
+import ProjectActionMenu from "@/components/project/ProjectActionMenu";
+import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
+import { deleteProject } from "@/services/projectService";
+import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -15,9 +22,52 @@ const ProjectLayout = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
+
+  const handleConvert = async (targetType: ProjectType) => {
+    if (!project?.booking_id) {
+      toast.error('Projektet har ingen kopplad bokning');
+      return;
+    }
+    if (!confirm(`Ändra till ${targetType === 'small' ? 'litet' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+
+    const current = { type: 'medium' as const, id: projectId! };
+    try {
+      if (targetType === 'medium') return;
+      if (targetType === 'small') {
+        const newId = await convertToSmall(current, project.booking_id);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        toast.success('Konverterat till litet projekt');
+        navigate(`/jobs/${newId}`);
+      } else {
+        await prepareConvertToLarge(current, project.booking_id);
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        setLargeProjectBookingId(project.booking_id);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte konvertera');
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    try {
+      await deleteProject(projectId!);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      toast.success('Projekt borttaget');
+      navigate('/projects');
+    } catch {
+      toast.error('Kunde inte ta bort projekt');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -57,6 +107,7 @@ const ProjectLayout = () => {
     : "overview";
 
   return (
+    <>
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
@@ -79,7 +130,14 @@ const ProjectLayout = () => {
               )}
             </div>
           </div>
-          <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
+          <div className="flex items-center gap-2">
+            <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
+            <ProjectActionMenu
+              currentType="medium"
+              onConvert={handleConvert}
+              onDelete={handleDeleteProject}
+            />
+          </div>
         </div>
 
         {/* 3-page navigation */}
@@ -119,6 +177,13 @@ const ProjectLayout = () => {
         <Outlet context={detail} />
       </div>
     </div>
+
+    <AddToLargeProjectDialog
+      open={!!largeProjectBookingId}
+      onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+      bookingId={largeProjectBookingId || ''}
+    />
+    </>
   );
 };
 

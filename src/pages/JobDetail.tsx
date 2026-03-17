@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,9 +16,13 @@ import {
   fetchJobById, 
   updateJobStatus, 
   addStaffToJob, 
-  removeStaffFromJob 
+  removeStaffFromJob,
+  deleteJob
 } from '@/services/jobService';
 import { fetchStaffMembers } from '@/services/staffService';
+import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from '@/services/projectConversionService';
+import ProjectActionMenu from '@/components/project/ProjectActionMenu';
+import { AddToLargeProjectDialog } from '@/components/project/AddToLargeProjectDialog';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -75,6 +79,7 @@ const JobDetail = () => {
   const [selectedStaffId, setSelectedStaffId] = React.useState<string>('');
   const [selectedDate, setSelectedDate] = React.useState<string>('');
   const [openProducts, setOpenProducts] = React.useState<Set<string>>(new Set());
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
@@ -155,6 +160,47 @@ const JobDetail = () => {
     });
   };
 
+  const handleConvert = async (targetType: ProjectType) => {
+    if (!job?.bookingId) {
+      toast.error('Projektet har ingen kopplad bokning');
+      return;
+    }
+    if (!confirm(`Ändra till ${targetType === 'medium' ? 'medel' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+
+    const current = { type: 'small' as const, id: id! };
+    try {
+      if (targetType === 'small') return; // already small
+      if (targetType === 'medium') {
+        const newId = await convertToMedium(current, job.bookingId);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        toast.success('Konverterat till medelprojekt');
+        navigate(`/project/${newId}`);
+      } else {
+        await prepareConvertToLarge(current, job.bookingId);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        setLargeProjectBookingId(job.bookingId);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte konvertera');
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    try {
+      await deleteJob(id!);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      toast.success('Projekt borttaget');
+      navigate('/projects');
+    } catch {
+      toast.error('Kunde inte ta bort projekt');
+    }
+  };
+
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -199,6 +245,7 @@ const JobDetail = () => {
   const groupedProducts = fullBooking?.products ? groupProducts(fullBooking.products) : [];
 
   return (
+    <>
     <MainSystemLayout>
       <div className="h-screen flex flex-col bg-muted/30 overflow-hidden">
         {/* Header */}
@@ -213,19 +260,26 @@ const JobDetail = () => {
                 <h1 className="text-xl font-bold">{job.name}</h1>
               </div>
             </div>
-            <Select 
-              value={job.status} 
-              onValueChange={(value) => statusMutation.mutate(value)}
-            >
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="planned">Planerat</SelectItem>
-                <SelectItem value="in_progress">Pågående</SelectItem>
-                <SelectItem value="completed">Avslutat</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={job.status} 
+                onValueChange={(value) => statusMutation.mutate(value)}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="planned">Planerat</SelectItem>
+                  <SelectItem value="in_progress">Pågående</SelectItem>
+                  <SelectItem value="completed">Avslutat</SelectItem>
+                </SelectContent>
+              </Select>
+              <ProjectActionMenu
+                currentType="small"
+                onConvert={handleConvert}
+                onDelete={handleDeleteJob}
+              />
+            </div>
           </div>
         </div>
 
@@ -700,6 +754,13 @@ const JobDetail = () => {
         </div>
       </div>
     </MainSystemLayout>
+
+    <AddToLargeProjectDialog
+      open={!!largeProjectBookingId}
+      onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+      bookingId={largeProjectBookingId || ''}
+    />
+    </>
   );
 };
 
