@@ -1,11 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, ChevronRight, Calendar, FolderKanban, AlertTriangle } from 'lucide-react';
+import { ChevronRight, Calendar, FolderKanban, AlertTriangle } from 'lucide-react';
 import { fetchJobs, deleteJob } from '@/services/jobService';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
+import { convertToSmall, convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
+import ProjectActionMenu from '@/components/project/ProjectActionMenu';
+import { AddToLargeProjectDialog } from '@/components/project/AddToLargeProjectDialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -23,6 +26,7 @@ interface UnifiedProject {
   address: string | null;
   navigateTo: string;
   bookingCancelled?: boolean;
+  bookingId?: string | null;
 }
 
 interface UnifiedProjectListProps {
@@ -46,6 +50,7 @@ const TYPE_BADGE_CLASSES: Record<UnifiedProject['type'], string> = {
 const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProjectListProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
@@ -53,26 +58,32 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+    queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+  };
+
   const deleteJobMutation = useMutation({
     mutationFn: deleteJob,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['jobs'] }); queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] }); toast.success('Projekt borttaget'); },
+    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
     onError: () => toast.error('Kunde inte ta bort projekt'),
   });
   const deleteProjectMutation = useMutation({
     mutationFn: deleteProject,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['projects'] }); queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] }); toast.success('Projekt borttaget'); },
+    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
     onError: () => toast.error('Kunde inte ta bort projekt'),
   });
   const deleteLargeMutation = useMutation({
     mutationFn: deleteLargeProject,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['large-projects'] }); queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] }); toast.success('Projekt borttaget'); },
+    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
     onError: () => toast.error('Kunde inte ta bort projekt'),
   });
 
   const unified = useMemo<UnifiedProject[]>(() => {
     const items: UnifiedProject[] = [];
 
-    // Jobs (small)
     jobs.forEach(j => items.push({
       id: j.id,
       name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
@@ -83,9 +94,9 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       address: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       bookingCancelled: j.booking?.status === 'CANCELLED',
+      bookingId: j.bookingId,
     }));
 
-    // Medium projects
     projects.forEach(p => {
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
@@ -102,10 +113,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         address: fullAddress,
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
+        bookingId: p.booking_id,
       });
     });
 
-    // Large projects
     largeProjects.forEach(lp => items.push({
       id: lp.id,
       name: lp.name,
@@ -115,6 +126,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
+      bookingId: null, // large projects have multiple bookings
     }));
 
     return items;
@@ -123,16 +135,11 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const filtered = useMemo(() => {
     return unified
       .filter(p => {
-        // Type filter
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-
-        // Search
         if (search) {
           const q = search.toLowerCase();
           if (!p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q))) return false;
         }
-
-        // Status filter
         if (statusFilter === 'all') return true;
         if (statusFilter === 'all_active') return p.status !== 'completed';
         if (statusFilter === 'planning') return p.status === 'planning';
@@ -148,12 +155,50 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       });
   }, [unified, search, statusFilter, typeFilter]);
 
-  const handleDelete = (e: React.MouseEvent, project: UnifiedProject) => {
-    e.stopPropagation();
+  const handleDelete = (project: UnifiedProject) => {
     if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
     if (project.type === 'small') deleteJobMutation.mutate(project.id);
     else if (project.type === 'medium') deleteProjectMutation.mutate(project.id);
     else deleteLargeMutation.mutate(project.id);
+  };
+
+  const handleConvert = async (project: UnifiedProject, targetType: ProjectType) => {
+    // Large projects can't be converted (they have multiple bookings)
+    if (project.type === 'large') {
+      toast.error('Stora projekt med flera bokningar kan inte konverteras direkt');
+      return;
+    }
+
+    const bookingId = project.bookingId;
+    if (!bookingId) {
+      toast.error('Projektet har ingen kopplad bokning att konvertera');
+      return;
+    }
+
+    if (!confirm(`Ändra till ${targetType === 'small' ? 'litet' : targetType === 'medium' ? 'medel' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+
+    const current = { type: project.type, id: project.id };
+
+    try {
+      if (targetType === 'small') {
+        const newId = await convertToSmall(current, bookingId);
+        invalidateAll();
+        toast.success('Projekt konverterat till litet');
+        navigate(`/jobs/${newId}`);
+      } else if (targetType === 'medium') {
+        const newId = await convertToMedium(current, bookingId);
+        invalidateAll();
+        toast.success('Projekt konverterat till medel');
+        navigate(`/project/${newId}`);
+      } else {
+        await prepareConvertToLarge(current, bookingId);
+        invalidateAll();
+        setLargeProjectBookingId(bookingId);
+      }
+    } catch (err: any) {
+      console.error('Conversion error:', err);
+      toast.error(err.message || 'Kunde inte konvertera projekt');
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -183,57 +228,60 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
-      <div className="divide-y divide-border/40">
-        {filtered.map(project => (
-          <div
-            key={`${project.type}-${project.id}`}
-            onClick={() => navigate(project.navigateTo)}
-            className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''}`}
-          >
-            {/* Type badge */}
-            <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
-              {TYPE_LABELS[project.type]}
-            </Badge>
-
-            {/* Cancelled badge */}
-            {project.bookingCancelled && (
-              <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                AVBOKAD
+    <>
+      <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
+        <div className="divide-y divide-border/40">
+          {filtered.map(project => (
+            <div
+              key={`${project.type}-${project.id}`}
+              onClick={() => navigate(project.navigateTo)}
+              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''}`}
+            >
+              <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
+                {TYPE_LABELS[project.type]}
               </Badge>
-            )}
 
-            {/* Name + subtitle */}
-            <div className="flex-1 min-w-0">
-              <h4 className={`text-sm font-medium truncate group-hover/row:text-primary transition-colors ${project.bookingCancelled ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                {project.name}
-              </h4>
-              {project.subtitle && (
-                <p className={`text-[11px] truncate mt-0.5 ${project.bookingCancelled ? 'line-through text-muted-foreground/60' : 'text-muted-foreground'}`}>{project.subtitle}</p>
+              {project.bookingCancelled && (
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  AVBOKAD
+                </Badge>
               )}
-            </div>
 
-            {/* Date */}
-            <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              {formatDate(project.date)}
-            </span>
+              <div className="flex-1 min-w-0">
+                <h4 className={`text-sm font-medium truncate group-hover/row:text-primary transition-colors ${project.bookingCancelled ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                  {project.name}
+                </h4>
+                {project.subtitle && (
+                  <p className={`text-[11px] truncate mt-0.5 ${project.bookingCancelled ? 'line-through text-muted-foreground/60' : 'text-muted-foreground'}`}>{project.subtitle}</p>
+                )}
+              </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={(e) => handleDelete(e, project)}
-                className="p-1 rounded opacity-0 group-hover/row:opacity-100 transition-opacity hover:bg-destructive/10"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-              </button>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/row:text-primary/50 transition-colors" />
+              <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                {formatDate(project.date)}
+              </span>
+
+              <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                <ProjectActionMenu
+                  currentType={project.type}
+                  onConvert={(targetType) => handleConvert(project, targetType)}
+                  onDelete={() => handleDelete(project)}
+                  triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
+                />
+                <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/row:text-primary/50 transition-colors" />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+
+      <AddToLargeProjectDialog
+        open={!!largeProjectBookingId}
+        onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+        bookingId={largeProjectBookingId || ''}
+      />
+    </>
   );
 };
 
