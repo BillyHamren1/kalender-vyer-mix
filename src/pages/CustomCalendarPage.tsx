@@ -10,6 +10,8 @@ import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
+import MobileEventsList from '@/components/mobile/MobileEventsList';
+import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
@@ -276,7 +278,18 @@ const CustomCalendarPage = () => {
             ) : viewMode === 'monthly' ? (
               // Monthly View - same day-grid style as warehouse calendar
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <>
+                  <MobileEventsList
+                    events={events}
+                    weekStart={currentWeekStart}
+                  />
+                  <MobileWarehouseWeekSelector
+                    currentMonth={monthlyDate}
+                    selectedWeekStart={currentWeekStart}
+                    onMonthChange={handleMonthChange}
+                    onWeekSelect={handleWeekSelect}
+                  />
+                </>
               ) : (
                 <>
                   <CustomCalendar
