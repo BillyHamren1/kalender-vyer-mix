@@ -184,27 +184,29 @@ Deno.serve(async (req) => {
 
 async function handleLogin(supabase: any, data: { username?: string; password: string; email?: string }) {
   const { password } = data
-  const identifier = data.email || data.username
+  const rawIdentifier = data.email || data.username
 
-  if (!identifier || !password) {
+  if (!rawIdentifier || !password) {
     return new Response(
       JSON.stringify({ error: 'Email/username and password required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  const normalizedIdentifier = identifier.trim().toLowerCase()
+  const normalizedIdentifier = rawIdentifier.trim().toLowerCase()
   let account: any = null
+  let matchedEmailStaff = false
 
   // Check if identifier looks like an email
   const isEmail = normalizedIdentifier.includes('@')
 
   if (isEmail) {
-    // Find staff member by email first, then get their account
+    // Case-insensitive email lookup (handles mixed-case emails in DB)
     const { data: staffByEmail, error: emailError } = await supabase
       .from('staff_members')
       .select('id')
-      .eq('email', normalizedIdentifier)
+      .ilike('email', normalizedIdentifier)
+      .limit(1)
       .maybeSingle()
 
     if (emailError) {
@@ -215,11 +217,14 @@ async function handleLogin(supabase: any, data: { username?: string; password: s
       )
     }
 
+    matchedEmailStaff = !!staffByEmail
+
     if (staffByEmail) {
       const { data: acctByStaff, error: acctError } = await supabase
         .from('staff_accounts')
         .select('staff_id, username, password_hash')
         .eq('staff_id', staffByEmail.id)
+        .limit(1)
         .maybeSingle()
 
       if (acctError) {
@@ -229,7 +234,35 @@ async function handleLogin(supabase: any, data: { username?: string; password: s
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
       account = acctByStaff
+    }
+
+    // Fallback: allow username even if sent from the email field
+    if (!account) {
+      const { data: acctByUsername, error: usernameFallbackError } = await supabase
+        .from('staff_accounts')
+        .select('staff_id, username, password_hash')
+        .eq('username', normalizedIdentifier)
+        .limit(1)
+        .maybeSingle()
+
+      if (usernameFallbackError) {
+        console.error('Username fallback lookup error:', usernameFallbackError)
+        return new Response(
+          JSON.stringify({ error: 'Login failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      account = acctByUsername
+    }
+
+    if (!account && matchedEmailStaff) {
+      return new Response(
+        JSON.stringify({ error: 'Kontot saknar inloggning för scanner-appen. Kontakta admin.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
   } else {
     // Legacy username-based lookup
@@ -237,6 +270,7 @@ async function handleLogin(supabase: any, data: { username?: string; password: s
       .from('staff_accounts')
       .select('staff_id, username, password_hash')
       .eq('username', normalizedIdentifier)
+      .limit(1)
       .maybeSingle()
 
     if (accountError) {
