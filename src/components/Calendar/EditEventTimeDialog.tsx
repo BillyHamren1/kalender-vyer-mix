@@ -19,6 +19,7 @@ interface EditEventTimeDialogProps {
     end: string | Date;
   };
   onUpdate?: () => void;
+  exactTimeNeeded?: boolean;
 }
 
 const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
