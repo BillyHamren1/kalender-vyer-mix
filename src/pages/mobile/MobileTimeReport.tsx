@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 
 const MobileTimeReport = () => {
+  const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +27,7 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, stopTimer } = useGeofencing(bookings);
+  const { activeTimers, stopTimer } = useGeofencing(bookings, staff?.id);
 
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
