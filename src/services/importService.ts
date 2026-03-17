@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { smartUpdateBookingCalendar } from "./bookingCalendarService";
 import { cleanupDuplicateCalendarEvents } from "./duplicateCleanupService";
+import { isScannerApp } from "@/config/appMode";
 import { 
   getSyncState, 
   updateSyncState, 
