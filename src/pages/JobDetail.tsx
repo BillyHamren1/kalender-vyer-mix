@@ -160,6 +160,47 @@ const JobDetail = () => {
     });
   };
 
+  const handleConvert = async (targetType: ProjectType) => {
+    if (!job?.bookingId) {
+      toast.error('Projektet har ingen kopplad bokning');
+      return;
+    }
+    if (!confirm(`Ändra till ${targetType === 'medium' ? 'medel' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+
+    const current = { type: 'small' as const, id: id! };
+    try {
+      if (targetType === 'small') return; // already small
+      if (targetType === 'medium') {
+        const newId = await convertToMedium(current, job.bookingId);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        toast.success('Konverterat till medelprojekt');
+        navigate(`/project/${newId}`);
+      } else {
+        await prepareConvertToLarge(current, job.bookingId);
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+        setLargeProjectBookingId(job.bookingId);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte konvertera');
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    try {
+      await deleteJob(id!);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      toast.success('Projekt borttaget');
+      navigate('/projects');
+    } catch {
+      toast.error('Kunde inte ta bort projekt');
+    }
+  };
+
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
