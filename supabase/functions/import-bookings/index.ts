@@ -1053,8 +1053,7 @@ serve(async (req) => {
           historical_mode: isHistoricalImport
         },
         updated_at: currentTimestamp
-      }, { onConflict: 'sync_type' }
-      })
+      }, { onConflict: 'sync_type' })
 
     if (syncStateError) {
       console.error('Error updating sync state:', syncStateError)
