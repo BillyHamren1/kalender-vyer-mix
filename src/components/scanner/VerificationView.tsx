@@ -713,13 +713,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                           ? 'text-[11px] font-normal' 
                           : 'text-xs font-semibold tracking-wide'
                       } ${
-                        isComplete 
-                          ? 'text-green-700' 
-                          : isPartial 
-                            ? 'text-amber-800'
-                            : isChild 
-                              ? 'text-muted-foreground' 
-                              : 'text-foreground'
+                        isOverscan
+                          ? 'text-red-700 font-bold'
+                          : isComplete 
+                            ? 'text-green-700' 
+                            : isPartial 
+                              ? 'text-amber-800'
+                              : isChild 
+                                ? 'text-muted-foreground' 
+                                : 'text-foreground'
                       }`}>
                         {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
                         {displayName}
