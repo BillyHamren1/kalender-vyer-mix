@@ -1954,10 +1954,10 @@ serve(async (req) => {
           };
           
           // CRITICAL: Preserve local project assignment flags
-          // The external system doesn't know about our local projects/jobs,
-          // so we must check locally and override external data if a project/job exists
-          {
-            // Check for existing project
+          // BUT skip preservation when booking is being re-confirmed (from cancelled/non-confirmed → confirmed)
+          // so it appears in triage for manual assignment
+          if (!(!wasConfirmed && isNowConfirmed)) {
+            // Check for existing active project
             const { data: localProject } = await supabase
               .from('projects')
               .select('id, name, status')
@@ -1970,6 +1970,7 @@ serve(async (req) => {
               .from('jobs')
               .select('id, name, status')
               .eq('booking_id', existingBooking.id)
+              .neq('status', 'completed')
               .limit(1);
             
             const activeProject = localProject && localProject.length > 0 ? localProject[0] : null;
@@ -1986,75 +1987,15 @@ serve(async (req) => {
               updateData.assigned_project_id = activeJob.id;
               updateData.assigned_project_name = `Jobb: ${activeJob.name}`;
             }
+          } else {
+            console.log(`[Skip Preserve] Booking ${bookingData.id} is being re-confirmed — skipping flag preservation to allow triage`);
           }
           
           // Reset viewed flag when a booking transitions to CONFIRMED (re-confirmed after cancellation)
           if (!wasConfirmed && isNowConfirmed) {
             updateData.viewed = false;
             console.log(`Resetting viewed flag for re-confirmed booking ${bookingData.id}`);
-            
-            // Check if there's a project or job that should be reactivated
-            const { data: existingProject } = await supabase
-              .from('projects')
-              .select('id, status')
-              .eq('booking_id', existingBooking.id)
-              .limit(1);
-            
-            const { data: existingJob } = await supabase
-              .from('jobs')
-              .select('id, name, status')
-              .eq('booking_id', existingBooking.id)
-              .limit(1);
-            
-            // Reactivate project if exists
-            if (existingProject && existingProject.length > 0) {
-              const project = existingProject[0];
-              console.log(`Found existing project ${project.id} for re-confirmed booking ${bookingData.id} (status: ${project.status})`);
-              
-              if (project.status === 'completed' || project.status === 'cancelled') {
-                const { error: reactivateError } = await supabase
-                  .from('projects')
-                  .update({ 
-                    status: 'planning',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', project.id);
-                
-                if (reactivateError) {
-                  console.error(`Error reactivating project ${project.id}:`, reactivateError);
-                } else {
-                  console.log(`Successfully reactivated project ${project.id} for re-confirmed booking ${bookingData.id}`);
-                  // Ensure booking flags reflect the reactivated project
-                  updateData.assigned_to_project = true;
-                  updateData.assigned_project_id = project.id;
-                }
-              }
-            }
-            
-            // Reactivate job if exists
-            if (existingJob && existingJob.length > 0) {
-              const job = existingJob[0];
-              console.log(`Found existing job ${job.id} for re-confirmed booking ${bookingData.id} (status: ${job.status})`);
-              
-              if (job.status === 'completed') {
-                const { error: reactivateError } = await supabase
-                  .from('jobs')
-                  .update({ 
-                    status: 'planned',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', job.id);
-                
-                if (reactivateError) {
-                  console.error(`Error reactivating job ${job.id}:`, reactivateError);
-                } else {
-                  console.log(`Successfully reactivated job ${job.id} for re-confirmed booking ${bookingData.id}`);
-                  updateData.assigned_to_project = true;
-                  updateData.assigned_project_id = job.id;
-                  updateData.assigned_project_name = `Jobb: ${job.name}`;
-                }
-              }
-            }
+            // Do NOT auto-reactivate projects/jobs — let booking appear in triage for manual assignment
           }
 
           // Update existing booking
