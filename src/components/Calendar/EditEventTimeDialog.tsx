@@ -26,7 +26,8 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
   open,
   onOpenChange,
   event,
-  onUpdate
+  onUpdate,
+  exactTimeNeeded = false
 }) => {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
