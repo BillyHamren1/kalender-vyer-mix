@@ -15,6 +15,10 @@ const STORAGE_KEY = 'background_import_state';
 
 export const useBackgroundImport = () => {
   const [state, setState] = useState<BackgroundImportState>(() => {
+    // Scanner mode: never import bookings
+    if (isScannerApp) {
+      return { isRunning: false, lastImport: null, nextImport: null, importCount: 0 };
+    }
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
