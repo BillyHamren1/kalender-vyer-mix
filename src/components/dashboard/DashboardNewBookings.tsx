@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Inbox, Calendar, Briefcase, FolderKanban, Building2, ArrowUpRight, Sparkles } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
+import { supabase } from '@/integrations/supabase/client';
 import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -28,12 +29,32 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
     queryFn: async () => {
       const allBookings = await fetchBookings();
 
-      return allBookings.filter((b) => {
+      // Filter by flags first
+      const candidates = allBookings.filter((b) => {
         if (b.status !== 'CONFIRMED') return false;
         if (b.assignedToProject) return false;
         if (b.largeProjectId) return false;
         return true;
       });
+
+      if (candidates.length === 0) return [];
+
+      // Cross-check against actual relations to prevent ghost entries
+      const candidateIds = candidates.map(b => b.id);
+      
+      const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
+        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).neq('status', 'completed'),
+        supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
+      ]);
+
+      const assignedIds = new Set([
+        ...(activeJobs || []).map(j => j.booking_id),
+        ...(activeProjects || []).map(p => p.booking_id),
+        ...(largeLinks || []).map(l => l.booking_id),
+      ]);
+
+      return candidates.filter(b => !assignedIds.has(b.id));
     },
   });
 

@@ -67,18 +67,18 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   const deleteJobMutation = useMutation({
     mutationFn: deleteJob,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Litet projekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
   const deleteProjectMutation = useMutation({
     mutationFn: deleteProject,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Medelprojekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
   const deleteLargeMutation = useMutation({
     mutationFn: deleteLargeProject,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Stort projekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
 
   const unified = useMemo<UnifiedProject[]>(() => {
@@ -156,7 +156,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   }, [unified, search, statusFilter, typeFilter]);
 
   const handleDelete = (project: UnifiedProject) => {
-    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    const typeLabel = TYPE_LABELS[project.type];
+    if (!confirm(`Ta bort ${typeLabel} projekt: "${project.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
     if (project.type === 'small') deleteJobMutation.mutate(project.id);
     else if (project.type === 'medium') deleteProjectMutation.mutate(project.id);
     else deleteLargeMutation.mutate(project.id);
@@ -231,11 +232,17 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     <>
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="divide-y divide-border/40">
-          {filtered.map(project => (
+          {filtered.map(project => {
+            const isPending = 
+              (project.type === 'small' && deleteJobMutation.isPending && deleteJobMutation.variables === project.id) ||
+              (project.type === 'medium' && deleteProjectMutation.isPending && deleteProjectMutation.variables === project.id) ||
+              (project.type === 'large' && deleteLargeMutation.isPending && deleteLargeMutation.variables === project.id);
+
+            return (
             <div
               key={`${project.type}-${project.id}`}
-              onClick={() => navigate(project.navigateTo)}
-              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''}`}
+              onClick={() => !isPending && navigate(project.navigateTo)}
+              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-all ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''} ${isPending ? 'opacity-40 pointer-events-none' : ''}`}
             >
               <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
                 {TYPE_LABELS[project.type]}
@@ -268,11 +275,13 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
                   onConvert={(targetType) => handleConvert(project, targetType)}
                   onDelete={() => handleDelete(project)}
                   triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
+                  disabled={isPending}
                 />
                 <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/row:text-primary/50 transition-colors" />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -189,15 +189,15 @@ const JobDetail = () => {
   };
 
   const handleDeleteJob = async () => {
-    if (!confirm('Är du säker på att du vill ta bort detta projekt?')) return;
+    if (!confirm(`Ta bort litet projekt: "${job?.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
     try {
       await deleteJob(id!);
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-      toast.success('Projekt borttaget');
+      toast.success('Litet projekt borttaget');
       navigate('/projects');
-    } catch {
-      toast.error('Kunde inte ta bort projekt');
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte ta bort projekt');
     }
   };
 

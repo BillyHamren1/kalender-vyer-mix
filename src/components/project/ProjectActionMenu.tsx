@@ -15,6 +15,7 @@ interface ProjectActionMenuProps {
   onConvert: (targetType: ProjectType) => void;
   onDelete: () => void;
   triggerClassName?: string;
+  disabled?: boolean;
 }
 
 const TYPE_LABELS: Record<ProjectType, string> = {
@@ -23,25 +24,25 @@ const TYPE_LABELS: Record<ProjectType, string> = {
   large: 'Stort projekt',
 };
 
-const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName }: ProjectActionMenuProps) => {
+const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName, disabled }: ProjectActionMenuProps) => {
   const otherTypes = (['small', 'medium', 'large'] as ProjectType[]).filter(t => t !== currentType);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={triggerClassName}>
+        <Button variant="ghost" size="icon" className={triggerClassName} disabled={disabled}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {otherTypes.map(type => (
-          <DropdownMenuItem key={type} onClick={() => onConvert(type)}>
+          <DropdownMenuItem key={type} onSelect={() => onConvert(type)}>
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Ändra till {TYPE_LABELS[type]}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Ta bort projekt
         </DropdownMenuItem>
