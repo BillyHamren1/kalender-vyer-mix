@@ -232,7 +232,11 @@ Deno.serve(async (req) => {
           ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
         }).eq('id', (matchingItem as any).id)
 
-        return json({ success: true, productName: `${(matchingItem as any).booking_products?.name} (${newQuantity}/${(matchingItem as any).quantity_to_pack})` })
+        const productName = (matchingItem as any).booking_products?.name
+        if (isAlreadyFull) {
+          return json({ success: true, overscan: true, productName: `⚠️ ${productName} — FÖR MÅNGA! (${newQuantity}/${quantityToPack})` })
+        }
+        return json({ success: true, productName: `${productName} (${newQuantity}/${quantityToPack})` })
       }
 
       case 'toggle_item': {
