@@ -219,12 +219,10 @@ Deno.serve(async (req) => {
         if (!matchingItem) return json({ success: false, error: `Ingen produkt med SKU "${sku}" hittades` })
 
         const currentPacked = (matchingItem as any).quantity_packed || 0
-        if (currentPacked >= (matchingItem as any).quantity_to_pack) {
-          return json({ success: false, error: `${(matchingItem as any).booking_products?.name} är redan fullständigt packad`, productName: (matchingItem as any).booking_products?.name })
-        }
-
+        const quantityToPack = (matchingItem as any).quantity_to_pack
+        const isAlreadyFull = currentPacked >= quantityToPack
         const newQuantity = currentPacked + 1
-        const isNowFull = newQuantity >= (matchingItem as any).quantity_to_pack
+        const isNowFull = newQuantity >= quantityToPack
         const now = new Date().toISOString()
 
         await supabase.from('packing_list_items').update({
@@ -234,7 +232,11 @@ Deno.serve(async (req) => {
           ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
         }).eq('id', (matchingItem as any).id)
 
-        return json({ success: true, productName: `${(matchingItem as any).booking_products?.name} (${newQuantity}/${(matchingItem as any).quantity_to_pack})` })
+        const productName = (matchingItem as any).booking_products?.name
+        if (isAlreadyFull) {
+          return json({ success: true, overscan: true, productName: `⚠️ ${productName} — FÖR MÅNGA! (${newQuantity}/${quantityToPack})` })
+        }
+        return json({ success: true, productName: `${productName} (${newQuantity}/${quantityToPack})` })
       }
 
       case 'toggle_item': {

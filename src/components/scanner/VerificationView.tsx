@@ -255,18 +255,24 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     
     setLastScanResult({
       value: scannedValue,
-      result: result.success ? `✅ ${result.productName}` : result.error || 'Okänt fel',
-      success: result.success
+      result: result.success 
+        ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
+        : result.error || 'Okänt fel',
+      success: result.success && !result.overscan
     });
 
     if (result.success) {
-      toast.success(`${result.productName} verifierad!`);
+      if (result.overscan) {
+        toast.warning(`⚠️ FÖR MÅNGA SKANNADE! ${result.productName}`, { duration: 5000 });
+      } else {
+        toast.success(`${result.productName} verifierad!`);
+      }
       
-      // Optimistic local update — find item by SKU and increment
+      // Optimistic local update — allow going above quantity_to_pack
       setItems(prev => {
         const updated = prev.map(item => {
           if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
-            return { ...item, quantity_packed: Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack) };
+            return { ...item, quantity_packed: (item.quantity_packed || 0) + 1 };
           }
           return item;
         });
@@ -317,7 +323,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       setItems(prev => {
         const updated = prev.map(item => {
           if (item.id === itemId) {
-            const newPacked = isCurrentlyPacked ? 0 : Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack);
+            const newPacked = isCurrentlyPacked ? 0 : (item.quantity_packed || 0) + 1;
             return { ...item, quantity_packed: newPacked };
           }
           return item;
@@ -655,7 +661,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 // Format display name: UPPERCASE for main, Title Case for children
                 const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
                 
-                const isComplete = packed >= total && total > 0;
+                const isOverscan = packed > total && total > 0;
+                const isComplete = packed >= total && total > 0 && !isOverscan;
                 const isPartial = packed > 0 && packed < total;
                 
                 // Get parcel number if assigned
@@ -667,11 +674,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
                     disabled={isParent}
                     className={`w-full flex items-center gap-2 text-left transition-colors ${
-                      isComplete 
-                        ? 'bg-green-50/70' 
-                        : isPartial 
-                          ? 'bg-amber-50/50' 
-                          : ''
+                      isOverscan
+                        ? 'bg-red-100/80 border-l-4 border-red-500'
+                        : isComplete 
+                          ? 'bg-green-50/70' 
+                          : isPartial 
+                            ? 'bg-amber-50/50' 
+                            : ''
                     } ${
                       isParent 
                         ? 'cursor-default opacity-80' 
@@ -682,15 +691,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     <div className={`shrink-0 rounded-full flex items-center justify-center ${
                       isChild ? 'w-4 h-4' : 'w-5 h-5'
                     } ${
-                      isComplete 
-                        ? 'bg-green-500' 
-                        : isPartial 
-                          ? 'bg-amber-500' 
-                          : isParent
-                            ? 'border-2 border-dashed border-muted-foreground/30'
-                            : 'border-2 border-muted-foreground/40'
+                      isOverscan
+                        ? 'bg-red-500 animate-pulse'
+                        : isComplete 
+                          ? 'bg-green-500' 
+                          : isPartial 
+                            ? 'bg-amber-500' 
+                            : isParent
+                              ? 'border-2 border-dashed border-muted-foreground/30'
+                              : 'border-2 border-muted-foreground/40'
                     }`}>
-                      {isComplete && <Check className="text-white w-2.5 h-2.5" />}
+                      {isOverscan && <AlertCircle className="text-white w-2.5 h-2.5" />}
+                      {isComplete && !isOverscan && <Check className="text-white w-2.5 h-2.5" />}
                       {isPartial && <span className="text-white text-[8px] font-bold">{packed}</span>}
                     </div>
                     
@@ -701,13 +713,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                           ? 'text-[11px] font-normal' 
                           : 'text-xs font-semibold tracking-wide'
                       } ${
-                        isComplete 
-                          ? 'text-green-700' 
-                          : isPartial 
-                            ? 'text-amber-800'
-                            : isChild 
-                              ? 'text-muted-foreground' 
-                              : 'text-foreground'
+                        isOverscan
+                          ? 'text-red-700 font-bold'
+                          : isComplete 
+                            ? 'text-green-700' 
+                            : isPartial 
+                              ? 'text-amber-800'
+                              : isChild 
+                                ? 'text-muted-foreground' 
+                                : 'text-foreground'
                       }`}>
                         {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
                         {displayName}
@@ -729,11 +743,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     
                     {/* Quantity badge: packed/total or children progress */}
                     <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
-                      isComplete 
-                        ? 'bg-green-100 text-green-700' 
-                        : isPartial 
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-muted/60 text-muted-foreground'
+                      isOverscan
+                        ? 'bg-red-200 text-red-800'
+                        : isComplete 
+                          ? 'bg-green-100 text-green-700' 
+                          : isPartial 
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-muted/60 text-muted-foreground'
                     }`}>
                       <span className={`font-mono font-bold ${isChild ? 'text-[10px]' : 'text-xs'}`}>
                         {packed}/{total}
