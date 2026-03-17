@@ -219,12 +219,10 @@ Deno.serve(async (req) => {
         if (!matchingItem) return json({ success: false, error: `Ingen produkt med SKU "${sku}" hittades` })
 
         const currentPacked = (matchingItem as any).quantity_packed || 0
-        if (currentPacked >= (matchingItem as any).quantity_to_pack) {
-          return json({ success: false, error: `${(matchingItem as any).booking_products?.name} är redan fullständigt packad`, productName: (matchingItem as any).booking_products?.name })
-        }
-
+        const quantityToPack = (matchingItem as any).quantity_to_pack
+        const isAlreadyFull = currentPacked >= quantityToPack
         const newQuantity = currentPacked + 1
-        const isNowFull = newQuantity >= (matchingItem as any).quantity_to_pack
+        const isNowFull = newQuantity >= quantityToPack
         const now = new Date().toISOString()
 
         await supabase.from('packing_list_items').update({
