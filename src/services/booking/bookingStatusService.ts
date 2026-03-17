@@ -52,6 +52,43 @@ export const getStatusColor = (status: BookingStatus): string => {
   }
 };
 
+/**
+ * When a booking is cancelled or downgraded to offer,
+ * auto-update linked projects/jobs and reset assignment flags.
+ */
+export const handleBookingLifecycleSideEffects = async (
+  bookingId: string,
+  newStatus: BookingStatus
+): Promise<void> => {
+  if (newStatus !== 'CANCELLED' && newStatus !== 'OFFER') return;
+
+  console.log(`Running lifecycle side-effects for booking ${bookingId} → ${newStatus}`);
+
+  // 1. Mark linked jobs as completed
+  await supabase
+    .from('jobs')
+    .update({ status: 'completed' })
+    .eq('booking_id', bookingId)
+    .neq('status', 'completed');
+
+  // 2. Mark linked projects as cancelled
+  await supabase
+    .from('projects')
+    .update({ status: 'cancelled' })
+    .eq('booking_id', bookingId)
+    .not('status', 'in', '("completed","cancelled")');
+
+  // 3. Reset booking assignment flags so it appears in triage
+  await supabase
+    .from('bookings')
+    .update({
+      assigned_to_project: false,
+      assigned_project_id: null,
+      assigned_project_name: null,
+    })
+    .eq('id', bookingId);
+};
+
 export const getStatusIcon = (status: BookingStatus): string => {
   switch (status.toUpperCase()) {
     case 'CONFIRMED':

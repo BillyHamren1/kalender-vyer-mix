@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor } from "@/services/booking/bookingStatusService";
+import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor, handleBookingLifecycleSideEffects } from "@/services/booking/bookingStatusService";
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -92,6 +92,9 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     try {
       await updateBookingStatusWithCalendarSync(bookingId, newStatus, currentStatus);
       
+      // Run lifecycle side-effects (cancel linked projects/jobs, reset flags)
+      await handleBookingLifecycleSideEffects(bookingId, newStatus);
+      
       onStatusChange(newStatus);
       
       if (newStatus === 'CONFIRMED') {
@@ -100,7 +103,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
         });
       } else if (newStatus === 'CANCELLED') {
         toast.success('Bokning avbokad', {
-          description: 'Bokningen har avbokats och tagits bort från kalendern'
+          description: 'Bokningen har avbokats och länkade projekt har uppdaterats'
         });
       } else {
         toast.success('Status uppdaterad', {
@@ -126,6 +129,10 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   };
 
