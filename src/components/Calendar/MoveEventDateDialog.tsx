@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -36,6 +37,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize when dialog opens
@@ -44,6 +47,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
       setSelectedDate(eventStart);
       setSelectedResourceId(event.resourceId || undefined);
+      setStartTime(extractUTCTime(event.start));
+      setEndTime(extractUTCTime(event.end));
     }
   }, [open, event]);
 
@@ -56,11 +61,9 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      const startTimeStr = extractUTCTime(event.start);
-      const endTimeStr = extractUTCTime(event.end);
       const newDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const newStartISO = buildUTCDateTime(newDateStr, startTimeStr);
-      const newEndISO = buildUTCDateTime(newDateStr, endTimeStr);
+      const newStartISO = buildUTCDateTime(newDateStr, startTime);
+      const newEndISO = buildUTCDateTime(newDateStr, endTime);
 
       const updatePayload: any = {
         start: newStartISO,
@@ -122,7 +125,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             Flytta händelse
           </DialogTitle>
           <DialogDescription>
-            Välj ny dag och/eller team. Tiden behålls.
+            Välj ny dag, tid och/eller team.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,7 +134,27 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             <div className="text-sm font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
               Nuvarande: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'd MMM yyyy')} · {extractUTCTime(event.start)}–{extractUTCTime(event.end)}
+          </div>
+
+          {/* Time inputs */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Tid</label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-[120px]"
+              />
+              <span className="text-muted-foreground">–</span>
+              <Input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-[120px]"
+              />
             </div>
+          </div>
           </div>
 
           {/* Team selector */}
