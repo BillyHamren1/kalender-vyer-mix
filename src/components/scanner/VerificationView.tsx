@@ -743,11 +743,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     
                     {/* Quantity badge: packed/total or children progress */}
                     <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
-                      isComplete 
-                        ? 'bg-green-100 text-green-700' 
-                        : isPartial 
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-muted/60 text-muted-foreground'
+                      isOverscan
+                        ? 'bg-red-200 text-red-800'
+                        : isComplete 
+                          ? 'bg-green-100 text-green-700' 
+                          : isPartial 
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-muted/60 text-muted-foreground'
                     }`}>
                       <span className={`font-mono font-bold ${isChild ? 'text-[10px]' : 'text-xs'}`}>
                         {packed}/{total}
