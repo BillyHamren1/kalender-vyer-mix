@@ -112,25 +112,41 @@ export function clearAuth() {
 // Core API caller
 async function callApi<T = any>(action: string, data?: any): Promise<T> {
   const token = getToken();
+  const controller = new AbortController();
+  const timeoutMs = 12000;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  const res = await fetch(FUNCTION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, token, data }),
-  });
+  try {
+    const res = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, token, data }),
+      signal: controller.signal,
+    });
 
-  if (res.status === 401) {
-    clearAuth();
-    throw new Error('Session expired');
+    if (res.status === 401) {
+      clearAuth();
+      throw new Error('Session expired');
+    }
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json.error || 'API error');
+    }
+
+    return json as T;
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Nätverksfel: anropet tog för lång tid, försök igen.');
+    }
+    if (error instanceof TypeError) {
+      throw new Error('Nätverksfel: kunde inte nå servern.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(json.error || 'API error');
-  }
-
-  return json as T;
 }
 
 // API methods
