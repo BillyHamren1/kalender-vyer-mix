@@ -100,7 +100,6 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const now = Date.now();
         if (now - lastLocationReportRef.current >= 30000) {
           lastLocationReportRef.current = now;
-          const staffId = localStorage.getItem('eventflow-mobile-staff-id');
           if (staffId) {
             supabase.from('staff_locations').upsert({
               staff_id: staffId,
