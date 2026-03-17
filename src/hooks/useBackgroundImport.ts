@@ -75,6 +75,9 @@ export const useBackgroundImport = () => {
 
   // Single stable effect for the interval — no dependency on callbacks that change
   useEffect(() => {
+    // Scanner mode: no background import
+    if (isScannerApp) return;
+
     const timer = setTimeout(() => performImport(), 1000);
     const interval = setInterval(() => performImport(), IMPORT_INTERVAL);
     intervalRef.current = interval;
