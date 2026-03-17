@@ -141,43 +141,40 @@ export async function updateLargeProject(id: string, updates: Partial<LargeProje
   };
 }
 
-export async function deleteLargeProject(id: string): Promise<void> {
-  // Reset booking flags for all bookings linked to this large project
+export async function deleteLargeProject(id: string): Promise<{ bookingIds: string[] }> {
+  // Get all linked booking IDs before deleting
   const { data: linkedBookings } = await supabase
     .from('large_project_bookings')
     .select('booking_id')
     .eq('large_project_id', id);
 
-  if (linkedBookings && linkedBookings.length > 0) {
-    const bookingIds = linkedBookings.map(b => b.booking_id);
-    await supabase
-      .from('bookings')
-      .update({
-        assigned_to_project: false,
-        assigned_project_id: null,
-        assigned_project_name: null,
-        large_project_id: null
-      })
-      .in('id', bookingIds);
-  }
-
-  // Also reset any bookings that reference this large_project_id directly
-  await supabase
+  // Also find bookings referencing this large_project_id directly
+  const { data: directBookings } = await supabase
     .from('bookings')
-    .update({
-      assigned_to_project: false,
-      assigned_project_id: null,
-      assigned_project_name: null,
-      large_project_id: null
-    })
+    .select('id')
     .eq('large_project_id', id);
 
+  // Collect all unique booking IDs
+  const allBookingIds = [
+    ...(linkedBookings || []).map(b => b.booking_id),
+    ...(directBookings || []).map(b => b.id),
+  ];
+  const uniqueBookingIds = [...new Set(allBookingIds)];
+
+  // Delete the large project (cascade should handle large_project_bookings)
   const { error } = await supabase
     .from('large_projects')
     .delete()
     .eq('id', id);
 
-  if (error) throw error;
+  if (error) throw new Error(`Kunde inte radera stort projekt: ${error.message}`);
+
+  // Recompute assignment for each affected booking
+  for (const bookingId of uniqueBookingIds) {
+    await recomputeBookingAssignment(bookingId);
+  }
+
+  return { bookingIds: uniqueBookingIds };
 }
 
 // ============================================

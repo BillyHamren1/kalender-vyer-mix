@@ -97,13 +97,15 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
   }
 };
 
-export const deleteProject = async (id: string): Promise<void> => {
+export const deleteProject = async (id: string): Promise<{ bookingId: string | null }> => {
   // First, fetch the project to get the booking_id
-  const { data: project } = await supabase
+  const { data: project, error: fetchError } = await supabase
     .from('projects')
     .select('booking_id')
     .eq('id', id)
     .single();
+
+  if (fetchError) throw new Error(`Kunde inte hämta projekt: ${fetchError.message}`);
 
   // Delete the project
   const { error } = await supabase
@@ -111,19 +113,15 @@ export const deleteProject = async (id: string): Promise<void> => {
     .delete()
     .eq('id', id);
 
-  if (error) throw error;
+  if (error) throw new Error(`Kunde inte radera projekt: ${error.message}`);
 
-  // Reset booking assignment flags so it reappears in the unassigned list
-  if (project?.booking_id) {
-    await supabase
-      .from('bookings')
-      .update({
-        assigned_to_project: false,
-        assigned_project_id: null,
-        assigned_project_name: null
-      })
-      .eq('id', project.booking_id);
+  // Recompute booking assignment based on remaining relations
+  const bookingId = project?.booking_id || null;
+  if (bookingId) {
+    await recomputeBookingAssignment(bookingId);
   }
+
+  return { bookingId };
 };
 
 // Tasks

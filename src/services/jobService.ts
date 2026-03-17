@@ -318,29 +318,29 @@ export const removeStaffFromJob = async (assignmentId: string): Promise<void> =>
 };
 
 // Delete job
-export const deleteJob = async (jobId: string): Promise<void> => {
-  // Get booking_id first to un-assign it
-  const { data: job } = await supabase
+export const deleteJob = async (jobId: string): Promise<{ bookingId: string | null }> => {
+  // Get booking_id first
+  const { data: job, error: fetchError } = await supabase
     .from('jobs')
     .select('booking_id')
     .eq('id', jobId)
     .single();
 
-  if (job?.booking_id) {
-    await supabase
-      .from('bookings')
-      .update({
-        assigned_to_project: false,
-        assigned_project_id: null,
-        assigned_project_name: null
-      })
-      .eq('id', job.booking_id);
-  }
+  if (fetchError) throw new Error(`Kunde inte hämta jobb: ${fetchError.message}`);
 
+  // Delete the job first
   const { error } = await supabase
     .from('jobs')
     .delete()
     .eq('id', jobId);
 
-  if (error) throw error;
+  if (error) throw new Error(`Kunde inte radera jobb: ${error.message}`);
+
+  // Recompute booking assignment based on remaining relations
+  const bookingId = job?.booking_id || null;
+  if (bookingId) {
+    await recomputeBookingAssignment(bookingId);
+  }
+
+  return { bookingId };
 };
