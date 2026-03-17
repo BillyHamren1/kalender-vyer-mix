@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { parse, isAfter } from 'date-fns';
-import { Clock } from 'lucide-react';
+import { Clock, AlertTriangle } from 'lucide-react';
 import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
@@ -18,13 +19,15 @@ interface EditEventTimeDialogProps {
     end: string | Date;
   };
   onUpdate?: () => void;
+  exactTimeNeeded?: boolean;
 }
 
 const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
   open,
   onOpenChange,
   event,
-  onUpdate
+  onUpdate,
+  exactTimeNeeded = false
 }) => {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -98,6 +101,15 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
             Adjust the start and end times for this event
           </DialogDescription>
         </DialogHeader>
+
+        {exactTimeNeeded && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              Denna bokning har bestämda tider. Är du säker att du vill ändra?
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">

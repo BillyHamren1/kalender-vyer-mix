@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
@@ -26,6 +28,7 @@ interface MoveEventDateDialogProps {
   };
   resources?: Array<{ id: string; title: string }>;
   onUpdate?: () => void;
+  exactTimeNeeded?: boolean;
 }
 
 const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
@@ -33,7 +36,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   onOpenChange,
   event,
   resources = [],
-  onUpdate
+  onUpdate,
+  exactTimeNeeded = false
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
@@ -128,6 +132,15 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             Välj ny dag, tid och/eller team.
           </DialogDescription>
         </DialogHeader>
+
+        {exactTimeNeeded && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              Denna bokning har bestämda tider. Är du säker att du vill ändra?
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-1">

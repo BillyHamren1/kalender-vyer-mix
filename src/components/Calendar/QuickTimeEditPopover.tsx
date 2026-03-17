@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
-import { Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
 
 
@@ -32,6 +33,7 @@ interface QuickTimeEditPopoverProps {
   onUpdate?: () => void;
   onMoveDate?: () => void;
   onOpenChange?: (open: boolean) => void;
+  exactTimeNeeded?: boolean;
 }
 
 const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
@@ -39,7 +41,8 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   children,
   onUpdate,
   onMoveDate,
-  onOpenChange
+  onOpenChange,
+  exactTimeNeeded = false
 }) => {
   const [open, setOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
@@ -160,6 +163,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4 shadow-lg border-2" align="center" side="bottom" sideOffset={8}>
         <div className="space-y-4">
+          {exactTimeNeeded && (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-xs">
+                Denna bokning har bestämda tider. Är du säker att du vill ändra?
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex items-center gap-2 pb-2 border-b">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div className="text-sm font-medium truncate max-w-[280px]">{event.title}</div>
