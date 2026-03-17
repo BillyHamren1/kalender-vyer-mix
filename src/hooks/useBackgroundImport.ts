@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
+import { isScannerApp } from '@/config/appMode';
 
 interface BackgroundImportState {
   isRunning: boolean;
