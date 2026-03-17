@@ -119,63 +119,67 @@ patchFile(buildGradle, [
 ]);
 console.log(`  ✅ applicationId & namespace → ${config.appId}`);
 
-// ── Step 4b: Inject Firebase / Google Services into Gradle ─────
-console.log('\n4️⃣b Injecting Firebase Cloud Messaging into Gradle...');
+// ── Step 4b: Inject Firebase / Google Services into Gradle (TIME only) ─
+if (mode === 'time') {
+  console.log('\n4️⃣b Injecting Firebase Cloud Messaging into Gradle...');
 
-// Patch root build.gradle — add google-services classpath
-const rootBuildGradle = resolve(androidDir, 'build.gradle');
-if (existsSync(rootBuildGradle)) {
-  let rootContent = readFileSync(rootBuildGradle, 'utf-8');
-  if (!rootContent.includes('google-services')) {
-    // Add google-services classpath to buildscript dependencies
-    rootContent = rootContent.replace(
-      /buildscript\s*\{[^}]*repositories\s*\{[^}]*\}[^}]*dependencies\s*\{/s,
-      (match) => match + `\n        classpath 'com.google.gms:google-services:4.4.2'`
-    );
-    // If buildscript block doesn't exist (newer Gradle), add the plugin to plugins block
+  // Patch root build.gradle — add google-services classpath
+  const rootBuildGradle = resolve(androidDir, 'build.gradle');
+  if (existsSync(rootBuildGradle)) {
+    let rootContent = readFileSync(rootBuildGradle, 'utf-8');
     if (!rootContent.includes('google-services')) {
+      // Add google-services classpath to buildscript dependencies
       rootContent = rootContent.replace(
-        /(plugins\s*\{)/,
-        `$1\n    id 'com.google.gms.google-services' version '4.4.2' apply false`
+        /buildscript\s*\{[^}]*repositories\s*\{[^}]*\}[^}]*dependencies\s*\{/s,
+        (match) => match + `\n        classpath 'com.google.gms:google-services:4.4.2'`
       );
+      // If buildscript block doesn't exist (newer Gradle), add the plugin to plugins block
+      if (!rootContent.includes('google-services')) {
+        rootContent = rootContent.replace(
+          /(plugins\s*\{)/,
+          `$1\n    id 'com.google.gms.google-services' version '4.4.2' apply false`
+        );
+      }
+      writeFileSync(rootBuildGradle, rootContent, 'utf-8');
+      console.log('  ✅ google-services plugin added to root build.gradle');
+    } else {
+      console.log('  ℹ️  google-services already in root build.gradle');
     }
-    writeFileSync(rootBuildGradle, rootContent, 'utf-8');
-    console.log('  ✅ google-services plugin added to root build.gradle');
   } else {
-    console.log('  ℹ️  google-services already in root build.gradle');
+    console.warn('  ⚠ Root build.gradle not found — will be created after cap add android');
+  }
+
+  // Patch app/build.gradle — apply google-services plugin + firebase-messaging dependency
+  if (existsSync(buildGradle)) {
+    let appContent = readFileSync(buildGradle, 'utf-8');
+    let changed = false;
+
+    // Add apply plugin at the end of the file (required for google-services)
+    if (!appContent.includes('com.google.gms.google-services')) {
+      appContent += `\napply plugin: 'com.google.gms.google-services'\n`;
+      changed = true;
+    }
+
+    // Add firebase-messaging dependency
+    if (!appContent.includes('firebase-messaging')) {
+      appContent = appContent.replace(
+        /(dependencies\s*\{)/,
+        `$1\n    implementation platform('com.google.firebase:firebase-bom:33.7.0')\n    implementation 'com.google.firebase:firebase-messaging'`
+      );
+      changed = true;
+    }
+
+    if (changed) {
+      writeFileSync(buildGradle, appContent, 'utf-8');
+      console.log('  ✅ Firebase Messaging + google-services plugin added to app/build.gradle');
+    } else {
+      console.log('  ℹ️  Firebase already configured in app/build.gradle');
+    }
+  } else {
+    console.warn('  ⚠ app/build.gradle not found — run cap add android first');
   }
 } else {
-  console.warn('  ⚠ Root build.gradle not found — will be created after cap add android');
-}
-
-// Patch app/build.gradle — apply google-services plugin + firebase-messaging dependency
-if (existsSync(buildGradle)) {
-  let appContent = readFileSync(buildGradle, 'utf-8');
-  let changed = false;
-
-  // Add apply plugin at the end of the file (required for google-services)
-  if (!appContent.includes('com.google.gms.google-services')) {
-    appContent += `\napply plugin: 'com.google.gms.google-services'\n`;
-    changed = true;
-  }
-
-  // Add firebase-messaging dependency
-  if (!appContent.includes('firebase-messaging')) {
-    appContent = appContent.replace(
-      /(dependencies\s*\{)/,
-      `$1\n    implementation platform('com.google.firebase:firebase-bom:33.7.0')\n    implementation 'com.google.firebase:firebase-messaging'`
-    );
-    changed = true;
-  }
-
-  if (changed) {
-    writeFileSync(buildGradle, appContent, 'utf-8');
-    console.log('  ✅ Firebase Messaging + google-services plugin added to app/build.gradle');
-  } else {
-    console.log('  ℹ️  Firebase already configured in app/build.gradle');
-  }
-} else {
-  console.warn('  ⚠ app/build.gradle not found — run cap add android first');
+  console.log('\n4️⃣b Skipping Firebase injection (not needed for scanner)');
 }
 
 // ── Step 5: Patch or create strings.xml ────────────────────────
