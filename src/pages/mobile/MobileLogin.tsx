@@ -53,13 +53,7 @@ const MobileLogin = () => {
       <div className="bg-background safe-area-top" style={{ minHeight: '44px' }} />
       {/* Top section */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
-        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-lg"
-             style={{ boxShadow: '0 8px 32px hsl(184 60% 38% / 0.25)' }}>
-          <Zap className="w-8 h-8 text-primary-foreground" />
-        </div>
-        
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground mb-0.5">EventFlow</h1>
-        <p className="text-sm text-muted-foreground font-medium">Tidrapportering för fältpersonal</p>
+        <AppLogo mode="time" size="lg" />
 
         {/* Login form */}
         <form onSubmit={handleSubmit} className="w-full max-w-sm mt-10 space-y-4">
