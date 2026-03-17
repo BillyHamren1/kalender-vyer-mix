@@ -5,33 +5,52 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Verify base64 token (same format as mobile-app-api)
+const TOKEN_EXPIRY_HOURS = 24
+
+function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string } {
+  try {
+    const payload = JSON.parse(atob(token))
+    if (!payload.staffId || !payload.expiresAt) {
+      return { valid: false, error: 'Invalid token format' }
+    }
+    if (Date.now() > payload.expiresAt) {
+      return { valid: false, error: 'Token expired' }
+    }
+    return { valid: true, staffId: payload.staffId }
+  } catch {
+    return { valid: false, error: 'Invalid token' }
+  }
+}
+
 // Verify token and return staff record with organization_id
 async function authenticateRequest(supabase: any, token: string | undefined) {
   if (!token) {
     throw { status: 401, message: 'Token required' }
   }
 
-  const { data: staff, error } = await supabase
-    .from('staff_accounts')
-    .select('staff_id, organization_id')
-    .eq('token', token)
-    .single()
-
-  if (error || !staff) {
-    throw { status: 401, message: 'Invalid or expired token' }
+  const tokenResult = verifyToken(token)
+  if (!tokenResult.valid) {
+    throw { status: 401, message: tokenResult.error || 'Invalid or expired token' }
   }
 
-  // Get staff name for logging
-  const { data: staffMember } = await supabase
+  const staffId = tokenResult.staffId!
+
+  // Get staff member info and organization_id
+  const { data: staffMember, error } = await supabase
     .from('staff_members')
-    .select('name')
-    .eq('id', staff.staff_id)
+    .select('id, name, organization_id')
+    .eq('id', staffId)
     .single()
 
+  if (error || !staffMember) {
+    throw { status: 401, message: 'Staff member not found' }
+  }
+
   return {
-    staffId: staff.staff_id,
-    organizationId: staff.organization_id,
-    staffName: staffMember?.name || 'Unknown'
+    staffId: staffMember.id,
+    organizationId: staffMember.organization_id,
+    staffName: staffMember.name || 'Unknown'
   }
 }
 
