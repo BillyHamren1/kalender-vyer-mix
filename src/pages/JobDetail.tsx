@@ -753,6 +753,13 @@ const JobDetail = () => {
         </div>
       </div>
     </MainSystemLayout>
+
+    <AddToLargeProjectDialog
+      open={!!largeProjectBookingId}
+      onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+      bookingId={largeProjectBookingId || ''}
+    />
+    </>
   );
 };
 
