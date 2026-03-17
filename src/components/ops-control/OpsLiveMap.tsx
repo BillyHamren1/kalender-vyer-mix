@@ -352,9 +352,28 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
   const toggleFullscreen = useCallback(() => {
+    // Save current view before toggling
+    const m = map.current;
+    const savedCenter = m?.getCenter();
+    const savedZoom = m?.getZoom();
+    const savedBearing = m?.getBearing();
+    const savedPitch = m?.getPitch();
+
     setIsFullscreen(prev => !prev);
-    // Trigger map resize after transition
-    setTimeout(() => map.current?.resize(), 50);
+
+    // Resize then restore exact view
+    setTimeout(() => {
+      if (!m) return;
+      m.resize();
+      if (savedCenter && savedZoom !== undefined) {
+        m.jumpTo({
+          center: savedCenter,
+          zoom: savedZoom,
+          bearing: savedBearing,
+          pitch: savedPitch,
+        });
+      }
+    }, 50);
   }, []);
 
   return (
