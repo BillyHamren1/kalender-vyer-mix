@@ -2641,14 +2641,13 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP using UPSERT - but only for non-historical imports
+    // SAVE SYNC TIMESTAMP using UPSERT - but only for non-historical, non-single-booking imports
     const finalTimestamp = new Date().toISOString()
     console.log(`Saving sync timestamp: ${finalTimestamp}`)
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
     
-    // Only update sync timestamp for non-historical imports
-    if (!isHistoricalImport) {
+    if (!isHistoricalImport && !isSingleBookingRefresh) {
       const { error: syncError } = await supabase
         .from('sync_state')
       .upsert({
@@ -2666,6 +2665,8 @@ serve(async (req) => {
       } else {
         console.log('Sync timestamp saved successfully')
       }
+    } else if (isSingleBookingRefresh) {
+      console.log('Single booking refresh: NOT updating sync timestamp to avoid moving incremental window')
     } else {
       console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
     }
