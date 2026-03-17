@@ -56,12 +56,12 @@ const ScannerLogin = () => {
             </div>
           )}
           <Input
-            type="email"
-            placeholder="E-post"
+            type="text"
+            placeholder="E-post eller användarnamn"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            autoComplete="email"
+            autoComplete="username"
           />
           <Input
             type="password"
