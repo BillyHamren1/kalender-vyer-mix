@@ -92,6 +92,9 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     try {
       await updateBookingStatusWithCalendarSync(bookingId, newStatus, currentStatus);
       
+      // Run lifecycle side-effects (cancel linked projects/jobs, reset flags)
+      await handleBookingLifecycleSideEffects(bookingId, newStatus);
+      
       onStatusChange(newStatus);
       
       if (newStatus === 'CONFIRMED') {
@@ -100,7 +103,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
         });
       } else if (newStatus === 'CANCELLED') {
         toast.success('Bokning avbokad', {
-          description: 'Bokningen har avbokats och tagits bort från kalendern'
+          description: 'Bokningen har avbokats och länkade projekt har uppdaterats'
         });
       } else {
         toast.success('Status uppdaterad', {
