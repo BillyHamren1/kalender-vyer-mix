@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Project, ProjectTask, ProjectComment, ProjectFile, ProjectStatus, ProjectWithBooking } from "@/types/project";
 import { recordJobCompletion } from "@/services/jobCompletionAnalyticsService";
+import { recomputeBookingAssignment } from "@/services/bookingAssignmentService";
 
 // Projects
 export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
