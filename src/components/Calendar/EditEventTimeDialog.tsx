@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { parse, isAfter } from 'date-fns';
-import { Clock } from 'lucide-react';
+import { Clock, AlertTriangle } from 'lucide-react';
 import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
