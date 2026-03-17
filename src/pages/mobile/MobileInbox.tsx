@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
+import { useMobileInbox } from '@/hooks/useMobileInbox';
 import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info } from 'lucide-react';
 import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO } from 'date-fns';
@@ -49,13 +50,8 @@ const categoryLabels: Record<string, string> = {
 const MobileInbox = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
+  const { dmConversations, broadcasts, jobConversations, isLoading: loading, markDMReadOptimistic, appendDMMessage, markBroadcastReadOptimistic } = useMobileInbox();
   const [view, setView] = useState<InboxView>('list');
-  const [loading, setLoading] = useState(true);
-
-  // Data
-  const [dmConversations, setDmConversations] = useState<DMConversation[]>([]);
-  const [jobConversations, setJobConversations] = useState<{ bookingId: string; client: string; lastMessage: string; lastTime: string; unread: boolean }[]>([]);
-  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
 
   // Thread state
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
@@ -65,41 +61,6 @@ const MobileInbox = () => {
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const fetchAll = useCallback(async () => {
-    if (!staff) return;
-    setLoading(true);
-    try {
-      const [dmRes, broadcastRes, bookingsRes] = await Promise.all([
-        mobileApi.getDirectMessages(),
-        mobileApi.getBroadcasts(),
-        mobileApi.getBookings(),
-      ]);
-
-      setDmConversations(dmRes.conversations || []);
-      setBroadcasts((broadcastRes.broadcasts || []).map((b: any) => ({
-        ...b,
-        is_read: b.is_read ?? false,
-      })));
-
-      // Build job conversations from bookings that have job messages
-      // We'll show all assigned bookings as potential chat threads
-      const jobs = (bookingsRes.bookings || []).slice(0, 20).map((b: any) => ({
-        bookingId: b.id,
-        client: b.client,
-        lastMessage: '',
-        lastTime: '',
-        unread: false,
-      }));
-      setJobConversations(jobs);
-    } catch (err) {
-      console.error('Inbox fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [staff]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -113,9 +74,9 @@ const MobileInbox = () => {
     setActiveDM(conv);
     setView('dm-thread');
     if (conv.unread_count > 0) {
+      markDMReadOptimistic(conv.partner_id);
       try {
         await mobileApi.markDMRead(conv.partner_id);
-        setDmConversations(prev => prev.map(c => c.partner_id === conv.partner_id ? { ...c, unread_count: 0 } : c));
       } catch { /* ignore */ }
     }
   };
@@ -137,9 +98,9 @@ const MobileInbox = () => {
     setActiveBroadcast(b);
     setView('broadcast-detail');
     if (!b.is_read) {
+      markBroadcastReadOptimistic(b.id);
       try {
         await mobileApi.markBroadcastRead(b.id);
-        setBroadcasts(prev => prev.map(br => br.id === b.id ? { ...br, is_read: true } : br));
       } catch { /* ignore */ }
     }
   };
@@ -148,18 +109,17 @@ const MobileInbox = () => {
   const handleSendDM = async () => {
     if (!newMsg.trim() || !activeDM || sending) return;
     setSending(true);
+    const optimisticMsg = {
+      id: Date.now().toString(),
+      sender_id: staff?.id,
+      sender_name: staff?.name,
+      content: newMsg.trim(),
+      created_at: new Date().toISOString(),
+    };
     try {
       await mobileApi.sendDirectMessage({ recipient_id: activeDM.partner_id, content: newMsg.trim() });
-      setActiveDM(prev => prev ? {
-        ...prev,
-        messages: [...prev.messages, {
-          id: Date.now().toString(),
-          sender_id: staff?.id,
-          sender_name: staff?.name,
-          content: newMsg.trim(),
-          created_at: new Date().toISOString(),
-        }],
-      } : null);
+      setActiveDM(prev => prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : null);
+      appendDMMessage(activeDM.partner_id, optimisticMsg);
       setNewMsg('');
     } catch { toast.error('Kunde inte skicka'); }
     finally { setSending(false); }
