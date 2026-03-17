@@ -1,8 +1,15 @@
+import { useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
+import ProjectActionMenu from "@/components/project/ProjectActionMenu";
+import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
+import { deleteProject } from "@/services/projectService";
+import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const navItems = [
