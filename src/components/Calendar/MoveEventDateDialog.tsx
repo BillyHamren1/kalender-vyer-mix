@@ -60,11 +60,9 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      const startTimeStr = extractUTCTime(event.start);
-      const endTimeStr = extractUTCTime(event.end);
       const newDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const newStartISO = buildUTCDateTime(newDateStr, startTimeStr);
-      const newEndISO = buildUTCDateTime(newDateStr, endTimeStr);
+      const newStartISO = buildUTCDateTime(newDateStr, startTime);
+      const newEndISO = buildUTCDateTime(newDateStr, endTime);
 
       const updatePayload: any = {
         start: newStartISO,
