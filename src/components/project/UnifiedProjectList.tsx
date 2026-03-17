@@ -67,18 +67,18 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   const deleteJobMutation = useMutation({
     mutationFn: deleteJob,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Litet projekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
   const deleteProjectMutation = useMutation({
     mutationFn: deleteProject,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Medelprojekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
   const deleteLargeMutation = useMutation({
     mutationFn: deleteLargeProject,
-    onSuccess: () => { invalidateAll(); toast.success('Projekt borttaget'); },
-    onError: () => toast.error('Kunde inte ta bort projekt'),
+    onSuccess: () => { invalidateAll(); toast.success('Stort projekt borttaget'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
 
   const unified = useMemo<UnifiedProject[]>(() => {
