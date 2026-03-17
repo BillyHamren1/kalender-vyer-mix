@@ -15,6 +15,7 @@ import {
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface NavChild {
   title: string;
@@ -31,7 +32,7 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const navigationItems: NavItem[] = [
+const baseNavigationItems: NavItem[] = [
   {
     title: "Projekt",
     url: "/projects",
@@ -58,6 +59,33 @@ const navigationItems: NavItem[] = [
     icon: PieChart,
   },
 ];
+
+function useUnviewedBookingsCount() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { count: c } = await supabase
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('viewed', false)
+        .eq('status', 'CONFIRMED');
+      setCount(c ?? 0);
+    };
+    fetch();
+
+    const channel = supabase
+      .channel('sidebar-unviewed-bookings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetch();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  return count;
+}
 
 /* ─── Collapsed Tooltip ─── */
 function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
