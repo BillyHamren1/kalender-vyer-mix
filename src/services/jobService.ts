@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Job, JobStaffAssignment } from '@/types/job';
+import { recomputeBookingAssignment } from '@/services/bookingAssignmentService';
 
 // Safely extract client name — the external API sometimes returns client as an object
 const safeClientName = (client: any): string => {
