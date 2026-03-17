@@ -3,10 +3,11 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import LogisticsTransportWidget from '@/components/logistics/widgets/LogisticsTransportWidget';
+import LogisticsMapWidget from '@/components/logistics/widgets/LogisticsMapWidget';
 import LogisticsWeekView from '@/components/logistics/LogisticsWeekView';
 import TransportBookingTab from '@/components/logistics/TransportBookingTab';
 
-type ExpandedWidget = 'transport' | null;
+type ExpandedWidget = 'transport' | 'map' | null;
 
 const LogisticsPlanning: React.FC = () => {
   const [expanded, setExpanded] = useState<ExpandedWidget>(null);
@@ -66,6 +67,14 @@ const LogisticsPlanning: React.FC = () => {
         />
       </div>
 
+      {/* Map widget */}
+      <div className="mb-6 h-[450px]">
+        <LogisticsMapWidget
+          onClick={() => setExpanded('map')}
+          highlightTarget={null}
+        />
+      </div>
+
       <div className="mb-6">
         <LogisticsTransportWidget
           onClick={() => setExpanded('transport')}
@@ -85,6 +94,15 @@ const LogisticsPlanning: React.FC = () => {
       <Dialog open={expanded === 'transport'} onOpenChange={open => !open && setExpanded(null)}>
         <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] p-4 bg-card overflow-auto">
           <TransportBookingTab vehicles={[]} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={expanded === 'map'} onOpenChange={open => !open && setExpanded(null)}>
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] p-0 bg-card overflow-hidden">
+          <LogisticsMapWidget
+            onClick={() => setExpanded(null)}
+            highlightTarget={null}
+          />
         </DialogContent>
       </Dialog>
     </div>
