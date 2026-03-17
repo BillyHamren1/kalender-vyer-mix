@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { CalendarEvent, Resource, getEventColor } from './ResourceData';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { CalendarEvent, Resource, getEventColor, loadResourcesFromStorage } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
