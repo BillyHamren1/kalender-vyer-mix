@@ -129,7 +129,14 @@ const ProjectLayout = () => {
               )}
             </div>
           </div>
-          <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
+          <div className="flex items-center gap-2">
+            <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
+            <ProjectActionMenu
+              currentType="medium"
+              onConvert={handleConvert}
+              onDelete={handleDeleteProject}
+            />
+          </div>
         </div>
 
         {/* 3-page navigation */}
