@@ -276,7 +276,18 @@ const CustomCalendarPage = () => {
             ) : viewMode === 'monthly' ? (
               // Monthly View - same day-grid style as warehouse calendar
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <>
+                  <MobileEventsList
+                    events={events}
+                    weekStart={currentWeekStart}
+                  />
+                  <MobileWarehouseWeekSelector
+                    currentMonth={monthlyDate}
+                    selectedWeekStart={currentWeekStart}
+                    onMonthChange={handleMonthChange}
+                    onWeekSelect={handleWeekSelect}
+                  />
+                </>
               ) : (
                 <>
                   <CustomCalendar
