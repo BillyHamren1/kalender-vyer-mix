@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 
 const MobileTimeReport = () => {
+  const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
   const [isSaving, setIsSaving] = useState(false);
@@ -25,7 +27,7 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, stopTimer } = useGeofencing(bookings);
+  const { activeTimers, stopTimer } = useGeofencing(bookings, staff?.id);
 
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;

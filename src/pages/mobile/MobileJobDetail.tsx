@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -22,6 +23,7 @@ type TabKey = typeof tabs[number];
 const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { staff } = useMobileAuth();
   const { data: bookingData, isLoading } = useMobileBookingDetails(id);
   const { invalidateTimeReports, invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
@@ -29,7 +31,7 @@ const MobileJobDetail = () => {
   const [timerElapsed, setTimerElapsed] = useState(0);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr);
+  const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
