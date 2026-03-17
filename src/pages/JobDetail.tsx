@@ -259,19 +259,26 @@ const JobDetail = () => {
                 <h1 className="text-xl font-bold">{job.name}</h1>
               </div>
             </div>
-            <Select 
-              value={job.status} 
-              onValueChange={(value) => statusMutation.mutate(value)}
-            >
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="planned">Planerat</SelectItem>
-                <SelectItem value="in_progress">Pågående</SelectItem>
-                <SelectItem value="completed">Avslutat</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={job.status} 
+                onValueChange={(value) => statusMutation.mutate(value)}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="planned">Planerat</SelectItem>
+                  <SelectItem value="in_progress">Pågående</SelectItem>
+                  <SelectItem value="completed">Avslutat</SelectItem>
+                </SelectContent>
+              </Select>
+              <ProjectActionMenu
+                currentType="small"
+                onConvert={handleConvert}
+                onDelete={handleDeleteJob}
+              />
+            </div>
           </div>
         </div>
 
