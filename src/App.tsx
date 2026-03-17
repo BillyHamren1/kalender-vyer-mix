@@ -129,6 +129,7 @@ const AppContent = () => {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <Toaster />
+            {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
             <BrowserRouter>
               {/* ── Native app modes get their dedicated shell ── */}
               {APP_MODE === 'time' && <TimeAppShell />}
