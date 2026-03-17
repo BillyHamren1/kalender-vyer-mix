@@ -29,17 +29,16 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
       const allBookings = await fetchBookings();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0, 10);
 
       return allBookings.filter(b => {
-        const eventDate = b.eventDate ? new Date(b.eventDate) : null;
-        const isUpcoming = eventDate ? eventDate >= today : false;
+        if (b.status !== 'CONFIRMED') return false;
+        if (b.assignedToProject) return false;
+        if (b.largeProjectId) return false;
 
-        return (
-          b.status === 'CONFIRMED' &&
-          !b.assignedToProject &&
-          !b.largeProjectId &&
-          isUpcoming
-        );
+        const dates = [b.eventDate, b.rigDayDate, b.rigDownDate].filter(Boolean);
+        if (dates.length === 0) return false;
+        return dates.some(d => d! >= todayStr);
       });
     },
   });
