@@ -323,7 +323,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       setItems(prev => {
         const updated = prev.map(item => {
           if (item.id === itemId) {
-            const newPacked = isCurrentlyPacked ? 0 : Math.min((item.quantity_packed || 0) + 1, item.quantity_to_pack);
+            const newPacked = isCurrentlyPacked ? 0 : (item.quantity_packed || 0) + 1;
             return { ...item, quantity_packed: newPacked };
           }
           return item;
