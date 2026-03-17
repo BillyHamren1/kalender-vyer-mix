@@ -109,18 +109,17 @@ const MobileInbox = () => {
   const handleSendDM = async () => {
     if (!newMsg.trim() || !activeDM || sending) return;
     setSending(true);
+    const optimisticMsg = {
+      id: Date.now().toString(),
+      sender_id: staff?.id,
+      sender_name: staff?.name,
+      content: newMsg.trim(),
+      created_at: new Date().toISOString(),
+    };
     try {
       await mobileApi.sendDirectMessage({ recipient_id: activeDM.partner_id, content: newMsg.trim() });
-      setActiveDM(prev => prev ? {
-        ...prev,
-        messages: [...prev.messages, {
-          id: Date.now().toString(),
-          sender_id: staff?.id,
-          sender_name: staff?.name,
-          content: newMsg.trim(),
-          created_at: new Date().toISOString(),
-        }],
-      } : null);
+      setActiveDM(prev => prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : null);
+      appendDMMessage(activeDM.partner_id, optimisticMsg);
       setNewMsg('');
     } catch { toast.error('Kunde inte skicka'); }
     finally { setSending(false); }
