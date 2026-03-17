@@ -215,11 +215,16 @@ Deno.serve(async (req) => {
 
         if (fetchError) return json({ success: false, error: 'Kunde inte hämta packlista' })
 
-        const matchingItem = packingItems?.find((item: any) => item.booking_products?.sku?.toLowerCase() === sku.toLowerCase())
-        if (!matchingItem) return json({ success: false, error: `Ingen produkt med SKU "${sku}" hittades` })
+        const normalizedSku = sku.toLowerCase()
+        const skuItems = (packingItems || []).filter((item: any) => item.booking_products?.sku?.toLowerCase() === normalizedSku)
+        if (skuItems.length === 0) return json({ success: false, error: `Ingen produkt med SKU "${sku}" hittades` })
 
-        const currentPacked = (matchingItem as any).quantity_packed || 0
-        const quantityToPack = (matchingItem as any).quantity_to_pack
+        // Deterministic order + pick first not-full row for this SKU
+        const sortedSkuItems = [...skuItems].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
+        const selectedItem = sortedSkuItems.find((item: any) => (item.quantity_packed || 0) < item.quantity_to_pack) || sortedSkuItems[0]
+
+        const currentPacked = (selectedItem as any).quantity_packed || 0
+        const quantityToPack = (selectedItem as any).quantity_to_pack
         const isAlreadyFull = currentPacked >= quantityToPack
         const newQuantity = currentPacked + 1
         const isNowFull = newQuantity >= quantityToPack
@@ -230,13 +235,17 @@ Deno.serve(async (req) => {
           packed_at: now,
           packed_by: verifiedBy,
           ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
-        }).eq('id', (matchingItem as any).id)
+        }).eq('id', (selectedItem as any).id)
 
-        const productName = (matchingItem as any).booking_products?.name
-        if (isAlreadyFull) {
-          return json({ success: true, overscan: true, productName: `⚠️ ${productName} — FÖR MÅNGA! (${newQuantity}/${quantityToPack})` })
-        }
-        return json({ success: true, productName: `${productName} (${newQuantity}/${quantityToPack})` })
+        const productName = (selectedItem as any).booking_products?.name
+        return json({
+          success: true,
+          overscan: isAlreadyFull,
+          itemId: (selectedItem as any).id,
+          newQuantity,
+          quantityToPack,
+          productName: `${productName} (${newQuantity}/${quantityToPack})`
+        })
       }
 
       case 'toggle_item': {

@@ -330,7 +330,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       if (isKolliMode && activeParcel && !isCurrentlyPacked) {
         await assignItemToParcel(itemId, activeParcel.id);
         setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-        toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
       }
       
       // Silent background sync

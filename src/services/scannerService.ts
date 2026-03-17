@@ -160,7 +160,7 @@ export const verifyProductBySku = async (
   packingId: string,
   sku: string,
   verifiedBy: string
-): Promise<{ success: boolean; productName?: string; error?: string; overscan?: boolean }> => {
+): Promise<{ success: boolean; productName?: string; error?: string; overscan?: boolean; itemId?: string; newQuantity?: number; quantityToPack?: number }> => {
   return callScannerApi('verify_product', { packingId, sku, verifiedBy });
 };
 
