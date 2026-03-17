@@ -188,34 +188,34 @@ async function handleCancellation(
     console.log(`receive-booking: ✅ Deleted ${whCount || 0} warehouse calendar events`)
   }
 
-  // 4. Set linked projects to completed
+  // 4. Set linked projects to cancelled (visible in dashboard for manual cleanup)
   const { error: projError, count: projCount } = await supabase
     .from('projects')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('booking_id', bookingId)
     .eq('organization_id', organizationId)
-    .neq('status', 'completed')
+    .not('status', 'in', '("completed","cancelled")')
 
   if (projError) {
     console.error(`receive-booking: Failed to update projects`, projError)
   } else if (projCount && projCount > 0) {
-    actions.push(`completed_${projCount}_projects`)
-    console.log(`receive-booking: ✅ Set ${projCount} projects to completed`)
+    actions.push(`cancelled_${projCount}_projects`)
+    console.log(`receive-booking: ✅ Set ${projCount} projects to cancelled`)
   }
 
-  // 5. Set linked jobs to completed
+  // 5. Set linked jobs to cancelled
   const { error: jobError, count: jobCount } = await supabase
     .from('jobs')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('booking_id', bookingId)
     .eq('organization_id', organizationId)
-    .neq('status', 'completed')
+    .not('status', 'in', '("completed","cancelled")')
 
   if (jobError) {
     console.error(`receive-booking: Failed to update jobs`, jobError)
   } else if (jobCount && jobCount > 0) {
-    actions.push(`completed_${jobCount}_jobs`)
-    console.log(`receive-booking: ✅ Set ${jobCount} jobs to completed`)
+    actions.push(`cancelled_${jobCount}_jobs`)
+    console.log(`receive-booking: ✅ Set ${jobCount} jobs to cancelled`)
   }
 
   // 6. Delete packing projects
