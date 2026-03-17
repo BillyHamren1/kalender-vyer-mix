@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MobileBooking } from '@/services/mobileApiService';
+import { supabase } from '@/integrations/supabase/client';
 
 const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
