@@ -36,6 +36,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize when dialog opens
@@ -44,6 +46,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
       setSelectedDate(eventStart);
       setSelectedResourceId(event.resourceId || undefined);
+      setStartTime(extractUTCTime(event.start));
+      setEndTime(extractUTCTime(event.end));
     }
   }, [open, event]);
 
