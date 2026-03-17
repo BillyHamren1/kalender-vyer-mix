@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor } from "@/services/booking/bookingStatusService";
+import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor, handleBookingLifecycleSideEffects } from "@/services/booking/bookingStatusService";
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
