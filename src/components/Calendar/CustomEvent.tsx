@@ -228,6 +228,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           }
         }}
         event={event}
+        resources={availableResources}
         onUpdate={onEventResize}
       />
     </>
