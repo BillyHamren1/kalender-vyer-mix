@@ -125,7 +125,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             Flytta händelse
           </DialogTitle>
           <DialogDescription>
-            Välj ny dag och/eller team. Tiden behålls.
+            Välj ny dag, tid och/eller team.
           </DialogDescription>
         </DialogHeader>
 
