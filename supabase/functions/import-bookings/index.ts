@@ -964,7 +964,8 @@ const syncPackingListAfterExpansion = async (
     packing_id: packingProject.id,
     booking_product_id: p.id,
     quantity_to_pack: p.quantity || 1,
-    quantity_packed: 0
+    quantity_packed: 0,
+    organization_id: orgId
   }));
 
   const { error: insertError } = await supabase
