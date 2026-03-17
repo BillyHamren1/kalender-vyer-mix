@@ -246,6 +246,7 @@ const JobDetail = () => {
 
   return (
     <>
+    <MainSystemLayout>
       <div className="h-screen flex flex-col bg-muted/30 overflow-hidden">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
