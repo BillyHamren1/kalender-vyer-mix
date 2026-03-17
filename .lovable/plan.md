@@ -1,4 +1,3 @@
-
 # Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
 ## Databasändringar
@@ -110,3 +109,18 @@ Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguratio
 ## 3f. Optimistic updates drag & drop ✅ Klart
 **Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
 **Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
+
+---
+
+# Booking Sync — Arkitektur
+
+Vi (Planning) är **mottagare**. EventFlow är **källa**.
+
+```
+EventFlow (källa) → Webhook POST → Planning (vi, mottagare)
+Planning (vi) → GET export_bookings?booking_id=X → EventFlow (hämta data)
+```
+
+**Två endpoints, två ansvarsområden:**
+1. `receive-booking` — tar emot webhook från EventFlow, svarar 202, triggar sync
+2. `import-bookings` — anropar EventFlows `export_bookings` endpoint för att hämta bokningsdata
