@@ -264,8 +264,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     if (result.success) {
       if (result.overscan) {
         toast.warning(`⚠️ FÖR MÅNGA SKANNADE! ${result.productName}`, { duration: 5000 });
-      } else {
-        toast.success(`${result.productName} verifierad!`);
       }
       
       // Optimistic local update — allow going above quantity_to_pack
