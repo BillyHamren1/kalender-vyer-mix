@@ -76,15 +76,10 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 
   const deleteMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      await Promise.all([
-        supabase.from('calendar_events').delete().eq('booking_id', bookingId),
-        supabase.from('booking_products').delete().eq('booking_id', bookingId),
-        supabase.from('booking_attachments').delete().eq('booking_id', bookingId),
-        supabase.from('booking_staff_assignments').delete().eq('booking_id', bookingId),
-        supabase.from('booking_changes').delete().eq('booking_id', bookingId),
-        supabase.from('jobs').delete().eq('booking_id', bookingId),
-      ]);
-      const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
+      const { error } = await supabase
+        .from('bookings')
+        .update({ assigned_to_project: true })
+        .eq('id', bookingId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -101,7 +96,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'CONFIRMED' })
+        .update({ status: 'CONFIRMED', assigned_to_project: false })
         .eq('id', bookingId);
       if (error) throw error;
     },
