@@ -28,6 +28,7 @@ interface MoveEventDateDialogProps {
   };
   resources?: Array<{ id: string; title: string }>;
   onUpdate?: () => void;
+  exactTimeNeeded?: boolean;
 }
 
 const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
