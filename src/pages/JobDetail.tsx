@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,9 +16,13 @@ import {
   fetchJobById, 
   updateJobStatus, 
   addStaffToJob, 
-  removeStaffFromJob 
+  removeStaffFromJob,
+  deleteJob
 } from '@/services/jobService';
 import { fetchStaffMembers } from '@/services/staffService';
+import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from '@/services/projectConversionService';
+import ProjectActionMenu from '@/components/project/ProjectActionMenu';
+import { AddToLargeProjectDialog } from '@/components/project/AddToLargeProjectDialog';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
