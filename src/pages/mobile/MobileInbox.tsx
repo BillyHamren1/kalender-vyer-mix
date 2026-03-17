@@ -74,9 +74,9 @@ const MobileInbox = () => {
     setActiveDM(conv);
     setView('dm-thread');
     if (conv.unread_count > 0) {
+      markDMReadOptimistic(conv.partner_id);
       try {
         await mobileApi.markDMRead(conv.partner_id);
-        setDmConversations(prev => prev.map(c => c.partner_id === conv.partner_id ? { ...c, unread_count: 0 } : c));
       } catch { /* ignore */ }
     }
   };
