@@ -163,6 +163,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4 shadow-lg border-2" align="center" side="bottom" sideOffset={8}>
         <div className="space-y-4">
+          {exactTimeNeeded && (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-xs">
+                Denna bokning har bestämda tider. Är du säker att du vill ändra?
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex items-center gap-2 pb-2 border-b">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div className="text-sm font-medium truncate max-w-[280px]">{event.title}</div>
