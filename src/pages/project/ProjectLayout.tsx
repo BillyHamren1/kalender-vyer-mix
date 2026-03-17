@@ -176,6 +176,13 @@ const ProjectLayout = () => {
         <Outlet context={detail} />
       </div>
     </div>
+
+    <AddToLargeProjectDialog
+      open={!!largeProjectBookingId}
+      onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+      bookingId={largeProjectBookingId || ''}
+    />
+    </>
   );
 };
 
