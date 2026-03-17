@@ -95,7 +95,7 @@ export function Sidebar3D() {
   const [pressedUrl, setPressedUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const unviewedCount = useUnviewedBookingsCount();
+  const unviewedCount = useProjectInboxCount();
 
   const navigationItems = baseNavigationItems.map(item =>
     item.url === '/projects' && unviewedCount > 0
