@@ -134,7 +134,27 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             <div className="text-sm font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
               Nuvarande: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'd MMM yyyy')} · {extractUTCTime(event.start)}–{extractUTCTime(event.end)}
+          </div>
+
+          {/* Time inputs */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Tid</label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-[120px]"
+              />
+              <span className="text-muted-foreground">–</span>
+              <Input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-[120px]"
+              />
             </div>
+          </div>
           </div>
 
           {/* Team selector */}
