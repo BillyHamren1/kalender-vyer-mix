@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, ScanLine } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import AppLogo from '@/components/shared/AppLogo';
 
 const ScannerLogin = () => {
   const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
