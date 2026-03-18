@@ -63,6 +63,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   verifierName = 'Scanner',
   registerScanHandler,
   scannerState,
+  rfidControls,
 }) => {
   const [isQRActive, setIsQRActive] = useState(false);
   const [isMinusMode, setIsMinusMode] = useState(false);
