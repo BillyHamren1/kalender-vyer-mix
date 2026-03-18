@@ -604,7 +604,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         />
       )}
 
-      {/* Compact Progress + QR + Kolli buttons inline */}
+      {/* Minus mode banner */}
+      {isMinusMode && (
+        <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2">
+            <Minus className="h-5 w-5" />
+            <span className="font-bold text-sm">MINUS-LÄGE AKTIVT</span>
+          </div>
+          <span className="text-xs opacity-90">Scan tar bort 1 st</span>
+        </div>
+      )}
+
+      {/* Compact Progress + QR + Kolli + Minus buttons inline */}
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
           <Progress value={progress.percentage} className="h-2.5" />
@@ -615,6 +626,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <span className="text-xs font-bold text-primary whitespace-nowrap">
           {progress.percentage}%
         </span>
+        <Button 
+          onClick={() => setIsMinusMode(prev => !prev)}
+          size="sm"
+          variant={isMinusMode ? "destructive" : "outline"}
+          className="h-8 px-2.5 gap-1"
+        >
+          <Minus className="h-3.5 w-3.5" />
+          <span className="text-xs">−</span>
+        </Button>
         <Button 
           onClick={() => setIsQRActive(true)}
           size="sm"
@@ -637,11 +657,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       {/* Last scanned item — prominent indicator */}
       {lastScanResult && (
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          lastScanResult.success 
-            ? 'bg-green-100 text-green-800 border border-green-300' 
-            : 'bg-red-100 text-red-800 border border-red-300'
+          lastScanResult.isMinusScan
+            ? 'bg-orange-100 text-orange-800 border border-orange-300'
+            : lastScanResult.success 
+              ? 'bg-green-100 text-green-800 border border-green-300' 
+              : 'bg-red-100 text-red-800 border border-red-300'
         }`}>
-          <span className="text-lg">{lastScanResult.success ? '✅' : '❌'}</span>
+          <span className="text-lg">{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
           <div className="flex-1 min-w-0">
             <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
             <span className="text-xs opacity-80">{lastScanResult.result}</span>
