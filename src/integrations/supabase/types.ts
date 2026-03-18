@@ -3490,12 +3490,14 @@ export type Database = {
           auto_detected: boolean
           created_at: string
           description: string | null
+          destination_booking_id: string | null
           end_time: string | null
           from_address: string | null
           from_latitude: number | null
           from_longitude: number | null
           hours_worked: number
           id: string
+          manual_project_name: string | null
           organization_id: string
           report_date: string
           staff_id: string
@@ -3509,12 +3511,14 @@ export type Database = {
           auto_detected?: boolean
           created_at?: string
           description?: string | null
+          destination_booking_id?: string | null
           end_time?: string | null
           from_address?: string | null
           from_latitude?: number | null
           from_longitude?: number | null
           hours_worked?: number
           id?: string
+          manual_project_name?: string | null
           organization_id?: string
           report_date?: string
           staff_id: string
@@ -3528,12 +3532,14 @@ export type Database = {
           auto_detected?: boolean
           created_at?: string
           description?: string | null
+          destination_booking_id?: string | null
           end_time?: string | null
           from_address?: string | null
           from_latitude?: number | null
           from_longitude?: number | null
           hours_worked?: number
           id?: string
+          manual_project_name?: string | null
           organization_id?: string
           report_date?: string
           staff_id?: string
