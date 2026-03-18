@@ -71,6 +71,7 @@ const PlanningDashboard = () => {
           <PageHeader
             icon={LayoutDashboard}
             title="Planeringsdashboard"
+            variant="purple"
             subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
           >
             <div className="flex items-center gap-2">

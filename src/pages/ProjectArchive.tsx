@@ -16,6 +16,7 @@ const ProjectArchive = () => {
         icon={Archive}
         title="Projektarkiv"
         subtitle="Avslutade projekt"
+        variant="purple"
       >
         <Button 
           onClick={() => navigate('/projects')}

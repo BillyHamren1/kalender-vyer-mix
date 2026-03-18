@@ -48,8 +48,8 @@ const LogisticsHub: React.FC = () => {
 
           <div className="flex items-center gap-4 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
             <div
-              className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
-              style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
+              className="relative p-3.5 rounded-2xl shadow-lg"
+              style={{ background: 'linear-gradient(135deg, hsl(270 45% 55%) 0%, hsl(280 50% 42%) 100%)', boxShadow: '0 8px 32px hsl(270 45% 55% / 0.3)' }}
             >
               <Truck className="h-7 w-7 text-primary-foreground" />
             </div>
