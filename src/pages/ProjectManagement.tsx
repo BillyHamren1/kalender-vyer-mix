@@ -60,6 +60,7 @@ const ProjectManagement = () => {
           icon={FolderKanban}
           title="Projekthantering"
           subtitle="Hantera små, medelstora och stora projekt"
+          variant="purple"
         >
           <Button 
             onClick={() => navigate('/projects/archive')}
