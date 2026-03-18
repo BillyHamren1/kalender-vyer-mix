@@ -8,6 +8,7 @@ import { useTravelDetection } from '@/hooks/useTravelDetection';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import TravelBanner from '@/components/mobile-app/TravelBanner';
+import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv } from 'date-fns/locale';
