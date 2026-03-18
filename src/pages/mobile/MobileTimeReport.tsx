@@ -85,10 +85,10 @@ const MobileTimeReport = () => {
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
 
-      <div className="flex-1 px-4 py-2.5 pb-24 space-y-2.5">
+      <div className="flex-1 px-5 pt-5 pb-28 space-y-4">
         {/* Active timers */}
         {activeTimers.size > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
             {Array.from(activeTimers.entries()).map(([bookingId, timer]) => (
               <ActiveTimerCard
@@ -124,13 +124,13 @@ const MobileTimeReport = () => {
         )}
 
         {/* Report form */}
-        <div className="rounded-xl border border-primary/20 bg-card px-4 py-4 space-y-5 shadow-md">
-          <h2 className="font-bold text-sm text-foreground">Ny tidrapport</h2>
+        <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm">
+          <h2 className="font-bold text-[15px] text-foreground">Ny tidrapport</h2>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb</Label>
             <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-              <SelectTrigger className="h-11 rounded-lg text-sm bg-muted/50 border-border">
+              <SelectTrigger className="h-12 rounded-xl text-sm bg-muted/40 border-border">
                 <SelectValue placeholder="Välj jobb..." />
               </SelectTrigger>
               <SelectContent>
@@ -143,49 +143,49 @@ const MobileTimeReport = () => {
             </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-11 rounded-lg text-sm bg-muted/50 border-border" />
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center" />
           </div>
 
-          <div className="h-px bg-border/60" />
+          <div className="h-px bg-border/50" />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-11 rounded-lg text-sm bg-muted/50 border-border" />
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-11 rounded-lg text-sm bg-muted/50 border-border" />
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast (h)</Label>
-              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-11 rounded-lg text-sm bg-muted/50 border-border" />
+              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
-              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-11 rounded-lg text-sm bg-muted/50 border-border" />
+              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
             </div>
           </div>
 
-          <div className="h-px bg-border/60" />
+          <div className="h-px bg-border/50" />
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Vad gjorde du..."
-              className="rounded-lg min-h-[64px] text-sm bg-muted/50 border-border"
+              className="rounded-xl min-h-[72px] text-sm bg-muted/40 border-border"
             />
           </div>
 
           {/* Summary & submit */}
-          <div className="flex items-center justify-between pt-2 border-t border-border/40">
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xs text-muted-foreground">Totalt:</span>
               <span className="text-lg font-extrabold text-foreground tabular-nums">{calculateHours()}h</span>
@@ -193,7 +193,7 @@ const MobileTimeReport = () => {
             <Button 
               onClick={handleSubmit} 
               disabled={isSaving} 
-              className="rounded-lg gap-2 h-10 px-5 text-sm font-semibold active:scale-[0.98] transition-all"
+              className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Spara
