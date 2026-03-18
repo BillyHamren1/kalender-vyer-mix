@@ -77,7 +77,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 "font-medium rounded-lg px-4 h-8",
                 isWarehouse
                   ? "bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20"
-                  : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
+                  : isPurple
+                    ? "bg-[hsl(270_45%_55%)] hover:bg-[hsl(270_45%_48%)] shadow-sm shadow-[hsl(270_45%_55%)]/20"
+                    : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
               )}
             >
               {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
