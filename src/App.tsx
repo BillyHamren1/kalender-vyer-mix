@@ -109,6 +109,22 @@ const WebTimeBootstrap: React.FC = () => {
   return null;
 };
 
+/**
+ * Deterministic shell selector — exactly one shell per APP_MODE.
+ * Prevents cross-shell redirects (e.g. Time catching /scanner routes).
+ */
+const ShellEntry: React.FC = () => {
+  switch (APP_MODE) {
+    case 'scanner':
+      return <ScannerAppShell />;
+    case 'time':
+      return <TimeAppShell />;
+    case 'web':
+    default:
+      return <WebRoutes />;
+  }
+};
+
 // Inner component that uses the background import hook
 const AppContent = () => {
   const [lastViewedDate, setLastViewedDate] = useState(new Date());

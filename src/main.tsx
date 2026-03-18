@@ -2,12 +2,11 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import { getDefaultRoute } from './config/appMode'
+import { APP_MODE, isScannerApp, getDefaultRoute } from './config/appMode'
 import { Capacitor } from '@capacitor/core'
 
 // Detect scanner mode and swap icons/manifest dynamically
-const isScanner = import.meta.env.VITE_APP_MODE === 'scanner';
-if (isScanner) {
+if (isScannerApp) {
   const manifest = document.querySelector('link[rel="manifest"]');
   if (manifest) manifest.setAttribute('href', '/manifest-scanner.json');
 
