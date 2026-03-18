@@ -175,7 +175,7 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
               <span className="text-[11px] font-semibold text-foreground leading-none">{day.tempMax}°</span>
               <div className={cn(
                 "flex items-center gap-px mt-0.5",
-                warn ? "text-destructive" : "text-muted-foreground/50"
+                warn ? "text-amber-600" : "text-muted-foreground/50"
               )}>
                 <Wind className="w-2 h-2" />
                 <span className={cn("text-[8px] leading-none", warn && "font-bold")}>{day.windSpeedMax}</span>
