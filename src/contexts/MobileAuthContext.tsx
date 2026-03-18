@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } from '@/services/mobileApiService';
-import { initPushNotifications, unregisterPushNotifications } from '@/services/pushNotificationService';
+import { isScannerApp } from '@/config/appMode';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
@@ -53,7 +53,9 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  // Push notifications — disabled for scanner app
   useEffect(() => {
+    if (isScannerApp) return;
     if (!staff?.id) return;
     if (initializedPushForStaffIdRef.current === staff.id) return;
 
@@ -61,9 +63,11 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.clearTimeout(pushInitTimeoutRef.current);
     }
 
-    pushInitTimeoutRef.current = window.setTimeout(() => {
+    // Lazy-load push module only for non-scanner apps
+    pushInitTimeoutRef.current = window.setTimeout(async () => {
       if (initializedPushForStaffIdRef.current === staff.id) return;
       initializedPushForStaffIdRef.current = staff.id;
+      const { initPushNotifications } = await import('@/services/pushNotificationService');
       initPushNotifications(staff.id);
       pushInitTimeoutRef.current = null;
     }, 800);
@@ -82,13 +86,16 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setStaff(res.staff);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     if (pushInitTimeoutRef.current !== null) {
       window.clearTimeout(pushInitTimeoutRef.current);
       pushInitTimeoutRef.current = null;
     }
     initializedPushForStaffIdRef.current = null;
-    unregisterPushNotifications();
+    if (!isScannerApp) {
+      const { unregisterPushNotifications } = await import('@/services/pushNotificationService');
+      unregisterPushNotifications();
+    }
     clearAuth();
     setStaff(null);
   }, []);
