@@ -197,6 +197,13 @@ const MobileJobs = () => {
           onDismiss={dismissGeofenceEvent}
         />
       )}
+
+      {completedTravel && (
+        <TravelCompletedDialog
+          info={completedTravel}
+          onDismiss={dismissCompletedTravel}
+        />
+      )}
     </div>
   );
 };
