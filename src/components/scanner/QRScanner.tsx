@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X } from 'lucide-react';
+import { Camera, X, Radio } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
 
 interface QRScannerProps {
