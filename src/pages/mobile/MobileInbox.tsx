@@ -304,6 +304,32 @@ const MobileInbox = () => {
     );
   }
 
+  // === NEW MESSAGE – CONTACT PICKER ===
+  if (view === 'new-message') {
+    return <ContactPicker
+      staff={staff}
+      dmConversations={dmConversations}
+      onSelectContact={(contact) => {
+        // Check if conversation already exists
+        const existing = dmConversations.find(c => c.partner_id === contact.id);
+        if (existing) {
+          openDM(existing);
+        } else {
+          // Create a new empty conversation shell
+          const newConv: DMConversation = {
+            partner_id: contact.id,
+            partner_name: contact.name,
+            last_message: null,
+            unread_count: 0,
+            messages: [],
+          };
+          openDM(newConv);
+        }
+      }}
+      onBack={goBack}
+    />;
+  }
+
   // === BROADCAST DETAIL ===
   if (view === 'broadcast-detail' && activeBroadcast) {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
