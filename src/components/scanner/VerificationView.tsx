@@ -106,11 +106,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Debounced background sync ref
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     };
+  }, []);
+
+  // Highlight a row briefly after scan
+  const highlightRow = useCallback((itemId: string) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightedItemId(itemId);
+    highlightTimerRef.current = setTimeout(() => setHighlightedItemId(null), 1500);
   }, []);
 
   // Recalculate progress locally
