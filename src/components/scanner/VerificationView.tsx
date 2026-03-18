@@ -7,12 +7,14 @@ import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight
 import { getItemParcels } from '@/services/scannerService';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
+import { RfidStatusBar } from './RfidStatusBar';
 import { ScanMode } from '@/services/scanner/types';
 import { useOptimisticPacking, PackingItem } from '@/hooks/scanner/useOptimisticPacking';
 import { usePackingSync } from '@/hooks/scanner/usePackingSync';
 import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
 import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
+import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
