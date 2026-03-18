@@ -159,23 +159,23 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
               key={day.date}
               className={cn(
                 "flex-1 flex flex-col items-center justify-center py-2 border-r border-border/20 last:border-r-0 transition-colors",
-                warn && "bg-destructive/[0.05]"
+                warn && "bg-amber-500/[0.04]"
               )}
             >
               <span className={cn(
                 "text-[9px] font-medium leading-none",
-                warn ? "text-destructive" : "text-muted-foreground"
+                warn ? "text-amber-600" : "text-muted-foreground"
               )}>
                 {day.dayNameShort}
               </span>
               <Icon className={cn(
                 "w-3.5 h-3.5 my-1",
-                warn ? "text-destructive/80" : "text-muted-foreground/60"
+                warn ? "text-amber-500" : "text-muted-foreground/60"
               )} />
               <span className="text-[11px] font-semibold text-foreground leading-none">{day.tempMax}°</span>
               <div className={cn(
                 "flex items-center gap-px mt-0.5",
-                warn ? "text-destructive" : "text-muted-foreground/50"
+                warn ? "text-amber-600" : "text-muted-foreground/50"
               )}>
                 <Wind className="w-2 h-2" />
                 <span className={cn("text-[8px] leading-none", warn && "font-bold")}>{day.windSpeedMax}</span>
@@ -188,10 +188,10 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
       {/* Summary bar */}
       <div className={cn(
         "flex items-start gap-1.5 px-3 py-1.5 border-t border-border/30 text-[11px] leading-relaxed text-foreground",
-        hasWarnings ? "bg-destructive/10" : "bg-green-500/10"
+        hasWarnings ? "bg-amber-500/[0.06]" : "bg-muted/30"
       )}>
         {hasWarnings ? (
-          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-destructive" />
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-amber-500" />
         ) : (
           <Droplets className="w-3 h-3 shrink-0 mt-0.5 text-primary/40" />
         )}
