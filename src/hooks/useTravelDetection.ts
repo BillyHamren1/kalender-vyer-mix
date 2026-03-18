@@ -3,8 +3,9 @@ import { mobileApi } from '@/services/mobileApiService';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h) — threshold for "in vehicle"
 const SPEED_STOP_THRESHOLD = 1.0; // m/s — below this = stopped
-const START_DEBOUNCE_MS = 30000; // 30s of sustained speed before starting
+const START_DEBOUNCE_MS = 15000; // 15s of sustained speed before starting
 const STOP_DEBOUNCE_MS = 60000; // 60s of low speed before stopping
+const MAX_ACCURACY_M = 50; // Ignore GPS readings with accuracy > 50m
 const TRAVEL_STATE_KEY = 'eventflow-travel-state';
 const MAPBOX_TOKEN_KEY = 'eventflow-mapbox-token';
 
@@ -15,6 +16,15 @@ export interface TravelState {
   fromAddress: string | null;
   fromLat: number | null;
   fromLng: number | null;
+}
+
+export interface TravelCompletedInfo {
+  travelLogId: string;
+  toAddress: string | null;
+  toLat: number;
+  toLng: number;
+  hoursWorked: number;
+  matchedBookingId: string | null;
 }
 
 function loadTravelState(): TravelState {
@@ -29,12 +39,22 @@ function saveTravelState(state: TravelState) {
   localStorage.setItem(TRAVEL_STATE_KEY, JSON.stringify(state));
 }
 
+// Haversine distance in meters
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
-    // Try cached mapbox token first
     let token = localStorage.getItem(MAPBOX_TOKEN_KEY);
     if (!token) {
-      // Fetch from edge function
       const res = await fetch('https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mapbox-token');
       const data = await res.json();
       if (data?.token) {
@@ -57,8 +77,9 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
 export function useTravelDetection(enabled: boolean = true) {
   const [travelState, setTravelState] = useState<TravelState>(loadTravelState);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [completedTravel, setCompletedTravel] = useState<TravelCompletedInfo | null>(null);
 
-  const speedHistoryRef = useRef<{ speed: number; time: number }[]>([]);
+  const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const startDebounceRef = useRef<number | null>(null);
   const stopDebounceRef = useRef<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -72,6 +93,19 @@ export function useTravelDetection(enabled: boolean = true) {
     }, 1000);
     return () => clearInterval(interval);
   }, [travelState.isMoving, travelState.startTime]);
+
+  const clearTravelState = useCallback(() => {
+    const newState: TravelState = {
+      isMoving: false,
+      activeTravelLogId: null,
+      startTime: null,
+      fromAddress: null,
+      fromLat: null,
+      fromLng: null,
+    };
+    setTravelState(newState);
+    saveTravelState(newState);
+  }, []);
 
   const startTravel = useCallback(async (lat: number, lng: number) => {
     console.log('[TravelDetection] Starting travel tracking...');
@@ -108,74 +142,96 @@ export function useTravelDetection(enabled: boolean = true) {
     const address = await reverseGeocode(lat, lng);
     
     try {
-      await mobileApi.stopTravelLog({
+      const result = await mobileApi.stopTravelLog({
         travel_log_id: travelState.activeTravelLogId,
         to_address: address || undefined,
         to_latitude: lat,
         to_longitude: lng,
       });
 
-      const newState: TravelState = {
-        isMoving: false,
-        activeTravelLogId: null,
-        startTime: null,
-        fromAddress: null,
-        fromLat: null,
-        fromLng: null,
-      };
-      setTravelState(newState);
-      saveTravelState(newState);
+      // Show completed travel dialog
+      setCompletedTravel({
+        travelLogId: travelState.activeTravelLogId,
+        toAddress: address,
+        toLat: lat,
+        toLng: lng,
+        hoursWorked: result.travel_log?.hours_worked || 0,
+        matchedBookingId: result.travel_log?.destination_booking_id || null,
+      });
+
+      clearTravelState();
       console.log('[TravelDetection] Travel stopped');
     } catch (err) {
       console.error('[TravelDetection] Failed to stop travel:', err);
     }
-  }, [travelState.activeTravelLogId]);
+  }, [travelState.activeTravelLogId, clearTravelState]);
 
   // Manual stop
   const manualStopTravel = useCallback(async () => {
     if (!travelState.activeTravelLogId) return;
-    // Use last known position or null
-    const lastSpeed = speedHistoryRef.current[speedHistoryRef.current.length - 1];
-    // We don't have lat/lng from speed history, so just stop without position
+    const lastPos = lastPositionRef.current;
     try {
-      await mobileApi.stopTravelLog({
+      const result = await mobileApi.stopTravelLog({
         travel_log_id: travelState.activeTravelLogId,
+        ...(lastPos ? { to_latitude: lastPos.lat, to_longitude: lastPos.lng } : {}),
       });
-      const newState: TravelState = {
-        isMoving: false,
-        activeTravelLogId: null,
-        startTime: null,
-        fromAddress: null,
-        fromLat: null,
-        fromLng: null,
-      };
-      setTravelState(newState);
-      saveTravelState(newState);
+
+      if (lastPos) {
+        const address = await reverseGeocode(lastPos.lat, lastPos.lng);
+        setCompletedTravel({
+          travelLogId: travelState.activeTravelLogId,
+          toAddress: address,
+          toLat: lastPos.lat,
+          toLng: lastPos.lng,
+          hoursWorked: result.travel_log?.hours_worked || 0,
+          matchedBookingId: result.travel_log?.destination_booking_id || null,
+        });
+      }
+
+      clearTravelState();
     } catch (err) {
       console.error('[TravelDetection] Manual stop failed:', err);
     }
-  }, [travelState.activeTravelLogId]);
+  }, [travelState.activeTravelLogId, clearTravelState]);
+
+  const dismissCompletedTravel = useCallback(() => {
+    setCompletedTravel(null);
+  }, []);
 
   useEffect(() => {
     if (!enabled || !navigator.geolocation) return;
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        const { speed, latitude, longitude } = position.coords;
+        const { speed, latitude, longitude, accuracy } = position.coords;
         const now = Date.now();
-        const currentSpeed = speed !== null && speed >= 0 ? speed : 0;
 
-        speedHistoryRef.current.push({ speed: currentSpeed, time: now });
-        // Keep only last 2 minutes
-        speedHistoryRef.current = speedHistoryRef.current.filter(s => now - s.time < 120000);
+        // Filter out inaccurate GPS readings
+        if (accuracy > MAX_ACCURACY_M) {
+          console.log(`[TravelDetection] Skipping inaccurate reading: ${accuracy.toFixed(0)}m`);
+          return;
+        }
+
+        // Calculate speed from position delta (iOS fallback)
+        let calculatedSpeed = 0;
+        const lastPos = lastPositionRef.current;
+        if (lastPos) {
+          const distance = haversineDistance(lastPos.lat, lastPos.lng, latitude, longitude);
+          const timeDiff = (now - lastPos.time) / 1000;
+          if (timeDiff > 0 && timeDiff < 60) {
+            calculatedSpeed = distance / timeDiff;
+          }
+        }
+        lastPositionRef.current = { lat: latitude, lng: longitude, time: now };
+
+        // Use native speed if available, otherwise calculated
+        const currentSpeed = (speed !== null && speed >= 0) ? speed : calculatedSpeed;
 
         if (!travelState.isMoving) {
-          // Check if we should start
           if (currentSpeed >= SPEED_THRESHOLD) {
             if (!startDebounceRef.current) {
               startDebounceRef.current = now;
             } else if (now - startDebounceRef.current >= START_DEBOUNCE_MS) {
-              // Sustained movement for 30s
               startDebounceRef.current = null;
               stopDebounceRef.current = null;
               startTravel(latitude, longitude);
@@ -184,12 +240,10 @@ export function useTravelDetection(enabled: boolean = true) {
             startDebounceRef.current = null;
           }
         } else {
-          // Check if we should stop
           if (currentSpeed < SPEED_STOP_THRESHOLD) {
             if (!stopDebounceRef.current) {
               stopDebounceRef.current = now;
             } else if (now - stopDebounceRef.current >= STOP_DEBOUNCE_MS) {
-              // Stopped for 60s
               stopDebounceRef.current = null;
               startDebounceRef.current = null;
               stopTravel(latitude, longitude);
@@ -220,5 +274,7 @@ export function useTravelDetection(enabled: boolean = true) {
     travelState,
     elapsedSeconds,
     manualStopTravel,
+    completedTravel,
+    dismissCompletedTravel,
   };
 }
