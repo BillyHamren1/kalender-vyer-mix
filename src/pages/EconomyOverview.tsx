@@ -125,7 +125,7 @@ const tabTriggerClass =
 
 const EconomyOverview: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 theme-purple">
       <div className="container mx-auto px-4 py-8 max-w-[1600px]">
         {/* Header */}
         <div className="relative mb-8">
@@ -138,7 +138,7 @@ const EconomyOverview: React.FC = () => {
             <div className="flex items-center gap-4">
               <div 
                 className="relative p-3.5 rounded-2xl shadow-lg"
-                style={{ background: 'linear-gradient(135deg, hsl(270 45% 55%) 0%, hsl(280 50% 42%) 100%)', boxShadow: '0 8px 32px hsl(270 45% 55% / 0.3)' }}
+                style={{ background: 'var(--gradient-icon)', boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
               >
                 <Banknote className="h-7 w-7 text-primary-foreground" />
               </div>

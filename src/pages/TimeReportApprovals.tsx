@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 
 const TimeReportApprovals = () => {
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={ClipboardCheck}
         title="Tidrapportsgodkännanden"

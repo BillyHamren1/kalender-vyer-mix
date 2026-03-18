@@ -76,7 +76,7 @@ const MyProjects: React.FC = () => {
   };
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={Briefcase}
         title="Mina projekt"

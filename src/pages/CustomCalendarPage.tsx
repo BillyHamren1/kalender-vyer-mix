@@ -210,7 +210,7 @@ const CustomCalendarPage = () => {
 
   return (
     <TooltipProvider>
-        <div className="h-screen flex flex-col bg-background overflow-hidden">
+        <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
           <div className="px-4 sm:px-6 lg:px-8 pt-6 shrink-0">
             <PageHeader
               icon={Calendar}

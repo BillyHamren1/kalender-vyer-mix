@@ -81,7 +81,7 @@ const OpsControlCenter = () => {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden theme-purple">
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* TOP: Operations Bar */}
