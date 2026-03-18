@@ -215,6 +215,7 @@ const CustomCalendarPage = () => {
             <PageHeader
               icon={Calendar}
               title="Personalplanering"
+              variant="purple"
               subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
             />
           </div>

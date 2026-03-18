@@ -12,6 +12,7 @@ const TimeReportApprovals = () => {
         icon={ClipboardCheck}
         title="Tidrapportsgodkännanden"
         subtitle="Granska och godkänn inrapporterade timmar från personalen"
+        variant="purple"
       />
       <TimeReportApprovalPanel />
     </PageContainer>

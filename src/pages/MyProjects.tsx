@@ -80,6 +80,7 @@ const MyProjects: React.FC = () => {
       <PageHeader
         icon={Briefcase}
         title="Mina projekt"
+        variant="purple"
         subtitle="Samlad översikt över dina aktiva projekt"
       />
 

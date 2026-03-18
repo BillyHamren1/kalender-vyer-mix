@@ -96,6 +96,7 @@ const StaffManagement: React.FC = () => {
       <PageHeader
         icon={Users}
         title="Personal"
+        variant="purple"
         subtitle="Hantera personal och konton"
         action={{
           label: "Lägg till",

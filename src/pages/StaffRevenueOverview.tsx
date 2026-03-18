@@ -128,6 +128,7 @@ export default function StaffRevenueOverview() {
       <PageHeader
         icon={Users}
         title="Personalekonomi"
+        variant="purple"
         subtitle="Intäkt och marginal per personal"
       >
         {/* Time filter buttons */}
