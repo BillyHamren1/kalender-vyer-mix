@@ -257,6 +257,12 @@ export const mobileApi = {
     to_longitude?: number;
   }) => callApi<{ success: boolean; travel_log: any }>('stop_travel_log', data),
 
+  updateTravelLog: (data: {
+    travel_log_id: string;
+    description?: string;
+    manual_project_name?: string;
+  }) => callApi<{ success: boolean; travel_log: any }>('update_travel_log', data),
+
   getTravelLogs: (limit?: number) =>
     callApi<{ travel_logs: MobileTravelLog[] }>('get_travel_logs', { limit }),
 };

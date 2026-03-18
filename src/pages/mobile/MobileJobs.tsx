@@ -8,6 +8,7 @@ import { useTravelDetection } from '@/hooks/useTravelDetection';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import TravelBanner from '@/components/mobile-app/TravelBanner';
+import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -28,7 +29,7 @@ const MobileJobs = () => {
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
 
   const { activeTimers, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
-  const { travelState, elapsedSeconds, manualStopTravel } = useTravelDetection();
+  const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } = useTravelDetection();
 
   const handleGeofenceConfirm = () => {
     if (!geofenceEvent) return;
@@ -194,6 +195,13 @@ const MobileJobs = () => {
           event={geofenceEvent}
           onConfirm={handleGeofenceConfirm}
           onDismiss={dismissGeofenceEvent}
+        />
+      )}
+
+      {completedTravel && (
+        <TravelCompletedDialog
+          info={completedTravel}
+          onDismiss={dismissCompletedTravel}
         />
       )}
     </div>

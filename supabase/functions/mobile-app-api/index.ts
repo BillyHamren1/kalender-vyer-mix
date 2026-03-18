@@ -163,6 +163,8 @@ Deno.serve(async (req) => {
         return await handleCreateTravelLog(supabase, staffId, data, organizationId)
       case 'stop_travel_log':
         return await handleStopTravelLog(supabase, staffId, data, organizationId)
+      case 'update_travel_log':
+        return await handleUpdateTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       default:
@@ -1813,6 +1815,33 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
   const startTime = new Date(existing.start_time)
   const hoursWorked = Math.round(((endTime.getTime() - startTime.getTime()) / 3600000) * 100) / 100
 
+  // Try to match destination to a booking address (within 300m)
+  let destinationBookingId: string | null = null
+  if (to_latitude && to_longitude) {
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, delivery_latitude, delivery_longitude, client')
+      .eq('organization_id', organizationId)
+      .not('delivery_latitude', 'is', null)
+      .not('delivery_longitude', 'is', null)
+
+    if (bookings) {
+      const toRad = (d: number) => (d * Math.PI) / 180
+      for (const b of bookings) {
+        const R = 6371000
+        const dLat = toRad(b.delivery_latitude - to_latitude)
+        const dLng = toRad(b.delivery_longitude - to_longitude)
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(to_latitude)) * Math.cos(toRad(b.delivery_latitude)) * Math.sin(dLng/2)**2
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+        if (dist < 300) {
+          destinationBookingId = b.id
+          console.log(`[StopTravel] Matched destination to booking ${b.id} (${b.client}), distance: ${dist.toFixed(0)}m`)
+          break
+        }
+      }
+    }
+  }
+
   const { data: updated, error } = await supabase
     .from('travel_time_logs')
     .update({
@@ -1821,6 +1850,8 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
       to_address: to_address || null,
       to_latitude: to_latitude || null,
       to_longitude: to_longitude || null,
+      destination_booking_id: destinationBookingId,
+      manual_project_name: destinationBookingId ? null : (to_address || null),
     })
     .eq('id', travel_log_id)
     .eq('staff_id', staffId)
@@ -1836,7 +1867,44 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
     )
   }
 
-  console.log(`Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}`)
+  console.log(`Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}, matchedBooking: ${destinationBookingId}`)
+
+  return new Response(
+    JSON.stringify({ success: true, travel_log: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleUpdateTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { travel_log_id, description, manual_project_name } = data || {}
+
+  if (!travel_log_id) {
+    return new Response(
+      JSON.stringify({ error: 'travel_log_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const updateFields: any = {}
+  if (description !== undefined) updateFields.description = description
+  if (manual_project_name !== undefined) updateFields.manual_project_name = manual_project_name
+
+  const { data: updated, error } = await supabase
+    .from('travel_time_logs')
+    .update(updateFields)
+    .eq('id', travel_log_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Update travel log error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to update travel log' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   return new Response(
     JSON.stringify({ success: true, travel_log: updated }),
