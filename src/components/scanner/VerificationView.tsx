@@ -259,7 +259,61 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       return;
     }
 
-    // Try to verify product by SKU
+    // MINUS MODE: find matching item and decrement
+    if (isMinusMode) {
+      const matchingItem = items.find(
+        item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
+      );
+      
+      if (!matchingItem) {
+        setLastScanResult({
+          value: scannedValue,
+          result: 'Ingen packad artikel hittades med denna SKU',
+          success: false,
+        });
+        toast.error('Ingen packad artikel att ta bort');
+        return;
+      }
+
+      try {
+        await decrementPackingItem(matchingItem.id, verifierName);
+        
+        const productName = matchingItem.booking_products?.name || scannedValue;
+        setLastScanResult({
+          value: scannedValue,
+          result: `➖ Borttagen: ${productName}`,
+          success: true,
+          productName,
+          isMinusScan: true,
+        });
+        
+        highlightRow(matchingItem.id);
+        
+        // Optimistic local update — decrement
+        setItems(prev => {
+          const updated = prev.map(item => {
+            if (item.id === matchingItem.id) {
+              return { ...item, quantity_packed: Math.max(0, (item.quantity_packed || 0) - 1) };
+            }
+            return item;
+          });
+          recalcProgress(updated);
+          return updated;
+        });
+        
+        debouncedBackgroundSync();
+      } catch (err: any) {
+        setLastScanResult({
+          value: scannedValue,
+          result: err.message || 'Kunde inte ta bort artikel',
+          success: false,
+        });
+        toast.error(err.message || 'Kunde inte ta bort artikel');
+      }
+      return;
+    }
+
+    // NORMAL MODE: verify product by SKU
     const result = await verifyProductBySku(packingId, scannedValue, verifierName);
     
     setLastScanResult({
@@ -309,7 +363,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     }
 
     // Do NOT close QR scanner — let user keep scanning continuously
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow, isMinusMode, items]);
 
   // Register handleScan with parent's scanner controller
   useEffect(() => {
