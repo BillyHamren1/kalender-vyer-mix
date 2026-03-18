@@ -205,8 +205,66 @@ Deno.serve(async (req) => {
       }
 
       case 'verify_product': {
-        const { packingId, sku, verifiedBy } = params
+        const { packingId, sku: serialNumber, verifiedBy } = params
 
+        // 1. Get booking_id from packing_projects
+        const { data: packing, error: packingError } = await supabase
+          .from('packing_projects')
+          .select('booking_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        if (packingError || !packing?.booking_id) {
+          return json({ success: false, error: 'Packlistan saknar kopplad bokning' })
+        }
+
+        // 2. Call external inventory API to allocate the instance
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY) {
+          console.error('PRICELIST_API_KEY not configured')
+          return json({ success: false, error: 'Lagersystem ej konfigurerat' })
+        }
+
+        const allocateResponse = await fetch(
+          'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+              'x-organization-id': ORG_ID,
+            },
+            body: JSON.stringify({
+              serial_number: serialNumber,
+              reservation_id: packing.booking_id,
+            }),
+          }
+        )
+
+        if (!allocateResponse.ok) {
+          const status = allocateResponse.status
+          if (status === 404) {
+            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet` })
+          }
+          if (status === 409) {
+            const errBody = await allocateResponse.json().catch(() => ({}))
+            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad' })
+          }
+          const errBody = await allocateResponse.json().catch(() => ({}))
+          console.error('Inventory API error:', status, errBody)
+          return json({ success: false, error: errBody.error || `Lagerfel (${status})` })
+        }
+
+        const allocateData = await allocateResponse.json()
+        const returnedSku = allocateData.sku
+
+        if (!returnedSku) {
+          console.error('Inventory API returned no SKU:', allocateData)
+          return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
+        }
+
+        // 3. Match returned SKU against local packing_list_items
         const { data: packingItems, error: fetchError } = await supabase
           .from('packing_list_items')
           .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku)`)
@@ -215,11 +273,13 @@ Deno.serve(async (req) => {
 
         if (fetchError) return json({ success: false, error: 'Kunde inte hämta packlista' })
 
-        const normalizedSku = sku.toLowerCase()
+        const normalizedSku = returnedSku.toLowerCase()
         const skuItems = (packingItems || []).filter((item: any) => item.booking_products?.sku?.toLowerCase() === normalizedSku)
-        if (skuItems.length === 0) return json({ success: false, error: `Ingen produkt med SKU "${sku}" hittades` })
+        if (skuItems.length === 0) {
+          return json({ success: false, error: `Artikeltyp "${returnedSku}" finns inte i packlistan` })
+        }
 
-        // Deterministic order + pick first not-full row for this SKU
+        // Deterministic order + pick first not-full row
         const sortedSkuItems = [...skuItems].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
         const selectedItem = sortedSkuItems.find((item: any) => (item.quantity_packed || 0) < item.quantity_to_pack) || sortedSkuItems[0]
 
