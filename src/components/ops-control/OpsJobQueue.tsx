@@ -16,8 +16,8 @@ interface Props {
 }
 
 const issueConfig = {
-  no_staff: { icon: AlertTriangle, label: 'Saknar personal', cls: 'text-destructive bg-destructive/10', rowCls: 'bg-destructive/5 border-l-2 border-destructive' },
-  starting_soon: { icon: Clock, label: 'Startar snart', cls: 'text-amber-600 bg-amber-500/10', rowCls: '' },
+  no_staff: { icon: AlertTriangle, label: 'Saknar personal', cls: 'text-amber-600 bg-amber-500/10', rowCls: 'border-l-2 border-amber-400' },
+  starting_soon: { icon: Clock, label: 'Startar snart', cls: 'text-muted-foreground bg-muted', rowCls: '' },
   unopened: { icon: Eye, label: 'Ej öppnad', cls: 'text-muted-foreground bg-muted', rowCls: '' },
   recently_modified: { icon: RefreshCw, label: 'Ändrad', cls: 'text-blue-600 bg-blue-500/10', rowCls: '' },
 };
