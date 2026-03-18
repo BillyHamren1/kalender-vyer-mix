@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   verifyProductBySku, 
   getVerificationProgress, 
   parseScanResult, 
   togglePackingItemManually,
+  decrementPackingItem,
   createParcel,
   assignItemToParcel,
   getItemParcels,
@@ -92,7 +93,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean; productName?: string } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean; productName?: string; isMinusScan?: boolean } | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -139,6 +140,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
+  const [isMinusMode, setIsMinusMode] = useState(false);
 
   // Load packing data — supports silent background refresh
   const loadData = useCallback(async (isBackground = false) => {
@@ -257,7 +259,61 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       return;
     }
 
-    // Try to verify product by SKU
+    // MINUS MODE: find matching item and decrement
+    if (isMinusMode) {
+      const matchingItem = items.find(
+        item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
+      );
+      
+      if (!matchingItem) {
+        setLastScanResult({
+          value: scannedValue,
+          result: 'Ingen packad artikel hittades med denna SKU',
+          success: false,
+        });
+        toast.error('Ingen packad artikel att ta bort');
+        return;
+      }
+
+      try {
+        await decrementPackingItem(matchingItem.id, verifierName);
+        
+        const productName = matchingItem.booking_products?.name || scannedValue;
+        setLastScanResult({
+          value: scannedValue,
+          result: `➖ Borttagen: ${productName}`,
+          success: true,
+          productName,
+          isMinusScan: true,
+        });
+        
+        highlightRow(matchingItem.id);
+        
+        // Optimistic local update — decrement
+        setItems(prev => {
+          const updated = prev.map(item => {
+            if (item.id === matchingItem.id) {
+              return { ...item, quantity_packed: Math.max(0, (item.quantity_packed || 0) - 1) };
+            }
+            return item;
+          });
+          recalcProgress(updated);
+          return updated;
+        });
+        
+        debouncedBackgroundSync();
+      } catch (err: any) {
+        setLastScanResult({
+          value: scannedValue,
+          result: err.message || 'Kunde inte ta bort artikel',
+          success: false,
+        });
+        toast.error(err.message || 'Kunde inte ta bort artikel');
+      }
+      return;
+    }
+
+    // NORMAL MODE: verify product by SKU
     const result = await verifyProductBySku(packingId, scannedValue, verifierName);
     
     setLastScanResult({
@@ -307,7 +363,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     }
 
     // Do NOT close QR scanner — let user keep scanning continuously
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow, isMinusMode, items]);
 
   // Register handleScan with parent's scanner controller
   useEffect(() => {
@@ -320,6 +376,32 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
     if (isParent) {
       toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
+      return;
+    }
+
+    // MINUS MODE: decrement by 1
+    if (isMinusMode) {
+      const item = items.find(i => i.id === itemId);
+      if (!item || (item.quantity_packed || 0) <= 0) {
+        toast.error('Inget att ta bort');
+        return;
+      }
+      try {
+        await decrementPackingItem(itemId, verifierName);
+        setItems(prev => {
+          const updated = prev.map(i => {
+            if (i.id === itemId) {
+              return { ...i, quantity_packed: Math.max(0, (i.quantity_packed || 0) - 1) };
+            }
+            return i;
+          });
+          recalcProgress(updated);
+          return updated;
+        });
+        debouncedBackgroundSync();
+      } catch (err: any) {
+        toast.error(err.message || 'Kunde inte ta bort');
+      }
       return;
     }
     
@@ -352,7 +434,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
+  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, isMinusMode, items]);
 
   if (isLoading) {
     return (
@@ -548,7 +630,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         />
       )}
 
-      {/* Compact Progress + QR + Kolli buttons inline */}
+      {/* Minus mode banner */}
+      {isMinusMode && (
+        <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2">
+            <Minus className="h-5 w-5" />
+            <span className="font-bold text-sm">MINUS-LÄGE AKTIVT</span>
+          </div>
+          <span className="text-xs opacity-90">Scan tar bort 1 st</span>
+        </div>
+      )}
+
+      {/* Compact Progress + QR + Kolli + Minus buttons inline */}
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
           <Progress value={progress.percentage} className="h-2.5" />
@@ -559,6 +652,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <span className="text-xs font-bold text-primary whitespace-nowrap">
           {progress.percentage}%
         </span>
+        <Button 
+          onClick={() => setIsMinusMode(prev => !prev)}
+          size="sm"
+          variant={isMinusMode ? "destructive" : "outline"}
+          className="h-8 px-2.5 gap-1"
+        >
+          <Minus className="h-3.5 w-3.5" />
+          <span className="text-xs">−</span>
+        </Button>
         <Button 
           onClick={() => setIsQRActive(true)}
           size="sm"
@@ -581,11 +683,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       {/* Last scanned item — prominent indicator */}
       {lastScanResult && (
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          lastScanResult.success 
-            ? 'bg-green-100 text-green-800 border border-green-300' 
-            : 'bg-red-100 text-red-800 border border-red-300'
+          lastScanResult.isMinusScan
+            ? 'bg-orange-100 text-orange-800 border border-orange-300'
+            : lastScanResult.success 
+              ? 'bg-green-100 text-green-800 border border-green-300' 
+              : 'bg-red-100 text-red-800 border border-red-300'
         }`}>
-          <span className="text-lg">{lastScanResult.success ? '✅' : '❌'}</span>
+          <span className="text-lg">{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
           <div className="flex-1 min-w-0">
             <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
             <span className="text-xs opacity-80">{lastScanResult.result}</span>
