@@ -45,6 +45,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
 
+    const notifyRfid = (value: string, matched: boolean) => {
+      const isRfid = value.length >= 20 && /^[0-9a-fA-F]+$/.test(value);
+      if (isRfid && optRef.current.onRfidTagResult) {
+        optRef.current.onRfidTagResult(value, matched);
+      }
+    };
+
     try {
       const scanResult = parseScanResult(scannedValue);
       if (scanResult.type === 'packing_id') {
