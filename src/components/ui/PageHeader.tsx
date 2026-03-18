@@ -28,6 +28,19 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   variant = 'default'
 }) => {
   const isWarehouse = variant === 'warehouse';
+  const isPurple = variant === 'purple';
+
+  const getIconBackground = () => {
+    if (isWarehouse) return 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)';
+    if (isPurple) return 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)';
+    return 'var(--gradient-icon)';
+  };
+
+  const getShadowClass = () => {
+    if (isWarehouse) return 'shadow-warehouse/15';
+    if (isPurple) return 'shadow-[hsl(270_45%_55%)]/15';
+    return 'shadow-primary/15';
+  };
 
   return (
     <div className={cn("mb-4", className)}>
@@ -36,13 +49,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <div
             className={cn(
               "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0",
-              isWarehouse ? "shadow-warehouse/15" : "shadow-primary/15"
+              getShadowClass()
             )}
-            style={{
-              background: isWarehouse
-                ? 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)'
-                : 'var(--gradient-icon)'
-            }}
+            style={{ background: getIconBackground() }}
           >
             <Icon className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
           </div>
