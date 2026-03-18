@@ -618,6 +618,27 @@ export type Database = {
         }
         Relationships: []
       }
+      economy_cache: {
+        Row: {
+          booking_id: string
+          cached_at: string
+          data: Json
+          organization_id: string
+        }
+        Insert: {
+          booking_id: string
+          cached_at?: string
+          data?: Json
+          organization_id?: string
+        }
+        Update: {
+          booking_id?: string
+          cached_at?: string
+          data?: Json
+          organization_id?: string
+        }
+        Relationships: []
+      }
       establishment_subtasks: {
         Row: {
           assigned_to: string | null
