@@ -25,12 +25,18 @@ interface ScannerStateProps {
   warning?: string | null;
 }
 
+interface RfidControlsProps {
+  startInventory: () => Promise<void>;
+  stopInventory: () => Promise<void>;
+}
+
 interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
   registerScanHandler?: (handler: (value: string) => void) => void;
   scannerState?: ScannerStateProps;
+  rfidControls?: RfidControlsProps;
 }
 
 // Remove prefix symbols from product names
