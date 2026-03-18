@@ -131,12 +131,7 @@ const AppContent = () => {
             <Toaster />
             {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
             <BrowserRouter>
-              {/* ── Native app modes get their dedicated shell ── */}
-              {APP_MODE === 'time' && <TimeAppShell />}
-              {APP_MODE === 'scanner' && <ScannerAppShell />}
-
-              {/* ── Web mode: full system with all routes ── */}
-              {APP_MODE === 'web' && <WebRoutes />}
+              <ShellEntry />
             </BrowserRouter>
           </TooltipProvider>
         </QueryClientProvider>
