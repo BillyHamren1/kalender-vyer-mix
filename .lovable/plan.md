@@ -1,50 +1,126 @@
+# Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
+## Databasändringar
+- ✅ `travel_time_logs`-tabell skapad med RLS (org_filter + service_role)
+- Kolumner: staff_id, report_date, start/end_time, hours_worked, from/to address+coords, auto_detected, description
 
-## Performance Analysis: Ekonomiskt kontrollcenter
+## Edge Function
+- ✅ `mobile-app-api` utökad med tre nya actions:
+  - `create_travel_log` — startar ny förflyttningslogg med startposition
+  - `stop_travel_log` — stoppar pågående logg, beräknar hours_worked, sparar slutposition
+  - `get_travel_logs` — hämtar egna loggar (max 50)
 
-### Root Cause
+## Frontend — nya filer
+- ✅ `src/hooks/useTravelDetection.ts` — GPS-baserad rörelsedetektering (speed > 2 m/s i 30s = start, < 1 m/s i 60s = stopp), reverse geocoding via Mapbox
+- ✅ `src/components/mobile-app/TravelBanner.tsx` — aktiv förflyttningsindikator med timer, bil-ikon, stopknapp
 
-The page fires a **single edge function call** (`multi_batch`) that internally spawns **N × 7 parallel HTTP requests** to the external API — one per booking per data type (budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices).
+## Frontend — uppdaterade filer
+- ✅ `src/services/mobileApiService.ts` — nya API-metoder + `MobileTravelLog` interface
+- ✅ `src/hooks/useMobileData.ts` — ny `useMobileTravelLogs()` hook
+- ✅ `src/pages/mobile/MobileJobs.tsx` — TravelBanner visas på jobbsidan
+- ✅ `src/pages/mobile/MobileProfile.tsx` — reshistorik med senaste 3 resor, totaltid
+- ✅ `src/pages/mobile/MobileTimeHistory.tsx` — förflyttningstid visas som 🚗-markerade rader i tidrapportlistan
 
-With 62 bookings in the database, that's **434 parallel HTTP requests** from the edge function to the external API. This is the bottleneck — the edge function likely hits connection limits, rate limits, or simply takes too long to resolve all promises.
+---
 
-Additionally, this fires on every page load (staleTime is 5 min, but navigating away and back triggers a refetch).
+# Steg 4: Regression Test Layer ✅ Klart
 
-### Plan
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
 
-**1. Add server-side caching in the edge function** (`planning-api-proxy`)
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
 
-Add a local Supabase table `economy_cache` that stores the batch response per booking_id with a TTL (e.g. 10 minutes). The multi_batch handler checks cache first, only fetches externally for stale/missing entries.
+## Totalt: 159 tester i 7 filer, alla gröna.
 
-| Column | Type |
-|--------|------|
-| booking_id | text PK |
-| data | jsonb |
-| cached_at | timestamptz |
+---
 
-**2. Chunk parallel requests in the edge function**
+# Steg 1: SAFE NOW ✅ Klart
 
-For uncached bookings, fetch in chunks of 10 (not all 62 at once) to avoid overwhelming the external API.
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
 
-**3. Increase client-side staleTime and add `gcTime`**
+---
 
-Increase `staleTime` to 10 min and add `gcTime: 30 min` so navigating between tabs doesn't re-trigger the heavy fetch.
+# Steg 2: SAFE NEXT ✅ Klart
 
-**4. Show cached data immediately, refresh in background**
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
 
-Set `placeholderData: keepPreviousData` so the UI renders instantly with stale data while refreshing.
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
 
-### Files Changed
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
 
-| File | Change |
-|------|--------|
-| `supabase/functions/planning-api-proxy/index.ts` | Add cache-first logic with chunked fetching for uncached bookings |
-| `src/hooks/useEconomyOverviewData.ts` | Increase staleTime/gcTime, add placeholderData |
-| New migration | Create `economy_cache` table |
+---
 
-### Expected Impact
+# Steg 3: LATER ✅ Klart (utom 3d)
 
-- First load: still ~5-10s (cold cache)
-- Subsequent loads within 10 min: **< 1 second** (served from cache)
-- Tab switching: **instant** (client-side cache)
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
 
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+```
+
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
+
+---
+
+# Booking Sync — Arkitektur
+
+Vi (Planning) är **mottagare**. EventFlow är **källa**.
+
+```
+EventFlow (källa) → Webhook POST → Planning (vi, mottagare)
+Planning (vi) → GET export_bookings?booking_id=X → EventFlow (hämta data)
+```
+
+**Två endpoints, två ansvarsområden:**
+1. `receive-booking` — tar emot webhook från EventFlow, svarar 202, triggar sync
+2. `import-bookings` — anropar EventFlows `export_bookings` endpoint för att hämta bokningsdata

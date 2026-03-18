@@ -333,7 +333,9 @@ export const useEconomyOverviewData = () => {
         }
       });
     },
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 10 * 60 * 1000, // 10 min — matches server cache TTL
+    gcTime: 30 * 60 * 1000, // 30 min — keep in memory across navigations
+    placeholderData: (prev) => prev, // Show stale data instantly while refreshing
     retry: 2,
     retryDelay: 2000,
   });
