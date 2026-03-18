@@ -377,6 +377,22 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         />
       )}
 
+      {/* RFID Status & Controls */}
+      <RfidStatusBar
+        status={rfid.status}
+        readerModel={rfid.readerModel}
+        error={rfid.error}
+        inventoryActive={rfid.inventoryActive}
+        totalTagsRead={rfid.totalTagsRead}
+        uniqueTagsRead={rfid.uniqueTagsRead}
+        matchedCount={rfid.matchedCount}
+        unmatchedCount={rfid.unmatchedCount}
+        onConnect={rfid.connect}
+        onDisconnect={rfid.disconnect}
+        onToggleInventory={rfid.toggleInventory}
+        onReset={rfid.resetSession}
+      />
+
       {isMinusMode && (
         <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-2">
