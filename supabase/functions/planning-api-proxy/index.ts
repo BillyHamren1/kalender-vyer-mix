@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CHUNK_SIZE = 10; // Fetch at most 10 bookings in parallel
+
 async function fetchFromExternal(
   efUrl: string,
   planningApiKey: string,
@@ -20,6 +23,41 @@ async function fetchFromExternal(
     },
   });
   return res.json();
+}
+
+/** Fetch all 7 data types for a single booking */
+async function fetchAllForBooking(
+  efUrl: string,
+  planningApiKey: string,
+  bookingId: string
+): Promise<Record<string, any>> {
+  const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
+  const results = await Promise.all(
+    dataTypes.map((t) => fetchFromExternal(efUrl, planningApiKey, t, bookingId).catch(() => null))
+  );
+  const data: Record<string, any> = {};
+  dataTypes.forEach((t, i) => { data[t] = results[i]; });
+  return data;
+}
+
+/** Process bookings in chunks of CHUNK_SIZE */
+async function fetchInChunks(
+  efUrl: string,
+  planningApiKey: string,
+  bookingIds: string[]
+): Promise<Record<string, Record<string, any>>> {
+  const result: Record<string, Record<string, any>> = {};
+  for (let i = 0; i < bookingIds.length; i += CHUNK_SIZE) {
+    const chunk = bookingIds.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map(async (bid) => ({
+        bid,
+        data: await fetchAllForBooking(efUrl, planningApiKey, bid),
+      }))
+    );
+    chunkResults.forEach(({ bid, data }) => { result[bid] = data; });
+  }
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -72,30 +110,75 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === MULTI_BATCH: fetch all economy data for multiple bookings in one call ===
+    // === MULTI_BATCH: fetch all economy data for multiple bookings ===
     if (type === 'multi_batch' && params.booking_ids) {
       const bookingIds: string[] = params.booking_ids;
-      const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
 
-      // Fire ALL requests in parallel (bookings × dataTypes) instead of nesting
-      const flatPromises: Array<{ bid: string; t: string; promise: Promise<any> }> = [];
+      // Use service_role client for cache access (bypasses RLS)
+      const serviceClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+
+      const now = Date.now();
+      const responseData: Record<string, any> = {};
+
+      // 1. Check cache for all booking IDs
+      const { data: cached } = await serviceClient
+        .from('economy_cache')
+        .select('booking_id, data, cached_at')
+        .in('booking_id', bookingIds);
+
+      const uncachedIds: string[] = [];
+
       for (const bid of bookingIds) {
-        for (const t of dataTypes) {
-          flatPromises.push({
-            bid,
-            t,
-            promise: fetchFromExternal(efUrl, planningApiKey, t, bid).catch(() => null),
-          });
+        const entry = cached?.find((c: any) => c.booking_id === bid);
+        if (entry && (now - new Date(entry.cached_at).getTime()) < CACHE_TTL_MS) {
+          // Cache hit — use cached data
+          responseData[bid] = entry.data;
+        } else {
+          uncachedIds.push(bid);
         }
       }
 
-      const results = await Promise.all(flatPromises.map((p) => p.promise));
+      // 2. Fetch uncached bookings in chunks
+      if (uncachedIds.length > 0) {
+        console.log(`Cache miss for ${uncachedIds.length}/${bookingIds.length} bookings, fetching externally...`);
+        const freshData = await fetchInChunks(efUrl, planningApiKey, uncachedIds);
 
-      const responseData: Record<string, any> = {};
-      flatPromises.forEach(({ bid, t }, i) => {
-        if (!responseData[bid]) responseData[bid] = {};
-        responseData[bid][t] = results[i];
-      });
+        // 3. Upsert fresh data into cache
+        const upsertRows = Object.entries(freshData).map(([bid, data]) => ({
+          booking_id: bid,
+          data,
+          cached_at: new Date().toISOString(),
+          organization_id: userData.user.app_metadata?.organization_id || 
+            // Fallback: look up org from user profile
+            null,
+        }));
+
+        // Get organization_id from the user's profile
+        const { data: profile } = await serviceClient
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', userData.user.id)
+          .single();
+
+        const orgId = profile?.organization_id;
+
+        if (orgId && upsertRows.length > 0) {
+          const rowsWithOrg = upsertRows.map(r => ({ ...r, organization_id: orgId }));
+          await serviceClient
+            .from('economy_cache')
+            .upsert(rowsWithOrg, { onConflict: 'booking_id' });
+        }
+
+        // Merge into response
+        Object.entries(freshData).forEach(([bid, data]) => {
+          responseData[bid] = data;
+        });
+      } else {
+        console.log(`Full cache hit for all ${bookingIds.length} bookings`);
+      }
 
       return new Response(JSON.stringify(responseData), {
         status: 200,
