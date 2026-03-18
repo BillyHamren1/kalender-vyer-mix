@@ -164,7 +164,7 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
             >
               <span className={cn(
                 "text-[9px] font-medium leading-none",
-                warn ? "text-destructive" : "text-muted-foreground"
+                warn ? "text-amber-600" : "text-muted-foreground"
               )}>
                 {day.dayNameShort}
               </span>
