@@ -40,12 +40,8 @@ const MobileScannerApp: React.FC = () => {
       
       console.log('[MobileScannerApp] Scan received:', scan.source, scan.value);
       
-      if (scan.type === 'barcode') {
-        activeScanHandler.current(scan.value);
-      }
-      if (scan.type === 'rfid') {
-        toast.info(`RFID tag: ${scan.value}`, { duration: 2000 });
-      }
+      // Both barcode AND RFID tags go through the same handler pipeline
+      activeScanHandler.current(scan.value);
     }, []),
     initialMode: 'barcode',
     autoInit: true, // Always active — no race conditions
