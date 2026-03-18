@@ -309,10 +309,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Do NOT close QR scanner — let user keep scanning continuously
   }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
 
-  // Keep ref updated so scanner controller can call handleScan
+  // Register handleScan with parent's scanner controller
   useEffect(() => {
-    handleScanRef.current = handleScan;
-  }, [handleScan]);
+    if (registerScanHandler) {
+      registerScanHandler(handleScan);
+    }
+  }, [handleScan, registerScanHandler]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
