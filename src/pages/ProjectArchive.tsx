@@ -11,7 +11,7 @@ const ProjectArchive = () => {
   const navigate = useNavigate();
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={Archive}
         title="Projektarkiv"

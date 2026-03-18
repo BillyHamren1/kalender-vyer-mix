@@ -97,7 +97,7 @@ const ProjectEconomyDetail: React.FC = () => {
   const isClosed = project.status === 'completed';
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 theme-purple">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button 

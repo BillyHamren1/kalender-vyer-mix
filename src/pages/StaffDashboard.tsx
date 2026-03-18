@@ -6,7 +6,7 @@ const StaffDashboard = () => {
   const { activity, isLoadingActivity, locations, isLoadingLocations } = useStaffDashboard();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] p-4 gap-4">
+    <div className="flex flex-col h-[calc(100vh-0px)] p-4 gap-4 theme-purple">
       <h1 className="text-lg font-bold text-foreground shrink-0">Personalöversikt</h1>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 min-h-0">

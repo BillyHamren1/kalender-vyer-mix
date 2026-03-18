@@ -92,7 +92,7 @@ const StaffManagement: React.FC = () => {
   }
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={Users}
         title="Personal"

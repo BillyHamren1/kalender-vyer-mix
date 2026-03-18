@@ -55,7 +55,7 @@ const ProjectManagement = () => {
   };
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
         <PageHeader
           icon={FolderKanban}
           title="Projekthantering"

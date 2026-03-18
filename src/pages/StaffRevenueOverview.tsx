@@ -124,7 +124,7 @@ export default function StaffRevenueOverview() {
   const kpis = data?.kpis || {} as StaffRevenueKPIs;
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={Users}
         title="Personalekonomi"

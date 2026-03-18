@@ -114,7 +114,7 @@ const LargeProjectDetail = () => {
   const firstBooking = bookings[0]?.booking;
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
+    <div className="h-full overflow-y-auto theme-purple" style={{ background: 'var(--gradient-page)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-6xl">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
