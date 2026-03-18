@@ -72,6 +72,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onHighlight(matchingItem.id);
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
+        notifyRfid(scannedValue, true);
       } else {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
