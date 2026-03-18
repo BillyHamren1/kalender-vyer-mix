@@ -51,7 +51,7 @@ const MobileScannerApp: React.FC = () => {
     autoInit: true, // Always active — no race conditions
   });
 
-  // Handle barcode scan (from any source) — only relevant on home screen
+  // Handle barcode scan on home screen — navigates to packing
   const handleBarcodeScan = useCallback((scannedValue: string) => {
     const result = parseScanResult(scannedValue);
     
@@ -64,6 +64,13 @@ const MobileScannerApp: React.FC = () => {
       toast.error('QR-koden innehåller inte en giltig packlista');
     }
   }, []);
+
+  // Update active scan handler when state changes
+  useEffect(() => {
+    if (state === 'home') {
+      activeScanHandler.current = handleBarcodeScan;
+    }
+  }, [state, handleBarcodeScan]);
 
   // Fetch packings on mount
   useEffect(() => {
