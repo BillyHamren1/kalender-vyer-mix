@@ -1,78 +1,126 @@
+# Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
+## Databasändringar
+- ✅ `travel_time_logs`-tabell skapad med RLS (org_filter + service_role)
+- Kolumner: staff_id, report_date, start/end_time, hours_worked, from/to address+coords, auto_detected, description
 
-## Problem: Dubbla scanner-kontroller orsakar race condition
+## Edge Function
+- ✅ `mobile-app-api` utökad med tre nya actions:
+  - `create_travel_log` — startar ny förflyttningslogg med startposition
+  - `stop_travel_log` — stoppar pågående logg, beräknar hours_worked, sparar slutposition
+  - `get_travel_logs` — hämtar egna loggar (max 50)
 
-### Rotorsak
+## Frontend — nya filer
+- ✅ `src/hooks/useTravelDetection.ts` — GPS-baserad rörelsedetektering (speed > 2 m/s i 30s = start, < 1 m/s i 60s = stopp), reverse geocoding via Mapbox
+- ✅ `src/components/mobile-app/TravelBanner.tsx` — aktiv förflyttningsindikator med timer, bil-ikon, stopknapp
 
-Scanner-appen har **två separata `useScannerController`-instanser** som slåss om samma singleton `ScannerService`:
+## Frontend — uppdaterade filer
+- ✅ `src/services/mobileApiService.ts` — nya API-metoder + `MobileTravelLog` interface
+- ✅ `src/hooks/useMobileData.ts` — ny `useMobileTravelLogs()` hook
+- ✅ `src/pages/mobile/MobileJobs.tsx` — TravelBanner visas på jobbsidan
+- ✅ `src/pages/mobile/MobileProfile.tsx` — reshistorik med senaste 3 resor, totaltid
+- ✅ `src/pages/mobile/MobileTimeHistory.tsx` — förflyttningstid visas som 🚗-markerade rader i tidrapportlistan
 
-1. **MobileScannerApp** (parent): `autoInit: isHome` — destroys scanner when navigating to VerificationView
-2. **VerificationView** (child): `autoInit: true` — tries to init its own scanner
+---
 
-React's effect execution order innebär att förälderns `destroyScanner()` kan köras **efter** att barnets `initScanner()` redan startat DataWedge-lyssnaren. Resultatet: scannern dör tyst, och användaren måste öppna QR-överlagringen (som bara är en manuell-input-fallback på Zebra) för att skanna.
+# Steg 4: Regression Test Layer ✅ Klart
 
-### Lösning: En enda scanner-kontroller i parent, callback-ref till child
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
 
-**Steg 1: MobileScannerApp — alltid aktiv scanner**
-- Ändra `autoInit: isHome` → `autoInit: true` (scannern lever hela tiden)
-- Skapa en `scanCallbackRef` som pekar på rätt handler beroende på `state`:
-  - `home` → `handleBarcodeScan` (letar efter packing-ID)
-  - `verifying` → vidarebefordra till VerificationView's `handleScan`
-- Skicka en `onExternalScan` callback-prop till `VerificationView`
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
 
-**Steg 2: VerificationView — ta bort egen scanner-kontroller**
-- Ta bort `useScannerController` helt
-- Ta bort `ScannerModeIndicator` (den visas redan i parent, eller flytta den)
-- Lägg till prop `onExternalScan?: (handler: (value: string) => void) => void` — ett register-pattern där VerificationView registrerar sin `handleScan` hos parent
-- Alternativt, enklare: prop `ref` eller `onScanRef` pattern
+## Totalt: 159 tester i 7 filer, alla gröna.
 
-**Steg 3: Ta bort QR-knappen som krav för scanning**
-- QR-knappen (`Camera`-ikonen) behålls som **valfri fallback** för manuell inmatning
-- Listan ska alltid vara synlig — hardware-scanningar ska gå direkt till `handleScan` utan att öppna QR-overlay
-- Ingen ändring i listan behövs — den fungerar redan korrekt med `handleScan`
+---
 
-### Exakt implementation
+# Steg 1: SAFE NOW ✅ Klart
 
-**MobileScannerApp.tsx:**
-```tsx
-// Single scan callback ref — points to the active handler
-const activeScanHandler = useRef<(value: string) => void>(handleBarcodeScan);
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
 
-const scanner = useScannerController({
-  onScan: useCallback((scan: ScanEvent) => {
-    if (scan.isDuplicate) return;
-    if (scan.type === 'barcode') {
-      activeScanHandler.current(scan.value);
-    }
-  }, []),
-  autoInit: true,  // Always active
-});
+---
 
-// Update ref when state changes
-useEffect(() => {
-  if (state === 'home') {
-    activeScanHandler.current = handleBarcodeScan;
-  }
-}, [state, handleBarcodeScan]);
+# Steg 2: SAFE NEXT ✅ Klart
 
-// Pass registration function to VerificationView
-<VerificationView
-  packingId={selectedPackingId}
-  onBack={goHome}
-  registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
-  scannerState={scanner}  // pass mode indicator data
-/>
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
-**VerificationView.tsx:**
-- Ny prop: `registerScanHandler: (handler: (value: string) => void) => void`
-- Ny prop: `scannerState` (för ScannerModeIndicator)
-- `useEffect` som registrerar `handleScan` via `registerScanHandler`
-- Ta bort `useScannerController` och `handleScanRef`
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-### Resultat
-- Hardware-scanningar (DataWedge) flödar direkt till rätt vy utan knapptryck
-- Listan förblir synlig hela tiden
-- QR-knappen kvar som fallback för manuell input
-- Ingen race condition — en enda ScannerService-instans hela appens livstid
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
 
+---
+
+# Booking Sync — Arkitektur
+
+Vi (Planning) är **mottagare**. EventFlow är **källa**.
+
+```
+EventFlow (källa) → Webhook POST → Planning (vi, mottagare)
+Planning (vi) → GET export_bookings?booking_id=X → EventFlow (hämta data)
+```
+
+**Två endpoints, två ansvarsområden:**
+1. `receive-booking` — tar emot webhook från EventFlow, svarar 202, triggar sync
+2. `import-bookings` — anropar EventFlows `export_bookings` endpoint för att hämta bokningsdata

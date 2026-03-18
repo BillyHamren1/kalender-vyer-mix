@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Radio } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   verifyProductBySku, 
@@ -18,13 +18,25 @@ import {
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
-import { useScannerController } from '@/hooks/scanner/useScannerController';
-import { ScanEvent } from '@/services/scanner/types';
+import { ScanMode } from '@/services/scanner/types';
+
+interface ScannerStateProps {
+  currentMode: ScanMode;
+  isBarcodeReady: boolean;
+  isRfidReady: boolean;
+  isReaderConnected: boolean;
+  scanCount: number;
+  warning?: string | null;
+}
 
 interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
+  /** Register this view's scan handler with the parent's scanner controller */
+  registerScanHandler?: (handler: (value: string) => void) => void;
+  /** Scanner state from parent for mode indicator */
+  scannerState?: ScannerStateProps;
 }
 
 interface PackingItem {
@@ -71,7 +83,9 @@ const formatToTitleCase = (text: string): string => {
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
   onBack,
-  verifierName = 'Scanner' 
+  verifierName = 'Scanner',
+  registerScanHandler,
+  scannerState,
 }) => {
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [items, setItems] = useState<PackingItem[]>([]);
@@ -82,23 +96,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Ref to hold handleScan so scanner controller can call it
-  const handleScanRef = useRef<(value: string) => void>(() => {});
-
-  // Central scanner controller — receives DataWedge + RFID + keyboard scans
-  const scannerController = useScannerController({
-    onScan: useCallback((scan: ScanEvent) => {
-      if (scan.isDuplicate) return;
-      if (scan.type === 'barcode') {
-        handleScanRef.current(scan.value);
-      }
-      // RFID scans during verification: could match SKU mapped to EPC
-      if (scan.type === 'rfid') {
-        toast.info(`RFID: ${scan.value}`, { duration: 2000 });
-      }
-    }, []),
-    autoInit: true,
-  });
+  // No local scanner controller — parent owns it and delegates via registerScanHandler
 
   // Stable item order — useRef to avoid stale closure in loadData
   const itemOrderRef = useRef<Record<string, number>>({});
@@ -311,10 +309,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Do NOT close QR scanner — let user keep scanning continuously
   }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
 
-  // Keep ref updated so scanner controller can call handleScan
+  // Register handleScan with parent's scanner controller
   useEffect(() => {
-    handleScanRef.current = handleScan;
-  }, [handleScan]);
+    if (registerScanHandler) {
+      registerScanHandler(handleScan);
+    }
+  }, [handleScan, registerScanHandler]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
@@ -537,14 +537,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Scanner mode indicator */}
-      <ScannerModeIndicator
-        currentMode={scannerController.currentMode}
-        isBarcodeReady={scannerController.isBarcodeReady}
-        isRfidReady={scannerController.isRfidReady}
-        isReaderConnected={scannerController.isReaderConnected}
-        scanCount={scannerController.scanCount}
-      />
+      {/* Scanner mode indicator — from parent */}
+      {scannerState && (
+        <ScannerModeIndicator
+          currentMode={scannerState.currentMode}
+          isBarcodeReady={scannerState.isBarcodeReady}
+          isRfidReady={scannerState.isRfidReady}
+          isReaderConnected={scannerState.isReaderConnected}
+          scanCount={scannerState.scanCount}
+        />
+      )}
 
       {/* Compact Progress + QR + Kolli buttons inline */}
       <div className="flex items-center gap-2 px-1">

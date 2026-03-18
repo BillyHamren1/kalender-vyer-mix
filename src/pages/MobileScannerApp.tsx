@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,11 +30,10 @@ const MobileScannerApp: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDebug, setShowDebug] = useState(false);
 
-  // Only activate parent scanner controller on home screen
-  const isHome = state === 'home';
+  // Active scan handler ref — points to the correct handler based on current state
+  const activeScanHandler = useRef<(value: string) => void>(() => {});
 
-  // Central scanner controller — handles DataWedge, RFID, keyboard fallback
-  // DISABLED when in child views (verifying/manual) to avoid dual processing
+  // Central scanner controller — ALWAYS active, single instance for entire app
   const scanner = useScannerController({
     onScan: useCallback((scan: ScanEvent) => {
       if (scan.isDuplicate) return;
@@ -42,18 +41,17 @@ const MobileScannerApp: React.FC = () => {
       console.log('[MobileScannerApp] Scan received:', scan.source, scan.value);
       
       if (scan.type === 'barcode') {
-        handleBarcodeScan(scan.value);
+        activeScanHandler.current(scan.value);
       }
-      // RFID scans on home screen: show info
       if (scan.type === 'rfid') {
         toast.info(`RFID tag: ${scan.value}`, { duration: 2000 });
       }
     }, []),
     initialMode: 'barcode',
-    autoInit: isHome,
+    autoInit: true, // Always active — no race conditions
   });
 
-  // Handle barcode scan (from any source) — only relevant on home screen
+  // Handle barcode scan on home screen — navigates to packing
   const handleBarcodeScan = useCallback((scannedValue: string) => {
     const result = parseScanResult(scannedValue);
     
@@ -66,6 +64,13 @@ const MobileScannerApp: React.FC = () => {
       toast.error('QR-koden innehåller inte en giltig packlista');
     }
   }, []);
+
+  // Update active scan handler when state changes
+  useEffect(() => {
+    if (state === 'home') {
+      activeScanHandler.current = handleBarcodeScan;
+    }
+  }, [state, handleBarcodeScan]);
 
   // Fetch packings on mount
   useEffect(() => {
@@ -209,6 +214,15 @@ const MobileScannerApp: React.FC = () => {
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
+          registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
+          scannerState={{
+            currentMode: scanner.currentMode,
+            isBarcodeReady: scanner.isBarcodeReady,
+            isRfidReady: scanner.isRfidReady,
+            isReaderConnected: scanner.isReaderConnected,
+            scanCount: scanner.scanCount,
+            warning: scanner.warning,
+          }}
         />
       </div>
     );
