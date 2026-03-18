@@ -4,22 +4,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus } from 'lucide-react';
-import { 
-  fetchPackingListItems, 
-  verifyProductBySku, 
-  getVerificationProgress, 
-  parseScanResult, 
-  togglePackingItemManually,
-  decrementPackingItem,
-  createParcel,
-  assignItemToParcel,
-  getItemParcels,
-  fetchPackingForScanner
-} from '@/services/scannerService';
-import { PackingWithBooking, PackingParcel } from '@/types/packing';
+import { getItemParcels } from '@/services/scannerService';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
 import { ScanMode } from '@/services/scanner/types';
+import { useOptimisticPacking, PackingItem } from '@/hooks/scanner/useOptimisticPacking';
+import { usePackingSync } from '@/hooks/scanner/usePackingSync';
+import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
+import { useKolliManager } from '@/hooks/scanner/useKolliManager';
+import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -34,29 +27,8 @@ interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
-  /** Register this view's scan handler with the parent's scanner controller */
   registerScanHandler?: (handler: (value: string) => void) => void;
-  /** Scanner state from parent for mode indicator */
   scannerState?: ScannerStateProps;
-}
-
-interface PackingItem {
-  id: string;
-  quantity_to_pack: number;
-  quantity_packed: number;
-  verified_at: string | null;
-  verified_by: string | null;
-  parcel_id: string | null;
-  booking_products: {
-    id: string;
-    name: string;
-    quantity: number;
-    sku: string | null;
-    notes: string | null;
-    parent_product_id: string | null;
-    parent_package_id: string | null;
-    is_package_component: boolean | null;
-  } | null;
 }
 
 // Remove prefix symbols from product names
@@ -66,17 +38,13 @@ const cleanProductName = (name: string): string => {
 
 // Convert UPPERCASE text to Title Case, preserving abbreviations and measurements
 const formatToTitleCase = (text: string): string => {
-  // If text is not mostly uppercase, return as-is
   const upperCount = (text.match(/[A-ZÅÄÖ]/g) || []).length;
   const lowerCount = (text.match(/[a-zåäö]/g) || []).length;
   if (lowerCount >= upperCount) return text;
   
   return text.split(' ').map(word => {
-    // Preserve short abbreviations (1-3 chars like LM, M, ST)
     if (word.length <= 3 && /^[A-ZÅÄÖ0-9]+$/.test(word)) return word;
-    // Preserve measurements/numbers (e.g., 8X15, 3M, 2.5M)
     if (/\d/.test(word)) return word;
-    // Title case the word
     return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
   }).join(' ');
 };
@@ -88,354 +56,128 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   registerScanHandler,
   scannerState,
 }) => {
-  const [packing, setPacking] = useState<PackingWithBooking | null>(null);
-  const [items, setItems] = useState<PackingItem[]>([]);
-  const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
-  const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean; productName?: string; isMinusScan?: boolean } | null>(null);
-  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // No local scanner controller — parent owns it and delegates via registerScanHandler
-
-  // Stable item order — useRef to avoid stale closure in loadData
-  const itemOrderRef = useRef<Record<string, number>>({});
-
-  // Debounced background sync ref
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    };
-  }, []);
-
-  // Highlight a row briefly after scan
-  const highlightRow = useCallback((itemId: string) => {
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    setHighlightedItemId(itemId);
-    highlightTimerRef.current = setTimeout(() => setHighlightedItemId(null), 1500);
-  }, []);
-
-  // Recalculate progress locally
-  const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const parentProductIds = new Set<string>();
-    updatedItems.forEach(item => {
-      const pid = item.booking_products?.parent_product_id;
-      if (pid) parentProductIds.add(pid);
-    });
-    const countable = updatedItems.filter(item => {
-      const productId = item.booking_products?.id;
-      return !productId || !parentProductIds.has(productId);
-    });
-    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
-    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
-    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
-    setProgress({ total, verified, percentage });
-  }, []);
-
-  const [isKolliMode, setIsKolliMode] = useState(false);
-  const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
-  const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
   const [isMinusMode, setIsMinusMode] = useState(false);
+  const isMinusModeRef = useRef(isMinusMode);
+  isMinusModeRef.current = isMinusMode;
 
-  // Load packing data — supports silent background refresh
-  const loadData = useCallback(async (isBackground = false) => {
-    try {
-      if (!isBackground) setIsLoading(true);
-      
-      const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
-        fetchPackingForScanner(packingId),
-        fetchPackingListItems(packingId),
-        getVerificationProgress(packingId),
-        getItemParcels(packingId)
-      ]);
+  // --- Hooks ---
+  const {
+    packing, items, progress, isLoading, loadData,
+    recalcProgress, applyOptimisticIncrement, applyOptimisticDecrement, setItems,
+  } = useOptimisticPacking(packingId);
 
-      setPacking(packingData);
-      
-      // Stabilize item order: lock to first-load order using ref
-      const typedItems = itemsData as PackingItem[];
-      if (Object.keys(itemOrderRef.current).length === 0) {
-        // First load — save the order
-        const order: Record<string, number> = {};
-        typedItems.forEach((item, idx) => { order[item.id] = idx; });
-        itemOrderRef.current = order;
-        setItems(typedItems);
-      } else {
-        // Subsequent loads — sort according to saved order
-        const stableSorted = [...typedItems].sort(
-          (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
-        );
-        
-        if (isBackground) {
-          // Merge: keep the higher quantity_packed to avoid reverting optimistic updates
-          setItems(prev => {
-            const prevMap = new Map(prev.map(i => [i.id, i]));
-            return stableSorted.map(serverItem => {
-              const localItem = prevMap.get(serverItem.id);
-              if (localItem && localItem.quantity_packed > serverItem.quantity_packed) {
-                return { ...serverItem, quantity_packed: localItem.quantity_packed };
-              }
-              return serverItem;
-            });
-          });
-        } else {
-          setItems(stableSorted);
-        }
-      }
-      
-      if (!isBackground) {
-        setProgress(progressData);
-      } else {
-        // During background sync, recalc from merged items
-        // (will be done after setItems via the merged data)
-      }
-      setItemParcelMap(parcelsData);
-    } catch (err) {
-      console.error('Error loading packing data:', err);
-      if (!isBackground) toast.error('Kunde inte ladda packlista');
-    } finally {
-      if (!isBackground) setIsLoading(false);
-    }
-  }, [packingId]);
+  const {
+    isKolliMode, activeParcel, itemParcelMap,
+    startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
+  } = useKolliManager(packingId);
 
+  const { lastScanResult, highlightedItemId, setScanResult, highlightRow, cleanup: cleanupFeedback } = useScanFeedback();
+
+  const { triggerSync } = usePackingSync({
+    packingId,
+    loadData,
+    onParcelsLoaded: setParcelMap,
+  });
+
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const { enqueueScan, handleManualToggle } = useScanProcessor({
+    packingId,
+    verifierName,
+    getItems: () => itemsRef.current,
+    getIsMinusMode: () => isMinusModeRef.current,
+    onScanResult: setScanResult,
+    onHighlight: highlightRow,
+    onOptimisticIncrement: applyOptimisticIncrement,
+    onOptimisticDecrement: applyOptimisticDecrement,
+    onAssignToKolli: assignToKolli,
+    onTriggerSync: triggerSync,
+  });
+
+  // Load initial data + parcels
   useEffect(() => {
-    loadData(false);
-  }, [loadData]);
-
-  // Silent background refresh (no spinner, preserves optimistic state)
-  const debouncedBackgroundSync = useCallback(() => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      loadData(true);
-    }, 2000);
-  }, [loadData]);
-
-  const startKolliMode = useCallback(async () => {
-    try {
-      const parcel = await createParcel(packingId, verifierName);
-      setActiveParcel(parcel);
-      setIsKolliMode(true);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
-    } catch (err) {
-      console.error('Error creating parcel:', err);
-      toast.error('Kunde inte skapa kolli');
-    }
-  }, [packingId, verifierName]);
-
-  // Create next parcel
-  const nextParcel = useCallback(async () => {
-    try {
-      const parcel = await createParcel(packingId, verifierName);
-      setActiveParcel(parcel);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
-      // Refresh to get updated parcel assignments
-      const parcelsData = await getItemParcels(packingId);
-      setItemParcelMap(parcelsData);
-    } catch (err) {
-      console.error('Error creating next parcel:', err);
-      toast.error('Kunde inte skapa nästa kolli');
-    }
-  }, [packingId, verifierName]);
-
-  // Exit Kolli mode
-  const exitKolliMode = useCallback(async () => {
-    setIsKolliMode(false);
-    setActiveParcel(null);
-    // Refresh data to show final parcel assignments
-    await loadData(false);
-    toast.info('Kolli-läge avslutat');
-  }, [loadData]);
-
-  // Handle scan result
-  const handleScan = useCallback(async (scannedValue: string) => {
-    const scanResult = parseScanResult(scannedValue);
-    
-    // Ignore packing_id scans while already verifying (silent)
-    if (scanResult.type === 'packing_id') {
-      return;
-    }
-
-    // MINUS MODE: find matching item and decrement
-    if (isMinusMode) {
-      const matchingItem = items.find(
-        item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
-      );
-      
-      if (!matchingItem) {
-        setLastScanResult({
-          value: scannedValue,
-          result: 'Ingen packad artikel hittades med denna SKU',
-          success: false,
-        });
-        toast.error('Ingen packad artikel att ta bort');
-        return;
-      }
-
+    const init = async () => {
+      await loadData(false);
       try {
-        await decrementPackingItem(matchingItem.id, verifierName);
-        
-        const productName = matchingItem.booking_products?.name || scannedValue;
-        setLastScanResult({
-          value: scannedValue,
-          result: `➖ Borttagen: ${productName}`,
-          success: true,
-          productName,
-          isMinusScan: true,
-        });
-        
-        highlightRow(matchingItem.id);
-        
-        // Optimistic local update — decrement
-        setItems(prev => {
-          const updated = prev.map(item => {
-            if (item.id === matchingItem.id) {
-              return { ...item, quantity_packed: Math.max(0, (item.quantity_packed || 0) - 1) };
-            }
-            return item;
-          });
-          recalcProgress(updated);
-          return updated;
-        });
-        
-        debouncedBackgroundSync();
-      } catch (err: any) {
-        setLastScanResult({
-          value: scannedValue,
-          result: err.message || 'Kunde inte ta bort artikel',
-          success: false,
-        });
-        toast.error(err.message || 'Kunde inte ta bort artikel');
-      }
-      return;
-    }
+        const parcels = await getItemParcels(packingId);
+        setParcelMap(parcels);
+      } catch { /* silent */ }
+    };
+    init();
+  }, [loadData, packingId, setParcelMap]);
 
-    // NORMAL MODE: verify product by SKU
-    const result = await verifyProductBySku(packingId, scannedValue, verifierName);
-    
-    setLastScanResult({
-      value: scannedValue,
-      result: result.success 
-        ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
-        : result.error || 'Okänt fel',
-      success: result.success && !result.overscan,
-      productName: result.productName || undefined
-    });
+  // Cleanup
+  useEffect(() => () => cleanupFeedback(), [cleanupFeedback]);
 
-    if (result.success) {
-      // Highlight the scanned row
-      if (result.itemId) {
-        highlightRow(result.itemId);
-      }
-
-      // Optimistic local update — update ONLY the row returned by API
-      setItems(prev => {
-        const updated = prev.map(item => {
-          if (result.itemId) {
-            return item.id === result.itemId
-              ? { ...item, quantity_packed: (item.quantity_packed || 0) + 1 }
-              : item;
-          }
-
-          // Fallback for older API responses
-          if (item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()) {
-            return { ...item, quantity_packed: (item.quantity_packed || 0) + 1 };
-          }
-          return item;
-        });
-        recalcProgress(updated);
-        return updated;
-      });
-
-      // If in Kolli mode, assign scanned item to active parcel
-      if (isKolliMode && activeParcel && result.itemId) {
-        await assignItemToParcel(result.itemId, activeParcel.id);
-        setItemParcelMap(prev => ({ ...prev, [result.itemId as string]: activeParcel.parcel_number }));
-      }
-      
-      // Silent background sync
-      debouncedBackgroundSync();
-    } else {
-      toast.error(result.error);
-    }
-
-    // Do NOT close QR scanner — let user keep scanning continuously
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow, isMinusMode, items]);
-
-  // Register handleScan with parent's scanner controller
+  // Register scan handler with parent
   useEffect(() => {
     if (registerScanHandler) {
-      registerScanHandler(handleScan);
+      registerScanHandler(enqueueScan);
     }
-  }, [handleScan, registerScanHandler]);
+  }, [enqueueScan, registerScanHandler]);
 
-  // Handle manual checkbox toggle - only for child items
-  const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
-    if (isParent) {
-      toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
-      return;
-    }
+  // Handle exit kolli with data reload
+  const handleExitKolli = useCallback(async () => {
+    exitKolli();
+    await loadData(false);
+  }, [exitKolli, loadData]);
 
-    // MINUS MODE: decrement by 1
-    if (isMinusMode) {
-      const item = items.find(i => i.id === itemId);
-      if (!item || (item.quantity_packed || 0) <= 0) {
-        toast.error('Inget att ta bort');
-        return;
+  // --- Rendering helpers ---
+  const buildChildrenMap = (itemsList: PackingItem[]) => {
+    const map: Record<string, PackingItem[]> = {};
+    itemsList.forEach(i => {
+      const parentId = i.booking_products?.parent_product_id;
+      if (parentId) {
+        if (!map[parentId]) map[parentId] = [];
+        map[parentId].push(i);
       }
-      try {
-        await decrementPackingItem(itemId, verifierName);
-        setItems(prev => {
-          const updated = prev.map(i => {
-            if (i.id === itemId) {
-              return { ...i, quantity_packed: Math.max(0, (i.quantity_packed || 0) - 1) };
-            }
-            return i;
-          });
-          recalcProgress(updated);
-          return updated;
-        });
-        debouncedBackgroundSync();
-      } catch (err: any) {
-        toast.error(err.message || 'Kunde inte ta bort');
-      }
-      return;
+    });
+    return map;
+  };
+
+  const getItemDisplayInfo = (item: PackingItem, childrenByParent: Record<string, PackingItem[]>) => {
+    const rawName = item.booking_products?.name || 'Okänd produkt';
+    const trimmedName = rawName.trimStart();
+    const productId = item.booking_products?.id;
+    
+    const isChildByRelation = !!(
+      item.booking_products?.parent_product_id || 
+      item.booking_products?.parent_package_id || 
+      item.booking_products?.is_package_component
+    );
+    const isChildByPrefix = (
+      trimmedName.startsWith('↳') || trimmedName.startsWith('└') || 
+      trimmedName.startsWith('L,') || trimmedName.startsWith('⦿')
+    );
+    const isChild = isChildByRelation || isChildByPrefix;
+    const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
+    const isParent = !isChild && hasChildren;
+    
+    let packed = item.quantity_packed || 0;
+    let total = item.quantity_to_pack;
+    
+    if (isParent && productId) {
+      const children = childrenByParent[productId] || [];
+      const allPacked = children.length > 0 && children.every(c => (c.quantity_packed || 0) >= c.quantity_to_pack);
+      total = 1;
+      packed = allPacked ? 1 : 0;
     }
     
-    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
+    const cleanName = cleanProductName(rawName);
+    const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
+    const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
+    const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
     
-    if (result.success) {
-      // No toast for normal pack/unpack — the UI update is enough
-      
-      // Optimistic local update
-      setItems(prev => {
-        const updated = prev.map(item => {
-          if (item.id === itemId) {
-            const newPacked = isCurrentlyPacked ? 0 : (item.quantity_packed || 0) + 1;
-            return { ...item, quantity_packed: newPacked };
-          }
-          return item;
-        });
-        recalcProgress(updated);
-        return updated;
-      });
-      
-      // If in Kolli mode and we're packing (not unpacking), assign to parcel
-      if (isKolliMode && activeParcel && !isCurrentlyPacked) {
-        await assignItemToParcel(itemId, activeParcel.id);
-        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-      }
-      
-      // Silent background sync
-      debouncedBackgroundSync();
-    } else {
-      toast.error(result.error || 'Kunde inte uppdatera');
-    }
-  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, isMinusMode, items]);
+    const isOverscan = packed > total && total > 0;
+    const isComplete = packed >= total && total > 0 && !isOverscan;
+    const isPartial = packed > 0 && packed < total;
+    
+    return { isChild, isParent, packed, total, displayName, prefixIndicator, isOverscan, isComplete, isPartial, isPackageComponent };
+  };
 
+  // --- Loading state ---
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -444,11 +186,110 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
-  // Kolli Mode UI
+  const childrenByParent = buildChildrenMap(items);
+
+  // --- Render item row ---
+  const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
+    const info = getItemDisplayInfo(item, childrenByParent);
+    const parcelNumber = itemParcelMap[item.id];
+
+    return (
+      <button 
+        key={item.id}
+        onClick={() => handleManualToggle(item.id, info.isComplete, item.quantity_to_pack, info.isParent)}
+        disabled={info.isParent || (showParcelColumn && info.isComplete)}
+        className={`w-full flex items-center gap-2 text-left transition-all duration-300 ${
+          highlightedItemId === item.id
+            ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
+            : info.isOverscan
+              ? 'bg-red-100/80 border-l-4 border-red-500'
+              : info.isComplete 
+                ? 'bg-green-50/70' 
+                : info.isPartial 
+                  ? 'bg-amber-50/50' 
+                  : ''
+        } ${
+          info.isParent || (showParcelColumn && info.isComplete)
+            ? 'cursor-default opacity-60' 
+            : 'hover:bg-muted/40 active:bg-muted/60'
+        } ${info.isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
+      >
+        <div className={`shrink-0 rounded-full flex items-center justify-center ${
+          info.isChild ? 'w-4 h-4' : 'w-5 h-5'
+        } ${
+          info.isOverscan ? 'bg-red-500 animate-pulse'
+            : info.isComplete ? 'bg-green-500' 
+            : info.isPartial ? 'bg-amber-500' 
+            : info.isParent ? 'border-2 border-dashed border-muted-foreground/30'
+            : 'border-2 border-muted-foreground/40'
+        }`}>
+          {info.isOverscan && <AlertCircle className="text-white w-2.5 h-2.5" />}
+          {info.isComplete && !info.isOverscan && <Check className="text-white w-2.5 h-2.5" />}
+          {info.isPartial && <span className="text-white text-[8px] font-bold">{info.packed}</span>}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <span className={`block truncate ${
+            info.isChild ? 'text-[11px] font-normal' : 'text-xs font-semibold tracking-wide'
+          } ${
+            info.isOverscan ? 'text-red-700 font-bold'
+              : info.isComplete ? 'text-green-700' 
+              : info.isPartial ? 'text-amber-800'
+              : info.isChild ? 'text-muted-foreground' 
+              : 'text-foreground'
+          }`}>
+            {info.isChild && <span className="text-muted-foreground/70">{info.prefixIndicator}</span>}
+            {info.displayName}
+          </span>
+          {info.isParent && (
+            <span className="text-[9px] text-muted-foreground">
+              Markeras när alla delar är packade
+            </span>
+          )}
+        </div>
+        
+        {/* Parcel badge */}
+        {showParcelColumn ? (
+          parcelNumber ? (
+            <div className="shrink-0 flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded">
+              <Package className="h-3 w-3" />
+              <span className="text-[10px] font-bold">#{parcelNumber}</span>
+            </div>
+          ) : info.isComplete ? (
+            <div className="shrink-0 text-[10px] text-muted-foreground">Inget kolli</div>
+          ) : null
+        ) : (
+          <>
+            {parcelNumber && (
+              <div className="shrink-0 flex items-center gap-0.5 text-primary">
+                <Package className="h-3 w-3" />
+                <span className="text-[10px] font-bold">#{parcelNumber}</span>
+              </div>
+            )}
+          </>
+        )}
+        
+        {/* Quantity badge */}
+        {!showParcelColumn && (
+          <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
+            info.isOverscan ? 'bg-red-200 text-red-800'
+              : info.isComplete ? 'bg-green-100 text-green-700' 
+              : info.isPartial ? 'bg-amber-100 text-amber-700'
+              : 'bg-muted/60 text-muted-foreground'
+          }`}>
+            <span className={`font-mono font-bold ${info.isChild ? 'text-[10px]' : 'text-xs'}`}>
+              {info.packed}/{info.total}
+            </span>
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // --- Kolli Mode UI ---
   if (isKolliMode && activeParcel) {
     return (
       <div className="space-y-3">
-        {/* Kolli Mode Header */}
         <div className="bg-primary text-primary-foreground rounded-lg p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -462,148 +303,42 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <p className="text-xs mt-1 opacity-90">Scanna eller klicka på produkter för Kolli #{activeParcel.parcel_number}</p>
         </div>
 
-        {/* QR Button for Kolli mode */}
         <div className="flex gap-2">
-          <Button 
-            onClick={() => setIsQRActive(true)}
-            className="flex-1 gap-2"
-          >
+          <Button onClick={() => setIsQRActive(true)} className="flex-1 gap-2">
             <Camera className="h-4 w-4" />
             Scanna produkt
           </Button>
         </div>
 
-        {/* Product list in Kolli mode */}
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Kolli</span>
           </div>
-          
           <div className="divide-y divide-border/30 max-h-[calc(100vh-320px)] overflow-y-auto">
-            {items.map(item => {
-              const rawName = item.booking_products?.name || 'Okänd produkt';
-              const trimmedName = rawName.trimStart();
-              const productId = item.booking_products?.id;
-              
-              const isChildByRelation = !!(
-                item.booking_products?.parent_product_id || 
-                item.booking_products?.parent_package_id || 
-                item.booking_products?.is_package_component
-              );
-              const isChildByPrefix = (
-                trimmedName.startsWith('↳') || 
-                trimmedName.startsWith('└') || 
-                trimmedName.startsWith('L,') ||
-                trimmedName.startsWith('⦿')
-              );
-              const isChild = isChildByRelation || isChildByPrefix;
-              
-              // Build parent-children map for this render
-              const childrenByParent: Record<string, PackingItem[]> = {};
-              items.forEach(i => {
-                const parentId = i.booking_products?.parent_product_id;
-                if (parentId) {
-                  if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
-                  childrenByParent[parentId].push(i);
-                }
-              });
-              
-              const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
-              const isParent = !isChild && hasChildren;
-              
-              const packed = item.quantity_packed || 0;
-              const total = item.quantity_to_pack;
-              const isComplete = packed >= total && total > 0;
-              
-              const cleanName = cleanProductName(rawName);
-              const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
-              const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
-              const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
-              
-              const parcelNumber = itemParcelMap[item.id];
-              
-              return (
-                <button 
-                  key={item.id}
-                  onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
-                  disabled={isParent || isComplete}
-                  className={`w-full flex items-center gap-2 text-left transition-colors ${
-                    isComplete ? 'bg-green-50/70' : ''
-                  } ${
-                    isParent || isComplete ? 'cursor-default opacity-60' : 'hover:bg-muted/40 active:bg-muted/60'
-                  } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
-                >
-                  {/* Status indicator */}
-                  <div className={`shrink-0 rounded-full flex items-center justify-center ${
-                    isChild ? 'w-4 h-4' : 'w-5 h-5'
-                  } ${
-                    isComplete ? 'bg-green-500' : 'border-2 border-muted-foreground/40'
-                  }`}>
-                    {isComplete && <Check className="text-white w-2.5 h-2.5" />}
-                  </div>
-                  
-                  {/* Product name */}
-                  <div className="flex-1 min-w-0">
-                    <span className={`block truncate ${
-                      isChild ? 'text-[11px] font-normal' : 'text-xs font-semibold tracking-wide'
-                    } ${isComplete ? 'text-green-700' : isChild ? 'text-muted-foreground' : 'text-foreground'}`}>
-                      {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
-                      {displayName}
-                    </span>
-                  </div>
-                  
-                  {/* Parcel badge */}
-                  {parcelNumber ? (
-                    <div className="shrink-0 flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      <Package className="h-3 w-3" />
-                      <span className="text-[10px] font-bold">#{parcelNumber}</span>
-                    </div>
-                  ) : isComplete ? (
-                    <div className="shrink-0 text-[10px] text-muted-foreground">
-                      Inget kolli
-                    </div>
-                  ) : null}
-                </button>
-              );
-            })}
+            {items.map(item => renderItemRow(item, true))}
           </div>
         </div>
 
-        {/* Kolli action buttons */}
         <div className="flex gap-2">
-          <Button 
-            onClick={nextParcel}
-            variant="outline"
-            className="flex-1 gap-2"
-          >
+          <Button onClick={() => nextKolli(verifierName)} variant="outline" className="flex-1 gap-2">
             <ChevronRight className="h-4 w-4" />
             Nästa kolli
           </Button>
-          <Button 
-            onClick={exitKolliMode}
-            variant="secondary"
-            className="flex-1 gap-2"
-          >
+          <Button onClick={handleExitKolli} variant="secondary" className="flex-1 gap-2">
             <X className="h-4 w-4" />
             Avsluta
           </Button>
         </div>
 
-        {/* QR Scanner overlay */}
-        <QRScanner 
-          isActive={isQRActive}
-          onScan={handleScan}
-          onClose={() => setIsQRActive(false)}
-        />
+        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
       </div>
     );
   }
 
-  // Normal verification UI
+  // --- Normal verification UI ---
   return (
     <div className="space-y-3">
-      {/* Compact Header */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
@@ -619,7 +354,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Scanner mode indicator — from parent */}
       {scannerState && (
         <ScannerModeIndicator
           currentMode={scannerState.currentMode}
@@ -630,7 +364,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         />
       )}
 
-      {/* Minus mode banner */}
       {isMinusMode && (
         <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-2">
@@ -641,7 +374,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
       )}
 
-      {/* Compact Progress + QR + Kolli + Minus buttons inline */}
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
           <Progress value={progress.percentage} className="h-2.5" />
@@ -661,26 +393,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <Minus className="h-3.5 w-3.5" />
           <span className="text-xs">−</span>
         </Button>
-        <Button 
-          onClick={() => setIsQRActive(true)}
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-        >
+        <Button onClick={() => setIsQRActive(true)} size="sm" className="h-8 px-2.5 gap-1">
           <Camera className="h-3.5 w-3.5" />
           <span className="text-xs">QR</span>
         </Button>
-        <Button 
-          onClick={startKolliMode}
-          size="sm"
-          variant="outline"
-          className="h-8 px-2.5 gap-1"
-        >
+        <Button onClick={() => startKolli(verifierName)} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
           <Package className="h-3.5 w-3.5" />
           <span className="text-xs">Kolli</span>
         </Button>
       </div>
 
-      {/* Last scanned item — prominent indicator */}
       {lastScanResult && (
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
           lastScanResult.isMinusScan
@@ -697,7 +419,6 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
       )}
 
-      {/* No items warning */}
       {items.length === 0 && (
         <Card className="border-amber-500/50 bg-amber-50">
           <CardContent className="py-3">
@@ -705,191 +426,26 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Packlistan har inte genererats ännu.
-                </p>
+                <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats ännu.</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Product list - always visible, no toggle */}
       {items.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
-          {/* Table header */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packat</span>
           </div>
-          
           <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
-            {(() => {
-              // Build parent-children map for auto-complete logic
-              const childrenByParent: Record<string, PackingItem[]> = {};
-              items.forEach(item => {
-                const parentId = item.booking_products?.parent_product_id;
-                if (parentId) {
-                  if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
-                  childrenByParent[parentId].push(item);
-                }
-              });
-
-              return items.map(item => {
-                const rawName = item.booking_products?.name || 'Okänd produkt';
-                const trimmedName = rawName.trimStart();
-                const productId = item.booking_products?.id;
-                
-                // Determine child status via relations first, then prefix fallback
-                const isChildByRelation = !!(
-                  item.booking_products?.parent_product_id || 
-                  item.booking_products?.parent_package_id || 
-                  item.booking_products?.is_package_component
-                );
-                const isChildByPrefix = (
-                  trimmedName.startsWith('↳') || 
-                  trimmedName.startsWith('└') || 
-                  trimmedName.startsWith('L,') ||
-                  trimmedName.startsWith('⦿')
-                );
-                const isChild = isChildByRelation || isChildByPrefix;
-                
-                // Check if this is a parent with children
-                const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
-                const isParent = !isChild && hasChildren;
-                
-                // For parents: show as 0/1 until ALL children are packed, then 1/1
-                let packed = item.quantity_packed || 0;
-                let total = item.quantity_to_pack;
-                
-                if (isParent && productId) {
-                  const children = childrenByParent[productId] || [];
-                  const childrenPacked = children.filter(c => (c.quantity_packed || 0) >= c.quantity_to_pack).length;
-                  const allChildrenPacked = children.length > 0 && childrenPacked === children.length;
-                  
-                  // Display as single package: 0/1 or 1/1
-                  total = 1;
-                  packed = allChildrenPacked ? 1 : 0;
-                }
-                
-                // Clean name and determine prefix indicator
-                const cleanName = cleanProductName(rawName);
-                const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
-                const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
-                
-                // Format display name: UPPERCASE for main, Title Case for children
-                const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
-                
-                const isOverscan = packed > total && total > 0;
-                const isComplete = packed >= total && total > 0 && !isOverscan;
-                const isPartial = packed > 0 && packed < total;
-                
-                // Get parcel number if assigned
-                const parcelNumber = itemParcelMap[item.id];
-                
-                return (
-                  <button 
-                    key={item.id}
-                    onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
-                    disabled={isParent}
-                    className={`w-full flex items-center gap-2 text-left transition-all duration-300 ${
-                      highlightedItemId === item.id
-                        ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
-                        : isOverscan
-                          ? 'bg-red-100/80 border-l-4 border-red-500'
-                          : isComplete 
-                            ? 'bg-green-50/70' 
-                            : isPartial 
-                              ? 'bg-amber-50/50' 
-                              : ''
-                    } ${
-                      isParent 
-                        ? 'cursor-default opacity-80' 
-                        : 'hover:bg-muted/40 active:bg-muted/60'
-                    } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
-                  >
-                    {/* Status indicator circle */}
-                    <div className={`shrink-0 rounded-full flex items-center justify-center ${
-                      isChild ? 'w-4 h-4' : 'w-5 h-5'
-                    } ${
-                      isOverscan
-                        ? 'bg-red-500 animate-pulse'
-                        : isComplete 
-                          ? 'bg-green-500' 
-                          : isPartial 
-                            ? 'bg-amber-500' 
-                            : isParent
-                              ? 'border-2 border-dashed border-muted-foreground/30'
-                              : 'border-2 border-muted-foreground/40'
-                    }`}>
-                      {isOverscan && <AlertCircle className="text-white w-2.5 h-2.5" />}
-                      {isComplete && !isOverscan && <Check className="text-white w-2.5 h-2.5" />}
-                      {isPartial && <span className="text-white text-[8px] font-bold">{packed}</span>}
-                    </div>
-                    
-                    {/* Product name with prefix indicator */}
-                    <div className="flex-1 min-w-0">
-                      <span className={`block truncate ${
-                        isChild 
-                          ? 'text-[11px] font-normal' 
-                          : 'text-xs font-semibold tracking-wide'
-                      } ${
-                        isOverscan
-                          ? 'text-red-700 font-bold'
-                          : isComplete 
-                            ? 'text-green-700' 
-                            : isPartial 
-                              ? 'text-amber-800'
-                              : isChild 
-                                ? 'text-muted-foreground' 
-                                : 'text-foreground'
-                      }`}>
-                        {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
-                        {displayName}
-                      </span>
-                      {isParent && (
-                        <span className="text-[9px] text-muted-foreground">
-                          Markeras när alla delar är packade
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Parcel badge if assigned */}
-                    {parcelNumber && (
-                      <div className="shrink-0 flex items-center gap-0.5 text-primary">
-                        <Package className="h-3 w-3" />
-                        <span className="text-[10px] font-bold">#{parcelNumber}</span>
-                      </div>
-                    )}
-                    
-                    {/* Quantity badge: packed/total or children progress */}
-                    <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
-                      isOverscan
-                        ? 'bg-red-200 text-red-800'
-                        : isComplete 
-                          ? 'bg-green-100 text-green-700' 
-                          : isPartial 
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-muted/60 text-muted-foreground'
-                    }`}>
-                      <span className={`font-mono font-bold ${isChild ? 'text-[10px]' : 'text-xs'}`}>
-                        {packed}/{total}
-                      </span>
-                    </div>
-                  </button>
-                );
-              });
-            })()}
+            {items.map(item => renderItemRow(item, false))}
           </div>
         </div>
       )}
 
-      {/* QR Scanner overlay */}
-      <QRScanner 
-        isActive={isQRActive}
-        onScan={handleScan}
-        onClose={() => setIsQRActive(false)}
-      />
+      <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
     </div>
   );
 };
