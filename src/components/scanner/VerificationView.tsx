@@ -78,7 +78,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean; productName?: string } | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Ref to hold handleScan so scanner controller can call it
   const handleScanRef = useRef<(value: string) => void>(() => {});
