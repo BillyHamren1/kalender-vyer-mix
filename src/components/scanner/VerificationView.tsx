@@ -96,23 +96,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Ref to hold handleScan so scanner controller can call it
-  const handleScanRef = useRef<(value: string) => void>(() => {});
-
-  // Central scanner controller — receives DataWedge + RFID + keyboard scans
-  const scannerController = useScannerController({
-    onScan: useCallback((scan: ScanEvent) => {
-      if (scan.isDuplicate) return;
-      if (scan.type === 'barcode') {
-        handleScanRef.current(scan.value);
-      }
-      // RFID scans during verification: could match SKU mapped to EPC
-      if (scan.type === 'rfid') {
-        toast.info(`RFID: ${scan.value}`, { duration: 2000 });
-      }
-    }, []),
-    autoInit: true,
-  });
+  // No local scanner controller — parent owns it and delegates via registerScanHandler
 
   // Stable item order — useRef to avoid stale closure in loadData
   const itemOrderRef = useRef<Record<string, number>>({});
