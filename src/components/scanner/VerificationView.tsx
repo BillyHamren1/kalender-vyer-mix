@@ -92,6 +92,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
+  // RFID manager — provides status UI and inventory controls
+  const rfid = useRfidManager();
+
   const { enqueueScan, handleManualToggle } = useScanProcessor({
     packingId,
     verifierName,
@@ -103,10 +106,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onOptimisticDecrement: applyOptimisticDecrement,
     onAssignToKolli: assignToKolli,
     onTriggerSync: triggerSync,
+    onRfidTagResult: rfid.recordTagResult,
   });
-
-  // RFID manager — provides status UI and inventory controls
-  const rfid = useRfidManager();
 
   // Load initial data + parcels
   useEffect(() => {

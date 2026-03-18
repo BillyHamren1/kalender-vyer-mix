@@ -21,6 +21,7 @@ interface UseScanProcessorOptions {
   onOptimisticDecrement: (itemId: string) => void;
   onAssignToKolli: (itemId: string) => Promise<void>;
   onTriggerSync: () => void;
+  onRfidTagResult?: (epc: string, matched: boolean) => void;
 }
 
 export const useScanProcessor = (options: UseScanProcessorOptions) => {
@@ -43,6 +44,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       onScanResult, onHighlight, onOptimisticIncrement,
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
+
+    const notifyRfid = (value: string, matched: boolean) => {
+      const isRfid = value.length >= 20 && /^[0-9a-fA-F]+$/.test(value);
+      if (isRfid && optRef.current.onRfidTagResult) {
+        optRef.current.onRfidTagResult(value, matched);
+      }
+    };
 
     try {
       const scanResult = parseScanResult(scannedValue);
@@ -71,6 +79,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onHighlight(matchingItem.id);
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
+        notifyRfid(scannedValue, true);
       } else {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
@@ -98,8 +107,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             if (fallback) onOptimisticIncrement(fallback.id);
           }
           onTriggerSync();
+          notifyRfid(scannedValue, true);
         } else {
           toast.error(result.error);
+          notifyRfid(scannedValue, false);
         }
       }
     } catch (err: any) {
