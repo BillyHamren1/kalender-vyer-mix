@@ -358,14 +358,14 @@ export function Sidebar3D() {
 
       {/* ── Mobile Bottom Nav ── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden theme-purple"
         style={{
           background: "hsl(var(--sidebar-background) / 0.90)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderTop: "1px solid hsl(var(--border) / 0.50)",
           boxShadow:
-            "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(184 30% 15% / 0.08)",
+            "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(200 20% 15% / 0.08)",
         }}
       >
         <div className="flex items-center justify-around py-2 px-4">
@@ -388,7 +388,7 @@ export function Sidebar3D() {
                 {active && (
                   <div
                     className="absolute inset-0 rounded-xl"
-                    style={{ background: "hsl(184 60% 38% / 0.08)" }}
+                    style={{ background: "hsl(var(--primary) / 0.08)" }}
                   />
                 )}
                 {item.badge && (
@@ -397,14 +397,14 @@ export function Sidebar3D() {
                 <item.icon
                   size={20}
                   className="relative z-10"
-                  color={active ? "hsl(184 60% 38%)" : "hsl(var(--muted-foreground))"}
+                  color={active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
                 />
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"
                   style={{
                     fontSize: 10,
                     color: active
-                      ? "hsl(184 60% 38%)"
+                      ? "hsl(var(--primary))"
                       : "hsl(var(--muted-foreground))",
                   }}
                 >
