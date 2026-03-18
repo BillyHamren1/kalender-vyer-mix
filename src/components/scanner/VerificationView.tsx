@@ -105,6 +105,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onTriggerSync: triggerSync,
   });
 
+  // RFID manager — provides status UI and inventory controls
+  const rfid = useRfidManager();
+
   // Load initial data + parcels
   useEffect(() => {
     const init = async () => {
