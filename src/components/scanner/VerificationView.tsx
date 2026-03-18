@@ -114,6 +114,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Register scan handler with parent
   useEffect(() => {
     if (registerScanHandler) {
+      console.log('[VerificationView] Registering scan handler');
       registerScanHandler(enqueueScan);
     }
   }, [enqueueScan, registerScanHandler]);
