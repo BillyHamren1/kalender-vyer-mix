@@ -86,13 +86,16 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setStaff(res.staff);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     if (pushInitTimeoutRef.current !== null) {
       window.clearTimeout(pushInitTimeoutRef.current);
       pushInitTimeoutRef.current = null;
     }
     initializedPushForStaffIdRef.current = null;
-    unregisterPushNotifications();
+    if (!isScannerApp) {
+      const { unregisterPushNotifications } = await import('@/services/pushNotificationService');
+      unregisterPushNotifications();
+    }
     clearAuth();
     setStaff(null);
   }, []);
