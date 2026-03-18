@@ -14,8 +14,8 @@ interface PageHeaderProps {
   };
   children?: React.ReactNode;
   className?: string;
-  /** Use warehouse amber accent instead of teal */
-  variant?: 'default' | 'warehouse';
+  /** Visual variant: default (teal), warehouse (amber), purple (soft purple) */
+  variant?: 'default' | 'warehouse' | 'purple';
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
