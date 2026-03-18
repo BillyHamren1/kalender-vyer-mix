@@ -59,7 +59,7 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
       <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
         <span>Jobbkö — {jobs.length} behöver åtgärd</span>
         <div className="flex gap-1.5 text-[9px] font-medium normal-case">
-          <span className="flex items-center gap-0.5 text-destructive"><AlertTriangle className="w-2.5 h-2.5" />{jobs.filter(j => j.issue === 'no_staff').length}</span>
+          <span className="flex items-center gap-0.5 text-amber-600"><AlertTriangle className="w-2.5 h-2.5" />{jobs.filter(j => j.issue === 'no_staff').length}</span>
           <span className="flex items-center gap-0.5 text-amber-600"><Clock className="w-2.5 h-2.5" />{jobs.filter(j => j.issue === 'starting_soon').length}</span>
         </div>
       </div>
