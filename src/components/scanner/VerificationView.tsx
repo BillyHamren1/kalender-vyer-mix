@@ -576,13 +576,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Last scan result - compact */}
+      {/* Last scanned item — prominent indicator */}
       {lastScanResult && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs ${
-          lastScanResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+          lastScanResult.success 
+            ? 'bg-green-100 text-green-800 border border-green-300' 
+            : 'bg-red-100 text-red-800 border border-red-300'
         }`}>
-          <span className="font-mono truncate">{lastScanResult.value}</span>
-          <span className="font-medium">{lastScanResult.result}</span>
+          <span className="text-lg">{lastScanResult.success ? '✅' : '❌'}</span>
+          <div className="flex-1 min-w-0">
+            <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
+            <span className="text-xs opacity-80">{lastScanResult.result}</span>
+          </div>
         </div>
       )}
 
