@@ -137,6 +137,8 @@ Deno.serve(async (req) => {
         return await handleUploadFile(supabase, staffId, data, organizationId)
       case 'send_message':
         return await handleSendMessage(supabase, staffId, data, organizationId)
+      case 'get_contacts':
+        return await handleGetContacts(supabase, staffId, organizationId)
       case 'get_direct_messages':
         return await handleGetDirectMessages(supabase, staffId, organizationId)
       case 'send_direct_message':
