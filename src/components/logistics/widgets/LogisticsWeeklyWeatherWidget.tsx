@@ -188,10 +188,10 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
       {/* Summary bar */}
       <div className={cn(
         "flex items-start gap-1.5 px-3 py-1.5 border-t border-border/30 text-[11px] leading-relaxed text-foreground",
-        hasWarnings ? "bg-destructive/10" : "bg-green-500/10"
+        hasWarnings ? "bg-amber-500/[0.06]" : "bg-muted/30"
       )}>
         {hasWarnings ? (
-          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-destructive" />
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-amber-500" />
         ) : (
           <Droplets className="w-3 h-3 shrink-0 mt-0.5 text-primary/40" />
         )}

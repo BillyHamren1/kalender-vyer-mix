@@ -102,7 +102,7 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                   </div>
 
                   {/* Staff count */}
-                  <div className={`flex items-center gap-0.5 text-[10px] shrink-0 px-1.5 py-0.5 rounded ${job.assignedStaffCount === 0 ? 'text-destructive font-bold bg-destructive/10' : 'text-muted-foreground'}`}>
+                  <div className={`flex items-center gap-0.5 text-[10px] shrink-0 px-1.5 py-0.5 rounded ${job.assignedStaffCount === 0 ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
                     <Users className="w-2.5 h-2.5" />
                     {job.assignedStaffCount}
                   </div>
