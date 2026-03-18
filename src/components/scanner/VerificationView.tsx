@@ -7,12 +7,14 @@ import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight
 import { getItemParcels } from '@/services/scannerService';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
+import { RfidStatusBar } from './RfidStatusBar';
 import { ScanMode } from '@/services/scanner/types';
 import { useOptimisticPacking, PackingItem } from '@/hooks/scanner/useOptimisticPacking';
 import { usePackingSync } from '@/hooks/scanner/usePackingSync';
 import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
 import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
+import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -23,12 +25,18 @@ interface ScannerStateProps {
   warning?: string | null;
 }
 
+interface RfidControlsProps {
+  startInventory: () => Promise<void>;
+  stopInventory: () => Promise<void>;
+}
+
 interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
   registerScanHandler?: (handler: (value: string) => void) => void;
   scannerState?: ScannerStateProps;
+  rfidControls?: RfidControlsProps;
 }
 
 // Remove prefix symbols from product names
@@ -55,6 +63,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   verifierName = 'Scanner',
   registerScanHandler,
   scannerState,
+  rfidControls,
 }) => {
   const [isQRActive, setIsQRActive] = useState(false);
   const [isMinusMode, setIsMinusMode] = useState(false);
@@ -95,6 +104,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onAssignToKolli: assignToKolli,
     onTriggerSync: triggerSync,
   });
+
+  // RFID manager — provides status UI and inventory controls
+  const rfid = useRfidManager();
 
   // Load initial data + parcels
   useEffect(() => {
@@ -364,6 +376,22 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           scanCount={scannerState.scanCount}
         />
       )}
+
+      {/* RFID Status & Controls */}
+      <RfidStatusBar
+        status={rfid.status}
+        readerModel={rfid.readerModel}
+        error={rfid.error}
+        inventoryActive={rfid.inventoryActive}
+        totalTagsRead={rfid.totalTagsRead}
+        uniqueTagsRead={rfid.uniqueTagsRead}
+        matchedCount={rfid.matchedCount}
+        unmatchedCount={rfid.unmatchedCount}
+        onConnect={rfid.connect}
+        onDisconnect={rfid.disconnect}
+        onToggleInventory={rfid.toggleInventory}
+        onReset={rfid.resetSession}
+      />
 
       {isMinusMode && (
         <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
