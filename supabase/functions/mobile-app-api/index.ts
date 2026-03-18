@@ -1938,3 +1938,51 @@ async function handleGetTravelLogs(supabase: any, staffId: string, data: any, or
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+// ── GET CONTACTS ──
+async function handleGetContacts(supabase: any, staffId: string, organizationId: string) {
+  // Get all staff in the org except self
+  const { data: staffMembers, error: staffErr } = await supabase
+    .from('staff_members')
+    .select('id, name')
+    .eq('organization_id', organizationId)
+    .neq('id', staffId)
+
+  if (staffErr) {
+    console.error('Get contacts staff error:', staffErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch contacts' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get planners (profiles) in the org
+  const { data: planners, error: plannerErr } = await supabase
+    .from('profiles')
+    .select('user_id, full_name')
+    .eq('organization_id', organizationId)
+
+  if (plannerErr) {
+    console.error('Get contacts planners error:', plannerErr)
+  }
+
+  const contacts: { id: string; name: string; type: string }[] = []
+
+  for (const s of (staffMembers || [])) {
+    contacts.push({ id: s.id, name: s.name, type: 'staff' })
+  }
+
+  for (const p of (planners || [])) {
+    if (p.full_name && p.user_id) {
+      contacts.push({ id: p.user_id, name: p.full_name, type: 'planner' })
+    }
+  }
+
+  // Sort alphabetically
+  contacts.sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+
+  return new Response(
+    JSON.stringify({ contacts }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileInbox } from '@/hooks/useMobileInbox';
-import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info } from 'lucide-react';
+import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info, Plus, Search, Loader2 } from 'lucide-react';
 import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-type InboxView = 'list' | 'dm-thread' | 'job-thread' | 'broadcast-detail';
+type InboxView = 'list' | 'dm-thread' | 'job-thread' | 'broadcast-detail' | 'new-message';
 
 interface DMConversation {
   partner_id: string;
