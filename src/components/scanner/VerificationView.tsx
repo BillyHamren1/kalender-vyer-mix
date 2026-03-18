@@ -103,6 +103,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onOptimisticDecrement: applyOptimisticDecrement,
     onAssignToKolli: assignToKolli,
     onTriggerSync: triggerSync,
+    onRfidTagResult: rfid.recordTagResult,
   });
 
   // RFID manager — provides status UI and inventory controls

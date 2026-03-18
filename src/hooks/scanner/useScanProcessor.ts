@@ -107,8 +107,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             if (fallback) onOptimisticIncrement(fallback.id);
           }
           onTriggerSync();
+          notifyRfid(scannedValue, true);
         } else {
           toast.error(result.error);
+          notifyRfid(scannedValue, false);
         }
       }
     } catch (err: any) {
