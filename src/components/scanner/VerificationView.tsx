@@ -78,7 +78,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ value: string; result: string; success: boolean; productName?: string } | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Ref to hold handleScan so scanner controller can call it
   const handleScanRef = useRef<(value: string) => void>(() => {});
@@ -104,11 +106,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Debounced background sync ref
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     };
+  }, []);
+
+  // Highlight a row briefly after scan
+  const highlightRow = useCallback((itemId: string) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightedItemId(itemId);
+    highlightTimerRef.current = setTimeout(() => setHighlightedItemId(null), 1500);
   }, []);
 
   // Recalculate progress locally
@@ -257,10 +267,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       result: result.success 
         ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
         : result.error || 'Okänt fel',
-      success: result.success && !result.overscan
+      success: result.success && !result.overscan,
+      productName: result.productName || undefined
     });
 
     if (result.success) {
+      // Highlight the scanned row
+      if (result.itemId) {
+        highlightRow(result.itemId);
+      }
+
       // Optimistic local update — update ONLY the row returned by API
       setItems(prev => {
         const updated = prev.map(item => {
@@ -292,9 +308,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       toast.error(result.error);
     }
 
-    // Close QR scanner after scan
-    setIsQRActive(false);
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
+    // Do NOT close QR scanner — let user keep scanning continuously
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
 
   // Keep ref updated so scanner controller can call handleScan
   useEffect(() => {
@@ -561,13 +576,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Last scan result - compact */}
+      {/* Last scanned item — prominent indicator */}
       {lastScanResult && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs ${
-          lastScanResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+          lastScanResult.success 
+            ? 'bg-green-100 text-green-800 border border-green-300' 
+            : 'bg-red-100 text-red-800 border border-red-300'
         }`}>
-          <span className="font-mono truncate">{lastScanResult.value}</span>
-          <span className="font-medium">{lastScanResult.result}</span>
+          <span className="text-lg">{lastScanResult.success ? '✅' : '❌'}</span>
+          <div className="flex-1 min-w-0">
+            <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
+            <span className="text-xs opacity-80">{lastScanResult.result}</span>
+          </div>
         </div>
       )}
 
@@ -666,14 +686,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     key={item.id}
                     onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
                     disabled={isParent}
-                    className={`w-full flex items-center gap-2 text-left transition-colors ${
-                      isOverscan
-                        ? 'bg-red-100/80 border-l-4 border-red-500'
-                        : isComplete 
-                          ? 'bg-green-50/70' 
-                          : isPartial 
-                            ? 'bg-amber-50/50' 
-                            : ''
+                    className={`w-full flex items-center gap-2 text-left transition-all duration-300 ${
+                      highlightedItemId === item.id
+                        ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
+                        : isOverscan
+                          ? 'bg-red-100/80 border-l-4 border-red-500'
+                          : isComplete 
+                            ? 'bg-green-50/70' 
+                            : isPartial 
+                              ? 'bg-amber-50/50' 
+                              : ''
                     } ${
                       isParent 
                         ? 'cursor-default opacity-80' 
