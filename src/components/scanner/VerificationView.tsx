@@ -10,6 +10,7 @@ import {
   getVerificationProgress, 
   parseScanResult, 
   togglePackingItemManually,
+  decrementPackingItem,
   createParcel,
   assignItemToParcel,
   getItemParcels,
