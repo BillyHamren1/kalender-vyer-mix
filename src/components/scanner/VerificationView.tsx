@@ -267,10 +267,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       result: result.success 
         ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
         : result.error || 'Okänt fel',
-      success: result.success && !result.overscan
+      success: result.success && !result.overscan,
+      productName: result.productName || undefined
     });
 
     if (result.success) {
+      // Highlight the scanned row
+      if (result.itemId) {
+        highlightRow(result.itemId);
+      }
+
       // Optimistic local update — update ONLY the row returned by API
       setItems(prev => {
         const updated = prev.map(item => {
@@ -302,9 +308,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       toast.error(result.error);
     }
 
-    // Close QR scanner after scan
-    setIsQRActive(false);
-  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
+    // Do NOT close QR scanner — let user keep scanning continuously
+  }, [packingId, verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, highlightRow]);
 
   // Keep ref updated so scanner controller can call handleScan
   useEffect(() => {
