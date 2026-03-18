@@ -170,7 +170,7 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
               </span>
               <Icon className={cn(
                 "w-3.5 h-3.5 my-1",
-                warn ? "text-destructive/80" : "text-muted-foreground/60"
+                warn ? "text-amber-500" : "text-muted-foreground/60"
               )} />
               <span className="text-[11px] font-semibold text-foreground leading-none">{day.tempMax}°</span>
               <div className={cn(
