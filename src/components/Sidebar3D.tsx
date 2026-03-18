@@ -257,7 +257,7 @@ export function Sidebar3D() {
             const itemStyle: React.CSSProperties = active
               ? {
                   background: "hsl(200 14% 93%)",
-                  borderLeft: "2.5px solid hsl(184 55% 38%)",
+                  borderLeft: "2.5px solid hsl(var(--primary))",
                 }
               : hasActiveChild
                 ? {
