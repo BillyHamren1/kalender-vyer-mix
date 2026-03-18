@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Radio } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   verifyProductBySku, 
@@ -18,13 +18,25 @@ import {
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
-import { useScannerController } from '@/hooks/scanner/useScannerController';
-import { ScanEvent } from '@/services/scanner/types';
+import { ScanMode } from '@/services/scanner/types';
+
+interface ScannerStateProps {
+  currentMode: ScanMode;
+  isBarcodeReady: boolean;
+  isRfidReady: boolean;
+  isReaderConnected: boolean;
+  scanCount: number;
+  warning?: string | null;
+}
 
 interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
+  /** Register this view's scan handler with the parent's scanner controller */
+  registerScanHandler?: (handler: (value: string) => void) => void;
+  /** Scanner state from parent for mode indicator */
+  scannerState?: ScannerStateProps;
 }
 
 interface PackingItem {
@@ -71,7 +83,9 @@ const formatToTitleCase = (text: string): string => {
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
   onBack,
-  verifierName = 'Scanner' 
+  verifierName = 'Scanner',
+  registerScanHandler,
+  scannerState,
 }) => {
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [items, setItems] = useState<PackingItem[]>([]);
