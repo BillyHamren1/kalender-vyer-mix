@@ -14,8 +14,8 @@ interface PageHeaderProps {
   };
   children?: React.ReactNode;
   className?: string;
-  /** Use warehouse amber accent instead of teal */
-  variant?: 'default' | 'warehouse';
+  /** Visual variant: default (teal), warehouse (amber), purple (soft purple) */
+  variant?: 'default' | 'warehouse' | 'purple';
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -28,6 +28,19 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   variant = 'default'
 }) => {
   const isWarehouse = variant === 'warehouse';
+  const isPurple = variant === 'purple';
+
+  const getIconBackground = () => {
+    if (isWarehouse) return 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)';
+    if (isPurple) return 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)';
+    return 'var(--gradient-icon)';
+  };
+
+  const getShadowClass = () => {
+    if (isWarehouse) return 'shadow-warehouse/15';
+    if (isPurple) return 'shadow-[hsl(270_45%_55%)]/15';
+    return 'shadow-primary/15';
+  };
 
   return (
     <div className={cn("mb-4", className)}>
@@ -36,13 +49,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <div
             className={cn(
               "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0",
-              isWarehouse ? "shadow-warehouse/15" : "shadow-primary/15"
+              getShadowClass()
             )}
-            style={{
-              background: isWarehouse
-                ? 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)'
-                : 'var(--gradient-icon)'
-            }}
+            style={{ background: getIconBackground() }}
           >
             <Icon className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
           </div>
@@ -68,7 +77,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 "font-medium rounded-lg px-4 h-8",
                 isWarehouse
                   ? "bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20"
-                  : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
+                  : isPurple
+                    ? "bg-[hsl(270_45%_55%)] hover:bg-[hsl(270_45%_48%)] shadow-sm shadow-[hsl(270_45%_55%)]/20"
+                    : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
               )}
             >
               {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
