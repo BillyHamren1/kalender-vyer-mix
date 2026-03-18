@@ -163,6 +163,8 @@ Deno.serve(async (req) => {
         return await handleCreateTravelLog(supabase, staffId, data, organizationId)
       case 'stop_travel_log':
         return await handleStopTravelLog(supabase, staffId, data, organizationId)
+      case 'update_travel_log':
+        return await handleUpdateTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       default:
