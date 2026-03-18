@@ -30,11 +30,10 @@ const MobileScannerApp: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDebug, setShowDebug] = useState(false);
 
-  // Only activate parent scanner controller on home screen
-  const isHome = state === 'home';
+  // Active scan handler ref — points to the correct handler based on current state
+  const activeScanHandler = useRef<(value: string) => void>(() => {});
 
-  // Central scanner controller — handles DataWedge, RFID, keyboard fallback
-  // DISABLED when in child views (verifying/manual) to avoid dual processing
+  // Central scanner controller — ALWAYS active, single instance for entire app
   const scanner = useScannerController({
     onScan: useCallback((scan: ScanEvent) => {
       if (scan.isDuplicate) return;
@@ -42,15 +41,14 @@ const MobileScannerApp: React.FC = () => {
       console.log('[MobileScannerApp] Scan received:', scan.source, scan.value);
       
       if (scan.type === 'barcode') {
-        handleBarcodeScan(scan.value);
+        activeScanHandler.current(scan.value);
       }
-      // RFID scans on home screen: show info
       if (scan.type === 'rfid') {
         toast.info(`RFID tag: ${scan.value}`, { duration: 2000 });
       }
     }, []),
     initialMode: 'barcode',
-    autoInit: isHome,
+    autoInit: true, // Always active — no race conditions
   });
 
   // Handle barcode scan (from any source) — only relevant on home screen
