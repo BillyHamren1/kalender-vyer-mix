@@ -47,7 +47,7 @@ const LogisticsWeatherWidget: React.FC = () => {
       try {
         // Open-Meteo free API - Linköping as default
         const res = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=58.41&longitude=15.62&current=temperature_2m,wind_speed_10m,weather_code,precipitation&timezone=Europe/Stockholm'
+          'https://api.open-meteo.com/v1/forecast?latitude=58.41&longitude=15.62&current=temperature_2m,wind_speed_10m,weather_code,precipitation&wind_speed_unit=ms&timezone=Europe/Stockholm'
         );
         const data = await res.json();
         if (data?.current) {
