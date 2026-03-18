@@ -15,7 +15,7 @@ interface PageHeaderProps {
   children?: React.ReactNode;
   className?: string;
   /** Use warehouse amber accent instead of teal */
-  variant?: 'default' | 'warehouse' | 'purple';
+  variant?: 'default' | 'warehouse';
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -28,19 +28,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   variant = 'default'
 }) => {
   const isWarehouse = variant === 'warehouse';
-  const isPurple = variant === 'purple';
-
-  const iconBg = isWarehouse
-    ? 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)'
-    : isPurple
-      ? 'linear-gradient(135deg, hsl(270 45% 55%) 0%, hsl(280 50% 42%) 100%)'
-      : 'var(--gradient-icon)';
-
-  const iconShadowClass = isWarehouse
-    ? 'shadow-warehouse/15'
-    : isPurple
-      ? 'shadow-purple-500/15'
-      : 'shadow-primary/15';
 
   return (
     <div className={cn("mb-4", className)}>
@@ -49,9 +36,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <div
             className={cn(
               "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0",
-              iconShadowClass
+              isWarehouse ? "shadow-warehouse/15" : "shadow-primary/15"
             )}
-            style={{ background: iconBg }}
+            style={{
+              background: isWarehouse
+                ? 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)'
+                : 'var(--gradient-icon)'
+            }}
           >
             <Icon className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
           </div>

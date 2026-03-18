@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, FolderKanban, Archive, Search } from "lucide-react";
@@ -60,7 +60,6 @@ const ProjectManagement = () => {
           icon={FolderKanban}
           title="Projekthantering"
           subtitle="Hantera små, medelstora och stora projekt"
-          variant="purple"
         >
           <Button 
             onClick={() => navigate('/projects/archive')}
