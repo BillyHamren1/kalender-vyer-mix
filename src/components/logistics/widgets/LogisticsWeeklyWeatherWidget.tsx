@@ -94,7 +94,7 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
     const fetchForecast = async () => {
       try {
         const res = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=58.41&longitude=15.62&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&timezone=Europe/Stockholm&forecast_days=7'
+          'https://api.open-meteo.com/v1/forecast?latitude=58.41&longitude=15.62&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&wind_speed_unit=ms&timezone=Europe/Stockholm&forecast_days=7'
         );
         const data = await res.json();
         if (data?.daily) {
