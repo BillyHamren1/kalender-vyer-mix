@@ -159,7 +159,7 @@ const LogisticsWeeklyWeatherWidget: React.FC = () => {
               key={day.date}
               className={cn(
                 "flex-1 flex flex-col items-center justify-center py-2 border-r border-border/20 last:border-r-0 transition-colors",
-                warn && "bg-destructive/[0.05]"
+                warn && "bg-amber-500/[0.04]"
               )}
             >
               <span className={cn(
