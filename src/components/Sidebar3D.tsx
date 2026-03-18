@@ -140,7 +140,7 @@ export function Sidebar3D() {
       <aside
         className={cn(
           "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-500 ease-out",
-          "hidden lg:flex",
+          "hidden lg:flex theme-purple",
           isCollapsed ? "w-14" : "w-48"
         )}
         style={{ background: "hsl(var(--sidebar-background))" }}
