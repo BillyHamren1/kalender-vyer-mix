@@ -1,126 +1,62 @@
-# Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
-## Databasändringar
-- ✅ `travel_time_logs`-tabell skapad med RLS (org_filter + service_role)
-- Kolumner: staff_id, report_date, start/end_time, hours_worked, from/to address+coords, auto_detected, description
 
-## Edge Function
-- ✅ `mobile-app-api` utökad med tre nya actions:
-  - `create_travel_log` — startar ny förflyttningslogg med startposition
-  - `stop_travel_log` — stoppar pågående logg, beräknar hours_worked, sparar slutposition
-  - `get_travel_logs` — hämtar egna loggar (max 50)
+# Förbättra GPS-resedetektering och automatisk tidrapportering
 
-## Frontend — nya filer
-- ✅ `src/hooks/useTravelDetection.ts` — GPS-baserad rörelsedetektering (speed > 2 m/s i 30s = start, < 1 m/s i 60s = stopp), reverse geocoding via Mapbox
-- ✅ `src/components/mobile-app/TravelBanner.tsx` — aktiv förflyttningsindikator med timer, bil-ikon, stopknapp
+## Problem
 
-## Frontend — uppdaterade filer
-- ✅ `src/services/mobileApiService.ts` — nya API-metoder + `MobileTravelLog` interface
-- ✅ `src/hooks/useMobileData.ts` — ny `useMobileTravelLogs()` hook
-- ✅ `src/pages/mobile/MobileJobs.tsx` — TravelBanner visas på jobbsidan
-- ✅ `src/pages/mobile/MobileProfile.tsx` — reshistorik med senaste 3 resor, totaltid
-- ✅ `src/pages/mobile/MobileTimeHistory.tsx` — förflyttningstid visas som 🚗-markerade rader i tidrapportlistan
+1. **GPS `speed` är opålitlig på iOS** — `watchPosition` returnerar ofta `speed: null` på iOS Safari/WKWebView, vilket gör att rörelsedetektering aldrig triggas
+2. **Resor loggas men rapporteras aldrig som arbetstid** — `travel_time_logs` skapas, men ingen koppling till tidrapporter eller projekt
+3. **Ingen hantering av destinationer utan projekt** — om man reser till en plats utan bokning finns inget sätt att logga tiden
 
----
+## Plan
 
-# Steg 4: Regression Test Layer ✅ Klart
+### 1. Gör rörelsedetektering robust (fungerar på iOS)
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+**Fil:** `src/hooks/useTravelDetection.ts`
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+Istället för att enbart förlita sig på `speed`-fältet (som iOS ofta ger `null`), beräkna hastighet genom att jämföra positionsändringar:
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+- Spara senaste position + timestamp
+- Vid varje ny GPS-position: beräkna distans (haversine) / tid = hastighet
+- Använd denna beräknade hastighet som fallback när `speed` är `null`
+- Minska `START_DEBOUNCE_MS` från 30s till 15s för snabbare detektering
+- Lägg till GPS-accuracy-filter: ignorera positioner med `accuracy > 50m`
 
----
+### 2. Skapa automatisk tidrapport vid avslutad resa
 
-# Steg 1: SAFE NOW ✅ Klart
+**Fil:** `src/hooks/useTravelDetection.ts` + `supabase/functions/mobile-app-api/index.ts`
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+När en resa stoppas (automatiskt eller manuellt):
 
----
+- Edge function `handleStopTravelLog` skapar automatiskt en tidrapport kopplad till närmaste bokning (om destination matchar en bokningsadress inom 300m)
+- Om ingen bokning matchar: skapa ett "ad-hoc projekt" i `travel_time_logs` med destinationsadressen som namn
+- Lägg till `destination_booking_id` och `manual_project_name` i `travel_time_logs`
 
-# Steg 2: SAFE NEXT ✅ Klart
+### 3. Lägg till kommentarsfält på avslutad resa
 
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+**Fil:** Ny komponent `src/components/mobile-app/TravelCompletedDialog.tsx`
 
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+När en resa stoppas och destinationen inte matchar ett projekt:
 
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+- Visa en dialog/bottom-sheet med:
+  - Adressnamn (från reverse geocoding)
+  - Restid (automatiskt beräknad)
+  - Kommentarsfält: "Vad gjorde du här?"
+- Användaren bekräftar → spara `description` + `manual_project_name` i `travel_time_logs`
 
----
+### 4. DB-migration: utöka `travel_time_logs`
 
-# Steg 3: LATER ✅ Klart (utom 3d)
+Lägg till kolumner:
+- `destination_booking_id TEXT` — koppling till bokning om matchad
+- `manual_project_name TEXT` — adressnamn för platser utan projekt
 
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+### Filer som ändras
 
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+| Fil | Ändring |
+|-----|---------|
+| `src/hooks/useTravelDetection.ts` | Distansbaserad hastighetsfallback, accuracy-filter, dialog-trigger |
+| `src/components/mobile-app/TravelCompletedDialog.tsx` | Ny dialog för resa utan projekt |
+| `src/pages/mobile/MobileJobs.tsx` | Visa TravelCompletedDialog, koppla till stopTravel |
+| `supabase/functions/mobile-app-api/index.ts` | `handleStopTravelLog` — matcha destination mot bokning, spara manual_project_name |
+| DB-migration | Lägg till `destination_booking_id`, `manual_project_name` i `travel_time_logs` |
 
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
-
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
-
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
-
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
-
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
-```
-
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
-
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
-
----
-
-# Booking Sync — Arkitektur
-
-Vi (Planning) är **mottagare**. EventFlow är **källa**.
-
-```
-EventFlow (källa) → Webhook POST → Planning (vi, mottagare)
-Planning (vi) → GET export_bookings?booking_id=X → EventFlow (hämta data)
-```
-
-**Två endpoints, två ansvarsområden:**
-1. `receive-booking` — tar emot webhook från EventFlow, svarar 202, triggar sync
-2. `import-bookings` — anropar EventFlows `export_bookings` endpoint för att hämta bokningsdata
