@@ -21,6 +21,7 @@ interface UseScanProcessorOptions {
   onOptimisticDecrement: (itemId: string) => void;
   onAssignToKolli: (itemId: string) => Promise<void>;
   onTriggerSync: () => void;
+  onRfidTagResult?: (epc: string, matched: boolean) => void;
 }
 
 export const useScanProcessor = (options: UseScanProcessorOptions) => {
