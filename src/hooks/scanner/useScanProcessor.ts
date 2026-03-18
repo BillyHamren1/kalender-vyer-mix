@@ -23,18 +23,11 @@ interface UseScanProcessorOptions {
   onTriggerSync: () => void;
 }
 
-export const useScanProcessor = ({
-  packingId,
-  verifierName,
-  getItems,
-  getIsMinusMode,
-  onScanResult,
-  onHighlight,
-  onOptimisticIncrement,
-  onOptimisticDecrement,
-  onAssignToKolli,
-  onTriggerSync,
-}: UseScanProcessorOptions) => {
+export const useScanProcessor = (options: UseScanProcessorOptions) => {
+  // Keep all options in a ref so the queue processor always reads fresh values
+  const optRef = useRef(options);
+  optRef.current = options;
+
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
 
@@ -45,19 +38,73 @@ export const useScanProcessor = ({
     const scannedValue = queueRef.current.shift()!;
     scanLog('scan_received', { value: scannedValue });
 
+    const {
+      packingId, verifierName, getItems, getIsMinusMode,
+      onScanResult, onHighlight, onOptimisticIncrement,
+      onOptimisticDecrement, onAssignToKolli, onTriggerSync,
+    } = optRef.current;
+
     try {
       const scanResult = parseScanResult(scannedValue);
       if (scanResult.type === 'packing_id') {
-        // Silently ignore packing_id scans
+        scanLog('scan_ignored_packing_id', { value: scannedValue });
         return;
       }
 
       if (getIsMinusMode()) {
-        await processMinusScan(scannedValue);
+        // === MINUS MODE ===
+        const items = getItems();
+        const matchingItem = items.find(
+          item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
+        );
+
+        if (!matchingItem) {
+          onScanResult({ value: scannedValue, result: 'Ingen packad artikel hittades med denna SKU', success: false });
+          toast.error('Ingen packad artikel att ta bort');
+          return;
+        }
+
+        await decrementPackingItem(matchingItem.id, verifierName);
+        const productName = matchingItem.booking_products?.name || scannedValue;
+        scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
+        onScanResult({ value: scannedValue, result: `➖ Borttagen: ${productName}`, success: true, productName, isMinusScan: true });
+        onHighlight(matchingItem.id);
+        onOptimisticDecrement(matchingItem.id);
+        onTriggerSync();
       } else {
-        await processNormalScan(scannedValue);
+        // === NORMAL MODE ===
+        scanLog('verify_start', { packingId, sku: scannedValue });
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName);
+        scanLog('verify_result', result);
+
+        onScanResult({
+          value: scannedValue,
+          result: result.success
+            ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
+            : result.error || 'Okänt fel',
+          success: result.success && !result.overscan,
+          productName: result.productName || undefined,
+        });
+
+        if (result.success) {
+          if (result.itemId) {
+            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal' });
+            onHighlight(result.itemId);
+            onOptimisticIncrement(result.itemId);
+            await onAssignToKolli(result.itemId);
+          } else {
+            const items = getItems();
+            const fallback = items.find(i => i.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase());
+            if (fallback) onOptimisticIncrement(fallback.id);
+          }
+          onTriggerSync();
+        } else {
+          toast.error(result.error);
+        }
       }
     } catch (err: any) {
+      console.error('[SCAN] processNext error:', err);
+      scanLog('process_error', { value: scannedValue, error: err.message });
       onScanResult({
         value: scannedValue,
         result: err.message || 'Okänt fel vid scanning',
@@ -65,108 +112,37 @@ export const useScanProcessor = ({
       });
     } finally {
       isProcessingRef.current = false;
-      // Process next in queue
       if (queueRef.current.length > 0) {
         processNext();
       }
     }
-  }, [packingId, verifierName]);
-
-  const processMinusScan = async (scannedValue: string) => {
-    const items = getItems();
-    const matchingItem = items.find(
-      item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
-    );
-
-    if (!matchingItem) {
-      onScanResult({
-        value: scannedValue,
-        result: 'Ingen packad artikel hittades med denna SKU',
-        success: false,
-      });
-      toast.error('Ingen packad artikel att ta bort');
-      return;
-    }
-
-    try {
-      await decrementPackingItem(matchingItem.id, verifierName);
-      const productName = matchingItem.booking_products?.name || scannedValue;
-      scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
-
-      onScanResult({
-        value: scannedValue,
-        result: `➖ Borttagen: ${productName}`,
-        success: true,
-        productName,
-        isMinusScan: true,
-      });
-
-      onHighlight(matchingItem.id);
-      onOptimisticDecrement(matchingItem.id);
-      onTriggerSync();
-    } catch (err: any) {
-      onScanResult({
-        value: scannedValue,
-        result: err.message || 'Kunde inte ta bort artikel',
-        success: false,
-      });
-      toast.error(err.message || 'Kunde inte ta bort artikel');
-    }
-  };
-
-  const processNormalScan = async (scannedValue: string) => {
-    const result = await verifyProductBySku(packingId, scannedValue, verifierName);
-
-    onScanResult({
-      value: scannedValue,
-      result: result.success
-        ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
-        : result.error || 'Okänt fel',
-      success: result.success && !result.overscan,
-      productName: result.productName || undefined,
-    });
-
-    if (result.success) {
-      if (result.itemId) {
-        scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal' });
-        onHighlight(result.itemId);
-        onOptimisticIncrement(result.itemId);
-        await onAssignToKolli(result.itemId);
-      } else {
-        // Fallback: find by SKU for older API responses
-        const items = getItems();
-        const fallback = items.find(i => i.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase());
-        if (fallback) {
-          onOptimisticIncrement(fallback.id);
-        }
-      }
-      onTriggerSync();
-    } else {
-      toast.error(result.error);
-    }
-  };
+  }, []); // No deps — reads everything from optRef
 
   const enqueueScan = useCallback((value: string) => {
-    queueRef.current.push(value);
+    if (!value || !value.trim()) {
+      scanLog('scan_ignored_empty');
+      return;
+    }
+    queueRef.current.push(value.trim());
     scanLog('scan_enqueued', { value, queueLength: queueRef.current.length });
     processNext();
   }, [processNext]);
 
-  // Manual toggle (checkbox click) — not queued, but uses same lock pattern
   const handleManualToggle = useCallback(async (
     itemId: string,
     isCurrentlyPacked: boolean,
     quantityToPack: number,
     isParent: boolean,
   ) => {
+    const { getItems, getIsMinusMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
+
     if (isParent) {
       toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
       return;
     }
 
-    const items = getItems();
-
     if (getIsMinusMode()) {
+      const items = getItems();
       const item = items.find(i => i.id === itemId);
       if (!item || (item.quantity_packed || 0) <= 0) {
         toast.error('Inget att ta bort');
@@ -184,24 +160,15 @@ export const useScanProcessor = ({
 
     const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
     if (result.success) {
-      if (isCurrentlyPacked) {
-        // Unpacking — set to 0 handled by setItems directly
-        // We'll use a custom approach for full unpack
-      } else {
-        onOptimisticIncrement(itemId);
-      }
-      
       if (!isCurrentlyPacked) {
+        onOptimisticIncrement(itemId);
         await onAssignToKolli(itemId);
       }
       onTriggerSync();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, packingId]);
+  }, []); // No deps — reads from optRef
 
-  return {
-    enqueueScan,
-    handleManualToggle,
-  };
+  return { enqueueScan, handleManualToggle };
 };

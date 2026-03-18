@@ -11,7 +11,6 @@ const isDebug = (): boolean => {
 };
 
 export const scanLog = (event: string, data?: unknown): void => {
-  if (isDebug()) {
-    console.log(`[SCAN] ${event}`, data ?? '');
-  }
+  // Always log scan events to help debug production issues
+  console.log(`[SCAN] ${event}`, data ?? '');
 };

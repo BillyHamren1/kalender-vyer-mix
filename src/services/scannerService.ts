@@ -12,6 +12,8 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const url = `https://${projectId}.supabase.co/functions/v1/scanner-api`;
   const token = getToken();
+
+  console.log(`[scanner-api] → ${action}`, Object.keys(params).length > 0 ? params : '');
   
   const response = await fetch(url, {
     method: 'POST',
