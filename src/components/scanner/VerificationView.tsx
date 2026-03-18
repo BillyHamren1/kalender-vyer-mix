@@ -140,6 +140,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
+  const [isMinusMode, setIsMinusMode] = useState(false);
 
   // Load packing data — supports silent background refresh
   const loadData = useCallback(async (isBackground = false) => {
