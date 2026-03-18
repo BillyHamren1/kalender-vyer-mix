@@ -686,14 +686,16 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                     key={item.id}
                     onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
                     disabled={isParent}
-                    className={`w-full flex items-center gap-2 text-left transition-colors ${
-                      isOverscan
-                        ? 'bg-red-100/80 border-l-4 border-red-500'
-                        : isComplete 
-                          ? 'bg-green-50/70' 
-                          : isPartial 
-                            ? 'bg-amber-50/50' 
-                            : ''
+                    className={`w-full flex items-center gap-2 text-left transition-all duration-300 ${
+                      highlightedItemId === item.id
+                        ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
+                        : isOverscan
+                          ? 'bg-red-100/80 border-l-4 border-red-500'
+                          : isComplete 
+                            ? 'bg-green-50/70' 
+                            : isPartial 
+                              ? 'bg-amber-50/50' 
+                              : ''
                     } ${
                       isParent 
                         ? 'cursor-default opacity-80' 
