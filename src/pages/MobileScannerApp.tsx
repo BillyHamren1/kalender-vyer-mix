@@ -219,6 +219,10 @@ const MobileScannerApp: React.FC = () => {
             scanCount: scanner.scanCount,
             warning: scanner.warning,
           }}
+          rfidControls={{
+            startInventory: scanner.startInventory,
+            stopInventory: scanner.stopInventory,
+          }}
         />
       </div>
     );
