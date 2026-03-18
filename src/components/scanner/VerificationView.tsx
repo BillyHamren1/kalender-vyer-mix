@@ -378,6 +378,32 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
       return;
     }
+
+    // MINUS MODE: decrement by 1
+    if (isMinusMode) {
+      const item = items.find(i => i.id === itemId);
+      if (!item || (item.quantity_packed || 0) <= 0) {
+        toast.error('Inget att ta bort');
+        return;
+      }
+      try {
+        await decrementPackingItem(itemId, verifierName);
+        setItems(prev => {
+          const updated = prev.map(i => {
+            if (i.id === itemId) {
+              return { ...i, quantity_packed: Math.max(0, (i.quantity_packed || 0) - 1) };
+            }
+            return i;
+          });
+          recalcProgress(updated);
+          return updated;
+        });
+        debouncedBackgroundSync();
+      } catch (err: any) {
+        toast.error(err.message || 'Kunde inte ta bort');
+      }
+      return;
+    }
     
     const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
     
@@ -408,7 +434,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress]);
+  }, [verifierName, debouncedBackgroundSync, isKolliMode, activeParcel, recalcProgress, isMinusMode, items]);
 
   if (isLoading) {
     return (
