@@ -447,7 +447,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <span className="text-xs opacity-80">{lastScanResult.result}</span>
           </div>
           <button
-            onClick={() => setScanResult(null as any)}
+            onClick={() => setScanResult(null)}
             className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
             aria-label="Stäng"
           >
