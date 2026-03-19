@@ -509,7 +509,7 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
     .order('report_date', { ascending: false })
-    .limit(50)
+    .limit(200)
 
   if (error) {
     console.error('Time reports query error:', error)
