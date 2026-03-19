@@ -171,11 +171,14 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       bounds.extend([job.longitude, job.latitude]);
 
       const el = document.createElement('div');
-      el.style.cssText = `
-        width: 20px; height: 20px; cursor: pointer;
-        background: ${job.isActive ? 'hsl(184, 55%, 38%)' : '#64748b'};
-        border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        transform: rotate(45deg); border-radius: 3px;
+      el.style.cssText = 'width: 24px; height: 36px; cursor: pointer;';
+      const pinColor = job.isActive ? '#ef4444' : '#94a3b8';
+      el.innerHTML = `
+        <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" 
+                fill="${pinColor}" stroke="white" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="4" fill="white"/>
+        </svg>
       `;
 
       el.addEventListener('click', (e) => {
@@ -187,7 +190,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         }
       });
 
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([job.longitude, job.latitude])
         .addTo(map.current!);
       jobMarkersRef.current.push(marker);
