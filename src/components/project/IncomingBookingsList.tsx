@@ -179,21 +179,21 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       Avbokad
                     </Badge>
                   )}
-                  {booking.bookingNumber && (
+                  {booking.booking_number && (
                     <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
-                      #{booking.bookingNumber}
+                      #{booking.booking_number}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {formatDate(booking.eventDate)}
+                    {formatDate(booking.eventdate || '')}
                   </span>
-                  {booking.deliveryAddress && (
+                  {booking.deliveryaddress && (
                     <span className="flex items-center gap-1 truncate max-w-[180px]">
                       <MapPin className="w-3 h-3 shrink-0" />
-                      {booking.deliveryAddress}
+                      {booking.deliveryaddress}
                     </span>
                   )}
                 </div>
