@@ -111,6 +111,18 @@ export function initScanner(
       },
       config.rfidDedupWindowMs
     );
+
+    // Auto-connect to RFID reader if available
+    connectRfidReader()
+      .then(result => {
+        if (result.connected) {
+          readerStatus = { isConnected: true, readerModel: result.model };
+          console.log('[ScannerService] RFID reader auto-connected:', result.model);
+        }
+      })
+      .catch(err => {
+        console.log('[ScannerService] RFID auto-connect skipped (no reader):', err.message);
+      });
   }
 
   // Priority 3: Keyboard fallback (web or non-Zebra Android)
