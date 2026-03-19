@@ -227,5 +227,5 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     }
   }, []); // No deps — reads from optRef
 
-  return { enqueueScan, handleManualToggle };
+  return { enqueueScan, handleManualToggle, recentScans };
 };
