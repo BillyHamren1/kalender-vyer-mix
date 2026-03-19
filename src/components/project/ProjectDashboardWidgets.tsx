@@ -49,6 +49,7 @@ const ProjectDashboardWidgets = () => {
       subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       updatedAt: j.updatedAt,
+      createdAt: j.createdAt,
     }));
     projects.forEach(p => {
       const client = p.booking?.client;
