@@ -366,7 +366,7 @@ const MobileInbox = () => {
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     return (
-      <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <div className="flex flex-col h-[100dvh] bg-background">
         <MobileBackHeader
           title={activeDM.partner_name}
           onBack={goBack}
@@ -397,7 +397,7 @@ const MobileInbox = () => {
         </div>
 
         {/* Input */}
-        <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom">
+        <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           <div className="flex gap-2">
             <input
               className="flex-1 text-sm bg-muted rounded-xl px-3 py-2.5 border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
@@ -422,7 +422,7 @@ const MobileInbox = () => {
   // === JOB THREAD ===
   if (view === 'job-thread' && activeJob) {
     return (
-      <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <div className="flex flex-col h-[100dvh] bg-background">
         <MobileBackHeader
           title={activeJob.client}
           onBack={goBack}
@@ -463,7 +463,7 @@ const MobileInbox = () => {
         </div>
 
         {/* Input */}
-        <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom">
+        <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           <div className="flex gap-2">
             <input
               className="flex-1 text-sm bg-muted rounded-xl px-3 py-2.5 border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
