@@ -115,27 +115,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  if (isLoading) {
-    return (
-      <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
-        <div className="px-4 py-3 border-b border-border/40 bg-amber-50/30">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-amber-500/10">
-              <Inbox className="h-4 w-4 text-amber-600" />
-            </div>
-            <h3 className="font-semibold text-sm">Nya bokningar</h3>
-          </div>
-        </div>
-        <div className="p-3 space-y-2">
-          {[1, 2].map(i => (
-            <div key={i} className="h-10 bg-muted/40 animate-pulse rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (bookings.length === 0) {
+  if (isLoading || bookings.length === 0) {
     return null;
   }
 
