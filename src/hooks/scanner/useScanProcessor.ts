@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   verifyProductBySku,
@@ -9,6 +9,13 @@ import {
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
 import { scanLog } from './scanLog';
+
+export interface RecentScanEntry {
+  value: string;
+  productName: string;
+  success: boolean;
+  timestamp: number;
+}
 
 interface UseScanProcessorOptions {
   packingId: string;
