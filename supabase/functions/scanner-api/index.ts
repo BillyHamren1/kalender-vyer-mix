@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               serial_number: serialNumber,
-              reservation_id: packing.booking_id,
+              reservation_id: bookingNumber,
             }),
           }
         )
