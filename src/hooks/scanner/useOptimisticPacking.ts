@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import {
   fetchPackingListItems,
-  getVerificationProgress,
   fetchPackingForScanner,
 } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';

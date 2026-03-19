@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client'; // still used for staff lookup
 import { 
   fetchPackingListItems, 
-  getVerificationProgress, 
   togglePackingItemManually,
   decrementPackingItem,
   createParcel,
