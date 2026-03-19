@@ -354,7 +354,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
   const toggleFullscreen = useCallback(() => {
-    // Save current view before toggling
     const m = map.current;
     const savedCenter = m?.getCenter();
     const savedZoom = m?.getZoom();
@@ -363,7 +362,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     setIsFullscreen(prev => !prev);
 
-    // Resize then restore exact view
     setTimeout(() => {
       if (!m) return;
       m.resize();
@@ -377,6 +375,33 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
     }, 50);
   }, []);
+
+  const MAP_STYLES = {
+    streets: 'mapbox://styles/mapbox/navigation-day-v1',
+    satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+  };
+
+  const toggleMapStyle = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
+    const savedCenter = m.getCenter();
+    const savedZoom = m.getZoom();
+    const newStyle = mapStyle === 'streets' ? 'satellite' : 'streets';
+    setMapStyle(newStyle);
+    m.setStyle(MAP_STYLES[newStyle]);
+    m.once('style.load', () => {
+      m.jumpTo({ center: savedCenter, zoom: savedZoom });
+      if (newStyle === 'streets') {
+        m.setFog({
+          color: 'rgb(186, 210, 235)',
+          'high-color': 'rgb(36, 92, 223)',
+          'horizon-blend': 0.02,
+          'space-color': 'rgb(11, 11, 25)',
+          'star-intensity': 0.6,
+        });
+      }
+    });
+  }, [mapStyle]);
 
   return (
     <div
