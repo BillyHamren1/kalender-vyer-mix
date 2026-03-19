@@ -132,7 +132,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     return items;
   }, [jobs, projects, largeProjects]);
 
+  const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
+
   const filtered = useMemo(() => {
+    if (!hasActiveFilters) return [];
     return unified
       .filter(p => {
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
@@ -153,7 +156,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (!b.date) return -1;
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
-  }, [unified, search, statusFilter, typeFilter]);
+  }, [unified, search, statusFilter, typeFilter, hasActiveFilters]);
 
   const handleDelete = (project: UnifiedProject) => {
     const typeLabel = TYPE_LABELS[project.type];
