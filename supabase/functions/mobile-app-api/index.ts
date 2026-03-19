@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
         return await handleMe(supabase, staffId, organizationId)
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId, organizationId)
+      case 'get_inbox_jobs':
+        return await handleGetInboxJobs(supabase, staffId, organizationId)
       case 'get_booking_details':
         return await handleGetBookingDetails(supabase, staffId, data, organizationId)
       case 'get_time_reports':
