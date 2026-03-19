@@ -176,7 +176,7 @@ const ProjectDashboardWidgets = () => {
       </div>
 
       {/* Two Widget Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -201,6 +201,20 @@ const ProjectDashboardWidgets = () => {
               {upcoming.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">Inga kommande projekt</p>
               ) : upcoming.map(item => <ProjectRow key={`upcoming-${item.id}-${item.type}`} item={item} />)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Senast avslutade projekt</h3>
+            </div>
+            <div className="divide-y divide-border/50">
+              {recentlyCompleted.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Inga avslutade projekt</p>
+              ) : recentlyCompleted.map(item => <ProjectRow key={`completed-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
         </Card>
