@@ -173,12 +173,12 @@ const ProjectDashboardWidgets = () => {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast uppdaterade projekt</h3>
+              <h3 className="text-sm font-semibold">Senast inkomna projekt</h3>
             </div>
             <div className="divide-y divide-border/50">
-              {recentlyUpdated.length === 0 ? (
+              {recentlyCreated.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt ännu</p>
-              ) : recentlyUpdated.map(item => <ProjectRow key={`recent-${item.id}-${item.type}`} item={item} />)}
+              ) : recentlyCreated.map(item => <ProjectRow key={`recent-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
         </Card>
