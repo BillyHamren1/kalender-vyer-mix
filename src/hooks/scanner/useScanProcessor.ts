@@ -101,7 +101,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal' });
             onHighlight(result.itemId);
             onOptimisticIncrement(result.itemId);
-            await onAssignToKolli(result.itemId);
+            if (getIsKolliMode()) {
+              await onAssignToKolli(result.itemId);
+            }
           } else {
             const items = getItems();
             const fallback = items.find(i => i.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase());
