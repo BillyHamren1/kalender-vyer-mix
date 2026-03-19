@@ -182,7 +182,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs gap-1 px-2"
-                onClick={() => scanner.simulateBarcode(simBarcode)}
+                onClick={() => simulateDataWedgeScan(simBarcode)}
               >
                 <Zap className="h-3 w-3" />
                 Scan
