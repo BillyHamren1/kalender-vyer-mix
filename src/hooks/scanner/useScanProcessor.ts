@@ -56,6 +56,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const normalised = scannedValue.toLowerCase();
     if (scannedThisSessionRef.current.has(normalised)) {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+      isProcessingRef.current = false;
+      if (queueRef.current.length > 0) processNext();
       return;
     }
     scannedThisSessionRef.current.add(normalised);
