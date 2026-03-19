@@ -211,8 +211,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         cursor: pointer; transition: transform 0.15s;
         transform-origin: center center;
         font-size: 10px; font-weight: 700; color: white;
+        position: relative;
       `;
       el.textContent = loc.name.charAt(0).toUpperCase();
+
+      // GPS live indicator dot
+      if (loc.isGps && loc.lastReportTime) {
+        const sinceMs = Date.now() - new Date(loc.lastReportTime).getTime();
+        if (sinceMs < 5 * 60_000) {
+          const dot = document.createElement('div');
+          dot.style.cssText = `
+            position: absolute; top: -2px; right: -2px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #22c55e; border: 1.5px solid white;
+          `;
+          el.appendChild(dot);
+        }
+      }
       el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.2)'; });
       el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
 
