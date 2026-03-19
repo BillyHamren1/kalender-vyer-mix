@@ -14,6 +14,7 @@ import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectD
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
 import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidgets";
 import { deleteProject } from "@/services/projectService";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { toast } from "sonner";
 
 export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'completed' | 'all';
@@ -35,6 +36,12 @@ const ProjectManagement = () => {
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
+
+  useRealtimeInvalidation({
+    channelName: 'project-mgmt-bookings',
+    tables: ['bookings'],
+    queryKeys: [['bookings-without-project'], ['bookings'], ['projects'], ['dashboard-stats']],
+  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteProject,

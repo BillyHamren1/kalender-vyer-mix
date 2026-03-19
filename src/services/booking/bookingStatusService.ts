@@ -64,12 +64,12 @@ export const handleBookingLifecycleSideEffects = async (
 
   console.log(`Running lifecycle side-effects for booking ${bookingId} → ${newStatus}`);
 
-  // 1. Mark linked jobs as completed
+  // 1. Mark linked jobs as completed/cancelled
   await supabase
     .from('jobs')
-    .update({ status: 'completed' })
+    .update({ status: newStatus === 'CANCELLED' ? 'cancelled' : 'completed' })
     .eq('booking_id', bookingId)
-    .neq('status', 'completed');
+    .not('status', 'in', '("completed","cancelled")');
 
   // 2. Mark linked projects as cancelled
   await supabase
@@ -78,15 +78,23 @@ export const handleBookingLifecycleSideEffects = async (
     .eq('booking_id', bookingId)
     .not('status', 'in', '("completed","cancelled")');
 
-  // 3. Reset booking assignment flags so it appears in triage
-  await supabase
-    .from('bookings')
-    .update({
-      assigned_to_project: false,
-      assigned_project_id: null,
-      assigned_project_name: null,
-    })
-    .eq('id', bookingId);
+  // 3. For CANCELLED: mark as handled so it does NOT flash in triage
+  //    For OFFER: reset so it appears in triage for re-assignment
+  if (newStatus === 'CANCELLED') {
+    await supabase
+      .from('bookings')
+      .update({ assigned_to_project: true })
+      .eq('id', bookingId);
+  } else {
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: false,
+        assigned_project_id: null,
+        assigned_project_name: null,
+      })
+      .eq('id', bookingId);
+  }
 };
 
 export const getStatusIcon = (status: BookingStatus): string => {

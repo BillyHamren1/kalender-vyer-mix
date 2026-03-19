@@ -1890,28 +1890,28 @@ serve(async (req) => {
                 console.log(`Removed warehouse events for booking ${existingBooking.id}`);
               }
 
-              // Complete linked projects when booking is no longer confirmed
+              // Cancel linked projects when booking is no longer confirmed
               const { error: projCompleteErr } = await supabase
                 .from('projects')
-                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
                 .eq('booking_id', existingBooking.id);
               
               if (projCompleteErr) {
-                console.error(`Error completing projects for de-confirmed booking:`, projCompleteErr);
+                console.error(`Error cancelling projects for de-confirmed booking:`, projCompleteErr);
               } else {
-                console.log(`Completed projects for de-confirmed booking ${existingBooking.id}`);
+                console.log(`Cancelled projects for de-confirmed booking ${existingBooking.id}`);
               }
 
-              // Complete linked jobs
+              // Cancel linked jobs
               const { error: jobCompleteErr } = await supabase
                 .from('jobs')
-                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
                 .eq('booking_id', existingBooking.id);
               
               if (jobCompleteErr) {
-                console.error(`Error completing jobs for de-confirmed booking:`, jobCompleteErr);
+                console.error(`Error cancelling jobs for de-confirmed booking:`, jobCompleteErr);
               } else {
-                console.log(`Completed jobs for de-confirmed booking ${existingBooking.id}`);
+                console.log(`Cancelled jobs for de-confirmed booking ${existingBooking.id}`);
               }
 
               // Remove packing projects
