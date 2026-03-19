@@ -69,12 +69,14 @@ export function useMobileInbox() {
     queryKey: ['mobile-inbox-jobs'],
     queryFn: async (): Promise<JobConversation[]> => {
       const res = await mobileApi.getBookings();
-      return (res.bookings || []).slice(0, 20).map((b: any) => ({
+      return (res.bookings || []).slice(0, 50).map((b: any) => ({
         bookingId: b.id,
         client: b.client,
         lastMessage: '',
         lastTime: '',
         unread: false,
+        status: b.status || 'CONFIRMED',
+        lastDate: b.rigdowndate || b.eventdate || b.rigdaydate || null,
       }));
     },
     enabled: !!staff,
