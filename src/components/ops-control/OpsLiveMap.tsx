@@ -565,6 +565,28 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
               {statusStyles[getStaffStatus(staffPanel, mapJobs)].label}
               {staffPanel.teamName && ` · ${staffPanel.teamName}`}
             </div>
+            {/* GPS / Last seen */}
+            <div className="flex items-center gap-1.5 text-[10px]">
+              {staffPanel.isGps ? (
+                <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                  <Wifi className="w-3 h-3" /> Live GPS
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="w-3 h-3" /> Adressbaserad
+                </span>
+              )}
+              {staffPanel.lastReportTime && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {(() => {
+                    const diff = Date.now() - new Date(staffPanel.lastReportTime).getTime();
+                    if (diff < 60_000) return 'Just nu';
+                    return formatDistanceToNow(new Date(staffPanel.lastReportTime), { addSuffix: true, locale: sv });
+                  })()}
+                </span>
+              )}
+            </div>
             {staffPanel.bookingClient && (
               <div className="flex items-center gap-1 text-[10px] text-foreground">
                 <Briefcase className="w-3 h-3 text-muted-foreground" />
