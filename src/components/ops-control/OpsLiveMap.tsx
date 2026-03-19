@@ -9,7 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { useTrafficCameras, TrafficCamera } from '@/hooks/useTrafficCameras';
 
 interface Props {
