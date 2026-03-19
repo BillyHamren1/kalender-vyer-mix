@@ -15,6 +15,7 @@ interface UseScanProcessorOptions {
   verifierName: string;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
+  getIsKolliMode: () => boolean;
   onScanResult: (result: ScanResult) => void;
   onHighlight: (itemId: string) => void;
   onOptimisticIncrement: (itemId: string) => void;
@@ -40,7 +41,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     scanLog('scan_received', { value: scannedValue });
 
     const {
-      packingId, verifierName, getItems, getIsMinusMode,
+      packingId, verifierName, getItems, getIsMinusMode, getIsKolliMode,
       onScanResult, onHighlight, onOptimisticIncrement,
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
@@ -100,7 +101,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal' });
             onHighlight(result.itemId);
             onOptimisticIncrement(result.itemId);
-            await onAssignToKolli(result.itemId);
+            if (getIsKolliMode()) {
+              await onAssignToKolli(result.itemId);
+            }
           } else {
             const items = getItems();
             const fallback = items.find(i => i.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase());
@@ -145,7 +148,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     quantityToPack: number,
     isParent: boolean,
   ) => {
-    const { getItems, getIsMinusMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
+    const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
 
     if (isParent) {
       toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
@@ -173,7 +176,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     if (result.success) {
       if (!isCurrentlyPacked) {
         onOptimisticIncrement(itemId);
-        await onAssignToKolli(itemId);
+        if (getIsKolliMode()) {
+          await onAssignToKolli(itemId);
+        }
       }
       onTriggerSync();
     } else {

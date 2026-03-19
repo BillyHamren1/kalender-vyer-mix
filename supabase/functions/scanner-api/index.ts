@@ -315,9 +315,9 @@ Deno.serve(async (req) => {
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
             quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null
-          }).eq('id', itemId)
+          }).eq('id', itemId).eq('organization_id', ORG_ID)
         } else {
-          const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).single()
+          const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
           const currentQty = currentItem?.quantity_packed || 0
           const newQty = Math.min(currentQty + 1, quantityToPack)
           const isFull = newQty >= quantityToPack
@@ -327,7 +327,7 @@ Deno.serve(async (req) => {
             packed_at: now,
             packed_by: verifiedBy,
             ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {})
-          }).eq('id', itemId)
+          }).eq('id', itemId).eq('organization_id', ORG_ID)
         }
 
         return json({ success: true })
@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
 
       case 'decrement_item': {
         const { itemId } = params
-        const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).single()
+        const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
         const currentPacked = currentItem?.quantity_packed || 0
         if (currentPacked <= 0) return json({ success: false, error: 'Redan på 0' })
 
@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
           verified_at: null,
           verified_by: null,
           ...(newQty === 0 ? { packed_at: null, packed_by: null } : {})
-        }).eq('id', itemId)
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
 
         return json({ success: true })
       }
@@ -375,7 +375,7 @@ Deno.serve(async (req) => {
 
       case 'assign_item_to_parcel': {
         const { itemId, parcelId } = params
-        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId)
+        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
         if (error) throw error
         return json({ success: true })
       }

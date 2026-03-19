@@ -1,0 +1,1 @@
+ALTER TABLE public.packing_parcels ADD CONSTRAINT packing_parcels_packing_id_parcel_number_key UNIQUE (packing_id, parcel_number);
