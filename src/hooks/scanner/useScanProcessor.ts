@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   verifyProductBySku,
@@ -9,6 +9,13 @@ import {
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
 import { scanLog } from './scanLog';
+
+export interface RecentScanEntry {
+  value: string;
+  productName: string;
+  success: boolean;
+  timestamp: number;
+}
 
 interface UseScanProcessorOptions {
   packingId: string;
@@ -33,6 +40,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
   const scannedThisSessionRef = useRef<Set<string>>(new Set());
+  const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
+
+  const addRecentScan = useCallback((entry: RecentScanEntry) => {
+    setRecentScans(prev => [entry, ...prev].slice(0, 100));
+  }, []);
 
   const processNext = useCallback(async () => {
     if (isProcessingRef.current || queueRef.current.length === 0) return;
@@ -44,6 +56,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const normalised = scannedValue.toLowerCase();
     if (scannedThisSessionRef.current.has(normalised)) {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+      isProcessingRef.current = false;
+      if (queueRef.current.length > 0) processNext();
       return;
     }
     scannedThisSessionRef.current.add(normalised);
@@ -90,6 +104,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onHighlight(matchingItem.id);
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
+        addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
         notifyRfid(scannedValue, true);
       } else {
         // === NORMAL MODE ===
@@ -122,6 +137,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             if (fallback) onOptimisticIncrement(fallback.id);
           }
           onTriggerSync();
+          addRecentScan({ value: scannedValue, productName: result.productName || scannedValue, success: true, timestamp: Date.now() });
           notifyRfid(scannedValue, true);
         } else {
           if ((result as any).alreadyScanned) {
@@ -211,5 +227,5 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     }
   }, []); // No deps — reads from optRef
 
-  return { enqueueScan, handleManualToggle };
+  return { enqueueScan, handleManualToggle, recentScans };
 };
