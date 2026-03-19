@@ -176,7 +176,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     if (result.success) {
       if (!isCurrentlyPacked) {
         onOptimisticIncrement(itemId);
-        await onAssignToKolli(itemId);
+        if (getIsKolliMode()) {
+          await onAssignToKolli(itemId);
+        }
       }
       onTriggerSync();
     } else {

@@ -375,7 +375,7 @@ Deno.serve(async (req) => {
 
       case 'assign_item_to_parcel': {
         const { itemId, parcelId } = params
-        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId)
+        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
         if (error) throw error
         return json({ success: true })
       }

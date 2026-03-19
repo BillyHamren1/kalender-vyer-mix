@@ -317,6 +317,29 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <p className="text-xs mt-1 opacity-90">Scanna eller klicka på produkter för Kolli #{activeParcel.parcel_number}</p>
         </div>
 
+        {lastScanResult && (
+          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            lastScanResult.isMinusScan
+              ? 'bg-orange-100 text-orange-800 border border-orange-300'
+              : lastScanResult.success 
+                ? 'bg-green-100 text-green-800 border border-green-300' 
+                : 'bg-red-100 text-red-800 border border-red-300'
+          }`}>
+            <span className="text-lg">{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
+            <div className="flex-1 min-w-0">
+              <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
+              <span className="text-xs opacity-80">{lastScanResult.result}</span>
+            </div>
+            <button
+              onClick={() => setScanResult(null)}
+              className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
+              aria-label="Stäng"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Button onClick={() => setIsQRActive(true)} className="flex-1 gap-2">
             <Camera className="h-4 w-4" />
