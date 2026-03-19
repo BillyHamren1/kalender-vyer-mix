@@ -39,6 +39,15 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     isProcessingRef.current = true;
 
     const scannedValue = queueRef.current.shift()!;
+
+    // Session dedup: silently ignore repeated scans of the same value
+    const normalised = scannedValue.toLowerCase();
+    if (scannedThisSessionRef.current.has(normalised)) {
+      scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+      return;
+    }
+    scannedThisSessionRef.current.add(normalised);
+
     scanLog('scan_received', { value: scannedValue });
 
     const {
