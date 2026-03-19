@@ -97,8 +97,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         });
 
         if (result.success) {
+          // Increment UI optimistically for both normal and overscan cases
+          // (backend has already incremented quantity_packed)
           if (result.itemId) {
-            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal' });
+            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal', overscan: !!result.overscan });
             onHighlight(result.itemId);
             onOptimisticIncrement(result.itemId);
             if (getIsKolliMode()) {
