@@ -15,6 +15,7 @@ interface UseScanProcessorOptions {
   verifierName: string;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
+  getIsKolliMode: () => boolean;
   onScanResult: (result: ScanResult) => void;
   onHighlight: (itemId: string) => void;
   onOptimisticIncrement: (itemId: string) => void;
