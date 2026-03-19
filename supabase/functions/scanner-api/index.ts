@@ -305,7 +305,21 @@ Deno.serve(async (req) => {
         }
 
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
-        const returnedSku = allocateData.sku
+
+        // Handle batch response format: { results: [{ serial_number, success, sku, error }] }
+        let returnedSku = allocateData.sku
+        if (!returnedSku && Array.isArray(allocateData.results)) {
+          const myResult = allocateData.results.find(
+            (r: any) => r.serial_number === serialNumber
+          )
+          if (myResult) {
+            if (!myResult.success) {
+              console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
+              return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
+            }
+            returnedSku = myResult.sku || myResult.item_type_id
+          }
+        }
 
         if (!returnedSku) {
           console.error('Inventory API returned no SKU:', allocateData)
