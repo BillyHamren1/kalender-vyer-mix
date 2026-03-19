@@ -435,6 +435,57 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   )
 }
 
+async function handleGetInboxJobs(supabase: any, staffId: string, organizationId: string) {
+  // Fetch bookings from the last 30 days (incl. COMPLETED) for inbox/job chat
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+  const { data: assignments, error: assignmentError } = await supabase
+    .from('booking_staff_assignments')
+    .select('booking_id, assignment_date')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .gte('assignment_date', thirtyDaysAgoStr)
+
+  if (assignmentError) {
+    console.error('Inbox assignment query error:', assignmentError)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch inbox assignments' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return new Response(
+      JSON.stringify({ bookings: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const bookingIds = [...new Set(assignments.map((a: any) => a.booking_id))]
+
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select('id, client, status, rigdaydate, eventdate, rigdowndate')
+    .in('id', bookingIds)
+    .in('status', ['CONFIRMED', 'COMPLETED'])
+    .order('rigdaydate', { ascending: false })
+
+  if (bookingsError) {
+    console.error('Inbox bookings query error:', bookingsError)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch inbox bookings' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ bookings: bookings || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 async function handleGetTimeReports(supabase: any, staffId: string, organizationId: string) {
   const { data: reports, error } = await supabase
     .from('time_reports')
