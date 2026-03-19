@@ -107,7 +107,8 @@ const MobileTimeReport = () => {
                 onStop={async () => {
                   const stopTime = new Date();
                   const startTimeDate = parseISO(timer.startTime);
-                  const totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  if (totalHours < 0) totalHours += 24;
                   const breakDeduction = totalHours > 5 ? 0.5 : 0;
                   const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
 

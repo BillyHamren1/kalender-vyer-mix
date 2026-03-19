@@ -55,7 +55,9 @@ const MobileJobDetail = () => {
     if (currentTimer) {
       const stopTime = new Date();
       const startTimeDate = parseISO(currentTimer.startTime);
-      const totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+      let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+      // Handle overnight timers
+      if (totalHours < 0) totalHours += 24;
       const breakDeduction = totalHours > 5 ? 0.5 : 0;
       const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
 
@@ -69,7 +71,7 @@ const MobileJobDetail = () => {
           end_time: format(stopTime, 'HH:mm'),
           hours_worked: hoursWorked,
           break_time: breakDeduction,
-          description: `Timer: ${booking.client}`,
+          description: `Timer: ${booking.client}${breakDeduction > 0 ? ' (30 min rast avdragen)' : ''}`,
         });
         invalidateTimeReports();
         toast.success(`Tidrapport sparad: ${hoursWorked}h`);

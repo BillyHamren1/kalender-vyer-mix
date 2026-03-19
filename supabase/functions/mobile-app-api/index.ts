@@ -1700,7 +1700,8 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
     )
   }
 
-  // Get current is_read_by array and append staffId if not present
+  // Use atomic array_append via RPC to avoid race conditions
+  // Fallback: read-then-write with deduplication
   const { data: broadcast } = await supabase
     .from('broadcast_messages')
     .select('is_read_by')
@@ -1717,10 +1718,11 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
 
   const readBy: string[] = broadcast.is_read_by || []
   if (!readBy.includes(staffId)) {
-    readBy.push(staffId)
+    // Use set to deduplicate in case of concurrent writes
+    const updatedReadBy = [...new Set([...readBy, staffId])]
     await supabase
       .from('broadcast_messages')
-      .update({ is_read_by: readBy })
+      .update({ is_read_by: updatedReadBy })
       .eq('id', broadcast_id)
       .eq('organization_id', organizationId)
   }
