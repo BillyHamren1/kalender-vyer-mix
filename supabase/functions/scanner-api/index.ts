@@ -314,6 +314,11 @@ Deno.serve(async (req) => {
           )
           if (myResult) {
             if (!myResult.success) {
+              const isAlreadyAllocated = (myResult.error || '').toLowerCase().includes('fully allocated')
+              if (isAlreadyAllocated) {
+                console.warn('[allocate-instance] Redan allokerad:', serialNumber)
+                return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+              }
               console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
               return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
             }
