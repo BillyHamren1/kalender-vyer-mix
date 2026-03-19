@@ -1,82 +1,117 @@
 
 
-# Analys: Sync-robusthet mellan Booking och Planning
+# Granskning: Tidrapporteringsappen (Time App)
+
+## Övergripande bedömning
+Appen är välstrukturerad med tydlig separation: Edge Function (`mobile-app-api`) som backend, `mobileApiService` som API-lager, React Query-hooks för state, och GPS-hooks för geofencing/resdetektering. Dock finns flera buggar och robusthetsproblem.
+
+---
 
 ## Identifierade problem
 
-### 1. KRITISK: Dubbla cancellation-flöden med motstridiga beteenden
+### 1. BUGG: `useGeofencing` skapar dubbla GPS-watchers
+**Allvarlighet: HÖG**
 
-Det finns **tre separata ställen** som hanterar avbokningar, och de gör **olika saker**:
+`useGeofencing` startar en `navigator.geolocation.watchPosition` i sin `useEffect` (rad 88-131). `useTravelDetection` startar en *separat* `watchPosition` (rad 204-264). Båda körs samtidigt i `MobileJobs.tsx`. Det innebär:
+- Dubbel GPS-batteriförbrukning
+- Potentiella konflikter med `lastPositionRef` (useTravelDetection använder sin egen)
+- På äldre Android kan inte flera watchers samexistera stabilt
 
-| Källa | Sätter `assigned_to_project` | Sätter projects till | Sätter jobs till |
-|---|---|---|---|
-| `receive-booking` (webhook) | **Ändrar ej** | `cancelled` | `cancelled` |
-| `import-bookings` (sync) | **Ändrar ej** | `completed` | `completed` |
-| `handleBookingLifecycleSideEffects` (frontend) | **`false`** | `cancelled` | `completed` |
+**Fix:** Konsolidera till en enda GPS-watcher som matar båda logikerna, eller använd en delad kontext.
 
-**Konsekvenser:**
-- Webhook-avbokning sätter projekt till `cancelled` men rör **inte** `assigned_to_project` → bokningen dyker **inte** upp i triage (bra enligt policy)
-- Frontend-avbokning (StatusChangeForm) sätter `assigned_to_project = false` → bokningen dyker upp i triage som "Ny bokning" trots att den just avbokades — **detta orsakar "flashen"**
-- `import-bookings` sätter projektstatus till `completed` istället för `cancelled` — inkonsekvent
+### 2. BUGG: `useGeofencing` dependency array saknar `staffId`
+**Allvarlighet: MEDEL**
 
-**Fix:** Konsolidera logiken:
-- `handleBookingLifecycleSideEffects` ska **inte** sätta `assigned_to_project = false` för `CANCELLED`. Den ska sätta `assigned_to_project = true` (markera som "hanterad") precis som `receive-booking` gör implicit
-- `import-bookings` ska sätta projekt till `cancelled` (inte `completed`) vid avbokning, för konsekvens
+GPS-effekten (rad 88-131) har dependency `[]` — den skickar location-reports med det `staffId` som var aktuellt vid mount. Om `staffId` ändras (t.ex. vid re-auth) skickas rapporter med det gamla ID:t.
 
-### 2. MEDEL: "Nya bokningar"-flash vid sidnavigering
+**Fix:** Lägg till `staffId` i dependency-arrayen.
 
-`IncomingBookingsList` använder `queryKey: ['bookings-without-project']` men det finns **ingen realtime-invalidation** för den. Däremot invalideras cachen manuellt på ~13 ställen. Problemet:
+### 3. BUGG: `stopTimer` returnerar `null` pga async setState
+**Allvarlighet: MEDEL**
 
-1. Användaren öppnar `/projects` → `fetchBookings()` körs (hämtar ALL bookings)
-2. Under laddning kan stale cache visa bokningar som sedan filtreras bort → kortvarigt flash
-3. Realtime-ändringar (t.ex. webhook sätter `status=CANCELLED`) invaliderar **inte** `bookings-without-project`-cachen
+I `useGeofencing.ts` rad 190-201: `stopTimer` försöker läsa `stopped` efter `setActiveTimers`, men React state-uppdateringar är asynkrona. Variabeln `stopped` sätts inuti `setActiveTimers`-callback, men *läses* efter return. I praktiken returnerar `stopTimer` alltid `null` i *samma tick*.
 
-**Fix:**
-- Lägg till `'bookings-without-project'` i realtime-invalidation för `bookings`-tabellen
-- Alternativt: Använd `placeholderData: []` i queryn för att undvika flash av gammal data vid mount
+`MobileJobs.tsx` rad 40-41 använder returvärdet:
+```typescript
+const stopped = stopTimer(geofenceEvent.booking.id);
+if (stopped) { ... }
+```
+Denna kod fungerar av slump — exit-händelsen navigerar alltid till `/m/report`, men `stopped` är `null`.
 
-### 3. MEDEL: `handleBookingLifecycleSideEffects` körs från frontend (osäkert)
+**Fix:** Använd `useRef` för timers-state, eller returnera timer från en ref istället.
 
-Funktionen gör 3 separata databasanrop utan transaktion. Om något misslyckas halvvägs (t.ex. nätverksfel) hamnar systemet i inkonsekvent tillstånd:
-- Jobs satta till `completed` men `assigned_to_project` inte uppdaterat
-- Eller tvärtom
+### 4. BUGG: Broadcasts filtreras bara på dagens datum
+**Allvarlighet: MEDEL**
 
-**Fix:** Flytta sidoeffekterna till `receive-booking` (webhook) och `import-bookings` (sync) som redan hanterar detta server-side. Frontend ska bara uppdatera status och sedan invalidera cachen.
+`handleGetBroadcasts` rad 1638: `gte('created_at', ${today}T00:00:00)`. Personal som öppnar appen nästa dag ser *inga* broadcasts från igår. Schemaändringar eller brådskande meddelanden som skickades kvällen innan försvinner.
 
-### 4. LÅG: Offer-downgrade i `handleBookingLifecycleSideEffects` sätter `assigned_to_project = false`
+**Fix:** Hämta broadcasts från de senaste 3-7 dagarna istället.
 
-När en bokning nedgraderas till OFFER via frontend, nollställs `assigned_to_project`. Men `receive-booking` webhook för `booking.offer` gör **inte** det. Samma inkonsistens som cancellation.
+### 5. BUGG: `markBroadcastRead` har race condition
+**Allvarlighet: LÅG**
 
-### 5. LÅG: `IncomingBookingsList` hämtar ALLA bokningar
+`handleMarkBroadcastRead` (rad 1702-1730) gör en read-then-write: hämtar `is_read_by`, pushar `staffId`, sparar. Två samtida anrop kan läsa samma array och en av dem förlorar sin uppdatering.
 
-`fetchBookings()` hämtar alla bokningar med products och attachments, filtrerar sedan i JS. Med 1000+ bokningar slår detta i Supabase-gränsen och blir onödigt tungt.
+**Fix:** Använd Postgres `array_append` med `DISTINCT` eller en junction-tabell.
 
-## Åtgärdsplan
+### 6. UI: Tidrapportformulär validerar inte negativa timmar
+**Allvarlighet: LÅG**
 
-### Steg 1: Fixa `handleBookingLifecycleSideEffects` (stoppa flash-problemet)
-**Fil:** `src/services/booking/bookingStatusService.ts`
-- Ta bort reset av `assigned_to_project` till `false` för CANCELLED-status
-- Sätt istället `assigned_to_project = true` så den markeras som "hanterad" och inte flashar i triage
-- Behåll reset för OFFER (som matchar att den ska synas i triage för omtilldelning)
+`calculateHours()` i `MobileTimeReport.tsx` rad 32-38: Om `startTime > endTime` (nattskift som passerar midnatt), returneras `0` pga `Math.max(0, ...)`. Användaren får ingen feedback att tiderna är ogiltiga — rapporten sparas med 0h.
 
-### Steg 2: Lägg till realtime-invalidation för `bookings-without-project`
-**Fil:** `src/pages/ProjectManagement.tsx`
-- Lägg till `useRealtimeInvalidation` som lyssnar på `bookings`-tabellen och invaliderar `['bookings-without-project']`
+**Fix:** Hantera nattskift (lägg till 24h) eller visa ett felmeddelande.
 
-### Steg 3: Konsolidera projekt/jobb-status vid avbokning
-**Fil:** `supabase/functions/import-bookings/index.ts`
-- Ändra rad 1894-1897: sätt projekt till `cancelled` istället för `completed` vid avbokning (matchar `receive-booking`)
-- Ändra rad 1906-1908: sätt jobs till `cancelled` istället för `completed` (matchar `receive-booking`)
+### 7. UI: Timer auto-break vid >5h är för strikt
+**Allvarlighet: LÅG**
 
-### Steg 4: Optimera IncomingBookingsList-queryn
-**Fil:** `src/components/project/IncomingBookingsList.tsx`
-- Byt från `fetchBookings()` (alla bokningar) till en dedikerad query som filtrerar direkt i Supabase:
-  - `status IN ('CONFIRMED','CANCELLED')` AND `assigned_to_project = false`
-- Undviker 1000-radsgränsen och minskar payload
+`MobileJobDetail.tsx` rad 59 och `MobileTimeReport.tsx` rad 101: `breakDeduction = totalHours > 5 ? 0.5 : 0`. Detta drar alltid 30 min rast vid >5h arbete — även om personen faktiskt tog rast eller inte. Användaren kan inte styra detta.
 
-## Filer som ändras
-1. `src/services/booking/bookingStatusService.ts` — fixa `assigned_to_project`-logik vid CANCELLED
-2. `src/pages/ProjectManagement.tsx` — lägg till realtime-invalidation
-3. `supabase/functions/import-bookings/index.ts` — konsolidera status (`cancelled` istället för `completed`)
-4. `src/components/project/IncomingBookingsList.tsx` — optimera query + eliminera flash
+**Fix:** Visa rastavdraget till användaren och låt dem justera innan sparande.
+
+### 8. SAKNAS: Tidrapporthistorik begränsad till 50 st
+**Allvarlighet: LÅG**
+
+`handleGetTimeReports` (rad 512): `.limit(50)`. Om en person har fler än 50 rapporter visas inte de äldsta. Det finns ingen paginering i frontend.
+
+**Fix:** Lägg till datumfilter (hämta per månad) eller öka gränsen.
+
+### 9. BUGG: `useTravelDetection` effect dependencies skapar restart-loop
+**Allvarlighet: MEDEL**
+
+Rad 271: `[enabled, travelState.isMoving, startTravel, stopTravel]`. `startTravel` och `stopTravel` skapas med `useCallback` men `stopTravel` beror på `travelState.activeTravelLogId` (rad 167). Varje gång travel startas → `travelState` ändras → `stopTravel` återskapas → useEffect körs om → GPS-watcher stoppas och skapas om. Tappar potentiellt position-data under omstart.
+
+**Fix:** Använd refs för travel-state inuti effekten, eller flytta GPS-watchern utanför effekten med travelState-beroende.
+
+---
+
+## Sammanfattning: Vad fungerar bra
+- Auth-flödet med token + session verify + timeout (8s) — robust
+- Organisation-isolering genomgående i backend — korrekt
+- Geofence-promptar med enter/exit-hysteresis — bra UX
+- Optimistiska DM-uppdateringar + cache-invalidering — snabb feedback
+- Push-notiser vid DM — korrekt implementerat
+- Travel-detection med iOS-fallback (beräknad hastighet) — smart
+- Tidrapportexport till HTML/PDF — fungerar
+
+## Åtgärdsplan (prioriterad)
+
+| # | Problem | Allvarlighet | Fil |
+|---|---------|-------------|-----|
+| 1 | Dubbla GPS-watchers | **Hög** | `useGeofencing.ts` + `useTravelDetection.ts` |
+| 2 | `useGeofencing` saknar `staffId` dep | Medel | `useGeofencing.ts` |
+| 3 | `stopTimer` returnerar null | Medel | `useGeofencing.ts` |
+| 4 | Broadcasts bara idag | Medel | `mobile-app-api/index.ts` |
+| 5 | Travel detection effect restart-loop | Medel | `useTravelDetection.ts` |
+| 6 | Broadcast read race condition | Låg | `mobile-app-api/index.ts` |
+| 7 | Nattskift → 0h utan varning | Låg | `MobileTimeReport.tsx` |
+| 8 | Auto-break 30min ej justerbar | Låg | `MobileJobDetail.tsx`, `MobileTimeReport.tsx` |
+| 9 | Max 50 tidrapporter | Låg | `mobile-app-api/index.ts` |
+
+### Filer som ändras
+1. **`src/hooks/useGeofencing.ts`** — Fixa `staffId` dependency, fixa `stopTimer` return, exportera GPS-position via kontext
+2. **`src/hooks/useTravelDetection.ts`** — Ta emot GPS-position externt istället för egen watcher, stabilisera effect deps med refs
+3. **`src/pages/mobile/MobileJobs.tsx`** — Skicka GPS-position från `useGeofencing` till `useTravelDetection`
+4. **`supabase/functions/mobile-app-api/index.ts`** — Broadcasts senaste 7 dagar, tidrapporter limit 200, `array_append` för broadcast read
+5. **`src/pages/mobile/MobileTimeReport.tsx`** — Nattskifthantering + validering
+6. **`src/pages/mobile/MobileJobDetail.tsx`** — Visa rastavdrag till användaren
 
