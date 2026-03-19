@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
-import { createCalendarEvent } from '@/services/eventService';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { CalendarIcon, Users, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CopyEventDialog from './CopyEventDialog';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -47,6 +47,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
 
   // Initialize when dialog opens
   useEffect(() => {
@@ -123,152 +124,135 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     }
   };
 
-  const handleDuplicate = async () => {
-    if (!selectedDate) {
-      toast.error('Välj ett datum');
-      return;
-    }
+  const handleOpenCopyDialog = () => {
+    setShowCopyDialog(true);
+  };
 
-    setIsSubmitting(true);
-
-    try {
-      const newDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const newStartISO = buildUTCDateTime(newDateStr, startTime);
-      const newEndISO = buildUTCDateTime(newDateStr, endTime);
-
-      await createCalendarEvent({
-        title: event.title,
-        start: newStartISO,
-        end: newEndISO,
-        resourceId: selectedResourceId || event.resourceId || '',
-        eventType: event.eventType,
-        bookingId: event.bookingId,
-        bookingNumber: event.bookingNumber,
-        deliveryAddress: event.deliveryAddress,
-      });
-
-      const teamName = resources.find(r => r.id === selectedResourceId)?.title;
-      toast.success('Händelse kopierad', {
-        description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${teamName ? ` · ${teamName}` : ''}`
-      });
-
-      onOpenChange(false);
-      if (onUpdate) onUpdate();
-    } catch (error) {
-      console.error('Error duplicating event:', error);
-      toast.error('Kunde inte kopiera händelsen');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleCopied = () => {
+    setShowCopyDialog(false);
+    onOpenChange(false);
+    if (onUpdate) onUpdate();
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            Flytta eller kopiera händelse
-          </DialogTitle>
-          <DialogDescription>
-            Välj ny dag, tid och/eller team. Flytta eller kopiera.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Flytta eller kopiera händelse
+            </DialogTitle>
+            <DialogDescription>
+              Välj ny dag, tid och/eller team. Flytta eller kopiera.
+            </DialogDescription>
+          </DialogHeader>
 
-        {exactTimeNeeded && (
-          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              Denna bokning har bestämda tider. Är du säker att du vill ändra?
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="space-y-4 py-4">
-          <div className="space-y-1">
-            <div className="text-sm font-medium">{event.title}</div>
-            <div className="text-xs text-muted-foreground">
-              Nuvarande: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'd MMM yyyy')} · {extractUTCTime(event.start)}–{extractUTCTime(event.end)}
-          </div>
-
-          {/* Time inputs */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Tid</label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-[120px]"
-              />
-              <span className="text-muted-foreground">–</span>
-              <Input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-[120px]"
-              />
-            </div>
-          </div>
-          </div>
-
-          {/* Team selector */}
-          {resources.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium flex items-center gap-1.5">
-                <Users className="h-4 w-4" />
-                Team
-              </label>
-              <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Välj team" />
-                </SelectTrigger>
-                <SelectContent>
-                  {resources.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {exactTimeNeeded && (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                Denna bokning har bestämda tider. Är du säker att du vill ändra?
+              </AlertDescription>
+            </Alert>
           )}
 
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              initialFocus
-              className={cn("p-3 pointer-events-auto rounded-md border")}
-            />
-          </div>
-        </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">{event.title}</div>
+              <div className="text-xs text-muted-foreground">
+                Nuvarande: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'd MMM yyyy')} · {extractUTCTime(event.start)}–{extractUTCTime(event.end)}
+            </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSubmitting}
-          >
-            Avbryt
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={handleDuplicate}
-            disabled={isSubmitting || !selectedDate}
-            className="gap-1.5"
-          >
-            <Copy className="h-4 w-4" />
-            {isSubmitting ? 'Kopierar...' : 'Kopiera'}
-          </Button>
-          <Button
-            onClick={handleMove}
-            disabled={isSubmitting || !selectedDate}
-          >
-            {isSubmitting ? 'Flyttar...' : 'Flytta'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {/* Time inputs */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Tid</label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-[120px]"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-[120px]"
+                />
+              </div>
+            </div>
+            </div>
+
+            {/* Team selector */}
+            {resources.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  <Users className="h-4 w-4" />
+                  Team
+                </label>
+                <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Välj team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {resources.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                initialFocus
+                className={cn("p-3 pointer-events-auto rounded-md border")}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              Avbryt
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleOpenCopyDialog}
+              disabled={isSubmitting}
+              className="gap-1.5"
+            >
+              <Copy className="h-4 w-4" />
+              Kopiera
+            </Button>
+            <Button
+              onClick={handleMove}
+              disabled={isSubmitting || !selectedDate}
+            >
+              {isSubmitting ? 'Flyttar...' : 'Flytta'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {showCopyDialog && (
+        <CopyEventDialog
+          open={showCopyDialog}
+          onOpenChange={setShowCopyDialog}
+          event={event}
+          resources={resources}
+          onCopied={handleCopied}
+        />
+      )}
+    </>
   );
 };
 
