@@ -105,6 +105,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onOptimisticIncrement: applyOptimisticIncrement,
     onOptimisticDecrement: applyOptimisticDecrement,
     onAssignToKolli: assignToKolli,
+    getIsKolliMode: () => isKolliMode,
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
