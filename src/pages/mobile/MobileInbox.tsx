@@ -61,6 +61,20 @@ const MobileInbox = () => {
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Split job conversations into active and archived (7+ days after last date)
+  const now = new Date();
+  const activeJobs = jobConversations.filter(job => {
+    if (!job.lastDate) return true;
+    const daysSince = differenceInDays(now, parseISO(job.lastDate));
+    return daysSince < 7;
+  });
+  const archivedJobs = jobConversations.filter(job => {
+    if (!job.lastDate) return false;
+    const daysSince = differenceInDays(now, parseISO(job.lastDate));
+    return daysSince >= 7;
+  });
 
   // Auto-scroll chat
   useEffect(() => {
