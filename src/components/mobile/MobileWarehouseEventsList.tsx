@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventCardClass } from '@/components/Calendar/ResourceData';
 import { format, parseISO, isWithinInterval, addDays, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Clock, MapPin } from 'lucide-react';
