@@ -206,6 +206,34 @@ export function useRfidManager(options: UseRfidManagerOptions = {}) {
     }).catch(() => { /* silent */ });
   }, []);
 
+  // Listen for external status changes (e.g. ScannerService auto-connect)
+  useEffect(() => {
+    const handleStatusEvent = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+      
+      if (detail.isConnected) {
+        setState(prev => ({
+          ...prev,
+          status: prev.inventoryActive ? 'inventory_active' : 'connected',
+          readerModel: detail.readerModel || prev.readerModel,
+          error: null,
+        }));
+        scanLog('rfid_external_connect', { model: detail.readerModel });
+      } else {
+        setState(prev => ({
+          ...prev,
+          status: 'disconnected',
+          inventoryActive: false,
+        }));
+        scanLog('rfid_external_disconnect');
+      }
+    };
+
+    window.addEventListener('zebra-rfid:status', handleStatusEvent);
+    return () => window.removeEventListener('zebra-rfid:status', handleStatusEvent);
+  }, []);
+
   return {
     ...state,
     connect,

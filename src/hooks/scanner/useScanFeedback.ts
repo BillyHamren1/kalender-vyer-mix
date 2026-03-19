@@ -19,7 +19,7 @@ export const useScanFeedback = () => {
     highlightTimerRef.current = setTimeout(() => setHighlightedItemId(null), 1500);
   }, []);
 
-  const setScanResult = useCallback((result: ScanResult) => {
+  const setScanResult = useCallback((result: ScanResult | null) => {
     setLastScanResult(result);
   }, []);
 
