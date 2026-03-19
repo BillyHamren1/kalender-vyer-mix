@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
 
       case 'decrement_item': {
         const { itemId } = params
-        const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).single()
+        const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
         const currentPacked = currentItem?.quantity_packed || 0
         if (currentPacked <= 0) return json({ success: false, error: 'Redan på 0' })
 
@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
           verified_at: null,
           verified_by: null,
           ...(newQty === 0 ? { packed_at: null, packed_by: null } : {})
-        }).eq('id', itemId)
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
 
         return json({ success: true })
       }
