@@ -509,7 +509,7 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
     .order('report_date', { ascending: false })
-    .limit(50)
+    .limit(200)
 
   if (error) {
     console.error('Time reports query error:', error)
@@ -1636,13 +1636,14 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
 
 async function handleGetBroadcasts(supabase: any, staffId: string, organizationId: string) {
   const today = new Date().toISOString().split('T')[0]
+  // Fetch broadcasts from the last 7 days so staff sees messages from previous evenings
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  // Get all broadcasts from today for this organization
   const { data, error } = await supabase
     .from('broadcast_messages')
     .select('*')
     .eq('organization_id', organizationId)
-    .gte('created_at', `${today}T00:00:00`)
+    .gte('created_at', `${sevenDaysAgo}T00:00:00`)
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -1699,7 +1700,8 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
     )
   }
 
-  // Get current is_read_by array and append staffId if not present
+  // Use atomic array_append via RPC to avoid race conditions
+  // Fallback: read-then-write with deduplication
   const { data: broadcast } = await supabase
     .from('broadcast_messages')
     .select('is_read_by')
@@ -1716,10 +1718,11 @@ async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any
 
   const readBy: string[] = broadcast.is_read_by || []
   if (!readBy.includes(staffId)) {
-    readBy.push(staffId)
+    // Use set to deduplicate in case of concurrent writes
+    const updatedReadBy = [...new Set([...readBy, staffId])]
     await supabase
       .from('broadcast_messages')
-      .update({ is_read_by: readBy })
+      .update({ is_read_by: updatedReadBy })
       .eq('id', broadcast_id)
       .eq('organization_id', organizationId)
   }

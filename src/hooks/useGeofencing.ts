@@ -25,7 +25,15 @@ interface GpsSettings {
   radius: number;
 }
 
-// Haversine distance in meters (from track-vehicle-gps)
+export interface GpsPosition {
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  speed: number | null;
+  timestamp: number;
+}
+
+// Haversine distance in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -69,7 +77,7 @@ export function setGpsSettings(settings: GpsSettings) {
 
 export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const [activeTimers, setActiveTimers] = useState<Map<string, ActiveTimer>>(loadTimers);
-  const [userPosition, setUserPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [userPosition, setUserPosition] = useState<GpsPosition | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [geofenceEvent, setGeofenceEvent] = useState<GeofenceEvent | null>(null);
   const [nearbyBookings, setNearbyBookings] = useState<(MobileBooking & { distance: number })[]>([]);
@@ -78,13 +86,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const triggeredEnterRef = useRef<Set<string>>(new Set());
   const triggeredExitRef = useRef<Set<string>>(new Set());
   const lastLocationReportRef = useRef<number>(0);
+  const staffIdRef = useRef(staffId);
+  const activeTimersRef = useRef(activeTimers);
+
+  // Keep refs in sync
+  useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
+  useEffect(() => { activeTimersRef.current = activeTimers; }, [activeTimers]);
 
   // Persist timers on change
   useEffect(() => {
     saveTimers(activeTimers);
   }, [activeTimers]);
 
-  // GPS tracking
+  // Single consolidated GPS watcher
   useEffect(() => {
     const settings = getGpsSettings();
     if (!settings.enabled || !navigator.geolocation) return;
@@ -94,15 +108,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy, speed } = pos.coords;
-        setUserPosition({ lat: latitude, lng: longitude });
+        const gpsPos: GpsPosition = {
+          lat: latitude,
+          lng: longitude,
+          accuracy: accuracy ?? null,
+          speed: speed ?? null,
+          timestamp: Date.now(),
+        };
+        setUserPosition(gpsPos);
 
         // Throttled upsert to staff_locations (max every 30s)
         const now = Date.now();
         if (now - lastLocationReportRef.current >= 30000) {
           lastLocationReportRef.current = now;
-          if (staffId) {
+          const currentStaffId = staffIdRef.current;
+          if (currentStaffId) {
             supabase.from('staff_locations').upsert({
-              staff_id: staffId,
+              staff_id: currentStaffId,
               latitude,
               longitude,
               accuracy: accuracy ?? null,
@@ -118,7 +140,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         console.warn('GPS error:', err.message);
         setIsTracking(false);
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
 
     return () => {
@@ -128,7 +150,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
       setIsTracking(false);
     };
-  }, []);
+  }, []); // Single watcher, refs used for current values
 
   // Geofence checks
   useEffect(() => {
@@ -136,7 +158,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     const settings = getGpsSettings();
     const enterRadius = settings.radius || ENTER_RADIUS;
-    const exitRadius = enterRadius + 50; // hysteresis
+    const exitRadius = enterRadius + 50;
 
     const nearby: (MobileBooking & { distance: number })[] = [];
 
@@ -188,10 +210,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, []);
 
   const stopTimer = useCallback((bookingId: string): ActiveTimer | null => {
-    let stopped: ActiveTimer | null = null;
+    // Read from ref for synchronous return value
+    const stopped = activeTimersRef.current.get(bookingId) || null;
     setActiveTimers(prev => {
       const next = new Map(prev);
-      stopped = next.get(bookingId) || null;
       next.delete(bookingId);
       return next;
     });

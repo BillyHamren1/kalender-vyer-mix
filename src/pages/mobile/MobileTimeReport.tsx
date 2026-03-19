@@ -33,9 +33,19 @@ const MobileTimeReport = () => {
     if (!startTime || !endTime) return 0;
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    const total = (eh + em / 60) - (sh + sm / 60) - parseFloat(breakTime || '0');
+    let total = (eh + em / 60) - (sh + sm / 60);
+    // Handle night shifts crossing midnight
+    if (total < 0) total += 24;
+    total -= parseFloat(breakTime || '0');
     return Math.max(0, Math.round(total * 100) / 100);
   };
+
+  const isNightShift = (() => {
+    if (!startTime || !endTime) return false;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    return (eh + em / 60) < (sh + sm / 60);
+  })();
 
   const handleSubmit = async () => {
     if (!selectedBookingId) {
@@ -97,7 +107,8 @@ const MobileTimeReport = () => {
                 onStop={async () => {
                   const stopTime = new Date();
                   const startTimeDate = parseISO(timer.startTime);
-                  const totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  if (totalHours < 0) totalHours += 24;
                   const breakDeduction = totalHours > 5 ? 0.5 : 0;
                   const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
 
@@ -185,6 +196,11 @@ const MobileTimeReport = () => {
           </div>
 
           {/* Summary & submit */}
+          {isNightShift && (
+            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs text-amber-600 font-medium">⏰ Nattskift upptäckt – tid beräknas över midnatt</p>
+            </div>
+          )}
           <div className="flex items-center justify-between pt-3 border-t border-border/40">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xs text-muted-foreground">Totalt:</span>
