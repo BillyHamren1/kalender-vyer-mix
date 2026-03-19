@@ -29,15 +29,7 @@ const MobileMonthlyCalendar: React.FC<MobileMonthlyCalendarProps> = ({
     return acc;
   }, {} as Record<string, CalendarEvent[]>);
 
-  // Get event color based on type (matching main calendar)
-  const getEventColor = (eventType: string) => {
-    switch (eventType) {
-      case 'rig': return '#F2FCE2';
-      case 'event': return '#FEF7CD';
-      case 'rigDown': return '#FFDEE2';
-      default: return '#E2F5FC';
-    }
-  };
+  // getEventColor imported from ResourceData
 
   const goToPreviousMonth = () => {
     const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);

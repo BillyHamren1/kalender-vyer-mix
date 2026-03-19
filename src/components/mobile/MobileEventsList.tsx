@@ -11,18 +11,7 @@ interface MobileEventsListProps {
   weekStart: Date;
 }
 
-const getEventColor = (eventType?: string): string => {
-  switch (eventType) {
-    case 'rigg':
-      return 'bg-amber-500';
-    case 'event':
-      return 'bg-primary';
-    case 'rigdown':
-      return 'bg-rose-500';
-    default:
-      return 'bg-muted';
-  }
-};
+const getEventColor = (eventType?: string): string => getEventDotClass(eventType);
 
 const getEventLabel = (eventType?: string): string => {
   switch (eventType) {
