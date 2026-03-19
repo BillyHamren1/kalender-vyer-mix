@@ -261,11 +261,12 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
     .gte('start_time', dayStart)
     .lte('start_time', dayEnd);
 
-  const eventsByBooking = new Map<string, any[]>();
+  const eventsByBookingTeam = new Map<string, any[]>();
   for (const e of (events || [])) {
-    if (!e.booking_id) continue;
-    if (!eventsByBooking.has(e.booking_id)) eventsByBooking.set(e.booking_id, []);
-    eventsByBooking.get(e.booking_id)!.push(e);
+    if (!e.booking_id || !e.resource_id) continue;
+    const key = `${e.booking_id}|${e.resource_id}`;
+    if (!eventsByBookingTeam.has(key)) eventsByBookingTeam.set(key, []);
+    eventsByBookingTeam.get(key)!.push(e);
   }
 
   return staff
