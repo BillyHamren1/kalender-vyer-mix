@@ -37,6 +37,12 @@ const ProjectManagement = () => {
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
 
+  useRealtimeInvalidation({
+    channelName: 'project-mgmt-bookings',
+    tables: ['bookings'],
+    queryKeys: [['bookings-without-project'], ['bookings'], ['projects'], ['dashboard-stats']],
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteProject,
     onSuccess: () => {
