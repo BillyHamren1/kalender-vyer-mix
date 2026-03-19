@@ -124,7 +124,16 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           onTriggerSync();
           notifyRfid(scannedValue, true);
         } else {
-          toast.error(result.error);
+          if ((result as any).alreadyScanned) {
+            // No toast — just show in feedback header
+            onScanResult({
+              value: scannedValue,
+              result: result.error || `Nr ${scannedValue} är redan scannad`,
+              success: false,
+            });
+          } else {
+            toast.error(result.error);
+          }
           notifyRfid(scannedValue, false);
         }
       }
