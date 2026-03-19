@@ -40,6 +40,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
   const scannedThisSessionRef = useRef<Set<string>>(new Set());
+  const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
+
+  const addRecentScan = useCallback((entry: RecentScanEntry) => {
+    setRecentScans(prev => [entry, ...prev].slice(0, 100));
+  }, []);
 
   const processNext = useCallback(async () => {
     if (isProcessingRef.current || queueRef.current.length === 0) return;
