@@ -137,6 +137,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             if (fallback) onOptimisticIncrement(fallback.id);
           }
           onTriggerSync();
+          addRecentScan({ value: scannedValue, productName: result.productName || scannedValue, success: true, timestamp: Date.now() });
           notifyRfid(scannedValue, true);
         } else {
           if ((result as any).alreadyScanned) {
