@@ -448,18 +448,31 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       </div>
 
-      {/* Fullscreen toggle */}
-      <button
-        onClick={toggleFullscreen}
-        className="absolute top-2 right-2 z-20 w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
-        title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
-      >
-        {isFullscreen ? (
-          <Minimize2 className="w-4 h-4 text-foreground" />
-        ) : (
-          <Maximize2 className="w-4 h-4 text-muted-foreground" />
-        )}
-      </button>
+      {/* Map style + Fullscreen toggles */}
+      <div className="absolute top-2 right-2 z-20 flex gap-1">
+        <button
+          onClick={toggleMapStyle}
+          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
+          title={mapStyle === 'streets' ? 'Visa satellit' : 'Visa karta'}
+        >
+          {mapStyle === 'streets' ? (
+            <Satellite className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Map className="w-4 h-4 text-foreground" />
+          )}
+        </button>
+        <button
+          onClick={toggleFullscreen}
+          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
+          title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-foreground" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+      </div>
 
       {/* Legend */}
       <div className="absolute bottom-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow border border-border">
