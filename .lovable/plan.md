@@ -1,66 +1,67 @@
 
 
-# Fix: Hantera batch-responsformat från allocate-instance korrekt
+# Deduplisering av scanningar
 
 ## Problem
-Det externa lagersystemet returnerar HTTP 200 med en `results`-array, t.ex.:
-```json
-{
-  "results": [
-    { "serial_number": "3204", "success": true, "sku": "PROD-123", "item_type_id": "..." },
-    { "serial_number": "3208", "success": false, "error": "Instance not found" }
-  ]
-}
-```
-
-Koden förväntar sig `allocateData.sku` (toppnivå, rad 308). Eftersom det inte finns returneras alltid felet "Lagersystemet returnerade ingen artikeltyp" — även när allokeringen faktiskt lyckades för det aktuella serienumret.
+1. **Samma session, snabba dubbelklick**: Samma serienummer skickas flera gånger till API:t, ger onödiga felmeddelanden/feedback.
+2. **Ny session, redan avbockad**: Serienummer som redan allokerats i en tidigare session ger felmeddelande istället för ett tydligt "redan scannad"-besked.
 
 ## Lösning
 
-Ändra rad 307-313 i `supabase/functions/scanner-api/index.ts`:
+### 1. Klientsida: Sessionens dedupliserings-set (`useScanProcessor.ts`)
 
-**Nuvarande:**
+Lägg till en `Set<string>` (via `useRef`) som håller koll på alla serienummer som redan skannats i denna session. I `processNext`, innan API-anrop:
+
+- Om värdet redan finns i setet → **ignorera helt** (ingen feedback, ingen toast, ingen API-request)
+- Om det inte finns → lägg till i setet och fortsätt som vanligt
+
 ```typescript
-const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
-const returnedSku = allocateData.sku
-if (!returnedSku) {
-  console.error('Inventory API returned no SKU:', allocateData)
-  return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
+const scannedThisSessionRef = useRef<Set<string>>(new Set());
+
+// I processNext, direkt efter shift():
+if (scannedThisSessionRef.current.has(scannedValue.toLowerCase())) {
+  scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+  // Tyst ignorering — ingen feedback alls
+  return; // (i finally-blocket fortsätter kön)
 }
+scannedThisSessionRef.current.add(scannedValue.toLowerCase());
 ```
 
-**Nytt:**
-```typescript
-const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
+### 2. Serversida: Tydligt "redan scannad"-svar (`scanner-api/index.ts`)
 
-// Handle batch response format: { results: [{ serial_number, success, sku, error }] }
-let returnedSku = allocateData.sku
-if (!returnedSku && Array.isArray(allocateData.results)) {
-  const myResult = allocateData.results.find(
-    (r: any) => r.serial_number === serialNumber
-  )
-  if (myResult) {
-    if (!myResult.success) {
-      console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
-      return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
-    }
-    returnedSku = myResult.sku || myResult.item_type_id
+I `verify_product`-caset, när det externa lagersystemet returnerar fel som "All matching lines fully allocated", betyder det att serienumret redan är allokerat. Ändra felmeddelandet till något tydligare:
+
+```typescript
+if (!myResult.success) {
+  const isAlreadyAllocated = (myResult.error || '').toLowerCase().includes('fully allocated');
+  if (isAlreadyAllocated) {
+    return json({ 
+      success: false, 
+      error: `Nr ${serialNumber} är redan scannad/allokerad`,
+      alreadyScanned: true 
+    });
   }
-}
-
-if (!returnedSku) {
-  console.error('Inventory API returned no SKU:', allocateData)
-  return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
+  return json({ success: false, error: myResult.error || 'Allokering misslyckades' });
 }
 ```
 
-Resten av flödet (rad 315+) är oförändrat — SKU matchas mot packlistan och avbockning sker som vanligt.
+### 3. Klientsida: Bättre UI för "redan scannad" (`useScanProcessor.ts`)
 
-## Resultat
-- Lyckade allokeringar → SKU extraheras → produkten bockas av i packlistan
-- Misslyckade allokeringar → specifikt felmeddelande visas (t.ex. "Instance not found")
-- Blandade svar hanteras per serienummer
+I normal mode, efter `verifyProductBySku` returnerar, kolla om `result.alreadyScanned`:
 
-## Fil som ändras
-1. `supabase/functions/scanner-api/index.ts` — Parsa `results`-array istället för att förvänta sig toppnivå-`sku`
+```typescript
+if (!result.success && result.alreadyScanned) {
+  onScanResult({
+    value: scannedValue,
+    result: result.error, // "Nr 3204 är redan scannad/allokerad"
+    success: false,
+  });
+  // Ingen toast — bara feedback-headern
+  return;
+}
+```
+
+## Filer som ändras
+1. `src/hooks/scanner/useScanProcessor.ts` — Sessions-dedup + hantering av `alreadyScanned`
+2. `supabase/functions/scanner-api/index.ts` — Tydligare felmeddelande för redan allokerade
 
