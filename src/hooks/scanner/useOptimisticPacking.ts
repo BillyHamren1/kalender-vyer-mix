@@ -105,10 +105,10 @@ export const useOptimisticPacking = (packingId: string) => {
     try {
       if (!isBackground) setIsLoading(true);
 
-      const [packingData, itemsData, progressData] = await Promise.all([
+      // Fetch packing metadata and items first (items auto-generates packing_list_items)
+      const [packingData, itemsData] = await Promise.all([
         fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
-        getVerificationProgress(packingId),
       ]);
 
       setPacking(packingData);
@@ -119,6 +119,7 @@ export const useOptimisticPacking = (packingId: string) => {
         typedItems.forEach((item, idx) => { order[item.id] = idx; });
         itemOrderRef.current = order;
         setItems(typedItems);
+        recalcProgress(typedItems);
       } else if (isBackground) {
         mergeServerData(typedItems);
       } else {
@@ -126,17 +127,14 @@ export const useOptimisticPacking = (packingId: string) => {
           (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
         );
         setItems(stableSorted);
-      }
-
-      if (!isBackground) {
-        setProgress(progressData);
+        recalcProgress(stableSorted);
       }
     } catch (err) {
       console.error('Error loading packing data:', err);
     } finally {
       if (!isBackground) setIsLoading(false);
     }
-  }, [packingId, mergeServerData]);
+  }, [packingId, mergeServerData, recalcProgress]);
 
   return {
     packing,

@@ -94,10 +94,10 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const loadData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setIsLoading(true);
-      const [packingData, itemsData, parcelsData] = await Promise.all([
+      // Fetch packing + items first (items auto-generates packing_list_items)
+      const [packingData, itemsData] = await Promise.all([
         fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
-        getItemParcels(packingId)
       ]);
 
       setPacking(packingData);
@@ -105,6 +105,10 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         setIsSigned(true);
         setSignedInfo({ by: packingData.signed_by, at: packingData.signed_at });
       }
+
+      // Now that items exist in DB, fetch parcels
+      const parcelsData = await getItemParcels(packingId);
+
       const typedItems = itemsData as PackingItem[];
       let finalItems: PackingItem[];
       if (Object.keys(itemOrderRef.current).length === 0) {
@@ -118,7 +122,6 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         );
         
         if (isBackground) {
-          // Merge: keep higher quantity_packed to avoid reverting optimistic updates
           setItems(prev => {
             const prevMap = new Map(prev.map(i => [i.id, i]));
             const merged = sorted.map(serverItem => {
@@ -132,7 +135,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
             return merged;
           });
           setItemParcelMap(parcelsData);
-          return; // skip the rest for background
+          return;
         }
         finalItems = sorted;
       }
