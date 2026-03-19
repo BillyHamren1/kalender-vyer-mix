@@ -306,84 +306,88 @@ Deno.serve(async (req) => {
 
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
-        // Extract SKU from various response formats
+        // Extract SKU/item_type from various response formats
         // Split batch serial numbers (may contain newlines)
         const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
-        
-        let returnedSku = allocateData.sku
+
+        let returnedSku = allocateData.sku || allocateData.data?.sku || allocateData.data?.item_type_id
+        let returnedItemType = allocateData.item_type || allocateData.data?.item_type
         const alreadyAllocatedSerials: string[] = []
         const failedSerials: string[] = []
+        let successfulAllocations = 0
 
         // Format A: Batch response with results array
-        if (!returnedSku && Array.isArray(allocateData.results)) {
+        if (Array.isArray(allocateData.results)) {
           for (const r of allocateData.results) {
-            // Only process results matching our serial numbers
             if (!serialNumbers.includes(r.serial_number)) continue
 
             if (r.data?.already_allocated || r.data?.over_allocated) {
               alreadyAllocatedSerials.push(r.serial_number)
-              // Still grab SKU if available for local check-off
-              if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id
+              if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
+              if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
               continue
             }
+
             if (!r.success) {
               const isAlreadyAllocated = (r.error || '').toLowerCase().includes('fully allocated')
               if (isAlreadyAllocated) {
-                if (!returnedSku) returnedSku = r.data?.item_type_id || r.data?.sku
                 alreadyAllocatedSerials.push(r.serial_number)
+                if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
+                if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
               } else {
                 failedSerials.push(r.serial_number)
               }
               continue
             }
-            // Successful allocation — grab SKU
-            if (!returnedSku) {
-              returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
-            }
+
+            successfulAllocations += 1
+            if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
+            if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
           }
 
-          // If ALL were already allocated and no SKU found
-          if (!returnedSku && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+          // If ALL were already allocated and no identifiers found, we cannot local-match
+          if (!returnedSku && !returnedItemType && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
             const shortNrs = alreadyAllocatedSerials.map((s: string) => s.replace(/^FACE\d{16}/, '').replace(/^0+/, '') || s)
-            console.warn('[allocate-instance] Alla redan allokerade:', shortNrs)
-            return json({ 
-              success: false, 
-              error: `Nr ${shortNrs.join(', ')} är redan scannad/allokerad`, 
-              alreadyScanned: true 
+            console.warn('[allocate-instance] Alla redan allokerade utan artikelinfo:', shortNrs)
+            return json({
+              success: false,
+              error: `Nr ${shortNrs.join(', ')} är redan scannad/allokerad`,
+              alreadyScanned: true
             })
           }
-          
-          // If all failed (non-allocation errors)
-          if (!returnedSku && failedSerials.length > 0 && alreadyAllocatedSerials.length === 0) {
+
+          if (!returnedSku && !returnedItemType && failedSerials.length > 0 && alreadyAllocatedSerials.length === 0) {
             console.warn('[allocate-instance] Allokering misslyckades för:', failedSerials)
             return json({ success: false, error: 'Allokering misslyckades i lagersystemet' })
           }
         }
 
         // Format B: Single-item response (no results array)
-        if (!returnedSku && !Array.isArray(allocateData.results)) {
+        if (!Array.isArray(allocateData.results)) {
           if (allocateData.data?.already_allocated) {
+            // No item metadata in this response format => cannot safely local-match
             console.warn('[allocate-instance] Redan allokerad (single, flagga):', serialNumber)
             return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
           }
+
           const isFullyAllocated = (allocateData.error || '').toLowerCase().includes('fully allocated')
           if (isFullyAllocated) {
-            returnedSku = allocateData.data?.item_type_id || allocateData.data?.sku
-            if (!returnedSku) {
+            returnedSku = returnedSku || allocateData.data?.item_type_id || allocateData.data?.sku
+            returnedItemType = returnedItemType || allocateData.data?.item_type
+            if (!returnedSku && !returnedItemType) {
               return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
             }
-          }
-          if (!returnedSku) {
-            returnedSku = allocateData.data?.sku || allocateData.data?.item_type_id
+          } else if (allocateData.success) {
+            successfulAllocations = 1
           }
         }
 
-        if (!returnedSku) {
-          console.error('Inventory API returned no SKU:', allocateData)
+        if (!returnedSku && !returnedItemType) {
+          console.error('Inventory API returned no SKU/item_type:', allocateData)
           return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
         }
 
-        // 3. Match returned SKU against local packing_list_items
+        // 3. Match returned SKU or item_type against local packing_list_items
         const { data: packingItems, error: fetchError } = await supabase
           .from('packing_list_items')
           .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
@@ -392,23 +396,43 @@ Deno.serve(async (req) => {
 
         if (fetchError) return json({ success: false, error: 'Kunde inte hämta packlista' })
 
-        const normalizedSku = returnedSku.toLowerCase()
-        const skuItems = (packingItems || []).filter((item: any) => {
+        const normalizeItemTypeName = (value: string): string =>
+          value
+            .toLowerCase()
+            .replace(/^[↳└⦿\s,\-–—]+/, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+        const normalizedSku = returnedSku?.toLowerCase()
+        const normalizedItemType = returnedItemType ? normalizeItemTypeName(returnedItemType) : null
+
+        let matchedItems = (packingItems || []).filter((item: any) => {
+          if (!normalizedSku) return false
           const bp = item.booking_products
           return bp?.sku?.toLowerCase() === normalizedSku || bp?.inventory_item_type_id?.toLowerCase() === normalizedSku
         })
-        if (skuItems.length === 0) {
-          return json({ success: false, error: `Artikeltyp "${returnedSku}" finns inte i packlistan` })
+
+        if (matchedItems.length === 0 && normalizedItemType) {
+          matchedItems = (packingItems || []).filter((item: any) => {
+            const name = item.booking_products?.name
+            if (!name) return false
+            return normalizeItemTypeName(name) === normalizedItemType
+          })
+        }
+
+        if (matchedItems.length === 0) {
+          return json({ success: false, error: `Artikeltyp "${returnedSku || returnedItemType}" finns inte i packlistan` })
         }
 
         // Deterministic order + pick first not-full row
-        const sortedSkuItems = [...skuItems].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
-        const selectedItem = sortedSkuItems.find((item: any) => (item.quantity_packed || 0) < item.quantity_to_pack) || sortedSkuItems[0]
+        const sortedMatchedItems = [...matchedItems].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
+        const selectedItem = sortedMatchedItems.find((item: any) => (item.quantity_packed || 0) < item.quantity_to_pack) || sortedMatchedItems[0]
 
         const currentPacked = (selectedItem as any).quantity_packed || 0
         const quantityToPack = (selectedItem as any).quantity_to_pack
+        const incrementBy = Math.max(successfulAllocations, 1)
         const isAlreadyFull = currentPacked >= quantityToPack
-        const newQuantity = currentPacked + 1
+        const newQuantity = currentPacked + incrementBy
         const isNowFull = newQuantity >= quantityToPack
         const now = new Date().toISOString()
 
