@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarEvent, Resource } from './ResourceData';
+import { CalendarEvent, Resource, getEventDotClass } from './ResourceData';
 import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,14 +60,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     return grouped;
   }, [filteredEvents]);
 
-  const getEventColor = (eventType: string) => {
-    switch (eventType) {
-      case 'rig': return 'bg-green-500';
-      case 'event': return 'bg-yellow-500';
-      case 'rigDown': return 'bg-red-500';
-      default: return 'bg-blue-500';
-    }
-  };
+  const getEventColor = (eventType: string) => getEventDotClass(eventType);
 
   const getTeamName = (resourceId: string) => {
     const resource = resources.find(r => r.id === resourceId);

@@ -58,6 +58,52 @@ export const getEventColor = (eventType: string | undefined): string => {
   }
 };
 
+// Tailwind bg-class for event dots/badges (solid)
+export const getEventDotClass = (eventType?: string): string => {
+  switch (eventType) {
+    case 'rig': return 'bg-green-500';
+    case 'event': return 'bg-yellow-500';
+    case 'rigDown': return 'bg-red-500';
+    case 'packing': return 'bg-purple-500';
+    case 'delivery': return 'bg-blue-500';
+    case 'return': return 'bg-violet-500';
+    case 'inventory': return 'bg-cyan-500';
+    case 'unpacking': return 'bg-slate-400';
+    default: return 'bg-gray-500';
+  }
+};
+
+// Tailwind bg-class for event backgrounds (light)
+export const getEventBgClass = (eventType?: string): string => {
+  switch (eventType) {
+    case 'rig': return 'bg-green-100';
+    case 'event': return 'bg-yellow-100';
+    case 'rigDown': return 'bg-red-100';
+    case 'packing': return 'bg-purple-100';
+    case 'delivery': return 'bg-blue-100';
+    case 'return': return 'bg-violet-100';
+    case 'inventory': return 'bg-cyan-100';
+    case 'unpacking': return 'bg-slate-100';
+    default: return 'bg-gray-100';
+  }
+};
+
+// Tailwind border + bg combo for warehouse-style cards
+export const getEventCardClass = (eventType?: string): string => {
+  switch (eventType) {
+    case 'rig': return 'bg-green-500/20 border-green-500';
+    case 'event': return 'bg-yellow-500/20 border-yellow-500';
+    case 'rigDown':
+    case 'rigdown': return 'bg-red-500/20 border-red-500';
+    case 'packing': return 'bg-purple-500/20 border-purple-500';
+    case 'delivery': return 'bg-blue-500/20 border-blue-500';
+    case 'return': return 'bg-violet-500/20 border-violet-500';
+    case 'inventory': return 'bg-cyan-500/20 border-cyan-500';
+    case 'unpacking': return 'bg-slate-400/20 border-slate-400';
+    default: return 'bg-primary/20 border-primary';
+  }
+};
+
 // Generate unique event ID
 export const generateEventId = (): string => {
   return `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

@@ -4,25 +4,14 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date
 import { sv } from 'date-fns/locale';
 import { MapPin, Clock, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventDotClass } from '@/components/Calendar/ResourceData';
 
 interface MobileEventsListProps {
   events: CalendarEvent[];
   weekStart: Date;
 }
 
-const getEventColor = (eventType?: string): string => {
-  switch (eventType) {
-    case 'rigg':
-      return 'bg-amber-500';
-    case 'event':
-      return 'bg-primary';
-    case 'rigdown':
-      return 'bg-rose-500';
-    default:
-      return 'bg-muted';
-  }
-};
+const getEventColor = (eventType?: string): string => getEventDotClass(eventType);
 
 const getEventLabel = (eventType?: string): string => {
   switch (eventType) {
