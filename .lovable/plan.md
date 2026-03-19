@@ -1,49 +1,45 @@
 
 
-# Plan: Förenkla packning till manuell checklista
+# Analys: Scanner-packlistor
 
-## Vad användaren vill
-En packning ska vara en **enkel manuell packlista** — inte ett projekthanteringsverktyg. Man skriver artikelnamn för hand och bockar av dem. Inget Gantt-schema, inga deadlines, inga uppgiftstilldelningar.
+## Resultat av undersökning
 
-## Vad som ändras
+**API:et fungerar korrekt.** Nätverksloggarna visar att `get_packing_items` returnerar produkter (15+ artiklar) för packningen som öppnades. Datan inkluderar `booking_products` med namn, kvantiteter och SKU:er.
 
-### 1. Förenkla `CreatePackingWizard`
-**Fil:** `src/components/packing/CreatePackingWizard.tsx`
-- Ta bort hela checklista-sektionen (DEFAULT_CHECKLIST, DndProvider, deadlines, drag-and-drop)
-- Behåll: namn, valfri bokningskoppling, valfri ansvarig
-- Lägg till ett enkelt fält för att lägga till manuella rader (artikelnamn) direkt vid skapande
-- Varje rad sparas som en `packing_task` med bara `title` + `completed: false`
+**Men det finns en timing-bugg** som gör att progressen visar **0/0** trots att produkter finns:
 
-### 2. Förenkla `PackingDetail`
-**Fil:** `src/pages/PackingDetail.tsx`
-- Ta bort flikarna **Gantt-schema** och **Uppgifter**
-- Byt standardflik till en ny **enkel checklista** som visar alla `packing_tasks` som checkbara rader
-- Behåll: Packlista (scanner-baserad, om bokning finns), Produkter, Filer, Kommentarer
-- Lägg till inline-redigering: klicka på rad för att ändra namn, plus-knapp för att lägga till ny rad
+### Problem: `get_progress` körs innan items skapats
 
-### 3. Ny komponent: `ManualPackingChecklist`
-**Fil:** `src/components/packing/ManualPackingChecklist.tsx` (ny)
-- Enkel lista med:
-  - Varje rad: checkbox + artikelnamn (redigerbart) + ta bort-knapp
-  - Input-fält längst ner: "Lägg till artikel..." + Enter för att spara
-  - Progress: "3/7 avbockade"
-- Använder befintliga `packing_tasks`-tabellen (title + completed)
-- Ingen deadline, ingen tilldelning, ingen drag-and-drop
+`get_packing_items` auto-genererar `packing_list_items` från `booking_products` om de inte finns. Men `useOptimisticPacking.loadData()` kör `get_progress` parallellt med `get_packing_items` via `Promise.all`. Resultatet:
 
-### 4. Städa bort onödiga komponenter
-Följande komponenter **tas bort** (används inte längre):
-- `PackingGanttChart.tsx`
-- `PackingTaskDetailSheet.tsx`
-- `AddPackingTaskDialog.tsx`
-- `PackingTaskItem.tsx`
-- `PackingTaskList.tsx` (ersätts av `ManualPackingChecklist`)
+1. `get_packing_items` → skapar items i databasen → returnerar dem ✅
+2. `get_progress` → räknar items som *inte finns ännu* → returnerar `{total: 0}` ❌
 
-### 5. Behåll scanner-flödet intakt
-`PackingListTab` (scanner-baserad packlista från `packing_list_items`) **behålls oförändrad** — den visas bara om packningen är kopplad till en bokning med produkter. Scannerns Edge Function (`scanner-api`) påverkas inte.
+Progressen visar "0/0 — 0%" trots att produktlistan visas.
+
+### Problem: Samma sak i ManualChecklistView
+
+`ManualChecklistView.loadData()` kör `fetchPackingListItems` och `getItemParcels` parallellt. `getItemParcels` kan också returnera tom data om items inte existerade före anropet.
+
+## Åtgärd
+
+### Fil: `supabase/functions/scanner-api/index.ts`
+
+Ändra `get_progress` att **inte** räkna items oberoende, utan istället anropa samma auto-genererings-logik som `get_packing_items`, ELLER: ändra ordningen i frontend så att `get_progress` körs *efter* `get_packing_items`.
+
+**Enklaste fix:** I `useOptimisticPacking.ts` och `ManualChecklistView.tsx` — kör `get_progress` EFTER `fetchPackingListItems` istället för parallellt. Samma sak med `getItemParcels`.
+
+### Fil: `src/hooks/scanner/useOptimisticPacking.ts`
+- Ändra `Promise.all([fetchPackingForScanner, fetchPackingListItems, getVerificationProgress])` till sekventiell ordning: hämta items först, sedan progress
+
+### Fil: `src/components/scanner/ManualChecklistView.tsx`  
+- Samma fix: hämta items först, sedan parcels
+- Beräkna progress lokalt från returnerade items istället för att anropa `get_progress` separat (som redan görs via `recalcProgress`)
+
+### Bonus: Ta bort onödig `get_progress`-anrop
+`recalcProgress()` beräknar redan progress lokalt från items. `get_progress`-anropet till servern är redundant vid initial load — items-datan räcker.
 
 ## Filer som ändras
-1. `src/components/packing/CreatePackingWizard.tsx` — Förenklad skapandevy
-2. `src/pages/PackingDetail.tsx` — Bort med Gantt + Tasks-flikar, in med manuell checklista
-3. `src/components/packing/ManualPackingChecklist.tsx` — Ny enkel checklistekomponent
-4. Ta bort: `PackingGanttChart.tsx`, `PackingTaskDetailSheet.tsx`, `AddPackingTaskDialog.tsx`, `PackingTaskItem.tsx`, `PackingTaskList.tsx`
+1. `src/hooks/scanner/useOptimisticPacking.ts` — Ta bort `getVerificationProgress` från initial load, använd `recalcProgress` enbart
+2. `src/components/scanner/ManualChecklistView.tsx` — Flytta `getItemParcels` efter items-hämtning
 
