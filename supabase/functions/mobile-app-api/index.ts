@@ -355,12 +355,17 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
 
 async function handleGetBookings(supabase: any, staffId: string, organizationId: string) {
   // Get all booking assignments for this staff member, filtered by org
+  // Include past 30 days for archived job chats
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .gte('assignment_date', new Date().toISOString().split('T')[0]) // Only future/current dates
+    .gte('assignment_date', thirtyDaysAgoStr)
 
   if (assignmentError) {
     console.error('Assignment query error:', assignmentError)
@@ -380,7 +385,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // Get unique booking IDs
   const bookingIds = [...new Set(assignments.map((a: any) => a.booking_id))]
 
-  // Fetch booking details
+  // Fetch booking details - include both CONFIRMED and COMPLETED
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
     .select(`
@@ -407,7 +412,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       assigned_project_name
     `)
     .in('id', bookingIds)
-    .eq('status', 'CONFIRMED')
+    .in('status', ['CONFIRMED', 'COMPLETED'])
     .order('rigdaydate', { ascending: true })
 
   if (bookingsError) {
