@@ -458,7 +458,38 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <Package className="h-3.5 w-3.5" />
           <span className="text-xs">Kolli</span>
         </Button>
+        <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
+          <List className="h-3.5 w-3.5" />
+          <span className="text-xs">Logg</span>
+          {recentScans.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              {recentScans.length > 99 ? '99' : recentScans.length}
+            </span>
+          )}
+        </Button>
       </div>
+
+      {showRecentScans && recentScans.length > 0 && (
+        <div className="border rounded-lg overflow-hidden bg-card">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Senaste scanningar</span>
+            <button onClick={() => setShowRecentScans(false)} className="p-0.5 rounded hover:bg-muted">
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          </div>
+          <div className="divide-y divide-border/30 max-h-[200px] overflow-y-auto">
+            {recentScans.map((scan, i) => (
+              <div key={`${scan.timestamp}-${i}`} className="flex items-center gap-2 px-3 py-1.5">
+                <span className="text-xs">{scan.success ? '✅' : '❌'}</span>
+                <span className="flex-1 text-xs font-medium truncate">{scan.productName}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {new Date(scan.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {lastScanResult && (
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
