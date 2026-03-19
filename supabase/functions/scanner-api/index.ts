@@ -279,6 +279,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               serial_number: serialNumber,
               reservation_id: bookingNumber,
+              booking_number: bookingNumber,
             }),
           }
         )
