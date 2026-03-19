@@ -84,8 +84,8 @@ const ProjectDashboardWidgets = () => {
   const inProgressCount = unified.filter(p => p.status === 'in_progress').length;
   const completedCount = unified.filter(p => p.status === 'completed').length;
 
-  const recentlyUpdated = useMemo(() =>
-    [...unified].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 5),
+  const recentlyCreated = useMemo(() =>
+    [...unified].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
     [unified]
   );
 
