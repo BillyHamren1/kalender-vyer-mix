@@ -8,6 +8,7 @@ import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist"
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingListTab from "@/components/packing/PackingListTab";
+import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
