@@ -34,10 +34,18 @@ function timeToPercent(timeStr: string | null): number | null {
   return Math.max(0, Math.min(100, ((h - HOUR_START) / TOTAL_HOURS) * 100));
 }
 
-const eventTypeColors: Record<string, { bg: string; border: string }> = {
-  Rigg: { bg: 'bg-green-200/75', border: 'border-green-400' },
-  Event: { bg: 'bg-yellow-200/75', border: 'border-yellow-400' },
-  Nedrigg: { bg: 'bg-red-200/75', border: 'border-red-400' },
+const normalizeEventType = (t: string | null): string => {
+  const s = (t ?? '').trim().toLowerCase();
+  if (s === 'rigg' || s === 'rig' || s.includes('monter')) return 'rig';
+  if (s === 'event') return 'event';
+  if (s.includes('rigdown') || s.includes('riggdown') || s.includes('nedrigg') || s.includes('demonter')) return 'rigdown';
+  return s;
+};
+
+const eventTypeColors: Record<string, { bg: string; border: string; label: string }> = {
+  rig:     { bg: 'bg-green-200/75', border: 'border-green-400', label: 'Rigg' },
+  event:   { bg: 'bg-yellow-200/75', border: 'border-yellow-400', label: 'Event' },
+  rigdown: { bg: 'bg-red-200/75', border: 'border-red-400', label: 'Nedrigg' },
 };
 
 const statusConfig = {
