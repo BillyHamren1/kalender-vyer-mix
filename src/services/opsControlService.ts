@@ -257,7 +257,7 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
   const dayEnd = endOfDay(targetDate).toISOString();
   const { data: events } = await supabase
     .from('calendar_events')
-    .select('booking_id, start_time, end_time, event_type, delivery_address')
+    .select('booking_id, resource_id, start_time, end_time, event_type, delivery_address')
     .gte('start_time', dayStart)
     .lte('start_time', dayEnd);
 
