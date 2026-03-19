@@ -41,7 +41,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     scanLog('scan_received', { value: scannedValue });
 
     const {
-      packingId, verifierName, getItems, getIsMinusMode,
+      packingId, verifierName, getItems, getIsMinusMode, getIsKolliMode,
       onScanResult, onHighlight, onOptimisticIncrement,
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
