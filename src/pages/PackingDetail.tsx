@@ -263,14 +263,12 @@ const PackingDetail = () => {
               {booking && (
                 <>
                   <TabsContent value="packlist">
-                    <PackingListTab
-                      packingId={packingId || ''}
-                      packingName={packing.name}
-                      items={packingListItems}
-                      isLoading={isLoadingPackingList}
-                      onUpdateItem={updatePackingListItem}
-                      onMarkAllPacked={() => markAllPacked("Okänd")}
-                    />
+                    <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
+                      <DesktopChecklistView
+                        packingId={packingId || ''}
+                        packingName={packing.name}
+                      />
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="products">
