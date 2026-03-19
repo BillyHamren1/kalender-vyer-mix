@@ -273,21 +273,27 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
     .filter(s => s.is_active)
     .map(s => {
       const staffBookingAssigns = bookingAssignments.filter(a => a.staff_id === s.id);
-      const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns.map(a => {
-        const booking = bookingsMap.get(a.booking_id);
-        const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`) || [];
-        const firstEvent = calEvents[0];
-        return {
-          bookingId: a.booking_id,
-          client: booking?.client || 'Okänd',
-          teamId: a.team_id,
-          startTime: firstEvent?.start_time || null,
-          endTime: firstEvent?.end_time || null,
-          eventType: firstEvent?.event_type || null,
-          deliveryAddress: firstEvent?.delivery_address || booking?.deliveryaddress || null,
-          bookingNumber: booking?.booking_number || null,
-        };
-      });
+      const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns
+        .filter(a => {
+          // Only include assignments that have matching calendar events for this team
+          const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`);
+          return calEvents && calEvents.length > 0;
+        })
+        .map(a => {
+          const booking = bookingsMap.get(a.booking_id);
+          const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`) || [];
+          const firstEvent = calEvents[0];
+          return {
+            bookingId: a.booking_id,
+            client: booking?.client || 'Okänd',
+            teamId: a.team_id,
+            startTime: firstEvent?.start_time || null,
+            endTime: firstEvent?.end_time || null,
+            eventType: firstEvent?.event_type || null,
+            deliveryAddress: firstEvent?.delivery_address || booking?.deliveryaddress || null,
+            bookingNumber: booking?.booking_number || null,
+          };
+        });
 
       // Sort by start time
       assignmentList.sort((a, b) => {
