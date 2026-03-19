@@ -232,7 +232,7 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
             const right = timeToPercent(a.endTime);
             if (left === null || right === null) return null;
             const width = Math.max(right - left, 3);
-            const colors = eventTypeColors[a.eventType || ''] || { bg: 'bg-primary/60', border: 'border-primary/40' };
+            const colors = eventTypeColors[normalizeEventType(a.eventType)] || { bg: 'bg-muted/60', border: 'border-muted', label: a.eventType || '' };
             const isActive = showNow && a.startTime && a.endTime &&
               new Date(a.startTime) <= new Date() && new Date(a.endTime) >= new Date();
             const isDragTarget = dragOverBookingId === a.bookingId && isDragOver;
