@@ -34,10 +34,18 @@ function timeToPercent(timeStr: string | null): number | null {
   return Math.max(0, Math.min(100, ((h - HOUR_START) / TOTAL_HOURS) * 100));
 }
 
-const eventTypeColors: Record<string, { bg: string; border: string }> = {
-  Rigg: { bg: 'bg-green-200/75', border: 'border-green-400' },
-  Event: { bg: 'bg-yellow-200/75', border: 'border-yellow-400' },
-  Nedrigg: { bg: 'bg-red-200/75', border: 'border-red-400' },
+const normalizeEventType = (t: string | null): string => {
+  const s = (t ?? '').trim().toLowerCase();
+  if (s === 'rigg' || s === 'rig' || s.includes('monter')) return 'rig';
+  if (s === 'event') return 'event';
+  if (s.includes('rigdown') || s.includes('riggdown') || s.includes('nedrigg') || s.includes('demonter')) return 'rigdown';
+  return s;
+};
+
+const eventTypeColors: Record<string, { bg: string; border: string; label: string }> = {
+  rig:     { bg: 'bg-green-200/75', border: 'border-green-400', label: 'Rigg' },
+  event:   { bg: 'bg-yellow-200/75', border: 'border-yellow-400', label: 'Event' },
+  rigdown: { bg: 'bg-red-200/75', border: 'border-red-400', label: 'Nedrigg' },
 };
 
 const statusConfig = {
@@ -224,7 +232,7 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
             const right = timeToPercent(a.endTime);
             if (left === null || right === null) return null;
             const width = Math.max(right - left, 3);
-            const colors = eventTypeColors[a.eventType || ''] || { bg: 'bg-primary/60', border: 'border-primary/40' };
+            const colors = eventTypeColors[normalizeEventType(a.eventType)] || { bg: 'bg-muted/60', border: 'border-muted', label: a.eventType || '' };
             const isActive = showNow && a.startTime && a.endTime &&
               new Date(a.startTime) <= new Date() && new Date(a.endTime) >= new Date();
             const isDragTarget = dragOverBookingId === a.bookingId && isDragOver;
@@ -249,11 +257,11 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
                 onMouseLeave={() => setHoveredAssignment(null)}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-[9px] text-primary-foreground font-semibold truncate leading-tight">
+                  <div className="text-[9px] text-foreground font-semibold truncate leading-tight">
                     {a.client}
                   </div>
                   {width > 8 && (
-                    <div className="text-[8px] text-primary-foreground/70 truncate leading-tight">
+                    <div className="text-[8px] text-foreground/70 truncate leading-tight">
                       {a.startTime ? format(new Date(a.startTime), 'HH:mm') : ''}
                       {a.endTime ? `–${format(new Date(a.endTime), 'HH:mm')}` : ''}
                     </div>
@@ -378,10 +386,10 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
 
       {/* Legend */}
       <div className="flex items-center gap-4 mt-2 pt-2 border-t border-border/30 shrink-0">
-        {Object.entries(eventTypeColors).map(([type, { bg }]) => (
+        {Object.entries(eventTypeColors).map(([type, { bg, label }]) => (
           <div key={type} className="flex items-center gap-1">
             <div className={`w-3 h-2 rounded-sm ${bg}`} />
-            <span className="text-[9px] text-muted-foreground">{type}</span>
+            <span className="text-[9px] text-muted-foreground">{label}</span>
           </div>
         ))}
         {showNow && (
