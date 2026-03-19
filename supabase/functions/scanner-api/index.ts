@@ -365,14 +365,17 @@ Deno.serve(async (req) => {
         // 3. Match returned SKU against local packing_list_items
         const { data: packingItems, error: fetchError } = await supabase
           .from('packing_list_items')
-          .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku)`)
+          .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
 
         if (fetchError) return json({ success: false, error: 'Kunde inte hämta packlista' })
 
         const normalizedSku = returnedSku.toLowerCase()
-        const skuItems = (packingItems || []).filter((item: any) => item.booking_products?.sku?.toLowerCase() === normalizedSku)
+        const skuItems = (packingItems || []).filter((item: any) => {
+          const bp = item.booking_products
+          return bp?.sku?.toLowerCase() === normalizedSku || bp?.inventory_item_type_id?.toLowerCase() === normalizedSku
+        })
         if (skuItems.length === 0) {
           return json({ success: false, error: `Artikeltyp "${returnedSku}" finns inte i packlistan` })
         }
