@@ -1636,13 +1636,14 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
 
 async function handleGetBroadcasts(supabase: any, staffId: string, organizationId: string) {
   const today = new Date().toISOString().split('T')[0]
+  // Fetch broadcasts from the last 7 days so staff sees messages from previous evenings
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  // Get all broadcasts from today for this organization
   const { data, error } = await supabase
     .from('broadcast_messages')
     .select('*')
     .eq('organization_id', organizationId)
-    .gte('created_at', `${today}T00:00:00`)
+    .gte('created_at', `${sevenDaysAgo}T00:00:00`)
     .order('created_at', { ascending: false })
     .limit(50)
 
