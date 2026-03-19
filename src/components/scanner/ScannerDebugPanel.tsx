@@ -5,7 +5,7 @@
  * Essential for testing on TC22 + RFD4030 hardware.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,20 +14,32 @@ import {
   Bug, Wifi, WifiOff, Radio, Bluetooth, Smartphone, Monitor,
   ChevronDown, ChevronUp, Zap, Tag, BarChart3 
 } from 'lucide-react';
-import { useScannerController } from '@/hooks/scanner/useScannerController';
-import { ScanEvent } from '@/services/scanner/types';
+import { ScanEvent, ScannerState } from '@/services/scanner/types';
+import { getState } from '@/services/scanner/ScannerService';
+import { simulateDataWedgeScan } from '@/services/scanner/DataWedgeBridge';
+import { simulateRfidTag, simulateReaderStatus } from '@/services/scanner/ZebraRfidBridge';
+import { getQueueStats } from '@/services/scanner/ScanQueue';
 
 interface ScannerDebugPanelProps {
   onClose?: () => void;
 }
 
 export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose }) => {
-  const scanner = useScannerController({ autoInit: false });
+  const [state, setState] = useState<ScannerState>(getState());
   const [expanded, setExpanded] = useState(true);
   const [simBarcode, setSimBarcode] = useState('TEST-SKU-001');
   const [simEpc, setSimEpc] = useState('E200001234567890');
 
-  const { debugInfo, lastScan, scanCount, recentScans, recentRfidTags, queueStats } = scanner;
+  // Poll state from the singleton every 500ms for live updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setState(getState());
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const queueStats = getQueueStats();
+  const { debugInfo, lastScan, scanCount, recentScans, recentRfidTags } = state;
 
   const statusColor = (ok: boolean) => ok ? 'bg-green-500' : 'bg-red-500';
 
@@ -170,7 +182,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs gap-1 px-2"
-                onClick={() => scanner.simulateBarcode(simBarcode)}
+                onClick={() => simulateDataWedgeScan(simBarcode)}
               >
                 <Zap className="h-3 w-3" />
                 Scan
@@ -189,7 +201,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs gap-1 px-2"
-                onClick={() => scanner.simulateRfid(simEpc)}
+                onClick={() => simulateRfidTag(simEpc)}
               >
                 <Tag className="h-3 w-3" />
                 RFID
@@ -202,7 +214,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs flex-1"
-                onClick={() => scanner.simulateReader(true)}
+                onClick={() => simulateReaderStatus(true)}
               >
                 <Wifi className="h-3 w-3 mr-1" />
                 Reader Connected
@@ -211,7 +223,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs flex-1"
-                onClick={() => scanner.simulateReader(false)}
+                onClick={() => simulateReaderStatus(false)}
               >
                 <WifiOff className="h-3 w-3 mr-1" />
                 Disconnected
