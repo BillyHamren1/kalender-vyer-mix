@@ -139,8 +139,12 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       scanLog('scan_ignored_empty');
       return;
     }
-    queueRef.current.push(value.trim());
-    scanLog('scan_enqueued', { value, queueLength: queueRef.current.length });
+    // Split on newlines in case RFID/scanner sends multiple values at once
+    const values = value.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+    for (const v of values) {
+      queueRef.current.push(v);
+      scanLog('scan_enqueued', { value: v, queueLength: queueRef.current.length });
+    }
     processNext();
   }, [processNext]);
 
