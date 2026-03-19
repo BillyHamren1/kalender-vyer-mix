@@ -97,6 +97,14 @@ const ProjectDashboardWidgets = () => {
       .slice(0, 5);
   }, [unified]);
 
+  const recentlyCompleted = useMemo(() =>
+    [...unified]
+      .filter(p => p.status === 'completed')
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5),
+    [unified]
+  );
+
   const statItems = [
     { label: 'Aktiva', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10' },
     { label: 'Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5' },
