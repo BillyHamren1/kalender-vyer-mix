@@ -257,7 +257,7 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
                 onMouseLeave={() => setHoveredAssignment(null)}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-[9px] text-primary-foreground font-semibold truncate leading-tight">
+                  <div className="text-[9px] text-foreground font-semibold truncate leading-tight">
                     {a.client}
                   </div>
                   {width > 8 && (
