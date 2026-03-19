@@ -4,12 +4,21 @@ import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Inbox, Calendar, MapPin, FolderKanban, Briefcase, Building2, ChevronRight, XCircle, Trash2, Undo2 } from 'lucide-react';
-import { fetchBookings } from '@/services/bookingService';
 import { supabase } from '@/integrations/supabase/client';
 import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
+
+interface IncomingBooking {
+  id: string;
+  client: string;
+  status: string;
+  booking_number: string | null;
+  eventdate: string | null;
+  deliveryaddress: string | null;
+  large_project_id: string | null;
+}
 
 interface IncomingBookingsListProps {
   onCreateProject: (bookingId: string) => void;
@@ -25,20 +34,25 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
-      const allBookings = await fetchBookings();
+      // Query only unassigned bookings directly from Supabase
+      const { data: candidates, error } = await supabase
+        .from('bookings')
+        .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
+        .in('status', ['CONFIRMED', 'CANCELLED'])
+        .or('assigned_to_project.is.null,assigned_to_project.eq.false')
+        .is('large_project_id', null)
+        .order('created_at', { ascending: false });
 
-      const candidates = allBookings.filter((b) => {
-        const isConfirmedNew = b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
-        const isCancelledNew = b.status === 'CANCELLED' && !b.assignedToProject && !b.largeProjectId;
-        return isConfirmedNew || isCancelledNew;
-      });
-
-      if (candidates.length === 0) return [];
+      if (error) {
+        console.error('Error fetching incoming bookings:', error);
+        return [];
+      }
+      if (!candidates || candidates.length === 0) return [];
 
       const candidateIds = candidates.map(b => b.id);
       
       const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
-        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).neq('status', 'completed'),
+        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
         supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
         supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
       ]);
@@ -49,8 +63,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         ...(largeLinks || []).map(l => l.booking_id),
       ]);
 
-      return candidates.filter(b => !assignedIds.has(b.id));
-    }
+      return candidates.filter(b => !assignedIds.has(b.id)) as IncomingBooking[];
+    },
+    placeholderData: [],
   });
 
   const invalidateAll = () => {
