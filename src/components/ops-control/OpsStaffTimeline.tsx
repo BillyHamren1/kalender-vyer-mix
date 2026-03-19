@@ -386,10 +386,10 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
 
       {/* Legend */}
       <div className="flex items-center gap-4 mt-2 pt-2 border-t border-border/30 shrink-0">
-        {Object.entries(eventTypeColors).map(([type, { bg }]) => (
+        {Object.entries(eventTypeColors).map(([type, { bg, label }]) => (
           <div key={type} className="flex items-center gap-1">
             <div className={`w-3 h-2 rounded-sm ${bg}`} />
-            <span className="text-[9px] text-muted-foreground">{type}</span>
+            <span className="text-[9px] text-muted-foreground">{label}</span>
           </div>
         ))}
         {showNow && (
