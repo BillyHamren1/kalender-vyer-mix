@@ -1,55 +1,150 @@
+# Steg 6: Zebra RFID SDK-integration ✅ Klart
 
+## Åtgärd
+- ✅ `ZebraRfidPlugin.java` — all stub-kod ersatt med riktiga Zebra RFID SDK-anrop
+  - `connectReader()` — söker tillgängliga readers, ansluter, konfigurerar trigger-läge, registrerar event handler
+  - `disconnectReader()` — stoppar inventory, tar bort lyssnare, kopplar från
+  - `startInventory()` / `stopInventory()` — riktiga SDK-anrop
+  - `RfidEventHandler` — lyssnar på tag reads + status events (disconnect, trigger)
+  - `handleOnDestroy()` — fullständig cleanup
+  - `load()` — initierar `Readers` med SERVICE_SERIAL (fallback BLUETOOTH)
+  - Anslutning körs på bakgrundstråd för att undvika ANR
 
-# Integrera Zebra RFID SDK i Android-pluginen
+## Manuella steg kvar
+1. Ladda ner `rfidapi3.aar` från Zebra Developer Portal
+2. Placera i `android/app/libs/rfidapi3.aar`
+3. I `android/app/build.gradle` lägg till:
+   ```groovy
+   repositories { flatDir { dirs 'libs' } }
+   dependencies { implementation(name: 'rfidapi3', ext: 'aar') }
+   ```
+4. `git pull && npx cap sync android` → bygg i Android Studio
 
-## Sammanfattning
+---
 
-Hela RFID-pluginen (`ZebraRfidPlugin.java`) är en **stub** — all SDK-kod är utkommenterad. Readern kan vara Bluetooth-parad på Android-nivå, men appen kan inte prata med den. För att fixa "ingen reader" behöver den riktiga Zebra RFID SDK:n (rfidapi3) kopplas in.
+# Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
-## Steg
+## Databasändringar
+- ✅ `travel_time_logs`-tabell skapad med RLS (org_filter + service_role)
+- Kolumner: staff_id, report_date, start/end_time, hours_worked, from/to address+coords, auto_detected, description
 
-### 1. Ladda ner Zebra RFID SDK
-- Hämta `rfidapi3.aar` från [Zebra Developer Portal](https://www.zebra.com/us/en/support-downloads/software/developer-tools/rfid-sdk-for-android.html)
-- Placera filen i `android/app/libs/rfidapi3.aar`
+## Edge Function
+- ✅ `mobile-app-api` utökad med tre nya actions:
+  - `create_travel_log` — startar ny förflyttningslogg med startposition
+  - `stop_travel_log` — stoppar pågående logg, beräknar hours_worked, sparar slutposition
+  - `get_travel_logs` — hämtar egna loggar (max 50)
 
-### 2. Konfigurera Gradle
-I `android/app/build.gradle`, lägg till:
-```groovy
-repositories {
-    flatDir { dirs 'libs' }
-}
-dependencies {
-    implementation(name: 'rfidapi3', ext: 'aar')
-}
+## Frontend — nya filer
+- ✅ `src/hooks/useTravelDetection.ts` — GPS-baserad rörelsedetektering (speed > 2 m/s i 30s = start, < 1 m/s i 60s = stopp), reverse geocoding via Mapbox
+- ✅ `src/components/mobile-app/TravelBanner.tsx` — aktiv förflyttningsindikator med timer, bil-ikon, stopknapp
+
+## Frontend — uppdaterade filer
+- ✅ `src/services/mobileApiService.ts` — nya API-metoder + `MobileTravelLog` interface
+- ✅ `src/hooks/useMobileData.ts` — ny `useMobileTravelLogs()` hook
+- ✅ `src/pages/mobile/MobileJobs.tsx` — TravelBanner visas på jobbsidan
+- ✅ `src/pages/mobile/MobileProfile.tsx` — reshistorik med senaste 3 resor, totaltid
+- ✅ `src/pages/mobile/MobileTimeHistory.tsx` — förflyttningstid visas som 🚗-markerade rader i tidrapportlistan
+
+---
+
+# Steg 4: Regression Test Layer ✅ Klart
+
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
+
+## Totalt: 159 tester i 7 filer, alla gröna.
+
+---
+
+# Steg 1: SAFE NOW ✅ Klart
+
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
+
+---
+
+# Steg 2: SAFE NEXT ✅ Klart
+
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
-### 3. Aktivera SDK-koden i pluginen
-I `ZebraRfidPlugin.java` — avkommentera alla `TODO`-sektioner:
-- Import av `com.zebra.rfid.api3.*`
-- `Readers`-initiering i `load()`
-- Riktig anslutning i `connectReader()`
-- `disconnectReader()`, `startInventory()`, `stopInventory()` — riktiga SDK-anrop
-- `RfidEventHandler`-klassen (tag reads + status events)
-- Cleanup i `handleOnDestroy()`
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-Ta bort stub-rejects (`call.reject("Zebra RFID SDK not yet integrated...")`)
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
 
-### 4. Synka och bygg
-```bash
-git pull
-npx cap sync android
-# Bygg via Android Studio eller: npx cap run android
+---
+
+# Booking Sync — Arkitektur
+
+Vi (Planning) är **mottagare**. EventFlow är **källa**.
+
+```
+EventFlow (källa) → Webhook POST → Planning (vi, mottagare)
+Planning (vi) → GET export_bookings?booking_id=X → EventFlow (hämta data)
 ```
 
-## Vad Lovable kan göra vs. vad du måste göra manuellt
-
-| Uppgift | Var |
-|---|---|
-| Avkommentera SDK-koden i Java-pluginen | **Lovable kan göra detta** |
-| Ladda ner `rfidapi3.aar` från Zebra | **Manuellt** — kräver nedladdning + placering i `libs/` |
-| Skapa/uppdatera `build.gradle` med dependency | **Lovable kan göra detta** |
-| `npx cap sync` + bygga APK | **Manuellt** — lokalt i Android Studio |
-
-## Teknisk detalj
-All infrastruktur på TypeScript-sidan (bridge, events, dedup, status-hantering) är redan klar. Det enda som saknas är att Java-pluginen faktiskt anropar Zebra SDK istället för att returnera `reject`.
-
+**Två endpoints, två ansvarsområden:**
+1. `receive-booking` — tar emot webhook från EventFlow, svarar 202, triggar sync
+2. `import-bookings` — anropar EventFlows `export_bookings` endpoint för att hämta bokningsdata
