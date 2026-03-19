@@ -306,23 +306,54 @@ Deno.serve(async (req) => {
 
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
-        // Handle batch response format: { results: [{ serial_number, success, sku, error }] }
+        // Extract SKU from various response formats
         let returnedSku = allocateData.sku
+
+        // Format A: Batch response with results array
         if (!returnedSku && Array.isArray(allocateData.results)) {
           const myResult = allocateData.results.find(
             (r: any) => r.serial_number === serialNumber
           )
           if (myResult) {
+            // Check for already_allocated flag (success:true but no SKU)
+            if (myResult.data?.already_allocated) {
+              console.warn('[allocate-instance] Redan allokerad (flagga):', serialNumber)
+              return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+            }
             if (!myResult.success) {
               const isAlreadyAllocated = (myResult.error || '').toLowerCase().includes('fully allocated')
               if (isAlreadyAllocated) {
-                console.warn('[allocate-instance] Redan allokerad:', serialNumber)
-                return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+                returnedSku = myResult.data?.item_type_id || myResult.data?.sku
+                if (!returnedSku) {
+                  console.warn('[allocate-instance] Redan allokerad (fully allocated, no sku):', serialNumber)
+                  return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+                }
+                // Fall through — use returnedSku to check off locally
+              } else {
+                console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
+                return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
               }
-              console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
-              return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
+            } else {
+              returnedSku = myResult.data?.sku || myResult.data?.item_type_id || myResult.sku || myResult.item_type_id
             }
-            returnedSku = myResult.sku || myResult.item_type_id
+          }
+        }
+
+        // Format B: Single-item response (no results array)
+        if (!returnedSku && !Array.isArray(allocateData.results)) {
+          if (allocateData.data?.already_allocated) {
+            console.warn('[allocate-instance] Redan allokerad (single, flagga):', serialNumber)
+            return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+          }
+          const isFullyAllocated = (allocateData.error || '').toLowerCase().includes('fully allocated')
+          if (isFullyAllocated) {
+            returnedSku = allocateData.data?.item_type_id || allocateData.data?.sku
+            if (!returnedSku) {
+              return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+            }
+          }
+          if (!returnedSku) {
+            returnedSku = allocateData.data?.sku || allocateData.data?.item_type_id
           }
         }
 
