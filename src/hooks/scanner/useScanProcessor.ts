@@ -104,6 +104,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onHighlight(matchingItem.id);
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
+        addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
         notifyRfid(scannedValue, true);
       } else {
         // === NORMAL MODE ===
