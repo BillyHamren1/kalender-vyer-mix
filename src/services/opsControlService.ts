@@ -275,7 +275,7 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
       const staffBookingAssigns = bookingAssignments.filter(a => a.staff_id === s.id);
       const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns.map(a => {
         const booking = bookingsMap.get(a.booking_id);
-        const calEvents = eventsByBooking.get(a.booking_id) || [];
+        const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`) || [];
         const firstEvent = calEvents[0];
         return {
           bookingId: a.booking_id,
