@@ -214,7 +214,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs flex-1"
-                onClick={() => scanner.simulateReader(true)}
+                onClick={() => simulateReaderStatus(true)}
               >
                 <Wifi className="h-3 w-3 mr-1" />
                 Reader Connected
