@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CalendarEvent, Resource } from './ResourceData';
+import { CalendarEvent, Resource, getEventDotClass } from './ResourceData';
 import { format } from 'date-fns';
 import { ArrowLeft, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
