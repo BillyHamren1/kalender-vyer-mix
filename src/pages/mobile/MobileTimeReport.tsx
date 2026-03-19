@@ -33,9 +33,19 @@ const MobileTimeReport = () => {
     if (!startTime || !endTime) return 0;
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    const total = (eh + em / 60) - (sh + sm / 60) - parseFloat(breakTime || '0');
+    let total = (eh + em / 60) - (sh + sm / 60);
+    // Handle night shifts crossing midnight
+    if (total < 0) total += 24;
+    total -= parseFloat(breakTime || '0');
     return Math.max(0, Math.round(total * 100) / 100);
   };
+
+  const isNightShift = (() => {
+    if (!startTime || !endTime) return false;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    return (eh + em / 60) < (sh + sm / 60);
+  })();
 
   const handleSubmit = async () => {
     if (!selectedBookingId) {
