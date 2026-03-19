@@ -8,7 +8,7 @@
 import { ScanEvent, ScanMode, ScannerState, ScannerDebugInfo, ScannerConfig, DEFAULT_SCANNER_CONFIG, RfidReaderStatus } from './types';
 import { detectPlatform } from './platform';
 import { startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount } from './DataWedgeBridge';
-import { startRfidListener, stopRfidListener, isRfidListening, getRecentTags, getUniqueTagCount, getTagReadCount } from './ZebraRfidBridge';
+import { startRfidListener, stopRfidListener, isRfidListening, connectRfidReader, getRecentTags, getUniqueTagCount, getTagReadCount } from './ZebraRfidBridge';
 import { startKeyboardListener, stopKeyboardListener, isKeyboardListenerActive } from './KeyboardFallbackBridge';
 import { enqueueScan } from './ScanQueue';
 
@@ -111,6 +111,18 @@ export function initScanner(
       },
       config.rfidDedupWindowMs
     );
+
+    // Auto-connect to RFID reader if available
+    connectRfidReader()
+      .then(result => {
+        if (result.connected) {
+          readerStatus = { isConnected: true, readerModel: result.model };
+          console.log('[ScannerService] RFID reader auto-connected:', result.model);
+        }
+      })
+      .catch(err => {
+        console.log('[ScannerService] RFID auto-connect skipped (no reader):', err.message);
+      });
   }
 
   // Priority 3: Keyboard fallback (web or non-Zebra Android)
