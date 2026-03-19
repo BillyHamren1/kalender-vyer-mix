@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
         return await handleMe(supabase, staffId, organizationId)
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId, organizationId)
+      case 'get_inbox_jobs':
+        return await handleGetInboxJobs(supabase, staffId, organizationId)
       case 'get_booking_details':
         return await handleGetBookingDetails(supabase, staffId, data, organizationId)
       case 'get_time_reports':
@@ -354,18 +356,15 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
 }
 
 async function handleGetBookings(supabase: any, staffId: string, organizationId: string) {
-  // Get all booking assignments for this staff member, filtered by org
-  // Include past 30 days for archived job chats
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+  // Get future/current booking assignments for this staff member
+  const today = new Date().toISOString().split('T')[0];
 
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .gte('assignment_date', thirtyDaysAgoStr)
+    .gte('assignment_date', today)
 
   if (assignmentError) {
     console.error('Assignment query error:', assignmentError)
@@ -382,10 +381,8 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // Get unique booking IDs
   const bookingIds = [...new Set(assignments.map((a: any) => a.booking_id))]
 
-  // Fetch booking details - include both CONFIRMED and COMPLETED
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
     .select(`
@@ -412,7 +409,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       assigned_project_name
     `)
     .in('id', bookingIds)
-    .in('status', ['CONFIRMED', 'COMPLETED'])
+    .eq('status', 'CONFIRMED')
     .order('rigdaydate', { ascending: true })
 
   if (bookingsError) {
@@ -434,6 +431,57 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
   return new Response(
     JSON.stringify({ bookings: bookingsWithAssignments || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetInboxJobs(supabase: any, staffId: string, organizationId: string) {
+  // Fetch bookings from the last 30 days (incl. COMPLETED) for inbox/job chat
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+  const { data: assignments, error: assignmentError } = await supabase
+    .from('booking_staff_assignments')
+    .select('booking_id, assignment_date')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .gte('assignment_date', thirtyDaysAgoStr)
+
+  if (assignmentError) {
+    console.error('Inbox assignment query error:', assignmentError)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch inbox assignments' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return new Response(
+      JSON.stringify({ bookings: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const bookingIds = [...new Set(assignments.map((a: any) => a.booking_id))]
+
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select('id, client, status, rigdaydate, eventdate, rigdowndate')
+    .in('id', bookingIds)
+    .in('status', ['CONFIRMED', 'COMPLETED'])
+    .order('rigdaydate', { ascending: false })
+
+  if (bookingsError) {
+    console.error('Inbox bookings query error:', bookingsError)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch inbox bookings' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ bookings: bookings || [] }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

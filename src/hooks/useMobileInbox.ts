@@ -68,7 +68,7 @@ export function useMobileInbox() {
   const jobQuery = useQuery({
     queryKey: ['mobile-inbox-jobs'],
     queryFn: async (): Promise<JobConversation[]> => {
-      const res = await mobileApi.getBookings();
+      const res = await mobileApi.getInboxJobs();
       return (res.bookings || []).slice(0, 50).map((b: any) => ({
         bookingId: b.id,
         client: b.client,
