@@ -1,21 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PackingStatusDropdown from "@/components/packing/PackingStatusDropdown";
-import PackingTaskList from "@/components/packing/PackingTaskList";
+import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist";
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
-import PackingGanttChart from "@/components/packing/PackingGanttChart";
-import PackingTaskDetailSheet from "@/components/packing/PackingTaskDetailSheet";
 import PackingListTab from "@/components/packing/PackingListTab";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
 import { fetchPackingProducts } from "@/services/packingService";
-import { PackingTask } from "@/types/packing";
 import { BookingProduct } from "@/types/booking";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -30,24 +26,19 @@ interface ProductChanges {
 const PackingDetail = () => {
   const { packingId } = useParams<{ packingId: string }>();
   const navigate = useNavigate();
-  const [selectedTask, setSelectedTask] = useState<PackingTask | null>(null);
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
   const loadRequestIdRef = useRef(0);
   const lastNotifiedSignatureRef = useRef<string | null>(null);
-  
+
   const {
     packing,
-    tasks,
     comments,
     files,
     isLoading,
     updateStatus,
-    addTask,
-    updateTask,
-    deleteTask,
     addComment,
     uploadFile,
     deleteFile,
@@ -72,13 +63,11 @@ const PackingDetail = () => {
     if (oldProducts.length === 0) return null;
     const oldById = new Map(oldProducts.map((p) => [p.id, p]));
     const newById = new Map(newProducts.map((p) => [p.id, p]));
-    const added: string[] = [];
-    const removed: string[] = [];
-    const updated: string[] = [];
+    const added: string[] = [], removed: string[] = [], updated: string[] = [];
     for (const [id, p] of newById.entries()) {
       const old = oldById.get(id);
-      if (!old) { added.push(p.name); }
-      else if (old.quantity !== p.quantity) { updated.push(`${p.name}: ${old.quantity} → ${p.quantity}`); }
+      if (!old) added.push(p.name);
+      else if (old.quantity !== p.quantity) updated.push(`${p.name}: ${old.quantity} → ${p.quantity}`);
     }
     for (const [id, p] of oldById.entries()) {
       if (!newById.has(id)) removed.push(p.name);
@@ -99,7 +88,7 @@ const PackingDetail = () => {
         const newSignature = makeProductsSignature(productsData);
         if (changes && newSignature !== lastNotifiedSignatureRef.current) {
           lastNotifiedSignatureRef.current = newSignature;
-          toast.info(`Produktlistan uppdaterad: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`, { duration: 5000 });
+          toast.info(`Produktlistan uppdaterad`, { duration: 5000 });
           syncPackingList();
         }
       }
@@ -108,7 +97,7 @@ const PackingDetail = () => {
     } catch (error) {
       console.error("Error loading products:", error);
     } finally {
-      if (requestId === loadRequestIdRef.current) { setIsLoadingProducts(false); }
+      if (requestId === loadRequestIdRef.current) setIsLoadingProducts(false);
     }
   }, [detectProductChanges, makeProductsSignature, packing?.booking_id, syncPackingList]);
 
@@ -121,7 +110,6 @@ const PackingDetail = () => {
       await loadProducts(true);
       toast.success("Data uppdaterad");
     } catch (error) {
-      console.error('Error refreshing:', error);
       toast.error("Kunde inte uppdatera data");
     } finally { setIsRefreshing(false); }
   };
@@ -129,14 +117,13 @@ const PackingDetail = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && packingId) {
-        console.log('[PackingDetail] Tab became visible, refreshing data...');
         refetchAll();
         refetchItems();
         loadProducts(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => { document.removeEventListener('visibilitychange', handleVisibilityChange); };
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [packingId, refetchAll, refetchItems, loadProducts]);
 
   if (isLoading) {
@@ -198,20 +185,11 @@ const PackingDetail = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="border-border/60"
-              >
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="border-border/60">
                 <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Uppdatera
               </Button>
-              <PackingStatusDropdown 
-                status={packing.status} 
-                onStatusChange={updateStatus} 
-              />
+              <PackingStatusDropdown status={packing.status} onStatusChange={updateStatus} />
             </div>
           </div>
 
@@ -252,112 +230,82 @@ const PackingDetail = () => {
 
           {/* Tabs Content */}
           <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
-            <Tabs defaultValue="packlist" className="space-y-4">
+            <Tabs defaultValue="checklist" className="space-y-4">
               <TabsList className="flex-wrap h-auto gap-1">
-                <TabsTrigger value="packlist" className="flex items-center gap-1">
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  Packlista
+                <TabsTrigger value="checklist" className="flex items-center gap-1">
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  Checklista
                 </TabsTrigger>
-                <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
-                <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
                 {booking && (
-                  <TabsTrigger value="products" className="flex items-center gap-1">
-                    <Package className="h-3.5 w-3.5" />
-                    Produkter ({products.length})
-                  </TabsTrigger>
+                  <>
+                    <TabsTrigger value="packlist" className="flex items-center gap-1">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Packlista
+                    </TabsTrigger>
+                    <TabsTrigger value="products" className="flex items-center gap-1">
+                      <Package className="h-3.5 w-3.5" />
+                      Produkter ({products.length})
+                    </TabsTrigger>
+                  </>
                 )}
                 <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="packlist">
-                <PackingListTab
-                  packingId={packingId || ''}
-                  packingName={packing.name}
-                  items={packingListItems}
-                  isLoading={isLoadingPackingList}
-                  onUpdateItem={updatePackingListItem}
-                  onMarkAllPacked={() => markAllPacked("Okänd")}
-                />
-              </TabsContent>
-
-              <TabsContent value="gantt">
-                <PackingGanttChart 
-                  tasks={tasks}
-                  rigDate={booking?.rigdaydate}
-                  eventDate={booking?.eventdate}
-                  rigdownDate={booking?.rigdowndate}
-                  onTaskClick={setSelectedTask}
-                />
-              </TabsContent>
-
-              <TabsContent value="tasks">
+              <TabsContent value="checklist">
                 <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
-                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-4">Uppgifter</h3>
-                  <PackingTaskList
-                    tasks={tasks}
-                    onAddTask={(task) => addTask(task)}
-                    onUpdateTask={(data) => updateTask(data)}
-                    onDeleteTask={deleteTask}
-                  />
+                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-4">Manuell packlista</h3>
+                  <ManualPackingChecklist packingId={packingId || ''} />
                 </div>
               </TabsContent>
 
               {booking && (
-                <TabsContent value="products">
-                  <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
-                    <h3 className="font-semibold text-lg text-[hsl(var(--heading))] flex items-center gap-2 mb-4">
-                      <Package className="h-5 w-5" />
-                      Produkter från bokning
-                    </h3>
-                    {isLoadingProducts ? (
-                      <div className="animate-pulse space-y-2">
-                        <div className="h-8 bg-muted rounded-lg" />
-                        <div className="h-8 bg-muted rounded-lg" />
-                        <div className="h-8 bg-muted rounded-lg" />
-                      </div>
-                    ) : products.length > 0 ? (
-                      <ProductsList products={products} showPricing={false} />
-                    ) : (
-                      <p className="text-muted-foreground text-center py-8 text-[0.925rem]">
-                        Inga produkter kopplade till denna bokning
-                      </p>
-                    )}
-                  </div>
-                </TabsContent>
+                <>
+                  <TabsContent value="packlist">
+                    <PackingListTab
+                      packingId={packingId || ''}
+                      packingName={packing.name}
+                      items={packingListItems}
+                      isLoading={isLoadingPackingList}
+                      onUpdateItem={updatePackingListItem}
+                      onMarkAllPacked={() => markAllPacked("Okänd")}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="products">
+                    <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
+                      <h3 className="font-semibold text-lg text-[hsl(var(--heading))] flex items-center gap-2 mb-4">
+                        <Package className="h-5 w-5" />
+                        Produkter från bokning
+                      </h3>
+                      {isLoadingProducts ? (
+                        <div className="animate-pulse space-y-2">
+                          <div className="h-8 bg-muted rounded-lg" />
+                          <div className="h-8 bg-muted rounded-lg" />
+                        </div>
+                      ) : products.length > 0 ? (
+                        <ProductsList products={products} showPricing={false} />
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8 text-[0.925rem]">
+                          Inga produkter kopplade till denna bokning
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </>
               )}
 
               <TabsContent value="files">
-                <PackingFiles
-                  files={files}
-                  onUpload={uploadFile}
-                  onDelete={deleteFile}
-                  isUploading={isUploadingFile}
-                />
+                <PackingFiles files={files} onUpload={uploadFile} onDelete={deleteFile} isUploading={isUploadingFile} />
               </TabsContent>
 
               <TabsContent value="comments">
-                <PackingComments
-                  comments={comments}
-                  onAddComment={addComment}
-                />
+                <PackingComments comments={comments} onAddComment={addComment} />
               </TabsContent>
             </Tabs>
           </div>
         </div>
       </div>
-
-      {/* Task Detail Sheet */}
-      <PackingTaskDetailSheet
-        task={selectedTask}
-        open={!!selectedTask}
-        onOpenChange={(open) => !open && setSelectedTask(null)}
-        onUpdateTask={(data) => updateTask(data)}
-        onDeleteTask={(id) => {
-          deleteTask(id);
-          setSelectedTask(null);
-        }}
-      />
     </div>
   );
 };
