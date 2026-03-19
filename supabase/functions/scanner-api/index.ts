@@ -243,6 +243,14 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Lagersystem ej konfigurerat' })
         }
 
+        console.log('[allocate-instance] Request:', {
+          url: 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
+          serial_number: serialNumber,
+          reservation_id: packing.booking_id,
+          hasApiKey: !!PRICELIST_API_KEY,
+          orgId: ORG_ID,
+        })
+
         const allocateResponse = await fetch(
           'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
           {
@@ -259,21 +267,27 @@ Deno.serve(async (req) => {
           }
         )
 
+        const responseText = await allocateResponse.text()
+        console.log('[allocate-instance] Response:', {
+          status: allocateResponse.status,
+          statusText: allocateResponse.statusText,
+          body: responseText,
+        })
+
         if (!allocateResponse.ok) {
           const status = allocateResponse.status
+          const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
           if (status === 404) {
             return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet` })
           }
           if (status === 409) {
-            const errBody = await allocateResponse.json().catch(() => ({}))
             return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad' })
           }
-          const errBody = await allocateResponse.json().catch(() => ({}))
           console.error('Inventory API error:', status, errBody)
           return json({ success: false, error: errBody.error || `Lagerfel (${status})` })
         }
 
-        const allocateData = await allocateResponse.json()
+        const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
         const returnedSku = allocateData.sku
 
         if (!returnedSku) {
