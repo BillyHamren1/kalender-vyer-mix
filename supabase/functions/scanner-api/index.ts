@@ -227,13 +227,19 @@ Deno.serve(async (req) => {
         // 1. Get booking_id from packing_projects
         const { data: packing, error: packingError } = await supabase
           .from('packing_projects')
-          .select('booking_id')
+          .select('booking_id, bookings!inner(booking_number)')
           .eq('id', packingId)
           .eq('organization_id', ORG_ID)
           .single()
 
         if (packingError || !packing?.booking_id) {
           return json({ success: false, error: 'Packlistan saknar kopplad bokning' })
+        }
+
+        const bookingNumber = (packing as any).bookings?.booking_number
+        if (!bookingNumber) {
+          console.error('No booking_number found for booking_id:', packing.booking_id)
+          return json({ success: false, error: 'Bokningen saknar bokningsnummer' })
         }
 
         // 2. Call external inventory API to allocate the instance
@@ -246,7 +252,8 @@ Deno.serve(async (req) => {
         console.log('[allocate-instance] Request:', {
           url: 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
           serial_number: serialNumber,
-          reservation_id: packing.booking_id,
+          reservation_id: bookingNumber,
+          booking_id: packing.booking_id,
           hasApiKey: !!PRICELIST_API_KEY,
           orgId: ORG_ID,
         })
