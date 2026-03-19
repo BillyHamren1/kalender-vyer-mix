@@ -20,6 +20,7 @@ interface UnifiedItem {
   subtitle: string | null;
   navigateTo: string;
   updatedAt: string;
+  createdAt: string;
 }
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
