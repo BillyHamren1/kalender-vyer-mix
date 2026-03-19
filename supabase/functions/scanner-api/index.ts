@@ -307,35 +307,56 @@ Deno.serve(async (req) => {
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
         // Extract SKU from various response formats
+        // Split batch serial numbers (may contain newlines)
+        const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
+        
         let returnedSku = allocateData.sku
+        const alreadyAllocatedSerials: string[] = []
+        const failedSerials: string[] = []
 
         // Format A: Batch response with results array
         if (!returnedSku && Array.isArray(allocateData.results)) {
-          const myResult = allocateData.results.find(
-            (r: any) => r.serial_number === serialNumber
-          )
-          if (myResult) {
-            // Check for already_allocated flag (success:true but no SKU)
-            if (myResult.data?.already_allocated) {
-              console.warn('[allocate-instance] Redan allokerad (flagga):', serialNumber)
-              return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+          for (const r of allocateData.results) {
+            // Only process results matching our serial numbers
+            if (!serialNumbers.includes(r.serial_number)) continue
+
+            if (r.data?.already_allocated || r.data?.over_allocated) {
+              alreadyAllocatedSerials.push(r.serial_number)
+              // Still grab SKU if available for local check-off
+              if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id
+              continue
             }
-            if (!myResult.success) {
-              const isAlreadyAllocated = (myResult.error || '').toLowerCase().includes('fully allocated')
+            if (!r.success) {
+              const isAlreadyAllocated = (r.error || '').toLowerCase().includes('fully allocated')
               if (isAlreadyAllocated) {
-                returnedSku = myResult.data?.item_type_id || myResult.data?.sku
-                if (!returnedSku) {
-                  console.warn('[allocate-instance] Redan allokerad (fully allocated, no sku):', serialNumber)
-                  return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
-                }
-                // Fall through — use returnedSku to check off locally
+                if (!returnedSku) returnedSku = r.data?.item_type_id || r.data?.sku
+                alreadyAllocatedSerials.push(r.serial_number)
               } else {
-                console.warn('[allocate-instance] Allokering misslyckades:', myResult.error)
-                return json({ success: false, error: myResult.error || 'Allokering misslyckades i lagersystemet' })
+                failedSerials.push(r.serial_number)
               }
-            } else {
-              returnedSku = myResult.data?.sku || myResult.data?.item_type_id || myResult.sku || myResult.item_type_id
+              continue
             }
+            // Successful allocation — grab SKU
+            if (!returnedSku) {
+              returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
+            }
+          }
+
+          // If ALL were already allocated and no SKU found
+          if (!returnedSku && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+            const shortNrs = alreadyAllocatedSerials.map((s: string) => s.replace(/^FACE\d{16}/, '').replace(/^0+/, '') || s)
+            console.warn('[allocate-instance] Alla redan allokerade:', shortNrs)
+            return json({ 
+              success: false, 
+              error: `Nr ${shortNrs.join(', ')} är redan scannad/allokerad`, 
+              alreadyScanned: true 
+            })
+          }
+          
+          // If all failed (non-allocation errors)
+          if (!returnedSku && failedSerials.length > 0 && alreadyAllocatedSerials.length === 0) {
+            console.warn('[allocate-instance] Allokering misslyckades för:', failedSerials)
+            return json({ success: false, error: 'Allokering misslyckades i lagersystemet' })
           }
         }
 
