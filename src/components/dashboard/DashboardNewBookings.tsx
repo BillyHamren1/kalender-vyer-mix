@@ -126,34 +126,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
     }
   };
 
-  if (isLoading) {
-    return (
-      <div
-        className="relative rounded-2xl overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%)',
-          boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px hsl(var(--border) / 0.5)',
-        }}
-      >
-        <div className="h-1 bg-gradient-to-r from-amber-400/60 via-amber-500 to-amber-400/60" />
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-500/5 ring-1 ring-amber-500/20">
-              <Inbox className="h-5 w-5 text-amber-600" />
-            </div>
-            <h3 className="font-semibold text-lg">Nya bokningar</h3>
-          </div>
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-20 bg-muted/50 animate-pulse rounded-xl" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (bookings.length === 0) {
+  if (isLoading || bookings.length === 0) {
     return null;
   }
 
