@@ -278,6 +278,7 @@ const MobileScannerApp: React.FC = () => {
           isReaderConnected={scanner.isReaderConnected}
           scanCount={scanner.scanCount}
           warning={scanner.warning}
+          onModeChange={scanner.switchMode}
         />
       </div>
 
