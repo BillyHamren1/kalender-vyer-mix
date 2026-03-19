@@ -257,36 +257,43 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
   const dayEnd = endOfDay(targetDate).toISOString();
   const { data: events } = await supabase
     .from('calendar_events')
-    .select('booking_id, start_time, end_time, event_type, delivery_address')
+    .select('booking_id, resource_id, start_time, end_time, event_type, delivery_address')
     .gte('start_time', dayStart)
     .lte('start_time', dayEnd);
 
-  const eventsByBooking = new Map<string, any[]>();
+  const eventsByBookingTeam = new Map<string, any[]>();
   for (const e of (events || [])) {
-    if (!e.booking_id) continue;
-    if (!eventsByBooking.has(e.booking_id)) eventsByBooking.set(e.booking_id, []);
-    eventsByBooking.get(e.booking_id)!.push(e);
+    if (!e.booking_id || !e.resource_id) continue;
+    const key = `${e.booking_id}|${e.resource_id}`;
+    if (!eventsByBookingTeam.has(key)) eventsByBookingTeam.set(key, []);
+    eventsByBookingTeam.get(key)!.push(e);
   }
 
   return staff
     .filter(s => s.is_active)
     .map(s => {
       const staffBookingAssigns = bookingAssignments.filter(a => a.staff_id === s.id);
-      const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns.map(a => {
-        const booking = bookingsMap.get(a.booking_id);
-        const calEvents = eventsByBooking.get(a.booking_id) || [];
-        const firstEvent = calEvents[0];
-        return {
-          bookingId: a.booking_id,
-          client: booking?.client || 'Okänd',
-          teamId: a.team_id,
-          startTime: firstEvent?.start_time || null,
-          endTime: firstEvent?.end_time || null,
-          eventType: firstEvent?.event_type || null,
-          deliveryAddress: firstEvent?.delivery_address || booking?.deliveryaddress || null,
-          bookingNumber: booking?.booking_number || null,
-        };
-      });
+      const assignmentList: OpsTimelineAssignment[] = staffBookingAssigns
+        .filter(a => {
+          // Only include assignments that have matching calendar events for this team
+          const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`);
+          return calEvents && calEvents.length > 0;
+        })
+        .map(a => {
+          const booking = bookingsMap.get(a.booking_id);
+          const calEvents = eventsByBookingTeam.get(`${a.booking_id}|${a.team_id}`) || [];
+          const firstEvent = calEvents[0];
+          return {
+            bookingId: a.booking_id,
+            client: booking?.client || 'Okänd',
+            teamId: a.team_id,
+            startTime: firstEvent?.start_time || null,
+            endTime: firstEvent?.end_time || null,
+            eventType: firstEvent?.event_type || null,
+            deliveryAddress: firstEvent?.delivery_address || booking?.deliveryaddress || null,
+            bookingNumber: booking?.booking_number || null,
+          };
+        });
 
       // Sort by start time
       assignmentList.sort((a, b) => {
