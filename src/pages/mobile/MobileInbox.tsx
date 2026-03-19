@@ -422,7 +422,7 @@ const MobileInbox = () => {
   // === JOB THREAD ===
   if (view === 'job-thread' && activeJob) {
     return (
-      <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <div className="flex flex-col h-[100dvh] bg-background">
         <MobileBackHeader
           title={activeJob.client}
           onBack={goBack}
