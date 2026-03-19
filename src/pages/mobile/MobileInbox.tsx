@@ -366,7 +366,7 @@ const MobileInbox = () => {
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     return (
-      <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <div className="flex flex-col h-[100dvh] bg-background">
         <MobileBackHeader
           title={activeDM.partner_name}
           onBack={goBack}
