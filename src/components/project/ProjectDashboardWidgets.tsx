@@ -74,6 +74,7 @@ const ProjectDashboardWidgets = () => {
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,
       updatedAt: lp.updated_at,
+      createdAt: lp.created_at,
     }));
     return items;
   }, [jobs, projects, largeProjects]);
