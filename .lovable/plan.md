@@ -1,100 +1,72 @@
 
 
-# Fix: Hantera alla responsformat från allocate-instance
+# Fix: Batch serial number matching i scanner-api
 
-## Problem (från loggarna)
+## Problem
 
-Tre responsformat som inte hanteras korrekt:
+Loggarna visar att `"Inventory API returned no SKU"` fortfarande triggas. Orsaken:
 
-### Format 1: Batch med SKU i `data`
-```json
-{ "results": [{ "serial_number": "3207", "success": true, "data": { "sku": "MTR-5M-12", "item_type": "..." } }] }
-```
-Koden letar `myResult.sku` — ska vara `myResult.data?.sku`.
+- `serialNumber` (rad 225) kan vara en **batch-sträng med radbrytningar**: `"FACE...3205\nFACE...3209\nFACE...3207"`
+- Allocate-instance returnerar en `results[]`-array med individuella `serial_number`-värden
+- Rad 315: `r.serial_number === serialNumber` jämför mot **hela batch-strängen** → ingen match → `myResult` = undefined → faller igenom till "no SKU"
 
-### Format 2: "Already allocated" (success=true, ingen SKU)
-```json
-{ "results": [{ "serial_number": "3204", "success": true, "data": { "already_allocated": true, "message": "Already scanned for this booking" } }] }
-```
-Inga SKU-fält alls. Ska returnera `alreadyScanned: true`.
-
-### Format 3: Enskilt svar utan `results`-array
-```json
-{ "success": true, "data": { "already_allocated": true, "instance_id": "..." } }
-```
-Samt:
-```json
-{ "success": false, "error": "All matching lines fully allocated", "data": { "item_type_id": "..." } }
-```
-Ingen `results`-array — faller igenom till "no SKU"-felet.
+Dessutom: även vid lyckad batch returneras **flera resultat**, men koden försöker bara matcha ETT. Den behöver hantera **alla** resultat i batch-svaret.
 
 ## Lösning
 
-Ändra rad 309-332 i `supabase/functions/scanner-api/index.ts`:
+Ändra rad 309-363 i `scanner-api/index.ts` till att:
+
+1. **Splitta `serialNumber`** till en array av individuella serienummer
+2. **Iterera alla results** istället för att bara hitta en
+3. **Samla ihop SKU:er** från lyckade allokeringar
+4. **Samla "redan allokerade"** separat
+5. **Returnera rätt svar** beroende på utfallet
 
 ```typescript
+// Split batch serial numbers
+const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
+
 let returnedSku = allocateData.sku
+const alreadyAllocatedSerials: string[] = []
+const failedSerials: string[] = []
 
-// Format A: Batch response with results array
 if (!returnedSku && Array.isArray(allocateData.results)) {
-  const myResult = allocateData.results.find(
-    (r: any) => r.serial_number === serialNumber
-  )
-  if (myResult) {
-    if (myResult.data?.already_allocated) {
-      return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+  for (const r of allocateData.results) {
+    if (!serialNumbers.includes(r.serial_number)) continue
+    
+    if (r.data?.already_allocated || r.data?.over_allocated) {
+      alreadyAllocatedSerials.push(r.serial_number)
+      // Still grab SKU if available for local check-off
+      if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id
+      continue
     }
-    if (!myResult.success) {
-      const isAlreadyAllocated = (myResult.error || '').toLowerCase().includes('fully allocated')
-      if (isAlreadyAllocated) {
-        returnedSku = myResult.data?.item_type_id || myResult.data?.sku
-        if (!returnedSku) {
-          return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
-        }
-        // Fall through — use returnedSku to check off locally
-      } else {
-        return json({ success: false, error: myResult.error || 'Allokering misslyckades' })
-      }
-    } else {
-      returnedSku = myResult.data?.sku || myResult.data?.item_type_id || myResult.sku || myResult.item_type_id
+    if (!r.success) {
+      failedSerials.push(r.serial_number)
+      continue
     }
-  }
-}
-
-// Format B: Single-item response (no results array)
-if (!returnedSku && !Array.isArray(allocateData.results)) {
-  if (allocateData.data?.already_allocated) {
-    return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
-  }
-  const isFullyAllocated = (allocateData.error || '').toLowerCase().includes('fully allocated')
-  if (isFullyAllocated) {
-    returnedSku = allocateData.data?.item_type_id || allocateData.data?.sku
+    // Successful allocation — grab SKU
     if (!returnedSku) {
-      return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+      returnedSku = r.data?.sku || r.data?.item_type_id || r.sku
     }
   }
-  if (!returnedSku) {
-    returnedSku = allocateData.data?.sku || allocateData.data?.item_type_id
+  
+  // If ALL were already allocated and no SKU found
+  if (!returnedSku && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+    const shortNrs = alreadyAllocatedSerials.map(s => s.replace(/^FACE\d{16}/, '').replace(/^0+/, '') || s)
+    return json({ 
+      success: false, 
+      error: `Nr ${shortNrs.join(', ')} är redan scannad/allokerad`, 
+      alreadyScanned: true 
+    })
   }
 }
 
-if (!returnedSku) {
-  console.error('Inventory API returned no SKU:', allocateData)
-  return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
+// Format B: Single-item (keep as-is)
+if (!returnedSku && !Array.isArray(allocateData.results)) {
+  // ... existing single-item logic unchanged
 }
 ```
 
-## Resultat
-- Lyckad allokering → `data.sku` extraheras → avbockning
-- "Already allocated" (success:true) → "redan scannad" meddelande, ingen toast
-- "Fully allocated" (success:false) med `item_type_id` → extraheras, avbockning sker
-- "Fully allocated" utan `item_type_id` → "redan scannad" meddelande
-- "Instance not found" → felmeddelande som förut
-- Enskilt svar utan `results`-array → hanteras korrekt
-
-## Viktig notering om `item_type_id`
-När "fully allocated" returnerar en `item_type_id` (UUID) — matchar detta mot `booking_products.inventory_item_type_id`, inte `sku`. Det behöver **inte** ändras om den befintliga matchningen (rad 343-344) redan jämför mot SKU-strängen "MTR-5M-12" (som kommer från `data.sku`). Men om `item_type_id` (UUID) är det enda tillgängliga, behöver matchningen på rad 344 utökas till att även jämföra mot `booking_products.inventory_item_type_id`.
-
 ## Fil som ändras
-1. `supabase/functions/scanner-api/index.ts` — Hantera alla tre responsformat korrekt
+1. `supabase/functions/scanner-api/index.ts` — Fixa batch-matchning i results-arrayen
 
