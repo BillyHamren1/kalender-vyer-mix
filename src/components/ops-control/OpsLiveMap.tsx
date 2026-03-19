@@ -171,10 +171,10 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       bounds.extend([job.longitude, job.latitude]);
 
       const el = document.createElement('div');
-      el.style.cssText = 'width: 24px; height: 36px; cursor: pointer;';
-      const pinColor = job.isActive ? '#ef4444' : '#94a3b8';
+      el.style.cssText = 'width: 32px; height: 44px; cursor: pointer; z-index: 10;';
+      const pinColor = job.isActive ? '#ef4444' : '#7c3aed';
       el.innerHTML = `
-        <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="32" height="44" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" 
                 fill="${pinColor}" stroke="white" stroke-width="1.5"/>
           <circle cx="12" cy="12" r="4" fill="white"/>
