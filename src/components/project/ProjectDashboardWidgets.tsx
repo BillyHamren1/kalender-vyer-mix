@@ -64,6 +64,7 @@ const ProjectDashboardWidgets = () => {
         subtitle: fullAddress,
         navigateTo: `/project/${p.id}`,
         updatedAt: p.updated_at,
+        createdAt: p.created_at,
       });
     });
     largeProjects.forEach(lp => items.push({
