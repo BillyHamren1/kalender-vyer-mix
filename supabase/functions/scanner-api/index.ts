@@ -224,21 +224,30 @@ Deno.serve(async (req) => {
       case 'verify_product': {
         const { packingId, sku: serialNumber, verifiedBy } = params
 
-        // 1. Get booking_id from packing_projects
+        // 1. Get booking_id from packing_projects (separate query, no join)
         const { data: packing, error: packingError } = await supabase
           .from('packing_projects')
-          .select('booking_id, bookings!inner(booking_number)')
+          .select('booking_id')
           .eq('id', packingId)
           .eq('organization_id', ORG_ID)
           .single()
 
         if (packingError || !packing?.booking_id) {
+          console.error('[verify_product] Packing lookup failed:', { packingId, error: packingError })
           return json({ success: false, error: 'Packlistan saknar kopplad bokning' })
         }
 
-        const bookingNumber = (packing as any).bookings?.booking_number
-        if (!bookingNumber) {
-          console.error('No booking_number found for booking_id:', packing.booking_id)
+        // 2. Get booking_number from bookings table
+        const { data: bookingData, error: bookingError } = await supabase
+          .from('bookings')
+          .select('booking_number')
+          .eq('id', packing.booking_id)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const bookingNumber = bookingData?.booking_number
+        if (bookingError || !bookingNumber) {
+          console.error('[verify_product] Booking lookup failed:', { bookingId: packing.booking_id, error: bookingError })
           return json({ success: false, error: 'Bokningen saknar bokningsnummer' })
         }
 
