@@ -265,4 +265,7 @@ export const mobileApi = {
 
   getTravelLogs: (limit?: number) =>
     callApi<{ travel_logs: MobileTravelLog[] }>('get_travel_logs', { limit }),
+
+  getContacts: () =>
+    callApi<{ contacts: { id: string; name: string; type: string }[] }>('get_contacts'),
 };

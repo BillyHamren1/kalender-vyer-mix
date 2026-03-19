@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileInbox } from '@/hooks/useMobileInbox';
-import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info } from 'lucide-react';
+import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info, Plus, Search, Loader2 } from 'lucide-react';
 import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-type InboxView = 'list' | 'dm-thread' | 'job-thread' | 'broadcast-detail';
+type InboxView = 'list' | 'dm-thread' | 'job-thread' | 'broadcast-detail' | 'new-message';
 
 interface DMConversation {
   partner_id: string;
@@ -290,10 +290,44 @@ const MobileInbox = () => {
                 </div>
               )}
             </div>
-          )}
+        )}
         </div>
+
+        {/* FAB – New message */}
+        <button
+          onClick={() => setView('new-message')}
+          className="fixed bottom-28 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       </div>
     );
+  }
+
+  // === NEW MESSAGE – CONTACT PICKER ===
+  if (view === 'new-message') {
+    return <ContactPicker
+      staff={staff}
+      dmConversations={dmConversations}
+      onSelectContact={(contact) => {
+        // Check if conversation already exists
+        const existing = dmConversations.find(c => c.partner_id === contact.id);
+        if (existing) {
+          openDM(existing);
+        } else {
+          // Create a new empty conversation shell
+          const newConv: DMConversation = {
+            partner_id: contact.id,
+            partner_name: contact.name,
+            last_message: null,
+            unread_count: 0,
+            messages: [],
+          };
+          openDM(newConv);
+        }
+      }}
+      onBack={goBack}
+    />;
   }
 
   // === BROADCAST DETAIL ===
@@ -453,5 +487,88 @@ const MobileInbox = () => {
 
   return null;
 };
+
+// === CONTACT PICKER COMPONENT ===
+function ContactPicker({
+  staff,
+  dmConversations,
+  onSelectContact,
+  onBack,
+}: {
+  staff: any;
+  dmConversations: DMConversation[];
+  onSelectContact: (contact: { id: string; name: string; type: string }) => void;
+  onBack: () => void;
+}) {
+  const [contacts, setContacts] = useState<{ id: string; name: string; type: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    mobileApi.getContacts()
+      .then(res => setContacts(res.contacts || []))
+      .catch(() => toast.error('Kunde inte hämta kontakter'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = contacts.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <MobileBackHeader title="Nytt meddelande" onBack={onBack} />
+
+      {/* Search */}
+      <div className="px-3 pt-2 pb-1">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Sök kontakt..."
+            className="w-full pl-9 pr-3 py-2.5 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Inga kontakter hittades
+          </div>
+        ) : (
+          filtered.map(c => {
+            const hasConversation = dmConversations.some(d => d.partner_id === c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => onSelectContact(c)}
+                className="w-full text-left rounded-xl border border-border bg-card p-3 flex items-center gap-3 active:scale-[0.98] transition-all"
+              >
+                <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-accent-foreground">{c.name.charAt(0)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-foreground truncate block">{c.name}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {c.type === 'planner' ? 'Planerare' : 'Personal'}
+                    {hasConversation ? ' · Pågående chatt' : ''}
+                  </span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default MobileInbox;
