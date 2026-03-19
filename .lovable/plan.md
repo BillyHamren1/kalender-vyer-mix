@@ -1,42 +1,32 @@
 
 
-# Fix: Hämta booking_number med separat query
+# Fix: Skicka booking_number i rätt fält till lagersystemet
 
 ## Problem
-Joinen `bookings!inner(booking_number)` i `verify_product` misslyckas eftersom det inte finns någon foreign key mellan `packing_projects.booking_id` och `bookings.id` i databasen. PostgREST returnerar ett fel, som fångas och visar "Packlistan saknar kopplad bokning".
+Det externa lagersystemet förväntar sig bokningsnumret i fältet `booking_number`, men vi skickar det bara som `reservation_id`. Loggarna visar: `reservation=2603-95 booking=N/A`.
 
 ## Lösning
-Dela upp i två separata queries istället för en join:
+Lägg till `booking_number` som ett separat fält i POST-bodyn till `allocate-instance`, utöver `reservation_id`.
 
-### Fil: `supabase/functions/scanner-api/index.ts`
+### Fil: `supabase/functions/scanner-api/index.ts` (rad 279-282)
 
-1. Första queryn hämtar `booking_id` från `packing_projects` (utan join)
-2. Andra queryn hämtar `booking_number` från `bookings` med det `booking_id`
-
+Ändra request body från:
 ```typescript
-// Query 1: Get booking_id
-const { data: packing } = await supabase
-  .from('packing_projects')
-  .select('booking_id')
-  .eq('id', packingId)
-  .eq('organization_id', ORG_ID)
-  .single();
+body: JSON.stringify({
+  serial_number: serialNumber,
+  reservation_id: bookingNumber,
+}),
+```
 
-if (!packing?.booking_id) {
-  return json({ success: false, error: 'Packlistan saknar kopplad bokning' });
-}
-
-// Query 2: Get booking_number
-const { data: booking } = await supabase
-  .from('bookings')
-  .select('booking_number')
-  .eq('id', packing.booking_id)
-  .eq('organization_id', ORG_ID)
-  .single();
-
-const bookingNumber = booking?.booking_number;
+Till:
+```typescript
+body: JSON.stringify({
+  serial_number: serialNumber,
+  reservation_id: bookingNumber,
+  booking_number: bookingNumber,
+}),
 ```
 
 ## Filer som ändras
-1. `supabase/functions/scanner-api/index.ts` -- Byt join till två separata queries
+1. `supabase/functions/scanner-api/index.ts` — Lägg till `booking_number` i request body
 
