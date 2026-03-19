@@ -1,3 +1,27 @@
+# Steg 6: Zebra RFID SDK-integration ✅ Klart
+
+## Åtgärd
+- ✅ `ZebraRfidPlugin.java` — all stub-kod ersatt med riktiga Zebra RFID SDK-anrop
+  - `connectReader()` — söker tillgängliga readers, ansluter, konfigurerar trigger-läge, registrerar event handler
+  - `disconnectReader()` — stoppar inventory, tar bort lyssnare, kopplar från
+  - `startInventory()` / `stopInventory()` — riktiga SDK-anrop
+  - `RfidEventHandler` — lyssnar på tag reads + status events (disconnect, trigger)
+  - `handleOnDestroy()` — fullständig cleanup
+  - `load()` — initierar `Readers` med SERVICE_SERIAL (fallback BLUETOOTH)
+  - Anslutning körs på bakgrundstråd för att undvika ANR
+
+## Manuella steg kvar
+1. Ladda ner `rfidapi3.aar` från Zebra Developer Portal
+2. Placera i `android/app/libs/rfidapi3.aar`
+3. I `android/app/build.gradle` lägg till:
+   ```groovy
+   repositories { flatDir { dirs 'libs' } }
+   dependencies { implementation(name: 'rfidapi3', ext: 'aar') }
+   ```
+4. `git pull && npx cap sync android` → bygg i Android Studio
+
+---
+
 # Steg 5: Automatisk förflyttningsspårning ✅ Klart
 
 ## Databasändringar
