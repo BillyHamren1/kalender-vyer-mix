@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarEvent } from './ResourceData';
+import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
