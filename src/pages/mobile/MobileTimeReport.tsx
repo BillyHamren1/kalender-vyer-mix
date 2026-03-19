@@ -195,6 +195,11 @@ const MobileTimeReport = () => {
           </div>
 
           {/* Summary & submit */}
+          {isNightShift && (
+            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs text-amber-600 font-medium">⏰ Nattskift upptäckt – tid beräknas över midnatt</p>
+            </div>
+          )}
           <div className="flex items-center justify-between pt-3 border-t border-border/40">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xs text-muted-foreground">Totalt:</span>
