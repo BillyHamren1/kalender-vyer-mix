@@ -82,17 +82,25 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case 'list_active_packings': {
-        const { data: packings, error } = await supabase
+        // Fetch in_progress packings (always shown) and planning packings with upcoming dates
+        const fourteenDaysFromNow = new Date()
+        fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14)
+        const cutoffDate = fourteenDaysFromNow.toISOString().split('T')[0]
+
+        // Get all in_progress (always relevant) + planning packings
+        const { data: allPackings, error } = await supabase
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
           .in('status', ['planning', 'in_progress'])
           .order('created_at', { ascending: false })
+          .limit(100)
 
         if (error) throw error
 
+        // Fetch booking data for all packings to enable date filtering
         const packingsWithBookings = await Promise.all(
-          (packings || []).map(async (packing: any) => {
+          (allPackings || []).map(async (packing: any) => {
             if (packing.booking_id) {
               const { data: booking } = await supabase
                 .from('bookings')
@@ -106,7 +114,16 @@ Deno.serve(async (req) => {
           })
         )
 
-        return new Response(JSON.stringify(packingsWithBookings), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        // Filter: in_progress always shown; planning only if rigdaydate <= 14 days from now (or no date)
+        const filtered = packingsWithBookings.filter((p: any) => {
+          if (p.status === 'in_progress') return true
+          // Planning: show if rigdaydate is within 14 days or not set
+          const rigDate = p.booking?.rigdaydate
+          if (!rigDate) return true // No date = show it (manual packing without booking date)
+          return rigDate <= cutoffDate
+        }).slice(0, 50)
+
+        return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
       case 'get_packing': {
