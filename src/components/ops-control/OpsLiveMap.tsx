@@ -227,8 +227,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           el.appendChild(dot);
         }
       }
-      el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.2)'; });
-      el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
+      el.addEventListener('mouseenter', () => { el.style.boxShadow = '0 0 0 4px rgba(255,255,255,0.5), 0 2px 8px rgba(0,0,0,0.35)'; });
+      el.addEventListener('mouseleave', () => { el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.25)'; });
 
       el.addEventListener('click', (e) => {
         e.stopPropagation();
