@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, Calendar, FolderKanban, AlertTriangle } from 'lucide-react';
+import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'lucide-react';
 import { fetchJobs, deleteJob } from '@/services/jobService';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
@@ -132,7 +132,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     return items;
   }, [jobs, projects, largeProjects]);
 
+  const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
+
   const filtered = useMemo(() => {
+    if (!hasActiveFilters) return [];
     return unified
       .filter(p => {
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
@@ -153,7 +156,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (!b.date) return -1;
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
-  }, [unified, search, statusFilter, typeFilter]);
+  }, [unified, search, statusFilter, typeFilter, hasActiveFilters]);
 
   const handleDelete = (project: UnifiedProject) => {
     const typeLabel = TYPE_LABELS[project.type];
@@ -214,6 +217,15 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         {[1, 2, 3, 4, 5].map(i => (
           <div key={i} className="h-12 bg-muted/40 animate-pulse rounded-lg" />
         ))}
+      </div>
+    );
+  }
+
+  if (!hasActiveFilters) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-card text-center py-12 px-4">
+        <Search className="h-8 w-8 text-muted-foreground/25 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">Sök eller filtrera för att visa projektlistan</p>
       </div>
     );
   }

@@ -20,6 +20,7 @@ interface UnifiedItem {
   subtitle: string | null;
   navigateTo: string;
   updatedAt: string;
+  createdAt: string;
 }
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
@@ -48,6 +49,7 @@ const ProjectDashboardWidgets = () => {
       subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       updatedAt: j.updatedAt,
+      createdAt: j.createdAt,
     }));
     projects.forEach(p => {
       const client = p.booking?.client;
@@ -62,6 +64,7 @@ const ProjectDashboardWidgets = () => {
         subtitle: fullAddress,
         navigateTo: `/project/${p.id}`,
         updatedAt: p.updated_at,
+        createdAt: p.created_at,
       });
     });
     largeProjects.forEach(lp => items.push({
@@ -71,6 +74,7 @@ const ProjectDashboardWidgets = () => {
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,
       updatedAt: lp.updated_at,
+      createdAt: lp.created_at,
     }));
     return items;
   }, [jobs, projects, largeProjects]);
@@ -80,8 +84,8 @@ const ProjectDashboardWidgets = () => {
   const inProgressCount = unified.filter(p => p.status === 'in_progress').length;
   const completedCount = unified.filter(p => p.status === 'completed').length;
 
-  const recentlyUpdated = useMemo(() =>
-    [...unified].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 5),
+  const recentlyCreated = useMemo(() =>
+    [...unified].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
     [unified]
   );
 
@@ -169,12 +173,12 @@ const ProjectDashboardWidgets = () => {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast uppdaterade projekt</h3>
+              <h3 className="text-sm font-semibold">Senast inkomna projekt</h3>
             </div>
             <div className="divide-y divide-border/50">
-              {recentlyUpdated.length === 0 ? (
+              {recentlyCreated.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt ännu</p>
-              ) : recentlyUpdated.map(item => <ProjectRow key={`recent-${item.id}-${item.type}`} item={item} />)}
+              ) : recentlyCreated.map(item => <ProjectRow key={`recent-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
         </Card>
