@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarEvent, Resource } from './ResourceData';
+import { CalendarEvent, Resource, getEventDotClass } from './ResourceData';
 import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
