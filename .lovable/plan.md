@@ -1,12 +1,28 @@
 
-# Lägg till tredje widget: "Senast avslutade projekt"
 
-## Ändringar i `src/components/project/ProjectDashboardWidgets.tsx`
+# Gör det möjligt att byta till RFID-läge i scanner-appen
 
-1. **Ny `recentlyCompleted` memo** — Filtrera `unified` på `status === 'completed'`, sortera på `updatedAt` (senast avslutade först), ta 5 st.
+## Problem
+`ScannerModeIndicator` är bara en passiv visning — inga knappar för att byta läge. `RfidStatusBar` med anslut/starta-knappar finns bara inne i `VerificationView`, inte på huvudskärmen i `MobileScannerApp`.
 
-2. **Grid från 2 → 3 kolumner** — Ändra `grid-cols-1 md:grid-cols-2` till `grid-cols-1 md:grid-cols-3` på widget-raden.
+## Lösning
+Gör `ScannerModeIndicator` interaktiv med klickbara läges-knappar, och koppla `switchMode` från `useScannerController`.
 
-3. **Ny Card** med `CheckCircle2`-ikon och rubrik "Senast avslutade projekt", samma `ProjectRow`-layout som de andra två.
+### 1. `ScannerModeIndicator.tsx` — Lägg till `onModeChange` prop
+- Ny valfri prop: `onModeChange?: (mode: ScanMode) => void`
+- Visa "Streckkod" och "RFID" som klickbara badges/knappar istället för en enda passiv badge
+- Aktivt läge markeras visuellt (filled), inaktivt läge är outline/ghost
+- RFID-knappen visas bara om `isRfidReady` är true
+- Om `onModeChange` inte skickas, fungerar komponenten som innan (bakåtkompatibel)
 
-Allt i en fil, ~15 rader tillagda.
+### 2. `MobileScannerApp.tsx` — Skicka `onModeChange`
+- Lägg till `onModeChange={scanner.switchMode}` på `ScannerModeIndicator`
+
+### 3. `VerificationView.tsx` — Skicka `onModeChange`
+- Lägg till `onModeChange` via `scannerState` om det finns tillgängligt
+
+### Filer som ändras
+- `src/components/scanner/ScannerModeIndicator.tsx`
+- `src/pages/MobileScannerApp.tsx`
+- `src/components/scanner/VerificationView.tsx`
+
