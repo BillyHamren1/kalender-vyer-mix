@@ -32,12 +32,22 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
+  const scannedThisSessionRef = useRef<Set<string>>(new Set());
 
   const processNext = useCallback(async () => {
     if (isProcessingRef.current || queueRef.current.length === 0) return;
     isProcessingRef.current = true;
 
     const scannedValue = queueRef.current.shift()!;
+
+    // Session dedup: silently ignore repeated scans of the same value
+    const normalised = scannedValue.toLowerCase();
+    if (scannedThisSessionRef.current.has(normalised)) {
+      scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+      return;
+    }
+    scannedThisSessionRef.current.add(normalised);
+
     scanLog('scan_received', { value: scannedValue });
 
     const {
@@ -114,7 +124,16 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           onTriggerSync();
           notifyRfid(scannedValue, true);
         } else {
-          toast.error(result.error);
+          if ((result as any).alreadyScanned) {
+            // No toast — just show in feedback header
+            onScanResult({
+              value: scannedValue,
+              result: result.error || `Nr ${scannedValue} är redan scannad`,
+              success: false,
+            });
+          } else {
+            toast.error(result.error);
+          }
           notifyRfid(scannedValue, false);
         }
       }
