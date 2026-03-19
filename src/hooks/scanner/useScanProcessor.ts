@@ -148,7 +148,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     quantityToPack: number,
     isParent: boolean,
   ) => {
-    const { getItems, getIsMinusMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
+    const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
 
     if (isParent) {
       toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
