@@ -26,6 +26,8 @@ interface JobConversation {
   lastMessage: string;
   lastTime: string;
   unread: boolean;
+  status: string;
+  lastDate: string | null; // rigdowndate || eventdate || rigdaydate
 }
 
 const STALE_TIME = 30_000;
