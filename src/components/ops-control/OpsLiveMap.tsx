@@ -2,14 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map, Satellite, Clock, Wifi } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
 import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { useTrafficCameras, TrafficCamera } from '@/hooks/useTrafficCameras';
 
 interface Props {
@@ -54,6 +55,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [sending, setSending] = useState(false);
   const [showCameras, setShowCameras] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
@@ -209,8 +211,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         cursor: pointer; transition: transform 0.15s;
         transform-origin: center center;
         font-size: 10px; font-weight: 700; color: white;
+        position: relative;
       `;
       el.textContent = loc.name.charAt(0).toUpperCase();
+
+      // GPS live indicator dot
+      if (loc.isGps && loc.lastReportTime) {
+        const sinceMs = Date.now() - new Date(loc.lastReportTime).getTime();
+        if (sinceMs < 5 * 60_000) {
+          const dot = document.createElement('div');
+          dot.style.cssText = `
+            position: absolute; top: -2px; right: -2px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #22c55e; border: 1.5px solid white;
+          `;
+          el.appendChild(dot);
+        }
+      }
       el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.2)'; });
       el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
 
@@ -352,7 +369,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
   const toggleFullscreen = useCallback(() => {
-    // Save current view before toggling
     const m = map.current;
     const savedCenter = m?.getCenter();
     const savedZoom = m?.getZoom();
@@ -361,7 +377,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     setIsFullscreen(prev => !prev);
 
-    // Resize then restore exact view
     setTimeout(() => {
       if (!m) return;
       m.resize();
@@ -375,6 +390,33 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
     }, 50);
   }, []);
+
+  const MAP_STYLES = {
+    streets: 'mapbox://styles/mapbox/navigation-day-v1',
+    satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+  };
+
+  const toggleMapStyle = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
+    const savedCenter = m.getCenter();
+    const savedZoom = m.getZoom();
+    const newStyle = mapStyle === 'streets' ? 'satellite' : 'streets';
+    setMapStyle(newStyle);
+    m.setStyle(MAP_STYLES[newStyle]);
+    m.once('style.load', () => {
+      m.jumpTo({ center: savedCenter, zoom: savedZoom });
+      if (newStyle === 'streets') {
+        m.setFog({
+          color: 'rgb(186, 210, 235)',
+          'high-color': 'rgb(36, 92, 223)',
+          'horizon-blend': 0.02,
+          'space-color': 'rgb(11, 11, 25)',
+          'star-intensity': 0.6,
+        });
+      }
+    });
+  }, [mapStyle]);
 
   return (
     <div
@@ -421,18 +463,31 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       </div>
 
-      {/* Fullscreen toggle */}
-      <button
-        onClick={toggleFullscreen}
-        className="absolute top-2 right-2 z-20 w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
-        title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
-      >
-        {isFullscreen ? (
-          <Minimize2 className="w-4 h-4 text-foreground" />
-        ) : (
-          <Maximize2 className="w-4 h-4 text-muted-foreground" />
-        )}
-      </button>
+      {/* Map style + Fullscreen toggles */}
+      <div className="absolute top-2 right-2 z-20 flex gap-1">
+        <button
+          onClick={toggleMapStyle}
+          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
+          title={mapStyle === 'streets' ? 'Visa satellit' : 'Visa karta'}
+        >
+          {mapStyle === 'streets' ? (
+            <Satellite className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Map className="w-4 h-4 text-foreground" />
+          )}
+        </button>
+        <button
+          onClick={toggleFullscreen}
+          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
+          title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-foreground" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+      </div>
 
       {/* Legend */}
       <div className="absolute bottom-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow border border-border">
@@ -524,6 +579,28 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             <div className="text-[10px] text-muted-foreground">
               {statusStyles[getStaffStatus(staffPanel, mapJobs)].label}
               {staffPanel.teamName && ` · ${staffPanel.teamName}`}
+            </div>
+            {/* GPS / Last seen */}
+            <div className="flex items-center gap-1.5 text-[10px]">
+              {staffPanel.isGps ? (
+                <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                  <Wifi className="w-3 h-3" /> Live GPS
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="w-3 h-3" /> Adressbaserad
+                </span>
+              )}
+              {staffPanel.lastReportTime && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {(() => {
+                    const diff = Date.now() - new Date(staffPanel.lastReportTime).getTime();
+                    if (diff < 60_000) return 'Just nu';
+                    return formatDistanceToNow(new Date(staffPanel.lastReportTime), { addSuffix: true, locale: sv });
+                  })()}
+                </span>
+              )}
             </div>
             {staffPanel.bookingClient && (
               <div className="flex items-center gap-1 text-[10px] text-foreground">
