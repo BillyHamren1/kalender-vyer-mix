@@ -123,16 +123,55 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!selectedDate) {
+      toast.error('Välj ett datum');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const newDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const newStartISO = buildUTCDateTime(newDateStr, startTime);
+      const newEndISO = buildUTCDateTime(newDateStr, endTime);
+
+      await createCalendarEvent({
+        title: event.title,
+        start: newStartISO,
+        end: newEndISO,
+        resourceId: selectedResourceId || event.resourceId || '',
+        eventType: event.eventType,
+        bookingId: event.bookingId,
+        bookingNumber: event.bookingNumber,
+        deliveryAddress: event.deliveryAddress,
+      });
+
+      const teamName = resources.find(r => r.id === selectedResourceId)?.title;
+      toast.success('Händelse kopierad', {
+        description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${teamName ? ` · ${teamName}` : ''}`
+      });
+
+      onOpenChange(false);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error duplicating event:', error);
+      toast.error('Kunde inte kopiera händelsen');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
-            Flytta händelse
+            Flytta eller kopiera händelse
           </DialogTitle>
           <DialogDescription>
-            Välj ny dag, tid och/eller team.
+            Välj ny dag, tid och/eller team. Flytta eller kopiera.
           </DialogDescription>
         </DialogHeader>
 
@@ -204,13 +243,22 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
             Avbryt
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleDuplicate}
+            disabled={isSubmitting || !selectedDate}
+            className="gap-1.5"
+          >
+            <Copy className="h-4 w-4" />
+            {isSubmitting ? 'Kopierar...' : 'Kopiera'}
           </Button>
           <Button
             onClick={handleMove}
