@@ -270,14 +270,14 @@ const MobileInbox = () => {
                 </div>
               )}
 
-              {/* Job Chats */}
-              {jobConversations.length > 0 && (
+              {/* Active Job Chats */}
+              {activeJobs.length > 0 && (
                 <div>
                   <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 mb-1.5 flex items-center gap-1">
                     <Briefcase className="w-3 h-3" /> Jobbchatt
                   </h2>
                   <div className="space-y-1.5">
-                    {jobConversations.map(job => (
+                    {activeJobs.map(job => (
                       <button
                         key={job.bookingId}
                         onClick={() => openJobThread(job)}
@@ -294,6 +294,42 @@ const MobileInbox = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Archived Job Chats */}
+              {archivedJobs.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="w-full text-left flex items-center gap-1 px-1 mb-1.5"
+                  >
+                    <Archive className="w-3 h-3 text-muted-foreground" />
+                    <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Arkiverade jobbchattar ({archivedJobs.length})
+                    </h2>
+                    <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform ml-auto", showArchived && "rotate-90")} />
+                  </button>
+                  {showArchived && (
+                    <div className="space-y-1.5">
+                      {archivedJobs.map(job => (
+                        <button
+                          key={job.bookingId}
+                          onClick={() => openJobThread(job)}
+                          className="w-full text-left rounded-xl border border-border bg-card/60 p-3 flex items-start gap-3 active:scale-[0.98] transition-all opacity-70"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                            <Archive className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-foreground truncate block">{job.client}</span>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Arkiverad jobbchatt</p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-1" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
