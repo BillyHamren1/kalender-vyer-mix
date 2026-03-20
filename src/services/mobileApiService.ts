@@ -50,6 +50,7 @@ export interface MobileTimeReport {
   overtime_hours: number;
   break_time: number;
   description: string | null;
+  approved?: boolean;
   created_at: string;
   bookings: {
     id: string;
@@ -175,6 +176,19 @@ export const mobileApi = {
     break_time?: number;
     description?: string;
   }) => callApi<{ success: boolean; time_report: any }>('create_time_report', data),
+
+  updateTimeReport: (data: {
+    time_report_id: string;
+    start_time?: string;
+    end_time?: string;
+    hours_worked?: number;
+    overtime_hours?: number;
+    break_time?: number;
+    description?: string;
+  }) => callApi<{ success: boolean; time_report: any }>('update_time_report', data),
+
+  deleteTimeReport: (timeReportId: string) =>
+    callApi<{ success: boolean }>('delete_time_report', { time_report_id: timeReportId }),
 
   getProjectComments: (bookingId: string) =>
     callApi<{ comments: any[] }>('get_project_comments', { booking_id: bookingId }),

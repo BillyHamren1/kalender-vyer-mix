@@ -60,6 +60,7 @@ export function useApproveTimeReport() {
     mutationFn: async ({
       id,
       updates,
+      previousValues,
     }: {
       id: string;
       updates: {
@@ -69,6 +70,7 @@ export function useApproveTimeReport() {
         end_time?: string | null;
         description?: string | null;
       };
+      previousValues?: Record<string, unknown>;
     }) => {
       const { error } = await supabase
         .from('time_reports')
@@ -76,6 +78,20 @@ export function useApproveTimeReport() {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Log the edit
+      if (previousValues && Object.keys(previousValues).length > 0) {
+        const approverName = await getApproverName();
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from('time_report_edit_log').insert({
+          time_report_id: id,
+          edited_by_type: 'admin',
+          edited_by_name: approverName,
+          edited_by_id: user?.id || null,
+          previous_values: previousValues,
+          new_values: updates,
+        } as any);
+      }
     },
     onSuccess: () => {
       for (const key of ALL_TIME_REPORT_QUERY_KEYS) {

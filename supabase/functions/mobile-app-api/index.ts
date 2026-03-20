@@ -123,6 +123,10 @@ Deno.serve(async (req) => {
         return await handleGetTimeReports(supabase, staffId, organizationId)
       case 'create_time_report':
         return await handleCreateTimeReport(supabase, staffId, data, organizationId)
+      case 'update_time_report':
+        return await handleUpdateTimeReport(supabase, staffId, data, organizationId)
+      case 'delete_time_report':
+        return await handleDeleteTimeReport(supabase, staffId, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
@@ -499,6 +503,7 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
       overtime_hours,
       break_time,
       description,
+      approved,
       created_at,
       bookings (
         id,
@@ -521,6 +526,178 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
 
   return new Response(
     JSON.stringify({ time_reports: reports || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleUpdateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { time_report_id, start_time, end_time, hours_worked, overtime_hours, break_time, description } = data
+
+  if (!time_report_id) {
+    return new Response(
+      JSON.stringify({ error: 'time_report_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Fetch existing report — must belong to staff and not be approved
+  const { data: existing, error: fetchErr } = await supabase
+    .from('time_reports')
+    .select('id, staff_id, approved, hours_worked, overtime_hours, break_time, start_time, end_time, description, organization_id')
+    .eq('id', time_report_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchErr || !existing) {
+    return new Response(
+      JSON.stringify({ error: 'Time report not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (existing.approved) {
+    return new Response(
+      JSON.stringify({ error: 'Cannot edit an approved time report' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Build previous values for edit log
+  const previousValues: Record<string, any> = {}
+  const newValues: Record<string, any> = {}
+  const updates: Record<string, any> = {}
+
+  if (hours_worked !== undefined && parseFloat(hours_worked) !== existing.hours_worked) {
+    previousValues.hours_worked = existing.hours_worked
+    newValues.hours_worked = parseFloat(hours_worked)
+    updates.hours_worked = parseFloat(hours_worked)
+  }
+  if (overtime_hours !== undefined && parseFloat(overtime_hours) !== (existing.overtime_hours || 0)) {
+    previousValues.overtime_hours = existing.overtime_hours || 0
+    newValues.overtime_hours = parseFloat(overtime_hours)
+    updates.overtime_hours = parseFloat(overtime_hours)
+  }
+  if (break_time !== undefined && parseFloat(break_time) !== (existing.break_time || 0)) {
+    previousValues.break_time = existing.break_time || 0
+    newValues.break_time = parseFloat(break_time)
+    updates.break_time = parseFloat(break_time)
+  }
+  if (start_time !== undefined && start_time !== existing.start_time) {
+    previousValues.start_time = existing.start_time
+    newValues.start_time = start_time || null
+    updates.start_time = start_time || null
+  }
+  if (end_time !== undefined && end_time !== existing.end_time) {
+    previousValues.end_time = existing.end_time
+    newValues.end_time = end_time || null
+    updates.end_time = end_time || null
+  }
+  if (description !== undefined && description !== existing.description) {
+    previousValues.description = existing.description
+    newValues.description = description || null
+    updates.description = description || null
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return new Response(
+      JSON.stringify({ success: true, message: 'No changes' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Get staff name for log
+  const { data: staffMember } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .single()
+
+  // Update the report
+  const { data: updated, error: updateErr } = await supabase
+    .from('time_reports')
+    .update(updates)
+    .eq('id', time_report_id)
+    .select()
+    .single()
+
+  if (updateErr) {
+    console.error('Time report update error:', updateErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to update time report' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Log the edit
+  await supabase.from('time_report_edit_log').insert({
+    time_report_id,
+    edited_by_type: 'staff',
+    edited_by_name: staffMember?.name || 'Okänd',
+    edited_by_id: staffId,
+    previous_values: previousValues,
+    new_values: newValues,
+    organization_id: organizationId,
+  })
+
+  console.log(`[mobile-app-api] Time report ${time_report_id} updated by staff ${staffId}`)
+
+  return new Response(
+    JSON.stringify({ success: true, time_report: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleDeleteTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { time_report_id } = data
+
+  if (!time_report_id) {
+    return new Response(
+      JSON.stringify({ error: 'time_report_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Fetch existing — must belong to staff and not be approved
+  const { data: existing, error: fetchErr } = await supabase
+    .from('time_reports')
+    .select('id, staff_id, approved')
+    .eq('id', time_report_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchErr || !existing) {
+    return new Response(
+      JSON.stringify({ error: 'Time report not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (existing.approved) {
+    return new Response(
+      JSON.stringify({ error: 'Cannot delete an approved time report' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { error: deleteErr } = await supabase
+    .from('time_reports')
+    .delete()
+    .eq('id', time_report_id)
+
+  if (deleteErr) {
+    console.error('Time report delete error:', deleteErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to delete time report' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`[mobile-app-api] Time report ${time_report_id} deleted by staff ${staffId}`)
+
+  return new Response(
+    JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

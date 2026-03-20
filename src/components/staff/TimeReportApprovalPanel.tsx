@@ -85,6 +85,29 @@ export const TimeReportApprovalPanel: React.FC = () => {
     refetchInterval: 300000,
   });
 
+  // Fetch edit logs for pending reports
+  const reportIds = pendingReports.map(r => r.id);
+  const { data: editLogs = [] } = useQuery({
+    queryKey: ['time-report-edit-logs', reportIds],
+    queryFn: async () => {
+      if (reportIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('time_report_edit_log')
+        .select('id, time_report_id, edited_by_type, edited_by_name, previous_values, new_values, created_at')
+        .in('time_report_id', reportIds)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: reportIds.length > 0,
+  });
+
+  const editLogsByReport = editLogs.reduce((acc: Record<string, any[]>, log: any) => {
+    if (!acc[log.time_report_id]) acc[log.time_report_id] = [];
+    acc[log.time_report_id].push(log);
+    return acc;
+  }, {});
+
   const handleApprove = (reportId: string) => {
     approveMutation.mutate(reportId);
   };
@@ -121,6 +144,15 @@ export const TimeReportApprovalPanel: React.FC = () => {
 
   const saveEdit = () => {
     if (!editingId) return;
+    const report = pendingReports.find(r => r.id === editingId);
+    const previousValues: Record<string, unknown> = {};
+    if (report) {
+      if (editValues.hours_worked !== report.hours_worked) previousValues.hours_worked = report.hours_worked;
+      if (editValues.overtime_hours !== report.overtime_hours) previousValues.overtime_hours = report.overtime_hours;
+      if ((editValues.start_time || null) !== report.start_time) previousValues.start_time = report.start_time;
+      if ((editValues.end_time || null) !== report.end_time) previousValues.end_time = report.end_time;
+      if ((editValues.description || null) !== report.description) previousValues.description = report.description;
+    }
     editMutation.mutate({
       id: editingId,
       updates: {
@@ -130,6 +162,7 @@ export const TimeReportApprovalPanel: React.FC = () => {
         end_time: editValues.end_time || null,
         description: editValues.description || null,
       },
+      previousValues,
     }, {
       onSuccess: () => setEditingId(null),
     });
@@ -196,10 +229,21 @@ export const TimeReportApprovalPanel: React.FC = () => {
               <TableBody>
                 {pendingReports.map((report) => {
                   const isEditing = editingId === report.id;
+                  const reportEditLogs = editLogsByReport[report.id] || [];
+                  const hasEdits = reportEditLogs.length > 0;
                   return (
-                    <TableRow key={report.id} className="group hover:bg-muted/50">
+                    <React.Fragment key={report.id}>
+                    <TableRow className="group hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        {report.staff_name}
+                        <div className="flex flex-col gap-0.5">
+                          {report.staff_name}
+                          {hasEdits && (
+                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full w-fit flex items-center gap-0.5">
+                              <Pencil className="w-2.5 h-2.5" />
+                              Ändrad {reportEditLogs.length}x
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -321,6 +365,32 @@ export const TimeReportApprovalPanel: React.FC = () => {
                         </div>
                       </TableCell>
                     </TableRow>
+                    {hasEdits && (
+                      <TableRow className="bg-amber-50/50 border-b">
+                        <TableCell colSpan={6} className="py-1.5 px-4">
+                          <div className="text-[11px] text-muted-foreground space-y-0.5">
+                            {reportEditLogs.map((log: any) => {
+                              const prev = log.previous_values || {};
+                              const changes = Object.keys(prev).map(k => {
+                                const labels: Record<string, string> = { hours_worked: 'Timmar', overtime_hours: 'Övertid', start_time: 'Start', end_time: 'Slut', break_time: 'Rast', description: 'Beskrivning' };
+                                return `${labels[k] || k}: ${prev[k]} → ${(log.new_values || {})[k]}`;
+                              }).join(', ');
+                              return (
+                                <p key={log.id}>
+                                  <span className="font-medium">{log.edited_by_name}</span>
+                                  <span className="text-muted-foreground/60"> ({log.edited_by_type === 'admin' ? 'admin' : 'personal'})</span>
+                                  {' '}ändrade: {changes}
+                                  <span className="text-muted-foreground/50 ml-1">
+                                    {format(new Date(log.created_at), 'd MMM HH:mm', { locale: sv })}
+                                  </span>
+                                </p>
+                              );
+                            })}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

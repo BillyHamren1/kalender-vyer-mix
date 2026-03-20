@@ -174,8 +174,28 @@ const MobileTimeReport = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast (h)</Label>
-              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
+              <div className="flex gap-2">
+                {[
+                  { label: 'Ingen', value: '0' },
+                  { label: '30 min', value: '0.5' },
+                  { label: '45 min', value: '0.75' },
+                  { label: '60 min', value: '1' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setBreakTime(opt.value)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      breakTime === opt.value || (!breakTime && opt.value === '0')
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
