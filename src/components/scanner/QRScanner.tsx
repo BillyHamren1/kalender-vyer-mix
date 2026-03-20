@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Camera, X, Radio } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
+import { Capacitor } from '@capacitor/core';
 
 interface QRScannerProps {
   onScan: (result: string) => void;
@@ -18,10 +19,12 @@ interface QRScannerProps {
  * DataWedge handles all hardware scanning — no camera permission needed.
  * 
  * In other modes: Uses BarcodeDetector API with camera + manual input fallback.
+ * On native Capacitor platforms, uses getUserMedia with special handling.
  */
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
   // In scanner app mode, always skip camera — DataWedge is the primary scanner
-  const shouldSkipCamera = skipCamera ?? isScannerApp;
+  // BUT if skipCamera is explicitly false, honor it (user pressed camera button)
+  const shouldSkipCamera = skipCamera === false ? false : (skipCamera ?? isScannerApp);
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +86,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (shouldSkipCamera) return;
     try {
       setError(null);
+      console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
+      
+      // On native platforms, request camera permission first via Capacitor
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Camera: CapCamera } = await import('@capacitor/camera');
+          const perms = await CapCamera.requestPermissions({ permissions: ['camera'] });
+          console.log('[QRScanner] Capacitor camera permissions:', JSON.stringify(perms));
+          if (perms.camera === 'denied') {
+            setHasPermission(false);
+            setError('Kameratillstånd nekades. Gå till inställningar och tillåt kamera.');
+            return;
+          }
+        } catch (permErr) {
+          console.warn('[QRScanner] Capacitor permission request failed, trying getUserMedia directly:', permErr);
+        }
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
@@ -98,6 +119,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         await videoRef.current.play();
         setHasPermission(true);
         setIsScanning(true);
+        console.log('[QRScanner] Camera started successfully');
         
         if (detectorRef.current) {
           animationFrameRef.current = requestAnimationFrame(scanFrame);
