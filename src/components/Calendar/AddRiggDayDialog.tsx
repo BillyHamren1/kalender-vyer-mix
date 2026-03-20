@@ -188,9 +188,9 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rig">Rig Day</SelectItem>
-                <SelectItem value="event">Event Day</SelectItem>
-                <SelectItem value="rigDown">Rig Down</SelectItem>
+                <SelectItem value="rig">Riggdag</SelectItem>
+                <SelectItem value="event">Eventdag</SelectItem>
+                <SelectItem value="rigDown">Rivdag</SelectItem>
               </SelectContent>
             </Select>
           </div>
