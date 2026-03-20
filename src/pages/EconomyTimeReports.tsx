@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Check, Clock, Minus, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useApproveTimeReport } from "@/hooks/useApproveTimeReport";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
