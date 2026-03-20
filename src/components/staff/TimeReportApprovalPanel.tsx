@@ -121,6 +121,15 @@ export const TimeReportApprovalPanel: React.FC = () => {
 
   const saveEdit = () => {
     if (!editingId) return;
+    const report = pendingReports.find(r => r.id === editingId);
+    const previousValues: Record<string, unknown> = {};
+    if (report) {
+      if (editValues.hours_worked !== report.hours_worked) previousValues.hours_worked = report.hours_worked;
+      if (editValues.overtime_hours !== report.overtime_hours) previousValues.overtime_hours = report.overtime_hours;
+      if ((editValues.start_time || null) !== report.start_time) previousValues.start_time = report.start_time;
+      if ((editValues.end_time || null) !== report.end_time) previousValues.end_time = report.end_time;
+      if ((editValues.description || null) !== report.description) previousValues.description = report.description;
+    }
     editMutation.mutate({
       id: editingId,
       updates: {
@@ -130,6 +139,7 @@ export const TimeReportApprovalPanel: React.FC = () => {
         end_time: editValues.end_time || null,
         description: editValues.description || null,
       },
+      previousValues,
     }, {
       onSuccess: () => setEditingId(null),
     });
