@@ -162,8 +162,8 @@ const EconomyTimeReports = () => {
         </div>
         {pendingCount > 0 && (
           <Button
-            onClick={() => approveAllMutation.mutate()}
-            disabled={approveAllMutation.isPending}
+            onClick={handleApproveAll}
+            disabled={approveMutation.isPending}
             className="bg-[hsl(184_55%_38%)] hover:bg-[hsl(184_55%_32%)] text-white"
           >
             <CheckCheck className="h-4 w-4 mr-2" />
