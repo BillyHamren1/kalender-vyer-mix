@@ -99,7 +99,7 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Three-column: Filer, Kommentarer, Historik */}
+      {/* Three-column: Filer, Uppgifter, Historik */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="flex flex-col h-full">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
@@ -132,6 +132,15 @@ const ProjectViewPage = () => {
           <SectionHeader icon={History} title="Historik" count={activities.length} />
           <ProjectActivityLog activities={activities} className="h-full" />
         </div>
+      </div>
+
+      {/* Kommentarer */}
+      <div>
+        <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
+        <ProjectComments
+          comments={comments}
+          onAddComment={(data) => detail.addComment({ ...data, project_id: project.id })}
+        />
       </div>
 
       {bookingId && (
