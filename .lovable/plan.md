@@ -1,28 +1,31 @@
 
 
-## Flytande meddelandeknapp — alla sidor
+## Alltid rapportera GPS-position — oavsett skiftstatus
 
-### Vad
-En flytande knapp (FAB) med meddelandeikon + oläst-badge som alltid syns i nedre högra hörnet, oavsett vilken sida man är på i huvudsystemet. Klick öppnar en popup/panel med konversationslistan (DM-inbox) och möjlighet att chatta direkt.
+### Problem
+GPS-position rapporteras bara via `useGeofencing`-hooken, som körs per sida (MobileJobs, MobileJobDetail) och kräver att GPS-inställningar är aktiverade. Det finns ingen permanent bakgrundsrapportering på layout-nivå, så om personalen inte har appen öppen på rätt sida syns ingen position.
 
-### Hur
+### Lösning
 
-**1. Skapa `FloatingInbox`-komponent** (`src/components/FloatingInbox.tsx`)
-- Flytande knapp (`fixed bottom-6 right-6 z-50`) med `MessageCircle`-ikon
-- Visar oläst-badge (röd cirkel med siffra) via `useQuery` mot `fetchDMInboxGrouped`
-- Klick togglar en popup-panel (ca 400x500px) med:
-  - Konversationslista (återanvänd logik från `OpsActivityComms` conversations-tab)
-  - Klick på konversation öppnar inline-chatt (återanvänd `OpsDirectChat`-logiken)
-  - "Nytt meddelande"-knapp för att starta ny konversation
-- Klick utanför stänger panelen
+**1. Skapa en ny hook `useBackgroundLocationReporter`** (`src/hooks/useBackgroundLocationReporter.ts`)
+- Tar `staffId` som parameter
+- Startar `navigator.geolocation.watchPosition` oberoende av aktiva timers eller bokningar
+- Upsertar till `staff_locations` var 30:e sekund (samma throttle som befintlig logik)
+- Körs alltid när appen är öppen och staffId finns — ingen koppling till GPS-inställningar för geofencing
 
-**2. Lägg till i `MainSystemLayout`**
-- Importera och rendera `<FloatingInbox />` bredvid `{children}` i layouten
-- Synlig på alla sidor som använder detta layout
+**2. Integrera i `TimeAppLayout`**
+- Hämta `staff` från `useMobileAuth()`
+- Kör `useBackgroundLocationReporter(staff?.id)` i layouten
+- Eftersom TimeAppLayout wrappas av MobileProtectedRoute som wrappas av MobileAuthProvider, finns staffId alltid tillgängligt
+
+**3. Befintlig `useGeofencing` orörd**
+- Geofencing-logiken (enter/exit-triggers, timers) ändras inte
+- Den nya hooken hanterar enbart positionsrapportering till databasen
+- Dubbel-upsert undviks genom att den nya hooken skriver till samma `staff_locations`-rad (upsert on conflict `staff_id`)
 
 ### Tekniska detaljer
-- Positionering: `fixed` med hög `z-index` så den ligger ovanpå allt innehåll
-- Realtidsuppdatering: prenumerera på `direct_messages`-tabellen via Supabase realtime för badge-uppdatering
-- Panelen renderas som en `absolute`/`fixed` container ovanför knappen
-- Responsivt: på mobil göms den (mobilen har egen bottom-nav med inbox)
+- Hook: enkel `watchPosition` → throttled upsert, ca 30 rader kod
+- Ingen ny tabell behövs — använder befintliga `staff_locations`
+- Körs i TimeAppLayout (alla autentiserade sidor i mobilappen)
+- Kan även läggas till i ScannerAppLayout om scanner-personal ska synas
 
