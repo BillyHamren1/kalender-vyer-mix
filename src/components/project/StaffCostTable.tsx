@@ -113,7 +113,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-amber-600 hover:text-green-600 hover:bg-green-50"
-                              onClick={() => handleApprove([report.id], `${staff.staff_name} (${report.report_date})`)}
+                              onClick={() => handleApprove([report.id])}
                               title="Klicka för att godkänna"
                             >
                               <Clock className="h-4 w-4 mr-1" />
