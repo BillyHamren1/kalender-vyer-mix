@@ -46,7 +46,7 @@ type ReportEntry = TimeEntry | PurchaseEntry;
 const EconomyTimeReports = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const queryClient = useQueryClient();
+  const { approveMutation } = useApproveTimeReport();
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["economy-time-reports", typeFilter],
