@@ -365,6 +365,32 @@ export const TimeReportApprovalPanel: React.FC = () => {
                         </div>
                       </TableCell>
                     </TableRow>
+                    {hasEdits && (
+                      <TableRow className="bg-amber-50/50 border-b">
+                        <TableCell colSpan={6} className="py-1.5 px-4">
+                          <div className="text-[11px] text-muted-foreground space-y-0.5">
+                            {reportEditLogs.map((log: any) => {
+                              const prev = log.previous_values || {};
+                              const changes = Object.keys(prev).map(k => {
+                                const labels: Record<string, string> = { hours_worked: 'Timmar', overtime_hours: 'Övertid', start_time: 'Start', end_time: 'Slut', break_time: 'Rast', description: 'Beskrivning' };
+                                return `${labels[k] || k}: ${prev[k]} → ${(log.new_values || {})[k]}`;
+                              }).join(', ');
+                              return (
+                                <p key={log.id}>
+                                  <span className="font-medium">{log.edited_by_name}</span>
+                                  <span className="text-muted-foreground/60"> ({log.edited_by_type === 'admin' ? 'admin' : 'personal'})</span>
+                                  {' '}ändrade: {changes}
+                                  <span className="text-muted-foreground/50 ml-1">
+                                    {format(new Date(log.created_at), 'd MMM HH:mm', { locale: sv })}
+                                  </span>
+                                </p>
+                              );
+                            })}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
