@@ -123,6 +123,10 @@ Deno.serve(async (req) => {
         return await handleGetTimeReports(supabase, staffId, organizationId)
       case 'create_time_report':
         return await handleCreateTimeReport(supabase, staffId, data, organizationId)
+      case 'update_time_report':
+        return await handleUpdateTimeReport(supabase, staffId, data, organizationId)
+      case 'delete_time_report':
+        return await handleDeleteTimeReport(supabase, staffId, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
