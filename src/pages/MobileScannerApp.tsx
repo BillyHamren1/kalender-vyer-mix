@@ -361,6 +361,7 @@ const MobileScannerApp: React.FC = () => {
         isActive={isQRActive}
         onScan={handleHomeScan}
         onClose={() => setIsQRActive(false)}
+        skipCamera={false}
       />
     </div>
   );
