@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X, Radio } from 'lucide-react';
+import { Camera, X, Radio, Loader2 } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
+import jsQR from 'jsqr';
 
 interface QRScannerProps {
   onScan: (result: string) => void;
@@ -18,25 +19,23 @@ interface QRScannerProps {
  * In scanner mode (Zebra devices): Skips camera entirely, shows only manual input.
  * DataWedge handles all hardware scanning — no camera permission needed.
  * 
- * In other modes: Uses BarcodeDetector API with camera + manual input fallback.
+ * In other modes: Uses BarcodeDetector API with jsQR fallback + manual input.
  * On native Capacitor platforms, uses getUserMedia with special handling.
  */
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
-  // In scanner app mode, always skip camera — DataWedge is the primary scanner
-  // BUT if skipCamera is explicitly false, honor it (user pressed camera button)
   const shouldSkipCamera = skipCamera === false ? false : (skipCamera ?? isScannerApp);
 
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
 
-  // Check BarcodeDetector support on mount (only if camera is used)
+  // Check BarcodeDetector support on mount
   useEffect(() => {
     if (shouldSkipCamera) return;
     const supported = 'BarcodeDetector' in window;
@@ -53,9 +52,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [shouldSkipCamera]);
 
-  // Scan loop using BarcodeDetector
+  const handleDetected = useCallback((value: string) => {
+    if (value && value !== lastScanRef.current) {
+      lastScanRef.current = value;
+      onScan(value);
+      setTimeout(() => { lastScanRef.current = ''; }, 3000);
+    }
+  }, [onScan]);
+
+  // Scan loop — BarcodeDetector or jsQR fallback
   const scanFrame = useCallback(async () => {
-    if (!videoRef.current || !detectorRef.current || !isActive) return;
+    if (!videoRef.current || !isActive) return;
     
     const video = videoRef.current;
     if (video.readyState !== video.HAVE_ENOUGH_DATA) {
@@ -64,14 +71,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
 
     try {
-      const barcodes = await detectorRef.current.detect(video);
-      if (barcodes.length > 0) {
-        const value = barcodes[0].rawValue;
-        if (value && value !== lastScanRef.current) {
-          lastScanRef.current = value;
-          onScan(value);
-          setTimeout(() => { lastScanRef.current = ''; }, 3000);
+      // Try native BarcodeDetector first
+      if (detectorRef.current) {
+        const barcodes = await detectorRef.current.detect(video);
+        if (barcodes.length > 0) {
+          handleDetected(barcodes[0].rawValue);
           return;
+        }
+      } else {
+        // jsQR fallback
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (ctx) {
+            ctx.drawImage(video, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+            if (code?.data) {
+              handleDetected(code.data);
+              return;
+            }
+          }
         }
       }
     } catch (e) {
@@ -79,13 +103,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
 
     animationFrameRef.current = requestAnimationFrame(scanFrame);
-  }, [isActive, onScan]);
+  }, [isActive, handleDetected]);
 
   // Start camera
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
     try {
       setError(null);
+      setCameraState('starting');
       console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
       
       // On native platforms, request camera permission first via Capacitor
@@ -95,7 +120,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           const perms = await CapCamera.requestPermissions({ permissions: ['camera'] });
           console.log('[QRScanner] Capacitor camera permissions:', JSON.stringify(perms));
           if (perms.camera === 'denied') {
-            setHasPermission(false);
+            setCameraState('error');
             setError('Kameratillstånd nekades. Gå till inställningar och tillåt kamera.');
             return;
           }
@@ -117,18 +142,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        setHasPermission(true);
-        setIsScanning(true);
+        setCameraState('running');
         console.log('[QRScanner] Camera started successfully');
-        
-        if (detectorRef.current) {
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
-        }
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
       }
     } catch (err: any) {
       console.error('[QRScanner] Camera error:', err);
-      setHasPermission(false);
-      setError(err.message || 'Kunde inte starta kameran');
+      setCameraState('error');
+      if (err.name === 'NotAllowedError') {
+        setError('Kameratillstånd nekades. Tillåt kamera i webbläsarens inställningar.');
+      } else if (err.name === 'NotFoundError') {
+        setError('Ingen kamera hittades på enheten.');
+      } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
+        setError('Kameran kunde inte startas. Den kanske används av en annan app.');
+      } else {
+        setError(err.message || 'Kameran kunde inte startas.');
+      }
     }
   }, [scanFrame, shouldSkipCamera]);
 
@@ -138,21 +167,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-    
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    
-    setIsScanning(false);
+    setCameraState('idle');
     lastScanRef.current = '';
   }, []);
 
-  // Handle manual input
+  // Manual input
   const [manualInput, setManualInput] = useState('');
   
   const handleManualSubmit = useCallback(() => {
@@ -162,7 +188,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [manualInput, onScan]);
 
-  // Start/stop camera based on isActive (skip camera in scanner mode)
+  // Start/stop camera based on isActive
   useEffect(() => {
     if (isActive && !shouldSkipCamera) {
       startCamera();
@@ -191,23 +217,26 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </Button>
       </div>
 
-      {/* Camera view — only shown when camera is enabled */}
+      {/* Camera view */}
       {!shouldSkipCamera && (
         <div className="flex-1 relative overflow-hidden">
-          {hasPermission === false ? (
-            <div className="flex flex-col items-center justify-center h-full text-white p-4">
+          {cameraState === 'error' ? (
+            <div className="flex flex-col items-center justify-center h-full text-white p-6">
               <Camera className="h-16 w-16 mb-4 opacity-50" />
-              <p className="text-center mb-2">
-                {error || 'Kameratillstånd krävs för att skanna QR-koder'}
+              <p className="text-center mb-2 text-base">
+                {error || 'Kameran kunde inte startas'}
               </p>
-              {!hasBarcodeDetector && (
-                <p className="text-center text-sm text-white/60 mb-4">
-                  QR-avkodning stöds inte i denna webbläsare. Använd manuell inmatning nedan.
-                </p>
-              )}
-              <Button onClick={startCamera}>
+              <p className="text-center text-sm text-white/60 mb-6">
+                Du kan ange kod manuellt nedan.
+              </p>
+              <Button onClick={startCamera} variant="secondary">
                 Försök igen
               </Button>
+            </div>
+          ) : cameraState === 'starting' ? (
+            <div className="flex flex-col items-center justify-center h-full text-white p-6">
+              <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
+              <p className="text-center text-base">Startar kameran...</p>
             </div>
           ) : (
             <>
@@ -218,6 +247,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 muted
                 autoPlay
               />
+              {/* Hidden canvas for jsQR fallback */}
+              <canvas ref={canvasRef} className="hidden" />
               
               {/* Scanning overlay */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -227,7 +258,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-lg" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-lg" />
                   
-                  {isScanning && hasBarcodeDetector && (
+                  {cameraState === 'running' && (
                     <div 
                       className="absolute left-2 right-2 h-0.5 bg-primary"
                       style={{ animation: 'scan-line 2s ease-in-out infinite' }} 
@@ -236,9 +267,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
-              {isScanning && !hasBarcodeDetector && (
-                <div className="absolute bottom-4 left-4 right-4 bg-yellow-500/90 text-black text-xs font-medium text-center py-2 px-3 rounded-lg">
-                  Kameran är igång men QR-avkodning saknas. Ange kod manuellt nedan.
+              {cameraState === 'running' && !hasBarcodeDetector && (
+                <div className="absolute top-4 left-4 right-4 bg-black/70 text-white text-xs text-center py-2 px-3 rounded-lg">
+                  Använder jsQR-fallback för avkodning
                 </div>
               )}
             </>
@@ -246,7 +277,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       )}
 
-      {/* Scanner mode info — shown instead of camera view */}
+      {/* Scanner mode info */}
       {shouldSkipCamera && (
         <div className="flex-1 flex flex-col items-center justify-center text-white p-6">
           <Radio className="h-16 w-16 mb-4 opacity-60" />
@@ -260,7 +291,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       {/* Manual input — always available */}
       <div className="p-4 bg-black/80 safe-area-bottom">
         <p className="text-white text-sm text-center mb-2">
-          {shouldSkipCamera ? 'Ange kod manuellt:' : hasBarcodeDetector ? 'Eller ange kod manuellt:' : 'Ange kod manuellt:'}
+          {shouldSkipCamera ? 'Ange kod manuellt:' : 'Eller ange kod manuellt:'}
         </p>
         <div className="flex gap-2">
           <input
