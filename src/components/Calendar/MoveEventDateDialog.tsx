@@ -218,9 +218,10 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             </div>
           </div>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-row gap-1.5 justify-end">
             <Button
-              variant="outline"
+              variant="ghost"
+              size="sm"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -228,26 +229,29 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             </Button>
             <Button
               variant="outline"
+              size="sm"
               onClick={() => {
                 onOpenChange(false);
                 setShowAddDialog(true);
               }}
               disabled={isSubmitting}
-              className="gap-1.5"
+              className="gap-1"
             >
-              <Plus className="h-4 w-4" />
-              Lägg till dag
+              <Plus className="h-3.5 w-3.5" />
+              Lägg till
             </Button>
             <Button
               variant="secondary"
+              size="sm"
               onClick={handleOpenCopyDialog}
               disabled={isSubmitting}
-              className="gap-1.5"
+              className="gap-1"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5" />
               Kopiera
             </Button>
             <Button
+              size="sm"
               onClick={handleMove}
               disabled={isSubmitting || !selectedDate}
             >
