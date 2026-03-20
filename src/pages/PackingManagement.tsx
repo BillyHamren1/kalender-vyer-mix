@@ -20,6 +20,7 @@ const PackingManagement = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
 
   const { data: packings = [], isLoading } = useQuery({
     queryKey: ['packings'],
