@@ -139,7 +139,7 @@ const ProjectViewPage = () => {
         <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
         <ProjectComments
           comments={comments}
-          onAddComment={(data) => detail.addComment({ ...data, project_id: project.id })}
+          onAddComment={detail.addComment}
         />
       </div>
 
