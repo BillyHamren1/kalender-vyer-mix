@@ -264,10 +264,10 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Avbryt
           </Button>
           <Button onClick={handleCreate} disabled={isCreating || !selectedDate}>
-            {isCreating ? 'Adding...' : 'Add'}
+            {isCreating ? 'Lägger till...' : 'Lägg till'}
           </Button>
         </div>
       </DialogContent>
