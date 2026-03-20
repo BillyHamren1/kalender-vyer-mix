@@ -390,9 +390,17 @@ const MobileTimeHistory = () => {
                             <span className="text-xs text-muted-foreground capitalize">{dayName}</span>
                           </div>
                         )}
-                        <p className={cn("text-xs font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]", isTravel ? "text-primary" : "text-foreground")}>
-                          {label}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <p className={cn("text-xs font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]", isTravel ? "text-primary" : "text-foreground")}>
+                            {label}
+                          </p>
+                          {!isTravel && (
+                            <span className={cn(
+                              "shrink-0 w-1.5 h-1.5 rounded-full mt-0.5",
+                              (entry.data as MobileTimeReport).approved ? "bg-green-500" : "bg-amber-400"
+                            )} />
+                          )}
+                        </div>
                       </div>
                       <span className="text-xs font-medium text-foreground tabular-nums text-center">
                         {startTime || '–'}
