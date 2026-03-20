@@ -106,7 +106,7 @@ const PackingManagement = () => {
           </div>
 
           {/* Dashboard */}
-          <PackingDashboard packings={packings} />
+          <PackingDashboard packings={packings} onDelete={handleDelete} />
 
           {/* Packing Grid */}
           {isLoading ? (
