@@ -85,6 +85,29 @@ export const TimeReportApprovalPanel: React.FC = () => {
     refetchInterval: 300000,
   });
 
+  // Fetch edit logs for pending reports
+  const reportIds = pendingReports.map(r => r.id);
+  const { data: editLogs = [] } = useQuery({
+    queryKey: ['time-report-edit-logs', reportIds],
+    queryFn: async () => {
+      if (reportIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('time_report_edit_log')
+        .select('id, time_report_id, edited_by_type, edited_by_name, previous_values, new_values, created_at')
+        .in('time_report_id', reportIds)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: reportIds.length > 0,
+  });
+
+  const editLogsByReport = editLogs.reduce((acc: Record<string, any[]>, log: any) => {
+    if (!acc[log.time_report_id]) acc[log.time_report_id] = [];
+    acc[log.time_report_id].push(log);
+    return acc;
+  }, {});
+
   const handleApprove = (reportId: string) => {
     approveMutation.mutate(reportId);
   };
