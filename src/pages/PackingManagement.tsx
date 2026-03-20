@@ -141,7 +141,11 @@ const PackingManagement = () => {
                   onDelete={() => handleDelete(packing.id)}
                 />
               ))}
-            </div>
+
+          <BulkCleanupDialog
+            open={isCleanupOpen}
+            onOpenChange={setIsCleanupOpen}
+          />
           )}
 
           <CreatePackingWizard 
