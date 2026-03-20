@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
-import { createCalendarEvent } from '@/services/eventService';
 import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -125,14 +124,34 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
       const startDateTime = `${dateStr}T${startTime}:00Z`;
       const endDateTime = `${dateStr}T${endTime}:00Z`;
 
-      await createCalendarEvent({
-        title: event.title,
-        start: startDateTime,
-        end: endDateTime,
-        resourceId: event.resourceId,
-        bookingId: event.bookingId,
-        eventType: eventType
-      });
+      // Fetch booking to get organization_id and booking_number
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .select('organization_id, booking_number, deliveryaddress, delivery_city')
+        .eq('id', event.bookingId)
+        .single();
+
+      if (bookingError || !booking) {
+        throw new Error('Kunde inte hämta bokningsdata');
+      }
+
+      const { error: insertError } = await supabase
+        .from('calendar_events')
+        .insert({
+          title: event.title,
+          start_time: startDateTime,
+          end_time: endDateTime,
+          resource_id: event.resourceId,
+          booking_id: event.bookingId,
+          event_type: eventType,
+          organization_id: booking.organization_id,
+          booking_number: booking.booking_number,
+          delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
 
       // Also update the booking date fields so sync doesn't delete the event
       const bookingFieldMap = {
