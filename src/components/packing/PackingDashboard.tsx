@@ -196,6 +196,21 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
                       <span className="text-xs text-muted-foreground/50">Ej signerad</span>
                     )}
                   </div>
+
+                  {/* Delete button */}
+                  {onDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Ta bort "${p.name}"?`)) {
+                          onDelete(p.id);
+                        }
+                      }}
+                      className="shrink-0 p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               );
             })}
