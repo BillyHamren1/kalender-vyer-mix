@@ -172,7 +172,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Rigg Day</DialogTitle>
+          <DialogTitle>Lägg till händelse</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
