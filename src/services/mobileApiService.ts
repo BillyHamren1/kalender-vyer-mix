@@ -50,6 +50,7 @@ export interface MobileTimeReport {
   overtime_hours: number;
   break_time: number;
   description: string | null;
+  approved?: boolean;
   created_at: string;
   bookings: {
     id: string;
