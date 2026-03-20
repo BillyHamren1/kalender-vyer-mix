@@ -9,11 +9,12 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { CalendarIcon, Users, Copy } from 'lucide-react';
+import { CalendarIcon, Users, Copy, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
+import AddRiggDayDialog from './AddRiggDayDialog';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   // Initialize when dialog opens
   useEffect(() => {
@@ -225,6 +227,18 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               Avbryt
             </Button>
             <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setShowAddDialog(true);
+              }}
+              disabled={isSubmitting}
+              className="gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Lägg till dag
+            </Button>
+            <Button
               variant="secondary"
               onClick={handleOpenCopyDialog}
               disabled={isSubmitting}
@@ -250,6 +264,20 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           event={event}
           resources={resources}
           onCopied={handleCopied}
+        />
+      )}
+
+      {showAddDialog && (
+        <AddRiggDayDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          event={event}
+          defaultStartTime={startTime}
+          defaultEndTime={endTime}
+          onUpdate={() => {
+            setShowAddDialog(false);
+            if (onUpdate) onUpdate();
+          }}
         />
       )}
     </>

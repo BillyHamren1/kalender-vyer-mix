@@ -106,12 +106,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
   const handleCreate = async () => {
     if (!selectedDate) {
-      toast.error('Please select a date');
+      toast.error('Välj ett datum');
       return;
     }
 
     if (!event.bookingId || !event.resourceId) {
-      toast.error('Missing booking or resource information');
+      toast.error('Bokning eller resurs saknas');
       return;
     }
 
@@ -134,15 +134,35 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
         eventType: eventType
       });
 
-      toast.success('Rigg day added');
+      // Also update the booking date fields so sync doesn't delete the event
+      const bookingFieldMap = {
+        'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+        'event': { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+        'rigDown': { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' }
+      };
+
+      const fields = bookingFieldMap[eventType];
+      if (fields) {
+        await supabase
+          .from('bookings')
+          .update({
+            [fields.date]: dateStr,
+            [fields.start]: startDateTime,
+            [fields.end]: endDateTime
+          })
+          .eq('id', event.bookingId);
+      }
+
+      const typeLabels = { rig: 'Riggdag', event: 'Eventdag', rigDown: 'Rivdag' };
+      toast.success(`${typeLabels[eventType]} tillagd`);
       onOpenChange(false);
       
       if (onUpdate) {
         onUpdate();
       }
     } catch (error) {
-      console.error('Error creating rigg day:', error);
-      toast.error('Failed to add rigg day');
+      console.error('Error creating event day:', error);
+      toast.error('Kunde inte lägga till dagen');
     } finally {
       setIsCreating(false);
     }
@@ -152,7 +172,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Rigg Day</DialogTitle>
+          <DialogTitle>Lägg till händelse</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
@@ -168,9 +188,9 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rig">Rig Day</SelectItem>
-                <SelectItem value="event">Event Day</SelectItem>
-                <SelectItem value="rigDown">Rig Down</SelectItem>
+                <SelectItem value="rig">Riggdag</SelectItem>
+                <SelectItem value="event">Eventdag</SelectItem>
+                <SelectItem value="rigDown">Rivdag</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -244,10 +264,10 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Avbryt
           </Button>
           <Button onClick={handleCreate} disabled={isCreating || !selectedDate}>
-            {isCreating ? 'Adding...' : 'Add'}
+            {isCreating ? 'Lägger till...' : 'Lägg till'}
           </Button>
         </div>
       </DialogContent>
