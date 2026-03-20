@@ -266,6 +266,20 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           onCopied={handleCopied}
         />
       )}
+
+      {showAddDialog && (
+        <AddRiggDayDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          event={event}
+          defaultStartTime={startTime}
+          defaultEndTime={endTime}
+          onUpdate={() => {
+            setShowAddDialog(false);
+            if (onUpdate) onUpdate();
+          }}
+        />
+      )}
     </>
   );
 };
