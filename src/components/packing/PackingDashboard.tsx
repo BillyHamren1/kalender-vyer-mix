@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Clock, CheckCircle2, AlertTriangle, User, Calendar, ArrowRight } from 'lucide-react';
+import { Package, Clock, CheckCircle2, AlertTriangle, User, Calendar, ArrowRight, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from '@/types/packing';
@@ -9,9 +9,10 @@ import { sv } from 'date-fns/locale';
 
 interface PackingDashboardProps {
   packings: PackingWithBooking[];
+  onDelete?: (packingId: string) => void;
 }
 
-const PackingDashboard = ({ packings }: PackingDashboardProps) => {
+const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
@@ -195,6 +196,21 @@ const PackingDashboard = ({ packings }: PackingDashboardProps) => {
                       <span className="text-xs text-muted-foreground/50">Ej signerad</span>
                     )}
                   </div>
+
+                  {/* Delete button */}
+                  {onDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Ta bort "${p.name}"?`)) {
+                          onDelete(p.id);
+                        }
+                      }}
+                      className="shrink-0 p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               );
             })}
