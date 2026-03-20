@@ -372,7 +372,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </Button>
         </div>
 
-        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
+        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} skipCamera={false} />
       </div>
     );
   }
