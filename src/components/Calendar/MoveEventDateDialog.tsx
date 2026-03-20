@@ -9,11 +9,12 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { CalendarIcon, Users, Copy } from 'lucide-react';
+import { CalendarIcon, Users, Copy, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
+import AddRiggDayDialog from './AddRiggDayDialog';
 
 interface MoveEventDateDialogProps {
   open: boolean;
