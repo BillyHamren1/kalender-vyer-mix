@@ -452,7 +452,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
         <Button onClick={() => setIsQRActive(true)} size="sm" className="h-8 px-2.5 gap-1">
           <Camera className="h-3.5 w-3.5" />
-          <span className="text-xs">QR</span>
+          <span className="text-xs">Kamera</span>
         </Button>
         <Button onClick={() => startKolli(verifierName)} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
           <Package className="h-3.5 w-3.5" />
