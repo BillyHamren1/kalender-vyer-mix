@@ -12,7 +12,7 @@ interface PackingDashboardProps {
   onDelete?: (packingId: string) => void;
 }
 
-const PackingDashboard = ({ packings }: PackingDashboardProps) => {
+const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
