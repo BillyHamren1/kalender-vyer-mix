@@ -3247,6 +3247,57 @@ export type Database = {
           },
         ]
       }
+      time_report_edit_log: {
+        Row: {
+          created_at: string
+          edited_by_id: string | null
+          edited_by_name: string
+          edited_by_type: string
+          id: string
+          new_values: Json
+          organization_id: string
+          previous_values: Json
+          time_report_id: string
+        }
+        Insert: {
+          created_at?: string
+          edited_by_id?: string | null
+          edited_by_name: string
+          edited_by_type?: string
+          id?: string
+          new_values?: Json
+          organization_id: string
+          previous_values?: Json
+          time_report_id: string
+        }
+        Update: {
+          created_at?: string
+          edited_by_id?: string | null
+          edited_by_name?: string
+          edited_by_type?: string
+          id?: string
+          new_values?: Json
+          organization_id?: string
+          previous_values?: Json
+          time_report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_report_edit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_report_edit_log_time_report_id_fkey"
+            columns: ["time_report_id"]
+            isOneToOne: false
+            referencedRelation: "time_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_reports: {
         Row: {
           approved: boolean | null
