@@ -15,7 +15,7 @@ interface StaffCostTableProps {
 }
 
 export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSettings }: StaffCostTableProps) => {
-  const queryClient = useQueryClient();
+  const { approveMutation } = useApproveTimeReport();
   const status = getDeviationStatus(summary.staffDeviationPercent);
 
   const formatCurrency = (amount: number) => {
@@ -27,27 +27,8 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
     }).format(amount);
   };
 
-  const handleApprove = async (reportIds: string[], label: string) => {
-    try {
-      const { error } = await supabase
-        .from('time_reports')
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: 'Projektledare'
-        })
-        .in('id', reportIds);
-
-      if (error) throw error;
-      
-      await queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
-      await queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
-      
-      toast.success(`Tidrapport för ${label} godkänd`);
-    } catch (error) {
-      console.error('Error approving time report:', error);
-      toast.error('Kunde inte godkänna tidrapporten');
-    }
+  const handleApprove = (reportIds: string[]) => {
+    approveMutation.mutate(reportIds);
   };
 
   const allReports = timeReports.flatMap(r => r.detailed_reports || []);
