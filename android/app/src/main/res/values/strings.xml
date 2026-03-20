@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EventFlow Scanner</string>
+    <string name="title_activity_main">EventFlow Scanner</string>
+    <string name="package_name">se.eventflow.scanner</string>
+    <string name="custom_url_scheme">se.eventflow.scanner</string>
+</resources>
