@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Package } from "lucide-react";
+import { Plus, Search, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
 import PackingDashboard from "@/components/packing/PackingDashboard";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
+import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ const PackingManagement = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
 
   const { data: packings = [], isLoading } = useQuery({
     queryKey: ['packings'],
@@ -92,6 +94,15 @@ const PackingManagement = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCleanupOpen(true)}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 h-10"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Rensa gamla
+            </Button>
           </div>
 
           {/* Dashboard */}
@@ -132,6 +143,11 @@ const PackingManagement = () => {
               ))}
             </div>
           )}
+
+          <BulkCleanupDialog
+            open={isCleanupOpen}
+            onOpenChange={setIsCleanupOpen}
+          />
 
           <CreatePackingWizard 
             open={isCreateOpen} 
