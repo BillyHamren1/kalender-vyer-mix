@@ -119,41 +119,13 @@ const EconomyTimeReports = () => {
     },
   });
 
-  const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("time_reports")
-        .update({ approved: true, approved_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["economy-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["economy-overview"] });
-      toast.success("Tidrapport godkänd");
-    },
-  });
-
-  const approveAllMutation = useMutation({
-    mutationFn: async () => {
-      const pendingIds = entries
-        .filter((e): e is TimeEntry => e.type === "time" && !e.approved)
-        .map((e) => e.id);
-      if (!pendingIds.length) return;
-      const { error } = await supabase
-        .from("time_reports")
-        .update({ approved: true, approved_at: new Date().toISOString() })
-        .in("id", pendingIds);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["economy-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["economy-overview"] });
-      toast.success("Alla väntande tidrapporter godkända");
-    },
-  });
+  const handleApproveAll = () => {
+    const pendingIds = entries
+      .filter((e): e is TimeEntry => e.type === "time" && !e.approved)
+      .map((e) => e.id);
+    if (!pendingIds.length) return;
+    approveMutation.mutate(pendingIds);
+  };
 
   const pendingCount = entries.filter(
     (e): e is TimeEntry => e.type === "time" && !e.approved

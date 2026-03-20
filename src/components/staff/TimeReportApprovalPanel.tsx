@@ -1,17 +1,18 @@
-import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, Clock, AlertCircle, Check, X } from 'lucide-react';
+import { CheckCircle, Clock, Check, X, Pencil, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 
 interface PendingTimeReport {
   id: string;
@@ -31,9 +32,16 @@ interface PendingTimeReport {
 }
 
 export const TimeReportApprovalPanel: React.FC = () => {
-  const queryClient = useQueryClient();
+  const { approveMutation, editMutation } = useApproveTimeReport();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{
+    hours_worked: number;
+    overtime_hours: number;
+    start_time: string;
+    end_time: string;
+    description: string;
+  }>({ hours_worked: 0, overtime_hours: 0, start_time: '', end_time: '', description: '' });
 
-  // Realtime instead of polling
   useRealtimeInvalidation({
     channelName: 'time-reports-realtime',
     tables: ['time_reports'],
@@ -46,17 +54,8 @@ export const TimeReportApprovalPanel: React.FC = () => {
       const { data, error } = await supabase
         .from('time_reports')
         .select(`
-          id,
-          staff_id,
-          booking_id,
-          report_date,
-          start_time,
-          end_time,
-          hours_worked,
-          overtime_hours,
-          description,
-          approved,
-          created_at,
+          id, staff_id, booking_id, report_date, start_time, end_time,
+          hours_worked, overtime_hours, description, approved, created_at,
           staff_members!inner(name),
           bookings!inner(client, booking_number)
         `)
@@ -83,68 +82,56 @@ export const TimeReportApprovalPanel: React.FC = () => {
         created_at: report.created_at
       }));
     },
-    refetchInterval: 300000, // 5 min fallback
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: async ({ reportId, approverName }: { reportId: string; approverName: string }) => {
-      const { error } = await supabase
-        .from('time_reports')
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: approverName
-        })
-        .eq('id', reportId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
-      queryClient.invalidateQueries({ queryKey: ['staff-economy-overview'] });
-      toast.success('Tidrapporten godkänd');
-    },
-    onError: (error) => {
-      console.error('Error approving time report:', error);
-      toast.error('Kunde inte godkänna tidrapporten');
-    }
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (reportId: string) => {
-      const { error } = await supabase
-        .from('time_reports')
-        .delete()
-        .eq('id', reportId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
-      toast.success('Tidrapporten borttagen');
-    },
-    onError: (error) => {
-      console.error('Error rejecting time report:', error);
-      toast.error('Kunde inte ta bort tidrapporten');
-    }
+    refetchInterval: 300000,
   });
 
   const handleApprove = (reportId: string) => {
-    approveMutation.mutate({ reportId, approverName: 'Admin' });
+    approveMutation.mutate(reportId);
   };
 
   const handleReject = (reportId: string) => {
     if (window.confirm('Är du säker på att du vill ta bort denna tidrapport?')) {
-      rejectMutation.mutate(reportId);
+      supabase.from('time_reports').delete().eq('id', reportId).then(({ error }) => {
+        if (error) {
+          toast.error('Kunde inte ta bort tidrapporten');
+        } else {
+          toast.success('Tidrapporten borttagen');
+          // Invalidation handled by realtime
+        }
+      });
     }
   };
 
   const handleApproveAll = () => {
     if (pendingReports.length === 0) return;
     if (!window.confirm(`Godkänn alla ${pendingReports.length} väntande tidrapporter?`)) return;
+    approveMutation.mutate(pendingReports.map(r => r.id));
+  };
 
-    pendingReports.forEach(report => {
-      approveMutation.mutate({ reportId: report.id, approverName: 'Admin' });
+  const startEdit = (report: PendingTimeReport) => {
+    setEditingId(report.id);
+    setEditValues({
+      hours_worked: report.hours_worked,
+      overtime_hours: report.overtime_hours,
+      start_time: report.start_time?.slice(0, 5) || '',
+      end_time: report.end_time?.slice(0, 5) || '',
+      description: report.description || '',
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    editMutation.mutate({
+      id: editingId,
+      updates: {
+        hours_worked: editValues.hours_worked,
+        overtime_hours: editValues.overtime_hours,
+        start_time: editValues.start_time || null,
+        end_time: editValues.end_time || null,
+        description: editValues.description || null,
+      },
+    }, {
+      onSuccess: () => setEditingId(null),
     });
   };
 
@@ -207,67 +194,135 @@ export const TimeReportApprovalPanel: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingReports.map((report) => (
-                  <TableRow key={report.id} className="group hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      {report.staff_name}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-sm">{report.booking_client}</span>
-                        {report.booking_number && (
-                          <span className="text-xs text-muted-foreground">
-                            #{report.booking_number}
-                          </span>
+                {pendingReports.map((report) => {
+                  const isEditing = editingId === report.id;
+                  return (
+                    <TableRow key={report.id} className="group hover:bg-muted/50">
+                      <TableCell className="font-medium">
+                        {report.staff_name}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-sm">{report.booking_client}</span>
+                          {report.booking_number && (
+                            <span className="text-xs text-muted-foreground">
+                              #{report.booking_number}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(report.report_date), 'd MMM yyyy', { locale: sv })}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <div className="flex gap-1">
+                            <Input
+                              type="time"
+                              value={editValues.start_time}
+                              onChange={(e) => setEditValues(v => ({ ...v, start_time: e.target.value }))}
+                              className="h-7 w-20 text-xs"
+                            />
+                            <Input
+                              type="time"
+                              value={editValues.end_time}
+                              onChange={(e) => setEditValues(v => ({ ...v, end_time: e.target.value }))}
+                              className="h-7 w-20 text-xs"
+                            />
+                          </div>
+                        ) : (
+                          report.start_time && report.end_time ? (
+                            <span className="text-sm">
+                              {report.start_time.slice(0, 5)} - {report.end_time.slice(0, 5)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(report.report_date), 'd MMM yyyy', { locale: sv })}
-                    </TableCell>
-                    <TableCell>
-                      {report.start_time && report.end_time ? (
-                        <span className="text-sm">
-                          {report.start_time.slice(0, 5)} - {report.end_time.slice(0, 5)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-medium">{report.hours_worked} h</span>
-                      {report.overtime_hours > 0 && (
-                        <span className="text-amber-600 text-xs ml-1">
-                          (+{report.overtime_hours} öt)
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                          onClick={() => handleApprove(report.id)}
-                          disabled={approveMutation.isPending}
-                          title="Godkänn"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleReject(report.id)}
-                          disabled={rejectMutation.isPending}
-                          title="Ta bort"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isEditing ? (
+                          <div className="flex gap-1 justify-end">
+                            <Input
+                              type="number"
+                              step="0.25"
+                              value={editValues.hours_worked}
+                              onChange={(e) => setEditValues(v => ({ ...v, hours_worked: parseFloat(e.target.value) || 0 }))}
+                              className="h-7 w-16 text-xs text-right"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-medium">{report.hours_worked} h</span>
+                            {report.overtime_hours > 0 && (
+                              <span className="text-amber-600 text-xs ml-1">
+                                (+{report.overtime_hours} öt)
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          {isEditing ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={saveEdit}
+                                disabled={editMutation.isPending}
+                                title="Spara"
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-muted-foreground"
+                                onClick={() => setEditingId(null)}
+                                title="Avbryt"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => startEdit(report)}
+                                title="Redigera"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleApprove(report.id)}
+                                disabled={approveMutation.isPending}
+                                title="Godkänn"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleReject(report.id)}
+                                title="Ta bort"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
