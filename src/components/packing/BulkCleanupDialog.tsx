@@ -56,8 +56,9 @@ const BulkCleanupDialog = ({ open, onOpenChange }: BulkCleanupDialogProps) => {
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       // Delete related data first
-      for (const table of ['packing_list_items', 'packing_parcels', 'packing_tasks', 'packing_comments', 'packing_files', 'packing_labor_costs', 'packing_purchases', 'packing_quotes', 'packing_invoices', 'packing_budget', 'packing_task_comments'] as const) {
-        await supabase.from(table).delete().in('packing_id', ids);
+      const relatedTables = ['packing_list_items', 'packing_parcels', 'packing_tasks', 'packing_comments', 'packing_files', 'packing_labor_costs', 'packing_purchases', 'packing_quotes', 'packing_invoices', 'packing_budget', 'packing_task_comments'];
+      for (const table of relatedTables) {
+        await (supabase.from(table as any).delete() as any).in('packing_id', ids);
       }
       const { error } = await supabase.from('packing_projects').delete().in('id', ids);
       if (error) throw error;
