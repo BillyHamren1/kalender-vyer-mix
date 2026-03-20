@@ -1,31 +1,30 @@
 
 
-## Alltid rapportera GPS-position — oavsett skiftstatus
+## Fix: QR-knappen i scanner-appen + build-fel
 
-### Problem
-GPS-position rapporteras bara via `useGeofencing`-hooken, som körs per sida (MobileJobs, MobileJobDetail) och kräver att GPS-inställningar är aktiverade. Det finns ingen permanent bakgrundsrapportering på layout-nivå, så om personalen inte har appen öppen på rätt sida syns ingen position.
+### Problem 1: QR-knappen öppnar inte kameran
+Koden skickar `skipCamera={false}` korrekt, men det finns två troliga orsaker till att kameran inte syns:
 
-### Lösning
+1. **I webbläsaren (preview)**: `getUserMedia` blockeras ofta i iframes. Kameran misslyckas tyst och användaren ser bara textfältet.
+2. **På enheten (Capacitor)**: `BarcodeDetector` API finns inte i alla WebViews. Om den saknas visas kameran men utan skanningsförmåga — och felmeddelandena är otydliga.
 
-**1. Skapa en ny hook `useBackgroundLocationReporter`** (`src/hooks/useBackgroundLocationReporter.ts`)
-- Tar `staffId` som parameter
-- Startar `navigator.geolocation.watchPosition` oberoende av aktiva timers eller bokningar
-- Upsertar till `staff_locations` var 30:e sekund (samma throttle som befintlig logik)
-- Körs alltid när appen är öppen och staffId finns — ingen koppling till GPS-inställningar för geofencing
+**Lösning**: Förbättra QRScanner så att:
+- Om kameran misslyckas visas ett tydligt felmeddelande med "Försök igen"-knapp istället för att falla tillbaka till bara textfältet
+- Lägg till en **fallback med `jsQR`-biblioteket** (npm-paket) för enheter utan BarcodeDetector API — detta gör att kameraskanningen fungerar i alla WebViews
+- Om `getUserMedia` helt misslyckas (t.ex. i iframe), visa tydligt "Kameran kunde inte startas" + manuell inmatning
 
-**2. Integrera i `TimeAppLayout`**
-- Hämta `staff` från `useMobileAuth()`
-- Kör `useBackgroundLocationReporter(staff?.id)` i layouten
-- Eftersom TimeAppLayout wrappas av MobileProtectedRoute som wrappas av MobileAuthProvider, finns staffId alltid tillgängligt
+### Problem 2: Build-fel (Resend)
+Edge-funktionen `handle-transport-response` importerar `npm:resend@4.0.0` men Deno kan inte hitta paketet.
 
-**3. Befintlig `useGeofencing` orörd**
-- Geofencing-logiken (enter/exit-triggers, timers) ändras inte
-- Den nya hooken hanterar enbart positionsrapportering till databasen
-- Dubbel-upsert undviks genom att den nya hooken skriver till samma `staff_locations`-rad (upsert on conflict `staff_id`)
+**Lösning**: Lägg till resend i `supabase/functions/handle-transport-response/deno.json` (eller skapa filen om den saknas) med rätt import map, alternativt ändra importvägen.
 
 ### Tekniska detaljer
-- Hook: enkel `watchPosition` → throttled upsert, ca 30 rader kod
-- Ingen ny tabell behövs — använder befintliga `staff_locations`
-- Körs i TimeAppLayout (alla autentiserade sidor i mobilappen)
-- Kan även läggas till i ScannerAppLayout om scanner-personal ska synas
+
+**Fil: `src/components/scanner/QRScanner.tsx`**
+- Installera `jsqr` (npm-paket) som fallback för BarcodeDetector
+- I `scanFrame`: om `detectorRef.current` saknas, använd `jsQR` med canvas-konvertering
+- Visa tydlig UI-status: "Startar kameran...", "Kameran kunde inte startas", etc.
+
+**Fil: `supabase/functions/handle-transport-response/deno.json`** (ny eller uppdatera)
+- Lägg till `"resend": "npm:resend@4.0.0"` i imports
 
