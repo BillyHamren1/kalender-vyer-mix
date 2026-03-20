@@ -4,10 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Settings, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import type { StaffTimeReport, EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 
 interface StaffCostTableProps {
   timeReports: StaffTimeReport[];
@@ -17,7 +15,7 @@ interface StaffCostTableProps {
 }
 
 export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSettings }: StaffCostTableProps) => {
-  const queryClient = useQueryClient();
+  const { approveMutation } = useApproveTimeReport();
   const status = getDeviationStatus(summary.staffDeviationPercent);
 
   const formatCurrency = (amount: number) => {
@@ -29,27 +27,8 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
     }).format(amount);
   };
 
-  const handleApprove = async (reportIds: string[], label: string) => {
-    try {
-      const { error } = await supabase
-        .from('time_reports')
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: 'Projektledare'
-        })
-        .in('id', reportIds);
-
-      if (error) throw error;
-      
-      await queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
-      await queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
-      
-      toast.success(`Tidrapport för ${label} godkänd`);
-    } catch (error) {
-      console.error('Error approving time report:', error);
-      toast.error('Kunde inte godkänna tidrapporten');
-    }
+  const handleApprove = (reportIds: string[]) => {
+    approveMutation.mutate(reportIds);
   };
 
   const allReports = timeReports.flatMap(r => r.detailed_reports || []);
@@ -134,7 +113,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-amber-600 hover:text-green-600 hover:bg-green-50"
-                              onClick={() => handleApprove([report.id], `${staff.staff_name} (${report.report_date})`)}
+                              onClick={() => handleApprove([report.id])}
                               title="Klicka för att godkänna"
                             >
                               <Clock className="h-4 w-4 mr-1" />

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Check, Clock, Minus, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useApproveTimeReport } from "@/hooks/useApproveTimeReport";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,7 @@ type ReportEntry = TimeEntry | PurchaseEntry;
 const EconomyTimeReports = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const queryClient = useQueryClient();
+  const { approveMutation } = useApproveTimeReport();
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["economy-time-reports", typeFilter],
@@ -118,41 +119,13 @@ const EconomyTimeReports = () => {
     },
   });
 
-  const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("time_reports")
-        .update({ approved: true, approved_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["economy-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["economy-overview"] });
-      toast.success("Tidrapport godkänd");
-    },
-  });
-
-  const approveAllMutation = useMutation({
-    mutationFn: async () => {
-      const pendingIds = entries
-        .filter((e): e is TimeEntry => e.type === "time" && !e.approved)
-        .map((e) => e.id);
-      if (!pendingIds.length) return;
-      const { error } = await supabase
-        .from("time_reports")
-        .update({ approved: true, approved_at: new Date().toISOString() })
-        .in("id", pendingIds);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["economy-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-time-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["economy-overview"] });
-      toast.success("Alla väntande tidrapporter godkända");
-    },
-  });
+  const handleApproveAll = () => {
+    const pendingIds = entries
+      .filter((e): e is TimeEntry => e.type === "time" && !e.approved)
+      .map((e) => e.id);
+    if (!pendingIds.length) return;
+    approveMutation.mutate(pendingIds);
+  };
 
   const pendingCount = entries.filter(
     (e): e is TimeEntry => e.type === "time" && !e.approved
@@ -189,8 +162,8 @@ const EconomyTimeReports = () => {
         </div>
         {pendingCount > 0 && (
           <Button
-            onClick={() => approveAllMutation.mutate()}
-            disabled={approveAllMutation.isPending}
+            onClick={handleApproveAll}
+            disabled={approveMutation.isPending}
             className="bg-[hsl(184_55%_38%)] hover:bg-[hsl(184_55%_32%)] text-white"
           >
             <CheckCheck className="h-4 w-4 mr-2" />
