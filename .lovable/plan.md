@@ -1,30 +1,46 @@
 
 
-## Fix: QR-knappen i scanner-appen + build-fel
+## Genomgång: Projektledningshanteringen
 
-### Problem 1: QR-knappen öppnar inte kameran
-Koden skickar `skipCamera={false}` korrekt, men det finns två troliga orsaker till att kameran inte syns:
+### Status: Vad fungerar
 
-1. **I webbläsaren (preview)**: `getUserMedia` blockeras ofta i iframes. Kameran misslyckas tyst och användaren ser bara textfältet.
-2. **På enheten (Capacitor)**: `BarcodeDetector` API finns inte i alla WebViews. Om den saknas visas kameran men utan skanningsförmåga — och felmeddelandena är otydliga.
+Projektledningen har en solid 3-nivåstruktur (litet/medel/stort) med konvertering mellan nivåerna, en unified projektlista med sök/filter, och ett arkiv för avslutade projekt. Flödet från inkommande bokning → projekt → etablering → ekonomi → avslut fungerar. Etablerings-Gantt, uppgiftshantering, filuppladdning, kommentarer, historiklogg och transportbokning är implementerade och kopplade.
 
-**Lösning**: Förbättra QRScanner så att:
-- Om kameran misslyckas visas ett tydligt felmeddelande med "Försök igen"-knapp istället för att falla tillbaka till bara textfältet
-- Lägg till en **fallback med `jsQR`-biblioteket** (npm-paket) för enheter utan BarcodeDetector API — detta gör att kameraskanningen fungerar i alla WebViews
-- Om `getUserMedia` helt misslyckas (t.ex. i iframe), visa tydligt "Kameran kunde inte startas" + manuell inmatning
+### Problem och förbättringar
 
-### Problem 2: Build-fel (Resend)
-Edge-funktionen `handle-transport-response` importerar `npm:resend@4.0.0` men Deno kan inte hitta paketet.
+**1. Oanvända/döda filer (bör raderas)**
 
-**Lösning**: Lägg till resend i `supabase/functions/handle-transport-response/deno.json` (eller skapa filen om den saknas) med rätt import map, alternativt ändra importvägen.
+| Fil | Anledning |
+|-----|-----------|
+| `src/pages/ProjectDetail.tsx` | Gammal tab-baserad detaljvy, ersatt av `ProjectLayout` + sub-pages. Inte importerad i App.tsx. |
+| `src/pages/LargeProjectDetail.tsx` | Gammal tab-baserad vy för stora projekt, ersatt av `LargeProjectLayout` + sub-pages. Inte importerad i App.tsx. |
+| `src/components/project/ProjectCard.tsx` | Inte importerad någonstans. |
+| `src/components/project/CreateProjectDialog.tsx` | Ersatt av `CreateProjectWizard.tsx`. Inte importerad. |
+| `src/components/project/JobCard.tsx` | Inte importerad någonstans. |
+| `src/components/project/ProjectTransportSection.tsx` | Inte importerad, ersatt av `ProjectTransportWidget`. |
+| `src/pages/APITester.tsx` | Inte routad i App.tsx. |
+
+**2. Kommentarer saknas i nya ProjectViewPage**
+Den nya medelprojekt-vyn (`ProjectViewPage.tsx`) visar filer, uppgifter, historik men **saknar kommentarssektionen** helt. `ProjectComments`-komponenten finns och fungerar, men renderas aldrig för medelprojekt. Den gamla `ProjectDetail.tsx` hade den som tab.
+
+**3. JobDetail.tsx (litet projekt) saknar modern design**
+`JobDetail.tsx` använder fortfarande det gamla tab-mindre designmönstret med `MainSystemLayout` som wrapper inuti komponenten (inte via routing), medan medel- och stora projekt använder det nya layout-systemet med nav-bar och sub-pages. Inkonsekvens i UX.
+
+**4. Projektekonomi-detalj (`ProjectEconomyDetail.tsx`) — dubbel vy**
+`/economy/:id` renderar en separat vy med "Stäng projekt"-knapp, medan `/project/:projectId/economy` redan visar ekonomitabben med samma `ProjectEconomyTab`. Stäng-projekt-funktionen finns bara i `/economy/:id`-vyn, inte i projektets egen ekonomi-tab.
+
+### Åtgärdsplan
+
+1. **Radera 7 oanvända filer** — `ProjectDetail.tsx`, `LargeProjectDetail.tsx`, `ProjectCard.tsx`, `CreateProjectDialog.tsx`, `JobCard.tsx`, `ProjectTransportSection.tsx`, `APITester.tsx`
+
+2. **Lägg till kommentarssektion i ProjectViewPage** — Rendera `ProjectComments` i den befintliga 3-kolumnslayouten (byt ut historik-kolumnen mot en 2-raders layout med kommentarer + historik, eller lägg till en fjärde sektion)
+
+3. **Flytta "Stäng projekt"-funktionen** till `ProjectEconomyPage.tsx` (ekonomi-tabben inom projektlayouten) så att man inte behöver gå via `/economy/:id` för att stänga ett projekt
 
 ### Tekniska detaljer
 
-**Fil: `src/components/scanner/QRScanner.tsx`**
-- Installera `jsqr` (npm-paket) som fallback för BarcodeDetector
-- I `scanFrame`: om `detectorRef.current` saknas, använd `jsQR` med canvas-konvertering
-- Visa tydlig UI-status: "Startar kameran...", "Kameran kunde inte startas", etc.
-
-**Fil: `supabase/functions/handle-transport-response/deno.json`** (ny eller uppdatera)
-- Lägg till `"resend": "npm:resend@4.0.0"` i imports
+- Filer raderas rakt av — ingen annan fil importerar dem
+- `ProjectViewPage.tsx`: Lägg till import av `ProjectComments` och rendera den med en `SectionHeader` i layouten
+- `ProjectEconomyPage.tsx`: Lägg till "Stäng projekt"-knapp med samma checklista-dialog som `ProjectEconomyDetail.tsx`
+- Ingen databasändring behövs
 
