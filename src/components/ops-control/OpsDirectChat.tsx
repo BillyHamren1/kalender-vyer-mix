@@ -49,12 +49,15 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
     }
   }, [messages]);
 
-  // Mark as read on open
+  // Mark as read on open and invalidate inbox cache so badge updates
   useEffect(() => {
     if (myId && staffId) {
-      markDirectMessagesRead(myId, staffId);
+      markDirectMessagesRead(myId, staffId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+        queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
+      });
     }
-  }, [myId, staffId]);
+  }, [myId, staffId, queryClient]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
