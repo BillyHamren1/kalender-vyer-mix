@@ -227,6 +227,18 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               Avbryt
             </Button>
             <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setShowAddDialog(true);
+              }}
+              disabled={isSubmitting}
+              className="gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Lägg till dag
+            </Button>
+            <Button
               variant="secondary"
               onClick={handleOpenCopyDialog}
               disabled={isSubmitting}
