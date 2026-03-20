@@ -9,6 +9,7 @@ import { sv } from 'date-fns/locale';
 
 interface PackingDashboardProps {
   packings: PackingWithBooking[];
+  onDelete?: (packingId: string) => void;
 }
 
 const PackingDashboard = ({ packings }: PackingDashboardProps) => {
