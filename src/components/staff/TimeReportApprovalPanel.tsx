@@ -229,10 +229,21 @@ export const TimeReportApprovalPanel: React.FC = () => {
               <TableBody>
                 {pendingReports.map((report) => {
                   const isEditing = editingId === report.id;
+                  const reportEditLogs = editLogsByReport[report.id] || [];
+                  const hasEdits = reportEditLogs.length > 0;
                   return (
-                    <TableRow key={report.id} className="group hover:bg-muted/50">
+                    <React.Fragment key={report.id}>
+                    <TableRow className="group hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        {report.staff_name}
+                        <div className="flex flex-col gap-0.5">
+                          {report.staff_name}
+                          {hasEdits && (
+                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full w-fit flex items-center gap-0.5">
+                              <Pencil className="w-2.5 h-2.5" />
+                              Ändrad {reportEditLogs.length}x
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
