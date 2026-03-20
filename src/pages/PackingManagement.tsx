@@ -94,6 +94,15 @@ const PackingManagement = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCleanupOpen(true)}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 h-10"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Rensa gamla
+            </Button>
           </div>
 
           {/* Dashboard */}
