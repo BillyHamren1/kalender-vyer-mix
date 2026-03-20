@@ -4,10 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Settings, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import type { StaffTimeReport, EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 
 interface StaffCostTableProps {
   timeReports: StaffTimeReport[];
