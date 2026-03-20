@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sidebar3D } from '@/components/Sidebar3D';
+import FloatingInbox from '@/components/FloatingInbox';
 
 interface MainSystemLayoutProps {
   children: React.ReactNode;
@@ -13,6 +14,7 @@ const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
       <main className="flex-1 pb-20 lg:pb-0 flex flex-col overflow-y-auto">
         {children}
       </main>
+      <FloatingInbox />
     </div>
   );
 };
