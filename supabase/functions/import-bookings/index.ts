@@ -276,35 +276,36 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
     });
   }
   
-  // Return delivery: same day as rigdown, 17:00-19:00
-  // Inventory: day after rigdown, 08:00-10:00
-  // Unpacking: day after rigdown, 10:00-12:00
-  if (booking.rigdowndate) {
+  // Return delivery, Inventory, Unpacking: for ALL rigdown dates
+  const rigdownDates = booking.allRigdownDates && booking.allRigdownDates.length > 0
+    ? booking.allRigdownDates : (booking.rigdowndate ? [booking.rigdowndate] : []);
+  
+  for (const rigdownDate of rigdownDates) {
     events.push({
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Återleverans - ${clientName}`,
-      event_type: 'return',
-      start_time: `${booking.rigdowndate}T17:00:00`,
-      end_time: `${booking.rigdowndate}T19:00:00`,
+      event_type: rigdownDates.length > 1 ? `return_${rigdownDate}` : 'return',
+      start_time: `${rigdownDate}T17:00:00`,
+      end_time: `${rigdownDate}T19:00:00`,
       delivery_address: deliveryAddress,
       resource_id: 'warehouse',
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
     });
     
-    const dayAfterRigdown = addDays(booking.rigdowndate, 1);
+    const dayAfterRigdown = addDays(rigdownDate, 1);
     
     events.push({
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Inventering - ${clientName}`,
-      event_type: 'inventory',
+      event_type: rigdownDates.length > 1 ? `inventory_${rigdownDate}` : 'inventory',
       start_time: `${dayAfterRigdown}T08:00:00`,
       end_time: `${dayAfterRigdown}T10:00:00`,
       delivery_address: deliveryAddress,
@@ -312,7 +313,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
@@ -322,7 +323,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Upppackning - ${clientName}`,
-      event_type: 'unpacking',
+      event_type: rigdownDates.length > 1 ? `unpacking_${rigdownDate}` : 'unpacking',
       start_time: `${dayAfterRigdown}T10:00:00`,
       end_time: `${dayAfterRigdown}T12:00:00`,
       delivery_address: deliveryAddress,
@@ -330,7 +331,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
