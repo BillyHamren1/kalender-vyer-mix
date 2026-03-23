@@ -83,9 +83,9 @@ export const StaffTimeReportsSection = ({
                     </TableCell>
                     <TableCell>{report.start_time || '-'}</TableCell>
                     <TableCell>{report.end_time || '-'}</TableCell>
-                    <TableCell className="text-right">{report.hours_worked} h</TableCell>
+                    <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
                     <TableCell className="text-right">
-                      {report.overtime_hours > 0 ? `${report.overtime_hours} h` : '-'}
+                      {report.overtime_hours > 0 ? formatHoursMinutes(report.overtime_hours) : '-'}
                     </TableCell>
                     <TableCell>
                       <Button
