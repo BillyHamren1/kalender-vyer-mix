@@ -4,6 +4,7 @@ import { Truck } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { ContactDetailsSection } from './delivery/ContactDetailsSection';
 import { AddressFormSection } from './delivery/AddressFormSection';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DeliveryInformationCardProps {
   // Contact props
