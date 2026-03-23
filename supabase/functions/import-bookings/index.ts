@@ -1419,18 +1419,17 @@ serve(async (req) => {
           clientName = ''
         }
 
-        // Handle multiple date arrays - use first date from each array
-        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
-          ? externalBooking.rig_up_dates[0] 
-          : undefined
+        // Handle multiple date arrays - use first date for bookings table, keep all for calendar
+        const allRigDates = (externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0)
+          ? externalBooking.rig_up_dates : [];
+        const allEventDates = (externalBooking.event_dates && externalBooking.event_dates.length > 0)
+          ? externalBooking.event_dates : [];
+        const allRigdownDates = (externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0)
+          ? externalBooking.rig_down_dates : [];
 
-        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
-          ? externalBooking.event_dates[0] 
-          : undefined
-
-        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
-          ? externalBooking.rig_down_dates[0] 
-          : undefined
+        const rigdaydate = allRigDates[0] || undefined;
+        const eventdate = allEventDates[0] || undefined;
+        const rigdowndate = allRigdownDates[0] || undefined;
 
         const bookingData: BookingData = {
           id: externalBooking.id,
@@ -1438,6 +1437,9 @@ serve(async (req) => {
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
+          allRigDates,
+          allEventDates,
+          allRigdownDates,
           deliveryaddress: externalBooking.delivery_address,
           delivery_city: externalBooking.delivery_city,
           delivery_postal_code: externalBooking.delivery_postal_code,
