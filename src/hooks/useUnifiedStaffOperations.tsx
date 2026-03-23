@@ -17,6 +17,7 @@ export interface StaffMember {
   id: string;
   name: string;
   color?: string;
+  tags?: string[];
 }
 
 // ── Fetchers ──────────────────────────────────────────────────────────────────
