@@ -312,7 +312,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       // Create project
       const { data: project, error: projectError } = await supabase
         .from('projects')
-        .insert(projectData)
+        .insert(projectData as any)
         .select()
         .single();
 
