@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { mobileApi } from '@/services/mobileApiService';
 
 /**
  * Continuously reports GPS position to staff_locations every 30s,
@@ -18,15 +18,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       if (now - lastReportRef.current < 30000) return;
       lastReportRef.current = now;
 
-      supabase.from('staff_locations').upsert({
-        staff_id: staffId,
+      mobileApi.reportLocation({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
         accuracy: pos.coords.accuracy ?? null,
         speed: pos.coords.speed ?? null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'staff_id' }).then(({ error }) => {
-        if (error) console.warn('[BGLocation] upsert error:', error.message);
+      }).catch((error) => {
+        console.warn('[BGLocation] report error:', error?.message || error);
       });
     };
 

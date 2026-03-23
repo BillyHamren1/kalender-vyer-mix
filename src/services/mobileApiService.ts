@@ -257,6 +257,14 @@ export const mobileApi = {
   unregisterPushToken: (pushToken: string) =>
     callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
 
+  // Location reporting
+  reportLocation: (data: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number | null;
+    speed?: number | null;
+  }) => callApi<{ success: boolean }>('report_location', data),
+
   // Travel logs
   createTravelLog: (data: {
     from_address?: string;

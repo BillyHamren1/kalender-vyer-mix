@@ -1984,6 +1984,42 @@ async function handleUnregisterPushToken(supabase: any, staffId: string, data: a
   )
 }
 
+async function handleReportLocation(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { latitude, longitude, accuracy, speed } = data || {}
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return new Response(
+      JSON.stringify({ error: 'latitude and longitude are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { error } = await supabase
+    .from('staff_locations')
+    .upsert({
+      staff_id: staffId,
+      organization_id: organizationId,
+      latitude,
+      longitude,
+      accuracy: accuracy ?? null,
+      speed: speed ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'staff_id' })
+
+  if (error) {
+    console.error('[mobile-app-api] report_location error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to report location' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 // ==================== TRAVEL LOG HANDLERS ====================
 
 async function handleCreateTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
