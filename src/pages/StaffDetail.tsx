@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck } from 'lucide-react';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
+import StaffAvailabilityDialog from '@/components/staff/StaffAvailabilityDialog';
 import { supabase } from '@/integrations/supabase/client';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
 import StaffTimeReportAllMonths from '@/components/time-reports/StaffTimeReportAllMonths';
@@ -20,6 +21,7 @@ const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
   const navigate = useNavigate();
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
+  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
 
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
     queryKey: ['staff-member', staffId],
@@ -176,6 +178,7 @@ const StaffDetail: React.FC = () => {
   const textColor = getContrastTextColor(staffColor);
 
   return (
+    <>
     <div className="h-screen flex flex-col bg-muted/30 overflow-hidden theme-purple">
       {/* Header */}
       <div className="bg-card border-b border-border px-6 py-4">
@@ -314,6 +317,19 @@ const StaffDetail: React.FC = () => {
                   })}
                 </div>
               </div>
+
+              {/* Tillgänglighet */}
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => setShowAvailabilityDialog(true)}
+                >
+                  <CalendarCheck className="h-4 w-4" />
+                  Hantera tillgänglighet
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -411,6 +427,16 @@ const StaffDetail: React.FC = () => {
         </TabsContent>
       </Tabs>
     </div>
+
+    {staffId && staffMember && (
+      <StaffAvailabilityDialog
+        isOpen={showAvailabilityDialog}
+        onClose={() => setShowAvailabilityDialog(false)}
+        staffId={staffId}
+        staffName={staffMember.name}
+      />
+    )}
+    </>
   );
 };
 

@@ -224,7 +224,7 @@ export const getAvailableStaffForDateRange = async (
         (p: any) => p.staff_id === staffId && p.start_date <= dateStr && p.end_date >= dateStr
       );
 
-      if (staffPeriods.length === 0) continue; // No records = not available
+      if (staffPeriods.length === 0) { available.push(staffId); continue; } // No records = available by default
 
       const hasUnavailable = staffPeriods.some(
         (p: any) => p.availability_type === 'unavailable' || p.availability_type === 'blocked'
