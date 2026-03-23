@@ -83,7 +83,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     unattestedInvoiceCount: attestCounts.unattested,
     newCostCount: attestCounts.imported,
     hasRecentEconomyData: true, // Simplified - could check last fetch timestamp
-    budgetDeviation: summary.revenue > 0 ? ((summary.totalCost - (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0)) / summary.revenue * 100) : 0,
+    budgetDeviation: revenue > 0 ? ((totalCost - (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0)) / revenue * 100) : 0,
     marginPercent: margin,
     timeReportsApproved: true, // Simplified
   }), [attestCounts, summary, budget, margin]);

@@ -92,12 +92,12 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
 
     // 3. Margin warnings
     const marginWarnings: ActionItem[] = projectInsights
-      .filter(p => p.marginPercent !== null && p.marginPercent < 10 && p.economyStatus !== 'economy-closed')
+      .filter(p => p.forecastMarginPercent < 10 && p.economyStatus !== 'economy-closed')
       .map(p => ({
         projectName: p.name,
-        clientName: p.client || '—',
+        clientName: '—',
         actionCount: 1,
-        amount: p.expectedRevenue - p.actualCost,
+        amount: p.forecastMargin,
         projectId: p.id,
       }));
 
