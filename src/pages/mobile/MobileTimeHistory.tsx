@@ -320,7 +320,7 @@ const MobileTimeHistory = () => {
               </button>
               <div className="text-center">
                 <p className="text-sm font-bold text-foreground capitalize">{listPeriodLabel}</p>
-                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {filteredTotalHours}h</p>
+                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {formatHoursMinutes(filteredTotalHours)}</p>
               </div>
               <button onClick={() => navigateListPeriod(1)} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
