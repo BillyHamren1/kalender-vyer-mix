@@ -541,16 +541,18 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   ])
 
   // --- Process DMs ---
+  const myIds = new Set(ids) // staffId + userId (if linked)
   const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[] }>()
   for (const msg of (dmResult.data || [])) {
-    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
-    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+    const isSender = myIds.has(msg.sender_id)
+    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerName = isSender ? msg.recipient_name : msg.sender_name
     if (!conversations.has(partnerId)) {
       conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [] })
     }
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && msg.recipient_id === staffId) conv.unread_count++
+    if (!msg.is_read && !isSender) conv.unread_count++
   }
   const dmInbox = Array.from(conversations.values())
     .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
