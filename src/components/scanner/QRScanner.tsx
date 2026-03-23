@@ -129,19 +129,57 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
+      // Use simpler constraints on iOS to avoid hanging
+      const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const constraints: MediaStreamConstraints = {
+        video: isIos 
+          ? { facingMode: 'environment' }
+          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      };
+      
+      console.log('[QRScanner] Requesting getUserMedia with constraints:', JSON.stringify(constraints));
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
       
       streamRef.current = stream;
       
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        const video = videoRef.current;
+        video.srcObject = stream;
+        
+        // Use event-based approach instead of awaiting play() which can hang on iOS
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.warn('[QRScanner] Camera start timeout after 8s');
+            reject(new Error('Kameran svarade inte i tid. Försök igen.'));
+          }, 8000);
+          
+          const onPlaying = () => {
+            clearTimeout(timeout);
+            video.removeEventListener('playing', onPlaying);
+            video.removeEventListener('error', onError);
+            resolve();
+          };
+          const onError = () => {
+            clearTimeout(timeout);
+            video.removeEventListener('playing', onPlaying);
+            video.removeEventListener('error', onError);
+            reject(new Error('Video-elementet kunde inte starta.'));
+          };
+          
+          video.addEventListener('playing', onPlaying);
+          video.addEventListener('error', onError);
+          
+          // play() may return a promise on some browsers
+          const playPromise = video.play();
+          if (playPromise?.catch) {
+            playPromise.catch((e: any) => {
+              console.warn('[QRScanner] play() rejected:', e);
+              // Don't reject here — the 'playing' event might still fire
+            });
+          }
+        });
+        
         setCameraState('running');
         console.log('[QRScanner] Camera started successfully');
         animationFrameRef.current = requestAnimationFrame(scanFrame);
