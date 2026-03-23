@@ -8,9 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { StaffMember, syncStaffMember } from '@/services/staffService';
 import { toast } from 'sonner';
 import ColorPicker from './ColorPicker';
+
+const AVAILABLE_TAGS = ['Montage', 'Lager'] as const;
 
 const staffSchema = z.object({
   name: z.string().min(1, 'Name is required'),
