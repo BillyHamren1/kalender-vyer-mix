@@ -174,7 +174,7 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5 min-w-0">
               {[
                 { label: 'Ingen', value: '0' },
                 { label: '30m', value: '0.5' },
