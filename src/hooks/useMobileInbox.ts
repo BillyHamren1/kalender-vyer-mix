@@ -27,7 +27,13 @@ interface JobConversation {
   lastTime: string;
   unread: boolean;
   status: string;
-  lastDate: string | null; // rigdowndate || eventdate || rigdaydate
+  lastDate: string | null;
+}
+
+interface InboxAllData {
+  conversations: DMConversation[];
+  broadcasts: BroadcastItem[];
+  jobs: JobConversation[];
 }
 
 const STALE_TIME = 30_000;
@@ -38,38 +44,16 @@ export function useMobileInbox() {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
 
-  const dmQuery = useQuery({
-    queryKey: ['mobile-inbox-dms'],
-    queryFn: async (): Promise<DMConversation[]> => {
-      const res = await mobileApi.getDirectMessages();
-      return res.conversations || [];
-    },
-    enabled: !!staff,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-    refetchInterval: REFETCH_INTERVAL,
-  });
-
-  const broadcastQuery = useQuery({
-    queryKey: ['mobile-inbox-broadcasts'],
-    queryFn: async (): Promise<BroadcastItem[]> => {
-      const res = await mobileApi.getBroadcasts();
-      return (res.broadcasts || []).map((b: any) => ({
+  const inboxQuery = useQuery({
+    queryKey: ['mobile-inbox-all'],
+    queryFn: async (): Promise<InboxAllData> => {
+      const res = await mobileApi.getInboxAll();
+      const conversations: DMConversation[] = res.conversations || [];
+      const broadcasts: BroadcastItem[] = (res.broadcasts || []).map((b: any) => ({
         ...b,
         is_read: b.is_read ?? false,
       }));
-    },
-    enabled: !!staff,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-    refetchInterval: REFETCH_INTERVAL,
-  });
-
-  const jobQuery = useQuery({
-    queryKey: ['mobile-inbox-jobs'],
-    queryFn: async (): Promise<JobConversation[]> => {
-      const res = await mobileApi.getInboxJobs();
-      return (res.bookings || []).slice(0, 50).map((b: any) => ({
+      const jobs: JobConversation[] = (res.bookings || []).slice(0, 50).map((b: any) => ({
         bookingId: b.id,
         client: b.client,
         lastMessage: '',
@@ -78,6 +62,7 @@ export function useMobileInbox() {
         status: b.status || 'CONFIRMED',
         lastDate: b.rigdowndate || b.eventdate || b.rigdaydate || null,
       }));
+      return { conversations, broadcasts, jobs };
     },
     enabled: !!staff,
     staleTime: STALE_TIME,
@@ -85,40 +70,56 @@ export function useMobileInbox() {
     refetchInterval: REFETCH_INTERVAL,
   });
 
-  const isLoading = dmQuery.isLoading || broadcastQuery.isLoading || jobQuery.isLoading;
+  const data = inboxQuery.data;
 
   const refetchAll = () => {
-    dmQuery.refetch();
-    broadcastQuery.refetch();
-    jobQuery.refetch();
+    inboxQuery.refetch();
   };
 
   // Optimistic: mark DM conversation as read
   const markDMReadOptimistic = (partnerId: string) => {
-    queryClient.setQueryData<DMConversation[]>(['mobile-inbox-dms'], (old) =>
-      old?.map(c => c.partner_id === partnerId ? { ...c, unread_count: 0 } : c)
-    );
+    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        conversations: old.conversations.map(c =>
+          c.partner_id === partnerId ? { ...c, unread_count: 0 } : c
+        ),
+      };
+    });
   };
 
   // Optimistic: append a sent DM message
   const appendDMMessage = (partnerId: string, message: any) => {
-    queryClient.setQueryData<DMConversation[]>(['mobile-inbox-dms'], (old) =>
-      old?.map(c => c.partner_id === partnerId ? { ...c, messages: [...c.messages, message] } : c)
-    );
+    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        conversations: old.conversations.map(c =>
+          c.partner_id === partnerId ? { ...c, messages: [...c.messages, message] } : c
+        ),
+      };
+    });
   };
 
   // Optimistic: mark broadcast as read
   const markBroadcastReadOptimistic = (broadcastId: string) => {
-    queryClient.setQueryData<BroadcastItem[]>(['mobile-inbox-broadcasts'], (old) =>
-      old?.map(b => b.id === broadcastId ? { ...b, is_read: true } : b)
-    );
+    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        broadcasts: old.broadcasts.map(b =>
+          b.id === broadcastId ? { ...b, is_read: true } : b
+        ),
+      };
+    });
   };
 
   return {
-    dmConversations: dmQuery.data || [],
-    broadcasts: broadcastQuery.data || [],
-    jobConversations: jobQuery.data || [],
-    isLoading,
+    dmConversations: data?.conversations || [],
+    broadcasts: data?.broadcasts || [],
+    jobConversations: data?.jobs || [],
+    isLoading: inboxQuery.isLoading,
     refetchAll,
     markDMReadOptimistic,
     appendDMMessage,

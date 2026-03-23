@@ -494,6 +494,94 @@ async function handleGetInboxJobs(supabase: any, staffId: string, organizationId
   )
 }
 
+async function handleGetInboxAll(supabase: any, staffId: string, organizationId: string) {
+  // Run all three inbox queries in parallel for a single round-trip
+  const today = new Date().toISOString().split('T')[0]
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+
+  const [dmResult, broadcastResult, broadcastAssignments, jobAssignments] = await Promise.all([
+    // DMs
+    supabase
+      .from('direct_messages')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    // Broadcasts
+    supabase
+      .from('broadcast_messages')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .gte('created_at', `${sevenDaysAgo}T00:00:00`)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    // Broadcast audience assignments (today)
+    supabase
+      .from('booking_staff_assignments')
+      .select('booking_id')
+      .eq('staff_id', staffId)
+      .eq('assignment_date', today)
+      .eq('organization_id', organizationId),
+    // Job inbox assignments (30 days)
+    supabase
+      .from('booking_staff_assignments')
+      .select('booking_id, assignment_date')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .gte('assignment_date', thirtyDaysAgoStr),
+  ])
+
+  // --- Process DMs ---
+  const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[] }>()
+  for (const msg of (dmResult.data || [])) {
+    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
+    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+    if (!conversations.has(partnerId)) {
+      conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [] })
+    }
+    const conv = conversations.get(partnerId)!
+    conv.messages.push(msg)
+    if (!msg.is_read && msg.recipient_id === staffId) conv.unread_count++
+  }
+  const dmInbox = Array.from(conversations.values())
+    .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
+
+  // --- Process Broadcasts ---
+  const staffBookingIds = new Set((broadcastAssignments.data || []).map((a: any) => a.booking_id))
+  const relevantBroadcasts = (broadcastResult.data || []).filter((b: any) => {
+    switch (b.audience) {
+      case 'all_today': return true
+      case 'active_staff': return true
+      case 'job_staff': return staffBookingIds.has(b.audience_booking_id)
+      case 'selected_staff': return (b.audience_staff_ids || []).includes(staffId)
+      default: return false
+    }
+  }).map((b: any) => ({ ...b, is_read: (b.is_read_by || []).includes(staffId) }))
+
+  // --- Process Job bookings ---
+  let jobBookings: any[] = []
+  const jobAssignmentData = jobAssignments.data || []
+  if (jobAssignmentData.length > 0) {
+    const bookingIds = [...new Set(jobAssignmentData.map((a: any) => a.booking_id))]
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client, status, rigdaydate, eventdate, rigdowndate')
+      .in('id', bookingIds)
+      .in('status', ['CONFIRMED', 'COMPLETED'])
+      .order('rigdaydate', { ascending: false })
+    jobBookings = bookings || []
+  }
+
+  return new Response(
+    JSON.stringify({ conversations: dmInbox, broadcasts: relevantBroadcasts, bookings: jobBookings }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 async function handleGetTimeReports(supabase: any, staffId: string, organizationId: string) {
   const { data: reports, error } = await supabase
     .from('time_reports')
