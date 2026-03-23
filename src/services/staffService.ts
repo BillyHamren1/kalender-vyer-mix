@@ -19,6 +19,7 @@ export interface StaffMember {
   color?: string;
   hourly_rate?: number;
   overtime_rate?: number;
+  tags?: string[];
 }
 
 export interface StaffAssignment {
@@ -86,6 +87,7 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
         notes: staffData.notes,
         hourly_rate: staffData.hourly_rate,
         overtime_rate: staffData.overtime_rate,
+        tags: staffData.tags || [],
       }, {
         onConflict: 'id'
       });
@@ -115,6 +117,7 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
             notes: staffData.notes,
             hourly_rate: staffData.hourly_rate,
             overtime_rate: staffData.overtime_rate,
+            tags: staffData.tags || [],
           })
           .eq('email', staffData.email);
         
@@ -159,7 +162,8 @@ export const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promis
         notes: staffData.notes,
         hourly_rate: staffData.hourly_rate,
         overtime_rate: staffData.overtime_rate,
-        color: staffData.color || '#E3F2FD'
+        color: staffData.color || '#E3F2FD',
+        tags: staffData.tags || [],
       })
       .select()
       .single();

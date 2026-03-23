@@ -216,7 +216,10 @@ const StaffDetail: React.FC = () => {
                   </label>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {(staffMember as any).tags?.map((tag: string) => (
+                  <Badge key={tag} variant="default" className="text-xs">{tag}</Badge>
+                ))}
                 {staffMember.role && (
                   <Badge variant="secondary">{staffMember.role}</Badge>
                 )}

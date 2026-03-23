@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { User, Mail, Phone, Edit2 } from 'lucide-react';
 import { getContrastTextColor } from '@/utils/staffColors';
 import { updateStaffActiveStatus } from '@/services/staffAvailabilityService';
@@ -17,6 +18,7 @@ interface StaffMember {
   color?: string;
   role?: string;
   is_active?: boolean;
+  tags?: string[];
 }
 
 interface StaffListProps {
@@ -127,7 +129,10 @@ const StaffList: React.FC<StaffListProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {staff.tags && staff.tags.length > 0 && staff.tags.map(tag => (
+                      <Badge key={tag} variant="default" className="text-[10px] px-1.5 py-0">{tag}</Badge>
+                    ))}
                     {staff.role && <span>{staff.role}</span>}
                     {staff.email && (
                       <span className="hidden sm:flex items-center gap-1">

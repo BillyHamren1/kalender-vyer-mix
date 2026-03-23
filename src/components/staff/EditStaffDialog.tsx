@@ -8,9 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { StaffMember, syncStaffMember } from '@/services/staffService';
 import { toast } from 'sonner';
 import ColorPicker from './ColorPicker';
+
+const AVAILABLE_TAGS = ['Montage', 'Lager'] as const;
 
 const staffSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -48,6 +51,11 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
   onColorUpdate 
 }) => {
   const [selectedColor, setSelectedColor] = useState(staff.color || '#E3F2FD');
+  const [selectedTags, setSelectedTags] = useState<string[]>((staff as any).tags || []);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
 
   const form = useForm<StaffFormData>({
     resolver: zodResolver(staffSchema),
@@ -90,6 +98,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         notes: staff.notes || '',
       });
       setSelectedColor(staff.color || '#E3F2FD');
+      setSelectedTags((staff as any).tags || []);
     }
   }, [staff, form]);
 
@@ -112,6 +121,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         emergency_contact_name: data.emergency_contact_name || undefined,
         emergency_contact_phone: data.emergency_contact_phone || undefined,
         notes: data.notes || undefined,
+        tags: selectedTags,
       };
 
       await syncStaffMember(updatedStaffData);
@@ -234,6 +244,22 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
               </TabsContent>
 
               <TabsContent value="employment" className="space-y-4">
+                <div>
+                  <FormLabel>Taggar</FormLabel>
+                  <div className="flex gap-2 mt-1.5">
+                    {AVAILABLE_TAGS.map(tag => (
+                      <Badge
+                        key={tag}
+                        variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                        className="cursor-pointer select-none text-sm px-3 py-1"
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
                 <FormField
                   control={form.control}
                   name="role"

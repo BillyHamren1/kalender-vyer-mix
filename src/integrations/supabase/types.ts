@@ -3052,6 +3052,7 @@ export type Database = {
           postal_code: string | null
           role: string | null
           salary: number | null
+          tags: string[]
         }
         Insert: {
           address?: string | null
@@ -3075,6 +3076,7 @@ export type Database = {
           postal_code?: string | null
           role?: string | null
           salary?: number | null
+          tags?: string[]
         }
         Update: {
           address?: string | null
@@ -3098,6 +3100,7 @@ export type Database = {
           postal_code?: string | null
           role?: string | null
           salary?: number | null
+          tags?: string[]
         }
         Relationships: [
           {
