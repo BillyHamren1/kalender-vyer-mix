@@ -515,20 +515,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "calendar_events_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "calendar_events_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "confirmed_bookings"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "calendar_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
