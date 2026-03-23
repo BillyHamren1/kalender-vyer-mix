@@ -10,10 +10,10 @@ export const PREDEFINED_LIGHT_COLORS = [
   '#FFF8E1', // Light Yellow
   '#FCE4EC', // Light Pink
   '#F1F8E9', // Light Lime
-  '#FFF3E0', // Light Amber
   '#E8EAF6', // Light Indigo
-  '#F3E5F5', // Light Lavender
   '#E0F7FA', // Light Cyan
+  '#FBE9E7', // Light Deep Orange
+  '#F9FBE7', // Light Yellow-Green
 ];
 
 export const generateLightColor = (): string => {
