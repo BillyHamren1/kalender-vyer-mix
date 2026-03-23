@@ -113,9 +113,8 @@ export const DeliveryInformationCard = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     };
   }, []);
 
