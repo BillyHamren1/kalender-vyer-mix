@@ -419,11 +419,11 @@ const MobileTimeHistory = () => {
               {/* Total row */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
                 <span className="text-xs font-bold text-foreground uppercase">
-                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {Math.round(filteredTravelHours * 10) / 10}h förflyttning)</span>}
+                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {formatHoursMinutes(filteredTravelHours)} förflyttning)</span>}
                 </span>
                 <span />
                 <span />
-                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours + Math.round(filteredTravelHours * 10) / 10}</span>
+                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{formatHoursMinutes(filteredTotalHours + filteredTravelHours)}</span>
               </div>
             </div>
 
