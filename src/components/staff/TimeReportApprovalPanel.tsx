@@ -298,10 +298,10 @@ export const TimeReportApprovalPanel: React.FC = () => {
                           </div>
                         ) : (
                           <>
-                            <span className="font-medium">{report.hours_worked} h</span>
+                            <span className="font-medium">{formatHoursMinutes(report.hours_worked)}</span>
                             {report.overtime_hours > 0 && (
                               <span className="text-amber-600 text-xs ml-1">
-                                (+{report.overtime_hours} öt)
+                                (+{formatHoursMinutes(report.overtime_hours)} öt)
                               </span>
                             )}
                           </>

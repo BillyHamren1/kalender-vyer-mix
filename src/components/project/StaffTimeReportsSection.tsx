@@ -101,9 +101,9 @@ export const StaffTimeReportsSection = ({
                 ))}
                 <TableRow className="font-semibold bg-muted/50">
                   <TableCell colSpan={4}>TOTALT</TableCell>
-                  <TableCell className="text-right">{totalHours} h</TableCell>
+                  <TableCell className="text-right">{formatHoursMinutes(totalHours)}</TableCell>
                   <TableCell className="text-right">
-                    {totalOvertime > 0 ? `${totalOvertime} h` : '-'}
+                    {totalOvertime > 0 ? formatHoursMinutes(totalOvertime) : '-'}
                   </TableCell>
                   <TableCell></TableCell>
                 </TableRow>

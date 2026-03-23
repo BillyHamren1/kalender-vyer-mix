@@ -162,7 +162,7 @@ const MobileTimeHistory = () => {
       <table>
         <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
         <tbody>${rows}
-          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt.toFixed(0)}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
         </tbody>
       </table>
     </div>

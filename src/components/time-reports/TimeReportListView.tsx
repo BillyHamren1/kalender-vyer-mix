@@ -109,11 +109,11 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                             </div>
                             <div className="flex items-center gap-1">
                               <Badge variant="secondary" className="text-xs py-0 px-1 h-4">
-                                {report.hours_worked}h
+                                {formatHoursMinutes(report.hours_worked)}
                               </Badge>
                               {report.overtime_hours && report.overtime_hours > 0 && (
                                 <Badge variant="destructive" className="text-xs py-0 px-1 h-4">
-                                  {report.overtime_hours}h OT
+                                  {formatHoursMinutes(report.overtime_hours)} OT
                                 </Badge>
                               )}
                             </div>

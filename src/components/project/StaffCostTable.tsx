@@ -138,7 +138,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                       <div className="flex items-center justify-center gap-1">
                         <AlertTriangle className={cn("h-4 w-4", status === 'danger' ? 'text-destructive' : 'text-amber-600')} />
                         <span className={cn("text-xs", getDeviationColor(status))}>
-                          {summary.staffDeviation > 0 ? '+' : ''}{(summary.actualHours - summary.budgetedHours).toFixed(1)} tim
+                          {summary.staffDeviation > 0 ? '+' : ''}{formatHoursMinutes(Math.abs(summary.actualHours - summary.budgetedHours))}
                         </span>
                       </div>
                     ) : (

@@ -129,7 +129,7 @@ const MobileProfile = () => {
                 <span className="text-xs font-medium text-foreground">
                   {format(parseISO(log.report_date), 'd MMM', { locale: sv })}
                 </span>
-                <span className="text-xs font-bold text-primary tabular-nums">{log.hours_worked}h</span>
+                <span className="text-xs font-bold text-primary tabular-nums">{formatHoursMinutes(log.hours_worked)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5 space-y-0.5">
                 {log.from_address && <p className="truncate">Från: {log.from_address}</p>}

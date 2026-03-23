@@ -56,9 +56,9 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-bold text-sm">{report.hours_worked}h</p>
+              <p className="font-bold text-sm">{formatHoursMinutes(report.hours_worked)}</p>
               {report.overtime_hours > 0 && (
-                <p className="text-[10px] text-primary font-medium">+{report.overtime_hours}h öt</p>
+                <p className="text-[10px] text-primary font-medium">+{formatHoursMinutes(report.overtime_hours)} öt</p>
               )}
             </div>
           </div>

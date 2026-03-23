@@ -149,11 +149,11 @@ const StaffTimeReportAllMonths: React.FC<StaffTimeReportAllMonthsProps> = ({ sta
                   <div className="flex items-center gap-3 shrink-0 ml-4">
                     {/* Hours */}
                     <Badge variant="secondary" className="text-xs">
-                      {report.hours_worked}h
+                      {formatHoursMinutes(report.hours_worked)}
                     </Badge>
                     {report.overtime_hours && report.overtime_hours > 0 && (
                       <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                        {report.overtime_hours}h OB
+                        {formatHoursMinutes(report.overtime_hours)} OB
                       </Badge>
                     )}
 
