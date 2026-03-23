@@ -6,6 +6,7 @@ import type { StaffTimeReport, EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { cn } from '@/lib/utils';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface StaffCostTableProps {
   timeReports: StaffTimeReport[];
