@@ -156,7 +156,7 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center" />
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full" />
           </div>
 
           <div className="h-px bg-border/50" />
