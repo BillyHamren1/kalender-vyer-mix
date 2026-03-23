@@ -1,24 +1,25 @@
 
 
-## Problem: Personal med GPS syns inte på kartan utan teamtilldelning
+## Fix: Tidrapporteringssidan spiller utanför containern på små skärmar
 
-### Orsak
+### Problem
 
-`fetchStaffLocations` i `planningDashboardService.ts` (rad 287-387) bygger sin lista **enbart** från `staff_assignments` för dagens datum. Personal som inte har en teamtilldelning för dagen filtreras bort — även om de aktivt rapporterar GPS-position via `staff_locations`.
+`MobileTimeReport.tsx` har formulärfält som spiller ut utanför skärmens bredd på små telefoner. Huvudsakliga orsaker:
 
-Ranjan delar sin position och rapporterar tid, men saknar troligen en `staff_assignments`-post för idag → han syns aldrig på kartan.
+1. **Inga overflow-begränsningar** — yttre containern (`div.flex.flex-col`) saknar `overflow-hidden` / `overflow-x-hidden`, så bredare barn kan pusha ut
+2. **Input-fält med fasta bredder** — `h-12`-inputs med `text-center` och `type="date"`/`type="time"` renderas ibland bredare än sin container på iOS
+3. **Containern har `px-5`** men saknar `w-full` och `max-w-full` för att tvinga barn att respektera gränser
+4. **Övertid-fältet** använder `type="number"` utan `min-w-0` — kan expandera
 
 ### Åtgärd
 
-Ändra `fetchStaffLocations` så att den **även** inkluderar personal som har en aktiv GPS-position i `staff_locations` (uppdaterad senaste 10 min), oavsett om de har en teamtilldelning.
+**Fil: `src/pages/mobile/MobileTimeReport.tsx`**
 
-**Logik:**
-1. Hämta `staff_assignments` som idag (befintlig logik)
-2. **Ny:** Hämta alla `staff_locations` uppdaterade senaste 10 min
-3. Mergea: personal med assignment visas som förut, personal med bara GPS (utan assignment) läggs till med `teamName: 'Ingen tilldelning'` och GPS-koordinater
+- Lägg till `overflow-x-hidden` på yttersta `div` (rad 95)
+- Lägg till `w-full min-w-0 overflow-hidden` på formulär-containern (rad 138)
+- Sätt `min-w-0 w-full` på alla `Input`-element för att förhindra overflow
+- Lägg till `box-border` och `max-w-full` på den inre `space-y-6`-containern
+- Säkerställ att grid-kolumner (`grid-cols-2`, `grid-cols-4`) har `min-w-0` på barnen
 
-**Fil som ändras:**
-- `src/services/planningDashboardService.ts` — funktionen `fetchStaffLocations`
-
-Hämtar extra staff-namn via join på `staff_members` för GPS-poster som saknar assignment. Inga databasändringar behövs.
+Inga strukturella ändringar — bara CSS-constraints som tvingar allt att hålla sig inom containerns bredd.
 
