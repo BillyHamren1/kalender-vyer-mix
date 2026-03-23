@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck } from 'lucide-react';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
+import StaffAvailabilityDialog from '@/components/staff/StaffAvailabilityDialog';
 import { supabase } from '@/integrations/supabase/client';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
 import StaffTimeReportAllMonths from '@/components/time-reports/StaffTimeReportAllMonths';
@@ -20,6 +21,7 @@ const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
   const navigate = useNavigate();
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
+  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
 
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
     queryKey: ['staff-member', staffId],
