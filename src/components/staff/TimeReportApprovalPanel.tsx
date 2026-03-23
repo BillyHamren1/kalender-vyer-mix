@@ -13,6 +13,7 @@ import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface PendingTimeReport {
   id: string;
