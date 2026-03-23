@@ -222,10 +222,6 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
             <div className="flex justify-center items-center h-16">
               <p className="text-sm text-muted-foreground">Loading staff...</p>
             </div>
-          ) : !reliableStaffOperations ? (
-            <div className="flex justify-center items-center h-16">
-              <p className="text-sm text-muted-foreground">Loading assignments...</p>
-            </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex justify-center items-center h-16">
               <p className="text-sm text-muted-foreground">No staff found</p>
