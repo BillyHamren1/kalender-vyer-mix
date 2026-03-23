@@ -180,8 +180,10 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
     });
 
+    // Staff with no availability records = available by default
+    const hasAnyRecord = new Set([...availableIds, ...blockedIds]);
     const result = filteredActiveStaff
-      .filter(s => availableIds.has(s.id) && !blockedIds.has(s.id))
+      .filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord.has(s.id)))
       .map(s => {
         const assignment = assignmentMap.get(s.id);
         const status: 'free' | 'assigned_current_team' | 'assigned_other_team' = !assignment

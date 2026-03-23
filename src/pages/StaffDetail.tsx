@@ -316,6 +316,19 @@ const StaffDetail: React.FC = () => {
                   })}
                 </div>
               </div>
+
+              {/* Tillgänglighet */}
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => setShowAvailabilityDialog(true)}
+                >
+                  <CalendarCheck className="h-4 w-4" />
+                  Hantera tillgänglighet
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
