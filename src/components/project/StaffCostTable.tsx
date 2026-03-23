@@ -81,7 +81,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                         {staff.staff_name}
                       </TableCell>
                       <TableCell className="text-right font-medium text-muted-foreground">
-                        {staff.total_hours.toFixed(1)} h
+                        {formatHoursMinutes(staff.total_hours)}
                       </TableCell>
                       <TableCell className="text-right font-medium text-muted-foreground">
                         {formatCurrency(staff.total_cost)}
