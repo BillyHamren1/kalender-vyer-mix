@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type BillingStatus = 'draft' | 'ready' | 'invoiced';
+export type BillingStatus = 'draft' | 'needs_completion' | 'ready_for_handover' | 'handed_over_to_booking' | 'invoiced_in_booking';
 
 export type ReviewStatus = 'pending' | 'in_review' | 'needs_completion' | 'approved';
 
@@ -21,7 +21,7 @@ export interface ReviewChecklist {
 export interface ProjectBilling {
   id: string;
   project_id: string;
-  project_type: 'small' | 'medium' | 'large';
+  project_type: string;
   billing_status: BillingStatus;
   project_name: string;
   client_name: string | null;
@@ -47,6 +47,11 @@ export interface ProjectBilling {
   organization_id: string;
   created_at: string;
   updated_at: string;
+  // Handover fields
+  handover_status: string | null;
+  handed_over_at: string | null;
+  handed_over_by: string | null;
+  handover_notes: string | null;
 }
 
 export function useProjectBillingList() {
@@ -85,7 +90,7 @@ export function useCreateProjectBilling() {
   return useMutation({
     mutationFn: async (params: {
       project_id: string;
-      project_type: 'small' | 'medium' | 'large';
+      project_type: string;
       project_name: string;
       client_name?: string;
       booking_id?: string;
@@ -154,10 +159,13 @@ export function useAdvanceBillingStatus() {
     ...update,
     advance: (id: string, newStatus: BillingStatus, extras?: Partial<ProjectBilling>) => {
       const timestampFields: Partial<ProjectBilling> = {};
-      if (newStatus === 'ready') {
+      if (newStatus === 'ready_for_handover') {
         timestampFields.approved_for_invoicing_at = new Date().toISOString();
         timestampFields.review_status = 'approved';
         timestampFields.review_completed_at = new Date().toISOString();
+      }
+      if (newStatus === 'handed_over_to_booking') {
+        timestampFields.handed_over_at = new Date().toISOString();
       }
       
       return update.mutate({
@@ -174,12 +182,19 @@ export function useAdvanceBillingStatus() {
 export function groupByBillingStatus(items: ProjectBilling[]) {
   const groups: Record<BillingStatus, ProjectBilling[]> = {
     draft: [],
-    ready: [],
-    invoiced: [],
+    needs_completion: [],
+    ready_for_handover: [],
+    handed_over_to_booking: [],
+    invoiced_in_booking: [],
   };
   
   for (const item of items) {
-    groups[item.billing_status].push(item);
+    const status = item.billing_status as BillingStatus;
+    if (groups[status]) {
+      groups[status].push(item);
+    } else {
+      groups.draft.push(item);
+    }
   }
   
   return groups;
