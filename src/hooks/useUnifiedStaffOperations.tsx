@@ -178,7 +178,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
     });
 
-    const result = activeStaff
+    const result = filteredActiveStaff
       .filter(s => availableIds.has(s.id) && !blockedIds.has(s.id))
       .map(s => {
         const assignment = assignmentMap.get(s.id);
@@ -190,7 +190,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       .sort((a, b) => ({ free: 0, assigned_current_team: 1, assigned_other_team: 2 }[a.assignmentStatus] - { free: 0, assigned_current_team: 1, assigned_other_team: 2 }[b.assignmentStatus]));
 
     return result;
-  }, [activeStaff, assignments]);
+  }, [filteredActiveStaff, assignments]);
 
   // Staff drop with optimistic update
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
