@@ -4,6 +4,7 @@ import { Truck } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { ContactDetailsSection } from './delivery/ContactDetailsSection';
 import { AddressFormSection } from './delivery/AddressFormSection';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DeliveryInformationCardProps {
   // Contact props
@@ -58,6 +59,8 @@ export const DeliveryInformationCard = ({
 
   // Debounced save for contact fields
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const geocodeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const debouncedSave = useCallback((data: Parameters<typeof onSave>[0]) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -67,12 +70,51 @@ export const DeliveryInformationCard = ({
     }, 500);
   }, [onSave]);
 
+  // Refs to hold latest address values for geocoding closure
+  const addressRef = useRef(deliveryAddress);
+  const cityRef = useRef(deliveryCity);
+  const postalRef = useRef(deliveryPostalCode);
+  useEffect(() => { addressRef.current = deliveryAddress; }, [deliveryAddress]);
+  useEffect(() => { cityRef.current = deliveryCity; }, [deliveryCity]);
+  useEffect(() => { postalRef.current = deliveryPostalCode; }, [deliveryPostalCode]);
+
+  const triggerGeocode = useCallback(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    geocodeTimerRef.current = setTimeout(async () => {
+      const combined = [addressRef.current, cityRef.current, postalRef.current].filter(Boolean).join(', ');
+      if (!combined || combined.length < 5) return;
+      try {
+        const { data, error } = await supabase.functions.invoke('geocode-address', {
+          body: { address: combined }
+        });
+        if (error || !data?.latitude) {
+          console.warn('[DeliveryInfo] Geocoding failed:', error || data);
+          return;
+        }
+        setLatitude(data.latitude);
+        setLongitude(data.longitude);
+        onSave({
+          deliveryAddress: addressRef.current,
+          deliveryCity: cityRef.current,
+          deliveryPostalCode: postalRef.current,
+          deliveryLatitude: data.latitude,
+          deliveryLongitude: data.longitude,
+          contactName: contactNameValue,
+          contactPhone: contactPhoneValue,
+          contactEmail: contactEmailValue
+        });
+        console.log('[DeliveryInfo] Geocoded:', data.latitude, data.longitude);
+      } catch (e) {
+        console.warn('[DeliveryInfo] Geocode error:', e);
+      }
+    }, 1500);
+  }, [onSave, contactNameValue, contactPhoneValue, contactEmailValue]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     };
   }, []);
 
@@ -108,6 +150,11 @@ export const DeliveryInformationCard = ({
     };
     
     onSave(updatedData);
+
+    // Trigger geocoding when address fields change
+    if (field === 'address' || field === 'city' || field === 'postalCode') {
+      triggerGeocode();
+    }
   };
 
   // Create deliveryDetails object for AddressFormSection
