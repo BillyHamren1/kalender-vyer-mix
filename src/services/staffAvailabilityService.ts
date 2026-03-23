@@ -160,8 +160,8 @@ export const isStaffAvailableOnDate = async (
 /**
  * Get all available staff for a specific date
  */
-export const getAvailableStaffForDate = async (date: Date): Promise<string[]> => {
-  const result = await getAvailableStaffForDateRange([date]);
+export const getAvailableStaffForDate = async (date: Date, filterByTag?: string): Promise<string[]> => {
+  const result = await getAvailableStaffForDateRange([date], filterByTag);
   const dateStr = format(date, 'yyyy-MM-dd');
   return result[dateStr] || [];
 };
