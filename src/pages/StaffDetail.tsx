@@ -178,6 +178,7 @@ const StaffDetail: React.FC = () => {
   const textColor = getContrastTextColor(staffColor);
 
   return (
+    <>
     <div className="h-screen flex flex-col bg-muted/30 overflow-hidden theme-purple">
       {/* Header */}
       <div className="bg-card border-b border-border px-6 py-4">
