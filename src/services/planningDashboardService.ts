@@ -355,31 +355,52 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     .filter(g => !assignedSet.has(g.staff_id))
     .map(g => g.staff_id);
 
-  // Fetch names for unassigned GPS staff
-  let unassignedStaffMap = new Map<string, string>();
+  // Fetch names and booking assignments for unassigned GPS staff
+  let unassignedStaffDetails = new Map<string, { name: string; teamId: string; teamName: string; bookingId: string | null; bookingClient: string | null }>();
   if (unassignedGpsStaffIds.length > 0) {
-    const { data: unassignedStaff } = await supabase
-      .from('staff_members')
-      .select('id, name')
-      .in('id', unassignedGpsStaffIds)
-      .eq('is_active', true);
-    unassignedStaff?.forEach(s => unassignedStaffMap.set(s.id, s.name));
-  }
+    const [{ data: unassignedStaff }, { data: bookingAssignments }] = await Promise.all([
+      supabase
+        .from('staff_members')
+        .select('id, name')
+        .in('id', unassignedGpsStaffIds)
+        .eq('is_active', true),
+      supabase
+        .from('booking_staff_assignments')
+        .select('staff_id, team_id, booking_id')
+        .in('staff_id', unassignedGpsStaffIds)
+        .eq('assignment_date', today),
+    ]);
 
-  // Map team IDs to names
-  const teamNames: Record<string, string> = {
-    'team-1': 'Team 1',
-    'team-2': 'Team 2',
-    'team-3': 'Team 3',
-    'team-4': 'Team 4',
-    'team-5': 'Team 5',
-    'team-6': 'Team 6',
-    'team-7': 'Team 7',
-    'team-8': 'Team 8',
-    'team-9': 'Team 9',
-    'team-10': 'Team 10',
-    'team-11': 'Live'
-  };
+    // Build booking assignment map for these staff
+    const bsaMap = new Map<string, { team_id: string; booking_id: string }>();
+    bookingAssignments?.forEach(ba => {
+      if (!bsaMap.has(ba.staff_id)) {
+        bsaMap.set(ba.staff_id, { team_id: ba.team_id, booking_id: ba.booking_id });
+      }
+    });
+
+    // Fetch booking client names for these assignments
+    const bsaBookingIds = [...new Set((bookingAssignments || []).map(ba => ba.booking_id))];
+    let bsaBookingMap = new Map<string, string>();
+    if (bsaBookingIds.length > 0) {
+      const { data: bsaBookings } = await supabase
+        .from('bookings')
+        .select('id, client')
+        .in('id', bsaBookingIds);
+      bsaBookings?.forEach(b => bsaBookingMap.set(b.id, b.client));
+    }
+
+    unassignedStaff?.forEach(s => {
+      const bsa = bsaMap.get(s.id);
+      unassignedStaffDetails.set(s.id, {
+        name: s.name,
+        teamId: bsa?.team_id || 'unassigned',
+        teamName: bsa ? (teamNames[bsa.team_id] || bsa.team_id) : 'Ingen tilldelning',
+        bookingId: bsa?.booking_id || null,
+        bookingClient: bsa ? (bsaBookingMap.get(bsa.booking_id) || null) : null,
+      });
+    });
+  }
 
   const results: StaffLocation[] = (assignments || []).map(assignment => {
     const staffMember = assignment.staff_members as any;
@@ -407,16 +428,16 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   });
 
   // Add unassigned staff with active GPS
-  for (const [staffId, staffName] of unassignedStaffMap) {
+  for (const [staffId, details] of unassignedStaffDetails) {
     const gpsLoc = gpsMap.get(staffId);
     if (!gpsLoc) continue;
     results.push({
       id: staffId,
-      name: staffName,
-      teamId: 'unassigned',
-      teamName: 'Ingen tilldelning',
-      bookingId: null,
-      bookingClient: null,
+      name: details.name,
+      teamId: details.teamId,
+      teamName: details.teamName,
+      bookingId: details.bookingId,
+      bookingClient: details.bookingClient,
       deliveryAddress: null,
       latitude: gpsLoc.latitude,
       longitude: gpsLoc.longitude,
