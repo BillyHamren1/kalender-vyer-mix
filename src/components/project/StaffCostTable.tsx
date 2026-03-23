@@ -98,10 +98,10 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                           {formatTime(report.start_time, report.end_time)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {report.hours_worked.toFixed(1)} h
+                          {formatHoursMinutes(report.hours_worked)}
                           {report.overtime_hours > 0 && (
                             <span className="text-muted-foreground text-xs ml-1">
-                              (+{report.overtime_hours.toFixed(1)} öt)
+                              (+{formatHoursMinutes(report.overtime_hours)} öt)
                             </span>
                           )}
                         </TableCell>
