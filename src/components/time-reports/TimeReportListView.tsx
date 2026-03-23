@@ -75,7 +75,7 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                     <div className="text-right">
                       <div className="text-xs text-gray-500">Overtime:</div>
                       <div className={`font-medium text-sm ${totalOvertimeHours > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
-                        {totalOvertimeHours.toFixed(2)}
+                        {formatHoursMinutes(totalOvertimeHours)}
                       </div>
                     </div>
 
