@@ -1,0 +1,1 @@
+ALTER TABLE calendar_events DROP CONSTRAINT calendar_events_booking_id_event_type_unique;

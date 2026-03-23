@@ -35,6 +35,10 @@ interface BookingData {
   rigdaydate?: string;
   eventdate?: string;
   rigdowndate?: string;
+  // Full date arrays for multi-day support (calendar level only)
+  allRigDates?: string[];
+  allEventDates?: string[];
+  allRigdownDates?: string[];
   deliveryaddress?: string;
   delivery_city?: string;
   delivery_postal_code?: string;
@@ -272,35 +276,36 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
     });
   }
   
-  // Return delivery: same day as rigdown, 17:00-19:00
-  // Inventory: day after rigdown, 08:00-10:00
-  // Unpacking: day after rigdown, 10:00-12:00
-  if (booking.rigdowndate) {
+  // Return delivery, Inventory, Unpacking: for ALL rigdown dates
+  const rigdownDates = booking.allRigdownDates && booking.allRigdownDates.length > 0
+    ? booking.allRigdownDates : (booking.rigdowndate ? [booking.rigdowndate] : []);
+  
+  for (const rigdownDate of rigdownDates) {
     events.push({
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Återleverans - ${clientName}`,
-      event_type: 'return',
-      start_time: `${booking.rigdowndate}T17:00:00`,
-      end_time: `${booking.rigdowndate}T19:00:00`,
+      event_type: rigdownDates.length > 1 ? `return_${rigdownDate}` : 'return',
+      start_time: `${rigdownDate}T17:00:00`,
+      end_time: `${rigdownDate}T19:00:00`,
       delivery_address: deliveryAddress,
       resource_id: 'warehouse',
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
     });
     
-    const dayAfterRigdown = addDays(booking.rigdowndate, 1);
+    const dayAfterRigdown = addDays(rigdownDate, 1);
     
     events.push({
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Inventering - ${clientName}`,
-      event_type: 'inventory',
+      event_type: rigdownDates.length > 1 ? `inventory_${rigdownDate}` : 'inventory',
       start_time: `${dayAfterRigdown}T08:00:00`,
       end_time: `${dayAfterRigdown}T10:00:00`,
       delivery_address: deliveryAddress,
@@ -308,7 +313,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
@@ -318,7 +323,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       booking_id: booking.id,
       booking_number: bookingNumber,
       title: `Upppackning - ${clientName}`,
-      event_type: 'unpacking',
+      event_type: rigdownDates.length > 1 ? `unpacking_${rigdownDate}` : 'unpacking',
       start_time: `${dayAfterRigdown}T10:00:00`,
       end_time: `${dayAfterRigdown}T12:00:00`,
       delivery_address: deliveryAddress,
@@ -326,7 +331,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
       organization_id: orgId,
       source_rig_date: booking.rigdaydate || null,
       source_event_date: booking.eventdate || null,
-      source_rigdown_date: booking.rigdowndate,
+      source_rigdown_date: rigdownDate,
       has_source_changes: false,
       manually_adjusted: false,
       viewed: false
@@ -1415,18 +1420,17 @@ serve(async (req) => {
           clientName = ''
         }
 
-        // Handle multiple date arrays - use first date from each array
-        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
-          ? externalBooking.rig_up_dates[0] 
-          : undefined
+        // Handle multiple date arrays - use first date for bookings table, keep all for calendar
+        const allRigDates = (externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0)
+          ? externalBooking.rig_up_dates : [];
+        const allEventDates = (externalBooking.event_dates && externalBooking.event_dates.length > 0)
+          ? externalBooking.event_dates : [];
+        const allRigdownDates = (externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0)
+          ? externalBooking.rig_down_dates : [];
 
-        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
-          ? externalBooking.event_dates[0] 
-          : undefined
-
-        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
-          ? externalBooking.rig_down_dates[0] 
-          : undefined
+        const rigdaydate = allRigDates[0] || undefined;
+        const eventdate = allEventDates[0] || undefined;
+        const rigdowndate = allRigdownDates[0] || undefined;
 
         const bookingData: BookingData = {
           id: externalBooking.id,
@@ -1434,6 +1438,9 @@ serve(async (req) => {
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
+          allRigDates,
+          allEventDates,
+          allRigdownDates,
           deliveryaddress: externalBooking.delivery_address,
           delivery_city: externalBooking.delivery_city,
           delivery_postal_code: externalBooking.delivery_postal_code,
@@ -2012,9 +2019,16 @@ serve(async (req) => {
           }
 
           // Only clear calendar events if actual DATE fields changed (not metadata)
+          // Compare ALL dates, not just the first one
+          const allDatesStr = (bookingData.allRigDates || []).join(',') + '|' + 
+            (bookingData.allEventDates || []).join(',') + '|' + 
+            (bookingData.allRigdownDates || []).join(',');
+          const existingDatesStr = (existingBooking.rigdaydate || '') + '|' + 
+            (existingBooking.eventdate || '') + '|' + 
+            (existingBooking.rigdowndate || '');
           const datesChanged = ['rigdaydate', 'eventdate', 'rigdowndate'].some(f =>
             (bookingData[f] || '') !== (existingBooking[f] || '')
-          );
+          ) || (bookingData.allRigDates?.length > 1 || bookingData.allEventDates?.length > 1 || bookingData.allRigdownDates?.length > 1);
           if (datesChanged) {
             console.log(`Dates changed — recreating calendar events for booking ${existingBooking.id}`)
             await supabase
@@ -2459,57 +2473,72 @@ serve(async (req) => {
 
           const calendarEvents = []
           
-          // Only create events that don't already exist OR that aren't manually assigned
-          if (bookingData.rigdaydate && !existingEventTypes.has('rig')) {
-            const startTime = `${bookingData.rigdaydate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'rig')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'rig',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.rigdaydate
-            })
+          // Create events for ALL dates in each array, not just the first
+          const rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0 
+            ? bookingData.allRigDates : (bookingData.rigdaydate ? [bookingData.rigdaydate] : []);
+          const eventDates = bookingData.allEventDates && bookingData.allEventDates.length > 0
+            ? bookingData.allEventDates : (bookingData.eventdate ? [bookingData.eventdate] : []);
+          const rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
+            ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
+
+          // Build set of existing event keys (type+start_time) to avoid recreating manually assigned ones
+          const existingEventKeys = new Set(
+            (existingEvents || []).map(e => `${e.event_type}|${e.start_time?.split('T')[0]}`)
+          );
+
+          for (const date of rigDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'rig');
+            if (!existingEventKeys.has(`rig|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'rig',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
-          if (bookingData.eventdate && !existingEventTypes.has('event')) {
-            const startTime = `${bookingData.eventdate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'event')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'event',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.eventdate
-            })
+          for (const date of eventDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'event');
+            if (!existingEventKeys.has(`event|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'event',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
-          if (bookingData.rigdowndate && !existingEventTypes.has('rigDown')) {
-            const startTime = `${bookingData.rigdowndate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'rigDown')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'rigDown',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.rigdowndate
-            })
+          for (const date of rigdownDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'rigDown');
+            if (!existingEventKeys.has(`rigDown|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'rigDown',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
           if (calendarEvents.length > 0) {
-            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
+            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''} (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`)
 
             // Use smart team assignment for each event
             for (const event of calendarEvents) {
@@ -2540,7 +2569,7 @@ serve(async (req) => {
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam,
                   organization_id: bookingData.organization_id || organizationId
-                }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
+                }, { onConflict: 'unique_booking_event_time', ignoreDuplicates: true })
 
               if (eventError) {
                 console.error(`Error creating calendar event:`, eventError)
