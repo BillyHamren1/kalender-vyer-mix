@@ -161,14 +161,14 @@ const MobileTimeReport = () => {
 
           <div className="h-px bg-border/50" />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-4 min-w-0">
+            <div className="space-y-2 min-w-0">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
           </div>
 
