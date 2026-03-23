@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown } from 'lucide-react';
 import { TimeReport } from '@/types/timeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface TimeReportListViewProps {
   reports: TimeReport[];
