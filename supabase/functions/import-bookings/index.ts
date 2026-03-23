@@ -1952,9 +1952,10 @@ serve(async (req) => {
             results.updated_bookings.push(bookingData.id)
           }
 
-          // Prepare update data - reset viewed flag if booking is newly confirmed
+          // Prepare update data - strip non-DB fields and reset viewed flag if booking is newly confirmed
+          const { allRigDates: _ard, allEventDates: _aed, allRigdownDates: _ardd, ...dbBookingData } = bookingData as any;
           const updateData: any = {
-            ...bookingData,
+            ...dbBookingData,
             id: existingBooking.id,
             version: (existingBooking.version || 1) + 1,
             updated_at: new Date().toISOString()
@@ -2068,9 +2069,10 @@ serve(async (req) => {
           // NEW BOOKING - Insert only if truly new
           console.log(`Inserting new booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
           
+          const { allRigDates: _ard2, allEventDates: _aed2, allRigdownDates: _ardd2, ...dbInsertData } = bookingData as any;
           const { error: insertError } = await supabase
             .from('bookings')
-            .insert(bookingData)
+            .insert(dbInsertData)
 
           if (insertError) {
             if (insertError.message.includes('duplicate key') || insertError.message.includes('already exists')) {
