@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Search,
-  FileCheck,
+  ArrowRight,
   Receipt,
   FileWarning,
 } from 'lucide-react';
@@ -25,8 +25,8 @@ interface KpiDef {
 
 interface Props {
   draft: ProjectBilling[];
-  ready: ProjectBilling[];
-  invoicedThisMonth: ProjectBilling[];
+  readyForHandover: ProjectBilling[];
+  handedOverThisMonth: ProjectBilling[];
   uninvoicedValue: number;
   onFilterClick?: (filter: FilterTab) => void;
   activeFilter?: FilterTab;
@@ -34,8 +34,8 @@ interface Props {
 
 const BillingKpiCards: React.FC<Props> = ({
   draft,
-  ready,
-  invoicedThisMonth,
+  readyForHandover,
+  handedOverThisMonth,
   uninvoicedValue,
   onFilterClick,
   activeFilter,
@@ -53,25 +53,25 @@ const BillingKpiCards: React.FC<Props> = ({
       filterKey: 'draft',
     },
     {
-      title: 'Redo att fakturera',
-      amount: sum(ready, 'invoiceable_amount'),
-      count: ready.length,
-      icon: <FileCheck className="w-4 h-4 text-blue-600" />,
+      title: 'Klar för överlämning',
+      amount: sum(readyForHandover, 'invoiceable_amount'),
+      count: readyForHandover.length,
+      icon: <ArrowRight className="w-4 h-4 text-blue-600" />,
       iconBg: 'bg-blue-50 dark:bg-blue-950/30',
-      filterKey: 'ready',
+      filterKey: 'ready_for_handover',
     },
     {
-      title: 'Fakturerat denna månad',
-      amount: sum(invoicedThisMonth, 'invoiced_amount'),
-      count: invoicedThisMonth.length,
+      title: 'Överlämnat denna månad',
+      amount: sum(handedOverThisMonth, 'invoiceable_amount'),
+      count: handedOverThisMonth.length,
       icon: <Receipt className="w-4 h-4 text-green-600" />,
       iconBg: 'bg-green-50 dark:bg-green-950/30',
-      filterKey: 'invoiced',
+      filterKey: 'handed_over_to_booking',
     },
     {
-      title: 'Ofakturerat värde',
+      title: 'Ej överlämnat värde',
       amount: uninvoicedValue,
-      count: draft.length + ready.length,
+      count: draft.length + readyForHandover.length,
       icon: <FileWarning className="w-4 h-4 text-muted-foreground" />,
       iconBg: 'bg-muted',
       filterKey: 'all',

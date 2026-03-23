@@ -28,13 +28,13 @@ import {
   ClipboardCheck,
   History,
   Info,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import BillingStatusBadge from './BillingStatusBadge';
 import { useBillingInvoiceData } from '@/hooks/useBillingInvoiceData';
-import { useCreateFortnoxInvoice } from '@/hooks/useFortnoxInvoice';
 import { useUpdateProjectBilling } from '@/hooks/useProjectBilling';
 import type {
   ProjectBilling,
@@ -64,7 +64,7 @@ const CHECKLIST_ITEMS: { key: keyof ReviewChecklist; label: string }[] = [
   { key: 'deviation_checked', label: 'Avvikelse mot offert kontrollerad' },
   { key: 'invoice_info_complete', label: 'Fakturauppgifter kompletta' },
   { key: 'internal_note_added', label: 'Intern notering tillagd vid behov' },
-  { key: 'ready_for_invoicing', label: 'Projekt klart för fakturering' },
+  { key: 'ready_for_invoicing', label: 'Projekt klart för överlämning' },
 ];
 
 interface Props {
@@ -79,7 +79,6 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
   const [checklist, setChecklist] = useState<ReviewChecklist>(billing?.review_checklist ?? {});
   const [notes, setNotes] = useState(billing?.internal_notes ?? '');
   const invoiceData = useBillingInvoiceData(open ? billing : null);
-  const fortnoxInvoice = useCreateFortnoxInvoice();
   const updateBilling = useUpdateProjectBilling();
 
   React.useEffect(() => {
@@ -140,52 +139,11 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
       review_checklist: checklist as any,
       internal_notes: notes,
       review_status: 'needs_completion',
-      billing_status: 'draft',
+      billing_status: 'needs_completion',
     });
   };
 
-  const handleCreateFortnoxInvoice = () => {
-    // Build Fortnox payload from billing data
-    const today = new Date().toISOString().split('T')[0];
-    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-
-    const payload = {
-      CustomerNumber: '',
-      InvoiceDate: today,
-      DueDate: dueDate,
-      InvoiceRows: invoiceData.materials
-        .filter(m => !m.is_package_component)
-        .map(m => ({
-          Description: m.name,
-          Quantity: m.quantity,
-          Price: m.unit_price,
-          VAT: m.vat_rate ?? 25,
-        })),
-    };
-
-    fortnoxInvoice.mutate(
-      {
-        payload,
-        clientData: billing.client_name ? { name: billing.client_name } : undefined,
-      },
-      {
-        onSuccess: (data) => {
-          updateBilling.mutate({
-            id: billing.id,
-            billing_status: 'invoiced',
-            external_invoice_id: data.fortnoxInvoiceId || null,
-            invoice_number: data.invoiceNumber || null,
-            invoice_date: today,
-            invoiced_amount: billing.invoiceable_amount,
-          } as any);
-          onClose();
-        },
-      }
-    );
-  };
-
-  const canApprove = billing.billing_status === 'draft';
-  const canCreateFortnoxInvoice = billing.billing_status === 'ready';
+  const canApprove = billing.billing_status === 'draft' || billing.billing_status === 'needs_completion';
 
   const errorCount = warnings.filter(w => w.severity === 'error').length;
   const warningCount = warnings.filter(w => w.severity === 'warning').length;
@@ -257,21 +215,10 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                 <Button variant="outline" size="sm" className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-950/30" onClick={handleNeedsCompletion}>
                   <ArrowLeft className="h-3.5 w-3.5" /> Komplettering
                 </Button>
-                <Button size="sm" className="gap-1.5" disabled={!allChecked} onClick={() => { handleSaveDraft(); onAdvanceStatus(billing.id, 'ready'); }}>
-                  <Check className="h-3.5 w-3.5" /> Godkänn
+                <Button size="sm" className="gap-1.5" disabled={!allChecked} onClick={() => { handleSaveDraft(); onAdvanceStatus(billing.id, 'ready_for_handover'); }}>
+                  <ArrowRight className="h-3.5 w-3.5" /> Godkänn för överlämning
                 </Button>
               </>
-            )}
-            {canCreateFortnoxInvoice && (
-              <Button
-                size="sm"
-                className="gap-1.5"
-                onClick={handleCreateFortnoxInvoice}
-                disabled={fortnoxInvoice.isPending}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {fortnoxInvoice.isPending ? 'Skapar faktura…' : 'Skapa faktura i Fortnox'}
-              </Button>
             )}
           </div>
         </div>
@@ -537,7 +484,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
               {!billing.client_name && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md px-3 py-2 border border-amber-200/60 dark:border-amber-800/40">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Kunduppgifter saknas — kontrollera innan fakturering
+                  Kunduppgifter saknas — kontrollera innan överlämning
                 </div>
               )}
             </TabsContent>
@@ -549,7 +496,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                       <ClipboardCheck className="h-3.5 w-3.5" />
-                      Kontrollista för fakturagranskning
+                      Kontrollista för överlämning
                     </h3>
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                       {completedChecks}/{CHECKLIST_ITEMS.length}
@@ -582,7 +529,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <Textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="T.ex. &quot;fakturera enligt justerad offert&quot;, &quot;inväntar sista transportkostnad&quot;…"
+                    placeholder="T.ex. &quot;inväntar sista transportkostnad&quot;, &quot;komplettera med tilläggsarbete&quot;…"
                     className="min-h-[100px] text-sm resize-none"
                   />
                   {billing.internal_notes && billing.internal_notes !== notes && (
@@ -733,7 +680,9 @@ const HistoryTimeline: React.FC<{ billing: ProjectBilling }> = ({ billing }) => 
   const events = [
     { label: 'Projekt stängt', date: billing.closed_at, icon: <Calendar className="h-3 w-3" /> },
     { label: 'Granskning slutförd', date: billing.review_completed_at, icon: <ClipboardCheck className="h-3 w-3" /> },
-    { label: 'Godkänd för fakturering', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
+    { label: 'Klar för överlämning', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
+    { label: 'Överlämnad till Booking', date: billing.handed_over_at, icon: <ArrowRight className="h-3 w-3" /> },
+    { label: 'Fakturerad i Booking', date: billing.invoice_date, icon: <FileText className="h-3 w-3" /> },
   ];
 
   const hasAny = events.some(e => e.date);
@@ -772,18 +721,13 @@ const HistoryTimeline: React.FC<{ billing: ProjectBilling }> = ({ billing }) => 
                     {ev.label}
                   </p>
                   {dateStr && (
-                    <p className="text-[10px] text-muted-foreground">{dateStr}</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{dateStr}</p>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
-        {billing.external_invoice_id && (
-          <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-            Extern faktura-ID: <span className="font-mono">{billing.external_invoice_id}</span>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

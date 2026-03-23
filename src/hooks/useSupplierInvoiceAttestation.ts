@@ -22,18 +22,20 @@ export interface SupplierInvoiceAttestation {
   updated_at: string;
 }
 
+// Use any-typed client for the new table not yet in generated types
+const db = () => (supabase as any).from('supplier_invoice_attestations');
+
 export function useSupplierInvoiceAttestations(bookingId: string | null) {
   return useQuery({
     queryKey: ['supplier-invoice-attestations', bookingId],
     queryFn: async () => {
       if (!bookingId) return [];
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
+      const { data, error } = await db()
         .select('*')
         .eq('booking_id', bookingId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as SupplierInvoiceAttestation[];
+      return (data ?? []) as SupplierInvoiceAttestation[];
     },
     enabled: !!bookingId,
   });
@@ -43,12 +45,11 @@ export function useAllAttestations() {
   return useQuery({
     queryKey: ['supplier-invoice-attestations-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
+      const { data, error } = await db()
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as SupplierInvoiceAttestation[];
+      return (data ?? []) as SupplierInvoiceAttestation[];
     },
   });
 }
@@ -66,16 +67,15 @@ export function useEnsureAttestRecords() {
         status: 'imported',
       }));
       
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
-        .upsert(records as any, {
+      const { data, error } = await db()
+        .upsert(records, {
           onConflict: 'supplier_invoice_id,organization_id',
           ignoreDuplicates: true,
         })
         .select();
       
       if (error) throw error;
-      return data as unknown as SupplierInvoiceAttestation[];
+      return (data ?? []) as SupplierInvoiceAttestation[];
     },
     onSuccess: (_, { bookingId }) => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoice-attestations', bookingId] });
@@ -92,21 +92,20 @@ export function useAttestInvoice() {
       const { data: userData } = await supabase.auth.getUser();
       const userName = userData?.user?.user_metadata?.full_name || userData?.user?.email || 'Okänd';
       
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
+      const { data, error } = await db()
         .update({
           status: 'attested',
           attested_at: new Date().toISOString(),
           attested_by: userName,
           attest_comment: comment || null,
           last_reviewed_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', id)
         .select()
         .single();
       
       if (error) throw error;
-      return data as unknown as SupplierInvoiceAttestation;
+      return data as SupplierInvoiceAttestation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoice-attestations'] });
@@ -127,21 +126,20 @@ export function useRejectInvoice() {
       const { data: userData } = await supabase.auth.getUser();
       const userName = userData?.user?.user_metadata?.full_name || userData?.user?.email || 'Okänd';
       
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
+      const { data, error } = await db()
         .update({
           status: 'rejected',
           rejected_at: new Date().toISOString(),
           rejected_by: userName,
           reject_reason: reason,
           last_reviewed_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', id)
         .select()
         .single();
       
       if (error) throw error;
-      return data as unknown as SupplierInvoiceAttestation;
+      return data as SupplierInvoiceAttestation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoice-attestations'] });
@@ -159,18 +157,17 @@ export function useLinkAttestation() {
   
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      const { data, error } = await supabase
-        .from('supplier_invoice_attestations')
+      const { data, error } = await db()
         .update({
           status: 'linked',
           last_reviewed_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', id)
         .select()
         .single();
       
       if (error) throw error;
-      return data as unknown as SupplierInvoiceAttestation;
+      return data as SupplierInvoiceAttestation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoice-attestations'] });
@@ -184,16 +181,13 @@ export function usePushAttestToBooking() {
   
   return useMutation({
     mutationFn: async (attestation: SupplierInvoiceAttestation) => {
-      // Update sync status to 'sent' locally
-      await supabase
-        .from('supplier_invoice_attestations')
+      await db()
         .update({
           booking_sync_status: 'sent',
           sent_to_booking_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', attestation.id);
       
-      // Push to Booking via planning-api-proxy
       const { data, error } = await supabase.functions.invoke('planning-api-proxy', {
         body: {
           type: 'attest_supplier_invoice',
@@ -210,18 +204,14 @@ export function usePushAttestToBooking() {
       });
       
       if (error) {
-        // Mark as failed
-        await supabase
-          .from('supplier_invoice_attestations')
-          .update({ booking_sync_status: 'failed' } as any)
+        await db()
+          .update({ booking_sync_status: 'failed' })
           .eq('id', attestation.id);
         throw error;
       }
       
-      // Mark as confirmed
-      await supabase
-        .from('supplier_invoice_attestations')
-        .update({ booking_sync_status: 'confirmed' } as any)
+      await db()
+        .update({ booking_sync_status: 'confirmed' })
         .eq('id', attestation.id);
       
       return data;
@@ -237,7 +227,6 @@ export function usePushAttestToBooking() {
   });
 }
 
-// Aggregate helpers
 export function getAttestationCounts(attestations: SupplierInvoiceAttestation[]) {
   const imported = attestations.filter(a => a.status === 'imported').length;
   const needsReview = attestations.filter(a => a.status === 'needs_review').length;
