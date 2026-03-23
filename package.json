@@ -12,6 +12,8 @@
     "generate-icons:scanner": "APP_MODE=scanner node scripts/generate-icons.js",
     "build:time": "vite build --mode time",
     "build:scanner": "vite build --mode scanner",
+    "build:ios:time": "node scripts/build-ios.js time",
+    "build:ios:scanner": "node scripts/build-ios.js scanner",
     "android:time": "node scripts/build-android.js time",
     "android:scanner": "node scripts/build-android.js scanner",
     "android:time:sync": "node scripts/build-android.js time --sync-only",
