@@ -68,8 +68,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // STABILIZATION: Deduplicate and stabilize event array reference
   const stableEvents = useStableEvents(events);
 
+  const filterByTag = variant === 'warehouse' ? 'Lager' : 'Montage';
   const { getAvailableStaffForDay } = useAvailableStaffWeek(
-    days, weekStartTime, resources, weeklyStaffOperations
+    days, weekStartTime, resources, weeklyStaffOperations, filterByTag
   );
 
   const {
