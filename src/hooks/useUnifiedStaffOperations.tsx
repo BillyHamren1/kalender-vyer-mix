@@ -54,12 +54,12 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 async function fetchActiveStaff(): Promise<StaffMember[]> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('id, name, color')
+    .select('id, name, color, tags')
     .eq('is_active', true)
     .order('name');
 
   if (error) throw error;
-  return (data || []).map(m => ({ id: m.id, name: m.name, color: m.color || '#E3F2FD' }));
+  return (data || []).map(m => ({ id: m.id, name: m.name, color: m.color || '#E3F2FD', tags: (m as any).tags || [] }));
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
