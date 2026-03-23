@@ -1,16 +1,37 @@
 
 
-## Fix: Saknade platsbehörighetsnycklar i Info.plist
+## Fix: Visa timmar i format "Xh Ym" istället för decimaltal
 
-Apple kräver `NSLocationWhenInUseUsageDescription` och `NSLocationAlwaysAndWhenInUseUsageDescription` eftersom appen använder `@capacitor/geolocation`. Dessa saknas i båda Capacitor-konfigurationerna.
+### Problem
+`hours_worked` lagras som decimaltal (t.ex. 2.48) och visas rakt av som "2.48h" överallt. Användaren vill se "2h 29m" istället.
 
-### Åtgärd
+### Lösning
 
-Lägg till de två nycklarna i `ios.infoPlist` i:
-- `capacitor.scanner.config.ts`
-- `capacitor.time.config.ts`
+**1. Skapa hjälpfunktion `src/utils/formatHours.ts`**
+```typescript
+export function formatHoursMinutes(decimalHours: number): string {
+  const h = Math.floor(decimalHours);
+  const m = Math.round((decimalHours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+```
 
-Samt i `ios/App/App/Info.plist` (för redan genererad iOS-projekt).
+**2. Ersätt alla `{report.hours_worked}h` och `{report.overtime_hours}h` med `formatHoursMinutes(...)`**
 
-Texterna förklarar varför appen behöver GPS — krävs av App Store Review.
+Filer som uppdateras (~11 filer):
+- `TimeReportListView.tsx` — badge-visning + dagssummor
+- `TimeReportList.tsx` — badge-visning
+- `StaffTimeReportAllMonths.tsx` — badge + månadssummor
+- `DailyTimeView.tsx` — summor (beräkningar behålls i decimal, bara visningen ändras)
+- `JobTimeTab.tsx` — mobil jobbvy
+- `MobileTimeHistory.tsx` — historikvy
+- `MobileProfile.tsx` — profilvy
+- `StaffCostTable.tsx` — `.toFixed(1) h` → `formatHoursMinutes()`
+- `TimeReportApprovalPanel.tsx` — godkännandevy
+- `StaffTimeReportsSection.tsx` — projektsida
+- `TimeReportForm.tsx` — summor i formulär
+
+Alla beräkningar (kostnader, summor) fortsätter använda decimalvärden — bara **visningen** ändras.
 
