@@ -25,7 +25,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       event_type,
       delivery_address,
       booking_number,
-      bookings!inner(
+      bookings(
         delivery_city,
         delivery_postal_code
       )
