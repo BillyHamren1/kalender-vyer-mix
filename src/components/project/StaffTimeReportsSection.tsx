@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, Plus, Trash2 } from 'lucide-react';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffTimeReport } from '@/types/projectStaff';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
