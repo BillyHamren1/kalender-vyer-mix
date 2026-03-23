@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // Resolve organization_id from the authenticated staff member
     const { data: staffOrg } = await supabase
       .from('staff_members')
-      .select('organization_id')
+      .select('organization_id, user_id')
       .eq('id', staffId)
       .single()
 
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId, organizationId)
       case 'get_inbox_all':
-        return await handleGetInboxAll(supabase, staffId, organizationId)
+        return await handleGetInboxAll(supabase, staffId, organizationId, staffOrg?.user_id || null)
       case 'get_inbox_jobs':
         return await handleGetInboxJobs(supabase, staffId, organizationId)
       case 'get_booking_details':
@@ -494,7 +494,7 @@ async function handleGetInboxJobs(supabase: any, staffId: string, organizationId
   )
 }
 
-async function handleGetInboxAll(supabase: any, staffId: string, organizationId: string) {
+async function handleGetInboxAll(supabase: any, staffId: string, organizationId: string, userId: string | null) {
   // Run all three inbox queries in parallel for a single round-trip
   const today = new Date().toISOString().split('T')[0]
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -502,13 +502,18 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
+  // Build DM filter to match both staff_member id AND auth user_id (dual identity)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',')
+
   const [dmResult, broadcastResult, broadcastAssignments, jobAssignments] = await Promise.all([
-    // DMs
+    // DMs — match both identities
     supabase
       .from('direct_messages')
       .select('*')
       .eq('organization_id', organizationId)
-      .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+      .or(orFilter)
       .order('created_at', { ascending: false })
       .limit(200),
     // Broadcasts
@@ -536,16 +541,18 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   ])
 
   // --- Process DMs ---
+  const myIds = new Set(ids) // staffId + userId (if linked)
   const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[] }>()
   for (const msg of (dmResult.data || [])) {
-    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
-    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+    const isSender = myIds.has(msg.sender_id)
+    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerName = isSender ? msg.recipient_name : msg.sender_name
     if (!conversations.has(partnerId)) {
       conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [] })
     }
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && msg.recipient_id === staffId) conv.unread_count++
+    if (!msg.is_read && !isSender) conv.unread_count++
   }
   const dmInbox = Array.from(conversations.values())
     .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
