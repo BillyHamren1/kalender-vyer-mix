@@ -3,6 +3,7 @@ import { MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Clock, Loader2 } from 'lucide-react';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface JobTimeTabProps {
   bookingId: string;
