@@ -1,45 +1,24 @@
 
 
-## Problem: Ny personal syns inte i kalendern + kan inte hantera tillgänglighet
+## Problem: Personal med GPS syns inte på kartan utan teamtilldelning
 
-### Orsak 1: Ingen knapp för att hantera tillgänglighet
-`StaffAvailabilityDialog` finns som komponent men importeras **aldrig** i `StaffDetail.tsx`. Det finns alltså ingen knapp på personalkortet för att öppna dialogen och ange tillgänglighetsperioder.
+### Orsak
 
-### Orsak 2: Utan tillgänglighetspost = osynlig
-Kalenderlogiken i `useUnifiedStaffOperations.tsx` (rad 144-152) kräver att personal har minst en `available`-post i `staff_availability`-tabellen. Ny personal som saknar poster filtreras bort helt — de dyker aldrig upp som tillgängliga.
+`fetchStaffLocations` i `planningDashboardService.ts` (rad 287-387) bygger sin lista **enbart** från `staff_assignments` för dagens datum. Personal som inte har en teamtilldelning för dagen filtreras bort — även om de aktivt rapporterar GPS-position via `staff_locations`.
+
+Ranjan delar sin position och rapporterar tid, men saknar troligen en `staff_assignments`-post för idag → han syns aldrig på kartan.
 
 ### Åtgärd
 
-**1. Lägg till "Hantera tillgänglighet"-knapp på personalkortet**
-- Importera `StaffAvailabilityDialog` i `StaffDetail.tsx`
-- Lägg till en knapp i Anställning-kortet (under taggarna) som öppnar dialogen
-- Dialogen finns redan fullt fungerande med kalender, periodval och snabbknappar
+Ändra `fetchStaffLocations` så att den **även** inkluderar personal som har en aktiv GPS-position i `staff_locations` (uppdaterad senaste 10 min), oavsett om de har en teamtilldelning.
 
-**2. Ändra standardbeteende: personal utan poster = tillgänglig**
-- I `useUnifiedStaffOperations.tsx`, ändra logiken så att personal som saknar poster i `staff_availability` betraktas som tillgänglig (istället för osynlig)
-- Samma ändring i `staffAvailabilityService.ts` → `getAvailableStaffForDateRange`
-- Logiken blir: om en person har **inga** poster → tillgänglig. Om de har poster → kolla om `available` finns och inga `blocked/unavailable`
+**Logik:**
+1. Hämta `staff_assignments` som idag (befintlig logik)
+2. **Ny:** Hämta alla `staff_locations` uppdaterade senaste 10 min
+3. Mergea: personal med assignment visas som förut, personal med bara GPS (utan assignment) läggs till med `teamName: 'Ingen tilldelning'` och GPS-koordinater
 
-### Tekniska detaljer
+**Fil som ändras:**
+- `src/services/planningDashboardService.ts` — funktionen `fetchStaffLocations`
 
-**StaffDetail.tsx:**
-- Import `StaffAvailabilityDialog`
-- State: `showAvailabilityDialog`
-- Knapp: "Hantera tillgänglighet" med kalenderikon, placerad efter tagg-sektionen
-- Rendera dialogen med `staffId` och `staffName`
-
-**useUnifiedStaffOperations.tsx (rad 144-152):**
-```text
-Nuvarande: filter(s => availableIds.has(s.id) && !blockedIds.has(s.id))
-Nytt:      filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord(s.id)))
-```
-Personal utan poster passerar filtret. Personal med bara `blocked/unavailable` filtreras bort.
-
-**staffAvailabilityService.ts → getAvailableStaffForDateRange:**
-Samma logikändring — `staffPeriods.length === 0` ska betyda "tillgänglig" istället för "ej tillgänglig".
-
-**Filer som ändras:**
-- `src/pages/StaffDetail.tsx`
-- `src/hooks/useUnifiedStaffOperations.tsx`
-- `src/services/staffAvailabilityService.ts`
+Hämtar extra staff-namn via join på `staff_members` för GPS-poster som saknar assignment. Inga databasändringar behövs.
 
