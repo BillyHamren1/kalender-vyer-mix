@@ -68,7 +68,7 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                     <div className="text-right">
                       <div className="text-xs text-gray-500">Regular:</div>
                       <div className="font-medium text-sm">
-                        {totalRegularHours.toFixed(2)}
+                        {formatHoursMinutes(totalRegularHours)}
                       </div>
                     </div>
                     
