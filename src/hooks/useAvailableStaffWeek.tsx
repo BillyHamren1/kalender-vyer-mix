@@ -23,10 +23,11 @@ export const useAvailableStaffWeek = (
   resources: Resource[],
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{ id: string; name: string; color?: string }>;
-  }
+  },
+  filterByTag?: string
 ) => {
   const { data: weekAvailableStaff } = useQuery({
-    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(',')],
+    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(','), filterByTag || ''],
     queryFn: async () => {
       const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
       const availableByDate = await getAvailableStaffForDateRange(days);
