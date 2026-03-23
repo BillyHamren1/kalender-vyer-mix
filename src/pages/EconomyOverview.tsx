@@ -21,6 +21,7 @@ import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProje
 import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
 import BillingSection from '@/components/economy/billing/BillingSection';
+import ProjectLeaderActionBoard from '@/components/economy/ProjectLeaderActionBoard';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -72,20 +73,22 @@ const ProjectEconomyDashboard: React.FC = () => {
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
         <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* A. KPI-rad */}
+      {/* A. Action Board — primary focus */}
+      <ProjectLeaderActionBoard projectInsights={projectInsights} />
+
+      {/* B. KPI-rad — sekundär */}
       <EconomyKpiCards summary={dashboardSummary} />
 
-      {/* B. TB-analys — intäkt, kostnad, täckningsbidrag per månad */}
+      {/* C. TB-analys */}
       <EconomyTBAnalysis projects={projectInsights} />
 
-      {/* C. Faktureringscenter */}
+      {/* D. Faktureringscenter */}
       <EconomyInvoicingQueue
         readyForInvoicing={invoicingQueue.readyForInvoicing}
         partiallyInvoiced={invoicingQueue.partiallyInvoiced}
@@ -93,10 +96,10 @@ const ProjectEconomyDashboard: React.FC = () => {
         onCloseProject={setClosingProject}
       />
 
-      {/* D. Risklista */}
+      {/* E. Risklista */}
       <EconomyRiskList risks={riskProjects} />
 
-      {/* E. Avslutade projekt */}
+      {/* F. Avslutade projekt */}
       <EconomyCompletedProjects projects={completedProjects} />
 
       {/* Close project dialog */}
@@ -144,10 +147,10 @@ const EconomyOverview: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Ekonomiskt kontrollcenter
+                  Projektekonomi
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
-                  TB-analys · Fakturering · Risk
+                  Kostnader · Attest · Överlämning
                 </p>
               </div>
             </div>
@@ -162,7 +165,7 @@ const EconomyOverview: React.FC = () => {
                 Kontrollcenter
               </TabsTrigger>
               <TabsTrigger value="billing" className={tabTriggerClass}>
-                Fakturering
+                Överlämning & status
               </TabsTrigger>
               <TabsTrigger value="staff" className={tabTriggerClass}>
                 Personal

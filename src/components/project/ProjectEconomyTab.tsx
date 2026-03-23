@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { FileSpreadsheet, FileText, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -9,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { useProjectEconomy } from '@/hooks/useProjectEconomy';
 import { EconomySummaryCard } from './EconomySummaryCard';
 import { StaffCostTable } from './StaffCostTable';
@@ -19,10 +22,15 @@ import { ProductCostsCard } from './ProductCostsCard';
 import { CostComparisonCard } from './CostComparisonCard';
 import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
+import { ProjectClosureGate, buildClosureGates } from '@/components/economy/ProjectClosureGate';
+import BillingStatusBadge from '@/components/economy/billing/BillingStatusBadge';
+import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
+import { useProjectBillingList, type BillingStatus } from '@/hooks/useProjectBilling';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
 
-
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
 interface ProjectEconomyTabProps {
   projectId: string;
@@ -57,44 +65,47 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     linkSupplierInvoice,
   } = useProjectEconomy(projectId, bookingId);
 
+  const { data: attestations = [] } = useSupplierInvoiceAttestations(bookingId);
+  const attestCounts = useMemo(() => getAttestationCounts(attestations), [attestations]);
+
+  const { data: billingItems = [] } = useProjectBillingList();
+  const billingRecord = useMemo(() => {
+    return billingItems.find(b => b.project_id === projectId);
+  }, [billingItems, projectId]);
+
+  // Summary calculations
+  const revenue = summary.revenue || bookingEconomics?.totalRevenue || 0;
+  const totalCost = summary.totalCost || 0;
+  const margin = revenue > 0 ? ((revenue - totalCost) / revenue * 100) : 0;
+
+  // Closure gates
+  const closureGates = useMemo(() => buildClosureGates({
+    unattestedInvoiceCount: attestCounts.unattested,
+    newCostCount: attestCounts.imported,
+    hasRecentEconomyData: true, // Simplified - could check last fetch timestamp
+    budgetDeviation: summary.revenue > 0 ? ((summary.totalCost - (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0)) / summary.revenue * 100) : 0,
+    marginPercent: margin,
+    timeReportsApproved: true, // Simplified
+  }), [attestCounts, summary, budget, margin]);
+
+  const hasBlockers = closureGates.some(g => g.blocking && !g.passed);
+
   const handleExportExcel = () => {
     try {
-      exportToExcel({
-        projectName,
-        budget: budget || null,
-        timeReports,
-        purchases,
-        quotes,
-        invoices,
-        summary
-      });
+      exportToExcel({ projectName, budget: budget || null, timeReports, purchases, quotes, invoices, summary });
       toast.success('Exporterad till Excel (CSV)');
-    } catch (error) {
-      toast.error('Kunde inte exportera till Excel');
-    }
+    } catch { toast.error('Kunde inte exportera'); }
   };
 
   const handleExportPDF = () => {
     try {
-      exportToPDF({
-        projectName,
-        budget: budget || null,
-        timeReports,
-        purchases,
-        quotes,
-        invoices,
-        summary
-      });
-    } catch (error) {
-      toast.error('Kunde inte exportera till PDF');
-    }
+      exportToPDF({ projectName, budget: budget || null, timeReports, purchases, quotes, invoices, summary });
+    } catch { toast.error('Kunde inte exportera'); }
   };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-60 w-full" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-60 w-full" />
       </div>
@@ -103,6 +114,59 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
 
   return (
     <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="border-border/40">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt</p>
+            <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(revenue)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/40">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total kostnad</p>
+            <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalCost)}</p>
+          </CardContent>
+        </Card>
+        <Card className={cn('border-border/40', margin < 10 && 'border-amber-200/60 dark:border-amber-800/40')}>
+          <CardContent className="p-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB / Marginal</p>
+            <p className={cn(
+              'text-xl font-bold mt-1',
+              margin >= 20 ? 'text-green-600' : margin >= 10 ? 'text-foreground' : 'text-amber-600'
+            )}>
+              {formatCurrency(revenue - totalCost)} ({margin.toFixed(0)}%)
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Action indicators */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {attestCounts.unattested > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md px-2.5 py-1.5 border border-amber-200/60 dark:border-amber-800/40">
+            <AlertTriangle className="h-3 w-3" />
+            {attestCounts.unattested} oattesterade levfakturor
+          </div>
+        )}
+        {attestCounts.imported > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 dark:bg-sky-950/20 rounded-md px-2.5 py-1.5 border border-sky-200/60 dark:border-sky-800/40">
+            <FileText className="h-3 w-3" />
+            {attestCounts.imported} nya kostnader
+          </div>
+        )}
+        {billingRecord && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <BillingStatusBadge status={billingRecord.billing_status} />
+          </div>
+        )}
+      </div>
+
+      {/* Closure gate (show if project has billing record) */}
+      {billingRecord && (
+        <ProjectClosureGate gates={closureGates} />
+      )}
+
       {/* Export buttons */}
       <div className="flex justify-end gap-2">
         <DropdownMenu>
@@ -136,7 +200,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       {/* Projektresultat - Utfall */}
       <EconomySummaryCard summary={summary} bookingEconomics={bookingEconomics} />
 
-      {/* Product Costs (Budget basis) */}
+      {/* Product Costs */}
       {productCosts && (
         <ProductCostsCard
           productCosts={productCosts}
@@ -146,7 +210,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         />
       )}
 
-      {/* Budget vs Utfall per kostnadstyp */}
+      {/* Budget vs Utfall */}
       <CostComparisonCard
         productCosts={productCosts ?? null}
         staffActual={summary.staffActual}
@@ -160,7 +224,14 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           <TabsTrigger value="staff">Personal & Timmar</TabsTrigger>
           <TabsTrigger value="purchases">Inköp</TabsTrigger>
           <TabsTrigger value="quotes">Offerter & Fakturor</TabsTrigger>
-          <TabsTrigger value="supplier">Leverantörsfakturor</TabsTrigger>
+          <TabsTrigger value="supplier" className="relative">
+            Leverantörsfakturor
+            {attestCounts.unattested > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-[9px] px-1 py-0 h-3.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                {attestCounts.unattested}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="staff">
@@ -203,6 +274,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
             purchases={purchases}
             productCosts={productCosts}
             onLinkInvoice={linkSupplierInvoice}
+            bookingId={bookingId}
           />
         </TabsContent>
       </Tabs>
@@ -214,7 +286,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         currentBudget={budget || null}
         onSave={saveBudget}
       />
-
     </div>
   );
 };
