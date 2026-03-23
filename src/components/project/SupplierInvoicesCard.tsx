@@ -1,10 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { FileText, RefreshCw, ChevronDown, ChevronUp, Check, X, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { AttestStatusBadge, SyncStatusBadge } from '@/components/economy/AttestStatusBadge';
+import type { AttestStatus } from '@/components/economy/AttestStatusBadge';
+import {
+  useSupplierInvoiceAttestations,
+  useEnsureAttestRecords,
+  useAttestInvoice,
+  useRejectInvoice,
+  useLinkAttestation,
+  usePushAttestToBooking,
+  getAttestationCounts,
+  type SupplierInvoiceAttestation,
+} from '@/hooks/useSupplierInvoiceAttestation';
 import type { SupplierInvoice, LinkedCostType, ProjectPurchase } from '@/types/projectEconomy';
 
 interface ProductCostItem {
@@ -21,20 +35,20 @@ interface SupplierInvoicesCardProps {
   purchases?: ProjectPurchase[];
   productCosts?: { products?: ProductCostItem[] } | null;
   onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
+  bookingId?: string | null;
 }
 
 const fmt = (v: number) =>
   v == null ? '–' : v === 0 ? '0' : v.toLocaleString('sv-SE');
 
-const buildLinkValue = (type: LinkedCostType, id: string | null): string => {
-  if (!type || !id) return '__none__';
-  return `${type}::${id}`;
-};
-
-const parseLinkValue = (value: string): { type: LinkedCostType; id: string | null } => {
-  if (value === '__none__') return { type: null, id: null };
-  const [type, id] = value.split('::');
-  return { type: type as LinkedCostType, id };
+const STATUS_ORDER: AttestStatus[] = ['imported', 'needs_review', 'linked', 'attested', 'sent_to_booking', 'rejected'];
+const STATUS_LABELS: Record<string, string> = {
+  imported: 'Nya / ej granskade',
+  needs_review: 'Att granska',
+  linked: 'Kopplade — ej attesterade',
+  attested: 'Attesterade',
+  sent_to_booking: 'Skickade till Booking',
+  rejected: 'Avvisade',
 };
 
 export const SupplierInvoicesCard = ({
@@ -43,86 +57,114 @@ export const SupplierInvoicesCard = ({
   purchases = [],
   productCosts,
   onLinkInvoice,
+  bookingId,
 }: SupplierInvoicesCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [attestComment, setAttestComment] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
 
-  const handleRefresh = async () => {
+  const { data: attestations = [] } = useSupplierInvoiceAttestations(bookingId ?? null);
+  const ensureRecords = useEnsureAttestRecords();
+  const attestInvoice = useAttestInvoice();
+  const rejectInvoice = useRejectInvoice();
+  const linkAttest = useLinkAttestation();
+  const pushToBooking = usePushAttestToBooking();
+
+  // Ensure attest records exist when we have invoices
+  const handleRefresh = useCallback(async () => {
     if (!onRefresh) return;
     setIsRefreshing(true);
     try {
       await onRefresh();
+      // After refreshing, ensure attest records
+      if (bookingId && supplierInvoices.length > 0) {
+        const ids = supplierInvoices.map(si => si.id);
+        await ensureRecords.mutateAsync({ bookingId, supplierInvoiceIds: ids });
+      }
       toast.success('Leverantörsfakturor uppdaterade');
     } catch {
       toast.error('Kunde inte uppdatera');
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [onRefresh, bookingId, supplierInvoices, ensureRecords]);
 
-  const handleLinkChange = (invoiceId: string, value: string) => {
-    if (!onLinkInvoice) return;
-    const { type, id } = parseLinkValue(value);
-    onLinkInvoice({ id: invoiceId, linked_cost_type: type, linked_cost_id: id });
-  };
+  // Build a map: supplier_invoice_id -> attestation
+  const attestMap = useMemo(() => {
+    const map: Record<string, SupplierInvoiceAttestation> = {};
+    attestations.forEach(a => { map[a.supplier_invoice_id] = a; });
+    return map;
+  }, [attestations]);
 
-  const handleFinalLinkToggle = (si: SupplierInvoice) => {
-    if (!onLinkInvoice || !si.linked_cost_type || !si.linked_cost_id) return;
-    onLinkInvoice({
-      id: si.id,
-      linked_cost_type: si.linked_cost_type,
-      linked_cost_id: si.linked_cost_id,
-      is_final_link: !si.is_final_link,
+  const counts = useMemo(() => getAttestationCounts(attestations), [attestations]);
+
+  // Group invoices by attest status
+  const groupedInvoices = useMemo(() => {
+    const groups: Record<string, SupplierInvoice[]> = {};
+    STATUS_ORDER.forEach(s => { groups[s] = []; });
+    
+    supplierInvoices.forEach(si => {
+      const attest = attestMap[si.id];
+      const status = attest?.status || 'imported';
+      if (!groups[status]) groups[status] = [];
+      groups[status].push(si);
     });
-  };
-
-  const products = productCosts?.products || [];
-
-  const getCostBudget = (si: SupplierInvoice): number | null => {
-    if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    switch (si.linked_cost_type) {
-      case 'purchase': {
-        const p = purchases.find(x => x.id === si.linked_cost_id);
-        return p ? p.amount : null;
-      }
-      case 'product': {
-        const pr = products.find(x => x.id === si.linked_cost_id);
-        return pr ? pr.purchase_cost * pr.quantity : null;
-      }
-      default:
-        return null;
-    }
-  };
-
-  const getLinkLabel = (si: SupplierInvoice): string | null => {
-    if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    switch (si.linked_cost_type) {
-      case 'purchase': {
-        const p = purchases.find(x => x.id === si.linked_cost_id);
-        return p ? `Inköp: ${p.description}` : 'Inköp (okänd)';
-      }
-      case 'product': {
-        const pr = products.find(x => x.id === si.linked_cost_id);
-        return pr ? `Produkt: ${pr.product_name || pr.name}` : 'Produkt (okänd)';
-      }
-      default:
-        return null;
-    }
-  };
+    
+    return groups;
+  }, [supplierInvoices, attestMap]);
 
   const total = supplierInvoices.reduce(
     (sum, si) => sum + (Number(si.invoice_data?.Total) || 0), 0
   );
 
-  const hasLinkingOptions = purchases.length > 0 || products.length > 0;
+  const products = productCosts?.products || [];
+
+  const handleLinkChange = (invoiceId: string, value: string) => {
+    if (!onLinkInvoice) return;
+    if (value === '__none__') {
+      onLinkInvoice({ id: invoiceId, linked_cost_type: null, linked_cost_id: null });
+    } else {
+      const [type, id] = value.split('::');
+      onLinkInvoice({ id: invoiceId, linked_cost_type: type as LinkedCostType, linked_cost_id: id });
+    }
+    // Also update attest status to 'linked'
+    const attest = attestMap[invoiceId];
+    if (attest && (attest.status === 'imported' || attest.status === 'needs_review')) {
+      linkAttest.mutate({ id: attest.id });
+    }
+  };
+
+  const handleAttest = (si: SupplierInvoice) => {
+    const attest = attestMap[si.id];
+    if (!attest) return;
+    attestInvoice.mutate({ id: attest.id, comment: attestComment || undefined });
+    setAttestComment('');
+    setExpandedId(null);
+  };
+
+  const handleReject = (si: SupplierInvoice) => {
+    const attest = attestMap[si.id];
+    if (!attest || !rejectReason.trim()) return;
+    rejectInvoice.mutate({ id: attest.id, reason: rejectReason });
+    setRejectReason('');
+    setExpandedId(null);
+  };
+
+  const handlePushToBooking = (si: SupplierInvoice) => {
+    const attest = attestMap[si.id];
+    if (!attest) return;
+    pushToBooking.mutate(attest);
+  };
 
   if (supplierInvoices.length === 0) {
     return (
-      <Card>
+      <Card className="border-border/40">
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-4 w-4" />
-              Leverantörsfakturor (Fortnox)
+              Leverantörsfakturor
             </CardTitle>
             {onRefresh && (
               <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8">
@@ -133,7 +175,7 @@ export const SupplierInvoicesCard = ({
         </CardHeader>
         <CardContent className="pt-0">
           <p className="text-muted-foreground text-sm">
-            Inga leverantörsfakturor hittades. Data hämtas från Booking-systemet när det är tillgängligt.
+            Inga leverantörsfakturor hittades.
           </p>
         </CardContent>
       </Card>
@@ -141,157 +183,204 @@ export const SupplierInvoicesCard = ({
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 pb-0">
+    <Card className="border-border/40">
+      <CardHeader className="py-3 pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-4 w-4" />
-            Leverantörsfakturor (Fortnox)
-          </CardTitle>
-          {onRefresh && (
-            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8">
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4" />
+              Leverantörsfakturor
+            </CardTitle>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              {supplierInvoices.length}
+            </Badge>
+            {counts.unattested > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                {counts.unattested} oattesterade
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-semibold text-foreground mr-2">{fmt(total)} kr</span>
+            {onRefresh && (
+              <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8">
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-3">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px]">
-            <thead>
-              <tr className="border-b text-xs text-muted-foreground">
-                <th className="text-left py-2 pr-3 font-medium">Fakturanr</th>
-                <th className="text-left py-2 px-2 font-medium">Leverantör</th>
-                <th className="text-left py-2 px-2 font-medium">Fakturadatum</th>
-                <th className="text-right py-2 px-2 font-medium">Belopp</th>
-                
-                {hasLinkingOptions && (
-                  <>
-                    <th className="text-left py-2 px-2 font-medium">Kopplad till</th>
-                    <th className="text-right py-2 px-2 font-medium">Budget/Kostnad</th>
-                    <th className="text-center py-2 pl-2 font-medium" title="Enda fakturan för denna kostnadspost">Slutgiltig</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {supplierInvoices.map((si) => {
-                const currentValue = buildLinkValue(si.linked_cost_type, si.linked_cost_id);
-                const isLinked = !!si.linked_cost_type && !!si.linked_cost_id;
-                const costBudget = getCostBudget(si);
-                const invoiceAmount = Number(si.invoice_data?.Total) || 0;
-                const deviation = costBudget != null ? costBudget - invoiceAmount : null;
+      <CardContent className="pt-1 space-y-4">
+        {STATUS_ORDER.map(status => {
+          const invoices = groupedInvoices[status];
+          if (!invoices || invoices.length === 0) return null;
 
-                return (
-                  <tr key={si.id} className="border-b border-border/40 hover:bg-muted/20">
-                    <td className="py-2 pr-3 text-sm font-medium">
-                      {si.invoice_data?.GivenNumber || si.given_number || '–'}
-                    </td>
-                    <td className="py-2 px-2 text-sm">
-                      {si.invoice_data?.SupplierName || '–'}
-                    </td>
-                    <td className="py-2 px-2 text-sm text-muted-foreground">
-                      {si.invoice_data?.InvoiceDate || '–'}
-                    </td>
-                    <td className="py-2 px-2 text-sm text-right font-medium">
-                      {fmt(invoiceAmount)} kr
-                    </td>
-                    {hasLinkingOptions && (
-                      <>
-                        <td className="py-1.5 px-2">
-                          {onLinkInvoice ? (
-                            <div className="flex items-center gap-1.5">
-                              {!isLinked && (
-                                <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
-                              )}
-                              {isLinked && (
-                                <Link2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                              )}
-                              <Select value={currentValue} onValueChange={(v) => handleLinkChange(si.id, v)}>
-                                <SelectTrigger className="h-7 text-xs w-[180px]">
-                                  <SelectValue placeholder="Välj koppling..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__none__">
-                                    <span className="text-muted-foreground">Ingen koppling</span>
-                                  </SelectItem>
+          return (
+            <div key={status}>
+              <div className="flex items-center gap-2 mb-2">
+                <AttestStatusBadge status={status} />
+                <span className="text-xs text-muted-foreground">{STATUS_LABELS[status]}</span>
+                <span className="text-[10px] text-muted-foreground/60 ml-auto">{invoices.length} st</span>
+              </div>
 
-                                  {purchases.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>Inköp</SelectLabel>
-                                      {purchases.map(p => (
-                                        <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
-                                          {p.description} ({fmt(p.amount)} kr)
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  )}
+              <div className="space-y-2">
+                {invoices.map(si => {
+                  const attest = attestMap[si.id];
+                  const isExpanded = expandedId === si.id;
+                  const invoiceAmount = Number(si.invoice_data?.Total) || 0;
+                  const currentLinkValue = si.linked_cost_type && si.linked_cost_id
+                    ? `${si.linked_cost_type}::${si.linked_cost_id}`
+                    : '__none__';
+                  const hasLinkingOptions = purchases.length > 0 || products.length > 0;
 
-                                  {products.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>Produkter (inköpskostnad)</SelectLabel>
-                                      {products.map(pr => (
-                                        <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
-                                          {pr.product_name || pr.name} ({fmt(pr.purchase_cost * pr.quantity)} kr)
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              {getLinkLabel(si) || '–'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 px-2 text-sm text-right">
-                          {isLinked && costBudget != null ? (
-                            <div className="flex flex-col items-end">
-                              <span className="text-muted-foreground text-xs">{fmt(costBudget)} kr</span>
-                              <span className={`text-xs font-semibold ${deviation != null && deviation >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                {deviation != null ? `${deviation >= 0 ? '+' : ''}${fmt(deviation)} kr` : ''}
+                  return (
+                    <Card key={si.id} className={cn('border-border/30', isExpanded && 'ring-1 ring-primary/20')}>
+                      <CardContent className="p-3">
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => setExpandedId(isExpanded ? null : si.id)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">
+                                {si.invoice_data?.SupplierName || '—'}
+                              </p>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                #{si.invoice_data?.GivenNumber || si.given_number || '—'}
                               </span>
                             </div>
+                            <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                              <span>{si.invoice_data?.InvoiceDate || '—'}</span>
+                              {attest && attest.booking_sync_status !== 'pending' && (
+                                <SyncStatusBadge status={attest.booking_sync_status} />
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm font-semibold text-foreground whitespace-nowrap">
+                            {fmt(invoiceAmount)} kr
+                          </p>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
                           ) : (
-                            <span className="text-muted-foreground text-xs">–</span>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                           )}
-                        </td>
-                        <td className="py-2 pl-2 text-center">
-                          {isLinked ? (
-                            <Checkbox
-                              checked={!!si.is_final_link}
-                              onCheckedChange={() => handleFinalLinkToggle(si)}
-                              className="mx-auto"
-                              title="Markera som slutgiltig koppling"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground text-xs">–</span>
-                          )}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 text-sm font-semibold">
-                <td className="py-2.5 pr-3" colSpan={3}>Totalt</td>
-                <td className="py-2.5 px-2 text-right">{fmt(total)} kr</td>
-                <td className="py-2.5 px-2" />
-                {hasLinkingOptions && (
-                  <>
-                    <td className="py-2.5 px-2" />
-                    <td className="py-2.5 px-2" />
-                    <td className="py-2.5 pl-2" />
-                  </>
-                )}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-border/30 space-y-3">
+                            {/* Linking */}
+                            {hasLinkingOptions && onLinkInvoice && (
+                              <div>
+                                <label className="text-xs font-medium text-muted-foreground mb-1 block">Koppling</label>
+                                <Select value={currentLinkValue} onValueChange={(v) => handleLinkChange(si.id, v)}>
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Välj koppling..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">
+                                      <span className="text-muted-foreground">Ingen koppling</span>
+                                    </SelectItem>
+                                    {purchases.length > 0 && (
+                                      <SelectGroup>
+                                        <SelectLabel>Inköp</SelectLabel>
+                                        {purchases.map(p => (
+                                          <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
+                                            {p.description} ({fmt(p.amount)} kr)
+                                          </SelectItem>
+                                        ))}
+                                      </SelectGroup>
+                                    )}
+                                    {products.length > 0 && (
+                                      <SelectGroup>
+                                        <SelectLabel>Produkter (inköpskostnad)</SelectLabel>
+                                        {products.map(pr => (
+                                          <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
+                                            {pr.product_name || pr.name} ({fmt(pr.purchase_cost * pr.quantity)} kr)
+                                          </SelectItem>
+                                        ))}
+                                      </SelectGroup>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* Attest actions */}
+                            {attest && (attest.status === 'imported' || attest.status === 'needs_review' || attest.status === 'linked') && (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={attestComment}
+                                  onChange={e => setAttestComment(e.target.value)}
+                                  placeholder="Kommentar (valfritt)..."
+                                  className="min-h-[60px] text-xs resize-none"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="gap-1.5 text-xs"
+                                    onClick={() => handleAttest(si)}
+                                    disabled={attestInvoice.isPending}
+                                  >
+                                    <Check className="h-3 w-3" /> Attestera
+                                  </Button>
+                                  <div className="flex-1">
+                                    <Textarea
+                                      value={rejectReason}
+                                      onChange={e => setRejectReason(e.target.value)}
+                                      placeholder="Anledning till avvisning..."
+                                      className="min-h-[32px] text-xs resize-none mb-1"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                      onClick={() => handleReject(si)}
+                                      disabled={rejectInvoice.isPending || !rejectReason.trim()}
+                                    >
+                                      <X className="h-3 w-3" /> Avvisa
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Push to booking */}
+                            {attest && attest.status === 'attested' && attest.booking_sync_status === 'pending' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 text-xs"
+                                onClick={() => handlePushToBooking(si)}
+                                disabled={pushToBooking.isPending}
+                              >
+                                <Send className="h-3 w-3" /> Skicka attest till Booking
+                              </Button>
+                            )}
+
+                            {/* Show attest details */}
+                            {attest && attest.attested_at && (
+                              <div className="text-xs text-muted-foreground bg-green-50/50 dark:bg-green-950/10 rounded-md px-3 py-2 border border-green-200/40 dark:border-green-800/30">
+                                <p>Attesterad av {attest.attested_by} · {new Date(attest.attested_at).toLocaleDateString('sv-SE')}</p>
+                                {attest.attest_comment && <p className="mt-1 italic">"{attest.attest_comment}"</p>}
+                              </div>
+                            )}
+
+                            {attest && attest.rejected_at && (
+                              <div className="text-xs text-muted-foreground bg-red-50/50 dark:bg-red-950/10 rounded-md px-3 py-2 border border-red-200/40 dark:border-red-800/30">
+                                <p>Avvisad av {attest.rejected_by} · {new Date(attest.rejected_at).toLocaleDateString('sv-SE')}</p>
+                                {attest.reject_reason && <p className="mt-1 italic">"{attest.reject_reason}"</p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
