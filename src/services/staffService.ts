@@ -19,6 +19,7 @@ export interface StaffMember {
   color?: string;
   hourly_rate?: number;
   overtime_rate?: number;
+  tags?: string[];
 }
 
 export interface StaffAssignment {
