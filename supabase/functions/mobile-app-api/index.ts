@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // Resolve organization_id from the authenticated staff member
     const { data: staffOrg } = await supabase
       .from('staff_members')
-      .select('organization_id')
+      .select('organization_id, user_id')
       .eq('id', staffId)
       .single()
 
