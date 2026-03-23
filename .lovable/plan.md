@@ -1,91 +1,59 @@
 
 
-## Genomgång: Flödet mellan Planning och Tidrapportappen
+## Plan: Taggar redigeringsbara på personalkortet + kalenderfiltrering per tagg
 
-### Nuvarande flöde
+### Sammanfattning
 
-```text
-MOBILAPP (Personal)                    PLANNING (Admin)
-─────────────────                      ────────────────
-1. GPS auto-timer / manuell timer      
-   → stopTimer()                       
-   → mobileApi.createTimeReport()      
-   → Edge Function: mobile-app-api     
-   → INSERT i time_reports             
-                                       
-2. Manuell tidrapport (/m/time-report) 
-   → mobileApi.createTimeReport()      
-   → Edge Function: mobile-app-api     
-   → INSERT i time_reports             
-                                       ← Realtime-prenumeration på time_reports
-                                       ← Visar i:
-                                         A) TimeReportApprovals (/staff-management/time-approvals)
-                                         B) EconomyTimeReports (Ekonomi-tab "Rapporterad tid")
-                                         C) StaffCostTable (Projektets ekonomi-tab)
-                                         D) StaffDetail (Personaldetalj)
-                                       
-                                       → Godkänn → UPDATE time_reports (approved=true)
-```
+Tre saker ska fixas:
+1. Taggar (Montage/Lager) ska kunna redigeras direkt på personalkortet (StaffDetail)
+2. Planeringskalendern (montage) visar bara personal med taggen "Montage"
+3. Lagerkalendern visar bara personal med taggen "Lager"
+4. Personal med båda taggarna syns i båda kalendrarna
 
-### Identifierade problem
+### 1. Redigera taggar på personalkortet
 
-**1. Duplicerad godkännandelogik på 4 ställen — inkonsekvent**
-Godkännande av tidrapporter görs på fyra separata ställen, med olika beteenden:
+**Fil: `src/pages/StaffDetail.tsx`**
 
-| Plats | Sparar `approved_by`? | Uppdaterar `approved_at`? |
-|---|---|---|
-| `TimeReportApprovalPanel` | ✅ "Admin" (hårdkodat) | ✅ |
-| `EconomyTimeReports` | ❌ | ✅ |
-| `StaffCostTable` (projektekonomi) | ✅ "Projektledare" (hårdkodat) | ✅ |
-| `EconomyTimeReports` (godkänn alla) | ❌ | ✅ |
+I "Anställning"-kortet (rad 265-278), lägg till en tagg-sektion under "Anställningsdatum". Samma UI som i EditStaffDialog: klickbara badges för "Montage" och "Lager" som togglar on/off och sparar direkt till databasen via `handleFieldSave` (anpassad för arrays).
 
-**Problem**: `approved_by` är hårdkodat som "Admin" eller "Projektledare" istället för att använda den inloggade användarens namn. `EconomyTimeReports` sparar inte `approved_by` alls.
+### 2. Filtrera personal i kalenderdialoger baserat på taggar
 
-**2. `TimeReportForm` (admin-skapad) — använder gammal service**
-I `StaffDetail.tsx` kan admin lägga till tidrapporter via `TimeReportForm`, som anropar `timeReportService.createTimeReport()` — en Edge Function (`time-reports`). Men alla andra ställen i systemet (projektvy, mobilen) använder direkta Supabase-inserts eller `mobile-app-api`. Oklart om Edge Function `time-reports` ens fungerar korrekt.
+Huvudändringen sker i **`src/services/staffAvailabilityService.ts`** — funktionen `getAvailableStaffForDateRange`:
 
-**3. Ingen redigering av tidrapporter**
-Personal kan bara skapa tidrapporter, aldrig redigera eller ta bort dem. Admin kan bara godkänna eller radera — inte redigera timmar/tider. Om en rapport har fel data måste man radera och be personalen skapa en ny.
+- Lägg till en optional parameter `filterByTag?: string`
+- Om satt, filtrera `staff_members`-queryn med `.contains('tags', [filterByTag])`
+- Kallar-koden skickar `'Montage'` från planeringskalendern och `'Lager'` från lagerkalendern
 
-**4. Invalidering av queries saknas i `EconomyTimeReports`**  
-Vid godkännande invalideras `economy-time-reports`, `pending-time-reports` och `economy-overview` — men INTE `project-time-reports` eller `staff-economy-overview`, så projektekonomivyn och personalöversikten blir inaktuella.
+**Filer som uppdateras för att skicka tag-filter:**
+- `src/components/Calendar/StaffSelectionDialog.tsx` — ta emot en `calendarType` prop, skicka `'Montage'` till `getAvailableStaffForDate`
+- `src/hooks/useAvailableStaffWeek.tsx` — ta emot `filterByTag` och skicka vidare
+- `src/components/Calendar/StaffSelector.tsx` — samma mönster
 
-**5. `timeReportService.ts` — potentiellt oanvänd/trasig**
-`timeReportService.ts` anropar Edge Functions (`time-reports`, `time-reports/summary`, `fetch-tracked-time`). `fetch-tracked-time` används via `useTrackedTimeData` i `StaffDetail`, men `time-reports`-endpointen (GET/POST/PUT/DELETE) skickar ingen body-data korrekt (GET med `body: null`, DELETE utan id i URL). Troligen trasig.
+Lagerkalendern behöver identifieras — den använder troligen samma komponenter men med kontexten "warehouse". Jag lägger till en prop som propageras genom befintliga kalender-komponenter.
 
-### Åtgärdsplan
+### 3. Ingen databasändring
 
-**1. Konsolidera godkännandelogik**
-- Skapa en shared `useApproveTimeReport`-hook som alla vyer använder
-- Hämta `approved_by` från den inloggade användarens profil istället för hårdkodat "Admin"
-- Invalidera alla relevanta query-keys konsekvent: `pending-time-reports`, `economy-time-reports`, `project-time-reports`, `staff-economy-overview`
-
-**2. Fixa `EconomyTimeReports` — spara `approved_by`**
-- Lägg till `approved_by` vid godkännande (använd den nya hooken)
-
-**3. Lägg till redigeringsmöjlighet**
-- I `TimeReportApprovalPanel`: lägg till möjlighet att redigera timmar, start/slut-tid och beskrivning innan godkännande
-- I mobilappen: låt personal redigera sina egna ej-godkända rapporter
-
-**4. Ta bort `timeReportService.ts` GET/POST/PUT/DELETE** 
-- Behåll bara `getTrackedTime()` (som faktiskt fungerar via `fetch-tracked-time`)
-- Ersätt `TimeReportForm`s anrop med direkt Supabase insert (samma mönster som `projectStaffService.createTimeReport`)
+Kolumnen `tags text[]` finns redan. PostgreSQL `@>` (contains) operatorn fungerar med Supabase `.contains()`.
 
 ### Tekniska detaljer
 
-**Ny hook: `src/hooks/useApproveTimeReport.ts`**
-- Tar `reportId` och optional `queryKeysToInvalidate`
-- Hämtar användarnamn från profil-context eller `profiles`-tabellen
-- Kör `supabase.from('time_reports').update({ approved: true, approved_at, approved_by })`
-- Invaliderar alla relevanta keys
+**staffAvailabilityService.ts — ändrad signatur:**
+```text
+getAvailableStaffForDateRange(dates, filterByTag?)
+  → .select('id, name, tags')
+  → om filterByTag: .contains('tags', [filterByTag])
+```
 
-**Filer som ändras:**
-- `src/hooks/useApproveTimeReport.ts` (ny)
-- `src/components/staff/TimeReportApprovalPanel.tsx` (använd ny hook + lägg till edit-möjlighet)
-- `src/pages/EconomyTimeReports.tsx` (använd ny hook)
-- `src/components/project/StaffCostTable.tsx` (använd ny hook)
-- `src/services/timeReportService.ts` (ta bort trasiga metoder, behåll `getTrackedTime`)
-- `src/components/time-reports/TimeReportForm.tsx` (byt till direkt Supabase insert)
+**StaffDetail.tsx — ny sektion i Anställning-kortet:**
+- Klickbara badges: Montage / Lager
+- Klick → supabase update `tags` array → refetch
 
-**Ingen databasändring behövs** — tabellen har redan `approved`, `approved_at`, `approved_by` kolumner.
+**StaffSelectionDialog.tsx:**
+- Ny prop: `filterByTag?: string`
+- Skickas vidare till `getAvailableStaffForDate(date, filterByTag)`
+
+**Identifiering av kalendertyp:**
+- Planeringskalendern (huvudkalendern) → `filterByTag='Montage'`
+- Lagerkalendern → `filterByTag='Lager'`
+- Propageras från sidnivå ner genom komponenterna
 
