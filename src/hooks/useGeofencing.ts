@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MobileBooking } from '@/services/mobileApiService';
-import { supabase } from '@/integrations/supabase/client';
+import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 
 const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
@@ -117,21 +116,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         };
         setUserPosition(gpsPos);
 
-        // Throttled upsert to staff_locations (max every 30s)
+        // Throttled location report (max every 30s)
         const now = Date.now();
         if (now - lastLocationReportRef.current >= 30000) {
           lastLocationReportRef.current = now;
           const currentStaffId = staffIdRef.current;
           if (currentStaffId) {
-            supabase.from('staff_locations').upsert({
-              staff_id: currentStaffId,
+            mobileApi.reportLocation({
               latitude,
               longitude,
               accuracy: accuracy ?? null,
               speed: speed ?? null,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'staff_id' }).then(({ error }) => {
-              if (error) console.warn('Location report failed:', error.message);
+            }).catch((error) => {
+              console.warn('Location report failed:', error?.message || error);
             });
           }
         }

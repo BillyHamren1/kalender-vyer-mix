@@ -167,6 +167,8 @@ Deno.serve(async (req) => {
       }
       case 'unregister_push_token':
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
+      case 'report_location':
+        return await handleReportLocation(supabase, staffId, data, organizationId)
       case 'create_travel_log':
         return await handleCreateTravelLog(supabase, staffId, data, organizationId)
       case 'stop_travel_log':
@@ -1975,6 +1977,42 @@ async function handleUnregisterPushToken(supabase: any, staffId: string, data: a
     .eq('staff_id', staffId)
     .eq('token', push_token)
     .eq('organization_id', organizationId)
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleReportLocation(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { latitude, longitude, accuracy, speed } = data || {}
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return new Response(
+      JSON.stringify({ error: 'latitude and longitude are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { error } = await supabase
+    .from('staff_locations')
+    .upsert({
+      staff_id: staffId,
+      organization_id: organizationId,
+      latitude,
+      longitude,
+      accuracy: accuracy ?? null,
+      speed: speed ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'staff_id' })
+
+  if (error) {
+    console.error('[mobile-app-api] report_location error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to report location' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   return new Response(
     JSON.stringify({ success: true }),
