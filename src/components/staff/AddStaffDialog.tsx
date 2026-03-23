@@ -86,16 +86,18 @@ const AddStaffDialog: React.FC<AddStaffDialogProps> = ({ isOpen, onClose, onStaf
         emergency_contact_name: data.emergency_contact_name || undefined,
         emergency_contact_phone: data.emergency_contact_phone || undefined,
         notes: data.notes || undefined,
+        tags: selectedTags,
       };
 
       await addStaffMember(staffData);
       
       form.reset();
+      setSelectedTags([]);
       onStaffAdded();
-      toast.success('Staff member added successfully');
+      toast.success('Personal tillagd');
     } catch (error) {
       console.error('Error adding staff member:', error);
-      toast.error('Failed to add staff member');
+      toast.error('Kunde inte lägga till personal');
     }
   };
 
