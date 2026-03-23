@@ -215,6 +215,22 @@ const AddStaffDialog: React.FC<AddStaffDialogProps> = ({ isOpen, onClose, onStaf
               </TabsContent>
 
               <TabsContent value="employment" className="space-y-4">
+                <div>
+                  <FormLabel>Taggar</FormLabel>
+                  <div className="flex gap-2 mt-1.5">
+                    {AVAILABLE_TAGS.map(tag => (
+                      <Badge
+                        key={tag}
+                        variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                        className="cursor-pointer select-none text-sm px-3 py-1"
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
                 <FormField
                   control={form.control}
                   name="role"
