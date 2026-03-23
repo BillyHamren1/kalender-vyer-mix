@@ -18,6 +18,7 @@ interface StaffMember {
   color?: string;
   role?: string;
   is_active?: boolean;
+  tags?: string[];
 }
 
 interface StaffListProps {
