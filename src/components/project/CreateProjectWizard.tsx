@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -16,6 +17,8 @@ import { sv } from "date-fns/locale";
 import { DEFAULT_CHECKLIST, ChecklistTemplate } from "./defaultChecklist";
 import { calculateDeadline, BookingDates } from "./calculateDeadline";
 import { ChecklistItem, ChecklistItemData } from "./ChecklistItem";
+import { AddressAutocomplete } from "@/components/logistics/AddressAutocomplete";
+import { syncStandaloneProjectToCalendar } from "@/services/projectCalendarService";
 
 interface CreateProjectWizardProps {
   open: boolean;
@@ -46,6 +49,23 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   const [checklistItems, setChecklistItems] = useState<ChecklistItemData[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
+  // Standalone project fields
+  const [client, setClient] = useState("");
+  const [deliveryaddress, setDeliveryaddress] = useState("");
+  const [deliveryCity, setDeliveryCity] = useState("");
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState("");
+  const [deliveryLat, setDeliveryLat] = useState<number | undefined>();
+  const [deliveryLng, setDeliveryLng] = useState<number | undefined>();
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [rigdaydate, setRigdaydate] = useState("");
+  const [eventdate, setEventdate] = useState("");
+  const [rigdowndate, setRigdowndate] = useState("");
+  const [internalnotes, setInternalnotes] = useState("");
+
+  const isStandalone = !selectedBookingId || selectedBookingId === "none";
+
   // Fetch available bookings (exclude those with active projects, allow cancelled/preselected)
   const { data: bookings = [] } = useQuery({
     queryKey: ['available-bookings-wizard', preselectedBookingId],
@@ -60,7 +80,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       const projectsRes: any = await supabase
         .from('projects')
         .select('booking_id, status')
-        .neq('status', 'cancelled'); // Only exclude bookings with ACTIVE projects
+        .neq('status', 'cancelled');
 
       const allBookings: BookingOption[] = bookingsRes.data || [];
       const usedBookingIds = new Set(
@@ -69,7 +89,6 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           .map((p: { booking_id: string }) => p.booking_id)
       );
       
-      // Filter: not used by active project, OR is the preselected booking
       return allBookings.filter(b => 
         !usedBookingIds.has(b.id) || b.id === preselectedBookingId
       );
@@ -129,8 +148,20 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
     if (open) {
       setNewTaskTitle("");
       setSelectedLeaderId("");
+      setClient("");
+      setDeliveryaddress("");
+      setDeliveryCity("");
+      setDeliveryPostalCode("");
+      setDeliveryLat(undefined);
+      setDeliveryLng(undefined);
+      setContactName("");
+      setContactPhone("");
+      setContactEmail("");
+      setRigdaydate("");
+      setEventdate("");
+      setRigdowndate("");
+      setInternalnotes("");
       
-      // If NO preselected booking, reset everything
       if (!preselectedBookingId) {
         setName("");
         setSelectedBookingId("");
@@ -172,7 +203,6 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
 
   const moveItem = useCallback((dragIndex: number, hoverIndex: number) => {
     setChecklistItems(prevItems => {
-      // Filter out info-only items for moving
       const movableItems = prevItems.filter(item => !item.isInfoOnly);
       const infoItems = prevItems.filter(item => item.isInfoOnly);
       
@@ -183,13 +213,11 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       newMovableItems.splice(dragIndex, 1);
       newMovableItems.splice(hoverIndex, 0, draggedItem);
       
-      // Recalculate sort_order
       const reorderedItems = newMovableItems.map((item, index) => ({
         ...item,
         sort_order: index
       }));
       
-      // Add info items back at their positions
       return [...reorderedItems, ...infoItems].sort((a, b) => {
         if (a.isInfoOnly && !b.isInfoOnly) return 1;
         if (!a.isInfoOnly && b.isInfoOnly) return -1;
@@ -224,12 +252,18 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
     setNewTaskTitle("");
   };
 
+  const handleAddressChange = (address: string, lat?: number, lng?: number) => {
+    setDeliveryaddress(address);
+    setDeliveryLat(lat);
+    setDeliveryLng(lng);
+  };
+
   // Create project mutation
   const createMutation = useMutation({
     mutationFn: async () => {
       const bookingId = selectedBookingId && selectedBookingId !== "none" ? selectedBookingId : null;
       
-      // Duplicate guard: check if booking already has a project or job
+      // Duplicate guard
       if (bookingId) {
         const { data: existingProjects } = await supabase
           .from('projects')
@@ -251,21 +285,41 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         }
       }
       
+      // Build project data
+      const projectData: Record<string, any> = {
+        name: name.trim(),
+        booking_id: bookingId,
+        project_leader: selectedLeaderId && selectedLeaderId !== "none" ? selectedLeaderId : null
+      };
+
+      // Add standalone fields if no booking
+      if (!bookingId) {
+        if (client.trim()) projectData.client = client.trim();
+        if (deliveryaddress.trim()) projectData.deliveryaddress = deliveryaddress.trim();
+        if (deliveryCity.trim()) projectData.delivery_city = deliveryCity.trim();
+        if (deliveryPostalCode.trim()) projectData.delivery_postal_code = deliveryPostalCode.trim();
+        if (deliveryLat) projectData.delivery_latitude = deliveryLat;
+        if (deliveryLng) projectData.delivery_longitude = deliveryLng;
+        if (eventdate) projectData.eventdate = eventdate;
+        if (rigdaydate) projectData.rigdaydate = rigdaydate;
+        if (rigdowndate) projectData.rigdowndate = rigdowndate;
+        if (contactName.trim()) projectData.contact_name = contactName.trim();
+        if (contactPhone.trim()) projectData.contact_phone = contactPhone.trim();
+        if (contactEmail.trim()) projectData.contact_email = contactEmail.trim();
+        if (internalnotes.trim()) projectData.internalnotes = internalnotes.trim();
+      }
+
       // Create project
       const { data: project, error: projectError } = await supabase
         .from('projects')
-        .insert({
-          name: name.trim(),
-          booking_id: bookingId,
-          project_leader: selectedLeaderId && selectedLeaderId !== "none" ? selectedLeaderId : null
-        })
+        .insert(projectData as any)
         .select()
         .single();
 
       if (projectError) throw projectError;
 
       // Mark the booking as assigned to a project
-      if (selectedBookingId && selectedBookingId !== "none") {
+      if (bookingId) {
         await supabase
           .from('bookings')
           .update({ 
@@ -273,7 +327,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
             assigned_project_id: project.id,
             assigned_project_name: name.trim()
           })
-          .eq('id', selectedBookingId);
+          .eq('id', bookingId);
       }
 
       // Create tasks
@@ -291,6 +345,20 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         .insert(tasks);
 
       if (tasksError) throw tasksError;
+
+      // Sync standalone project to calendar if it has dates
+      if (!bookingId && (eventdate || rigdaydate || rigdowndate)) {
+        try {
+          await syncStandaloneProjectToCalendar(project.id, {
+            ...projectData,
+            id: project.id,
+            organization_id: project.organization_id
+          });
+        } catch (err) {
+          console.error('[CreateProjectWizard] Calendar sync error:', err);
+          // Don't fail project creation on calendar sync error
+        }
+      }
 
       return project;
     },
@@ -313,7 +381,6 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
     createMutation.mutate();
   };
 
-  // Split items into regular tasks and info items
   const regularTasks = checklistItems.filter(item => !item.isInfoOnly);
   const infoItems = checklistItems.filter(item => item.isInfoOnly);
 
@@ -337,7 +404,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
                     <SelectValue placeholder="Välj en bokning..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Ingen bokning</SelectItem>
+                    <SelectItem value="none">Ingen bokning (fristående)</SelectItem>
                     {bookings.map(booking => (
                       <SelectItem key={booking.id} value={booking.id}>
                         {booking.client} {booking.eventdate && `(${format(new Date(booking.eventdate), 'd MMM', { locale: sv })})`}
@@ -376,13 +443,130 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
             </div>
           </div>
 
+          {/* Standalone project fields - only shown when no booking selected */}
+          {isStandalone && (
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
+              <h3 className="font-medium">Kund & Kontakt</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Kund</Label>
+                  <Input
+                    value={client}
+                    onChange={(e) => setClient(e.target.value)}
+                    placeholder="Kundnamn"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Kontaktperson</Label>
+                  <Input
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Namn"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefon</Label>
+                  <Input
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="070-xxx xx xx"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-post</Label>
+                  <Input
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    type="email"
+                  />
+                </div>
+              </div>
+
+              <Separator />
+              <h3 className="font-medium flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                Leveransadress
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Adress (sök med autocomplete)</Label>
+                  <AddressAutocomplete
+                    value={deliveryaddress}
+                    onChange={handleAddressChange}
+                    placeholder="Sök adress..."
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Stad</Label>
+                    <Input
+                      value={deliveryCity}
+                      onChange={(e) => setDeliveryCity(e.target.value)}
+                      placeholder="Stad"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Postnummer</Label>
+                    <Input
+                      value={deliveryPostalCode}
+                      onChange={(e) => setDeliveryPostalCode(e.target.value)}
+                      placeholder="123 45"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+              <h3 className="font-medium">Datum</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Riggdag</Label>
+                  <Input
+                    type="date"
+                    value={rigdaydate}
+                    onChange={(e) => setRigdaydate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Eventdag</Label>
+                  <Input
+                    type="date"
+                    value={eventdate}
+                    onChange={(e) => setEventdate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nedriggdag</Label>
+                  <Input
+                    type="date"
+                    value={rigdowndate}
+                    onChange={(e) => setRigdowndate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Interna anteckningar</Label>
+                <Textarea
+                  value={internalnotes}
+                  onChange={(e) => setInternalnotes(e.target.value)}
+                  placeholder="Anteckningar om projektet..."
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Checklist Section */}
           <div className="space-y-4">
             <h3 className="font-medium">Checklista</h3>
             
             <DndProvider backend={HTML5Backend}>
               <div className="space-y-2">
-                {/* Regular Tasks */}
                 {regularTasks.map((item, index) => (
                   <ChecklistItem
                     key={item.id}
@@ -394,7 +578,6 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
                   />
                 ))}
                 
-                {/* Info Items Separator */}
                 {infoItems.length > 0 && (
                   <>
                     <Separator className="my-4" />
@@ -415,7 +598,6 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
               </div>
             </DndProvider>
 
-            {/* Add Custom Task */}
             <div className="flex gap-2 mt-4">
               <Input
                 value={newTaskTitle}

@@ -2706,31 +2706,88 @@ export type Database = {
       projects: {
         Row: {
           booking_id: string | null
+          client: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
+          delivery_city: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
+          delivery_postal_code: string | null
+          deliveryaddress: string | null
+          event_end_time: string | null
+          event_start_time: string | null
+          eventdate: string | null
           id: string
+          internalnotes: string | null
           name: string
           organization_id: string
           project_leader: string | null
+          rig_end_time: string | null
+          rig_start_time: string | null
+          rigdaydate: string | null
+          rigdown_end_time: string | null
+          rigdown_start_time: string | null
+          rigdowndate: string | null
           status: string
           updated_at: string
         }
         Insert: {
           booking_id?: string | null
+          client?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
+          delivery_city?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_postal_code?: string | null
+          deliveryaddress?: string | null
+          event_end_time?: string | null
+          event_start_time?: string | null
+          eventdate?: string | null
           id?: string
+          internalnotes?: string | null
           name: string
           organization_id?: string
           project_leader?: string | null
+          rig_end_time?: string | null
+          rig_start_time?: string | null
+          rigdaydate?: string | null
+          rigdown_end_time?: string | null
+          rigdown_start_time?: string | null
+          rigdowndate?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           booking_id?: string | null
+          client?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
+          delivery_city?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_postal_code?: string | null
+          deliveryaddress?: string | null
+          event_end_time?: string | null
+          event_start_time?: string | null
+          eventdate?: string | null
           id?: string
+          internalnotes?: string | null
           name?: string
           organization_id?: string
           project_leader?: string | null
+          rig_end_time?: string | null
+          rig_start_time?: string | null
+          rigdaydate?: string | null
+          rigdown_end_time?: string | null
+          rigdown_start_time?: string | null
+          rigdowndate?: string | null
           status?: string
           updated_at?: string
         }
