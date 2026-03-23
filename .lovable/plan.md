@@ -1,37 +1,57 @@
 
 
-## Fix: Visa timmar i format "Xh Ym" istället för decimaltal
+## Problem: Bara första nedriggdagen importeras
 
-### Problem
-`hours_worked` lagras som decimaltal (t.ex. 2.48) och visas rakt av som "2.48h" överallt. Användaren vill se "2h 29m" istället.
+### Orsak
+
+Den externa API:n skickar datum som arrayer (`rig_down_dates: ["2026-03-24", "2026-03-25"]`), men import-funktionen tar bara `[0]`:
+
+```typescript
+// Rad 1427-1429 i import-bookings/index.ts
+const rigdowndate = externalBooking.rig_down_dates[0]  // Dag 2 kastas bort!
+```
+
+Dessutom finns en unique constraint `(booking_id, event_type)` på `calendar_events` som **omöjliggör** flera rigDown-events för samma bokning. Det finns en annan constraint `(booking_id, event_type, start_time)` som tillåter det — men den första blockerar.
 
 ### Lösning
 
-**1. Skapa hjälpfunktion `src/utils/formatHours.ts`**
-```typescript
-export function formatHoursMinutes(decimalHours: number): string {
-  const h = Math.floor(decimalHours);
-  const m = Math.round((decimalHours - h) * 60);
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
+**1. Databas: Ta bort den begränsande unique constraint**
+- Drop `calendar_events_booking_id_event_type_unique` (den som bara har `booking_id, event_type`)
+- Behåll `unique_booking_event_time` (`booking_id, event_type, start_time`) — denna tillåter flera dagar av samma typ
+
+**2. Edge function `import-bookings/index.ts`: Skapa events för ALLA datum**
+
+Ändra kalenderhändelse-skapandet (~rad 2460-2510) så det loopar genom hela datum-arrayen:
+
+```text
+// Istället för bara rigdowndate (första datumet):
+for each date in rig_down_dates array:
+  → skapa en rigDown-event med det datumet
+
+// Samma för rig_up_dates och event_dates
+for each date in rig_up_dates array:
+  → skapa en rig-event
+
+for each date in event_dates array:
+  → skapa en event-event
 ```
 
-**2. Ersätt alla `{report.hours_worked}h` och `{report.overtime_hours}h` med `formatHoursMinutes(...)`**
+- Spara datum-arrayerna som extra data genom att skicka dem genom processflödet
+- Ändra upsert conflict target till `booking_id,event_type,start_time`
+- Behåll `bookingData.rigdowndate` = första datumet (för bakåtkompatibilitet med bookings-tabellen)
 
-Filer som uppdateras (~11 filer):
-- `TimeReportListView.tsx` — badge-visning + dagssummor
-- `TimeReportList.tsx` — badge-visning
-- `StaffTimeReportAllMonths.tsx` — badge + månadssummor
-- `DailyTimeView.tsx` — summor (beräkningar behålls i decimal, bara visningen ändras)
-- `JobTimeTab.tsx` — mobil jobbvy
-- `MobileTimeHistory.tsx` — historikvy
-- `MobileProfile.tsx` — profilvy
-- `StaffCostTable.tsx` — `.toFixed(1) h` → `formatHoursMinutes()`
-- `TimeReportApprovalPanel.tsx` — godkännandevy
-- `StaffTimeReportsSection.tsx` — projektsida
-- `TimeReportForm.tsx` — summor i formulär
+**3. Uppdatera datum-ändringsdetektering**
 
-Alla beräkningar (kostnader, summor) fortsätter använda decimalvärden — bara **visningen** ändras.
+Vid update av befintlig bokning (~rad 2019): jämför alla datum, inte bara det första, för att avgöra om kalenderhändelser behöver återskapas.
+
+**4. Uppdatera warehouse-events**
+
+Warehouse-funktionen (`generateWarehouseEvents`) behöver också hantera flera rigdown-datum för return/inventory/unpacking-events.
+
+### Filer som ändras
+- Migration: drop constraint
+- `supabase/functions/import-bookings/index.ts` — multi-date loop för kalender + warehouse
+
+### Teknisk detalj
+`bookings`-tabellen behåller sina enkla datumfält (`rigdowndate`, `rigdaydate`, `eventdate`) med första datumet — inga schema-ändringar behövs. Flera dagar hanteras enbart på kalendernivå.
 
