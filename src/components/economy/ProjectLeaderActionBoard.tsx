@@ -82,7 +82,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
         const project = projectInsights.find(p => p.booking_id === bookingId);
         unattestedProjects.push({
           projectName: project?.name || bookingId,
-          clientName: project?.client || '—',
+          clientName: '—',
           actionCount: linked.length,
           amount: 0,
           bookingId,
