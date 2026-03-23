@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 import TravelBanner from '@/components/mobile-app/TravelBanner';
 import { format, parseISO } from 'date-fns';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv } from 'date-fns/locale';
 
 
@@ -101,7 +102,7 @@ const MobileProfile = () => {
           <div className="flex-1 text-left">
             <p className="text-sm font-semibold text-foreground">Tidrapporter</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {isLoadingReports ? 'Laddar...' : `${timeReports.length} st · ${totalHours}h totalt`}
+              {isLoadingReports ? 'Laddar...' : `${timeReports.length} st · ${formatHoursMinutes(totalHours)} totalt`}
             </p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -128,7 +129,7 @@ const MobileProfile = () => {
                 <span className="text-xs font-medium text-foreground">
                   {format(parseISO(log.report_date), 'd MMM', { locale: sv })}
                 </span>
-                <span className="text-xs font-bold text-primary tabular-nums">{log.hours_worked}h</span>
+                <span className="text-xs font-bold text-primary tabular-nums">{formatHoursMinutes(log.hours_worked)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5 space-y-0.5">
                 {log.from_address && <p className="truncate">Från: {log.from_address}</p>}

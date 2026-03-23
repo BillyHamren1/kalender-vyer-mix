@@ -220,7 +220,7 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
                       ) : null}
                     </div>
                     <Badge variant="outline" className="ml-2">
-                      {job.totalHours}h total
+                      {job.totalHours}h total  
                     </Badge>
                   </div>
                   

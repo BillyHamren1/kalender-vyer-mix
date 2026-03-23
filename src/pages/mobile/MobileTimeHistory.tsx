@@ -7,6 +7,7 @@ import { sv } from 'date-fns/locale';
 import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car, Check, Clock4, Pencil, Trash2, X } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -161,7 +162,7 @@ const MobileTimeHistory = () => {
       <table>
         <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
         <tbody>${rows}
-          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt.toFixed(0)}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
         </tbody>
       </table>
     </div>
@@ -194,7 +195,7 @@ const MobileTimeHistory = () => {
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">Tidrapporter</h1>
               <p className="text-[11px] text-primary-foreground/50 font-medium">
-                {reports.length} st · {totalHours}h totalt
+                {reports.length} st · {formatHoursMinutes(totalHours)} totalt
               </p>
             </div>
           </div>
@@ -319,7 +320,7 @@ const MobileTimeHistory = () => {
               </button>
               <div className="text-center">
                 <p className="text-sm font-bold text-foreground capitalize">{listPeriodLabel}</p>
-                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {filteredTotalHours}h</p>
+                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {formatHoursMinutes(filteredTotalHours)}</p>
               </div>
               <button onClick={() => navigateListPeriod(1)} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
@@ -409,7 +410,7 @@ const MobileTimeHistory = () => {
                         {endTime || '–'}
                       </span>
                       <span className={cn("text-sm font-bold tabular-nums text-right", isTravel ? "text-primary" : "text-foreground")}>
-                        {hours}
+                        {formatHoursMinutes(hours)}
                       </span>
                     </div>
                   );
@@ -418,11 +419,11 @@ const MobileTimeHistory = () => {
               {/* Total row */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
                 <span className="text-xs font-bold text-foreground uppercase">
-                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {Math.round(filteredTravelHours * 10) / 10}h förflyttning)</span>}
+                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {formatHoursMinutes(filteredTravelHours)} förflyttning)</span>}
                 </span>
                 <span />
                 <span />
-                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours + Math.round(filteredTravelHours * 10) / 10}</span>
+                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{formatHoursMinutes(filteredTotalHours + filteredTravelHours)}</span>
               </div>
             </div>
 

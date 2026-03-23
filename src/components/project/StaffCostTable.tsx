@@ -6,6 +6,7 @@ import type { StaffTimeReport, EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { cn } from '@/lib/utils';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface StaffCostTableProps {
   timeReports: StaffTimeReport[];
@@ -80,7 +81,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                         {staff.staff_name}
                       </TableCell>
                       <TableCell className="text-right font-medium text-muted-foreground">
-                        {staff.total_hours.toFixed(1)} h
+                        {formatHoursMinutes(staff.total_hours)}
                       </TableCell>
                       <TableCell className="text-right font-medium text-muted-foreground">
                         {formatCurrency(staff.total_cost)}
@@ -97,10 +98,10 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                           {formatTime(report.start_time, report.end_time)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {report.hours_worked.toFixed(1)} h
+                          {formatHoursMinutes(report.hours_worked)}
                           {report.overtime_hours > 0 && (
                             <span className="text-muted-foreground text-xs ml-1">
-                              (+{report.overtime_hours.toFixed(1)} öt)
+                              (+{formatHoursMinutes(report.overtime_hours)} öt)
                             </span>
                           )}
                         </TableCell>
@@ -128,7 +129,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                 {/* Total row */}
                 <TableRow className="font-bold border-t-2">
                   <TableCell colSpan={2}>TOTALT</TableCell>
-                  <TableCell className="text-right">{summary.actualHours.toFixed(1)} h</TableCell>
+                  <TableCell className="text-right">{formatHoursMinutes(summary.actualHours)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(summary.staffActual)}</TableCell>
                   <TableCell className="text-center">
                     {allApproved && status === 'ok' ? (
@@ -137,7 +138,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                       <div className="flex items-center justify-center gap-1">
                         <AlertTriangle className={cn("h-4 w-4", status === 'danger' ? 'text-destructive' : 'text-amber-600')} />
                         <span className={cn("text-xs", getDeviationColor(status))}>
-                          {summary.staffDeviation > 0 ? '+' : ''}{(summary.actualHours - summary.budgetedHours).toFixed(1)} tim
+                          {summary.staffDeviation > 0 ? '+' : ''}{formatHoursMinutes(Math.abs(summary.actualHours - summary.budgetedHours))}
                         </span>
                       </div>
                     ) : (

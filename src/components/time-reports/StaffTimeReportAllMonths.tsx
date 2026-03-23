@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
 interface StaffTimeReportAllMonthsProps {
@@ -104,8 +105,8 @@ const StaffTimeReportAllMonths: React.FC<StaffTimeReportAllMonthsProps> = ({ sta
               </h3>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>{monthReports.length} rapporter</span>
-                <span>{totalHours.toFixed(1)} tim</span>
-                {totalOT > 0 && <span className="text-orange-600">{totalOT.toFixed(1)} OB</span>}
+                <span>{formatHoursMinutes(totalHours)}</span>
+                {totalOT > 0 && <span className="text-orange-600">{formatHoursMinutes(totalOT)} OB</span>}
                 <span className="text-green-600">{approvedCount}/{monthReports.length} godkända</span>
               </div>
             </div>
@@ -148,11 +149,11 @@ const StaffTimeReportAllMonths: React.FC<StaffTimeReportAllMonthsProps> = ({ sta
                   <div className="flex items-center gap-3 shrink-0 ml-4">
                     {/* Hours */}
                     <Badge variant="secondary" className="text-xs">
-                      {report.hours_worked}h
+                      {formatHoursMinutes(report.hours_worked)}
                     </Badge>
                     {report.overtime_hours && report.overtime_hours > 0 && (
                       <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                        {report.overtime_hours}h OB
+                        {formatHoursMinutes(report.overtime_hours)} OB
                       </Badge>
                     )}
 

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, Calendar, Banknote, Trash2 } from 'lucide-react';
 import { TimeReport } from '@/types/timeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface TimeReportListProps {
   reports: TimeReport[];
@@ -64,11 +65,11 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
                     {format(new Date(report.report_date), 'EEEE, MMMM d, yyyy')}
                   </span>
                   <Badge variant="secondary">
-                    {report.hours_worked}h
+                    {formatHoursMinutes(report.hours_worked)}
                   </Badge>
                   {report.overtime_hours && report.overtime_hours > 0 && (
                     <Badge variant="destructive">
-                      {report.overtime_hours}h OT
+                      {formatHoursMinutes(report.overtime_hours)} OT
                     </Badge>
                   )}
                 </div>

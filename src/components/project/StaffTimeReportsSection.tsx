@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, Plus, Trash2 } from 'lucide-react';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffTimeReport } from '@/types/projectStaff';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -82,9 +83,9 @@ export const StaffTimeReportsSection = ({
                     </TableCell>
                     <TableCell>{report.start_time || '-'}</TableCell>
                     <TableCell>{report.end_time || '-'}</TableCell>
-                    <TableCell className="text-right">{report.hours_worked} h</TableCell>
+                    <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
                     <TableCell className="text-right">
-                      {report.overtime_hours > 0 ? `${report.overtime_hours} h` : '-'}
+                      {report.overtime_hours > 0 ? formatHoursMinutes(report.overtime_hours) : '-'}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -100,9 +101,9 @@ export const StaffTimeReportsSection = ({
                 ))}
                 <TableRow className="font-semibold bg-muted/50">
                   <TableCell colSpan={4}>TOTALT</TableCell>
-                  <TableCell className="text-right">{totalHours} h</TableCell>
+                  <TableCell className="text-right">{formatHoursMinutes(totalHours)}</TableCell>
                   <TableCell className="text-right">
-                    {totalOvertime > 0 ? `${totalOvertime} h` : '-'}
+                    {totalOvertime > 0 ? formatHoursMinutes(totalOvertime) : '-'}
                   </TableCell>
                   <TableCell></TableCell>
                 </TableRow>

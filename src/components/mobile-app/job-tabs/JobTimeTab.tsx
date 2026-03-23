@@ -3,6 +3,7 @@ import { MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Clock, Loader2 } from 'lucide-react';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface JobTimeTabProps {
   bookingId: string;
@@ -33,11 +34,11 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl border bg-primary/5 border-primary/20 p-3 text-center">
           <p className="text-xs text-muted-foreground">Totalt</p>
-          <p className="text-xl font-bold text-foreground">{totalHours}h</p>
+          <p className="text-xl font-bold text-foreground">{formatHoursMinutes(totalHours)}</p>
         </div>
         <div className="rounded-xl border bg-muted/50 p-3 text-center">
           <p className="text-xs text-muted-foreground">Övertid</p>
-          <p className="text-xl font-bold text-foreground">{totalOvertime}h</p>
+          <p className="text-xl font-bold text-foreground">{formatHoursMinutes(totalOvertime)}</p>
         </div>
       </div>
 
@@ -55,9 +56,9 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-bold text-sm">{report.hours_worked}h</p>
+              <p className="font-bold text-sm">{formatHoursMinutes(report.hours_worked)}</p>
               {report.overtime_hours > 0 && (
-                <p className="text-[10px] text-primary font-medium">+{report.overtime_hours}h öt</p>
+                <p className="text-[10px] text-primary font-medium">+{formatHoursMinutes(report.overtime_hours)} öt</p>
               )}
             </div>
           </div>
