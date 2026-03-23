@@ -326,7 +326,7 @@ const WarehouseCalendarPage = () => {
   };
 
   // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager');
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
