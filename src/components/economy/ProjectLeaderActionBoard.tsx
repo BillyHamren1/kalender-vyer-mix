@@ -66,7 +66,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
         const project = projectInsights.find(p => p.booking_id === bookingId);
         newInvoiceProjects.push({
           projectName: project?.name || bookingId,
-          clientName: project?.client || '—',
+          clientName: '—',
           actionCount: imported.length,
           amount: 0,
           bookingId,
