@@ -148,9 +148,9 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       else blockedIds.add(p.staff_id);
     });
 
-    return activeStaff
+    return filteredActiveStaff
       .filter(s => availableIds.has(s.id) && !blockedIds.has(s.id) && !assignedIds.has(s.id));
-  }, [activeStaff, assignments]);
+  }, [filteredActiveStaff, assignments]);
 
   // Planning date: all staff with assignment status (derived from cache)
   const getStaffForPlanningDate = useCallback(async (targetDate: Date, targetTeamId: string) => {
