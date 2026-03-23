@@ -195,7 +195,7 @@ const MobileTimeHistory = () => {
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">Tidrapporter</h1>
               <p className="text-[11px] text-primary-foreground/50 font-medium">
-                {reports.length} st · {totalHours}h totalt
+                {reports.length} st · {formatHoursMinutes(totalHours)} totalt
               </p>
             </div>
           </div>
