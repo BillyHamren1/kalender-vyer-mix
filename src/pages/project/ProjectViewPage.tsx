@@ -50,7 +50,27 @@ const ProjectViewPage = () => {
 
   if (!project) return null;
 
+  // Use booking data if available, otherwise construct from standalone project fields
   const booking = project.booking;
+  const displayBooking = booking || (project.client ? {
+    id: project.id,
+    client: project.client,
+    eventdate: project.eventdate,
+    rigdaydate: project.rigdaydate,
+    rigdowndate: project.rigdowndate,
+    deliveryaddress: project.deliveryaddress,
+    delivery_city: project.delivery_city,
+    delivery_postal_code: project.delivery_postal_code,
+    contact_name: project.contact_name,
+    contact_phone: project.contact_phone,
+    contact_email: project.contact_email,
+    booking_number: null,
+    carry_more_than_10m: null,
+    ground_nails_allowed: null,
+    exact_time_needed: null,
+    exact_time_info: null,
+    internalnotes: project.internalnotes,
+  } : null);
 
   return (
     <div className="space-y-6">
@@ -64,8 +84,8 @@ const ProjectViewPage = () => {
 
       {/* Two-column layout: Booking info + Tasks & Transport */}
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
-        {/* Left: Booking info – scrolls if content overflows */}
-        {booking && (
+        {/* Left: Booking/Project info – scrolls if content overflows */}
+        {displayBooking && (
           <div className="relative h-[560px] overflow-y-auto rounded-2xl">
             {bookingId && (
               <Button
@@ -80,7 +100,7 @@ const ProjectViewPage = () => {
               </Button>
             )}
             <BookingInfoExpanded
-              booking={booking}
+              booking={displayBooking}
               projectLeader={project.project_leader}
               bookingAttachments={bookingAttachments}
             />
