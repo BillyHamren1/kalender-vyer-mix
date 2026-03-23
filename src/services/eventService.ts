@@ -51,8 +51,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_id: event.booking_id,
       resourceId: event.resource_id,
       deliveryAddress: event.delivery_address,
-      deliveryCity: (event.bookings as any)?.delivery_city || null,
-      deliveryPostalCode: (event.bookings as any)?.delivery_postal_code || null,
+      deliveryCity: null,
+      deliveryPostalCode: null,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
       manuallyAssigned: false
