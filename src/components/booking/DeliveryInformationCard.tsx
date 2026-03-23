@@ -150,6 +150,11 @@ export const DeliveryInformationCard = ({
     };
     
     onSave(updatedData);
+
+    // Trigger geocoding when address fields change
+    if (field === 'address' || field === 'city' || field === 'postalCode') {
+      triggerGeocode();
+    }
   };
 
   // Create deliveryDetails object for AddressFormSection
