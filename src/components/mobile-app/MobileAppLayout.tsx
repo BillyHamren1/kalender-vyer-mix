@@ -1,11 +1,16 @@
 import React from 'react';
 import MobileBottomNav from './MobileBottomNav';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
 }
 
 const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
+  const { staff } = useMobileAuth();
+  useBackgroundLocationReporter(staff?.id);
+
   return (
     <div className="min-h-screen bg-card flex flex-col max-w-lg mx-auto">
       {/* Content area — bottom padding = nav height (68px) + safe area inset + extra buffer */}
