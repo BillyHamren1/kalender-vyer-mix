@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import MobileBottomNav from '@/components/mobile-app/MobileBottomNav';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
+import { useQueryClient } from '@tanstack/react-query';
+import { mobileApi } from '@/services/mobileApiService';
 
 interface TimeAppLayoutProps {
   children: React.ReactNode;
@@ -15,7 +17,19 @@ interface TimeAppLayoutProps {
  */
 const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
   const { staff } = useMobileAuth();
+  const queryClient = useQueryClient();
   useBackgroundLocationReporter(staff?.id);
+
+  // Prefetch inbox data at app start
+  useEffect(() => {
+    if (staff) {
+      queryClient.prefetchQuery({
+        queryKey: ['mobile-inbox-all'],
+        queryFn: () => mobileApi.getInboxAll(),
+        staleTime: 30_000,
+      });
+    }
+  }, [staff, queryClient]);
   return (
     <div className="min-h-screen bg-card flex flex-col max-w-lg mx-auto">
       {/* Content area — bottom padding = nav height (68px) + safe area inset + extra buffer */}

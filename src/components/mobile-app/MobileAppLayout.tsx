@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
+import { useQueryClient } from '@tanstack/react-query';
+import { mobileApi } from '@/services/mobileApiService';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
@@ -9,7 +11,19 @@ interface MobileAppLayoutProps {
 
 const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   const { staff } = useMobileAuth();
+  const queryClient = useQueryClient();
   useBackgroundLocationReporter(staff?.id);
+
+  // Prefetch inbox data at app start so it's cached before user opens inbox
+  useEffect(() => {
+    if (staff) {
+      queryClient.prefetchQuery({
+        queryKey: ['mobile-inbox-all'],
+        queryFn: () => mobileApi.getInboxAll(),
+        staleTime: 30_000,
+      });
+    }
+  }, [staff, queryClient]);
 
   return (
     <div className="min-h-screen bg-card flex flex-col max-w-lg mx-auto">

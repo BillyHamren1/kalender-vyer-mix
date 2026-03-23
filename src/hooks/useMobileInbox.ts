@@ -39,11 +39,18 @@ interface InboxAllData {
 
 const STALE_TIME = 30_000;
 const GC_TIME = 5 * 60_000;
-const REFETCH_INTERVAL = 30_000;
+const REFETCH_INTERVAL = 60_000; // Backup polling — realtime handles immediate updates
 
 export function useMobileInbox() {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
+
+  // Realtime: invalidate inbox cache on new DMs or broadcasts
+  useRealtimeInvalidation({
+    channelName: 'mobile-inbox-realtime',
+    tables: ['direct_messages', 'broadcast_messages'],
+    queryKeys: [['mobile-inbox-all']],
+  });
 
   const inboxQuery = useQuery({
     queryKey: ['mobile-inbox-all'],
