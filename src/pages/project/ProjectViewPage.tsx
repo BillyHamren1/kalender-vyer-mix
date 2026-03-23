@@ -112,7 +112,7 @@ const ProjectViewPage = () => {
           <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
           <ProjectInternalNotes
             bookingId={bookingId}
-            currentNotes={booking?.internalnotes}
+            currentNotes={booking?.internalnotes || project.internalnotes}
             projectId={project.id}
             className="h-full"
           />
