@@ -494,7 +494,7 @@ async function handleGetInboxJobs(supabase: any, staffId: string, organizationId
   )
 }
 
-async function handleGetInboxAll(supabase: any, staffId: string, organizationId: string) {
+async function handleGetInboxAll(supabase: any, staffId: string, organizationId: string, userId: string | null) {
   // Run all three inbox queries in parallel for a single round-trip
   const today = new Date().toISOString().split('T')[0]
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -502,13 +502,18 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
+  // Build DM filter to match both staff_member id AND auth user_id (dual identity)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',')
+
   const [dmResult, broadcastResult, broadcastAssignments, jobAssignments] = await Promise.all([
-    // DMs
+    // DMs — match both identities
     supabase
       .from('direct_messages')
       .select('*')
       .eq('organization_id', organizationId)
-      .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+      .or(orFilter)
       .order('created_at', { ascending: false })
       .limit(200),
     // Broadcasts
