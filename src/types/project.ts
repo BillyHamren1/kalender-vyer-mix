@@ -6,6 +6,25 @@ export interface Project {
   name: string;
   status: ProjectStatus;
   project_leader: string | null;
+  client: string | null;
+  deliveryaddress: string | null;
+  delivery_city: string | null;
+  delivery_postal_code: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  eventdate: string | null;
+  rigdaydate: string | null;
+  rigdowndate: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  internalnotes: string | null;
+  rig_start_time: string | null;
+  rig_end_time: string | null;
+  event_start_time: string | null;
+  event_end_time: string | null;
+  rigdown_start_time: string | null;
+  rigdown_end_time: string | null;
   created_at: string;
   updated_at: string;
 }
