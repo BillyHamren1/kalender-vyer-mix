@@ -74,8 +74,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   }, [billingItems, projectId]);
 
   // Summary calculations
-  const revenue = summary.revenue || bookingEconomics?.totalRevenue || 0;
-  const totalCost = summary.totalCost || 0;
+  const revenue = summary.productRevenue || 0;
+  const totalCost = summary.totalActual || 0;
   const margin = revenue > 0 ? ((revenue - totalCost) / revenue * 100) : 0;
 
   // Closure gates
