@@ -121,6 +121,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         emergency_contact_name: data.emergency_contact_name || undefined,
         emergency_contact_phone: data.emergency_contact_phone || undefined,
         notes: data.notes || undefined,
+        tags: selectedTags,
       };
 
       await syncStaffMember(updatedStaffData);
