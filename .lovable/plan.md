@@ -1,59 +1,45 @@
 
 
-## Plan: Taggar redigeringsbara på personalkortet + kalenderfiltrering per tagg
+## Problem: Ny personal syns inte i kalendern + kan inte hantera tillgänglighet
 
-### Sammanfattning
+### Orsak 1: Ingen knapp för att hantera tillgänglighet
+`StaffAvailabilityDialog` finns som komponent men importeras **aldrig** i `StaffDetail.tsx`. Det finns alltså ingen knapp på personalkortet för att öppna dialogen och ange tillgänglighetsperioder.
 
-Tre saker ska fixas:
-1. Taggar (Montage/Lager) ska kunna redigeras direkt på personalkortet (StaffDetail)
-2. Planeringskalendern (montage) visar bara personal med taggen "Montage"
-3. Lagerkalendern visar bara personal med taggen "Lager"
-4. Personal med båda taggarna syns i båda kalendrarna
+### Orsak 2: Utan tillgänglighetspost = osynlig
+Kalenderlogiken i `useUnifiedStaffOperations.tsx` (rad 144-152) kräver att personal har minst en `available`-post i `staff_availability`-tabellen. Ny personal som saknar poster filtreras bort helt — de dyker aldrig upp som tillgängliga.
 
-### 1. Redigera taggar på personalkortet
+### Åtgärd
 
-**Fil: `src/pages/StaffDetail.tsx`**
+**1. Lägg till "Hantera tillgänglighet"-knapp på personalkortet**
+- Importera `StaffAvailabilityDialog` i `StaffDetail.tsx`
+- Lägg till en knapp i Anställning-kortet (under taggarna) som öppnar dialogen
+- Dialogen finns redan fullt fungerande med kalender, periodval och snabbknappar
 
-I "Anställning"-kortet (rad 265-278), lägg till en tagg-sektion under "Anställningsdatum". Samma UI som i EditStaffDialog: klickbara badges för "Montage" och "Lager" som togglar on/off och sparar direkt till databasen via `handleFieldSave` (anpassad för arrays).
-
-### 2. Filtrera personal i kalenderdialoger baserat på taggar
-
-Huvudändringen sker i **`src/services/staffAvailabilityService.ts`** — funktionen `getAvailableStaffForDateRange`:
-
-- Lägg till en optional parameter `filterByTag?: string`
-- Om satt, filtrera `staff_members`-queryn med `.contains('tags', [filterByTag])`
-- Kallar-koden skickar `'Montage'` från planeringskalendern och `'Lager'` från lagerkalendern
-
-**Filer som uppdateras för att skicka tag-filter:**
-- `src/components/Calendar/StaffSelectionDialog.tsx` — ta emot en `calendarType` prop, skicka `'Montage'` till `getAvailableStaffForDate`
-- `src/hooks/useAvailableStaffWeek.tsx` — ta emot `filterByTag` och skicka vidare
-- `src/components/Calendar/StaffSelector.tsx` — samma mönster
-
-Lagerkalendern behöver identifieras — den använder troligen samma komponenter men med kontexten "warehouse". Jag lägger till en prop som propageras genom befintliga kalender-komponenter.
-
-### 3. Ingen databasändring
-
-Kolumnen `tags text[]` finns redan. PostgreSQL `@>` (contains) operatorn fungerar med Supabase `.contains()`.
+**2. Ändra standardbeteende: personal utan poster = tillgänglig**
+- I `useUnifiedStaffOperations.tsx`, ändra logiken så att personal som saknar poster i `staff_availability` betraktas som tillgänglig (istället för osynlig)
+- Samma ändring i `staffAvailabilityService.ts` → `getAvailableStaffForDateRange`
+- Logiken blir: om en person har **inga** poster → tillgänglig. Om de har poster → kolla om `available` finns och inga `blocked/unavailable`
 
 ### Tekniska detaljer
 
-**staffAvailabilityService.ts — ändrad signatur:**
+**StaffDetail.tsx:**
+- Import `StaffAvailabilityDialog`
+- State: `showAvailabilityDialog`
+- Knapp: "Hantera tillgänglighet" med kalenderikon, placerad efter tagg-sektionen
+- Rendera dialogen med `staffId` och `staffName`
+
+**useUnifiedStaffOperations.tsx (rad 144-152):**
 ```text
-getAvailableStaffForDateRange(dates, filterByTag?)
-  → .select('id, name, tags')
-  → om filterByTag: .contains('tags', [filterByTag])
+Nuvarande: filter(s => availableIds.has(s.id) && !blockedIds.has(s.id))
+Nytt:      filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord(s.id)))
 ```
+Personal utan poster passerar filtret. Personal med bara `blocked/unavailable` filtreras bort.
 
-**StaffDetail.tsx — ny sektion i Anställning-kortet:**
-- Klickbara badges: Montage / Lager
-- Klick → supabase update `tags` array → refetch
+**staffAvailabilityService.ts → getAvailableStaffForDateRange:**
+Samma logikändring — `staffPeriods.length === 0` ska betyda "tillgänglig" istället för "ej tillgänglig".
 
-**StaffSelectionDialog.tsx:**
-- Ny prop: `filterByTag?: string`
-- Skickas vidare till `getAvailableStaffForDate(date, filterByTag)`
-
-**Identifiering av kalendertyp:**
-- Planeringskalendern (huvudkalendern) → `filterByTag='Montage'`
-- Lagerkalendern → `filterByTag='Lager'`
-- Propageras från sidnivå ner genom komponenterna
+**Filer som ändras:**
+- `src/pages/StaffDetail.tsx`
+- `src/hooks/useUnifiedStaffOperations.tsx`
+- `src/services/staffAvailabilityService.ts`
 
