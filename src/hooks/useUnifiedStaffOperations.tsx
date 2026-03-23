@@ -101,12 +101,18 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
+  // Filter active staff by tag if specified
+  const filteredActiveStaff = useMemo(() => {
+    if (!filterByTag) return activeStaff;
+    return activeStaff.filter(s => s.tags?.includes(filterByTag));
+  }, [activeStaff, filterByTag]);
+
   // availableStaff for current date (derived, no extra fetch)
   const availableStaff = useMemo(() => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const assignedIds = new Set(assignments.filter(a => a.date === dateStr).map(a => a.staffId));
-    return activeStaff.filter(s => !assignedIds.has(s.id));
-  }, [activeStaff, assignments, currentDate]);
+    return filteredActiveStaff.filter(s => !assignedIds.has(s.id));
+  }, [filteredActiveStaff, assignments, currentDate]);
 
   // Memoized lookup: team + date -> staff members
   const getStaffForTeamAndDate = useMemo(() => {
