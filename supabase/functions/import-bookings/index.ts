@@ -2472,57 +2472,72 @@ serve(async (req) => {
 
           const calendarEvents = []
           
-          // Only create events that don't already exist OR that aren't manually assigned
-          if (bookingData.rigdaydate && !existingEventTypes.has('rig')) {
-            const startTime = `${bookingData.rigdaydate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'rig')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'rig',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.rigdaydate
-            })
+          // Create events for ALL dates in each array, not just the first
+          const rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0 
+            ? bookingData.allRigDates : (bookingData.rigdaydate ? [bookingData.rigdaydate] : []);
+          const eventDates = bookingData.allEventDates && bookingData.allEventDates.length > 0
+            ? bookingData.allEventDates : (bookingData.eventdate ? [bookingData.eventdate] : []);
+          const rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
+            ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
+
+          // Build set of existing event keys (type+start_time) to avoid recreating manually assigned ones
+          const existingEventKeys = new Set(
+            (existingEvents || []).map(e => `${e.event_type}|${e.start_time?.split('T')[0]}`)
+          );
+
+          for (const date of rigDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'rig');
+            if (!existingEventKeys.has(`rig|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'rig',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
-          if (bookingData.eventdate && !existingEventTypes.has('event')) {
-            const startTime = `${bookingData.eventdate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'event')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'event',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.eventdate
-            })
+          for (const date of eventDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'event');
+            if (!existingEventKeys.has(`event|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'event',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
-          if (bookingData.rigdowndate && !existingEventTypes.has('rigDown')) {
-            const startTime = `${bookingData.rigdowndate}T08:00:00`
-            const endTime = getEndTimeForEventType(startTime, 'rigDown')
-            
-            calendarEvents.push({
-              booking_id: bookingData.id,
-              booking_number: bookingData.booking_number,
-              title: `${bookingData.client}`,
-              start_time: startTime,
-              end_time: endTime,
-              event_type: 'rigDown',
-              delivery_address: bookingData.deliveryaddress,
-              date: bookingData.rigdowndate
-            })
+          for (const date of rigdownDates) {
+            const startTime = `${date}T08:00:00`;
+            const endTime = getEndTimeForEventType(startTime, 'rigDown');
+            if (!existingEventKeys.has(`rigDown|${date}`)) {
+              calendarEvents.push({
+                booking_id: bookingData.id,
+                booking_number: bookingData.booking_number,
+                title: `${bookingData.client}`,
+                start_time: startTime,
+                end_time: endTime,
+                event_type: 'rigDown',
+                delivery_address: bookingData.deliveryaddress,
+                date: date
+              });
+            }
           }
 
           if (calendarEvents.length > 0) {
-            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
+            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''} (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`)
 
             // Use smart team assignment for each event
             for (const event of calendarEvents) {
@@ -2553,7 +2568,7 @@ serve(async (req) => {
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam,
                   organization_id: bookingData.organization_id || organizationId
-                }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
+                }, { onConflict: 'unique_booking_event_time', ignoreDuplicates: true })
 
               if (eventError) {
                 console.error(`Error creating calendar event:`, eventError)
