@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
+import { useRealtimeInvalidation } from './useRealtimeInvalidation';
 
 interface DMConversation {
   partner_id: string;
