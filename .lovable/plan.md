@@ -1,29 +1,46 @@
 
 
-## Plan: Auto-geocoding vid adressändring
+## Problem: Inbox-sidan gör 3 separata API-anrop
 
-### Problem
-När leveransadress, stad eller postnummer ändras i DeliveryInformationCard sparas de nya textfälten, men geokoderna (latitude/longitude) uppdateras aldrig. Edge-funktionen `geocode-address` finns men anropas aldrig från formuläret.
+`useMobileInbox` triggar tre parallella anrop till edge-funktionen `mobile-app-api`:
+1. `get_direct_messages` — hämtar alla DMs, grupperar per partner
+2. `get_broadcasts` — hämtar broadcasts + filtrerar per staff
+3. `get_inbox_jobs` — hämtar bokningar via assignments
 
-### Lösning
+Varje anrop är ett separat HTTP-request till samma edge function. Med Supabase edge functions kan varje anrop trigga en **cold boot** (~100-500ms) plus nätverkslatens. Tre sekventiella/parallella anrop multiplicerar väntetiden. Dessutom har varje anrop en 12s timeout — om en hänger blockerar det hela sidan.
 
-**Fil: `src/components/booking/DeliveryInformationCard.tsx`**
+### Lösning: Kombinera till ett enda anrop
 
-Lägg till en debounced geocoding-funktion som triggas när adress, stad eller postnummer ändras:
+**1. Ny action `get_inbox_all` i edge-funktionen**
+- Kör alla tre queries (DMs, broadcasts, inbox jobs) i en enda request med `Promise.all`
+- Returnerar `{ conversations, broadcasts, bookings }` i ett svar
+- En cold boot istället för tre
 
-1. I `handleDeliveryDetailsChange`, efter att ett adressfält (`address`, `city`, `postalCode`) ändras, starta en separat debounced geocoding (1.5s delay)
-2. Geocodingen anropar `geocode-address` edge-funktionen med den kombinerade adressen (`address, city postalCode`)
-3. Vid lyckat svar → uppdatera latitude/longitude i state och spara till databasen
-4. Vid misslyckat svar → logga varning, behåll befintliga koordinater
+**2. Uppdatera `useMobileInbox` hooket**
+- Byt från tre separata `useQuery` till en enda query med key `['mobile-inbox-all']`
+- Destructura resultatet till `dmConversations`, `broadcasts`, `jobConversations`
+- Behåll optimistic update-funktionerna (de uppdaterar cachen direkt)
 
-Konkret flow:
+**3. Uppdatera `useUnreadMessageCount`**
+- Anpassa cache-nyckeln till `['mobile-inbox-all']` istället för separata nycklar
+
+**4. Ny API-metod i `mobileApiService.ts`**
+- `getInboxAll()` → `callApi('get_inbox_all')`
+
+### Tekniska detaljer
+
+**Edge function (`mobile-app-api/index.ts`):**
 ```text
-Användare ändrar adressfält
-  → Sparar text direkt (befintlig logik)
-  → Startar 1.5s debounce-timer för geocoding
-  → Timer löper ut → anrop geocode-address med "address, city postalCode"
-  → Svar med lat/lng → uppdaterar state + sparar med onSave()
+case 'get_inbox_all':
+  return await handleGetInboxAll(supabase, staffId, organizationId)
 ```
+`handleGetInboxAll` kör befintliga DM/broadcast/jobs-queries med `Promise.all` och returnerar allt i ett JSON-objekt.
 
-Ingen ändring behövs i edge-funktionen eller andra filer. Bara `DeliveryInformationCard.tsx` uppdateras med ~20 rader geocoding-logik.
+**Filer som ändras:**
+- `supabase/functions/mobile-app-api/index.ts` — ny handler + route
+- `src/services/mobileApiService.ts` — ny `getInboxAll` metod
+- `src/hooks/useMobileInbox.ts` — en query istället för tre
+- `src/hooks/useUnreadMessageCount.ts` — uppdaterad cache-nyckel
+
+Resultat: 1 nätverksanrop istället för 3, snabbare laddning.
 
