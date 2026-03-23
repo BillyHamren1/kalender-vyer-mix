@@ -15,15 +15,14 @@ export function useUnreadMessageCount() {
   const [count, setCount] = useState(0);
 
   const computeFromCache = useCallback(() => {
-    const dmData = queryClient.getQueryData<any[]>(['mobile-inbox-dms']);
-    const broadcastData = queryClient.getQueryData<any[]>(['mobile-inbox-broadcasts']);
+    const allData = queryClient.getQueryData<any>(['mobile-inbox-all']);
 
-    if (dmData || broadcastData) {
-      const unreadDM = (dmData || []).reduce(
+    if (allData) {
+      const unreadDM = (allData.conversations || []).reduce(
         (sum: number, c: any) => sum + (c.unread_count || 0),
         0
       );
-      const unreadBroadcast = (broadcastData || []).filter(
+      const unreadBroadcast = (allData.broadcasts || []).filter(
         (b: any) => !b.is_read
       ).length;
       setCount(unreadDM + unreadBroadcast);
@@ -38,16 +37,13 @@ export function useUnreadMessageCount() {
     if (computeFromCache()) return;
     // Fallback to API
     try {
-      const [dmRes, broadcastRes] = await Promise.all([
-        mobileApi.getDirectMessages(),
-        mobileApi.getBroadcasts(),
-      ]);
-      const unreadDM = (dmRes.conversations || []).reduce(
+      const res = await mobileApi.getInboxAll();
+      const unreadDM = (res.conversations || []).reduce(
         (sum: number, c: any) => sum + (c.unread_count || 0),
         0
       );
-      const unreadBroadcast = (broadcastRes.broadcasts || []).filter(
-        (b: any) => !b.is_read
+      const unreadBroadcast = (res.broadcasts || []).filter(
+        (b: any) => !(b.is_read_by || []).includes(staff.id) && !b.is_read
       ).length;
       setCount(unreadDM + unreadBroadcast);
     } catch {
