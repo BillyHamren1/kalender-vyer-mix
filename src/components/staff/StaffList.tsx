@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { User, Mail, Phone, Edit2 } from 'lucide-react';
 import { getContrastTextColor } from '@/utils/staffColors';
 import { updateStaffActiveStatus } from '@/services/staffAvailabilityService';
