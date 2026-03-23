@@ -92,10 +92,10 @@ const MobileTimeReport = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-card pb-24">
+    <div className="flex flex-col min-h-screen bg-card pb-24 overflow-x-hidden">
       <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
 
-      <div className="flex-1 px-5 pt-5 pb-28 space-y-4">
+      <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
         {/* Active timers */}
         {activeTimers.size > 0 && (
           <div className="space-y-3">
@@ -135,7 +135,7 @@ const MobileTimeReport = () => {
         )}
 
         {/* Report form */}
-        <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm">
+        <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
           <h2 className="font-bold text-[15px] text-foreground">Ny tidrapport</h2>
 
           <div className="space-y-2">
@@ -156,25 +156,25 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center" />
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full" />
           </div>
 
           <div className="h-px bg-border/50" />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-4 min-w-0">
+            <div className="space-y-2 min-w-0">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5 min-w-0">
               {[
                 { label: 'Ingen', value: '0' },
                 { label: '30m', value: '0.5' },
@@ -199,7 +199,7 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
-            <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+            <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
           </div>
 
           <div className="h-px bg-border/50" />
