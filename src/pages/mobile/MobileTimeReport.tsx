@@ -199,7 +199,7 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
-            <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border" />
+            <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
           </div>
 
           <div className="h-px bg-border/50" />
