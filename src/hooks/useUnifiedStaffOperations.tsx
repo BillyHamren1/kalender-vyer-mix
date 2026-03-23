@@ -64,7 +64,7 @@ async function fetchActiveStaff(): Promise<StaffMember[]> {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly') => {
+export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string) => {
   const queryClient = useQueryClient();
 
   // Assignments — cached indefinitely, invalidated by realtime
