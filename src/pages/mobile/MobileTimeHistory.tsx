@@ -410,7 +410,7 @@ const MobileTimeHistory = () => {
                         {endTime || '–'}
                       </span>
                       <span className={cn("text-sm font-bold tabular-nums text-right", isTravel ? "text-primary" : "text-foreground")}>
-                        {hours}
+                        {formatHoursMinutes(hours)}
                       </span>
                     </div>
                   );
