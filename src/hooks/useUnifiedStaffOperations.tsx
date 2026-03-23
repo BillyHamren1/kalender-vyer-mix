@@ -160,7 +160,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const { data: avail } = await supabase
       .from('staff_availability')
       .select('staff_id, availability_type')
-      .in('staff_id', activeStaff.map(s => s.id))
+      .in('staff_id', filteredActiveStaff.map(s => s.id))
       .lte('start_date', dateStr)
       .gte('end_date', dateStr);
 
