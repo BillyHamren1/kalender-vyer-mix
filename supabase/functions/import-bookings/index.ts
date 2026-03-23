@@ -2018,9 +2018,16 @@ serve(async (req) => {
           }
 
           // Only clear calendar events if actual DATE fields changed (not metadata)
+          // Compare ALL dates, not just the first one
+          const allDatesStr = (bookingData.allRigDates || []).join(',') + '|' + 
+            (bookingData.allEventDates || []).join(',') + '|' + 
+            (bookingData.allRigdownDates || []).join(',');
+          const existingDatesStr = (existingBooking.rigdaydate || '') + '|' + 
+            (existingBooking.eventdate || '') + '|' + 
+            (existingBooking.rigdowndate || '');
           const datesChanged = ['rigdaydate', 'eventdate', 'rigdowndate'].some(f =>
             (bookingData[f] || '') !== (existingBooking[f] || '')
-          );
+          ) || (bookingData.allRigDates?.length > 1 || bookingData.allEventDates?.length > 1 || bookingData.allRigdownDates?.length > 1);
           if (datesChanged) {
             console.log(`Dates changed — recreating calendar events for booking ${existingBooking.id}`)
             await supabase
