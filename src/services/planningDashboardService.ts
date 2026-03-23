@@ -337,14 +337,34 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
 
   const bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
 
-  // Get live GPS positions
-  const staffIds = (assignments || []).map(a => a.staff_id);
-  const { data: gpsData } = await supabase
-    .from('staff_locations')
-    .select('staff_id, latitude, longitude')
-    .in('staff_id', staffIds.length > 0 ? staffIds : ['none']);
+  // Get live GPS positions for assigned staff
+  const assignedStaffIds = (assignments || []).map(a => a.staff_id);
+  const assignedSet = new Set(assignedStaffIds);
 
-  const gpsMap = new Map(gpsData?.map(g => [g.staff_id, g]) || []);
+  // Also get ALL recent GPS positions (last 10 min) to find unassigned staff
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: allGpsData } = await supabase
+    .from('staff_locations')
+    .select('staff_id, latitude, longitude, updated_at')
+    .gte('updated_at', tenMinAgo);
+
+  const gpsMap = new Map(allGpsData?.map(g => [g.staff_id, g]) || []);
+
+  // Find unassigned staff with active GPS
+  const unassignedGpsStaffIds = (allGpsData || [])
+    .filter(g => !assignedSet.has(g.staff_id))
+    .map(g => g.staff_id);
+
+  // Fetch names for unassigned GPS staff
+  let unassignedStaffMap = new Map<string, string>();
+  if (unassignedGpsStaffIds.length > 0) {
+    const { data: unassignedStaff } = await supabase
+      .from('staff_members')
+      .select('id, name')
+      .in('id', unassignedGpsStaffIds)
+      .eq('is_active', true);
+    unassignedStaff?.forEach(s => unassignedStaffMap.set(s.id, s.name));
+  }
 
   // Map team IDs to names
   const teamNames: Record<string, string> = {
@@ -361,7 +381,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     'team-11': 'Live'
   };
 
-  return (assignments || []).map(assignment => {
+  const results: StaffLocation[] = (assignments || []).map(assignment => {
     const staffMember = assignment.staff_members as any;
     const bookingId = teamBookingMap.get(assignment.team_id);
     const booking = bookingId ? bookingMap.get(bookingId) : null;
@@ -385,6 +405,28 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       isGps: hasGps,
     };
   });
+
+  // Add unassigned staff with active GPS
+  for (const [staffId, staffName] of unassignedStaffMap) {
+    const gpsLoc = gpsMap.get(staffId);
+    if (!gpsLoc) continue;
+    results.push({
+      id: staffId,
+      name: staffName,
+      teamId: 'unassigned',
+      teamName: 'Ingen tilldelning',
+      bookingId: null,
+      bookingClient: null,
+      deliveryAddress: null,
+      latitude: gpsLoc.latitude,
+      longitude: gpsLoc.longitude,
+      isWorking: workingStaffIds.has(staffId),
+      lastReportTime: staffReportMap.get(staffId)?.created_at || null,
+      isGps: true,
+    });
+  }
+
+  return results;
 };
 
 export const fetchAvailableStaff = async (): Promise<AvailableStaff[]> => {
