@@ -426,6 +426,16 @@ const StaffDetail: React.FC = () => {
         </TabsContent>
       </Tabs>
     </div>
+
+    {staffId && staffMember && (
+      <StaffAvailabilityDialog
+        isOpen={showAvailabilityDialog}
+        onClose={() => setShowAvailabilityDialog(false)}
+        staffId={staffId}
+        staffName={staffMember.name}
+      />
+    )}
+    </>
   );
 };
 
