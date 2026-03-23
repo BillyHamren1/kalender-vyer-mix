@@ -1952,9 +1952,10 @@ serve(async (req) => {
             results.updated_bookings.push(bookingData.id)
           }
 
-          // Prepare update data - reset viewed flag if booking is newly confirmed
+          // Prepare update data - strip non-DB fields and reset viewed flag if booking is newly confirmed
+          const { allRigDates: _ard, allEventDates: _aed, allRigdownDates: _ardd, ...dbBookingData } = bookingData as any;
           const updateData: any = {
-            ...bookingData,
+            ...dbBookingData,
             id: existingBooking.id,
             version: (existingBooking.version || 1) + 1,
             updated_at: new Date().toISOString()
