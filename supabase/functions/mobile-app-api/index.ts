@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId, organizationId)
       case 'get_inbox_all':
-        return await handleGetInboxAll(supabase, staffId, organizationId)
+        return await handleGetInboxAll(supabase, staffId, organizationId, staffOrg?.user_id || null)
       case 'get_inbox_jobs':
         return await handleGetInboxJobs(supabase, staffId, organizationId)
       case 'get_booking_details':
