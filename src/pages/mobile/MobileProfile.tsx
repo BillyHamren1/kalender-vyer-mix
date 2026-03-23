@@ -102,7 +102,7 @@ const MobileProfile = () => {
           <div className="flex-1 text-left">
             <p className="text-sm font-semibold text-foreground">Tidrapporter</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {isLoadingReports ? 'Laddar...' : `${timeReports.length} st · ${totalHours}h totalt`}
+              {isLoadingReports ? 'Laddar...' : `${timeReports.length} st · ${formatHoursMinutes(totalHours)} totalt`}
             </p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
