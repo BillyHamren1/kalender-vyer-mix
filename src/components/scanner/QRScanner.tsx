@@ -147,41 +147,53 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         const video = videoRef.current;
         video.srcObject = stream;
         
-        // Use event-based approach instead of awaiting play() which can hang on iOS
+        // Wait for metadata to load first
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
-            console.warn('[QRScanner] Camera start timeout after 8s');
-            reject(new Error('Kameran svarade inte i tid. Försök igen.'));
-          }, 8000);
-          
-          const onPlaying = () => {
-            clearTimeout(timeout);
-            video.removeEventListener('playing', onPlaying);
-            video.removeEventListener('error', onError);
+            console.warn('[QRScanner] Metadata timeout after 5s');
+            // Don't reject — try to play anyway
             resolve();
-          };
-          const onError = () => {
+          }, 5000);
+          
+          if (video.readyState >= video.HAVE_METADATA) {
             clearTimeout(timeout);
-            video.removeEventListener('playing', onPlaying);
-            video.removeEventListener('error', onError);
-            reject(new Error('Video-elementet kunde inte starta.'));
-          };
-          
-          video.addEventListener('playing', onPlaying);
-          video.addEventListener('error', onError);
-          
-          // play() may return a promise on some browsers
-          const playPromise = video.play();
-          if (playPromise?.catch) {
-            playPromise.catch((e: any) => {
-              console.warn('[QRScanner] play() rejected:', e);
-              // Don't reject here — the 'playing' event might still fire
-            });
+            resolve();
+          } else {
+            video.addEventListener('loadedmetadata', () => {
+              clearTimeout(timeout);
+              resolve();
+            }, { once: true });
           }
         });
         
+        console.log('[QRScanner] Metadata loaded, calling play()...');
+        
+        // Now play with timeout
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.warn('[QRScanner] Play timeout after 6s, checking video state...');
+            // If video is actually playing despite no event, consider it success
+            if (!video.paused && video.readyState >= video.HAVE_CURRENT_DATA) {
+              console.log('[QRScanner] Video appears to be playing despite timeout');
+              resolve();
+            } else {
+              reject(new Error('Kameran svarade inte i tid. Försök igen.'));
+            }
+          }, 6000);
+          
+          video.play().then(() => {
+            console.log('[QRScanner] play() resolved');
+            clearTimeout(timeout);
+            resolve();
+          }).catch((e: any) => {
+            console.warn('[QRScanner] play() rejected:', e);
+            clearTimeout(timeout);
+            reject(new Error('Kameran kunde inte startas: ' + (e.message || e)));
+          });
+        });
+        
         setCameraState('running');
-        console.log('[QRScanner] Camera started successfully');
+        console.log('[QRScanner] Camera started successfully, videoWidth:', video.videoWidth);
         animationFrameRef.current = requestAnimationFrame(scanFrame);
       }
     } catch (err: any) {
