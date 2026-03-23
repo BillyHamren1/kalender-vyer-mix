@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 import TravelBanner from '@/components/mobile-app/TravelBanner';
 import { format, parseISO } from 'date-fns';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv } from 'date-fns/locale';
 
 
