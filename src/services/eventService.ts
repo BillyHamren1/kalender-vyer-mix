@@ -24,11 +24,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_id,
       event_type,
       delivery_address,
-      booking_number,
-      bookings(
-        delivery_city,
-        delivery_postal_code
-      )
+      booking_number
     `)
     .order('start_time', { ascending: true });
 
