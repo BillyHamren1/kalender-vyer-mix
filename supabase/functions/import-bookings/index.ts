@@ -35,6 +35,10 @@ interface BookingData {
   rigdaydate?: string;
   eventdate?: string;
   rigdowndate?: string;
+  // Full date arrays for multi-day support (calendar level only)
+  allRigDates?: string[];
+  allEventDates?: string[];
+  allRigdownDates?: string[];
   deliveryaddress?: string;
   delivery_city?: string;
   delivery_postal_code?: string;
