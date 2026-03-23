@@ -295,7 +295,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 className="w-full h-full object-cover"
                 playsInline
                 muted
-                autoPlay
               />
               {/* Hidden canvas for jsQR fallback */}
               <canvas ref={canvasRef} className="hidden" />
