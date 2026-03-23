@@ -51,5 +51,9 @@
 	<string>EventFlow Time uses the photo library when selecting or attaching images related to work tasks.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>EventFlow Time may save images to your photo library when handling work-related media.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EventFlow Time uses your location to verify work site attendance and log time accurately.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EventFlow Time uses your location to verify work site attendance and log time accurately.</string>
 </dict>
 </plist>

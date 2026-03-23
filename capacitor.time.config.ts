@@ -26,6 +26,8 @@ const config: CapacitorConfig = {
       NSCameraUsageDescription: 'EventFlow Time uses the camera to capture images related to work tasks.',
       NSPhotoLibraryUsageDescription: 'EventFlow Time uses the photo library when selecting or attaching images related to work tasks.',
       NSPhotoLibraryAddUsageDescription: 'EventFlow Time may save images to your photo library when handling work-related media.',
+      NSLocationWhenInUseUsageDescription: 'EventFlow Time uses your location to verify work site attendance and log time accurately.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'EventFlow Time uses your location to verify work site attendance and log time accurately.',
     },
   },
   plugins: {
