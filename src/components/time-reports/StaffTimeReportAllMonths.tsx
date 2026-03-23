@@ -105,8 +105,8 @@ const StaffTimeReportAllMonths: React.FC<StaffTimeReportAllMonthsProps> = ({ sta
               </h3>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>{monthReports.length} rapporter</span>
-                <span>{totalHours.toFixed(1)} tim</span>
-                {totalOT > 0 && <span className="text-orange-600">{totalOT.toFixed(1)} OB</span>}
+                <span>{formatHoursMinutes(totalHours)}</span>
+                {totalOT > 0 && <span className="text-orange-600">{formatHoursMinutes(totalOT)} OB</span>}
                 <span className="text-green-600">{approvedCount}/{monthReports.length} godkända</span>
               </div>
             </div>
