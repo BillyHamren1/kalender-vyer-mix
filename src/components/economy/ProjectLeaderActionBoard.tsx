@@ -66,7 +66,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
         const project = projectInsights.find(p => p.booking_id === bookingId);
         newInvoiceProjects.push({
           projectName: project?.name || bookingId,
-          clientName: project?.client || '—',
+          clientName: '—',
           actionCount: imported.length,
           amount: 0,
           bookingId,
@@ -82,7 +82,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
         const project = projectInsights.find(p => p.booking_id === bookingId);
         unattestedProjects.push({
           projectName: project?.name || bookingId,
-          clientName: project?.client || '—',
+          clientName: '—',
           actionCount: linked.length,
           amount: 0,
           bookingId,
@@ -92,12 +92,12 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
 
     // 3. Margin warnings
     const marginWarnings: ActionItem[] = projectInsights
-      .filter(p => p.marginPercent !== null && p.marginPercent < 10 && p.economyStatus !== 'economy-closed')
+      .filter(p => p.forecastMarginPercent < 10 && p.economyStatus !== 'economy-closed')
       .map(p => ({
         projectName: p.name,
-        clientName: p.client || '—',
+        clientName: '—',
         actionCount: 1,
-        amount: p.expectedRevenue - p.actualCost,
+        amount: p.forecastMargin,
         projectId: p.id,
       }));
 
