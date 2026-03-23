@@ -160,8 +160,8 @@ export const isStaffAvailableOnDate = async (
 /**
  * Get all available staff for a specific date
  */
-export const getAvailableStaffForDate = async (date: Date): Promise<string[]> => {
-  const result = await getAvailableStaffForDateRange([date]);
+export const getAvailableStaffForDate = async (date: Date, filterByTag?: string): Promise<string[]> => {
+  const result = await getAvailableStaffForDateRange([date], filterByTag);
   const dateStr = format(date, 'yyyy-MM-dd');
   return result[dateStr] || [];
 };
@@ -171,7 +171,8 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
  * Replaces N sequential calls to getAvailableStaffForDate with 1 staff query + 1 availability query.
  */
 export const getAvailableStaffForDateRange = async (
-  dates: Date[]
+  dates: Date[],
+  filterByTag?: string
 ): Promise<Record<string, string[]>> => {
   if (dates.length === 0) return {};
 
@@ -179,11 +180,17 @@ export const getAvailableStaffForDateRange = async (
   const minDate = dateStrs.reduce((a, b) => (a < b ? a : b));
   const maxDate = dateStrs.reduce((a, b) => (a > b ? a : b));
 
-  // Single query: all active staff
-  const { data: activeStaff, error: staffError } = await supabase
+  // Single query: all active staff (optionally filtered by tag)
+  let staffQuery = supabase
     .from('staff_members' as any)
-    .select('id, name')
+    .select('id, name, tags')
     .eq('is_active', true);
+
+  if (filterByTag) {
+    staffQuery = staffQuery.contains('tags', [filterByTag]);
+  }
+
+  const { data: activeStaff, error: staffError } = await staffQuery;
 
   if (staffError || !activeStaff || activeStaff.length === 0) {
     return Object.fromEntries(dateStrs.map(d => [d, []]));

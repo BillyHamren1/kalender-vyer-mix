@@ -146,7 +146,7 @@ const CustomCalendarPage = () => {
   };
 
   // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Montage');
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);

@@ -17,6 +17,7 @@ export interface StaffMember {
   id: string;
   name: string;
   color?: string;
+  tags?: string[];
 }
 
 // ── Fetchers ──────────────────────────────────────────────────────────────────
@@ -53,17 +54,17 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 async function fetchActiveStaff(): Promise<StaffMember[]> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('id, name, color')
+    .select('id, name, color, tags')
     .eq('is_active', true)
     .order('name');
 
   if (error) throw error;
-  return (data || []).map(m => ({ id: m.id, name: m.name, color: m.color || '#E3F2FD' }));
+  return (data || []).map(m => ({ id: m.id, name: m.name, color: m.color || '#E3F2FD', tags: (m as any).tags || [] }));
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly') => {
+export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string) => {
   const queryClient = useQueryClient();
 
   // Assignments — cached indefinitely, invalidated by realtime
@@ -100,12 +101,18 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
+  // Filter active staff by tag if specified
+  const filteredActiveStaff = useMemo(() => {
+    if (!filterByTag) return activeStaff;
+    return activeStaff.filter(s => s.tags?.includes(filterByTag));
+  }, [activeStaff, filterByTag]);
+
   // availableStaff for current date (derived, no extra fetch)
   const availableStaff = useMemo(() => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const assignedIds = new Set(assignments.filter(a => a.date === dateStr).map(a => a.staffId));
-    return activeStaff.filter(s => !assignedIds.has(s.id));
-  }, [activeStaff, assignments, currentDate]);
+    return filteredActiveStaff.filter(s => !assignedIds.has(s.id));
+  }, [filteredActiveStaff, assignments, currentDate]);
 
   // Memoized lookup: team + date -> staff members
   const getStaffForTeamAndDate = useMemo(() => {
@@ -141,9 +148,9 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       else blockedIds.add(p.staff_id);
     });
 
-    return activeStaff
+    return filteredActiveStaff
       .filter(s => availableIds.has(s.id) && !blockedIds.has(s.id) && !assignedIds.has(s.id));
-  }, [activeStaff, assignments]);
+  }, [filteredActiveStaff, assignments]);
 
   // Planning date: all staff with assignment status (derived from cache)
   const getStaffForPlanningDate = useCallback(async (targetDate: Date, targetTeamId: string) => {
@@ -153,7 +160,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const { data: avail } = await supabase
       .from('staff_availability')
       .select('staff_id, availability_type')
-      .in('staff_id', activeStaff.map(s => s.id))
+      .in('staff_id', filteredActiveStaff.map(s => s.id))
       .lte('start_date', dateStr)
       .gte('end_date', dateStr);
 
@@ -171,7 +178,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
     });
 
-    const result = activeStaff
+    const result = filteredActiveStaff
       .filter(s => availableIds.has(s.id) && !blockedIds.has(s.id))
       .map(s => {
         const assignment = assignmentMap.get(s.id);
@@ -183,7 +190,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       .sort((a, b) => ({ free: 0, assigned_current_team: 1, assigned_other_team: 2 }[a.assignmentStatus] - { free: 0, assigned_current_team: 1, assigned_other_team: 2 }[b.assignmentStatus]));
 
     return result;
-  }, [activeStaff, assignments]);
+  }, [filteredActiveStaff, assignments]);
 
   // Staff drop with optimistic update
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {

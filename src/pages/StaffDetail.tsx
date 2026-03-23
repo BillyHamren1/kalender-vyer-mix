@@ -274,6 +274,46 @@ const StaffDetail: React.FC = () => {
               <DirectEditField fieldName="role" value={staffMember.role} label="Roll" icon={<Briefcase className="h-4 w-4" />} />
               <DirectEditField fieldName="department" value={staffMember.department} label="Avdelning" icon={<Building className="h-4 w-4" />} />
               <DirectEditField fieldName="hire_date" value={staffMember.hire_date} label="Anställningsdatum" type="date" icon={<Calendar className="h-4 w-4" />} />
+              
+              {/* Taggar */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Taggar
+                </label>
+                <div className="flex gap-2">
+                  {['Montage', 'Lager'].map(tag => {
+                    const currentTags: string[] = (staffMember as any).tags || [];
+                    const isActive = currentTags.includes(tag);
+                    return (
+                      <Badge
+                        key={tag}
+                        variant={isActive ? 'default' : 'outline'}
+                        className={`cursor-pointer select-none transition-colors ${isActive ? '' : 'opacity-60 hover:opacity-100'}`}
+                        onClick={async () => {
+                          const newTags = isActive
+                            ? currentTags.filter(t => t !== tag)
+                            : [...currentTags, tag];
+                          try {
+                            const { error } = await supabase
+                              .from('staff_members')
+                              .update({ tags: newTags } as any)
+                              .eq('id', staffMember.id);
+                            if (error) throw error;
+                            await refetchStaff();
+                            toast.success(`Tagg "${tag}" ${isActive ? 'borttagen' : 'tillagd'}`);
+                          } catch (err) {
+                            console.error('Error updating tags:', err);
+                            toast.error('Kunde inte uppdatera taggar');
+                          }
+                        }}
+                      >
+                        {tag}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
