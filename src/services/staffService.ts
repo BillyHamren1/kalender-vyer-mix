@@ -117,6 +117,7 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
             notes: staffData.notes,
             hourly_rate: staffData.hourly_rate,
             overtime_rate: staffData.overtime_rate,
+            tags: staffData.tags || [],
           })
           .eq('email', staffData.email);
         
