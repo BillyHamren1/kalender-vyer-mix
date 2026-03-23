@@ -2069,9 +2069,10 @@ serve(async (req) => {
           // NEW BOOKING - Insert only if truly new
           console.log(`Inserting new booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
           
+          const { allRigDates: _ard2, allEventDates: _aed2, allRigdownDates: _ardd2, ...dbInsertData } = bookingData as any;
           const { error: insertError } = await supabase
             .from('bookings')
-            .insert(bookingData)
+            .insert(dbInsertData)
 
           if (insertError) {
             if (insertError.message.includes('duplicate key') || insertError.message.includes('already exists')) {
