@@ -98,6 +98,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         notes: staff.notes || '',
       });
       setSelectedColor(staff.color || '#E3F2FD');
+      setSelectedTags((staff as any).tags || []);
     }
   }, [staff, form]);
 
