@@ -1,15 +1,11 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Default Capacitor config — used for development / web preview.
+ * Capacitor config for EventFlow Time
  * 
- * For production native builds, use:
- *   - capacitor.time.config.ts    (EventFlow Time)
- *   - capacitor.scanner.config.ts (EventFlow Scanner)
- * 
- * Copy the desired config to capacitor.config.ts before building:
- *   cp capacitor.time.config.ts capacitor.config.ts
- *   VITE_APP_MODE=time npm run build && npx cap sync
+ * Build:
+ *   VITE_APP_MODE=time npm run build
+ *   APP_MODE=time npx cap copy
  */
 const config: CapacitorConfig = {
   appId: 'se.eventflow.time',
@@ -27,9 +23,11 @@ const config: CapacitorConfig = {
     contentInset: 'automatic',
     backgroundColor: '#0A0A0B',
     infoPlist: {
-      NSCameraUsageDescription: 'EventFlow uses the camera to scan barcodes, QR codes, and capture images for work-related tasks.',
-      NSPhotoLibraryUsageDescription: 'EventFlow uses the photo library when selecting or attaching images related to work tasks.',
-      NSPhotoLibraryAddUsageDescription: 'EventFlow may save images to your photo library when handling work-related media.',
+      NSCameraUsageDescription: 'EventFlow Time uses the camera to capture images related to work tasks.',
+      NSPhotoLibraryUsageDescription: 'EventFlow Time uses the photo library when selecting or attaching images related to work tasks.',
+      NSPhotoLibraryAddUsageDescription: 'EventFlow Time may save images to your photo library when handling work-related media.',
+      NSLocationWhenInUseUsageDescription: 'EventFlow Time uses your location to verify work site attendance and log time accurately.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'EventFlow Time uses your location to verify work site attendance and log time accurately.',
     },
   },
   plugins: {
