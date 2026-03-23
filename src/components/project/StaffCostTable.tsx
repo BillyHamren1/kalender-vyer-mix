@@ -129,7 +129,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
                 {/* Total row */}
                 <TableRow className="font-bold border-t-2">
                   <TableCell colSpan={2}>TOTALT</TableCell>
-                  <TableCell className="text-right">{summary.actualHours.toFixed(1)} h</TableCell>
+                  <TableCell className="text-right">{formatHoursMinutes(summary.actualHours)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(summary.staffActual)}</TableCell>
                   <TableCell className="text-center">
                     {allApproved && status === 'ok' ? (
