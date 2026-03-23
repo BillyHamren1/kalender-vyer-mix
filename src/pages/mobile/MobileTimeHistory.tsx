@@ -7,6 +7,7 @@ import { sv } from 'date-fns/locale';
 import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car, Check, Clock4, Pencil, Trash2, X } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
+import { formatHoursMinutes } from '@/utils/formatHours';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
