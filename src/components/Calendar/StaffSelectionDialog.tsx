@@ -103,9 +103,19 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     }
   }, [open, currentDate, dateStr, reliableStaffOperations]);
   
-  // Filter and sort staff using reliable data
+  // Filter and sort staff using reliable data (or fallback without it)
   useEffect(() => {
-    if (allStaff.length && reliableStaffOperations) {
+    if (allStaff.length === 0) return;
+    
+    // Filter by search query
+    const searchFiltered = allStaff.filter(staff => {
+      if (searchQuery) {
+        return staff.name.toLowerCase().includes(searchQuery.toLowerCase());
+      }
+      return true;
+    });
+
+    if (reliableStaffOperations) {
       // Create assignment map from reliable data for the specific date
       const assignedStaffMap = new Map();
       reliableStaffOperations.assignments
@@ -115,14 +125,6 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         });
       
       console.log(`StaffSelectionDialog: Assignment map for ${dateStr}:`, Object.fromEntries(assignedStaffMap));
-      
-      // Filter by search query
-      const searchFiltered = allStaff.filter(staff => {
-        if (searchQuery) {
-          return staff.name.toLowerCase().includes(searchQuery.toLowerCase());
-        }
-        return true;
-      });
       
       // Add assignment status to each staff member using reliable data
       const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => {
@@ -140,20 +142,25 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       
       // Sort: unassigned first, then assigned to current team, then assigned to other teams
       const sorted = staffWithStatus.sort((a, b) => {
-        // Unassigned staff first
         if (!a.assignedTeamId && b.assignedTeamId) return -1;
         if (a.assignedTeamId && !b.assignedTeamId) return 1;
-        
-        // Among assigned staff, current team assignments next
         if (a.isAssignedToCurrentTeam && !b.isAssignedToCurrentTeam) return -1;
         if (!a.isAssignedToCurrentTeam && b.isAssignedToCurrentTeam) return 1;
-        
-        // Finally alphabetical
         return a.name.localeCompare(b.name);
       });
       
       console.log(`StaffSelectionDialog: Processed ${sorted.length} staff with assignment status for ${resourceTitle} on ${dateStr}`);
       setFilteredStaff(sorted);
+    } else {
+      // Fallback: show all available staff without assignment status
+      const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => ({
+        ...staff,
+        assignedTeamId: null,
+        isAssignedToCurrentTeam: false,
+        isAssignedToOtherTeam: false
+      }));
+      staffWithStatus.sort((a, b) => a.name.localeCompare(b.name));
+      setFilteredStaff(staffWithStatus);
     }
   }, [allStaff, searchQuery, resourceId, resourceTitle, dateStr, reliableStaffOperations]);
   
@@ -214,10 +221,6 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
           {loading ? (
             <div className="flex justify-center items-center h-16">
               <p className="text-sm text-muted-foreground">Loading staff...</p>
-            </div>
-          ) : !reliableStaffOperations ? (
-            <div className="flex justify-center items-center h-16">
-              <p className="text-sm text-muted-foreground">Loading assignments...</p>
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex justify-center items-center h-16">
