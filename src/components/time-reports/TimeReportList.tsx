@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, Calendar, Banknote, Trash2 } from 'lucide-react';
 import { TimeReport } from '@/types/timeReport';
+import { formatHoursMinutes } from '@/utils/formatHours';
 
 interface TimeReportListProps {
   reports: TimeReport[];
