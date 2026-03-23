@@ -162,7 +162,8 @@ export const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promis
         notes: staffData.notes,
         hourly_rate: staffData.hourly_rate,
         overtime_rate: staffData.overtime_rate,
-        color: staffData.color || '#E3F2FD'
+        color: staffData.color || '#E3F2FD',
+        tags: staffData.tags || [],
       })
       .select()
       .single();
