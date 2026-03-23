@@ -51,6 +51,11 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
   onColorUpdate 
 }) => {
   const [selectedColor, setSelectedColor] = useState(staff.color || '#E3F2FD');
+  const [selectedTags, setSelectedTags] = useState<string[]>((staff as any).tags || []);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
 
   const form = useForm<StaffFormData>({
     resolver: zodResolver(staffSchema),
