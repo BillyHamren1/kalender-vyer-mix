@@ -161,14 +161,14 @@ const MobileTimeReport = () => {
 
           <div className="h-px bg-border/50" />
 
-          <div className="grid grid-cols-2 gap-3 min-w-0 w-full" style={{ maxWidth: '100%' }}>
-            <div className="space-y-2 min-w-0 overflow-hidden">
+          <div className="flex gap-3 w-full">
+            <div className="flex-1 min-w-0 space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full max-w-full text-center" style={{ maxWidth: '100%' }} />
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
             </div>
-            <div className="space-y-2 min-w-0 overflow-hidden">
+            <div className="flex-1 min-w-0 space-y-2">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full max-w-full text-center" style={{ maxWidth: '100%' }} />
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
             </div>
           </div>
 
