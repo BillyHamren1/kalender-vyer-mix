@@ -219,3 +219,13 @@
   }
 }
 
+/* Force native date/time inputs to respect container width on mobile */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}

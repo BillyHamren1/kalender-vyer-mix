@@ -156,19 +156,19 @@ const MobileTimeReport = () => {
 
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full" />
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full max-w-full [&::-webkit-date-and-time-value]{text-align:center}" style={{ maxWidth: '100%' }} />
           </div>
 
           <div className="h-px bg-border/50" />
 
-          <div className="grid grid-cols-2 gap-4 min-w-0">
-            <div className="space-y-2 min-w-0">
+          <div className="grid grid-cols-2 gap-3 min-w-0 w-full" style={{ maxWidth: '100%' }}>
+            <div className="space-y-2 min-w-0 overflow-hidden">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full max-w-full text-center" style={{ maxWidth: '100%' }} />
             </div>
-            <div className="space-y-2 min-w-0">
+            <div className="space-y-2 min-w-0 overflow-hidden">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full max-w-full text-center" style={{ maxWidth: '100%' }} />
             </div>
           </div>
 
