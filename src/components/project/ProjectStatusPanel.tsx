@@ -14,7 +14,7 @@ interface StatusBlock {
 
 interface ProjectStatusPanelProps {
   tasks: ProjectTask[];
-  suppliers: ProjectSupplier[];
+  suppliers: MergedSupplier[];
   transportAssignments: any[];
   projectStatus: string;
 }
