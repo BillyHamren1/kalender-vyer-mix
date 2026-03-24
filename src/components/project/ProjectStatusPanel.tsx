@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { CheckCircle2, AlertTriangle, AlertCircle, ShieldCheck, Truck, Users, ListChecks, Clock, DollarSign } from "lucide-react";
 import type { ProjectTask } from "@/types/project";
-import type { ProjectSupplier } from "@/types/supplier";
+import type { MergedSupplier } from "@/types/supplier";
 
 type ReadinessLevel = 'ready' | 'attention' | 'at_risk' | 'completed';
 
