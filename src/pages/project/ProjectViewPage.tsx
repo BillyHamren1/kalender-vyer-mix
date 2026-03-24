@@ -9,6 +9,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectComments from "@/components/project/ProjectComments";
+import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
