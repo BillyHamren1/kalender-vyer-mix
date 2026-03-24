@@ -41,6 +41,7 @@ const ProjectViewPage = () => {
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
+  const { suppliers } = useProjectSuppliers(project?.id);
 
   // Auto-complete Transportbokning task if transport assignments exist
   useEffect(() => {
