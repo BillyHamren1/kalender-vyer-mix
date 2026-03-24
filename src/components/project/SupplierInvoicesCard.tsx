@@ -36,6 +36,8 @@ interface SupplierInvoicesCardProps {
   productCosts?: { products?: ProductCostItem[] } | null;
   onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
   bookingId?: string | null;
+  /** Project revenue — used to show margin impact per invoice */
+  projectRevenue?: number;
 }
 
 const fmt = (v: number) =>
