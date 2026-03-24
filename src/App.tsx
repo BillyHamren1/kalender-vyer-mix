@@ -212,6 +212,7 @@ const WebRoutes: React.FC = () => {
             </Route>
             <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><MainSystemLayout><AnalyticsDashboard /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
             <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<LargeProjectViewPage />} />
