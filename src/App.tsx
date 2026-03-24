@@ -38,6 +38,7 @@ import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
 import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
 import EconomyOverview from "./pages/EconomyOverview";
 import EconomyTimeReports from "./pages/EconomyTimeReports";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
 import MyProjects from "./pages/MyProjects";
@@ -211,6 +212,7 @@ const WebRoutes: React.FC = () => {
             </Route>
             <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><MainSystemLayout><AnalyticsDashboard /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
             <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<LargeProjectViewPage />} />
