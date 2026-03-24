@@ -130,6 +130,12 @@ export interface ProjectEconomyInput {
   hourlyRate: number;
   timeReportsApproved: boolean;
   hasRecentEconomyData: boolean;
+  /** Counts for time report approval */
+  timeReportCounts?: {
+    total: number;
+    approved: number;
+    pending: number;
+  };
 }
 
 // ─── Pure computation ───────────────────────────────────────────────────────
