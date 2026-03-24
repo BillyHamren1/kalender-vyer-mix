@@ -8,7 +8,7 @@ const getNextBookingId = async (): Promise<{ id: string; bookingNumber: string }
   const currentYear = new Date().getFullYear();
   
   // Determine prefix based on year
-  const prefix = currentYear === 2025 ? '2025' : '2505';
+  const prefix = currentYear === 2025 ? '2025' : `${currentYear.toString().slice(-2)}05`;
   
   // Find the highest existing number for this prefix in booking_number field
   const { data, error } = await supabase
