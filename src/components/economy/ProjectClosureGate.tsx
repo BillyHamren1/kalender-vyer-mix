@@ -96,19 +96,8 @@ export function buildClosureGates(params: {
   marginPercent: number;
   timeReportsApproved: boolean;
 }): GateItem[] {
-  // Delegate to shared model
-  const { computeBlockers, computeWarnings, EMPTY_ATTEST_COUNTS } = require('@/lib/economy/projectEconomyStatus');
-  const counts = {
-    ...EMPTY_ATTEST_COUNTS,
-    unattested: params.unattestedInvoiceCount,
-    imported: params.newCostCount,
-  };
-  const blockers = computeBlockers(counts, params.hasRecentEconomyData);
-  const warnings = computeWarnings(params.budgetDeviation, params.marginPercent, params.timeReportsApproved);
-
   const gates: GateItem[] = [];
 
-  // Blockers
   gates.push({
     label: 'Alla leverantörsfakturor attesterade',
     passed: params.unattestedInvoiceCount === 0,
@@ -127,8 +116,6 @@ export function buildClosureGates(params: {
     blocking: true,
     detail: !params.hasRecentEconomyData ? 'Uppdatera ekonomidata innan stängning' : undefined,
   });
-
-  // Warnings
   gates.push({
     label: 'Budgetavvikelse inom rimlig nivå',
     passed: Math.abs(params.budgetDeviation) <= 10,
