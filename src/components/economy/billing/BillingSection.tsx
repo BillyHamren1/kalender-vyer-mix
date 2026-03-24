@@ -88,13 +88,13 @@ const BillingSection: React.FC = () => {
 
   const grouped = useMemo(() => groupByBillingStatus(billingItems), [billingItems]);
 
-  const handedOverThisMonth = useMemo(() => {
+  const closedThisMonth = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
     return grouped.handed_over_to_booking.filter(p => {
-      if (!p.handed_over_at) return false;
-      const d = new Date(p.handed_over_at);
+      if (!p.closed_at) return false;
+      const d = new Date(p.closed_at);
       return isWithinInterval(d, { start: monthStart, end: monthEnd });
     });
   }, [grouped.handed_over_to_booking]);
