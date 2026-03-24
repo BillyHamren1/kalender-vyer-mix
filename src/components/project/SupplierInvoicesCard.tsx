@@ -60,6 +60,7 @@ export const SupplierInvoicesCard = ({
   productCosts,
   onLinkInvoice,
   bookingId,
+  projectRevenue = 0,
 }: SupplierInvoicesCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
