@@ -484,7 +484,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
               {!billing.client_name && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md px-3 py-2 border border-amber-200/60 dark:border-amber-800/40">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Kunduppgifter saknas — kontrollera innan överlämning
+                  Kunduppgifter saknas — kontrollera innan stängning
                 </div>
               )}
             </TabsContent>
