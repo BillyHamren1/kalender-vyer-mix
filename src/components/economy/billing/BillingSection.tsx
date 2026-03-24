@@ -167,7 +167,7 @@ const BillingSection: React.FC = () => {
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Receipt className="h-5 w-5 text-primary" />
-        <h2 className="text-base font-semibold text-foreground">Överlämning & fakturastatus</h2>
+        <h2 className="text-base font-semibold text-foreground">Projektstängning & fakturastatus</h2>
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium ml-1">
           {billingItems.length}
         </Badge>
@@ -177,9 +177,9 @@ const BillingSection: React.FC = () => {
         <Card className="border-border/40">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Receipt className="h-10 w-10 text-muted-foreground/20 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">Inga projekt i överlämningskön</p>
+            <p className="text-sm font-medium text-muted-foreground">Inga projekt i stängningskön</p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              Projekt som stängs operativt visas här automatiskt för granskning och överlämning
+              Projekt som stängs visas här automatiskt för granskning
             </p>
           </CardContent>
         </Card>
