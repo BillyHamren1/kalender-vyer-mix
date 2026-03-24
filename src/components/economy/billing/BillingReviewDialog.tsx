@@ -64,7 +64,7 @@ const CHECKLIST_ITEMS: { key: keyof ReviewChecklist; label: string }[] = [
   { key: 'deviation_checked', label: 'Avvikelse mot offert kontrollerad' },
   { key: 'invoice_info_complete', label: 'Fakturauppgifter kompletta' },
   { key: 'internal_note_added', label: 'Intern notering tillagd vid behov' },
-  { key: 'ready_for_invoicing', label: 'Projekt klart för överlämning' },
+  { key: 'ready_for_invoicing', label: 'Ekonomi komplett — klart att stänga' },
 ];
 
 interface Props {
@@ -216,7 +216,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <ArrowLeft className="h-3.5 w-3.5" /> Komplettering
                 </Button>
                 <Button size="sm" className="gap-1.5" disabled={!allChecked} onClick={() => { handleSaveDraft(); onAdvanceStatus(billing.id, 'ready_for_handover'); }}>
-                  <ArrowRight className="h-3.5 w-3.5" /> Godkänn för överlämning
+                  <ArrowRight className="h-3.5 w-3.5" /> Markera klar att stänga
                 </Button>
               </>
             )}
@@ -484,7 +484,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
               {!billing.client_name && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md px-3 py-2 border border-amber-200/60 dark:border-amber-800/40">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Kunduppgifter saknas — kontrollera innan överlämning
+                  Kunduppgifter saknas — kontrollera innan stängning
                 </div>
               )}
             </TabsContent>
@@ -496,7 +496,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                       <ClipboardCheck className="h-3.5 w-3.5" />
-                      Kontrollista för överlämning
+                      Kontrollista för stängning
                     </h3>
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                       {completedChecks}/{CHECKLIST_ITEMS.length}
@@ -680,8 +680,8 @@ const HistoryTimeline: React.FC<{ billing: ProjectBilling }> = ({ billing }) => 
   const events = [
     { label: 'Projekt stängt', date: billing.closed_at, icon: <Calendar className="h-3 w-3" /> },
     { label: 'Granskning slutförd', date: billing.review_completed_at, icon: <ClipboardCheck className="h-3 w-3" /> },
-    { label: 'Klar för överlämning', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
-    { label: 'Överlämnad till Booking', date: billing.handed_over_at, icon: <ArrowRight className="h-3 w-3" /> },
+    { label: 'Klar att stänga', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
+    { label: 'Stängd i Planning', date: billing.handed_over_at, icon: <ArrowRight className="h-3 w-3" /> },
     { label: 'Fakturerad i Booking', date: billing.invoice_date, icon: <FileText className="h-3 w-3" /> },
   ];
 

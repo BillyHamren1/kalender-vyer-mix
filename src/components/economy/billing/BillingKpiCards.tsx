@@ -2,8 +2,8 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Search,
-  ArrowRight,
-  Receipt,
+  CheckCircle2,
+  Lock,
   FileWarning,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,8 +25,8 @@ interface KpiDef {
 
 interface Props {
   draft: ProjectBilling[];
-  readyForHandover: ProjectBilling[];
-  handedOverThisMonth: ProjectBilling[];
+  readyToClose: ProjectBilling[];
+  closedThisMonth: ProjectBilling[];
   uninvoicedValue: number;
   onFilterClick?: (filter: FilterTab) => void;
   activeFilter?: FilterTab;
@@ -34,8 +34,8 @@ interface Props {
 
 const BillingKpiCards: React.FC<Props> = ({
   draft,
-  readyForHandover,
-  handedOverThisMonth,
+  readyToClose,
+  closedThisMonth,
   uninvoicedValue,
   onFilterClick,
   activeFilter,
@@ -53,25 +53,25 @@ const BillingKpiCards: React.FC<Props> = ({
       filterKey: 'draft',
     },
     {
-      title: 'Klar för överlämning',
-      amount: sum(readyForHandover, 'invoiceable_amount'),
-      count: readyForHandover.length,
-      icon: <ArrowRight className="w-4 h-4 text-blue-600" />,
+      title: 'Klara att stänga',
+      amount: sum(readyToClose, 'invoiceable_amount'),
+      count: readyToClose.length,
+      icon: <CheckCircle2 className="w-4 h-4 text-blue-600" />,
       iconBg: 'bg-blue-50 dark:bg-blue-950/30',
       filterKey: 'ready_for_handover',
     },
     {
-      title: 'Överlämnat denna månad',
-      amount: sum(handedOverThisMonth, 'invoiceable_amount'),
-      count: handedOverThisMonth.length,
-      icon: <Receipt className="w-4 h-4 text-green-600" />,
+      title: 'Stängda denna månad',
+      amount: sum(closedThisMonth, 'invoiceable_amount'),
+      count: closedThisMonth.length,
+      icon: <Lock className="w-4 h-4 text-green-600" />,
       iconBg: 'bg-green-50 dark:bg-green-950/30',
       filterKey: 'handed_over_to_booking',
     },
     {
-      title: 'Ej överlämnat värde',
+      title: 'Ej stängt värde',
       amount: uninvoicedValue,
-      count: draft.length + readyForHandover.length,
+      count: draft.length + readyToClose.length,
       icon: <FileWarning className="w-4 h-4 text-muted-foreground" />,
       iconBg: 'bg-muted',
       filterKey: 'all',

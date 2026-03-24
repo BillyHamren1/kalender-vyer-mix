@@ -73,7 +73,7 @@ export interface ClosureStatus {
   warningCount: number;
 }
 
-export interface HandoverStatus {
+export interface ClosureTrackingStatus {
   level: SignalLevel;
   label: string;
   billingStatus: BillingStatus | null;
@@ -111,7 +111,7 @@ export interface ProjectEconomySignals {
   supplierInvoice: SupplierInvoiceStatus;
   margin: MarginStatus;
   closure: ClosureStatus;
-  handover: HandoverStatus;
+  handover: ClosureTrackingStatus;
   blockers: Blocker[];
   warnings: Warning[];
   /** Revenue amount (productRevenue) */
@@ -169,7 +169,7 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
   const supplierInvoice = computeSupplierInvoiceStatus(attestCounts);
   const margin = computeMarginStatus(marginPercent, marginAmount, revenue);
   const closure = computeClosureStatus(blockers, warnings);
-  const handover = computeHandoverStatus(billingStatus);
+  const handover = computeClosureTrackingStatus(billingStatus);
 
   return {
     time,
@@ -336,15 +336,15 @@ function computeClosureStatus(blockers: Blocker[], warnings: Warning[]): Closure
   };
 }
 
-function computeHandoverStatus(billingStatus: BillingStatus | null): HandoverStatus {
+function computeClosureTrackingStatus(billingStatus: BillingStatus | null): ClosureTrackingStatus {
   if (!billingStatus) return { level: 'neutral', label: 'Ej påbörjad', billingStatus: null };
 
   const map: Record<BillingStatus, { level: SignalLevel; label: string }> = {
-    draft: { level: 'neutral', label: 'Under granskning' },
+    draft: { level: 'neutral', label: 'Under arbete' },
     needs_completion: { level: 'warning', label: 'Kräver komplettering' },
-    ready_for_handover: { level: 'ok', label: 'Klar för överlämning' },
-    handed_over_to_booking: { level: 'ok', label: 'Överlämnad till ekonomi' },
-    invoiced_in_booking: { level: 'ok', label: 'Fakturerad' },
+    ready_for_handover: { level: 'ok', label: 'Klar att stänga' },
+    handed_over_to_booking: { level: 'ok', label: 'Stängd' },
+    invoiced_in_booking: { level: 'ok', label: 'Fakturerad i Booking' },
   };
 
   const entry = map[billingStatus] || { level: 'neutral', label: billingStatus };

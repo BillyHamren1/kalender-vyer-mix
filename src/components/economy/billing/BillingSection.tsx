@@ -47,11 +47,11 @@ type FilterTab = 'all' | BillingStatus;
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: 'all', label: 'Alla' },
-  { key: 'draft', label: 'Under granskning' },
+  { key: 'draft', label: 'Under arbete' },
   { key: 'needs_completion', label: 'Komplettering' },
-  { key: 'ready_for_handover', label: 'Klar för överlämning' },
-  { key: 'handed_over_to_booking', label: 'Överlämnade' },
-  { key: 'invoiced_in_booking', label: 'Fakturerade' },
+  { key: 'ready_for_handover', label: 'Klara att stänga' },
+  { key: 'handed_over_to_booking', label: 'Stängda' },
+  { key: 'invoiced_in_booking', label: 'Fakturerade i Booking' },
 ];
 
 function getPriority(item: ProjectBilling): number {
@@ -88,13 +88,13 @@ const BillingSection: React.FC = () => {
 
   const grouped = useMemo(() => groupByBillingStatus(billingItems), [billingItems]);
 
-  const handedOverThisMonth = useMemo(() => {
+  const closedThisMonth = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
     return grouped.handed_over_to_booking.filter(p => {
-      if (!p.handed_over_at) return false;
-      const d = new Date(p.handed_over_at);
+      if (!p.closed_at) return false;
+      const d = new Date(p.closed_at);
       return isWithinInterval(d, { start: monthStart, end: monthEnd });
     });
   }, [grouped.handed_over_to_booking]);
@@ -167,7 +167,7 @@ const BillingSection: React.FC = () => {
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Receipt className="h-5 w-5 text-primary" />
-        <h2 className="text-base font-semibold text-foreground">Överlämning & fakturastatus</h2>
+        <h2 className="text-base font-semibold text-foreground">Projektstängning & fakturastatus</h2>
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium ml-1">
           {billingItems.length}
         </Badge>
@@ -177,9 +177,9 @@ const BillingSection: React.FC = () => {
         <Card className="border-border/40">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Receipt className="h-10 w-10 text-muted-foreground/20 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">Inga projekt i överlämningskön</p>
+            <p className="text-sm font-medium text-muted-foreground">Inga projekt i stängningskön</p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              Projekt som stängs operativt visas här automatiskt för granskning och överlämning
+              Projekt som stängs visas här automatiskt för granskning
             </p>
           </CardContent>
         </Card>
@@ -187,8 +187,8 @@ const BillingSection: React.FC = () => {
         <>
           <BillingKpiCards
             draft={grouped.draft}
-            readyForHandover={grouped.ready_for_handover}
-            handedOverThisMonth={handedOverThisMonth}
+            readyToClose={grouped.ready_for_handover}
+            closedThisMonth={closedThisMonth}
             uninvoicedValue={uninvoicedValue}
             onFilterClick={(filter) => setActiveTab(filter)}
             activeFilter={activeTab}
@@ -384,7 +384,7 @@ const QuickActions: React.FC<{
         {(item.billing_status === 'draft' || item.billing_status === 'needs_completion') && (
           <DropdownMenuItem onClick={() => onAdvance(item, 'ready_for_handover')} className="gap-2 text-xs">
             <ArrowRight className="h-3.5 w-3.5" />
-            Godkänn för överlämning
+            Markera klar att stänga
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -394,11 +394,11 @@ const QuickActions: React.FC<{
 
 /* ─── EMPTY STATE ─── */
 const EMPTY_TEXTS: Record<FilterTab, { title: string; sub: string }> = {
-  all: { title: 'Inga projekt i överlämningskön', sub: 'Projekt som stängs operativt visas här automatiskt' },
-  draft: { title: 'Inga projekt att granska just nu', sub: 'Alla projekt har passerat granskningsstadiet' },
+  all: { title: 'Inga projekt i stängningskön', sub: 'Projekt som stängs visas här automatiskt' },
+  draft: { title: 'Inga projekt under arbete', sub: 'Alla projekt har passerat granskningsstadiet' },
   needs_completion: { title: 'Inga projekt kräver komplettering', sub: '' },
-  ready_for_handover: { title: 'Inga projekt redo för överlämning', sub: 'Granska och godkänn projekt först' },
-  handed_over_to_booking: { title: 'Inga överlämnade projekt', sub: '' },
+  ready_for_handover: { title: 'Inga projekt klara att stänga', sub: 'Granska och godkänn projekt först' },
+  handed_over_to_booking: { title: 'Inga stängda projekt', sub: '' },
   invoiced_in_booking: { title: 'Inga fakturerade projekt', sub: 'Projekt som fakturerats via Booking visas här' },
 };
 

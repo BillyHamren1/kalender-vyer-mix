@@ -165,7 +165,7 @@ export function useAdvanceBillingStatus() {
         timestampFields.review_completed_at = new Date().toISOString();
       }
       if (newStatus === 'handed_over_to_booking') {
-        timestampFields.handed_over_at = new Date().toISOString();
+        timestampFields.closed_at = timestampFields.closed_at || new Date().toISOString();
       }
       
       return update.mutate({
