@@ -2,49 +2,43 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * WMS Supplier from the central supplier-registry.
- * This is the source of truth for all supplier master data.
+ * Mirrors the EXACT response from the WMS supplier-registry edge function.
  */
 export interface WmsSupplier {
   id: string;
   name: string;
-  organization_number: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
+  short_name: string | null;
+  color: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
   city: string | null;
   postal_code: string | null;
   country: string | null;
+  email: string | null;
+  phone: string | null;
   website: string | null;
   notes: string | null;
-  is_active: boolean;
-  organization_id: string;
-  created_at: string;
-  updated_at: string;
-  contacts?: WmsSupplierContact[];
+  contacts: WmsSupplierContact[];
 }
 
 export interface WmsSupplierContact {
   id: string;
-  supplier_id: string;
   name: string;
   email: string | null;
   phone: string | null;
-  role: string | null;
-  is_primary: boolean;
-  created_at: string;
-  updated_at: string;
+  title: string | null;
 }
 
 type Action =
   | { action: "list_suppliers" }
   | { action: "search_suppliers"; q: string }
   | { action: "get_supplier"; supplier_id: string }
-  | { action: "create_supplier"; payload: Partial<WmsSupplier> }
-  | { action: "update_supplier"; supplier_id: string; payload: Partial<WmsSupplier> }
-  | { action: "create_supplier_contact"; supplier_id: string; payload: Partial<WmsSupplierContact> }
-  | { action: "update_supplier_contact"; contact_id: string; payload: Partial<WmsSupplierContact> };
+  | { action: "create_supplier"; payload: Record<string, unknown> }
+  | { action: "update_supplier"; supplier_id: string; payload: Record<string, unknown> }
+  | { action: "create_supplier_contact"; supplier_id: string; payload: Record<string, unknown> }
+  | { action: "update_supplier_contact"; contact_id: string; payload: Record<string, unknown> };
 
-async function callRegistry<T = any>(body: Action): Promise<T> {
+async function callRegistry<T = unknown>(body: Action): Promise<T> {
   const { data, error } = await supabase.functions.invoke("supplier-registry-proxy", {
     body,
   });
@@ -65,14 +59,14 @@ export const searchSuppliers = (q: string) =>
 export const getSupplier = (supplierId: string) =>
   callRegistry<WmsSupplier>({ action: "get_supplier", supplier_id: supplierId });
 
-export const createSupplier = (payload: Partial<WmsSupplier>) =>
+export const createSupplier = (payload: Record<string, unknown>) =>
   callRegistry<WmsSupplier>({ action: "create_supplier", payload });
 
-export const updateSupplier = (supplierId: string, payload: Partial<WmsSupplier>) =>
+export const updateSupplier = (supplierId: string, payload: Record<string, unknown>) =>
   callRegistry<WmsSupplier>({ action: "update_supplier", supplier_id: supplierId, payload });
 
-export const createSupplierContact = (supplierId: string, payload: Partial<WmsSupplierContact>) =>
+export const createSupplierContact = (supplierId: string, payload: Record<string, unknown>) =>
   callRegistry<WmsSupplierContact>({ action: "create_supplier_contact", supplier_id: supplierId, payload });
 
-export const updateSupplierContact = (contactId: string, payload: Partial<WmsSupplierContact>) =>
+export const updateSupplierContact = (contactId: string, payload: Record<string, unknown>) =>
   callRegistry<WmsSupplierContact>({ action: "update_supplier_contact", contact_id: contactId, payload });

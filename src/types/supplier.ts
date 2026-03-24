@@ -48,10 +48,13 @@ export interface MergedSupplier {
 
   // WMS master data (read-only display)
   name: string;
+  short_name: string | null;
   company_name: string | null;
   contact_person: string | null;
   email: string | null;
   phone: string | null;
+  address_line1: string | null;
+  city: string | null;
 }
 
 /**
