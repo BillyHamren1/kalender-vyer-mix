@@ -73,7 +73,7 @@ export interface ClosureStatus {
   warningCount: number;
 }
 
-export interface HandoverStatus {
+export interface ClosureTrackingStatus {
   level: SignalLevel;
   label: string;
   billingStatus: BillingStatus | null;
