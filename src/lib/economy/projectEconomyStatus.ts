@@ -169,7 +169,7 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
   const supplierInvoice = computeSupplierInvoiceStatus(attestCounts);
   const margin = computeMarginStatus(marginPercent, marginAmount, revenue);
   const closure = computeClosureStatus(blockers, warnings);
-  const handover = computeHandoverStatus(billingStatus);
+  const handover = computeClosureTrackingStatus(billingStatus);
 
   return {
     time,
