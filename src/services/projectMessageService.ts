@@ -25,7 +25,7 @@ export const sendProjectMessage = async (msg: {
   type: ProjectMessageType;
   message: string;
   sender_name: string;
-  related_supplier_id?: string | null;
+  project_supplier_link_id?: string | null;
 }): Promise<ProjectMessage> => {
   const { data, error } = await supabase
     .from('project_messages')
@@ -34,7 +34,7 @@ export const sendProjectMessage = async (msg: {
       type: msg.type,
       message: msg.message,
       sender_name: msg.sender_name,
-      related_supplier_id: msg.related_supplier_id || null,
+      project_supplier_link_id: msg.project_supplier_link_id || null,
     }] as any)
     .select()
     .single();
