@@ -3,7 +3,7 @@ export type ProjectMessageType = 'internal' | 'supplier' | 'client';
 export interface ProjectMessage {
   id: string;
   project_id: string;
-  related_supplier_id: string | null;
+  project_supplier_link_id: string | null;
   type: ProjectMessageType;
   message: string;
   sender_name: string;

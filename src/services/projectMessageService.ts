@@ -13,7 +13,7 @@ export const fetchProjectMessages = async (
     .order('created_at', { ascending: true });
 
   if (type) query = query.eq('type', type);
-  if (supplierId) query = query.eq('related_supplier_id', supplierId);
+  if (supplierId) query = query.eq('project_supplier_link_id', supplierId);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -25,7 +25,7 @@ export const sendProjectMessage = async (msg: {
   type: ProjectMessageType;
   message: string;
   sender_name: string;
-  related_supplier_id?: string | null;
+  project_supplier_link_id?: string | null;
 }): Promise<ProjectMessage> => {
   const { data, error } = await supabase
     .from('project_messages')
@@ -34,7 +34,7 @@ export const sendProjectMessage = async (msg: {
       type: msg.type,
       message: msg.message,
       sender_name: msg.sender_name,
-      related_supplier_id: msg.related_supplier_id || null,
+      project_supplier_link_id: msg.project_supplier_link_id || null,
     }] as any)
     .select()
     .single();

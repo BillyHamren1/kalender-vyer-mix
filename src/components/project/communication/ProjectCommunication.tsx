@@ -36,7 +36,7 @@ const ProjectCommunication = ({ projectId, senderName, suppliers }: ProjectCommu
       type: activeTab,
       message: text,
       sender_name: senderName,
-      related_supplier_id: activeTab === "supplier" && selectedSupplierId !== "all"
+      project_supplier_link_id: activeTab === "supplier" && selectedSupplierId !== "all"
         ? selectedSupplierId
         : null,
     });
