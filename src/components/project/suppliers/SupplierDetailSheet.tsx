@@ -26,8 +26,8 @@ interface SupplierDetailSheetProps {
 }
 
 const StatusTimeline = ({ current }: { current: SupplierStatus }) => {
-  const flow = SUPPLIER_STATUS_ORDER.filter(s => s !== 'cancelled');
-  const currentIdx = flow.indexOf(current);
+  const flow = SUPPLIER_STATUS_ORDER.filter((s): s is Exclude<SupplierStatus, 'cancelled'> => s !== 'cancelled');
+  const currentIdx = current === 'cancelled' ? -1 : flow.indexOf(current);
   const isCancelled = current === 'cancelled';
 
   return (

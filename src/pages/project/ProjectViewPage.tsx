@@ -155,6 +155,9 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
+      {/* Underleverantörer */}
+      <ProjectSuppliersTab projectId={project.id} />
+
       {/* Kommentarer */}
       <div>
         <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
