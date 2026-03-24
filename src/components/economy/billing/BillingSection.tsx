@@ -384,7 +384,7 @@ const QuickActions: React.FC<{
         {(item.billing_status === 'draft' || item.billing_status === 'needs_completion') && (
           <DropdownMenuItem onClick={() => onAdvance(item, 'ready_for_handover')} className="gap-2 text-xs">
             <ArrowRight className="h-3.5 w-3.5" />
-            Godkänn för överlämning
+            Markera klar att stänga
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
