@@ -106,6 +106,7 @@ const ProjectPMDocument = ({ project, tasks, suppliers, transportAssignments }: 
       {/* Document */}
       <div
         ref={printRef}
+        data-pm-document
         className="bg-card border border-border rounded-xl p-8 md:p-12 max-w-4xl mx-auto print:border-none print:rounded-none print:p-0 print:max-w-none print:shadow-none"
         style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
       >
