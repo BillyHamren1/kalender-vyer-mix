@@ -66,6 +66,10 @@ export const useLargeProjectDetail = (projectId: string) => {
     completed: t.completed,
     sort_order: t.sort_order,
     is_info_only: t.is_info_only,
+    start_date: null,
+    end_date: null,
+    phase: null,
+    dependency_task_id: null,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }));
