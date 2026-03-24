@@ -38,6 +38,7 @@ import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
 import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
 import EconomyOverview from "./pages/EconomyOverview";
 import EconomyTimeReports from "./pages/EconomyTimeReports";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
 import MyProjects from "./pages/MyProjects";
