@@ -429,27 +429,17 @@ export async function recordJobCompletion(
     }
 
     // 11. Insert child rows — products + staff (in parallel)
-    const insertPromises: Promise<any>[] = [];
-
     if (productRows.length > 0) {
       const rows = productRows.map(r => ({ ...r, completion_id: completionId }));
-      insertPromises.push(
-        supabase.from('completion_products').insert(rows as any).then(({ error }) => {
-          if (error) console.error('[JobAnalytics] Failed to insert completion_products:', error);
-        })
-      );
+      const { error } = await supabase.from('completion_products').insert(rows as any);
+      if (error) console.error('[JobAnalytics] Failed to insert completion_products:', error);
     }
 
     if (staffRows.length > 0) {
       const rows = staffRows.map(r => ({ ...r, completion_id: completionId }));
-      insertPromises.push(
-        supabase.from('completion_staff').insert(rows as any).then(({ error }) => {
-          if (error) console.error('[JobAnalytics] Failed to insert completion_staff:', error);
-        })
-      );
+      const { error } = await supabase.from('completion_staff').insert(rows as any);
+      if (error) console.error('[JobAnalytics] Failed to insert completion_staff:', error);
     }
-
-    await Promise.all(insertPromises);
 
     // 12. Update staff affinities
     await updateStaffAffinities(staffMap, categoryMap, totalSetupHours, totalHoursWorked);
