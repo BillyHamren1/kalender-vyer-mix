@@ -41,9 +41,10 @@ export const createProjectSupplierLink = async (link: {
   delivery_date?: string | null;
   notes?: string | null;
 }): Promise<ProjectSupplierLink> => {
+  // organization_id is auto-filled by the set_organization_id trigger
   const { data, error } = await supabase
     .from('project_supplier_links')
-    .insert(link)
+    .insert({ ...link, organization_id: '' } as any)
     .select()
     .single();
 
