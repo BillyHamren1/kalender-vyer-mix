@@ -29,13 +29,13 @@ export const sendProjectMessage = async (msg: {
 }): Promise<ProjectMessage> => {
   const { data, error } = await supabase
     .from('project_messages')
-    .insert({
+    .insert([{
       project_id: msg.project_id,
       type: msg.type,
       message: msg.message,
       sender_name: msg.sender_name,
       related_supplier_id: msg.related_supplier_id || null,
-    })
+    }] as any)
     .select()
     .single();
 
