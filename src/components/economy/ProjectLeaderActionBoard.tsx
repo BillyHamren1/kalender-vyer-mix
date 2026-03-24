@@ -1,21 +1,28 @@
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   FileText,
   AlertTriangle,
   CheckCircle2,
   ArrowRight,
   TrendingDown,
+  Clock,
+  CalendarClock,
+  Lock,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { differenceInDays, parseISO } from 'date-fns';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { useAllAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
 import { useProjectBillingList, groupByBillingStatus } from '@/hooks/useProjectBilling';
 import {
   computeProjectEconomySignals,
   EMPTY_ATTEST_COUNTS,
-  type AttestationCounts,
+  type ProjectEconomySignals,
 } from '@/lib/economy/projectEconomyStatus';
 
 const formatCurrency = (v: number) =>
@@ -23,17 +30,18 @@ const formatCurrency = (v: number) =>
 
 interface ActionItem {
   projectName: string;
-  clientName: string;
-  actionCount: number;
-  amount: number;
-  projectId?: string;
-  bookingId?: string;
+  detail: string;
+  amount?: number;
+  badge?: string;
+  navigateTo: string;
+  projectId: string;
 }
 
 interface ActionSection {
+  id: string;
   title: string;
   icon: React.ReactNode;
-  iconBg: string;
+  colorClass: string;
   items: ActionItem[];
   emptyText: string;
 }
@@ -43,11 +51,12 @@ interface ProjectLeaderActionBoardProps {
 }
 
 const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ projectInsights }) => {
+  const navigate = useNavigate();
   const { data: allAttestations = [] } = useAllAttestations();
   const { data: billingItems = [] } = useProjectBillingList();
   const grouped = useMemo(() => groupByBillingStatus(billingItems), [billingItems]);
 
-  // Group attestations by booking_id and compute counts per booking
+  // Group attestations by booking_id
   const attestByBooking = useMemo(() => {
     const map: Record<string, typeof allAttestations> = {};
     allAttestations.forEach(a => {
@@ -57,9 +66,9 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
     return map;
   }, [allAttestations]);
 
-  // Compute signals per project using shared model
-  const projectSignalsMap = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof computeProjectEconomySignals>>();
+  // Compute signals per project
+  const signalsMap = useMemo(() => {
+    const map = new Map<string, ProjectEconomySignals>();
     projectInsights.forEach(p => {
       const bookingAttests = p.booking_id ? (attestByBooking[p.booking_id] || []) : [];
       const counts = bookingAttests.length > 0 ? getAttestationCounts(bookingAttests) : EMPTY_ATTEST_COUNTS;
@@ -78,172 +87,286 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
     return map;
   }, [projectInsights, attestByBooking, billingItems]);
 
+  // Only active projects (not completed/closed)
+  const active = useMemo(() =>
+    projectInsights.filter(p => p.status !== 'completed' && p.economyStatus !== 'economy-closed'),
+    [projectInsights]
+  );
+
   const sections: ActionSection[] = useMemo(() => {
-    // 1. New supplier invoices (from shared signals)
-    const newInvoiceProjects: ActionItem[] = [];
-    projectInsights.forEach(p => {
-      const signals = projectSignalsMap.get(p.id);
-      if (signals && signals.supplierInvoice.importedCount > 0) {
-        newInvoiceProjects.push({
+    // 1. New supplier invoices
+    const newInvoices: ActionItem[] = [];
+    active.forEach(p => {
+      const s = signalsMap.get(p.id);
+      if (s && s.supplierInvoice.importedCount > 0) {
+        newInvoices.push({
           projectName: p.name,
-          clientName: '—',
-          actionCount: signals.supplierInvoice.importedCount,
-          amount: 0,
-          bookingId: p.booking_id || undefined,
+          detail: `${s.supplierInvoice.importedCount} nya fakturor`,
+          navigateTo: p.navigateTo,
           projectId: p.id,
+          badge: `${s.supplierInvoice.importedCount}`,
         });
       }
     });
 
     // 2. Unattested costs
-    const unattestedProjects: ActionItem[] = [];
-    projectInsights.forEach(p => {
-      const signals = projectSignalsMap.get(p.id);
-      if (signals && signals.supplierInvoice.unattestedCount > 0 && signals.supplierInvoice.importedCount === 0) {
-        unattestedProjects.push({
+    const unattested: ActionItem[] = [];
+    active.forEach(p => {
+      const s = signalsMap.get(p.id);
+      if (s && s.supplierInvoice.unattestedCount > 0 && s.supplierInvoice.importedCount === 0) {
+        unattested.push({
           projectName: p.name,
-          clientName: '—',
-          actionCount: signals.supplierInvoice.unattestedCount,
-          amount: 0,
-          bookingId: p.booking_id || undefined,
+          detail: `${s.supplierInvoice.unattestedCount} inväntar attest`,
+          navigateTo: p.navigateTo,
+          projectId: p.id,
+          badge: `${s.supplierInvoice.unattestedCount}`,
+        });
+      }
+    });
+
+    // 3. Unapproved time reports
+    const unapprovedTime: ActionItem[] = [];
+    active.forEach(p => {
+      const pending = p.timeReports.flatMap(r => r.detailed_reports || []).filter(r => !r.approved);
+      if (pending.length > 0) {
+        unapprovedTime.push({
+          projectName: p.name,
+          detail: `${pending.length} tidrapporter väntar`,
+          navigateTo: p.navigateTo,
+          projectId: p.id,
+          badge: `${pending.length}`,
+        });
+      }
+    });
+
+    // 4. Margin warnings
+    const marginWarnings: ActionItem[] = [];
+    active.forEach(p => {
+      const s = signalsMap.get(p.id);
+      if (s && (s.margin.level === 'warning' || s.margin.level === 'danger')) {
+        marginWarnings.push({
+          projectName: p.name,
+          detail: `Marginal: ${s.margin.marginPercent.toFixed(0)}%`,
+          amount: s.margin.marginAmount,
+          navigateTo: p.navigateTo,
           projectId: p.id,
         });
       }
     });
 
-    // 3. Margin warnings (from shared signals)
-    const marginWarnings: ActionItem[] = projectInsights
-      .filter(p => {
-        const signals = projectSignalsMap.get(p.id);
-        return signals && signals.margin.level === 'warning' || signals?.margin.level === 'danger';
-      })
-      .filter(p => p.economyStatus !== 'economy-closed')
-      .map(p => ({
-        projectName: p.name,
-        clientName: '—',
-        actionCount: 1,
-        amount: projectSignalsMap.get(p.id)?.margin.marginAmount || 0,
-        projectId: p.id,
-      }));
+    // 5. Long-open projects (>90 days since booking created)
+    const longOpen: ActionItem[] = [];
+    active.forEach(p => {
+      if (!p.bookingCreatedAt) return;
+      const days = differenceInDays(new Date(), parseISO(p.bookingCreatedAt));
+      if (days > 90) {
+        longOpen.push({
+          projectName: p.name,
+          detail: `Öppet i ${days} dagar`,
+          navigateTo: p.navigateTo,
+          projectId: p.id,
+        });
+      }
+    });
 
-    // 4. Ready to close (no blockers)
-    const readyToClose: ActionItem[] = projectInsights
-      .filter(p => {
-        const signals = projectSignalsMap.get(p.id);
-        return signals && signals.closure.canClose && signals.handover.billingStatus === 'draft';
-      })
-      .map(p => ({
-        projectName: p.name,
-        clientName: '—',
-        actionCount: 0,
-        amount: p.forecastRevenue,
-        projectId: p.id,
-      }));
+    // 6. Ready to close (no blockers)
+    const readyToClose: ActionItem[] = [];
+    active.forEach(p => {
+      const s = signalsMap.get(p.id);
+      if (s && s.closure.canClose && s.handover.billingStatus === null) {
+        readyToClose.push({
+          projectName: p.name,
+          detail: 'Alla krav uppfyllda',
+          amount: s.revenue,
+          navigateTo: p.navigateTo,
+          projectId: p.id,
+        });
+      }
+    });
 
-    // 5. Handed over
+    // 7. Blocked from closure
+    const blocked: ActionItem[] = [];
+    active.forEach(p => {
+      const s = signalsMap.get(p.id);
+      if (s && !s.closure.canClose && s.blockers.length > 0) {
+        blocked.push({
+          projectName: p.name,
+          detail: s.blockers.map(b => b.detail || b.label).join(', '),
+          navigateTo: p.navigateTo,
+          projectId: p.id,
+          badge: `${s.blockers.length}`,
+        });
+      }
+    });
+
+    // 8. Handed over to booking
     const handedOver: ActionItem[] = grouped.handed_over_to_booking.map(b => ({
       projectName: b.project_name,
-      clientName: b.client_name || '—',
-      actionCount: 0,
+      detail: b.client_name || 'Överlämnad',
       amount: b.invoiceable_amount,
+      navigateTo: `/project/${b.project_id}`,
+      projectId: b.project_id,
     }));
 
     return [
       {
+        id: 'new-invoices',
         title: 'Nya leverantörsfakturor',
-        icon: <FileText className="h-4 w-4 text-sky-600" />,
-        iconBg: 'bg-sky-50 dark:bg-sky-950/30',
-        items: newInvoiceProjects,
-        emptyText: 'Inga nya leverantörsfakturor',
+        icon: <FileText className="h-4 w-4" />,
+        colorClass: 'text-sky-600',
+        items: newInvoices,
+        emptyText: 'Inga nya fakturor',
       },
       {
+        id: 'unattested',
         title: 'Oattesterade kostnader',
-        icon: <AlertTriangle className="h-4 w-4 text-amber-600" />,
-        iconBg: 'bg-amber-50 dark:bg-amber-950/30',
-        items: unattestedProjects,
-        emptyText: 'Alla kostnader attesterade',
+        icon: <AlertTriangle className="h-4 w-4" />,
+        colorClass: 'text-amber-600',
+        items: unattested,
+        emptyText: 'Allt attesterat',
       },
       {
+        id: 'unapproved-time',
+        title: 'Ej godkända tider',
+        icon: <Clock className="h-4 w-4" />,
+        colorClass: 'text-orange-600',
+        items: unapprovedTime,
+        emptyText: 'Alla tider godkända',
+      },
+      {
+        id: 'margin-warning',
         title: 'Marginalvarning',
-        icon: <TrendingDown className="h-4 w-4 text-red-600" />,
-        iconBg: 'bg-red-50 dark:bg-red-950/30',
+        icon: <TrendingDown className="h-4 w-4" />,
+        colorClass: 'text-red-600',
         items: marginWarnings,
-        emptyText: 'Inga projekt med låg marginal',
+        emptyText: 'Inga marginalvarningar',
       },
       {
-        title: 'Redo för överlämning',
-        icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
-        iconBg: 'bg-green-50 dark:bg-green-950/30',
+        id: 'long-open',
+        title: 'Öppna länge (>90 dagar)',
+        icon: <CalendarClock className="h-4 w-4" />,
+        colorClass: 'text-violet-600',
+        items: longOpen,
+        emptyText: 'Inga gamla projekt',
+      },
+      {
+        id: 'ready-to-close',
+        title: 'Redo att stänga',
+        icon: <CheckCircle2 className="h-4 w-4" />,
+        colorClass: 'text-green-600',
         items: readyToClose,
         emptyText: 'Inga projekt klara just nu',
       },
       {
-        title: 'Överlämnade till Booking',
-        icon: <ArrowRight className="h-4 w-4 text-purple-600" />,
-        iconBg: 'bg-purple-50 dark:bg-purple-950/30',
+        id: 'blocked',
+        title: 'Blockerade från stängning',
+        icon: <Lock className="h-4 w-4" />,
+        colorClass: 'text-red-600',
+        items: blocked,
+        emptyText: 'Inga blockerade projekt',
+      },
+      {
+        id: 'handed-over',
+        title: 'Överlämnade till ekonomi',
+        icon: <ArrowRight className="h-4 w-4" />,
+        colorClass: 'text-purple-600',
         items: handedOver,
-        emptyText: 'Inga överlämnade projekt',
+        emptyText: 'Inga överlämnade',
       },
     ];
-  }, [projectInsights, projectSignalsMap, grouped]);
+  }, [active, signalsMap, grouped]);
 
-  const totalActions = sections.reduce((sum, s) => sum + s.items.length, 0);
+  // Sections with items first, then empty ones
+  const nonEmpty = sections.filter(s => s.items.length > 0);
+  const empty = sections.filter(s => s.items.length === 0);
+  const totalActions = nonEmpty.reduce((sum, s) => sum + s.items.length, 0);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-foreground">Åtgärder</h2>
-        {totalActions > 0 && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-            {totalActions}
+      {/* Summary counters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <h2 className="text-sm font-bold text-foreground tracking-tight">Kontrollcenter</h2>
+        {totalActions > 0 ? (
+          <Badge className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
+            {totalActions} åtgärd{totalActions !== 1 ? 'er' : ''}
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+            Allt i ordning
           </Badge>
         )}
+        {/* Quick counts for non-empty sections */}
+        {nonEmpty.map(s => (
+          <span key={s.id} className={cn('flex items-center gap-1 text-[10px] font-medium', s.colorClass)}>
+            {s.icon}
+            {s.items.length}
+          </span>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {sections.map((section) => (
-          <Card key={section.title} className="border-border/40">
+      {/* Action cards — non-empty sections get full cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+        {nonEmpty.map(section => (
+          <Card key={section.id} className="border-border/40 hover:border-border/60 transition-colors">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
-                <div className={cn('p-1.5 rounded-lg', section.iconBg)}>
+                <div className={cn('p-1.5 rounded-lg bg-muted/60', section.colorClass)}>
                   {section.icon}
                 </div>
-                <h3 className="text-xs font-semibold text-foreground">{section.title}</h3>
-                {section.items.length > 0 && (
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 ml-auto">
-                    {section.items.length}
-                  </Badge>
-                )}
+                <h3 className="text-xs font-semibold text-foreground flex-1">{section.title}</h3>
+                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 tabular-nums">
+                  {section.items.length}
+                </Badge>
               </div>
 
-              {section.items.length === 0 ? (
-                <p className="text-xs text-muted-foreground/60 py-2">{section.emptyText}</p>
-              ) : (
-                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                  {section.items.slice(0, 5).map((item, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-muted/30 text-xs">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground truncate">{item.projectName}</p>
-                        <p className="text-muted-foreground truncate">{item.clientName}</p>
-                      </div>
-                      {item.actionCount > 0 && (
-                        <Badge variant="outline" className="text-[9px] shrink-0">
-                          {item.actionCount}
-                        </Badge>
-                      )}
+              <div className="space-y-1 max-h-[220px] overflow-y-auto">
+                {section.items.slice(0, 6).map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => navigate(item.navigateTo)}
+                    className="w-full flex items-center gap-2 py-2 px-2.5 rounded-md hover:bg-muted/40 text-left text-xs transition-colors group"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                        {item.projectName}
+                      </p>
+                      <p className="text-muted-foreground truncate text-[10px]">{item.detail}</p>
                     </div>
-                  ))}
-                  {section.items.length > 5 && (
-                    <p className="text-[10px] text-muted-foreground/60 text-center py-1">
-                      +{section.items.length - 5} till
-                    </p>
-                  )}
-                </div>
-              )}
+                    {item.badge && (
+                      <Badge variant="outline" className="text-[9px] shrink-0 tabular-nums h-4 px-1">
+                        {item.badge}
+                      </Badge>
+                    )}
+                    {item.amount !== undefined && (
+                      <span className="text-[10px] font-medium text-muted-foreground tabular-nums shrink-0">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    )}
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0 group-hover:text-primary transition-colors" />
+                  </button>
+                ))}
+                {section.items.length > 6 && (
+                  <p className="text-[10px] text-muted-foreground/50 text-center py-1">
+                    +{section.items.length - 6} till
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Empty sections — compact row */}
+      {empty.length > 0 && (
+        <div className="flex items-center gap-3 flex-wrap px-1">
+          {empty.map(s => (
+            <span key={s.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50">
+              <CheckCircle2 className="h-3 w-3 text-green-500/50" />
+              {s.title}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
