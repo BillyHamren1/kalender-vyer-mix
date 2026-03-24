@@ -216,7 +216,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <ArrowLeft className="h-3.5 w-3.5" /> Komplettering
                 </Button>
                 <Button size="sm" className="gap-1.5" disabled={!allChecked} onClick={() => { handleSaveDraft(); onAdvanceStatus(billing.id, 'ready_for_handover'); }}>
-                  <ArrowRight className="h-3.5 w-3.5" /> Godkänn för överlämning
+                  <ArrowRight className="h-3.5 w-3.5" /> Markera klar att stänga
                 </Button>
               </>
             )}
