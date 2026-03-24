@@ -61,6 +61,10 @@ const AnalyticsDashboard = () => {
               <AlertTriangle className="h-3.5 w-3.5" />
               Avvikelser
             </TabsTrigger>
+            <TabsTrigger value="export" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" />
+              Export & AI
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
