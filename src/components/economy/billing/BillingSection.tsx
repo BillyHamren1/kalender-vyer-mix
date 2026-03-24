@@ -47,11 +47,11 @@ type FilterTab = 'all' | BillingStatus;
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: 'all', label: 'Alla' },
-  { key: 'draft', label: 'Under granskning' },
+  { key: 'draft', label: 'Under arbete' },
   { key: 'needs_completion', label: 'Komplettering' },
-  { key: 'ready_for_handover', label: 'Klar för överlämning' },
-  { key: 'handed_over_to_booking', label: 'Överlämnade' },
-  { key: 'invoiced_in_booking', label: 'Fakturerade' },
+  { key: 'ready_for_handover', label: 'Klara att stänga' },
+  { key: 'handed_over_to_booking', label: 'Stängda' },
+  { key: 'invoiced_in_booking', label: 'Fakturerade i Booking' },
 ];
 
 function getPriority(item: ProjectBilling): number {
