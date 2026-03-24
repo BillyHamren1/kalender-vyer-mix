@@ -43,6 +43,9 @@ interface SupplierInvoicesCardProps {
 const fmt = (v: number) =>
   v == null ? '–' : v === 0 ? '0' : v.toLocaleString('sv-SE');
 
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
+
 const STATUS_ORDER: AttestStatus[] = ['imported', 'needs_review', 'linked', 'attested', 'sent_to_booking', 'rejected'];
 const STATUS_LABELS: Record<string, string> = {
   imported: 'Nya / ej granskade',
