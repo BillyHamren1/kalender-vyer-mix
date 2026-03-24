@@ -34,6 +34,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
+  const mountedRef = useRef(true);
 
   // Check BarcodeDetector support on mount
   useEffect(() => {
@@ -52,166 +53,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [shouldSkipCamera]);
 
+  // Stable ref for onScan to avoid callback chain recreation
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
+
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       lastScanRef.current = value;
-      onScan(value);
+      onScanRef.current(value);
       setTimeout(() => { lastScanRef.current = ''; }, 3000);
     }
-  }, [onScan]);
+  }, []);
 
-  // Scan loop — BarcodeDetector or jsQR fallback
-  const scanFrame = useCallback(async () => {
-    if (!videoRef.current || !isActive) return;
-    
-    const video = videoRef.current;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      animationFrameRef.current = requestAnimationFrame(scanFrame);
-      return;
-    }
-
-    try {
-      // Try native BarcodeDetector first
-      if (detectorRef.current) {
-        const barcodes = await detectorRef.current.detect(video);
-        if (barcodes.length > 0) {
-          handleDetected(barcodes[0].rawValue);
-          return;
-        }
-      } else {
-        // jsQR fallback
-        const canvas = canvasRef.current;
-        if (canvas) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          if (ctx) {
-            ctx.drawImage(video, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'dontInvert',
-            });
-            if (code?.data) {
-              handleDetected(code.data);
-              return;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // detect() can throw on some frames, ignore and retry
-    }
-
-    animationFrameRef.current = requestAnimationFrame(scanFrame);
-  }, [isActive, handleDetected]);
-
-  // Start camera
-  const startCamera = useCallback(async () => {
-    if (shouldSkipCamera) return;
-    try {
-      setError(null);
-      setCameraState('starting');
-      console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
-      
-      // On native platforms, request camera permission first via Capacitor
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const { Camera: CapCamera } = await import('@capacitor/camera');
-          const perms = await CapCamera.requestPermissions({ permissions: ['camera'] });
-          console.log('[QRScanner] Capacitor camera permissions:', JSON.stringify(perms));
-          if (perms.camera === 'denied') {
-            setCameraState('error');
-            setError('Kameratillstånd nekades. Gå till inställningar och tillåt kamera.');
-            return;
-          }
-        } catch (permErr) {
-          console.warn('[QRScanner] Capacitor permission request failed, trying getUserMedia directly:', permErr);
-        }
-      }
-
-      // Use simpler constraints on iOS to avoid hanging
-      const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const constraints: MediaStreamConstraints = {
-        video: isIos 
-          ? { facingMode: 'environment' }
-          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-      };
-      
-      console.log('[QRScanner] Requesting getUserMedia with constraints:', JSON.stringify(constraints));
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.srcObject = stream;
-        
-        // Wait for metadata to load first
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            console.warn('[QRScanner] Metadata timeout after 5s');
-            // Don't reject — try to play anyway
-            resolve();
-          }, 5000);
-          
-          if (video.readyState >= video.HAVE_METADATA) {
-            clearTimeout(timeout);
-            resolve();
-          } else {
-            video.addEventListener('loadedmetadata', () => {
-              clearTimeout(timeout);
-              resolve();
-            }, { once: true });
-          }
-        });
-        
-        console.log('[QRScanner] Metadata loaded, calling play()...');
-        
-        // Now play with timeout
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            console.warn('[QRScanner] Play timeout after 6s, checking video state...');
-            // If video is actually playing despite no event, consider it success
-            if (!video.paused && video.readyState >= video.HAVE_CURRENT_DATA) {
-              console.log('[QRScanner] Video appears to be playing despite timeout');
-              resolve();
-            } else {
-              reject(new Error('Kameran svarade inte i tid. Försök igen.'));
-            }
-          }, 6000);
-          
-          video.play().then(() => {
-            console.log('[QRScanner] play() resolved');
-            clearTimeout(timeout);
-            resolve();
-          }).catch((e: any) => {
-            console.warn('[QRScanner] play() rejected:', e);
-            clearTimeout(timeout);
-            reject(new Error('Kameran kunde inte startas: ' + (e.message || e)));
-          });
-        });
-        
-        setCameraState('running');
-        console.log('[QRScanner] Camera started successfully, videoWidth:', video.videoWidth);
-        animationFrameRef.current = requestAnimationFrame(scanFrame);
-      }
-    } catch (err: any) {
-      console.error('[QRScanner] Camera error:', err);
-      setCameraState('error');
-      if (err.name === 'NotAllowedError') {
-        setError('Kameratillstånd nekades. Tillåt kamera i webbläsarens inställningar.');
-      } else if (err.name === 'NotFoundError') {
-        setError('Ingen kamera hittades på enheten.');
-      } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
-        setError('Kameran kunde inte startas. Den kanske används av en annan app.');
-      } else {
-        setError(err.message || 'Kameran kunde inte startas.');
-      }
-    }
-  }, [scanFrame, shouldSkipCamera]);
-
-  // Stop camera
+  // Stop camera — stable, no deps
   const stopCamera = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -228,9 +82,156 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     lastScanRef.current = '';
   }, []);
 
+  // Scan loop — uses refs to avoid dependency issues
+  const runScanLoop = useCallback(() => {
+    const scan = async () => {
+      if (!mountedRef.current || !videoRef.current) return;
+
+      const video = videoRef.current;
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        animationFrameRef.current = requestAnimationFrame(scan);
+        return;
+      }
+
+      try {
+        if (detectorRef.current) {
+          const barcodes = await detectorRef.current.detect(video);
+          if (barcodes.length > 0) {
+            handleDetected(barcodes[0].rawValue);
+          }
+        } else {
+          const canvas = canvasRef.current;
+          if (canvas) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'dontInvert',
+              });
+              if (code?.data) {
+                handleDetected(code.data);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // detect() can throw on some frames, ignore and retry
+      }
+
+      if (mountedRef.current) {
+        animationFrameRef.current = requestAnimationFrame(scan);
+      }
+    };
+    animationFrameRef.current = requestAnimationFrame(scan);
+  }, [handleDetected]);
+
+  // Start camera — stable deps via refs
+  const startCamera = useCallback(async () => {
+    if (shouldSkipCamera) return;
+    try {
+      setError(null);
+      setCameraState('starting');
+      console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
+
+      // On native platforms, try to check/request permission via Web API
+      // (NOT @capacitor/camera which is for photo capture, not getUserMedia)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          // Try Web Permissions API first (supported on Android WebView)
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            console.log('[QRScanner] Web permission status:', status.state);
+            if (status.state === 'denied') {
+              setCameraState('error');
+              setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
+              return;
+            }
+          }
+        } catch (permErr) {
+          console.warn('[QRScanner] Permission query not supported, proceeding to getUserMedia:', permErr);
+        }
+      }
+
+      // Use simpler constraints on iOS to avoid hanging
+      const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const constraints: MediaStreamConstraints = {
+        video: isIos
+          ? { facingMode: 'environment' }
+          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      };
+
+      console.log('[QRScanner] Requesting getUserMedia with constraints:', JSON.stringify(constraints));
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
+
+      if (!mountedRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        const video = videoRef.current;
+        video.srcObject = stream;
+
+        // Wait for video to be ready with event-based detection + timeout
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.warn('[QRScanner] Video start timeout after 8s');
+            if (!video.paused && video.readyState >= video.HAVE_CURRENT_DATA) {
+              console.log('[QRScanner] Video appears to be playing despite timeout');
+              resolve();
+            } else {
+              reject(new Error('Kameran svarade inte i tid. Försök igen.'));
+            }
+          }, 8000);
+
+          const onPlaying = () => {
+            clearTimeout(timeout);
+            video.removeEventListener('playing', onPlaying);
+            console.log('[QRScanner] Video playing event fired');
+            resolve();
+          };
+          video.addEventListener('playing', onPlaying);
+
+          // Trigger play
+          video.play().catch((e: any) => {
+            clearTimeout(timeout);
+            video.removeEventListener('playing', onPlaying);
+            console.warn('[QRScanner] play() rejected:', e);
+            reject(new Error('Kameran kunde inte startas: ' + (e.message || e)));
+          });
+        });
+
+        if (!mountedRef.current) return;
+
+        setCameraState('running');
+        console.log('[QRScanner] Camera started successfully, videoWidth:', video.videoWidth);
+        runScanLoop();
+      }
+    } catch (err: any) {
+      console.error('[QRScanner] Camera error:', err);
+      if (!mountedRef.current) return;
+      setCameraState('error');
+      if (err.name === 'NotAllowedError') {
+        setError('Kameratillstånd nekades. Tillåt kamera i enhetens inställningar.');
+      } else if (err.name === 'NotFoundError') {
+        setError('Ingen kamera hittades på enheten.');
+      } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
+        setError('Kameran kunde inte startas. Den kanske används av en annan app.');
+      } else {
+        setError(err.message || 'Kameran kunde inte startas.');
+      }
+    }
+  }, [shouldSkipCamera, runScanLoop]);
+
   // Manual input
   const [manualInput, setManualInput] = useState('');
-  
+
   const handleManualSubmit = useCallback(() => {
     if (manualInput.trim()) {
       onScan(manualInput.trim());
@@ -238,15 +239,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [manualInput, onScan]);
 
-  // Start/stop camera based on isActive
+  // Lifecycle: start/stop camera based on isActive
   useEffect(() => {
+    mountedRef.current = true;
+
     if (isActive && !shouldSkipCamera) {
       startCamera();
     } else {
       stopCamera();
     }
-    return () => { stopCamera(); };
-  }, [isActive, startCamera, stopCamera, shouldSkipCamera]);
+
+    return () => {
+      mountedRef.current = false;
+      stopCamera();
+    };
+  }, [isActive, shouldSkipCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isActive) return null;
 
@@ -293,12 +300,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
               <video
                 ref={videoRef}
                 className="w-full h-full object-cover"
+                autoPlay
                 playsInline
                 muted
               />
               {/* Hidden canvas for jsQR fallback */}
               <canvas ref={canvasRef} className="hidden" />
-              
+
               {/* Scanning overlay */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
@@ -306,11 +314,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-lg" />
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-lg" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-lg" />
-                  
+
                   {cameraState === 'running' && (
-                    <div 
+                    <div
                       className="absolute left-2 right-2 h-0.5 bg-primary"
-                      style={{ animation: 'scan-line 2s ease-in-out infinite' }} 
+                      style={{ animation: 'scan-line 2s ease-in-out infinite' }}
                     />
                   )}
                 </div>
