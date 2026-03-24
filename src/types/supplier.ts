@@ -64,7 +64,10 @@ export function mergeSupplierData(
   link: ProjectSupplierLink,
   wmsSupplier: WmsSupplier | null
 ): MergedSupplier {
-  const primaryContact = wmsSupplier?.contacts?.find(c => c.is_primary) || wmsSupplier?.contacts?.[0];
+  // Find contact: prefer the one matching link.contact_id, else first contact
+  const contact = wmsSupplier?.contacts?.find(c => c.id === link.contact_id)
+    || wmsSupplier?.contacts?.[0]
+    || null;
 
   return {
     id: link.id,
@@ -84,10 +87,13 @@ export function mergeSupplierData(
 
     // WMS data
     name: wmsSupplier?.name ?? 'Okänd leverantör',
+    short_name: wmsSupplier?.short_name ?? null,
     company_name: wmsSupplier?.name ?? null,
-    contact_person: primaryContact?.name ?? null,
-    email: wmsSupplier?.email ?? primaryContact?.email ?? null,
-    phone: wmsSupplier?.phone ?? primaryContact?.phone ?? null,
+    contact_person: contact?.name ?? null,
+    email: wmsSupplier?.email ?? contact?.email ?? null,
+    phone: wmsSupplier?.phone ?? contact?.phone ?? null,
+    address_line1: wmsSupplier?.address_line1 ?? null,
+    city: wmsSupplier?.city ?? null,
   };
 }
 
