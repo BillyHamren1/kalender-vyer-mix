@@ -187,8 +187,8 @@ const BillingSection: React.FC = () => {
         <>
           <BillingKpiCards
             draft={grouped.draft}
-            readyForHandover={grouped.ready_for_handover}
-            handedOverThisMonth={handedOverThisMonth}
+            readyToClose={grouped.ready_for_handover}
+            closedThisMonth={closedThisMonth}
             uninvoicedValue={uninvoicedValue}
             onFilterClick={(filter) => setActiveTab(filter)}
             activeFilter={activeTab}
