@@ -229,6 +229,7 @@ export const SupplierInvoicesCard = ({
             </span>
           </div>
         )}
+        {STATUS_ORDER.map(status => {
           const invoices = groupedInvoices[status];
           if (!invoices || invoices.length === 0) return null;
 
