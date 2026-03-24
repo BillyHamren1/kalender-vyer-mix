@@ -84,7 +84,10 @@ export const ProjectClosureGate: React.FC<ProjectClosureGateProps> = ({ gates, c
   );
 };
 
-// Helper to build gates from project data
+// Re-export buildGateItemsFromSignals as the primary way to build gates
+export { buildGateItemsFromSignals as buildClosureGatesFromSignals } from '@/lib/economy/projectEconomyStatus';
+
+// Legacy helper — prefer buildGateItemsFromSignals with shared signals
 export function buildClosureGates(params: {
   unattestedInvoiceCount: number;
   newCostCount: number;
@@ -93,23 +96,31 @@ export function buildClosureGates(params: {
   marginPercent: number;
   timeReportsApproved: boolean;
 }): GateItem[] {
+  // Delegate to shared model
+  const { computeBlockers, computeWarnings, EMPTY_ATTEST_COUNTS } = require('@/lib/economy/projectEconomyStatus');
+  const counts = {
+    ...EMPTY_ATTEST_COUNTS,
+    unattested: params.unattestedInvoiceCount,
+    imported: params.newCostCount,
+  };
+  const blockers = computeBlockers(counts, params.hasRecentEconomyData);
+  const warnings = computeWarnings(params.budgetDeviation, params.marginPercent, params.timeReportsApproved);
+
   const gates: GateItem[] = [];
 
-  // Blocking gates
+  // Blockers
   gates.push({
     label: 'Alla leverantörsfakturor attesterade',
     passed: params.unattestedInvoiceCount === 0,
     blocking: true,
     detail: params.unattestedInvoiceCount > 0 ? `${params.unattestedInvoiceCount} oattesterade fakturor` : undefined,
   });
-
   gates.push({
     label: 'Inga nya ogranskade kostnader',
     passed: params.newCostCount === 0,
     blocking: true,
     detail: params.newCostCount > 0 ? `${params.newCostCount} nya kostnader` : undefined,
   });
-
   gates.push({
     label: 'Ekonomibilden uppdaterad',
     passed: params.hasRecentEconomyData,
@@ -117,21 +128,19 @@ export function buildClosureGates(params: {
     detail: !params.hasRecentEconomyData ? 'Uppdatera ekonomidata innan stängning' : undefined,
   });
 
-  // Warning gates
+  // Warnings
   gates.push({
     label: 'Budgetavvikelse inom rimlig nivå',
     passed: Math.abs(params.budgetDeviation) <= 10,
     blocking: false,
     detail: Math.abs(params.budgetDeviation) > 10 ? `${params.budgetDeviation.toFixed(0)}% avvikelse` : undefined,
   });
-
   gates.push({
     label: 'Marginal acceptabel',
     passed: params.marginPercent >= 10,
     blocking: false,
     detail: params.marginPercent < 10 ? `Marginal: ${params.marginPercent.toFixed(0)}%` : undefined,
   });
-
   gates.push({
     label: 'Tidrapporter godkända',
     passed: params.timeReportsApproved,

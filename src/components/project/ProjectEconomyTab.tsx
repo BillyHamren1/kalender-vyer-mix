@@ -22,10 +22,15 @@ import { ProductCostsCard } from './ProductCostsCard';
 import { CostComparisonCard } from './CostComparisonCard';
 import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
-import { ProjectClosureGate, buildClosureGates } from '@/components/economy/ProjectClosureGate';
+import { ProjectClosureGate } from '@/components/economy/ProjectClosureGate';
 import BillingStatusBadge from '@/components/economy/billing/BillingStatusBadge';
 import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
-import { useProjectBillingList, type BillingStatus } from '@/hooks/useProjectBilling';
+import { useProjectBillingList } from '@/hooks/useProjectBilling';
+import {
+  computeProjectEconomySignals,
+  buildGateItemsFromSignals,
+  type ProjectEconomyInput,
+} from '@/lib/economy/projectEconomyStatus';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
 
