@@ -2958,6 +2958,65 @@ export type Database = {
           },
         ]
       }
+      project_supplier_links: {
+        Row: {
+          confirmed_price: number | null
+          contact_id: string | null
+          created_at: string
+          currency: string
+          delivery_date: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          project_id: string
+          quoted_price: number | null
+          service_type: string | null
+          status: string
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          confirmed_price?: number | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string
+          delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          project_id: string
+          quoted_price?: number | null
+          service_type?: string | null
+          status?: string
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          confirmed_price?: number | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string
+          delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          project_id?: string
+          quoted_price?: number | null
+          service_type?: string | null
+          status?: string
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_supplier_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_suppliers: {
         Row: {
           company_name: string | null

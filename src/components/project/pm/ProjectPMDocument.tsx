@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { ProjectWithBooking, ProjectTask } from "@/types/project";
-import type { ProjectSupplier } from "@/types/supplier";
+import type { MergedSupplier } from "@/types/supplier";
 import type { ProjectTransportAssignment } from "@/hooks/useProjectTransport";
 import { PHASE_LABELS, PHASE_ORDER, type TaskPhase } from "@/types/project";
 import { SUPPLIER_STATUS_LABELS } from "@/types/supplier";
@@ -14,7 +14,7 @@ import { Printer, FileDown, FileText } from "lucide-react";
 interface ProjectPMDocumentProps {
   project: ProjectWithBooking;
   tasks: ProjectTask[];
-  suppliers: ProjectSupplier[];
+  suppliers: MergedSupplier[];
   transportAssignments: ProjectTransportAssignment[];
 }
 

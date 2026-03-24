@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SupplierStatusBadge } from "./SupplierStatusBadge";
 import ConfirmationDialog from "@/components/ConfirmationDialog";
-import type { ProjectSupplier, SupplierStatus } from "@/types/supplier";
+import type { MergedSupplier, SupplierStatus } from "@/types/supplier";
 import { SUPPLIER_STATUS_ORDER, SUPPLIER_STATUS_LABELS } from "@/types/supplier";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -17,11 +17,11 @@ import {
 } from "lucide-react";
 
 interface SupplierDetailSheetProps {
-  supplier: ProjectSupplier | null;
+  supplier: MergedSupplier | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (id: string, status: SupplierStatus) => void;
-  onUpdate: (id: string, updates: Partial<ProjectSupplier>) => void;
+  onUpdate: (id: string, updates: Partial<MergedSupplier>) => void;
   onDelete: (id: string) => void;
 }
 

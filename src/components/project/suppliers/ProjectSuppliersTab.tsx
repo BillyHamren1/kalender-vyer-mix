@@ -4,7 +4,7 @@ import SupplierCard from "./SupplierCard";
 import SupplierDetailSheet from "./SupplierDetailSheet";
 import AddSupplierDialog from "./AddSupplierDialog";
 import { Button } from "@/components/ui/button";
-import type { ProjectSupplier } from "@/types/supplier";
+import type { MergedSupplier } from "@/types/supplier";
 import { Plus, Truck } from "lucide-react";
 
 interface ProjectSuppliersTabProps {
@@ -13,11 +13,11 @@ interface ProjectSuppliersTabProps {
 
 const ProjectSuppliersTab = ({ projectId }: ProjectSuppliersTabProps) => {
   const { suppliers, isLoading, addSupplier, updateSupplier, deleteSupplier, setStatus } = useProjectSuppliers(projectId);
-  const [selectedSupplier, setSelectedSupplier] = useState<ProjectSupplier | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<MergedSupplier | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  const handleCardClick = (supplier: ProjectSupplier) => {
+  const handleCardClick = (supplier: MergedSupplier) => {
     setSelectedSupplier(supplier);
     setSheetOpen(true);
   };
