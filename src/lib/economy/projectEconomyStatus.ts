@@ -111,7 +111,7 @@ export interface ProjectEconomySignals {
   supplierInvoice: SupplierInvoiceStatus;
   margin: MarginStatus;
   closure: ClosureStatus;
-  handover: HandoverStatus;
+  handover: ClosureTrackingStatus;
   blockers: Blocker[];
   warnings: Warning[];
   /** Revenue amount (productRevenue) */
