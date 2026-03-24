@@ -90,6 +90,10 @@ const AnalyticsDashboard = () => {
           <TabsContent value="deviations">
             <DeviationAnalysisTab projects={projects} products={products} />
           </TabsContent>
+
+          <TabsContent value="export">
+            <AnalyticsExportPanel filter={filter} />
+          </TabsContent>
         </Tabs>
       )}
     </div>
