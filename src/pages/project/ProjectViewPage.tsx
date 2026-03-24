@@ -12,6 +12,7 @@ import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
+import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
