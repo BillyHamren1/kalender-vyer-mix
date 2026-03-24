@@ -496,7 +496,7 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                       <ClipboardCheck className="h-3.5 w-3.5" />
-                      Kontrollista för överlämning
+                      Kontrollista för stängning
                     </h3>
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                       {completedChecks}/{CHECKLIST_ITEMS.length}
