@@ -9,6 +9,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectComments from "@/components/project/ProjectComments";
+import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
@@ -153,6 +154,9 @@ const ProjectViewPage = () => {
           <ProjectActivityLog activities={activities} className="h-full" />
         </div>
       </div>
+
+      {/* Underleverantörer */}
+      <ProjectSuppliersTab projectId={project.id} />
 
       {/* Kommentarer */}
       <div>

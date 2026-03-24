@@ -2910,6 +2910,81 @@ export type Database = {
           },
         ]
       }
+      project_suppliers: {
+        Row: {
+          company_name: string | null
+          confirmed_price: number | null
+          contact_person: string | null
+          created_at: string
+          currency: string | null
+          delivery_date: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          project_id: string
+          quoted_price: number | null
+          service_type: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_name?: string | null
+          confirmed_price?: number | null
+          contact_person?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_date?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          project_id: string
+          quoted_price?: number | null
+          service_type?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string | null
+          confirmed_price?: number | null
+          contact_person?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_date?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          project_id?: string
+          quoted_price?: number | null
+          service_type?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_suppliers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_tasks: {
         Row: {
           assigned_to: string | null
