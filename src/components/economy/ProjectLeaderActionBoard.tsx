@@ -1,20 +1,22 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   FileText,
   AlertTriangle,
   CheckCircle2,
   ArrowRight,
   TrendingDown,
-  Lock,
-  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { useAllAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
 import { useProjectBillingList, groupByBillingStatus } from '@/hooks/useProjectBilling';
+import {
+  computeProjectEconomySignals,
+  EMPTY_ATTEST_COUNTS,
+  type AttestationCounts,
+} from '@/lib/economy/projectEconomyStatus';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -45,9 +47,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
   const { data: billingItems = [] } = useProjectBillingList();
   const grouped = useMemo(() => groupByBillingStatus(billingItems), [billingItems]);
 
-  const attestCounts = useMemo(() => getAttestationCounts(allAttestations), [allAttestations]);
-
-  // Group attestations by booking_id
+  // Group attestations by booking_id and compute counts per booking
   const attestByBooking = useMemo(() => {
     const map: Record<string, typeof allAttestations> = {};
     allAttestations.forEach(a => {
@@ -57,62 +57,87 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
     return map;
   }, [allAttestations]);
 
+  // Compute signals per project using shared model
+  const projectSignalsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeProjectEconomySignals>>();
+    projectInsights.forEach(p => {
+      const bookingAttests = p.booking_id ? (attestByBooking[p.booking_id] || []) : [];
+      const counts = bookingAttests.length > 0 ? getAttestationCounts(bookingAttests) : EMPTY_ATTEST_COUNTS;
+      const billing = billingItems.find(b => b.project_id === p.id);
+      const signals = computeProjectEconomySignals({
+        summary: p.summary,
+        attestCounts: counts,
+        billingStatus: billing?.billing_status ?? null,
+        budgetedHours: p.summary.budgetedHours,
+        hourlyRate: p.summary.hourlyRate,
+        timeReportsApproved: true,
+        hasRecentEconomyData: true,
+      });
+      map.set(p.id, signals);
+    });
+    return map;
+  }, [projectInsights, attestByBooking, billingItems]);
+
   const sections: ActionSection[] = useMemo(() => {
-    // 1. New supplier invoices
+    // 1. New supplier invoices (from shared signals)
     const newInvoiceProjects: ActionItem[] = [];
-    Object.entries(attestByBooking).forEach(([bookingId, items]) => {
-      const imported = items.filter(i => i.status === 'imported');
-      if (imported.length > 0) {
-        const project = projectInsights.find(p => p.booking_id === bookingId);
+    projectInsights.forEach(p => {
+      const signals = projectSignalsMap.get(p.id);
+      if (signals && signals.supplierInvoice.importedCount > 0) {
         newInvoiceProjects.push({
-          projectName: project?.name || bookingId,
+          projectName: p.name,
           clientName: '—',
-          actionCount: imported.length,
+          actionCount: signals.supplierInvoice.importedCount,
           amount: 0,
-          bookingId,
+          bookingId: p.booking_id || undefined,
+          projectId: p.id,
         });
       }
     });
 
     // 2. Unattested costs
     const unattestedProjects: ActionItem[] = [];
-    Object.entries(attestByBooking).forEach(([bookingId, items]) => {
-      const linked = items.filter(i => i.status === 'linked');
-      if (linked.length > 0) {
-        const project = projectInsights.find(p => p.booking_id === bookingId);
+    projectInsights.forEach(p => {
+      const signals = projectSignalsMap.get(p.id);
+      if (signals && signals.supplierInvoice.unattestedCount > 0 && signals.supplierInvoice.importedCount === 0) {
         unattestedProjects.push({
-          projectName: project?.name || bookingId,
+          projectName: p.name,
           clientName: '—',
-          actionCount: linked.length,
+          actionCount: signals.supplierInvoice.unattestedCount,
           amount: 0,
-          bookingId,
+          bookingId: p.booking_id || undefined,
+          projectId: p.id,
         });
       }
     });
 
-    // 3. Margin warnings
+    // 3. Margin warnings (from shared signals)
     const marginWarnings: ActionItem[] = projectInsights
-      .filter(p => p.forecastMarginPercent < 10 && p.economyStatus !== 'economy-closed')
+      .filter(p => {
+        const signals = projectSignalsMap.get(p.id);
+        return signals && signals.margin.level === 'warning' || signals?.margin.level === 'danger';
+      })
+      .filter(p => p.economyStatus !== 'economy-closed')
       .map(p => ({
         projectName: p.name,
         clientName: '—',
         actionCount: 1,
-        amount: p.forecastMargin,
+        amount: projectSignalsMap.get(p.id)?.margin.marginAmount || 0,
         projectId: p.id,
       }));
 
-    // 4. Ready to close
-    const readyToClose: ActionItem[] = grouped.draft
-      .filter(b => {
-        const bookingAttests = attestByBooking[b.booking_id || ''] || [];
-        const unattested = bookingAttests.filter(a => a.status !== 'attested' && a.status !== 'sent_to_booking');
-        return unattested.length === 0;
+    // 4. Ready to close (no blockers)
+    const readyToClose: ActionItem[] = projectInsights
+      .filter(p => {
+        const signals = projectSignalsMap.get(p.id);
+        return signals && signals.closure.canClose && signals.handover.billingStatus === 'draft';
       })
-      .map(b => ({
-        projectName: b.project_name,
-        clientName: b.client_name || '—',
+      .map(p => ({
+        projectName: p.name,
+        clientName: '—',
         actionCount: 0,
-        amount: b.invoiceable_amount,
+        amount: p.forecastRevenue,
+        projectId: p.id,
       }));
 
     // 5. Handed over
@@ -160,7 +185,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
         emptyText: 'Inga överlämnade projekt',
       },
     ];
-  }, [projectInsights, attestByBooking, grouped]);
+  }, [projectInsights, projectSignalsMap, grouped]);
 
   const totalActions = sections.reduce((sum, s) => sum + s.items.length, 0);
 
