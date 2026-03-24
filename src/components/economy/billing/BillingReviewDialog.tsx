@@ -680,8 +680,8 @@ const HistoryTimeline: React.FC<{ billing: ProjectBilling }> = ({ billing }) => 
   const events = [
     { label: 'Projekt stängt', date: billing.closed_at, icon: <Calendar className="h-3 w-3" /> },
     { label: 'Granskning slutförd', date: billing.review_completed_at, icon: <ClipboardCheck className="h-3 w-3" /> },
-    { label: 'Klar för överlämning', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
-    { label: 'Överlämnad till Booking', date: billing.handed_over_at, icon: <ArrowRight className="h-3 w-3" /> },
+    { label: 'Klar att stänga', date: billing.approved_for_invoicing_at, icon: <Check className="h-3 w-3" /> },
+    { label: 'Stängd i Planning', date: billing.handed_over_at, icon: <ArrowRight className="h-3 w-3" /> },
     { label: 'Fakturerad i Booking', date: billing.invoice_date, icon: <FileText className="h-3 w-3" /> },
   ];
 
