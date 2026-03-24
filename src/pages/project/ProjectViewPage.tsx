@@ -81,6 +81,14 @@ const ProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Project readiness status */}
+      <ProjectStatusPanel
+        tasks={tasks}
+        suppliers={suppliers}
+        transportAssignments={transportAssignments}
+        projectStatus={project.status}
+      />
+
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
