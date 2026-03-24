@@ -394,11 +394,11 @@ const QuickActions: React.FC<{
 
 /* ─── EMPTY STATE ─── */
 const EMPTY_TEXTS: Record<FilterTab, { title: string; sub: string }> = {
-  all: { title: 'Inga projekt i överlämningskön', sub: 'Projekt som stängs operativt visas här automatiskt' },
-  draft: { title: 'Inga projekt att granska just nu', sub: 'Alla projekt har passerat granskningsstadiet' },
+  all: { title: 'Inga projekt i stängningskön', sub: 'Projekt som stängs visas här automatiskt' },
+  draft: { title: 'Inga projekt under arbete', sub: 'Alla projekt har passerat granskningsstadiet' },
   needs_completion: { title: 'Inga projekt kräver komplettering', sub: '' },
-  ready_for_handover: { title: 'Inga projekt redo för överlämning', sub: 'Granska och godkänn projekt först' },
-  handed_over_to_booking: { title: 'Inga överlämnade projekt', sub: '' },
+  ready_for_handover: { title: 'Inga projekt klara att stänga', sub: 'Granska och godkänn projekt först' },
+  handed_over_to_booking: { title: 'Inga stängda projekt', sub: '' },
   invoiced_in_booking: { title: 'Inga fakturerade projekt', sub: 'Projekt som fakturerats via Booking visas här' },
 };
 
