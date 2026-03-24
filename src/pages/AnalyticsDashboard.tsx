@@ -10,6 +10,7 @@ import { ProductAnalysisTab } from '@/components/analytics/ProductAnalysisTab';
 import { CombinationAnalysisTab } from '@/components/analytics/CombinationAnalysisTab';
 import { StaffAnalysisTab } from '@/components/analytics/StaffAnalysisTab';
 import { DeviationAnalysisTab } from '@/components/analytics/DeviationAnalysisTab';
+import { AnalyticsExportPanel } from '@/components/analytics/AnalyticsExportPanel';
 
 const AnalyticsDashboard = () => {
   const [filter, setFilter] = useState<AnalyticsFilter>({});
