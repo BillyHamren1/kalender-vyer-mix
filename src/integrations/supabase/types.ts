@@ -575,6 +575,13 @@ export type Database = {
             foreignKeyName: "completion_deviations_completion_id_fkey"
             columns: ["completion_id"]
             isOneToOne: false
+            referencedRelation: "v_derived_project"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_deviations_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
             referencedRelation: "v_product_project_matrix"
             referencedColumns: ["completion_id"]
           },
@@ -663,6 +670,13 @@ export type Database = {
             foreignKeyName: "completion_products_completion_id_fkey"
             columns: ["completion_id"]
             isOneToOne: false
+            referencedRelation: "v_derived_project"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_products_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
             referencedRelation: "v_product_project_matrix"
             referencedColumns: ["completion_id"]
           },
@@ -724,6 +738,13 @@ export type Database = {
             columns: ["completion_id"]
             isOneToOne: false
             referencedRelation: "job_completion_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_staff_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_derived_project"
             referencedColumns: ["id"]
           },
           {
@@ -4263,6 +4284,202 @@ export type Database = {
         }
         Update: {
           id?: string | null
+        }
+        Relationships: []
+      }
+      v_derived_period: {
+        Row: {
+          avg_closure_delay_days: number | null
+          avg_complexity: number | null
+          avg_days_to_invoice: number | null
+          avg_products: number | null
+          avg_project_hours: number | null
+          avg_project_revenue: number | null
+          avg_staff_count: number | null
+          margin_pct: number | null
+          month: string | null
+          organization_id: string | null
+          project_count: number | null
+          projects_with_deviations: number | null
+          projects_with_late_changes: number | null
+          quarter: string | null
+          total_cost: number | null
+          total_hours: number | null
+          total_margin: number | null
+          total_revenue: number | null
+          year: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_completion_analytics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_derived_product: {
+        Row: {
+          avg_project_hours: number | null
+          avg_project_margin_pct: number | null
+          avg_project_revenue: number | null
+          category: string | null
+          deviation_pct: number | null
+          in_profitable_projects: number | null
+          in_unprofitable_projects: number | null
+          late_addition_pct: number | null
+          organization_id: string | null
+          product_name: string | null
+          project_count: number | null
+          sku: string | null
+          total_direct_cost: number | null
+          total_quantity: number | null
+          total_revenue: number | null
+        }
+        Relationships: []
+      }
+      v_derived_product_combinations: {
+        Row: {
+          avg_hours: number | null
+          avg_hours_per_product: number | null
+          avg_margin_pct: number | null
+          avg_revenue: number | null
+          category_a: string | null
+          category_b: string | null
+          co_occurrence_count: number | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
+      v_derived_project: {
+        Row: {
+          approved_hours: number | null
+          booking_id: string | null
+          booking_number: string | null
+          client_name: string | null
+          closed_at: string | null
+          closure_delay_days: number | null
+          completed_at: string | null
+          complexity_score: number | null
+          customer_type: string | null
+          days_to_invoice: number | null
+          end_date: string | null
+          event_date: string | null
+          geographic_area: string | null
+          had_deviations: boolean | null
+          had_late_changes: boolean | null
+          hours_per_product: number | null
+          hours_per_revenue_sek: number | null
+          id: string | null
+          invoice_date: string | null
+          margin_pct: number | null
+          organization_id: string | null
+          overtime_hours: number | null
+          project_duration_days: number | null
+          project_type: string | null
+          revenue: number | null
+          start_date: string | null
+          tb: number | null
+          total_cost: number | null
+          total_deliveries: number | null
+          total_hours: number | null
+          total_parcels: number | null
+          total_products: number | null
+          total_staff_count: number | null
+        }
+        Insert: {
+          approved_hours?: never
+          booking_id?: string | null
+          booking_number?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          closure_delay_days?: never
+          completed_at?: string | null
+          complexity_score?: number | null
+          customer_type?: string | null
+          days_to_invoice?: never
+          end_date?: string | null
+          event_date?: string | null
+          geographic_area?: string | null
+          had_deviations?: boolean | null
+          had_late_changes?: boolean | null
+          hours_per_product?: never
+          hours_per_revenue_sek?: never
+          id?: string | null
+          invoice_date?: string | null
+          margin_pct?: never
+          organization_id?: string | null
+          overtime_hours?: never
+          project_duration_days?: never
+          project_type?: string | null
+          revenue?: never
+          start_date?: string | null
+          tb?: never
+          total_cost?: never
+          total_deliveries?: number | null
+          total_hours?: never
+          total_parcels?: number | null
+          total_products?: number | null
+          total_staff_count?: number | null
+        }
+        Update: {
+          approved_hours?: never
+          booking_id?: string | null
+          booking_number?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          closure_delay_days?: never
+          completed_at?: string | null
+          complexity_score?: number | null
+          customer_type?: string | null
+          days_to_invoice?: never
+          end_date?: string | null
+          event_date?: string | null
+          geographic_area?: string | null
+          had_deviations?: boolean | null
+          had_late_changes?: boolean | null
+          hours_per_product?: never
+          hours_per_revenue_sek?: never
+          id?: string | null
+          invoice_date?: string | null
+          margin_pct?: never
+          organization_id?: string | null
+          overtime_hours?: never
+          project_duration_days?: never
+          project_type?: string | null
+          revenue?: never
+          start_date?: string | null
+          tb?: never
+          total_cost?: never
+          total_deliveries?: number | null
+          total_hours?: never
+          total_parcels?: number | null
+          total_products?: number | null
+          total_staff_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_completion_analytics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_derived_staff: {
+        Row: {
+          avg_project_hours: number | null
+          avg_project_margin_pct: number | null
+          hours_by_project_type: Json | null
+          organization_id: string | null
+          project_count: number | null
+          staff_id: string | null
+          staff_name: string | null
+          total_hours: number | null
+          total_labor_cost: number | null
+          total_overtime: number | null
         }
         Relationships: []
       }
