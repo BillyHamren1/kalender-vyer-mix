@@ -523,6 +523,183 @@ export type Database = {
           },
         ]
       }
+      completion_deviations: {
+        Row: {
+          completion_id: string
+          created_at: string
+          description: string | null
+          deviation_type: string
+          id: string
+          impact_cost: number | null
+          impact_hours: number | null
+          impact_type: string | null
+          organization_id: string
+          related_product_id: string | null
+          related_staff_id: string | null
+        }
+        Insert: {
+          completion_id: string
+          created_at?: string
+          description?: string | null
+          deviation_type: string
+          id?: string
+          impact_cost?: number | null
+          impact_hours?: number | null
+          impact_type?: string | null
+          organization_id?: string
+          related_product_id?: string | null
+          related_staff_id?: string | null
+        }
+        Update: {
+          completion_id?: string
+          created_at?: string
+          description?: string | null
+          deviation_type?: string
+          id?: string
+          impact_cost?: number | null
+          impact_hours?: number | null
+          impact_type?: string | null
+          organization_id?: string
+          related_product_id?: string | null
+          related_staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completion_deviations_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "job_completion_analytics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      completion_products: {
+        Row: {
+          added_late: boolean | null
+          booking_product_id: string | null
+          category: string | null
+          caused_deviation: boolean | null
+          completion_id: string
+          created_at: string
+          deviation_type: string | null
+          external_cost: number | null
+          id: string
+          is_package: boolean | null
+          material_cost: number | null
+          organization_id: string
+          parent_package_name: string | null
+          product_name: string
+          quantity: number
+          setup_hours: number | null
+          sku: string | null
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          added_late?: boolean | null
+          booking_product_id?: string | null
+          category?: string | null
+          caused_deviation?: boolean | null
+          completion_id: string
+          created_at?: string
+          deviation_type?: string | null
+          external_cost?: number | null
+          id?: string
+          is_package?: boolean | null
+          material_cost?: number | null
+          organization_id?: string
+          parent_package_name?: string | null
+          product_name: string
+          quantity?: number
+          setup_hours?: number | null
+          sku?: string | null
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          added_late?: boolean | null
+          booking_product_id?: string | null
+          category?: string | null
+          caused_deviation?: boolean | null
+          completion_id?: string
+          created_at?: string
+          deviation_type?: string | null
+          external_cost?: number | null
+          id?: string
+          is_package?: boolean | null
+          material_cost?: number | null
+          organization_id?: string
+          parent_package_name?: string | null
+          product_name?: string
+          quantity?: number
+          setup_hours?: number | null
+          sku?: string | null
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completion_products_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "job_completion_analytics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      completion_staff: {
+        Row: {
+          approved: boolean | null
+          completion_id: string
+          created_at: string
+          hourly_rate: number | null
+          hours_worked: number
+          id: string
+          organization_id: string
+          overtime_hours: number
+          role: string | null
+          staff_id: string
+          staff_name: string
+          work_date: string
+        }
+        Insert: {
+          approved?: boolean | null
+          completion_id: string
+          created_at?: string
+          hourly_rate?: number | null
+          hours_worked?: number
+          id?: string
+          organization_id?: string
+          overtime_hours?: number
+          role?: string | null
+          staff_id: string
+          staff_name: string
+          work_date: string
+        }
+        Update: {
+          approved?: boolean | null
+          completion_id?: string
+          created_at?: string
+          hourly_rate?: number | null
+          hours_worked?: number
+          id?: string
+          organization_id?: string
+          overtime_hours?: number
+          role?: string | null
+          staff_id?: string
+          staff_name?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completion_staff_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "job_completion_analytics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_tokens: {
         Row: {
           created_at: string
@@ -697,27 +874,43 @@ export type Database = {
           booking_number: string | null
           carry_more_than_10m: boolean | null
           client_name: string
+          closed_at: string | null
           completed_at: string
+          complexity_score: number | null
           created_at: string
+          customer_type: string | null
           delivery_address: string | null
           delivery_city: string | null
+          delivery_type: string | null
+          deviation_types: string[] | null
+          end_date: string | null
           event_date: string | null
           exact_time_required: boolean | null
+          geographic_area: string | null
           ground_nails_allowed: boolean | null
+          had_deviations: boolean | null
+          had_late_changes: boolean | null
           id: string
+          invoice_date: string | null
+          is_indoor: boolean | null
           margin_percentage: number | null
           organization_id: string
           product_categories: Json | null
           project_id: string | null
+          project_type: string | null
           rig_date: string | null
           rigdown_date: string | null
           staff_assignments: Json | null
+          start_date: string | null
+          total_approved_hours: number | null
+          total_deliveries: number | null
           total_external_cost: number | null
           total_hours_worked: number | null
           total_labor_cost: number | null
           total_margin: number | null
           total_material_cost: number | null
           total_overtime_hours: number | null
+          total_parcels: number | null
           total_product_value: number | null
           total_products: number | null
           total_purchases: number | null
@@ -732,27 +925,43 @@ export type Database = {
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client_name: string
+          closed_at?: string | null
           completed_at?: string
+          complexity_score?: number | null
           created_at?: string
+          customer_type?: string | null
           delivery_address?: string | null
           delivery_city?: string | null
+          delivery_type?: string | null
+          deviation_types?: string[] | null
+          end_date?: string | null
           event_date?: string | null
           exact_time_required?: boolean | null
+          geographic_area?: string | null
           ground_nails_allowed?: boolean | null
+          had_deviations?: boolean | null
+          had_late_changes?: boolean | null
           id?: string
+          invoice_date?: string | null
+          is_indoor?: boolean | null
           margin_percentage?: number | null
           organization_id?: string
           product_categories?: Json | null
           project_id?: string | null
+          project_type?: string | null
           rig_date?: string | null
           rigdown_date?: string | null
           staff_assignments?: Json | null
+          start_date?: string | null
+          total_approved_hours?: number | null
+          total_deliveries?: number | null
           total_external_cost?: number | null
           total_hours_worked?: number | null
           total_labor_cost?: number | null
           total_margin?: number | null
           total_material_cost?: number | null
           total_overtime_hours?: number | null
+          total_parcels?: number | null
           total_product_value?: number | null
           total_products?: number | null
           total_purchases?: number | null
@@ -767,27 +976,43 @@ export type Database = {
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client_name?: string
+          closed_at?: string | null
           completed_at?: string
+          complexity_score?: number | null
           created_at?: string
+          customer_type?: string | null
           delivery_address?: string | null
           delivery_city?: string | null
+          delivery_type?: string | null
+          deviation_types?: string[] | null
+          end_date?: string | null
           event_date?: string | null
           exact_time_required?: boolean | null
+          geographic_area?: string | null
           ground_nails_allowed?: boolean | null
+          had_deviations?: boolean | null
+          had_late_changes?: boolean | null
           id?: string
+          invoice_date?: string | null
+          is_indoor?: boolean | null
           margin_percentage?: number | null
           organization_id?: string
           product_categories?: Json | null
           project_id?: string | null
+          project_type?: string | null
           rig_date?: string | null
           rigdown_date?: string | null
           staff_assignments?: Json | null
+          start_date?: string | null
+          total_approved_hours?: number | null
+          total_deliveries?: number | null
           total_external_cost?: number | null
           total_hours_worked?: number | null
           total_labor_cost?: number | null
           total_margin?: number | null
           total_material_cost?: number | null
           total_overtime_hours?: number | null
+          total_parcels?: number | null
           total_product_value?: number | null
           total_products?: number | null
           total_purchases?: number | null
