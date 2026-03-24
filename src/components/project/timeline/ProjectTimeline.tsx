@@ -24,7 +24,7 @@ const PHASE_COLORS: Record<TaskPhase, { bg: string; border: string; text: string
 interface ProjectTimelineProps {
   tasks: ProjectTask[];
   onUpdateTask: (args: { id: string; updates: Partial<ProjectTask> }) => void;
-  onAddTask: (task: { project_id: string; title: string }) => void;
+  onAddTask: (task: { title: string; start_date?: string | null; end_date?: string | null; phase?: string | null }) => void;
   projectId: string;
 }
 
