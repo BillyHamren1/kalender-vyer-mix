@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ScatterChart, Scatter, ZAxis } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ScatterChart, Scatter, ZAxis, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import type { DerivedProject, DerivedProductCombination } from '@/services/derivedAnalyticsService';
 import { cn } from '@/lib/utils';
