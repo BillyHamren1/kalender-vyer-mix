@@ -10,7 +10,7 @@ import type { ProjectMessageType } from "@/types/projectMessage";
 interface ProjectCommunicationProps {
   projectId: string;
   senderName: string;
-  suppliers: ProjectSupplier[];
+  suppliers: MergedSupplier[];
 }
 
 const tabClass =
