@@ -259,9 +259,15 @@ export function computeWarnings(
 
 // ─── Individual signal computations ─────────────────────────────────────────
 
-function computeTimeStatus(summary: EconomySummary): TimeStatus {
+function computeTimeStatus(
+  summary: EconomySummary,
+  trCounts: { total: number; approved: number; pending: number },
+): TimeStatus {
   if (summary.budgetedHours === 0 && summary.actualHours === 0) {
     return { level: 'neutral', label: 'Inga timmar registrerade' };
+  }
+  if (trCounts.pending > 0) {
+    return { level: 'warning', label: 'Ej godkända tider', detail: `${trCounts.pending} av ${trCounts.total} väntar` };
   }
   const deviation = summary.staffDeviationPercent;
   if (deviation <= 0) return { level: 'ok', label: 'Inom tidsbudget' };
