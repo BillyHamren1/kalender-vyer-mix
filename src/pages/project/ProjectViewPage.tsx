@@ -13,6 +13,7 @@ import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliers
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
 import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
+import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -80,6 +81,14 @@ const ProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Project readiness status */}
+      <ProjectStatusPanel
+        tasks={tasks}
+        suppliers={suppliers}
+        transportAssignments={transportAssignments}
+        projectStatus={project.status}
+      />
+
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
