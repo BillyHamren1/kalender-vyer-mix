@@ -4,7 +4,7 @@ import { MessageSquare, Users, Truck, User } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MessageThread from "./MessageThread";
 import { useProjectMessages } from "@/hooks/useProjectMessages";
-import type { ProjectSupplier } from "@/types/supplier";
+import type { MergedSupplier } from "@/types/supplier";
 import type { ProjectMessageType } from "@/types/projectMessage";
 
 interface ProjectCommunicationProps {
