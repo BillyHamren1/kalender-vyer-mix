@@ -29,6 +29,8 @@ export interface Project {
   updated_at: string;
 }
 
+export type TaskPhase = 'preproduction' | 'planning' | 'setup' | 'live' | 'teardown' | 'post';
+
 export interface ProjectTask {
   id: string;
   project_id: string;
@@ -39,9 +41,24 @@ export interface ProjectTask {
   completed: boolean;
   sort_order: number;
   is_info_only: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  phase: TaskPhase | null;
+  dependency_task_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export const PHASE_LABELS: Record<TaskPhase, string> = {
+  preproduction: 'Förproduktion',
+  planning: 'Planering',
+  setup: 'Rigg',
+  live: 'Event',
+  teardown: 'Nedrigg',
+  post: 'Efterproduktion',
+};
+
+export const PHASE_ORDER: TaskPhase[] = ['preproduction', 'planning', 'setup', 'live', 'teardown', 'post'];
 
 export interface TaskComment {
   id: string;
