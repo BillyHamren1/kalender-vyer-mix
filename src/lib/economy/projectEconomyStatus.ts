@@ -118,6 +118,8 @@ export interface ProjectEconomySignals {
   revenue: number;
   /** Total actual cost */
   totalCost: number;
+  /** Time report approval counts */
+  timeReportCounts: { total: number; approved: number; pending: number };
 }
 
 // ─── Input for computing signals ────────────────────────────────────────────
