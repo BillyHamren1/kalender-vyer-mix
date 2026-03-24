@@ -184,11 +184,18 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
       }
     });
 
-    // 6. Ready to close
+    // 6. Ready to close — only projects where event date has passed
     const readyToClose: ActionItem[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     active.forEach(p => {
       const s = signalsMap.get(p.id);
       if (s && s.closure.canClose && s.handover.billingStatus === null) {
+        // Must have an event date that has passed before it can be closed
+        if (!p.eventdate) return;
+        const eventDate = parseISO(p.eventdate);
+        if (eventDate > today) return;
+
         readyToClose.push({
           projectName: p.name, detail: 'Alla krav uppfyllda', amount: s.revenue,
           navigateTo: p.navigateTo, projectId: p.id,
