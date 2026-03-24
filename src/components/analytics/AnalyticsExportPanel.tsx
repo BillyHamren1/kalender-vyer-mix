@@ -4,16 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, FileJson, FileSpreadsheet, Brain, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Download, FileJson, FileSpreadsheet, Brain, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DATASET_DEFINITIONS,
+  DATASET_CATEGORIES,
   fetchDataset,
   toCSV,
   toJSON,
   downloadFile,
   buildAIPayload,
   type DatasetType,
+  type DatasetCategory,
 } from '@/services/analyticsExportService';
 import type { AnalyticsFilter } from '@/hooks/useDerivedAnalytics';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,11 +32,30 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
   const [format, setFormat] = useState<ExportFormat>('csv');
   const [exporting, setExporting] = useState(false);
   const [aiLoading, setAiLoading] = useState<DatasetType | null>(null);
+  const [openCategories, setOpenCategories] = useState<Set<DatasetCategory>>(new Set(['project']));
 
   const toggle = (type: DatasetType) => {
     setSelectedDatasets(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
+  };
+
+  const toggleCategory = (cat: DatasetCategory) => {
+    setOpenCategories(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  };
+
+  const selectAllInCategory = (cat: DatasetCategory) => {
+    const catTypes = DATASET_DEFINITIONS.filter(d => d.category === cat).map(d => d.type);
+    const allSelected = catTypes.every(t => selectedDatasets.includes(t));
+    if (allSelected) {
+      setSelectedDatasets(prev => prev.filter(t => !catTypes.includes(t)));
+    } else {
+      setSelectedDatasets(prev => [...new Set([...prev, ...catTypes])]);
+    }
   };
 
   const handleExport = async () => {
@@ -43,15 +65,13 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
     }
     setExporting(true);
     try {
+      const timestamp = new Date().toISOString().slice(0, 10);
       for (const type of selectedDatasets) {
         const { meta, rows } = await fetchDataset(type, filter);
-        const timestamp = new Date().toISOString().slice(0, 10);
         if (format === 'csv') {
-          const content = toCSV(rows, meta.columns);
-          downloadFile(content, `${type}_${timestamp}.csv`, 'text/csv');
+          downloadFile(toCSV(rows, meta.columns), `${type}_${timestamp}.csv`, 'text/csv');
         } else {
-          const content = toJSON(rows, meta);
-          downloadFile(content, `${type}_${timestamp}.json`, 'application/json');
+          downloadFile(toJSON(rows, meta), `${type}_${timestamp}.json`, 'application/json');
         }
       }
       toast.success(`${selectedDatasets.length} dataset exporterade`);
@@ -67,16 +87,11 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
     setAiLoading(type);
     try {
       const payload = await buildAIPayload(type, filter);
-
       const { data, error } = await supabase.functions.invoke('analytics-ai-pipeline', {
         body: { dataset: payload },
       });
-
       if (error) throw error;
-
       toast.success('AI-analys klar!');
-      
-      // Download AI response
       if (data?.analysis) {
         downloadFile(
           JSON.stringify(data, null, 2),
@@ -108,39 +123,66 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
         </div>
       )}
 
-      {/* Dataset selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {DATASET_DEFINITIONS.map(ds => (
-          <Card
-            key={ds.type}
-            className={`cursor-pointer transition-all ${
-              selectedDatasets.includes(ds.type) ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-accent/30'
-            }`}
-            onClick={() => toggle(ds.type)}
-          >
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  checked={selectedDatasets.includes(ds.type)}
-                  onCheckedChange={() => toggle(ds.type)}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{ds.label}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{ds.description}</div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {ds.columns.slice(0, 4).map(c => (
-                      <Badge key={c} variant="secondary" className="text-[10px]">{c}</Badge>
-                    ))}
-                    {ds.columns.length > 4 && (
-                      <Badge variant="outline" className="text-[10px]">+{ds.columns.length - 4}</Badge>
-                    )}
-                  </div>
-                </div>
+      {/* Dataset selection by category */}
+      <div className="space-y-2">
+        {DATASET_CATEGORIES.map(cat => {
+          const catDatasets = DATASET_DEFINITIONS.filter(d => d.category === cat.key);
+          const selectedCount = catDatasets.filter(d => selectedDatasets.includes(d.type)).length;
+          const isOpen = openCategories.has(cat.key);
+
+          return (
+            <Collapsible key={cat.key} open={isOpen} onOpenChange={() => toggleCategory(cat.key)}>
+              <div className="flex items-center gap-2">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2 px-2">
+                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <span className="font-medium text-sm">{cat.label}</span>
+                  </Button>
+                </CollapsibleTrigger>
+                <Badge variant="secondary" className="text-[10px]">{catDatasets.length} dataset</Badge>
+                {selectedCount > 0 && (
+                  <Badge variant="default" className="text-[10px]">{selectedCount} valda</Badge>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground ml-auto"
+                  onClick={(e) => { e.stopPropagation(); selectAllInCategory(cat.key); }}
+                >
+                  {selectedCount === catDatasets.length ? 'Avmarkera alla' : 'Välj alla'}
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pl-8 pt-2 pb-3">
+                  {catDatasets.map(ds => (
+                    <button
+                      key={ds.type}
+                      onClick={() => toggle(ds.type)}
+                      className={`text-left rounded-md border p-3 transition-all ${
+                        selectedDatasets.includes(ds.type)
+                          ? 'ring-2 ring-primary bg-primary/5 border-primary/30'
+                          : 'border-border hover:bg-accent/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={selectedDatasets.includes(ds.type)}
+                          onCheckedChange={() => toggle(ds.type)}
+                          className="mt-0.5"
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium">{ds.label}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{ds.description}</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
       </div>
 
       {/* Export controls */}
@@ -164,14 +206,14 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
               </SelectContent>
             </Select>
 
-            <Button
-              onClick={handleExport}
-              disabled={selectedDatasets.length === 0 || exporting}
-              className="gap-2"
-            >
+            <Button onClick={handleExport} disabled={selectedDatasets.length === 0 || exporting} className="gap-2">
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Exportera {selectedDatasets.length > 0 ? `(${selectedDatasets.length})` : ''}
             </Button>
+
+            <span className="text-xs text-muted-foreground">
+              {selectedDatasets.length} av {DATASET_DEFINITIONS.length} dataset valda
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -186,27 +228,32 @@ export const AnalyticsExportPanel = ({ filter }: Props) => {
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-4">
-            Skicka ett strukturerat dataset till AI för automatisk insiktsanalys.
-            Varje dataset skickas med metadata, sammanfattning och filtrerade rader.
+            Skicka ett dataset till AI för automatisk insiktsanalys. Varje dataset skickas med metadata, sammanfattning och filtrerade rader.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {DATASET_DEFINITIONS.map(ds => (
-              <Button
-                key={ds.type}
-                variant="outline"
-                size="sm"
-                className="justify-start text-xs gap-2"
-                disabled={aiLoading !== null}
-                onClick={() => handleAIPipeline(ds.type)}
-              >
-                {aiLoading === ds.type ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Brain className="h-3.5 w-3.5" />
-                )}
-                {ds.label}
-              </Button>
-            ))}
+          <div className="space-y-3">
+            {DATASET_CATEGORIES.map(cat => {
+              const catDatasets = DATASET_DEFINITIONS.filter(d => d.category === cat.key);
+              return (
+                <div key={cat.key}>
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5">{cat.label}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {catDatasets.map(ds => (
+                      <Button
+                        key={ds.type}
+                        variant="outline"
+                        size="sm"
+                        className="text-[11px] h-7 gap-1.5 px-2"
+                        disabled={aiLoading !== null}
+                        onClick={() => handleAIPipeline(ds.type)}
+                      >
+                        {aiLoading === ds.type ? <Loader2 className="h-3 w-3 animate-spin" /> : <Brain className="h-3 w-3" />}
+                        {ds.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
