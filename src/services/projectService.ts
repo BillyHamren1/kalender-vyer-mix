@@ -165,6 +165,10 @@ export const createProjectTask = async (task: {
   description?: string;
   assigned_to?: string | null;
   deadline?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  phase?: string | null;
+  dependency_task_id?: string | null;
 }): Promise<ProjectTask> => {
   const { data, error } = await supabase
     .from('project_tasks')

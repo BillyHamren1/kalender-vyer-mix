@@ -229,7 +229,7 @@ export const useProjectDetail = (projectId: string) => {
     onSettled: statusOptimistic.onSettled,
   });
 
-  const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }>({
+  const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }>({
     queryClient,
     queryKey: ['project-tasks', projectId],
     type: 'add',
@@ -243,6 +243,10 @@ export const useProjectDetail = (projectId: string) => {
       project_id: projectId,
       sort_order: 0,
       is_info_only: false,
+      start_date: vars.start_date || null,
+      end_date: vars.end_date || null,
+      phase: vars.phase || null,
+      dependency_task_id: vars.dependency_task_id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }),
@@ -250,7 +254,7 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => 
+    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }) => 
       createProjectTask({ ...task, project_id: projectId }),
     ...addTaskOptimistic,
     onSuccess: (_data, variables) => {
