@@ -148,11 +148,11 @@ const ProjectPMDocument = ({ project, tasks, suppliers, transportAssignments }: 
 
           {/* Special conditions */}
           {(booking?.carry_more_than_10m || booking?.ground_nails_allowed === false || booking?.exact_time_needed) && (
-            <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 print:bg-amber-50">
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-200 mb-1.5 font-sans">
+            <div className="mt-4 p-3 rounded-lg bg-warning/10 border border-warning/30 print:bg-warning/10">
+              <p className="text-xs font-semibold uppercase tracking-wider text-warning-foreground mb-1.5 font-sans">
                 Observera
               </p>
-              <ul className="text-sm space-y-1 text-amber-900 dark:text-amber-100">
+              <ul className="text-sm space-y-1 text-foreground">
                 {booking?.carry_more_than_10m && <li>• Bärning över 10 meter</li>}
                 {booking?.ground_nails_allowed === false && <li>• Markpinnar EJ tillåtet</li>}
                 {booking?.exact_time_needed && (
