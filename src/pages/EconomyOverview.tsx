@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,14 +14,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Banknote } from 'lucide-react';
+import { Banknote, ChevronDown, BarChart3 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
-import EconomyInvoicingQueue from '@/components/economy/EconomyInvoicingQueue';
-import EconomyCompletedProjects from '@/components/economy/EconomyCompletedProjects';
-import EconomyRiskList from '@/components/economy/EconomyRiskList';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
 import BillingSection from '@/components/economy/billing/BillingSection';
 import ProjectLeaderActionBoard from '@/components/economy/ProjectLeaderActionBoard';
@@ -28,17 +29,18 @@ import { toast } from 'sonner';
 
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
+
 const ProjectEconomyDashboard: React.FC = () => {
   const queryClient = useQueryClient();
   const [closingProject, setClosingProject] = useState<EconomyProjectInsight | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const {
     isLoading,
     dashboardSummary,
-    invoicingQueue,
-    completedProjects,
-    riskProjects,
     projectInsights,
   } = useEconomyDashboard();
 
@@ -69,38 +71,80 @@ const ProjectEconomyDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
         <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
 
+  const s = dashboardSummary;
+
   return (
     <div className="space-y-6">
-      {/* A. Action Board — primary focus */}
+      {/* A. Quick summary counters — compact */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="border-border/40">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Aktiva projekt</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{s.ongoingCount + s.upcomingCount}</p>
+            <p className="text-[10px] text-muted-foreground">{s.ongoingCount} pågående · {s.upcomingCount} kommande</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/40">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Snittmarginal</p>
+            <p className={cn(
+              'text-2xl font-bold mt-1',
+              s.projectedMarginPercent >= 15 ? 'text-green-600' :
+              s.projectedMarginPercent >= 5 ? 'text-amber-600' : 'text-red-600'
+            )}>
+              {s.projectedMarginPercent.toFixed(0)}%
+            </p>
+            <p className="text-[10px] text-muted-foreground">över alla projekt</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/40">
+          <CardContent className="p-3">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Redo att fakturera</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(s.readyToInvoiceAmount)}</p>
+            <p className="text-[10px] text-muted-foreground">{s.readyForInvoicingCount} projekt</p>
+          </CardContent>
+        </Card>
+        <Card className={cn('border-border/40', s.riskProjectCount > 0 && 'border-destructive/30')}>
+          <CardContent className="p-3">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Riskprojekt</p>
+            <p className={cn('text-2xl font-bold mt-1', s.riskProjectCount > 0 ? 'text-destructive' : 'text-foreground')}>
+              {s.riskProjectCount}
+            </p>
+            <p className="text-[10px] text-muted-foreground">{s.completedNotFullyInvoicedCount} avslutade ej stängda</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* B. Action Board — primary workspace */}
       <ProjectLeaderActionBoard projectInsights={projectInsights} />
 
-      {/* B. KPI-rad — sekundär */}
-      <EconomyKpiCards summary={dashboardSummary} />
-
-      {/* C. TB-analys */}
-      <EconomyTBAnalysis projects={projectInsights} />
-
-      {/* D. Faktureringscenter */}
-      <EconomyInvoicingQueue
-        readyForInvoicing={invoicingQueue.readyForInvoicing}
-        partiallyInvoiced={invoicingQueue.partiallyInvoiced}
-        completedNotInvoiced={invoicingQueue.overdue}
-        onCloseProject={setClosingProject}
-      />
-
-      {/* E. Risklista */}
-      <EconomyRiskList risks={riskProjects} />
-
-      {/* F. Avslutade projekt */}
-      <EconomyCompletedProjects projects={completedProjects} />
+      {/* C. Analytics — collapsible secondary section */}
+      <Collapsible open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 h-auto text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Nyckeltal & Marginalanalys
+            </div>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', analyticsOpen && 'rotate-180')} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-6 pt-2">
+          <EconomyKpiCards summary={dashboardSummary} />
+          <EconomyTBAnalysis projects={projectInsights} />
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Close project dialog */}
       <AlertDialog open={!!closingProject} onOpenChange={() => setClosingProject(null)}>
@@ -108,7 +152,7 @@ const ProjectEconomyDashboard: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Stäng projekt</AlertDialogTitle>
             <AlertDialogDescription>
-              Vill du markera <strong>{closingProject?.name}</strong> som avslutat? Projektet kommer fortfarande synas i listan men markeras som stängt.
+              Vill du markera <strong>{closingProject?.name}</strong> som avslutat?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -150,7 +194,7 @@ const EconomyOverview: React.FC = () => {
                   Projektekonomi
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
-                  Kostnader · Attest · Överlämning
+                  Kontrolltorn · Kostnader · Attest · Överlämning
                 </p>
               </div>
             </div>
