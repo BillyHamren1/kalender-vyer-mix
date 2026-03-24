@@ -571,6 +571,20 @@ export type Database = {
             referencedRelation: "job_completion_analytics"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "completion_deviations_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_product_project_matrix"
+            referencedColumns: ["completion_id"]
+          },
+          {
+            foreignKeyName: "completion_deviations_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_staff_project_matrix"
+            referencedColumns: ["completion_id"]
+          },
         ]
       }
       completion_products: {
@@ -645,6 +659,20 @@ export type Database = {
             referencedRelation: "job_completion_analytics"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "completion_products_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_product_project_matrix"
+            referencedColumns: ["completion_id"]
+          },
+          {
+            foreignKeyName: "completion_products_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_staff_project_matrix"
+            referencedColumns: ["completion_id"]
+          },
         ]
       }
       completion_staff: {
@@ -697,6 +725,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "job_completion_analytics"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_staff_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_product_project_matrix"
+            referencedColumns: ["completion_id"]
+          },
+          {
+            foreignKeyName: "completion_staff_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "v_staff_project_matrix"
+            referencedColumns: ["completion_id"]
           },
         ]
       }
@@ -4221,6 +4263,125 @@ export type Database = {
         }
         Update: {
           id?: string | null
+        }
+        Relationships: []
+      }
+      v_monthly_project_summary: {
+        Row: {
+          avg_complexity: number | null
+          avg_margin_pct: number | null
+          avg_staff_count: number | null
+          month: string | null
+          organization_id: string | null
+          project_count: number | null
+          projects_with_deviations: number | null
+          projects_with_late_changes: number | null
+          total_approved_hours: number | null
+          total_cost: number | null
+          total_hours: number | null
+          total_margin: number | null
+          total_overtime: number | null
+          total_products: number | null
+          total_revenue: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_completion_analytics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_product_category_monthly: {
+        Row: {
+          category: string | null
+          caused_deviations: number | null
+          late_additions: number | null
+          month: string | null
+          organization_id: string | null
+          project_count: number | null
+          total_cost: number | null
+          total_quantity: number | null
+          total_revenue: number | null
+          total_setup_hours: number | null
+        }
+        Relationships: []
+      }
+      v_product_combinations: {
+        Row: {
+          avg_margin_when_combined: number | null
+          category_a: string | null
+          category_b: string | null
+          co_occurrence_count: number | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
+      v_product_project_matrix: {
+        Row: {
+          added_late: boolean | null
+          booking_id: string | null
+          category: string | null
+          caused_deviation: boolean | null
+          client_name: string | null
+          completion_id: string | null
+          complexity_score: number | null
+          external_cost: number | null
+          geographic_area: string | null
+          is_package: boolean | null
+          margin_percentage: number | null
+          material_cost: number | null
+          organization_id: string | null
+          product_name: string | null
+          project_date: string | null
+          project_type: string | null
+          quantity: number | null
+          setup_hours: number | null
+          sku: string | null
+          total_hours_worked: number | null
+          total_price: number | null
+          total_staff_count: number | null
+          unit_price: number | null
+        }
+        Relationships: []
+      }
+      v_staff_monthly_performance: {
+        Row: {
+          avg_project_margin: number | null
+          month: string | null
+          organization_id: string | null
+          project_count: number | null
+          staff_id: string | null
+          staff_name: string | null
+          total_hours: number | null
+          total_labor_cost: number | null
+          total_overtime: number | null
+        }
+        Relationships: []
+      }
+      v_staff_project_matrix: {
+        Row: {
+          approved: boolean | null
+          booking_id: string | null
+          client_name: string | null
+          completion_id: string | null
+          complexity_score: number | null
+          geographic_area: string | null
+          hourly_rate: number | null
+          hours_worked: number | null
+          labor_cost: number | null
+          margin_percentage: number | null
+          organization_id: string | null
+          overtime_hours: number | null
+          project_date: string | null
+          project_type: string | null
+          role: string | null
+          staff_id: string | null
+          staff_name: string | null
+          total_products: number | null
+          work_date: string | null
         }
         Relationships: []
       }
