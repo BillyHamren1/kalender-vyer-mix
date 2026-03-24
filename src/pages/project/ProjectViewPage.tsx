@@ -170,6 +170,14 @@ const ProjectViewPage = () => {
       {/* Underleverantörer */}
       <ProjectSuppliersTab projectId={project.id} />
 
+      {/* PM-dokument */}
+      <ProjectPMDocument
+        project={project}
+        tasks={tasks}
+        suppliers={suppliers}
+        transportAssignments={transportAssignments}
+      />
+
       {/* Kommentarer */}
       <div>
         <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
