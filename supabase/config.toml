@@ -141,3 +141,6 @@ verify_jwt = false
 
 [functions.sync-reconciliation]
 verify_jwt = false
+
+[functions.analytics-ai-pipeline]
+verify_jwt = false

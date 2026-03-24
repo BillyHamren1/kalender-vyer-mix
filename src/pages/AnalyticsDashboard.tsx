@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, FolderOpen, Package, Users, GitBranch, AlertTriangle } from 'lucide-react';
+import { BarChart3, FolderOpen, Package, Users, GitBranch, AlertTriangle, Download } from 'lucide-react';
 import { useDerivedAnalytics, type AnalyticsFilter } from '@/hooks/useDerivedAnalytics';
 import { AnalyticsFilterBar } from '@/components/analytics/AnalyticsFilterBar';
 import { OverviewTab } from '@/components/analytics/OverviewTab';
@@ -10,6 +10,7 @@ import { ProductAnalysisTab } from '@/components/analytics/ProductAnalysisTab';
 import { CombinationAnalysisTab } from '@/components/analytics/CombinationAnalysisTab';
 import { StaffAnalysisTab } from '@/components/analytics/StaffAnalysisTab';
 import { DeviationAnalysisTab } from '@/components/analytics/DeviationAnalysisTab';
+import { AnalyticsExportPanel } from '@/components/analytics/AnalyticsExportPanel';
 
 const AnalyticsDashboard = () => {
   const [filter, setFilter] = useState<AnalyticsFilter>({});
@@ -60,6 +61,10 @@ const AnalyticsDashboard = () => {
               <AlertTriangle className="h-3.5 w-3.5" />
               Avvikelser
             </TabsTrigger>
+            <TabsTrigger value="export" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" />
+              Export & AI
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -84,6 +89,10 @@ const AnalyticsDashboard = () => {
 
           <TabsContent value="deviations">
             <DeviationAnalysisTab projects={projects} products={products} />
+          </TabsContent>
+
+          <TabsContent value="export">
+            <AnalyticsExportPanel filter={filter} />
           </TabsContent>
         </Tabs>
       )}
