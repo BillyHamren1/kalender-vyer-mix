@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FileSpreadsheet, FileText, AlertTriangle, ArrowRight } from 'lucide-react';
+import { FileSpreadsheet, FileText, AlertTriangle, Clock, CheckCircle2, Lock, TrendingDown, ArrowRight, DollarSign, BarChart3 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,21 +21,36 @@ import { BudgetSettingsDialog } from './BudgetSettingsDialog';
 import { ProductCostsCard } from './ProductCostsCard';
 import { CostComparisonCard } from './CostComparisonCard';
 import { SupplierInvoicesCard } from './SupplierInvoicesCard';
+import { TimeApprovalSummary } from './TimeApprovalSummary';
+import { ProjectClosureDialog } from './ProjectClosureDialog';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
 import { ProjectClosureGate } from '@/components/economy/ProjectClosureGate';
 import BillingStatusBadge from '@/components/economy/billing/BillingStatusBadge';
 import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
-import { useProjectBillingList } from '@/hooks/useProjectBilling';
+import { useProjectBillingList, useCreateProjectBilling, useAdvanceBillingStatus } from '@/hooks/useProjectBilling';
 import {
   computeProjectEconomySignals,
   buildGateItemsFromSignals,
   type ProjectEconomyInput,
+  type SignalLevel,
 } from '@/lib/economy/projectEconomyStatus';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
+
+const signalDot = (level: SignalLevel) => {
+  const colors: Record<SignalLevel, string> = {
+    ok: 'bg-green-500',
+    warning: 'bg-amber-500',
+    danger: 'bg-red-500',
+    neutral: 'bg-muted-foreground/30',
+  };
+  return <span className={cn('inline-block w-2 h-2 rounded-full shrink-0', colors[level])} />;
+};
 
 interface ProjectEconomyTabProps {
   projectId: string;
@@ -45,6 +60,9 @@ interface ProjectEconomyTabProps {
 
 export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingId }: ProjectEconomyTabProps) => {
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
+  const [closureDialogOpen, setClosureDialogOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const queryClient = useQueryClient();
   
   const {
     budget,
@@ -74,9 +92,19 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   const attestCounts = useMemo(() => getAttestationCounts(attestations), [attestations]);
 
   const { data: billingItems = [] } = useProjectBillingList();
-  const billingRecord = useMemo(() => {
-    return billingItems.find(b => b.project_id === projectId);
-  }, [billingItems, projectId]);
+  const billingRecord = useMemo(() => billingItems.find(b => b.project_id === projectId), [billingItems, projectId]);
+  const createBilling = useCreateProjectBilling();
+  const advanceBilling = useAdvanceBillingStatus();
+
+  // Time report counts
+  const timeReportCounts = useMemo(() => {
+    const allDetailed = timeReports.flatMap(r => r.detailed_reports || []);
+    return {
+      total: allDetailed.length,
+      approved: allDetailed.filter(r => r.approved).length,
+      pending: allDetailed.filter(r => !r.approved).length,
+    };
+  }, [timeReports]);
 
   // Shared signals model
   const economyInput: ProjectEconomyInput = useMemo(() => ({
@@ -85,17 +113,53 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     billingStatus: billingRecord?.billing_status ?? null,
     budgetedHours: budget?.budgeted_hours || 0,
     hourlyRate: budget?.hourly_rate || 0,
-    timeReportsApproved: true,
+    timeReportsApproved: timeReportCounts.pending === 0,
     hasRecentEconomyData: true,
-  }), [summary, attestCounts, billingRecord, budget]);
+    timeReportCounts,
+  }), [summary, attestCounts, billingRecord, budget, timeReportCounts]);
 
   const signals = useMemo(() => computeProjectEconomySignals(economyInput), [economyInput]);
   const closureGates = useMemo(() => buildGateItemsFromSignals(signals), [signals]);
 
   const { revenue, totalCost } = signals;
   const margin = signals.margin.marginPercent;
+  const marginAmount = signals.margin.marginAmount;
 
-  const hasBlockers = !signals.closure.canClose;
+  // Close project handler
+  const handleCloseProject = async (notes?: string) => {
+    setIsClosing(true);
+    try {
+      if (bookingId) {
+        const { markReadyForInvoicing } = await import('@/services/planningApiService');
+        await markReadyForInvoicing(bookingId);
+      }
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'completed' })
+        .eq('id', projectId);
+      if (error) throw error;
+
+      // Create/update billing record
+      if (!billingRecord) {
+        await createBilling.mutateAsync({
+          project_id: projectId,
+          project_type: 'medium',
+          project_name: projectName,
+          invoiceable_amount: revenue,
+          total_cost: totalCost,
+        });
+      }
+
+      toast.success(`${projectName} har markerats som avslutat`);
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error('Close project error:', err);
+      toast.error('Kunde inte stänga projektet');
+    } finally {
+      setIsClosing(false);
+      setClosureDialogOpen(false);
+    }
+  };
 
   const handleExportExcel = () => {
     try {
@@ -120,66 +184,114 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   }
 
   return (
-    <div className="space-y-6">
-      {/* Summary cards */}
+    <div className="space-y-5">
+      {/* ─── A. Financial summary ─── */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="border-border/40">
           <CardContent className="p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt</p>
-            <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(revenue)}</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt</p>
+            </div>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(revenue)}</p>
           </CardContent>
         </Card>
         <Card className="border-border/40">
           <CardContent className="p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total kostnad</p>
-            <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalCost)}</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total kostnad</p>
+            </div>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(totalCost)}</p>
           </CardContent>
         </Card>
-        <Card className={cn('border-border/40', margin < 10 && 'border-amber-200/60 dark:border-amber-800/40')}>
+        <Card className={cn('border-border/40', signals.margin.level === 'warning' && 'border-amber-200/60 dark:border-amber-800/40', signals.margin.level === 'danger' && 'border-red-200/60 dark:border-red-800/40')}>
           <CardContent className="p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB / Marginal</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB / Marginal</p>
+            </div>
             <p className={cn(
-              'text-xl font-bold mt-1',
-              margin >= 20 ? 'text-green-600' : margin >= 10 ? 'text-foreground' : 'text-amber-600'
+              'text-xl font-bold',
+              signals.margin.level === 'ok' ? 'text-green-600' :
+              signals.margin.level === 'warning' ? 'text-amber-600' :
+              signals.margin.level === 'danger' ? 'text-red-600' : 'text-foreground'
             )}>
-              {formatCurrency(revenue - totalCost)} ({margin.toFixed(0)}%)
+              {formatCurrency(marginAmount)} ({margin.toFixed(0)}%)
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Action indicators */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {attestCounts.unattested > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md px-2.5 py-1.5 border border-amber-200/60 dark:border-amber-800/40">
-            <AlertTriangle className="h-3 w-3" />
-            {attestCounts.unattested} oattesterade levfakturor
-          </div>
-        )}
-        {attestCounts.imported > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 dark:bg-sky-950/20 rounded-md px-2.5 py-1.5 border border-sky-200/60 dark:border-sky-800/40">
-            <FileText className="h-3 w-3" />
-            {attestCounts.imported} nya kostnader
-          </div>
-        )}
-        {billingRecord && (
-          <div className="flex items-center gap-1.5 ml-auto">
-            <BillingStatusBadge status={billingRecord.billing_status} />
-          </div>
-        )}
-      </div>
+      {/* ─── B. Status signals row ─── */}
+      <Card className="border-border/40">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-4 flex-wrap text-xs">
+            {/* Time status */}
+            <div className="flex items-center gap-1.5">
+              {signalDot(signals.time.level)}
+              <span className="text-foreground font-medium">{signals.time.label}</span>
+              {signals.time.detail && <span className="text-muted-foreground">({signals.time.detail})</span>}
+            </div>
+            
+            <span className="text-border">|</span>
 
-      {/* Closure gate (show if project has billing record) */}
-      {billingRecord && (
-        <ProjectClosureGate gates={closureGates} />
-      )}
+            {/* Supplier invoice status */}
+            <div className="flex items-center gap-1.5">
+              {signalDot(signals.supplierInvoice.level)}
+              <span className="text-foreground font-medium">{signals.supplierInvoice.label}</span>
+              {signals.supplierInvoice.detail && <span className="text-muted-foreground">({signals.supplierInvoice.detail})</span>}
+            </div>
+            
+            <span className="text-border">|</span>
 
-      {/* Export buttons */}
-      <div className="flex justify-end gap-2">
+            {/* Cost status */}
+            <div className="flex items-center gap-1.5">
+              {signalDot(signals.cost.level)}
+              <span className="text-foreground font-medium">{signals.cost.label}</span>
+            </div>
+
+            <span className="text-border">|</span>
+
+            {/* Closure status */}
+            <div className="flex items-center gap-1.5">
+              {signalDot(signals.closure.level)}
+              <span className="text-foreground font-medium">{signals.closure.label}</span>
+              {signals.closure.blockerCount > 0 && (
+                <span className="text-muted-foreground">({signals.closure.blockerCount} blockerare)</span>
+              )}
+            </div>
+
+            {/* Billing status badge */}
+            {billingRecord && (
+              <div className="ml-auto">
+                <BillingStatusBadge status={billingRecord.billing_status} />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── C. Action buttons ─── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant={signals.closure.canClose ? 'default' : 'outline'}
+          size="sm"
+          className={cn('gap-1.5', signals.closure.canClose && 'bg-green-600 hover:bg-green-700')}
+          onClick={() => setClosureDialogOpen(true)}
+        >
+          {signals.closure.canClose ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <Lock className="h-3.5 w-3.5" />
+          )}
+          {signals.closure.canClose ? 'Stäng projekt' : 'Stängningskontroll'}
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <FileText className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <FileText className="h-3.5 w-3.5" />
               Exportera
             </Button>
           </DropdownMenuTrigger>
@@ -196,18 +308,24 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         </DropdownMenu>
       </div>
 
-      {/* Offertunderlag från bokning */}
+      {/* ─── D. Time Approval Summary ─── */}
+      <TimeApprovalSummary timeReports={timeReports} />
+
+      {/* ─── E. Closure Gate (always visible) ─── */}
+      <ProjectClosureGate gates={closureGates} />
+
+      {/* ─── F. Offertunderlag från bokning ─── */}
       {bookingEconomics && (
         <BookingEconomicsCard
           economics={bookingEconomics}
-          label="Offertunderlag (från bokningsoffert)"
+          label="Ordervärde (från bokning)"
         />
       )}
 
-      {/* Projektresultat - Utfall */}
+      {/* ─── G. Projektresultat - Utfall ─── */}
       <EconomySummaryCard summary={summary} bookingEconomics={bookingEconomics} />
 
-      {/* Product Costs */}
+      {/* ─── H. Product Costs ─── */}
       {productCosts && (
         <ProductCostsCard
           productCosts={productCosts}
@@ -225,12 +343,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         purchases={purchases}
       />
 
-      {/* Tabbed sections */}
-      <Tabs defaultValue="staff" className="w-full">
+      {/* ─── I. Tabbed detail sections ─── */}
+      <Tabs defaultValue="supplier" className="w-full">
         <TabsList className="w-full justify-start">
-          <TabsTrigger value="staff">Personal & Timmar</TabsTrigger>
-          <TabsTrigger value="purchases">Inköp</TabsTrigger>
-          <TabsTrigger value="quotes">Offerter & Fakturor</TabsTrigger>
           <TabsTrigger value="supplier" className="relative">
             Leverantörsfakturor
             {attestCounts.unattested > 0 && (
@@ -239,7 +354,22 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="staff">Personal & Timmar</TabsTrigger>
+          <TabsTrigger value="purchases">Inköp</TabsTrigger>
+          <TabsTrigger value="quotes">Offerter & Fakturor</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="supplier">
+          <SupplierInvoicesCard
+            supplierInvoices={supplierInvoices}
+            onRefresh={refetchSupplierInvoices}
+            purchases={purchases}
+            productCosts={productCosts}
+            onLinkInvoice={linkSupplierInvoice}
+            bookingId={bookingId}
+            projectRevenue={revenue}
+          />
+        </TabsContent>
 
         <TabsContent value="staff">
           <StaffCostTable
@@ -273,17 +403,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
             onUpdateInvoice={updateInvoice}
           />
         </TabsContent>
-
-        <TabsContent value="supplier">
-          <SupplierInvoicesCard
-            supplierInvoices={supplierInvoices}
-            onRefresh={refetchSupplierInvoices}
-            purchases={purchases}
-            productCosts={productCosts}
-            onLinkInvoice={linkSupplierInvoice}
-            bookingId={bookingId}
-          />
-        </TabsContent>
       </Tabs>
 
       {/* Budget Settings Dialog */}
@@ -292,6 +411,17 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         onOpenChange={setBudgetDialogOpen}
         currentBudget={budget || null}
         onSave={saveBudget}
+      />
+
+      {/* Closure Dialog */}
+      <ProjectClosureDialog
+        open={closureDialogOpen}
+        onOpenChange={setClosureDialogOpen}
+        projectName={projectName}
+        gates={closureGates}
+        canClose={signals.closure.canClose}
+        isClosing={isClosing}
+        onClose={handleCloseProject}
       />
     </div>
   );

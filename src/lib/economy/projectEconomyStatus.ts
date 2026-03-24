@@ -118,6 +118,8 @@ export interface ProjectEconomySignals {
   revenue: number;
   /** Total actual cost */
   totalCost: number;
+  /** Time report approval counts */
+  timeReportCounts: { total: number; approved: number; pending: number };
 }
 
 // ─── Input for computing signals ────────────────────────────────────────────
@@ -130,6 +132,12 @@ export interface ProjectEconomyInput {
   hourlyRate: number;
   timeReportsApproved: boolean;
   hasRecentEconomyData: boolean;
+  /** Counts for time report approval */
+  timeReportCounts?: {
+    total: number;
+    approved: number;
+    pending: number;
+  };
 }
 
 // ─── Pure computation ───────────────────────────────────────────────────────
@@ -148,12 +156,15 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
   const budgetTarget = budgetedHours * hourlyRate;
   const budgetDeviation = budgetTarget > 0 ? ((totalCost - budgetTarget) / budgetTarget) * 100 : 0;
 
+  const trCounts = input.timeReportCounts ?? { total: 0, approved: 0, pending: 0 };
+  const allTimesApproved = timeReportsApproved && trCounts.pending === 0;
+
   // --- Blockers & Warnings ---
   const blockers = computeBlockers(attestCounts, hasRecentEconomyData);
-  const warnings = computeWarnings(budgetDeviation, marginPercent, timeReportsApproved);
+  const warnings = computeWarnings(budgetDeviation, marginPercent, allTimesApproved);
 
   // --- Individual signals ---
-  const time = computeTimeStatus(summary);
+  const time = computeTimeStatus(summary, trCounts);
   const cost = computeCostStatus(summary, budgetTarget);
   const supplierInvoice = computeSupplierInvoiceStatus(attestCounts);
   const margin = computeMarginStatus(marginPercent, marginAmount, revenue);
@@ -171,6 +182,7 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
     warnings,
     revenue,
     totalCost,
+    timeReportCounts: trCounts,
   };
 }
 
@@ -247,9 +259,15 @@ export function computeWarnings(
 
 // ─── Individual signal computations ─────────────────────────────────────────
 
-function computeTimeStatus(summary: EconomySummary): TimeStatus {
+function computeTimeStatus(
+  summary: EconomySummary,
+  trCounts: { total: number; approved: number; pending: number },
+): TimeStatus {
   if (summary.budgetedHours === 0 && summary.actualHours === 0) {
     return { level: 'neutral', label: 'Inga timmar registrerade' };
+  }
+  if (trCounts.pending > 0) {
+    return { level: 'warning', label: 'Ej godkända tider', detail: `${trCounts.pending} av ${trCounts.total} väntar` };
   }
   const deviation = summary.staffDeviationPercent;
   if (deviation <= 0) return { level: 'ok', label: 'Inom tidsbudget' };

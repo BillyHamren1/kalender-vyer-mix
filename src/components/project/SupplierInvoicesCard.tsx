@@ -36,10 +36,15 @@ interface SupplierInvoicesCardProps {
   productCosts?: { products?: ProductCostItem[] } | null;
   onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
   bookingId?: string | null;
+  /** Project revenue — used to show margin impact per invoice */
+  projectRevenue?: number;
 }
 
 const fmt = (v: number) =>
   v == null ? '–' : v === 0 ? '0' : v.toLocaleString('sv-SE');
+
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
 const STATUS_ORDER: AttestStatus[] = ['imported', 'needs_review', 'linked', 'attested', 'sent_to_booking', 'rejected'];
 const STATUS_LABELS: Record<string, string> = {
@@ -58,6 +63,7 @@ export const SupplierInvoicesCard = ({
   productCosts,
   onLinkInvoice,
   bookingId,
+  projectRevenue = 0,
 }: SupplierInvoicesCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -211,6 +217,18 @@ export const SupplierInvoicesCard = ({
         </div>
       </CardHeader>
       <CardContent className="pt-1 space-y-4">
+        {projectRevenue > 0 && total > 0 && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-md bg-muted/40 text-xs">
+            <span className="text-muted-foreground">Leverantörskostnader utgör</span>
+            <span className={cn(
+              'font-semibold',
+              (total / projectRevenue * 100) > 30 ? 'text-red-600' :
+              (total / projectRevenue * 100) > 15 ? 'text-amber-600' : 'text-foreground'
+            )}>
+              {(total / projectRevenue * 100).toFixed(0)}% av intäkten ({formatCurrency(total)})
+            </span>
+          </div>
+        )}
         {STATUS_ORDER.map(status => {
           const invoices = groupedInvoices[status];
           if (!invoices || invoices.length === 0) return null;
@@ -259,6 +277,14 @@ export const SupplierInvoicesCard = ({
                           <p className="text-sm font-semibold text-foreground whitespace-nowrap">
                             {fmt(invoiceAmount)} kr
                           </p>
+                          {projectRevenue > 0 && (
+                            <span className={cn(
+                              'text-[10px] font-medium whitespace-nowrap',
+                              (invoiceAmount / projectRevenue * 100) > 5 ? 'text-amber-600' : 'text-muted-foreground'
+                            )}>
+                              {(invoiceAmount / projectRevenue * 100).toFixed(1)}% av intäkt
+                            </span>
+                          )}
                           {isExpanded ? (
                             <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
                           ) : (
