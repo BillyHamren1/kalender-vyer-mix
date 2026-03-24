@@ -11,6 +11,8 @@ import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
+import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
+import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
@@ -39,6 +41,7 @@ const ProjectViewPage = () => {
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
+  const { suppliers } = useProjectSuppliers(project?.id);
 
   // Auto-complete Transportbokning task if transport assignments exist
   useEffect(() => {
@@ -166,6 +169,14 @@ const ProjectViewPage = () => {
 
       {/* Underleverantörer */}
       <ProjectSuppliersTab projectId={project.id} />
+
+      {/* PM-dokument */}
+      <ProjectPMDocument
+        project={project}
+        tasks={tasks}
+        suppliers={suppliers}
+        transportAssignments={transportAssignments}
+      />
 
       {/* Kommentarer */}
       <div>
