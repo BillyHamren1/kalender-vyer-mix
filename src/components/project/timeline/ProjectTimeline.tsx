@@ -142,11 +142,12 @@ const ProjectTimeline = ({ tasks, onUpdateTask, onAddTask, projectId }: ProjectT
 
   const handleAddTask = () => {
     if (!addTitle.trim() || !addStartDate || !addEndDate) return;
-    // We need to use onAddTask then immediately update with timeline fields
-    // Since addTask only takes title+project_id, we update after
-    onAddTask({ project_id: projectId, title: addTitle.trim() });
-    // The task will appear without timeline data initially
-    // We'll need to set the phase/dates after creation - for now store intent
+    onAddTask({
+      title: addTitle.trim(),
+      start_date: new Date(addStartDate).toISOString(),
+      end_date: new Date(addEndDate).toISOString(),
+      phase: addPhase,
+    });
     setAddDialogOpen(false);
     setAddTitle('');
     setAddStartDate('');
