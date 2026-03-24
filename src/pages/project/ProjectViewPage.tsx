@@ -179,6 +179,13 @@ const ProjectViewPage = () => {
         transportAssignments={transportAssignments}
       />
 
+      {/* Kommunikation */}
+      <ProjectCommunication
+        projectId={project.id}
+        senderName={project.project_leader || 'Projektledare'}
+        suppliers={suppliers}
+      />
+
       {/* Kommentarer */}
       <div>
         <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
