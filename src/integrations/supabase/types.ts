@@ -2991,12 +2991,16 @@ export type Database = {
           completed: boolean
           created_at: string
           deadline: string | null
+          dependency_task_id: string | null
           description: string | null
+          end_date: string | null
           id: string
           is_info_only: boolean | null
           organization_id: string
+          phase: string | null
           project_id: string
           sort_order: number
+          start_date: string | null
           title: string
           updated_at: string
         }
@@ -3005,12 +3009,16 @@ export type Database = {
           completed?: boolean
           created_at?: string
           deadline?: string | null
+          dependency_task_id?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           is_info_only?: boolean | null
           organization_id?: string
+          phase?: string | null
           project_id: string
           sort_order?: number
+          start_date?: string | null
           title: string
           updated_at?: string
         }
@@ -3019,12 +3027,16 @@ export type Database = {
           completed?: boolean
           created_at?: string
           deadline?: string | null
+          dependency_task_id?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           is_info_only?: boolean | null
           organization_id?: string
+          phase?: string | null
           project_id?: string
           sort_order?: number
+          start_date?: string | null
           title?: string
           updated_at?: string
         }
@@ -3034,6 +3046,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_dependency_task_id_fkey"
+            columns: ["dependency_task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
             referencedColumns: ["id"]
           },
           {
