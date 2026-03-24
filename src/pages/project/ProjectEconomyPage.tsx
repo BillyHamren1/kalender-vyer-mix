@@ -40,21 +40,30 @@ const ProjectEconomyPage = () => {
   const handleCloseProject = async () => {
     setIsClosing(true);
     try {
-      if (project.booking_id) {
-        const { markReadyForInvoicing } = await import('@/services/planningApiService');
-        await markReadyForInvoicing(project.booking_id);
-      }
+      // A. Mark project as closed locally first
       const { error } = await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', project.id);
       if (error) throw error;
+
+      // B. Only after local success: send external sync
+      if (project.booking_id) {
+        try {
+          const { markReadyForInvoicing } = await import('@/services/planningApiService');
+          await markReadyForInvoicing(project.booking_id);
+        } catch (syncErr) {
+          console.warn('External sync failed (non-blocking):', syncErr);
+          toast.warning('Projektet stängt lokalt, men synk misslyckades.');
+        }
+      }
+
       toast.success(`${project.name} har markerats som avslutat`);
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     } catch (err) {
       console.error('Close project error:', err);
-      toast.error('Kunde inte signalera faktureringssystemet — försök igen');
+      toast.error('Kunde inte stänga projektet — inga ändringar sparade');
     } finally {
       setIsClosing(false);
       setShowCloseDialog(false);

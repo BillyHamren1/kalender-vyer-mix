@@ -125,36 +125,73 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   const margin = signals.margin.marginPercent;
   const marginAmount = signals.margin.marginAmount;
 
-  // Close project handler
+  // Close project handler — ordered: validate → billing → mark closed → external sync
   const handleCloseProject = async (notes?: string) => {
     setIsClosing(true);
     try {
-      if (bookingId) {
-        const { markReadyForInvoicing } = await import('@/services/planningApiService');
-        await markReadyForInvoicing(bookingId);
+      // ── A. Validate blockers (re-check at execution time, not just UI) ──
+      if (!signals.closure.canClose) {
+        toast.error(`Projektet kan inte stängas — ${signals.closure.blockerCount} blockerare kvarstår`);
+        setIsClosing(false);
+        return;
       }
-      const { error } = await supabase
+
+      // ── B. Create or update project_billing with final economy snapshot ──
+      const billingPayload = {
+        project_id: projectId,
+        project_type: 'medium',
+        project_name: projectName,
+        invoiceable_amount: revenue,
+        total_cost: totalCost,
+        booking_id: bookingId ?? undefined,
+      };
+
+      if (billingRecord) {
+        // Always update to reflect final state at close time
+        const { error: billingErr } = await supabase
+          .from('project_billing')
+          .update({
+            invoiceable_amount: revenue,
+            total_cost: totalCost,
+            billing_status: 'ready_for_handover',
+            closed_at: new Date().toISOString(),
+            review_status: 'approved',
+            review_completed_at: new Date().toISOString(),
+            approved_for_invoicing_at: new Date().toISOString(),
+            internal_notes: notes || billingRecord.internal_notes,
+          } as any)
+          .eq('id', billingRecord.id);
+        if (billingErr) throw billingErr;
+      } else {
+        await createBilling.mutateAsync(billingPayload);
+      }
+
+      // ── C. Mark project as closed locally ──
+      const { error: projectErr } = await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', projectId);
-      if (error) throw error;
+      if (projectErr) throw projectErr;
 
-      // Create/update billing record
-      if (!billingRecord) {
-        await createBilling.mutateAsync({
-          project_id: projectId,
-          project_type: 'medium',
-          project_name: projectName,
-          invoiceable_amount: revenue,
-          total_cost: totalCost,
-        });
+      // ── D. Only after local success: send external sync signal ──
+      if (bookingId) {
+        try {
+          const { markReadyForInvoicing } = await import('@/services/planningApiService');
+          await markReadyForInvoicing(bookingId);
+        } catch (syncErr) {
+          // External sync failure is non-fatal — project is closed locally
+          console.warn('External sync failed (non-blocking):', syncErr);
+          toast.warning('Projektet stängt lokalt, men synk till bokningssystemet misslyckades. Försök igen senare.');
+        }
       }
 
       toast.success(`${projectName} har markerats som avslutat`);
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['project-billing'] });
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
     } catch (err) {
       console.error('Close project error:', err);
-      toast.error('Kunde inte stänga projektet');
+      toast.error('Kunde inte stänga projektet — inga ändringar sparade');
     } finally {
       setIsClosing(false);
       setClosureDialogOpen(false);
