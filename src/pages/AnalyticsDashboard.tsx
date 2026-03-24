@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, FolderOpen, Package, Users, GitBranch, AlertTriangle } from 'lucide-react';
+import { BarChart3, FolderOpen, Package, Users, GitBranch, AlertTriangle, Download } from 'lucide-react';
 import { useDerivedAnalytics, type AnalyticsFilter } from '@/hooks/useDerivedAnalytics';
 import { AnalyticsFilterBar } from '@/components/analytics/AnalyticsFilterBar';
 import { OverviewTab } from '@/components/analytics/OverviewTab';
