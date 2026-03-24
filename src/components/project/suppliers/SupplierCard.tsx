@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { SupplierStatusBadge } from "./SupplierStatusBadge";
-import type { ProjectSupplier } from "@/types/supplier";
+import type { MergedSupplier } from "@/types/supplier";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Building2, Calendar, ChevronRight } from "lucide-react";
 
 interface SupplierCardProps {
-  supplier: ProjectSupplier;
+  supplier: MergedSupplier;
   onClick: () => void;
 }
 
