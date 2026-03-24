@@ -262,6 +262,14 @@ export const SupplierInvoicesCard = ({
                           <p className="text-sm font-semibold text-foreground whitespace-nowrap">
                             {fmt(invoiceAmount)} kr
                           </p>
+                          {projectRevenue > 0 && (
+                            <span className={cn(
+                              'text-[10px] font-medium whitespace-nowrap',
+                              (invoiceAmount / projectRevenue * 100) > 5 ? 'text-amber-600' : 'text-muted-foreground'
+                            )}>
+                              {(invoiceAmount / projectRevenue * 100).toFixed(1)}% av intäkt
+                            </span>
+                          )}
                           {isExpanded ? (
                             <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
                           ) : (
