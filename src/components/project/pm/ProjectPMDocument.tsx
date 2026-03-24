@@ -14,7 +14,7 @@ import { Printer, FileDown, FileText } from "lucide-react";
 interface ProjectPMDocumentProps {
   project: ProjectWithBooking;
   tasks: ProjectTask[];
-  suppliers: ProjectSupplier[];
+  suppliers: MergedSupplier[];
   transportAssignments: ProjectTransportAssignment[];
 }
 
