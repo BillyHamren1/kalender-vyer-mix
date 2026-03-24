@@ -217,7 +217,18 @@ export const SupplierInvoicesCard = ({
         </div>
       </CardHeader>
       <CardContent className="pt-1 space-y-4">
-        {STATUS_ORDER.map(status => {
+        {projectRevenue > 0 && total > 0 && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-md bg-muted/40 text-xs">
+            <span className="text-muted-foreground">Leverantörskostnader utgör</span>
+            <span className={cn(
+              'font-semibold',
+              (total / projectRevenue * 100) > 30 ? 'text-red-600' :
+              (total / projectRevenue * 100) > 15 ? 'text-amber-600' : 'text-foreground'
+            )}>
+              {(total / projectRevenue * 100).toFixed(0)}% av intäkten ({formatCurrency(total)})
+            </span>
+          </div>
+        )}
           const invoices = groupedInvoices[status];
           if (!invoices || invoices.length === 0) return null;
 
