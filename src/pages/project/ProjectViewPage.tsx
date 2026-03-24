@@ -11,6 +11,8 @@ import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
+import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
+import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
