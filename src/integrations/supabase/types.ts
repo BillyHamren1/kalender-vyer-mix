@@ -2800,7 +2800,7 @@ export type Database = {
           message: string
           organization_id: string
           project_id: string
-          related_supplier_id: string | null
+          project_supplier_link_id: string | null
           sender_name: string
           type: string
         }
@@ -2810,7 +2810,7 @@ export type Database = {
           message: string
           organization_id: string
           project_id: string
-          related_supplier_id?: string | null
+          project_supplier_link_id?: string | null
           sender_name: string
           type?: string
         }
@@ -2820,7 +2820,7 @@ export type Database = {
           message?: string
           organization_id?: string
           project_id?: string
-          related_supplier_id?: string | null
+          project_supplier_link_id?: string | null
           sender_name?: string
           type?: string
         }
@@ -2833,10 +2833,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "project_messages_related_supplier_id_fkey"
-            columns: ["related_supplier_id"]
+            foreignKeyName: "project_messages_project_supplier_link_id_fkey"
+            columns: ["project_supplier_link_id"]
             isOneToOne: false
-            referencedRelation: "project_suppliers"
+            referencedRelation: "project_supplier_links"
             referencedColumns: ["id"]
           },
         ]
