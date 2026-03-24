@@ -17,11 +17,11 @@ import {
 } from "lucide-react";
 
 interface SupplierDetailSheetProps {
-  supplier: ProjectSupplier | null;
+  supplier: MergedSupplier | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (id: string, status: SupplierStatus) => void;
-  onUpdate: (id: string, updates: Partial<ProjectSupplier>) => void;
+  onUpdate: (id: string, updates: Partial<MergedSupplier>) => void;
   onDelete: (id: string) => void;
 }
 
