@@ -2793,6 +2793,54 @@ export type Database = {
           },
         ]
       }
+      project_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          organization_id: string
+          project_id: string
+          related_supplier_id: string | null
+          sender_name: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          organization_id: string
+          project_id: string
+          related_supplier_id?: string | null
+          sender_name: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          organization_id?: string
+          project_id?: string
+          related_supplier_id?: string | null
+          sender_name?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_messages_related_supplier_id_fkey"
+            columns: ["related_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "project_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_purchases: {
         Row: {
           amount: number
