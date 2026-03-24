@@ -64,7 +64,7 @@ const CHECKLIST_ITEMS: { key: keyof ReviewChecklist; label: string }[] = [
   { key: 'deviation_checked', label: 'Avvikelse mot offert kontrollerad' },
   { key: 'invoice_info_complete', label: 'Fakturauppgifter kompletta' },
   { key: 'internal_note_added', label: 'Intern notering tillagd vid behov' },
-  { key: 'ready_for_invoicing', label: 'Projekt klart för överlämning' },
+  { key: 'ready_for_invoicing', label: 'Ekonomi komplett — klart att stänga' },
 ];
 
 interface Props {
