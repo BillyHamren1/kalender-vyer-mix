@@ -156,12 +156,15 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
   const budgetTarget = budgetedHours * hourlyRate;
   const budgetDeviation = budgetTarget > 0 ? ((totalCost - budgetTarget) / budgetTarget) * 100 : 0;
 
+  const trCounts = input.timeReportCounts ?? { total: 0, approved: 0, pending: 0 };
+  const allTimesApproved = timeReportsApproved && trCounts.pending === 0;
+
   // --- Blockers & Warnings ---
   const blockers = computeBlockers(attestCounts, hasRecentEconomyData);
-  const warnings = computeWarnings(budgetDeviation, marginPercent, timeReportsApproved);
+  const warnings = computeWarnings(budgetDeviation, marginPercent, allTimesApproved);
 
   // --- Individual signals ---
-  const time = computeTimeStatus(summary);
+  const time = computeTimeStatus(summary, trCounts);
   const cost = computeCostStatus(summary, budgetTarget);
   const supplierInvoice = computeSupplierInvoiceStatus(attestCounts);
   const margin = computeMarginStatus(marginPercent, marginAmount, revenue);
@@ -179,6 +182,7 @@ export function computeProjectEconomySignals(input: ProjectEconomyInput): Projec
     warnings,
     revenue,
     totalCost,
+    timeReportCounts: trCounts,
   };
 }
 
