@@ -78,22 +78,24 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     return billingItems.find(b => b.project_id === projectId);
   }, [billingItems, projectId]);
 
-  // Summary calculations
-  const revenue = summary.productRevenue || 0;
-  const totalCost = summary.totalActual || 0;
-  const margin = revenue > 0 ? ((revenue - totalCost) / revenue * 100) : 0;
+  // Shared signals model
+  const economyInput: ProjectEconomyInput = useMemo(() => ({
+    summary,
+    attestCounts,
+    billingStatus: billingRecord?.billing_status ?? null,
+    budgetedHours: budget?.budgeted_hours || 0,
+    hourlyRate: budget?.hourly_rate || 0,
+    timeReportsApproved: true,
+    hasRecentEconomyData: true,
+  }), [summary, attestCounts, billingRecord, budget]);
 
-  // Closure gates
-  const closureGates = useMemo(() => buildClosureGates({
-    unattestedInvoiceCount: attestCounts.unattested,
-    newCostCount: attestCounts.imported,
-    hasRecentEconomyData: true, // Simplified - could check last fetch timestamp
-    budgetDeviation: revenue > 0 ? ((totalCost - (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0)) / revenue * 100) : 0,
-    marginPercent: margin,
-    timeReportsApproved: true, // Simplified
-  }), [attestCounts, summary, budget, margin]);
+  const signals = useMemo(() => computeProjectEconomySignals(economyInput), [economyInput]);
+  const closureGates = useMemo(() => buildGateItemsFromSignals(signals), [signals]);
 
-  const hasBlockers = closureGates.some(g => g.blocking && !g.passed);
+  const { revenue, totalCost } = signals;
+  const margin = signals.margin.marginPercent;
+
+  const hasBlockers = !signals.closure.canClose;
 
   const handleExportExcel = () => {
     try {
