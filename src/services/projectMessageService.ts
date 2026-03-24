@@ -13,7 +13,7 @@ export const fetchProjectMessages = async (
     .order('created_at', { ascending: true });
 
   if (type) query = query.eq('type', type);
-  if (supplierId) query = query.eq('related_supplier_id', supplierId);
+  if (supplierId) query = query.eq('project_supplier_link_id', supplierId);
 
   const { data, error } = await query;
   if (error) throw error;
