@@ -67,32 +67,43 @@ Deno.serve(async (req) => {
     const upperStatus = (booking.status || '').toUpperCase()
 
     // 2. If CANCELLED → remove packing project entirely
-    if (upperStatus === 'CANCELLED') {
-      console.log(`[sync-booking-to-packing] Booking ${booking_id} is cancelled, removing packing project`)
-      const { error: deleteError } = await supabase
-        .from('packing_projects')
-        .delete()
-        .eq('booking_id', booking_id)
-        .eq('organization_id', organization_id)
-
-      if (deleteError) {
-        console.error(`[sync-booking-to-packing] Error deleting packing:`, deleteError)
-      }
-
-      return new Response(
-        JSON.stringify({ action: 'deleted', booking_id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // 3. Build the packing name from booking data
+    // Shared sync fields derived from booking
     const clientName = booking.client || 'Okänd kund'
     const eventDate = booking.eventdate
       ? new Date(booking.eventdate).toLocaleDateString('sv-SE')
       : ''
     const packingName = eventDate ? `${clientName} - ${eventDate}` : clientName
 
-    // 4. Check if packing project exists
+    const syncFields = {
+      name: packingName,
+      client_name: booking.client || null,
+      start_date: booking.rigdaydate || null,
+      end_date: booking.rigdowndate || null,
+      delivery_address: booking.deliveryaddress || null,
+      notes: booking.internalnotes || null,
+      updated_at: new Date().toISOString()
+    }
+
+    // 2. If CANCELLED → mark packing project as cancelled (not delete)
+    if (upperStatus === 'CANCELLED') {
+      console.log(`[sync-booking-to-packing] Booking ${booking_id} is cancelled, marking packing as cancelled`)
+      const { error: cancelError } = await supabase
+        .from('packing_projects')
+        .update({ ...syncFields, status: 'cancelled' })
+        .eq('booking_id', booking_id)
+        .eq('organization_id', organization_id)
+
+      if (cancelError) {
+        console.error(`[sync-booking-to-packing] Error cancelling packing:`, cancelError)
+      }
+
+      return new Response(
+        JSON.stringify({ action: 'cancelled', booking_id }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // 3. Check if packing project exists
     const { data: existingPacking } = await supabase
       .from('packing_projects')
       .select('id, name, status')
@@ -105,18 +116,16 @@ Deno.serve(async (req) => {
     let action: string
 
     if (existingPacking) {
-      // Update existing packing name if it changed
-      if (existingPacking.name !== packingName) {
-        console.log(`[sync-booking-to-packing] Updating packing name: "${existingPacking.name}" → "${packingName}"`)
-        const { error: updateError } = await supabase
-          .from('packing_projects')
-          .update({ name: packingName, updated_at: new Date().toISOString() })
-          .eq('id', existingPacking.id)
+      // Always update all synced fields
+      console.log(`[sync-booking-to-packing] Updating packing project ${existingPacking.id}`)
+      const { error: updateError } = await supabase
+        .from('packing_projects')
+        .update(syncFields)
+        .eq('id', existingPacking.id)
 
-        if (updateError) {
-          console.error(`[sync-booking-to-packing] Error updating packing name:`, updateError)
-          throw updateError
-        }
+      if (updateError) {
+        console.error(`[sync-booking-to-packing] Error updating packing:`, updateError)
+        throw updateError
       }
       packingId = existingPacking.id
       action = 'updated'
@@ -135,7 +144,7 @@ Deno.serve(async (req) => {
         .from('packing_projects')
         .insert({
           booking_id: booking_id,
-          name: packingName,
+          ...syncFields,
           status: 'planning',
           organization_id: organization_id
         })
