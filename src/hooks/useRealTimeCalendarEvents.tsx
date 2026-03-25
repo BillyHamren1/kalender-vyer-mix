@@ -225,41 +225,44 @@ export const useRealTimeCalendarEvents = () => {
 
   // Handle real-time booking changes with smart calendar updates
   const handleBookingChange = useCallback(async (payload: any) => {
-    // Process booking change
-    
     if (!activeRef.current) return;
 
     const { eventType, new: newRecord, old: oldRecord } = payload;
     
     try {
+      // Guard: realtime payloads may have incomplete data depending on replica identity.
+      // Only process when we have the fields we need.
       if (eventType === 'UPDATE' && newRecord && oldRecord) {
-        // Use smart update to handle calendar changes only when necessary
-        await smartUpdateBookingCalendar(newRecord.id, oldRecord, newRecord);
+        // Skip if this is a trivial update (e.g. updated_at only) to avoid unnecessary work
+        const statusChanged = oldRecord.status !== newRecord.status;
+        const dateFields = ['rigdaydate', 'eventdate', 'rigdowndate'];
+        const timeFields = ['rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time'];
         
-        // Show appropriate user feedback
-        if (newRecord.status === 'CONFIRMED' && oldRecord.status !== 'CONFIRMED') {
-          toast.success('Booking confirmed and added to calendar');
-        } else if (oldRecord.status === 'CONFIRMED' && newRecord.status !== 'CONFIRMED') {
-          toast.info('Booking events removed from calendar');
-        } else if (newRecord.status === 'CONFIRMED' && (
-          oldRecord.rigdaydate !== newRecord.rigdaydate ||
-          oldRecord.eventdate !== newRecord.eventdate ||
-          oldRecord.rigdowndate !== newRecord.rigdowndate
-        )) {
-          toast.success('Booking dates updated in calendar');
+        const datesChanged = dateFields.some(f => (oldRecord[f] ?? null) !== (newRecord[f] ?? null));
+        const timesChanged = timeFields.some(f => (oldRecord[f] ?? null) !== (newRecord[f] ?? null));
+        
+        // Only call smartUpdate when something calendar-relevant actually changed
+        if (statusChanged || datesChanged || timesChanged) {
+          await smartUpdateBookingCalendar(newRecord.id, oldRecord, newRecord);
+          
+          if (newRecord.status === 'CONFIRMED' && oldRecord.status !== 'CONFIRMED') {
+            toast.success('Bokning bekräftad och tillagd i kalendern');
+          } else if (oldRecord.status === 'CONFIRMED' && newRecord.status !== 'CONFIRMED') {
+            toast.info('Bokningshändelser borttagna från kalendern');
+          } else if (datesChanged || timesChanged) {
+            // Silent — no toast for date/time updates to avoid noise
+          }
         }
       } else if (eventType === 'INSERT' && newRecord?.status === 'CONFIRMED') {
-        
         await smartUpdateBookingCalendar(newRecord.id, {}, newRecord);
-        toast.success('New confirmed booking added to calendar');
+        toast.success('Ny bekräftad bokning tillagd i kalendern');
       } else if (eventType === 'DELETE' && oldRecord?.status === 'CONFIRMED') {
-        
         await smartUpdateBookingCalendar(oldRecord.id, oldRecord, { status: 'DELETED' });
-        toast.info('Deleted booking events removed from calendar');
+        toast.info('Borttagen bokning borttagen från kalendern');
       }
     } catch (error) {
       console.error('Error handling booking change:', error);
-      toast.error('Failed to sync booking changes to calendar');
+      // Don't show toast for every minor error — only log it
     }
   }, []);
 
