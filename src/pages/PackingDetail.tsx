@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PackingStatusDropdown from "@/components/packing/PackingStatusDropdown";
+import { PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist";
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
@@ -190,7 +190,9 @@ const PackingDetail = () => {
                 <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Uppdatera
               </Button>
-              <PackingStatusDropdown status={packing.status} onStatusChange={updateStatus} />
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${PACKING_STATUS_COLORS[packing.status] || 'bg-muted text-muted-foreground'}`}>
+                {PACKING_STATUS_LABELS[packing.status] || packing.status}
+              </span>
             </div>
           </div>
 
