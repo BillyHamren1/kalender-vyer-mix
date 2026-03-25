@@ -90,6 +90,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
       type: 'small',
       date: j.booking?.eventDate ?? null,
+      eventDate: j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.deliveryAddress ?? null,
       address: j.booking?.deliveryAddress ?? null,
@@ -109,6 +110,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         name: displayName,
         type: 'medium',
         date: p.booking?.eventdate ?? null,
+        eventDate: p.booking?.eventdate ?? p.eventdate ?? null,
         status: p.status,
         subtitle: fullAddress,
         address: fullAddress,
@@ -123,11 +125,12 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       name: lp.name,
       type: 'large',
       date: lp.start_date ?? null,
+      eventDate: lp.end_date ?? lp.start_date ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
-      bookingId: null, // large projects have multiple bookings
+      bookingId: null,
     }));
 
     return items;
