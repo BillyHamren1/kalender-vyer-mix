@@ -1,4 +1,4 @@
-import { deleteJob, createJobFromBooking } from '@/services/jobService';
+import { deleteJob } from '@/services/jobService';
 import { deleteProject, createProject } from '@/services/projectService';
 import { deleteLargeProject } from '@/services/largeProjectService';
 import { supabase } from '@/integrations/supabase/client';
