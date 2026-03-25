@@ -1,27 +1,56 @@
 
+Målet: stängning av projekt ska alltid skicka signal till Booking, och stängning ska inte “gå igenom tyst” om synken misslyckas.
 
-## Plan: Ta bort "Litet projekt" som skapningsalternativ + Återställ closing-listan
+1) Rotorsak att fixa (identifierad i koden)
+- Statusändring via vanliga statusflöden saknar Booking-sync:
+  - `projectService.updateProjectStatus(...)` uppdaterar bara lokal status.
+  - `jobService.updateJobStatus(...)` uppdaterar bara lokal status.
+  - `useLargeProjectDetail` sätter status på `large_projects` utan Booking-sync.
+- I `ClosingProjectsList` är sync-fel non-blocking (fångas och ignoreras), så projekt kan stängas lokalt även om Booking aldrig informerades.
+- Stora projekt skickar idag ingen booking-id alls i closing-listan (`bookingId: null`), trots att de kan ha flera kopplade bokningar.
 
-Två saker att fixa:
+2) Ny gemensam synk-orchestrator (en källa till sanning)
+- Införa en central tjänst, t.ex. `bookingCloseSyncService.ts`, som:
+  - tar emot en eller flera `bookingId`
+  - anropar `markReadyForInvoicing`
+  - returnerar tydligt resultat (`successIds`, `failedIds`, felmeddelanden)
+- All stängningslogik (small/medium/large) använder denna tjänst istället för egna ad-hoc anrop.
 
-### 1. Ta bort möjligheten att skapa små projekt
+3) Gör stängning “strict” i alla flöden
+- Regel: om status sätts till `completed` och det finns kopplade bokningar, då måste Booking-sync lyckas först.
+- Uppdatera:
+  - `projectService.updateProjectStatus`
+  - `jobService.updateJobStatus`
+  - `useLargeProjectDetail` (hämta alla `booking_id` från `large_project_bookings` vid completed)
+  - `ClosingProjectsList.handleCloseProject`
+- Vid sync-fel:
+  - visa tydlig toast med “inte stängt – synk till Booking misslyckades”
+  - avbryt lokal statusuppdatering (ingen tyst mismatch)
 
-**IncomingBookingsList.tsx** (rad 230-240): Ta bort "Litet"-knappen som skapar jobb via `createJobFromBooking`. Behåll bara "Medel" och "Stort".
+4) Rätta stora projekt i closing-vyn
+- I `ClosingProjectsList` utöka modellen för large till att bära `bookingIds: string[]`.
+- Vid “Stäng projekt” för large:
+  - synka alla kopplade bokningar
+  - endast om alla lyckas sätts `large_projects.status = completed`.
 
-**ProjectManagement.tsx** (rad 113-117): ToggleGroup-filtret — ta bort "Litet"-alternativet. Ändra `ProjectTypeFilter` till `'all' | 'medium' | 'large'`.
+5) Återställning för projekt du redan stängt
+- Lägg till en “Skicka stängda igen till Booking”-åtgärd på `/projects/closing` (t.ex. knapp i header).
+- Den hämtar nyligen stängda small/medium/large med kopplade booking-id och kör batch-sync via samma orchestrator.
+- Resultat visas med antal lyckade/misslyckade så du direkt ser vad som faktiskt skickats.
 
-**UnifiedProjectList.tsx**: Ta bort `small` från `ProjectTypeFilter`-typen och ToggleGroup. Behåll visning av befintliga små projekt (de finns ju redan i systemet) men ta bort möjligheten att konvertera till small.
+6) Verifiering (obligatorisk)
+- End-to-end testfall:
+  - Stäng small/medium/large och verifiera att Booking-sync-anrop sker.
+  - Tvinga sync-fel och verifiera att status INTE blir completed lokalt.
+  - Kör “Skicka stängda igen” och verifiera att tidigare stängda faktiskt skickas.
+- Kontrollera även att inga gamla flöden längre kan sätta `completed` utan sync.
 
-**ProjectActionMenu.tsx** (rad 28): Filtrera bort `'small'` från konverteringsalternativen så man inte kan ändra till litet projekt.
-
-**projectConversionService.ts**: Ta bort `convertToSmall`-funktionen.
-
-### 2. Återställ closing-listan att inkludera alla projekttyper
-
-**ClosingProjectsList.tsx**: Lägg tillbaka `jobs` (små projekt) i closing-listan. Hämta jobb igen och inkludera dem som `type: 'small'` i `closingItems`. De ska visas men behöver inte ha tidrapport/utläggshantering — expanderingspanelen kan visa "Inga tidrapporter" och tillåta direkt stängning.
-
-### Sammanfattning
-- Man ska **inte kunna skapa** eller **konvertera till** små projekt längre
-- Befintliga små projekt visas fortfarande i listorna och i closing-vyn
-- Closing-listan visar alla projekttyper igen (small, medium, large)
-
+Tekniska detaljer (kort)
+- Primära filer:
+  - `src/components/project/ClosingProjectsList.tsx`
+  - `src/services/projectService.ts`
+  - `src/services/jobService.ts`
+  - `src/hooks/useLargeProjectDetail.tsx`
+  - `src/pages/ProjectClosing.tsx`
+  - ny: `src/services/bookingCloseSyncService.ts`
+- Ingen databasändring krävs för grundfixen; fokus är att centralisera och tvinga korrekt sync-beteende i samtliga stängningsvägar.
