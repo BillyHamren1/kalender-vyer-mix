@@ -10,6 +10,7 @@ import { AttachmentsList } from '../AttachmentsList';
 import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
+import PackingStatusCard from '../PackingStatusCard';
 
 interface BookingDetailContentProps {
   booking: Booking;
@@ -61,6 +62,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onSave={onDeliveryDetailsChange}
           />
           <MapDrawingCard mapDrawingUrl={booking.mapDrawingUrl} />
+          <PackingStatusCard bookingId={booking.id} />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
             assignedProjectName={booking.assignedProjectName}
