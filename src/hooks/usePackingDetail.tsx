@@ -5,7 +5,6 @@ import {
   fetchPackingTasks,
   fetchPackingComments,
   fetchPackingFiles,
-  updatePackingStatus,
   createPackingTask,
   updatePackingTask,
   deletePackingTask,
@@ -13,7 +12,7 @@ import {
   uploadPackingFile,
   deletePackingFile
 } from "@/services/packingService";
-import { PackingStatus, PackingTask } from "@/types/packing";
+import { PackingTask } from "@/types/packing";
 import { createOptimisticCallbacks } from "./useOptimisticMutation";
 
 export const usePackingDetail = (packingId: string) => {
@@ -43,23 +42,7 @@ export const usePackingDetail = (packingId: string) => {
     enabled: !!packingId
   });
 
-  // --- Optimistic mutations ---
-
-  const statusOptimistic = createOptimisticCallbacks<any, PackingStatus>({
-    queryClient,
-    queryKey: ['packing', packingId],
-    type: 'single',
-    optimisticData: (status, old) => old ? { ...old, status } : old,
-    errorMessage: 'Kunde inte uppdatera status',
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: PackingStatus) => updatePackingStatus(packingId, status),
-    ...statusOptimistic,
-    onSuccess: () => { toast.success('Status uppdaterad'); },
-    onError: statusOptimistic.onError,
-    onSettled: statusOptimistic.onSettled,
-  });
+  // --- Optimistic mutations (no status mutation - status is backend-driven) ---
 
   const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }>({
     queryClient,
@@ -147,7 +130,6 @@ export const usePackingDetail = (packingId: string) => {
     onSettled: addCommentOptimistic.onSettled,
   });
 
-  // File mutations remain non-optimistic
   const uploadFileMutation = useMutation({
     mutationFn: ({ file, uploadedBy }: { file: File; uploadedBy?: string }) =>
       uploadPackingFile(packingId, file, uploadedBy),
@@ -185,7 +167,6 @@ export const usePackingDetail = (packingId: string) => {
     comments,
     files,
     isLoading: isLoadingPacking || isLoadingTasks,
-    updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
     deleteTask: deleteTaskMutation.mutate,
