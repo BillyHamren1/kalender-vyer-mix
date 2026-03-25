@@ -325,7 +325,7 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
-          projectId: null,
+          projectId: lp.id,
         });
       }
     });
