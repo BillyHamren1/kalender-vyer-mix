@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardEventCard, { getEventCategoryColor, getCategoryIcon } from "./DashboardEventCard";
 import CalendarHeader from "./CalendarHeader";
+import { PackingProgressProvider } from "./PackingProgressProvider";
 
 interface DashboardDayViewProps {
   events: DashboardEvent[];
@@ -47,6 +48,7 @@ const DashboardDayView = ({
   ].filter(s => s.events.length > 0);
 
   return (
+    <PackingProgressProvider events={events}>
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
       <CalendarHeader
         title={titleText}
@@ -91,6 +93,7 @@ const DashboardDayView = ({
         )}
       </div>
     </div>
+    </PackingProgressProvider>
   );
 };
 

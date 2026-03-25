@@ -6,6 +6,7 @@ import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDas
 import DashboardEventCard from "./DashboardEventCard";
 import { useNavigate } from "react-router-dom";
 import CalendarHeader from "./CalendarHeader";
+import { PackingProgressProvider } from "./PackingProgressProvider";
 
 interface DashboardWeekViewProps {
   events: DashboardEvent[];
@@ -116,31 +117,33 @@ const DashboardWeekView = ({
   };
 
   return (
-    <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      <CalendarHeader
-        title={`Vecka ${weekNumber}`}
-        onPrevious={onPreviousWeek}
-        onNext={onNextWeek}
-        viewMode={viewMode}
-        onViewModeChange={onViewModeChange}
-        activeCategories={activeCategories}
-        onCategoriesChange={onCategoriesChange}
-      />
-      
-      {/* Week grid */}
-      <div className="p-3">
-        <div className="flex gap-2 items-stretch">
-          {days.map(day => (
-            <DayColumn 
-              key={day.toISOString()}
-              date={day}
-              events={events}
-              onDayClick={handleDayClick}
-            />
-          ))}
+    <PackingProgressProvider events={events}>
+      <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
+        <CalendarHeader
+          title={`Vecka ${weekNumber}`}
+          onPrevious={onPreviousWeek}
+          onNext={onNextWeek}
+          viewMode={viewMode}
+          onViewModeChange={onViewModeChange}
+          activeCategories={activeCategories}
+          onCategoriesChange={onCategoriesChange}
+        />
+        
+        {/* Week grid */}
+        <div className="p-3">
+          <div className="flex gap-2 items-stretch">
+            {days.map(day => (
+              <DayColumn 
+                key={day.toISOString()}
+                date={day}
+                events={events}
+                onDayClick={handleDayClick}
+              />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </PackingProgressProvider>
   );
 };
 
