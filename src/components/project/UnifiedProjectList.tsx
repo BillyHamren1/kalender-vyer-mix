@@ -138,8 +138,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
 
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   const filtered = useMemo(() => {
-    if (!hasActiveFilters) return [];
+    if (!hasActiveFilters && statusFilter !== 'closing') return [];
     return unified
       .filter(p => {
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
@@ -151,6 +153,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (statusFilter === 'all_active') return p.status !== 'completed';
         if (statusFilter === 'planning') return p.status === 'planning';
         if (statusFilter === 'in_progress') return p.status === 'in_progress';
+        if (statusFilter === 'closing') {
+          // Projects past event date but not yet completed
+          return p.status !== 'completed' && p.eventDate && p.eventDate < today;
+        }
         if (statusFilter === 'completed') return p.status === 'completed';
         return p.status !== 'completed';
       })
