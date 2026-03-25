@@ -99,14 +99,15 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   };
 
   const handleCloseProject = async () => {
-    if (item.type !== 'medium' || !item.projectId) {
-      toast.error('Stängning stöds just nu bara för medelstora projekt');
+    if (!item.projectId) {
+      toast.error('Inget projekt-ID kopplat');
       return;
     }
     setIsClosing(true);
     try {
+      const table = item.type === 'large' ? 'large_projects' : 'projects';
       const { error } = await supabase
-        .from('projects')
+        .from(table)
         .update({ status: 'completed' })
         .eq('id', item.projectId);
       if (error) throw error;
@@ -122,6 +123,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
 
       toast.success(`${item.name} stängt`);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     } catch (err) {
       console.error(err);
@@ -261,7 +263,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         </div>
         <Button
           size="sm"
-          disabled={!canClose || isClosing || item.type !== 'medium'}
+          disabled={!canClose || isClosing}
           onClick={handleCloseProject}
           className="bg-green-600 hover:bg-green-700 text-white"
         >
