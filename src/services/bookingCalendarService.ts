@@ -56,8 +56,8 @@ export const smartUpdateBookingCalendar = async (
       const dateFields = ['rigdaydate', 'eventdate', 'rigdowndate'];
       const timeFields = ['rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time'];
       
-      const datesChanged = dateFields.some(field => oldBooking[field] !== newBooking[field]);
-      const timesChanged = timeFields.some(field => oldBooking[field] !== newBooking[field]);
+      const datesChanged = dateFields.some(field => (oldBooking?.[field] ?? null) !== (newBooking?.[field] ?? null));
+      const timesChanged = timeFields.some(field => (oldBooking?.[field] ?? null) !== (newBooking?.[field] ?? null));
       
       if (datesChanged || timesChanged) {
         console.log(`Dates or times changed for confirmed booking ${bookingId}, updating calendar`);

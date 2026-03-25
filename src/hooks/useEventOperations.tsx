@@ -27,7 +27,7 @@ export const useEventOperations = ({
         eventData.resourceId = info.newResource.id;
         const oldTeam = resources.find(r => r.id === info.oldResource?.id)?.title || info.oldResource?.id;
         const newTeam = resources.find(r => r.id === info.newResource.id)?.title || info.newResource.id;
-        changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
+        changeDescription = `Flyttad från ${oldTeam} till ${newTeam}`;
       }
 
       // Time changes
@@ -46,22 +46,26 @@ export const useEventOperations = ({
       // Persist to DB (FullCalendar already shows the new position optimistically)
       await updateCalendarEvent(info.event.id, eventData);
 
-      toast.success(changeDescription || 'Event updated successfully');
+      toast.success(changeDescription || 'Händelse uppdaterad');
 
-      // Sync local state with DB
-      if (refreshEvents) await refreshEvents();
+      // Do NOT call refreshEvents here — realtime subscription handles state updates.
+      // Calling refreshEvents causes a full re-fetch that makes the screen blink.
     } catch (error) {
       console.error('Error updating event:', error);
       // Revert the visual change on failure
       info.revert();
-      toast.error('Failed to update event. Please try again.');
+      toast.error('Kunde inte uppdatera händelsen. Försök igen.');
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleEventReceive = async (info: any) => {
-    if (refreshEvents) await refreshEvents();
+    // Let realtime handle the state update; only force refresh as fallback
+    if (refreshEvents) {
+      // Small delay to let realtime arrive first
+      setTimeout(() => refreshEvents(), 1500);
+    }
   };
 
   return {
