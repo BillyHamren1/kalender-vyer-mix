@@ -1,45 +1,50 @@
 
-# Why Gröna Lund #2603-102 doesn't appear in the staff calendar
 
-## Root Cause
+# Fix: Updated booking times not synced + Team move not visually updating
 
-Two things are missing for this booking (and 7 others):
+## Two root causes identified
 
-1. **No calendar events** — The booking is CONFIRMED with `rigdowndate: 2026-03-26`, but `syncSingleBookingToCalendar` was never triggered for it. The existing "one-time sync" uses `localStorage`, which only runs per-browser and can easily be missed.
+### Issue 1 — Booking time changes ignored by import
+The `hasBookingChanged` function in the `import-bookings` edge function (line 820) only checks these fields:
+`client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, status, booking_number`
 
-2. **No staff assignments** — The staff calendar query joins `booking_staff_assignments` with `calendar_events`. Even if calendar events existed, no staff are assigned to this booking, so it wouldn't appear on any staff member's calendar.
+**Time fields are completely missing**: `rig_start_time`, `rig_end_time`, `event_start_time`, `event_end_time`, `rigdown_start_time`, `rigdown_end_time`.
 
-## Affected Bookings
+When booking #2603-31R1 gets updated times from the external system, the import function says "no changes detected" and skips the entire update — the booking row never gets updated, so calendar events are never refreshed.
 
-8 confirmed bookings have zero calendar events:
-`2603-20`, `2603-100`, `2603-5`, `2603-83`, `2603-6`, `2603-9`, `2603-102`, `2603-23`
+Additionally, even when dates DO change and events are recreated, the import uses **hardcoded** `08:00:00` start times (line 2540, 2557, 2574) instead of the actual booking times.
+
+### Issue 2 — Team move succeeds in DB but doesn't visually update
+The `calendar_events` table is **NOT in the `supabase_realtime` publication**. The app subscribes to realtime changes on `calendar_events` (line 274 of `useRealTimeCalendarEvents.tsx`), but Supabase never sends events because the table isn't published.
+
+The `refreshEvents()` call after the move DOES run and re-fetches data, but there's a timing issue: the `MoveEventDateDialog` calls `onOpenChange(false)` then `onUpdate()` — but the dialog close may trigger a re-render that prevents the refresh from propagating correctly.
 
 ## Plan
 
-### Step 1: Create a server-side calendar sync failsafe
+### Step 1 — Add time fields to `hasBookingChanged` in the edge function
+**File:** `supabase/functions/import-bookings/index.ts` (line ~821)
 
-Add logic to `syncSingleBookingToCalendar` call within the booking detail page load. When a confirmed booking is opened and has no calendar events, auto-sync it. This replaces the unreliable localStorage-based one-time sync.
+Add the six time fields to the comparison array so that time-only changes are detected and trigger a booking update + calendar event refresh.
 
-**File:** `src/services/bookingCalendarService.ts` — add an `ensureBookingCalendarEvents` function that checks if events exist and syncs if missing.
+### Step 2 — Use actual booking times when recreating calendar events
+**File:** `supabase/functions/import-bookings/index.ts` (lines ~2539-2587)
 
-### Step 2: Trigger sync on booking detail load
+When creating calendar events after a date change, use `bookingData.rig_start_time` / `rig_end_time` etc. instead of hardcoded `08:00:00`. Fall back to defaults only when the time fields are null.
 
-**File:** `src/hooks/useCalendarEvents.tsx` or wherever booking detail data is fetched — call `ensureBookingCalendarEvents` when loading a confirmed booking that has no calendar events.
+### Step 3 — Add `calendar_events` to realtime publication
+**Migration:** Add `ALTER PUBLICATION supabase_realtime ADD TABLE calendar_events;`
 
-Alternatively, add this check inside the booking detail page component so every time a user views a confirmed booking, it self-heals.
+This makes the existing realtime subscription in `useRealTimeCalendarEvents.tsx` actually receive events, enabling instant visual updates when events are moved between teams.
 
-### Step 3: Run a one-time migration to sync all missing bookings now
+### Step 4 — Fix refresh after team move in MoveEventDateDialog
+**File:** `src/components/Calendar/MoveEventDateDialog.tsx`
 
-Create a small admin action or Edge Function that iterates all confirmed bookings without calendar events and syncs them. This fixes the 8 currently broken bookings immediately.
-
-### Step 4: Surface staff assignment status
-
-In the booking detail view, make it clear when no staff are assigned (which is why it won't appear on any staff calendar even after calendar events are created). The staff must be assigned via the planning UI or booking detail for the event to show on their personal calendar.
+Ensure `onUpdate` is awaited before closing the dialog, so the data refresh completes and the UI sees the new resource assignment. Currently `onOpenChange(false)` runs first (line 119), then `onUpdate()` (line 120) — reverse this order.
 
 ---
 
-### Technical Details
+### Technical details
+- `hasBookingChanged` needs: `rig_start_time`, `rig_end_time`, `event_start_time`, `event_end_time`, `rigdown_start_time`, `rigdown_end_time`
+- Calendar event creation at lines 2540/2557/2574 should extract time from booking fields like `syncSingleBookingToCalendar` does (line 177)
+- The `supabase_realtime` publication change may need `IF NOT EXISTS` guard to avoid errors if already added
 
-- **Staff calendar query chain:** `booking_staff_assignments` (filtered by staff_id + date range) → `calendar_events` (matched by booking_id + team_id + date). Both must exist.
-- The `localStorage`-based one-time sync in `useCalendarEvents.tsx` is fundamentally unreliable — it's per-browser, per-device, and resets if storage is cleared.
-- The `ensureBookingCalendarEvents` function will do a lightweight check (`SELECT count(*) FROM calendar_events WHERE booking_id = ?`) before deciding to sync.
