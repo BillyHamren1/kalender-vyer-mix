@@ -17,8 +17,11 @@ import { ScanEvent } from '@/services/scanner/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 
 type AppState = 'home' | 'verifying' | 'manual';
+
+const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
 
 const MobileScannerApp: React.FC = () => {
   const navigate = useNavigate();
@@ -68,22 +71,38 @@ const MobileScannerApp: React.FC = () => {
     }
   }, [state, handleBarcodeScan]);
 
+  // Load packings
+  const loadPackings = useCallback(async () => {
+    try {
+      const data = await fetchActivePackings();
+      setPackings(data);
+    } catch (error) {
+      console.error('Error loading packings:', error);
+    }
+  }, []);
+
   // Fetch packings on mount
   useEffect(() => {
-    const loadPackings = async () => {
+    const init = async () => {
       try {
         setIsLoading(true);
-        const data = await fetchActivePackings();
-        setPackings(data);
+        await loadPackings();
       } catch (error) {
-        console.error('Error loading packings:', error);
         toast.error('Kunde inte ladda packlistor');
       } finally {
         setIsLoading(false);
       }
     };
-    loadPackings();
-  }, []);
+    init();
+  }, [loadPackings]);
+
+  // Realtime subscription + 30s polling fallback (only on home screen)
+  useScannerRealtime({
+    tables: REALTIME_TABLES,
+    onChanged: loadPackings,
+    pollingInterval: 30000,
+    enabled: state === 'home',
+  });
 
   // Filter packings by search query
   const filteredPackings = useMemo(() => {

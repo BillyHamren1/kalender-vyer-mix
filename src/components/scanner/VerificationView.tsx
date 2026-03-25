@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RecentScanEntry } from '@/hooks/scanner/useScanProcessor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
 import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
+import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -112,6 +113,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   });
 
   const [showRecentScans, setShowRecentScans] = useState(false);
+
+  // Realtime sync: refetch when packing_list_items or packing_projects change
+  const realtimeTables = useMemo(() => ['packing_list_items', 'packing_projects'], []);
+  useScannerRealtime({
+    tables: realtimeTables,
+    onChanged: useCallback(() => loadData(true), [loadData]),
+    pollingInterval: 30000,
+  });
 
   // Load initial data + parcels
   useEffect(() => {
