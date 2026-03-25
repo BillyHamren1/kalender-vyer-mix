@@ -2061,37 +2061,52 @@ export type Database = {
       packing_projects: {
         Row: {
           booking_id: string | null
+          client_name: string | null
           created_at: string
+          delivery_address: string | null
+          end_date: string | null
           id: string
           name: string
+          notes: string | null
           organization_id: string
           project_leader: string | null
           signed_at: string | null
           signed_by: string | null
+          start_date: string | null
           status: string
           updated_at: string
         }
         Insert: {
           booking_id?: string | null
+          client_name?: string | null
           created_at?: string
+          delivery_address?: string | null
+          end_date?: string | null
           id?: string
           name: string
+          notes?: string | null
           organization_id?: string
           project_leader?: string | null
           signed_at?: string | null
           signed_by?: string | null
+          start_date?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           booking_id?: string | null
+          client_name?: string | null
           created_at?: string
+          delivery_address?: string | null
+          end_date?: string | null
           id?: string
           name?: string
+          notes?: string | null
           organization_id?: string
           project_leader?: string | null
           signed_at?: string | null
           signed_by?: string | null
+          start_date?: string | null
           status?: string
           updated_at?: string
         }

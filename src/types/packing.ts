@@ -1,4 +1,4 @@
-export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed';
+export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed' | 'cancelled';
 
 export interface Packing {
   id: string;
@@ -10,6 +10,12 @@ export interface Packing {
   signed_at: string | null;
   created_at: string;
   updated_at: string;
+  // Synced from booking
+  client_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  delivery_address: string | null;
+  notes: string | null;
 }
 
 export interface PackingTask {
@@ -98,7 +104,8 @@ export const PACKING_STATUS_LABELS: Record<PackingStatus, string> = {
   in_progress: 'Under arbete',
   packed: 'Packad',
   delivered: 'Levererat',
-  completed: 'Avslutat'
+  completed: 'Avslutat',
+  cancelled: 'Avbokad'
 };
 
 export const PACKING_STATUS_COLORS: Record<PackingStatus, string> = {
@@ -106,7 +113,8 @@ export const PACKING_STATUS_COLORS: Record<PackingStatus, string> = {
   in_progress: 'bg-yellow-100 text-yellow-800',
   packed: 'bg-teal-100 text-teal-800',
   delivered: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800'
+  completed: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800'
 };
 
 // Parcel (Kolli) types
