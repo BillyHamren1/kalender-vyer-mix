@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Booking } from '@/types/booking';
 import { fetchBookingById, markBookingAsViewed } from '@/services/bookingService';
-import { fetchBookingDatesByType } from '@/services/bookingCalendarService';
+import { fetchBookingDatesByType, ensureBookingCalendarEvents } from '@/services/bookingCalendarService';
 
 export const useBookingFetch = (id: string | undefined) => {
   const queryClient = useQueryClient();
