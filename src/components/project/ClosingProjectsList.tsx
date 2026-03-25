@@ -19,6 +19,17 @@ import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+async function getApproverName(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 'Okänd';
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('user_id', user.id)
+    .single();
+  return profile?.full_name || user.email || 'Admin';
+}
+
 interface ClosingItem {
   id: string;
   name: string;
@@ -43,6 +54,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   const queryClient = useQueryClient();
   const { approveMutation } = useApproveTimeReport();
   const [isClosing, setIsClosing] = useState(false);
+  const [approvingPurchaseIds, setApprovingPurchaseIds] = useState<Set<string>>(new Set());
 
   // Fetch time reports for this booking
   const { data: timeReports = [], isLoading: loadingTR } = useQuery({
@@ -63,24 +75,49 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     enabled: !!item.bookingId,
   });
 
-  // Fetch purchases for this project
+  // Fetch purchases for this project (medium uses project_purchases, large uses large_project_purchases)
+  const isLargeProject = item.type === 'large';
+
+  const approvePurchaseInDb = async (updatePayload: any, filter: { id?: string; ids?: string[] }) => {
+    if (isLargeProject) {
+      if (filter.ids) {
+        return supabase.from('large_project_purchases').update(updatePayload).in('id', filter.ids);
+      }
+      return supabase.from('large_project_purchases').update(updatePayload).eq('id', filter.id!);
+    }
+    if (filter.ids) {
+      return supabase.from('project_purchases').update(updatePayload).in('id', filter.ids);
+    }
+    return supabase.from('project_purchases').update(updatePayload).eq('id', filter.id!);
+  };
+
   const { data: purchases = [], isLoading: loadingPurchases } = useQuery({
-    queryKey: ['closing-purchases', item.projectId],
+    queryKey: ['closing-purchases', item.projectId, item.type],
     queryFn: async () => {
       if (!item.projectId) return [];
+      if (item.type === 'large') {
+        const { data } = await supabase
+          .from('large_project_purchases')
+          .select('id, purchase_date, amount, description, supplier, category, approved, approved_by')
+          .eq('large_project_id', item.projectId)
+          .order('purchase_date', { ascending: false });
+        return (data ?? []) as any[];
+      }
       const { data } = await supabase
         .from('project_purchases')
-        .select('id, purchase_date, amount, description, supplier, category')
+        .select('id, purchase_date, amount, description, supplier, category, approved, approved_by')
         .eq('project_id', item.projectId)
         .order('purchase_date', { ascending: false });
-      return data ?? [];
+      return (data ?? []) as any[];
     },
-    enabled: !!item.projectId,
+    enabled: !!item.projectId && item.type !== 'small',
   });
 
   const pendingTR = timeReports.filter((tr: any) => !tr.approved);
   const approvedTR = timeReports.filter((tr: any) => tr.approved);
   const totalPurchaseAmount = purchases.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0);
+  const pendingPurchases = purchases.filter((p: any) => !p.approved);
+  const approvedPurchases = purchases.filter((p: any) => p.approved);
 
   const handleApproveAll = () => {
     const ids = pendingTR.map((tr: any) => tr.id);
@@ -98,6 +135,54 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         queryClient.invalidateQueries({ queryKey: ['closing-time-reports', item.bookingId] });
       },
     });
+  };
+
+  const handleApprovePurchase = async (purchaseId: string) => {
+    setApprovingPurchaseIds(prev => new Set(prev).add(purchaseId));
+    try {
+      const approverName = await getApproverName();
+      const updatePayload = {
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: approverName,
+      };
+      const { error } = await approvePurchaseInDb(updatePayload, { id: purchaseId });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['closing-purchases', item.projectId, item.type] });
+      toast.success('Utlägg godkänt');
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte godkänna utlägget');
+    } finally {
+      setApprovingPurchaseIds(prev => {
+        const next = new Set(prev);
+        next.delete(purchaseId);
+        return next;
+      });
+    }
+  };
+
+  const handleApproveAllPurchases = async () => {
+    const ids = pendingPurchases.map((p: any) => p.id);
+    if (!ids.length) return;
+    setApprovingPurchaseIds(new Set(ids));
+    try {
+      const approverName = await getApproverName();
+      const updatePayload = {
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: approverName,
+      };
+      const { error } = await approvePurchaseInDb(updatePayload, { ids });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['closing-purchases', item.projectId, item.type] });
+      toast.success(`${ids.length} utlägg godkända`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte godkänna utlägg');
+    } finally {
+      setApprovingPurchaseIds(new Set());
+    }
   };
 
   const handleCloseProject = async () => {
@@ -138,7 +223,15 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
 
   const allTimeReportsApproved = timeReports.length > 0 && pendingTR.length === 0;
   const noTimeReports = timeReports.length === 0;
-  const canClose = (allTimeReportsApproved || noTimeReports);
+  const allPurchasesApproved = purchases.length > 0 && pendingPurchases.length === 0;
+  const noPurchases = purchases.length === 0;
+  const timeOk = allTimeReportsApproved || noTimeReports;
+  const purchaseOk = allPurchasesApproved || noPurchases;
+  const canClose = timeOk && purchaseOk;
+
+  const blockers: string[] = [];
+  if (!timeOk) blockers.push('tidrapporter');
+  if (!purchaseOk) blockers.push('utlägg');
 
   const formatDate = (d: string) => {
     try { return format(new Date(d), 'd MMM', { locale: sv }); }
@@ -223,15 +316,29 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
 
       {/* Purchases Section */}
       <div>
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-2">
-          <Receipt className="h-3.5 w-3.5" />
-          Utlägg
-          {!loadingPurchases && purchases.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">
-              {purchases.length} st · {totalPurchaseAmount.toLocaleString('sv-SE')} kr
-            </Badge>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Receipt className="h-3.5 w-3.5" />
+            Utlägg
+            {!loadingPurchases && purchases.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">
+                {approvedPurchases.length}/{purchases.length} godkända · {totalPurchaseAmount.toLocaleString('sv-SE')} kr
+              </Badge>
+            )}
+          </h4>
+          {pendingPurchases.length > 0 && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs"
+              onClick={handleApproveAllPurchases}
+              disabled={approvingPurchaseIds.size > 0}
+            >
+              <CheckCheck className="h-3.5 w-3.5 mr-1" />
+              Godkänn alla ({pendingPurchases.length})
+            </Button>
           )}
-        </h4>
+        </div>
         {loadingPurchases ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Laddar...
@@ -243,12 +350,36 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
             {purchases.map((p: any) => (
               <div
                 key={p.id}
-                className="flex items-center gap-3 text-xs px-3 py-2 rounded-md border border-border/40 bg-background/50"
+                className={cn(
+                  'flex items-center gap-3 text-xs px-3 py-2 rounded-md border',
+                  p.approved
+                    ? 'border-green-200/60 bg-green-50/40 dark:border-green-800/30 dark:bg-green-950/10'
+                    : 'border-amber-200/60 bg-amber-50/40 dark:border-amber-800/30 dark:bg-amber-950/10'
+                )}
               >
                 <span className="font-medium text-foreground w-24 truncate">{p.supplier ?? '–'}</span>
                 <span className="text-muted-foreground w-16">{p.purchase_date ? formatDate(p.purchase_date) : '–'}</span>
                 <span className="flex-1 text-muted-foreground truncate">{p.description}</span>
                 <span className="font-medium text-foreground">{p.amount?.toLocaleString('sv-SE')} kr</span>
+                {p.approved ? (
+                  <Badge variant="outline" className="text-[10px] border-green-300 text-green-600 bg-green-50 dark:bg-green-950/20 px-1.5 py-0">
+                    <Check className="h-3 w-3 mr-0.5" /> Godkänd
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
+                    onClick={() => handleApprovePurchase(p.id)}
+                    disabled={approvingPurchaseIds.has(p.id)}
+                  >
+                    {approvingPurchaseIds.has(p.id) ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <><Check className="h-3 w-3 mr-0.5" /> Godkänn</>
+                    )}
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -261,7 +392,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
           {canClose ? (
             <span className="text-green-600 font-medium">✓ Redo att stängas</span>
           ) : (
-            <span className="text-amber-600">Godkänn tidrapporter innan stängning</span>
+            <span className="text-amber-600">Godkänn {blockers.join(' och ')} innan stängning</span>
           )}
         </div>
         <Button
