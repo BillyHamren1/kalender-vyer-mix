@@ -152,8 +152,6 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
             sku: product.sku,
           }
         : undefined,
-      isOrphaned: false, // No more orphans - deleted items are removed
-      isNewlyAdded: false,
     } as PackingListItem;
   });
 
