@@ -1,4 +1,4 @@
-export type PackingStatus = 'planning' | 'in_progress' | 'delivered' | 'completed';
+export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed';
 
 export interface Packing {
   id: string;
@@ -96,6 +96,7 @@ export interface PackingWithBooking extends Packing {
 export const PACKING_STATUS_LABELS: Record<PackingStatus, string> = {
   planning: 'Planering',
   in_progress: 'Under arbete',
+  packed: 'Packad',
   delivered: 'Levererat',
   completed: 'Avslutat'
 };
@@ -103,6 +104,7 @@ export const PACKING_STATUS_LABELS: Record<PackingStatus, string> = {
 export const PACKING_STATUS_COLORS: Record<PackingStatus, string> = {
   planning: 'bg-blue-100 text-blue-800',
   in_progress: 'bg-yellow-100 text-yellow-800',
+  packed: 'bg-teal-100 text-teal-800',
   delivered: 'bg-purple-100 text-purple-800',
   completed: 'bg-green-100 text-green-800'
 };
