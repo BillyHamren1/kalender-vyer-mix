@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight } from 'lucide-react';
+import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
 import { fetchLargeProjects } from '@/services/largeProjectService';
@@ -83,6 +83,9 @@ const ProjectDashboardWidgets = () => {
   const planningCount = unified.filter(p => p.status === 'planning').length;
   const inProgressCount = unified.filter(p => p.status === 'in_progress').length;
   const completedCount = unified.filter(p => p.status === 'completed').length;
+  
+  const today = new Date().toISOString().split('T')[0];
+  const closingCount = unified.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
 
   const recentlyCreated = useMemo(() =>
     [...unified].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
@@ -90,12 +93,11 @@ const ProjectDashboardWidgets = () => {
   );
 
   const upcoming = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
     return unified
       .filter(p => p.date && p.date >= today && p.status !== 'completed')
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
       .slice(0, 5);
-  }, [unified]);
+  }, [unified, today]);
 
   const recentlyCompleted = useMemo(() =>
     [...unified]
@@ -109,13 +111,14 @@ const ProjectDashboardWidgets = () => {
     { label: 'Aktiva', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10' },
     { label: 'Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5' },
     { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10' },
+    { label: 'Slutförande', value: closingCount, icon: AlertCircle, color: closingCount > 0 ? 'text-amber-600' : 'text-muted-foreground', bgColor: closingCount > 0 ? 'bg-amber-50' : 'bg-muted' },
     { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted' },
   ];
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
           ))}
@@ -157,7 +160,7 @@ const ProjectDashboardWidgets = () => {
   return (
     <div className="space-y-4">
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {statItems.map(item => (
           <Card key={item.label} className="hover:shadow-md transition-shadow">
             <CardContent className="p-4">
