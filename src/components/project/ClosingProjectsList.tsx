@@ -1,14 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronRight, Calendar, AlertCircle } from 'lucide-react';
+import {
+  ChevronRight, ChevronDown, Calendar, AlertCircle, Check, CheckCheck,
+  Clock, Receipt, Lock, Loader2,
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
 import { fetchLargeProjects } from '@/services/largeProjectService';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 import { format, differenceInDays } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface ClosingItem {
   id: string;
@@ -18,6 +26,8 @@ interface ClosingItem {
   subtitle: string | null;
   navigateTo: string;
   daysSinceEvent: number;
+  bookingId: string | null;
+  projectId: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
@@ -27,8 +37,250 @@ const TYPE_BADGE_CLASSES: Record<string, string> = {
   large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
 };
 
+// Inline detail panel for a single project
+function ClosingItemDetail({ item }: { item: ClosingItem }) {
+  const queryClient = useQueryClient();
+  const { approveMutation } = useApproveTimeReport();
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Fetch time reports for this booking
+  const { data: timeReports = [], isLoading: loadingTR } = useQuery({
+    queryKey: ['closing-time-reports', item.bookingId],
+    queryFn: async () => {
+      if (!item.bookingId) return [];
+      const { data } = await supabase
+        .from('time_reports')
+        .select(`
+          id, report_date, start_time, end_time, hours_worked, overtime_hours,
+          description, approved, approved_by,
+          staff_members!inner(name)
+        `)
+        .eq('booking_id', item.bookingId)
+        .order('report_date', { ascending: false });
+      return data ?? [];
+    },
+    enabled: !!item.bookingId,
+  });
+
+  // Fetch purchases for this project
+  const { data: purchases = [], isLoading: loadingPurchases } = useQuery({
+    queryKey: ['closing-purchases', item.projectId],
+    queryFn: async () => {
+      if (!item.projectId) return [];
+      const { data } = await supabase
+        .from('project_purchases')
+        .select('id, purchase_date, amount, description, supplier, category')
+        .eq('project_id', item.projectId)
+        .order('purchase_date', { ascending: false });
+      return data ?? [];
+    },
+    enabled: !!item.projectId,
+  });
+
+  const pendingTR = timeReports.filter((tr: any) => !tr.approved);
+  const approvedTR = timeReports.filter((tr: any) => tr.approved);
+  const totalPurchaseAmount = purchases.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0);
+
+  const handleApproveAll = () => {
+    const ids = pendingTR.map((tr: any) => tr.id);
+    if (!ids.length) return;
+    approveMutation.mutate(ids, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['closing-time-reports', item.bookingId] });
+      },
+    });
+  };
+
+  const handleApproveSingle = (id: string) => {
+    approveMutation.mutate(id, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['closing-time-reports', item.bookingId] });
+      },
+    });
+  };
+
+  const handleCloseProject = async () => {
+    if (item.type !== 'medium' || !item.projectId) {
+      toast.error('Stängning stöds just nu bara för medelstora projekt');
+      return;
+    }
+    setIsClosing(true);
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'completed' })
+        .eq('id', item.projectId);
+      if (error) throw error;
+
+      if (item.bookingId) {
+        try {
+          const { markReadyForInvoicing } = await import('@/services/planningApiService');
+          await markReadyForInvoicing(item.bookingId);
+        } catch (syncErr) {
+          console.warn('External sync failed (non-blocking):', syncErr);
+        }
+      }
+
+      toast.success(`${item.name} stängt`);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte stänga projektet');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const allTimeReportsApproved = timeReports.length > 0 && pendingTR.length === 0;
+  const noTimeReports = timeReports.length === 0;
+  const canClose = (allTimeReportsApproved || noTimeReports);
+
+  const formatDate = (d: string) => {
+    try { return format(new Date(d), 'd MMM', { locale: sv }); }
+    catch { return d; }
+  };
+
+  return (
+    <div className="bg-muted/30 border-t border-border/30 px-4 py-4 space-y-4">
+      {/* Time Reports Section */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            Tidrapporter
+            {!loadingTR && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">
+                {approvedTR.length}/{timeReports.length} godkända
+              </Badge>
+            )}
+          </h4>
+          {pendingTR.length > 0 && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs"
+              onClick={handleApproveAll}
+              disabled={approveMutation.isPending}
+            >
+              <CheckCheck className="h-3.5 w-3.5 mr-1" />
+              Godkänn alla ({pendingTR.length})
+            </Button>
+          )}
+        </div>
+        {loadingTR ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Laddar...
+          </div>
+        ) : timeReports.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">Inga tidrapporter</p>
+        ) : (
+          <div className="space-y-1">
+            {timeReports.map((tr: any) => {
+              const staff = tr.staff_members as any;
+              return (
+                <div
+                  key={tr.id}
+                  className={cn(
+                    'flex items-center gap-3 text-xs px-3 py-2 rounded-md border',
+                    tr.approved
+                      ? 'border-green-200/60 bg-green-50/40 dark:border-green-800/30 dark:bg-green-950/10'
+                      : 'border-amber-200/60 bg-amber-50/40 dark:border-amber-800/30 dark:bg-amber-950/10'
+                  )}
+                >
+                  <span className="font-medium text-foreground w-24 truncate">{staff?.name ?? '–'}</span>
+                  <span className="text-muted-foreground w-16">{formatDate(tr.report_date)}</span>
+                  <span className="text-foreground font-medium w-12">{tr.hours_worked}h</span>
+                  {(tr.overtime_hours ?? 0) > 0 && (
+                    <span className="text-amber-600 text-[10px]">+{tr.overtime_hours}h öt</span>
+                  )}
+                  <span className="flex-1 text-muted-foreground truncate">{tr.description ?? ''}</span>
+                  {tr.approved ? (
+                    <Badge variant="outline" className="text-[10px] border-green-300 text-green-600 bg-green-50 dark:bg-green-950/20 px-1.5 py-0">
+                      <Check className="h-3 w-3 mr-0.5" /> Godkänd
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
+                      onClick={() => handleApproveSingle(tr.id)}
+                      disabled={approveMutation.isPending}
+                    >
+                      <Check className="h-3 w-3 mr-0.5" /> Godkänn
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Purchases Section */}
+      <div>
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-2">
+          <Receipt className="h-3.5 w-3.5" />
+          Utlägg
+          {!loadingPurchases && purchases.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">
+              {purchases.length} st · {totalPurchaseAmount.toLocaleString('sv-SE')} kr
+            </Badge>
+          )}
+        </h4>
+        {loadingPurchases ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Laddar...
+          </div>
+        ) : purchases.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">Inga utlägg</p>
+        ) : (
+          <div className="space-y-1">
+            {purchases.map((p: any) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 text-xs px-3 py-2 rounded-md border border-border/40 bg-background/50"
+              >
+                <span className="font-medium text-foreground w-24 truncate">{p.supplier ?? '–'}</span>
+                <span className="text-muted-foreground w-16">{p.purchase_date ? formatDate(p.purchase_date) : '–'}</span>
+                <span className="flex-1 text-muted-foreground truncate">{p.description}</span>
+                <span className="font-medium text-foreground">{p.amount?.toLocaleString('sv-SE')} kr</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Close Project Action */}
+      <div className="flex items-center justify-between pt-2 border-t border-border/30">
+        <div className="text-xs text-muted-foreground">
+          {canClose ? (
+            <span className="text-green-600 font-medium">✓ Redo att stängas</span>
+          ) : (
+            <span className="text-amber-600">Godkänn tidrapporter innan stängning</span>
+          )}
+        </div>
+        <Button
+          size="sm"
+          disabled={!canClose || isClosing || item.type !== 'medium'}
+          onClick={handleCloseProject}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isClosing ? (
+            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Stänger...</>
+          ) : (
+            <><Lock className="h-3.5 w-3.5 mr-1.5" /> Stäng projekt</>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const ClosingProjectsList = () => {
   const navigate = useNavigate();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [] } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
@@ -51,6 +303,8 @@ const ClosingProjectsList = () => {
           subtitle: j.booking?.deliveryAddress ?? null,
           navigateTo: `/jobs/${j.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
+          bookingId: j.booking?.id ?? null,
+          projectId: null,
         });
       }
     });
@@ -70,6 +324,8 @@ const ClosingProjectsList = () => {
           subtitle: addressParts.length > 0 ? addressParts.join(', ') : null,
           navigateTo: `/project/${p.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
+          bookingId: p.booking_id ?? null,
+          projectId: p.id,
         });
       }
     });
@@ -85,14 +341,25 @@ const ClosingProjectsList = () => {
           subtitle: lp.location ?? null,
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
+          bookingId: null,
+          projectId: null,
         });
       }
     });
 
-    return items.sort((a, b) => a.daysSinceEvent - b.daysSinceEvent);
+    return items.sort((a, b) => b.daysSinceEvent - a.daysSinceEvent);
   }, [jobs, projects, largeProjects, todayStr, today]);
 
-  if (closingItems.length === 0) return null;
+  if (closingItems.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Check className="h-8 w-8 mx-auto text-green-500 mb-2" />
+          <p className="text-sm text-muted-foreground">Inga projekt behöver stängas just nu.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const formatDate = (dateStr: string) => {
     try { return format(new Date(dateStr), 'd MMM yyyy', { locale: sv }); }
@@ -106,30 +373,28 @@ const ClosingProjectsList = () => {
   };
 
   return (
-    <Card className="border-amber-200 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-foreground">
-            Under slutförande
-          </h3>
-          <Badge variant="secondary" className="text-[11px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-            {closingItems.length}
-          </Badge>
-          <span className="text-xs text-muted-foreground ml-auto">
-            Eventdatum passerat — bör stängas
-          </span>
-        </div>
+    <div className="space-y-2">
+      {closingItems.map(item => {
+        const isExpanded = expandedId === `${item.type}-${item.id}`;
+        const itemKey = `${item.type}-${item.id}`;
 
-        <div className="divide-y divide-border/40">
-          {closingItems.map(item => (
+        return (
+          <Card key={itemKey} className={cn(
+            'overflow-hidden transition-shadow',
+            isExpanded && 'ring-1 ring-primary/20 shadow-md'
+          )}>
             <div
-              key={`closing-${item.type}-${item.id}`}
-              onClick={() => navigate(item.navigateTo)}
-              className="group flex items-center gap-3 py-2.5 px-1 cursor-pointer hover:bg-amber-100/40 dark:hover:bg-amber-900/20 rounded-md transition-colors"
+              onClick={() => setExpandedId(isExpanded ? null : itemKey)}
+              className="group flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
             >
+              <div className="shrink-0">
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-primary" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary/50" />
+                )}
+              </div>
+
               <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[item.type]}`}>
                 {TYPE_LABELS[item.type]}
               </Badge>
@@ -151,12 +416,21 @@ const ClosingProjectsList = () => {
                 </p>
               </div>
 
-              <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors shrink-0" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={(e) => { e.stopPropagation(); navigate(item.navigateTo); }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+
+            {isExpanded && <ClosingItemDetail item={item} />}
+          </Card>
+        );
+      })}
+    </div>
   );
 };
 
