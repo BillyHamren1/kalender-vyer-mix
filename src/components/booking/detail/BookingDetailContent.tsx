@@ -46,6 +46,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
 }) => {
   return (
     <div className="space-y-6">
+      <StaffAssignmentWarning bookingId={booking.id} status={booking.status} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <ClientInformation client={booking.client} />
