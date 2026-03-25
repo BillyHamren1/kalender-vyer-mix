@@ -98,6 +98,10 @@ const ProjectManagement = () => {
         </div>
 
         <div className="mb-6">
+          <ClosingProjectsList />
+        </div>
+
+        <div className="mb-6">
           <ProjectDashboardWidgets />
         </div>
 
