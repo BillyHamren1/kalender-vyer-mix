@@ -115,11 +115,12 @@ const MobileScannerApp: React.FC = () => {
     );
   }, [packings, searchQuery]);
 
-  // Group packings: in_progress vs rest
-  const { inProgress, upcoming } = useMemo(() => {
+  // Group packings: in_progress first, then packed, then planning
+  const { inProgress, packed, upcoming } = useMemo(() => {
     const inProgress = filteredPackings.filter(p => p.status === 'in_progress');
-    const upcoming = filteredPackings.filter(p => p.status !== 'in_progress');
-    return { inProgress, upcoming };
+    const packed = filteredPackings.filter(p => p.status === 'packed');
+    const upcoming = filteredPackings.filter(p => p.status === 'planning');
+    return { inProgress, packed, upcoming };
   }, [filteredPackings]);
 
   // Handle QR scan from camera
@@ -154,18 +155,32 @@ const MobileScannerApp: React.FC = () => {
 
   // Get status badge style
   const getStatusBadge = (status: string) => {
-    if (status === 'in_progress') {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
-          Pågående
-        </span>
-      );
+    switch (status) {
+      case 'in_progress':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
+            Pågående
+          </span>
+        );
+      case 'packed':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+            Packad ✓
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+            Levererad
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+            Planering
+          </span>
+        );
     }
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-        Planering
-      </span>
-    );
   };
 
   // Render packing card
@@ -356,10 +371,21 @@ const MobileScannerApp: React.FC = () => {
               </section>
             )}
 
+            {packed.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Packade
+                </h2>
+                <div className="space-y-2">
+                  {packed.map(renderPackingCard)}
+                </div>
+              </section>
+            )}
+
             {upcoming.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  {inProgress.length > 0 ? 'Kommande' : 'Packlistor'}
+                  {(inProgress.length > 0 || packed.length > 0) ? 'Kommande' : 'Packlistor'}
                 </h2>
                 <div className="space-y-2">
                   {upcoming.map(renderPackingCard)}

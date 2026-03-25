@@ -54,6 +54,78 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
   }
 }
 
+// ============== STATUS FLOW LOGIC ==============
+// Allowed transitions: planning → in_progress → packed → delivered
+// Status is computed automatically based on packing state.
+
+async function transitionToInProgress(supabase: any, packingId: string, orgId: string) {
+  // Only transition if currently 'planning'
+  const { data } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', orgId)
+    .single()
+
+  if (data?.status === 'planning') {
+    console.log(`[status-flow] ${packingId}: planning → in_progress`)
+    await supabase
+      .from('packing_projects')
+      .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+      .eq('id', packingId)
+      .eq('organization_id', orgId)
+  }
+}
+
+async function checkIfAllPacked(supabase: any, packingId: string, orgId: string) {
+  // Check if all items have quantity_packed >= quantity_to_pack
+  const { data: items, error } = await supabase
+    .from('packing_list_items')
+    .select('id, quantity_to_pack, quantity_packed, booking_products!inner(is_package_component, parent_product_id)')
+    .eq('packing_id', packingId)
+    .eq('organization_id', orgId)
+
+  if (error || !items || items.length === 0) return
+
+  // Only count non-parent items (exclude package headers)
+  const countableItems = items.filter((item: any) => {
+    const bp = item.booking_products
+    // Exclude items that are package headers (have children but are not components themselves)
+    return bp?.is_package_component !== false || bp?.parent_product_id !== null
+  })
+
+  // If no countable items, check all items instead
+  const itemsToCheck = countableItems.length > 0 ? countableItems : items
+
+  const allPacked = itemsToCheck.every((item: any) => 
+    (item.quantity_packed || 0) >= item.quantity_to_pack
+  )
+
+  const { data: packing } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', orgId)
+    .single()
+
+  if (allPacked && packing?.status === 'in_progress') {
+    console.log(`[status-flow] ${packingId}: in_progress → packed`)
+    await supabase
+      .from('packing_projects')
+      .update({ status: 'packed', updated_at: new Date().toISOString() })
+      .eq('id', packingId)
+      .eq('organization_id', orgId)
+  } else if (!allPacked && packing?.status === 'packed') {
+    // Revert if items were decremented/unpacked
+    console.log(`[status-flow] ${packingId}: packed → in_progress (items unpacked)`)
+    await supabase
+      .from('packing_projects')
+      .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+      .eq('id', packingId)
+      .eq('organization_id', orgId)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -82,17 +154,16 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case 'list_active_packings': {
-        // Fetch in_progress packings (always shown) and planning packings with upcoming dates
+        // Fetch packings that are actionable: planning, in_progress, packed
         const fourteenDaysFromNow = new Date()
         fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14)
         const cutoffDate = fourteenDaysFromNow.toISOString().split('T')[0]
 
-        // Get all in_progress (always relevant) + planning packings
         const { data: allPackings, error } = await supabase
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress'])
+          .in('status', ['planning', 'in_progress', 'packed'])
           .order('created_at', { ascending: false })
           .limit(100)
 
@@ -114,9 +185,9 @@ Deno.serve(async (req) => {
           })
         )
 
-        // Filter: in_progress always shown; planning only if rigdaydate <= 14 days from now (or no date)
+        // Filter: in_progress/packed always shown; planning only if rigdaydate <= 14 days from now (or no date)
         const filtered = packingsWithBookings.filter((p: any) => {
-          if (p.status === 'in_progress') return true
+          if (p.status === 'in_progress' || p.status === 'packed') return true
           // Planning: show if rigdaydate is within 14 days or not set
           const rigDate = p.booking?.rigdaydate
           if (!rigDate) return true // No date = show it (manual packing without booking date)
@@ -223,6 +294,9 @@ Deno.serve(async (req) => {
 
       case 'verify_product': {
         const { packingId, sku: serialNumber, verifiedBy } = params
+
+        // STATUS FLOW: First scan → set to in_progress
+        await transitionToInProgress(supabase, packingId, ORG_ID)
 
         // 1. Get booking_id from packing_projects (separate query, no join)
         const { data: packing, error: packingError } = await supabase
@@ -443,6 +517,9 @@ Deno.serve(async (req) => {
           ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
         }).eq('id', (selectedItem as any).id)
 
+        // STATUS FLOW: Check if all items are now packed
+        await checkIfAllPacked(supabase, packingId, ORG_ID)
+
         const productName = (selectedItem as any).booking_products?.name
         return json({
           success: true,
@@ -458,11 +535,24 @@ Deno.serve(async (req) => {
         const { itemId, currentlyPacked, quantityToPack, verifiedBy } = params
         const now = new Date().toISOString()
 
+        // Get the packing_id for status flow
+        const { data: itemData } = await supabase
+          .from('packing_list_items')
+          .select('packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const packingId = itemData?.packing_id
+
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
             quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
         } else {
+          // STATUS FLOW: First manual toggle → set to in_progress
+          if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
+
           const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
           const currentQty = currentItem?.quantity_packed || 0
           const newQty = Math.min(currentQty + 1, quantityToPack)
@@ -476,12 +566,23 @@ Deno.serve(async (req) => {
           }).eq('id', itemId).eq('organization_id', ORG_ID)
         }
 
+        // STATUS FLOW: Check if all items are now packed (or reverted)
+        if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
+
         return json({ success: true })
       }
 
       case 'decrement_item': {
         const { itemId } = params
-        const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
+        
+        // Get current state + packing_id
+        const { data: currentItem } = await supabase
+          .from('packing_list_items')
+          .select('quantity_packed, packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+        
         const currentPacked = currentItem?.quantity_packed || 0
         if (currentPacked <= 0) return json({ success: false, error: 'Redan på 0' })
 
@@ -492,6 +593,11 @@ Deno.serve(async (req) => {
           verified_by: null,
           ...(newQty === 0 ? { packed_at: null, packed_by: null } : {})
         }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        // STATUS FLOW: Items decremented, may revert from packed → in_progress
+        if (currentItem?.packing_id) {
+          await checkIfAllPacked(supabase, currentItem.packing_id, ORG_ID)
+        }
 
         return json({ success: true })
       }
@@ -569,6 +675,20 @@ Deno.serve(async (req) => {
 
       case 'sign_packing': {
         const { packingId, signedBy } = params
+
+        // STATUS FLOW: Signing = delivery confirmed → set to delivered
+        // Only allow signing if status is 'packed' or 'in_progress'
+        const { data: currentPacking } = await supabase
+          .from('packing_projects')
+          .select('status')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        if (currentPacking?.status === 'delivered') {
+          return json({ success: false, error: 'Packlistan är redan signerad och levererad' })
+        }
+
         const { error } = await supabase
           .from('packing_projects')
           .update({ signed_by: signedBy, signed_at: new Date().toISOString(), status: 'delivered' })
@@ -576,6 +696,7 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
 
         if (error) throw error
+        console.log(`[status-flow] ${packingId}: → delivered (signed by ${signedBy})`)
         return json({ success: true })
       }
 
