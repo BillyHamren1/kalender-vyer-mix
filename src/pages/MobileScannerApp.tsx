@@ -115,11 +115,12 @@ const MobileScannerApp: React.FC = () => {
     );
   }, [packings, searchQuery]);
 
-  // Group packings: in_progress vs rest
-  const { inProgress, upcoming } = useMemo(() => {
+  // Group packings: in_progress first, then packed, then planning
+  const { inProgress, packed, upcoming } = useMemo(() => {
     const inProgress = filteredPackings.filter(p => p.status === 'in_progress');
-    const upcoming = filteredPackings.filter(p => p.status !== 'in_progress');
-    return { inProgress, upcoming };
+    const packed = filteredPackings.filter(p => p.status === 'packed');
+    const upcoming = filteredPackings.filter(p => p.status === 'planning');
+    return { inProgress, packed, upcoming };
   }, [filteredPackings]);
 
   // Handle QR scan from camera
