@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -18,6 +18,7 @@ import {
   signPacking
 } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
+import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 
 interface ManualChecklistViewProps {
   packingId: string;
