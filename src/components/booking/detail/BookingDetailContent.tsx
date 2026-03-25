@@ -62,6 +62,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onSave={onDeliveryDetailsChange}
           />
           <MapDrawingCard mapDrawingUrl={booking.mapDrawingUrl} />
+          <PackingStatusCard bookingId={booking.id} />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
             assignedProjectName={booking.assignedProjectName}
