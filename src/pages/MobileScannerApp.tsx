@@ -371,10 +371,21 @@ const MobileScannerApp: React.FC = () => {
               </section>
             )}
 
+            {packed.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Packade
+                </h2>
+                <div className="space-y-2">
+                  {packed.map(renderPackingCard)}
+                </div>
+              </section>
+            )}
+
             {upcoming.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  {inProgress.length > 0 ? 'Kommande' : 'Packlistor'}
+                  {(inProgress.length > 0 || packed.length > 0) ? 'Kommande' : 'Packlistor'}
                 </h2>
                 <div className="space-y-2">
                   {upcoming.map(renderPackingCard)}
