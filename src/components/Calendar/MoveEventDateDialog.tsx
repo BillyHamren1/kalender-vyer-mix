@@ -116,8 +116,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${movedToTeam}`
       });
 
+      if (onUpdate) await onUpdate();
       onOpenChange(false);
-      if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error moving event:', error);
       toast.error('Kunde inte flytta händelsen');
