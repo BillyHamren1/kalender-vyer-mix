@@ -9,7 +9,7 @@ import {
   Clock, Receipt, Lock, Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchJobs } from '@/services/jobService';
+
 import { fetchProjects } from '@/services/projectService';
 import { fetchLargeProjects } from '@/services/largeProjectService';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
