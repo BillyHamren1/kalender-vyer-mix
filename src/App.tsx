@@ -28,6 +28,7 @@ import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
 import ProjectManagement from "./pages/ProjectManagement";
 import ProjectArchive from "./pages/ProjectArchive";
+import ProjectClosing from "./pages/ProjectClosing";
 import ProjectLayout from "./pages/project/ProjectLayout";
 import ProjectViewPage from "./pages/project/ProjectViewPage";
 import EstablishmentPage from "./pages/project/EstablishmentPage";
@@ -205,6 +206,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/projects/closing" element={<ProtectedRoute><MainSystemLayout><ProjectClosing /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<ProjectViewPage />} />
               <Route path="establishment" element={<EstablishmentPage />} />
