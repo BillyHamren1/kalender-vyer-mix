@@ -17,14 +17,12 @@ interface PackingListItemRowProps {
   item: PackingListItem;
   onUpdate: (id: string, updates: Partial<PackingListItem>) => void;
   isAccessory?: boolean;
-  isNewlyAdded?: boolean;
 }
 
 const PackingListItemRow = ({ 
   item, 
   onUpdate, 
   isAccessory = false,
-  isNewlyAdded = false 
 }: PackingListItemRowProps) => {
   const [packerName, setPackerName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
@@ -85,7 +83,6 @@ const PackingListItemRow = ({
         isAccessory && "ml-5 border-l-2 border-muted",
         isFullyPacked && "bg-green-50 dark:bg-green-950/20",
         isPartiallyPacked && "bg-yellow-50 dark:bg-yellow-950/20",
-        isNewlyAdded && !isFullyPacked && "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
       )}
     >
       {/* Checkbox */}
@@ -128,7 +125,7 @@ const PackingListItemRow = ({
           isFullyPacked && "line-through text-muted-foreground"
         )}>
           {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-          {isNewlyAdded && !isFullyPacked && <span className="text-primary font-bold mr-1">NY</span>}
+          
           {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
           {item.product?.sku && (
             <span className="text-[10px] text-muted-foreground ml-1.5">

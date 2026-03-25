@@ -78,23 +78,7 @@ const PackingListTab = ({
       });
     });
 
-    // Sort main products: groups with new items first
-    const groupHasNew = (parent: PackingListItem) => {
-      const parentId = parent.product?.id;
-      if (!parentId) return !!parent.isNewlyAdded;
-      return (
-        !!parent.isNewlyAdded ||
-        (childrenByParentId[parentId]?.some((i) => i.isNewlyAdded) ?? false)
-      );
-    };
 
-    main.sort((a, b) => {
-      const aNew = groupHasNew(a);
-      const bNew = groupHasNew(b);
-      if (aNew && !bNew) return -1;
-      if (!aNew && bNew) return 1;
-      return 0;
-    });
 
     // Find children whose parent is NOT in mainProducts (orphaned children)
     const mainProductIds = new Set(main.map(m => m.product?.id).filter(Boolean));
@@ -199,31 +183,27 @@ const PackingListTab = ({
             {/* Main products with their children (package components + accessories) */}
             {mainProducts.map(item => (
               <div key={item.id}>
-                {/* Main product */}
                 <PackingListItemRow
                   item={item}
                   onUpdate={onUpdateItem}
                   isAccessory={false}
-                  isNewlyAdded={item.isNewlyAdded}
                 />
-                {/* All children under this product (sorted: ⦿ first, then ↳) */}
                 {item.product?.id && childrenByParent[item.product.id]?.map(child => (
                   <PackingListItemRow
                     key={child.id}
                     item={child}
                     onUpdate={onUpdateItem}
                     isAccessory={true}
-                    isNewlyAdded={child.isNewlyAdded}
                   />
                 ))}
               </div>
             ))}
 
-            {/* Orphaned children (children without parent in list) - shown as main items */}
+            {/* Children without parent in list - shown as main items */}
             {orphanedChildren.length > 0 && (
               <>
-                <div className="border-t border-dashed border-warning/30 mt-4 pt-3">
-                  <p className="text-xs text-warning font-medium mb-2">
+                <div className="border-t border-dashed border-muted mt-4 pt-3">
+                  <p className="text-xs text-muted-foreground font-medium mb-2">
                     Tillbehör utan huvudprodukt ({orphanedChildren.length})
                   </p>
                 </div>
@@ -233,7 +213,6 @@ const PackingListTab = ({
                     item={item}
                     onUpdate={onUpdateItem}
                     isAccessory={false}
-                    isNewlyAdded={item.isNewlyAdded}
                   />
                 ))}
               </>
