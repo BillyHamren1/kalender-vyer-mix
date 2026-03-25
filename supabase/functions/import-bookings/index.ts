@@ -925,8 +925,10 @@ const expandPackageComponents = async (
 };
 
 /**
- * Sync packing list items after package component expansion.
- * Creates packing_list_items for any booking_products that don't have a corresponding item yet.
+ * Full sync packing list items to exactly match booking_products.
+ * - Add items for new products
+ * - Remove items for deleted products
+ * - Update quantity_to_pack for changed products
  */
 const syncPackingListAfterExpansion = async (
   supabase: any,
@@ -944,47 +946,79 @@ const syncPackingListAfterExpansion = async (
     return 0;
   }
 
+  const packingId = packingProject.id;
+
   const { data: allProducts } = await supabase
     .from('booking_products')
     .select('id, name, quantity')
     .eq('booking_id', bookingId);
 
-  if (!allProducts || allProducts.length === 0) return 0;
+  if (!allProducts || allProducts.length === 0) {
+    // No products → remove all packing list items
+    const { data: remaining } = await supabase
+      .from('packing_list_items')
+      .select('id')
+      .eq('packing_id', packingId);
+    if (remaining && remaining.length > 0) {
+      await supabase.from('packing_list_items').delete().eq('packing_id', packingId);
+      console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (no products left)`);
+      return remaining.length;
+    }
+    return 0;
+  }
 
   const { data: existingItems } = await supabase
     .from('packing_list_items')
-    .select('booking_product_id')
-    .eq('packing_id', packingProject.id);
+    .select('id, booking_product_id, quantity_to_pack')
+    .eq('packing_id', packingId);
 
-  const existingProductIds = new Set((existingItems || []).map((i: any) => i.booking_product_id));
-  const missingProducts = allProducts.filter((p: any) => !existingProductIds.has(p.id));
+  const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
+  const existingByProductId = new Map((existingItems || []).map((i: any) => [i.booking_product_id, i]));
 
-  if (missingProducts.length === 0) {
-    console.log(`[Packing Sync] All products already have packing list items for booking ${bookingId}`);
-    return 0;
+  let changes = 0;
+
+  // 1. Add missing items
+  const missingProducts = allProducts.filter((p: any) => !existingByProductId.has(p.id));
+  if (missingProducts.length > 0) {
+    console.log(`[Packing Sync] Creating ${missingProducts.length} new packing list items`);
+    const newItems = missingProducts.map((p: any) => ({
+      packing_id: packingId,
+      booking_product_id: p.id,
+      quantity_to_pack: p.quantity || 1,
+      quantity_packed: 0,
+      organization_id: orgId
+    }));
+
+    const { error: insertError } = await supabase.from('packing_list_items').insert(newItems);
+    if (insertError) {
+      console.error(`[Packing Sync] Error creating packing list items:`, insertError);
+    } else {
+      changes += missingProducts.length;
+    }
   }
 
-  console.log(`[Packing Sync] Creating ${missingProducts.length} new packing list items for booking ${bookingId}`);
-
-  const newItems = missingProducts.map((p: any) => ({
-    packing_id: packingProject.id,
-    booking_product_id: p.id,
-    quantity_to_pack: p.quantity || 1,
-    quantity_packed: 0,
-    organization_id: orgId
-  }));
-
-  const { error: insertError } = await supabase
-    .from('packing_list_items')
-    .insert(newItems);
-
-  if (insertError) {
-    console.error(`[Packing Sync] Error creating packing list items:`, insertError);
-    return 0;
+  // 2. Remove items for deleted products
+  const orphanedItems = (existingItems || []).filter((i: any) => !productMap.has(i.booking_product_id));
+  if (orphanedItems.length > 0) {
+    const orphanedIds = orphanedItems.map((i: any) => i.id);
+    console.log(`[Packing Sync] Removing ${orphanedItems.length} packing list items (products deleted)`);
+    const { error: deleteError } = await supabase.from('packing_list_items').delete().in('id', orphanedIds);
+    if (!deleteError) changes += orphanedItems.length;
   }
 
-  console.log(`[Packing Sync] Successfully created ${missingProducts.length} packing list items`);
-  return missingProducts.length;
+  // 3. Update quantity_to_pack where product quantity changed
+  for (const [productId, item] of existingByProductId as any) {
+    const product = productMap.get(productId);
+    if (product && (product as any).quantity !== item.quantity_to_pack) {
+      await supabase.from('packing_list_items').update({ quantity_to_pack: (product as any).quantity }).eq('id', item.id);
+      changes++;
+    }
+  }
+
+  if (changes > 0) {
+    console.log(`[Packing Sync] Completed: ${changes} total changes for booking ${bookingId}`);
+  }
+  return changes;
 };
 
 serve(async (req) => {

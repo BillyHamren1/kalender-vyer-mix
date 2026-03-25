@@ -40,22 +40,15 @@ const PackingListTab = ({
   // Accessories should appear under their parent and be listed together (contiguously).
   // Group items: mainProducts at top, children grouped by parent_product_id
   // Order within children: package components (⦿) first, then accessories (↳)
-  const { mainProducts, childrenByParent, orphanedItems, orphanedChildren, progress } = useMemo(() => {
+  const { mainProducts, childrenByParent, orphanedChildren, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
     const childrenByParentId: Record<string, PackingListItem[]> = {};
-    const orphaned: PackingListItem[] = [];
     
     let totalToPack = 0;
     let totalPacked = 0;
 
     // First pass: separate main products from children
     items.forEach(item => {
-      // Orphaned items go to a separate section
-      if (item.isOrphaned) {
-        orphaned.push(item);
-        return;
-      }
-
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
@@ -116,7 +109,6 @@ const PackingListTab = ({
     return {
       mainProducts: main,
       childrenByParent: childrenByParentId,
-      orphanedItems: orphaned,
       orphanedChildren: orphanedChildItems,
       progress: {
         total: totalToPack,
@@ -247,25 +239,6 @@ const PackingListTab = ({
               </>
             )}
 
-            {/* Orphaned items section - at the bottom */}
-            {orphanedItems.length > 0 && (
-              <>
-                <div className="border-t border-dashed border-destructive/30 mt-4 pt-3">
-                  <p className="text-xs text-destructive font-medium mb-2">
-                    Borttagna från bokningen ({orphanedItems.length})
-                  </p>
-                </div>
-                {orphanedItems.map(item => (
-                  <PackingListItemRow
-                    key={item.id}
-                    item={item}
-                    onUpdate={onUpdateItem}
-                    isAccessory={!!item.product?.parent_product_id}
-                    isOrphaned={true}
-                  />
-                ))}
-              </>
-            )}
           </div>
         </CardContent>
       </Card>
