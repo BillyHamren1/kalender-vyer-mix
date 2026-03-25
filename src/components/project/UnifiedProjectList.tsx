@@ -141,7 +141,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const filtered = useMemo(() => {
-    if (statusFilter !== 'closing' && !hasActiveFilters) return [];
+    if (!hasActiveFilters) return [];
     return unified
       .filter(p => {
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
@@ -231,7 +231,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     );
   }
 
-  if (!hasActiveFilters && statusFilter !== 'closing') {
+  if (!hasActiveFilters) {
     return (
       <div className="rounded-xl border border-border/60 bg-card text-center py-12 px-4">
         <Search className="h-8 w-8 text-muted-foreground/25 mx-auto mb-2" />
