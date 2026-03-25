@@ -1482,6 +1482,9 @@ export type Database = {
       large_project_purchases: {
         Row: {
           amount: number | null
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -1495,6 +1498,9 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -1508,6 +1514,9 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -2924,6 +2933,9 @@ export type Database = {
       project_purchases: {
         Row: {
           amount: number
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -2937,6 +2949,9 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -2950,6 +2965,9 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
