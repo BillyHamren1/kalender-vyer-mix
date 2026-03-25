@@ -39,7 +39,7 @@ const PackingDetail = () => {
     comments,
     files,
     isLoading,
-    updateStatus,
+    
     addComment,
     uploadFile,
     deleteFile,
