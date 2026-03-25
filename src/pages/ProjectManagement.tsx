@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Archive, Search } from "lucide-react";
+import { Plus, FolderKanban, Archive, Search, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
@@ -98,53 +99,67 @@ const ProjectManagement = () => {
         </div>
 
         <div className="mb-6">
-          <ClosingProjectsList />
-        </div>
-
-        <div className="mb-6">
           <ProjectDashboardWidgets />
         </div>
 
-        {/* Search, Status Filter & Type Filter */}
-        <div className="flex flex-wrap gap-3 mb-4 items-center">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-            <Input
-              placeholder="Sök i alla projekt..."
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              className="pl-9 h-9 rounded-lg"
-            />
-          </div>
-          <Select value={globalStatusFilter} onValueChange={(v) => setGlobalStatusFilter(v as GlobalStatusFilter)}>
-            <SelectTrigger className="h-9 w-[160px] rounded-lg">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(GLOBAL_STATUS_OPTIONS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ToggleGroup 
-            type="single" 
-            value={typeFilter} 
-            onValueChange={(v) => v && setTypeFilter(v as ProjectTypeFilter)}
-            className="bg-muted/40 rounded-lg p-0.5"
-          >
-            <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
-            <ToggleGroupItem value="small" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-small))] data-[state=on]:text-[hsl(var(--project-small-foreground))]">Litet</ToggleGroupItem>
-            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Medel</ToggleGroupItem>
-            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Stort</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+        <Tabs defaultValue="projects" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="projects" className="gap-1.5">
+              <FolderKanban className="h-4 w-4" />
+              Projekt
+            </TabsTrigger>
+            <TabsTrigger value="closing" className="gap-1.5">
+              <AlertCircle className="h-4 w-4" />
+              Under slutförande
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Unified Project List */}
-        <UnifiedProjectList
-          search={globalSearch}
-          statusFilter={globalStatusFilter}
-          typeFilter={typeFilter}
-        />
+          <TabsContent value="projects">
+            {/* Search, Status Filter & Type Filter */}
+            <div className="flex flex-wrap gap-3 mb-4 items-center">
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  placeholder="Sök i alla projekt..."
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  className="pl-9 h-9 rounded-lg"
+                />
+              </div>
+              <Select value={globalStatusFilter} onValueChange={(v) => setGlobalStatusFilter(v as GlobalStatusFilter)}>
+                <SelectTrigger className="h-9 w-[160px] rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(GLOBAL_STATUS_OPTIONS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ToggleGroup 
+                type="single" 
+                value={typeFilter} 
+                onValueChange={(v) => v && setTypeFilter(v as ProjectTypeFilter)}
+                className="bg-muted/40 rounded-lg p-0.5"
+              >
+                <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
+                <ToggleGroupItem value="small" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-small))] data-[state=on]:text-[hsl(var(--project-small-foreground))]">Litet</ToggleGroupItem>
+                <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Medel</ToggleGroupItem>
+                <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Stort</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
+            <UnifiedProjectList
+              search={globalSearch}
+              statusFilter={globalStatusFilter}
+              typeFilter={typeFilter}
+            />
+          </TabsContent>
+
+          <TabsContent value="closing">
+            <ClosingProjectsList />
+          </TabsContent>
+        </Tabs>
 
         <CreateProjectWizard 
           open={isCreateOpen} 
