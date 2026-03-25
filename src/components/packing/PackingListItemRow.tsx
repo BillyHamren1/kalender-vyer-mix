@@ -125,7 +125,7 @@ const PackingListItemRow = ({
           isFullyPacked && "line-through text-muted-foreground"
         )}>
           {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-          {isNewlyAdded && !isFullyPacked && <span className="text-primary font-bold mr-1">NY</span>}
+          
           {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
           {item.product?.sku && (
             <span className="text-[10px] text-muted-foreground ml-1.5">
