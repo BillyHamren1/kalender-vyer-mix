@@ -141,7 +141,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const filtered = useMemo(() => {
-    if (!hasActiveFilters && statusFilter !== 'closing') return [];
+    if (statusFilter !== 'closing' && !hasActiveFilters) return [];
     return unified
       .filter(p => {
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;

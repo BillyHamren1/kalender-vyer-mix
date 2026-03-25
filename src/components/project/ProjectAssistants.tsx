@@ -56,7 +56,7 @@ export const autoAssignAssistants = async (
 
   const { error } = await supabase
     .from('project_assistants')
-    .upsert(rows, { onConflict: 'project_id,project_type,assistant_name' });
+    .upsert(rows as any, { onConflict: 'project_id,project_type,assistant_name' });
 
   if (error) {
     console.error('Failed to auto-assign assistants:', error);
@@ -104,7 +104,7 @@ const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAss
     mutationFn: async (name: string) => {
       const { error } = await supabase
         .from('project_assistants')
-        .insert({ project_id: projectId, project_type: projectType, assistant_name: name });
+        .insert({ project_id: projectId, project_type: projectType, assistant_name: name } as any);
       if (error) throw error;
     },
     onSuccess: () => {
