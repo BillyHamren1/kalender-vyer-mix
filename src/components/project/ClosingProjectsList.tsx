@@ -303,7 +303,7 @@ const ClosingProjectsList = () => {
           subtitle: j.booking?.deliveryAddress ?? null,
           navigateTo: `/jobs/${j.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
-          bookingId: j.booking?.id ?? null,
+          bookingId: j.bookingId ?? null,
           projectId: null,
         });
       }
