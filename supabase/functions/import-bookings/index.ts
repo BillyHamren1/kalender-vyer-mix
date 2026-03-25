@@ -364,6 +364,19 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
 const createPackingForBooking = async (supabase: any, booking: any, orgId: string): Promise<boolean> => {
   console.log(`[Packing] Checking if packing exists for booking ${booking.id}`);
   
+  const clientName = booking.client || 'Okänd kund';
+  const eventDate = booking.eventdate ? new Date(booking.eventdate).toLocaleDateString('sv-SE') : '';
+  const packingName = eventDate ? `${clientName} - ${eventDate}` : clientName;
+
+  const syncFields = {
+    name: packingName,
+    client_name: booking.client || null,
+    start_date: booking.rigdaydate || null,
+    end_date: booking.rigdowndate || null,
+    delivery_address: booking.deliveryaddress || null,
+    notes: booking.internalnotes || null,
+  };
+
   // Check if packing already exists for this booking
   const { data: existingPacking, error: checkError } = await supabase
     .from('packing_projects')
@@ -377,22 +390,23 @@ const createPackingForBooking = async (supabase: any, booking: any, orgId: strin
   }
   
   if (existingPacking && existingPacking.length > 0) {
-    console.log(`[Packing] Packing already exists for booking ${booking.id}, skipping creation`);
+    // Update existing packing with latest booking data
+    console.log(`[Packing] Updating existing packing for booking ${booking.id}`);
+    await supabase
+      .from('packing_projects')
+      .update({ ...syncFields, updated_at: new Date().toISOString() })
+      .eq('id', existingPacking[0].id);
     return false;
   }
   
-  const clientName = booking.client || 'Okänd kund';
-  const eventDate = booking.eventdate ? new Date(booking.eventdate).toLocaleDateString('sv-SE') : '';
-  const packingName = eventDate ? `${clientName} - ${eventDate}` : clientName;
-  
   console.log(`[Packing] Creating packing project: ${packingName}`);
   
-  // Create packing project
+  // Create packing project with all sync fields
   const { data: newPacking, error: insertError } = await supabase
     .from('packing_projects')
     .insert({
       booking_id: booking.id,
-      name: packingName,
+      ...syncFields,
       status: 'planning',
       organization_id: orgId
     })
