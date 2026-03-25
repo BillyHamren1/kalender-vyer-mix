@@ -10,6 +10,7 @@ import { AttachmentsList } from '../AttachmentsList';
 import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
+import PackingStatusCard from '../PackingStatusCard';
 
 interface BookingDetailContentProps {
   booking: Booking;
