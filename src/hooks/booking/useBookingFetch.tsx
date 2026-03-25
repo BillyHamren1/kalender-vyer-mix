@@ -71,6 +71,31 @@ export const useBookingFetch = (id: string | undefined) => {
         }
       }
       
+      // Self-healing: ensure confirmed bookings have calendar events
+      if (bookingData && (bookingData.status === 'CONFIRMED' || bookingData.status === 'Bekräftad')) {
+        const synced = await ensureBookingCalendarEvents(id, {
+          id: bookingData.id,
+          status: 'CONFIRMED',
+          client: bookingData.client,
+          booking_number: bookingData.bookingNumber,
+          rigdaydate: bookingData.rigDate,
+          eventdate: bookingData.eventDate,
+          rigdowndate: bookingData.rigDownDate,
+          rig_start_time: bookingData.rigStartTime,
+          rig_end_time: bookingData.rigEndTime,
+          event_start_time: bookingData.eventStartTime,
+          event_end_time: bookingData.eventEndTime,
+          rigdown_start_time: bookingData.rigDownStartTime,
+          rigdown_end_time: bookingData.rigDownEndTime,
+          deliveryaddress: bookingData.deliveryAddress,
+          delivery_city: bookingData.deliveryCity,
+          organization_id: bookingData.organizationId
+        });
+        if (synced) {
+          console.log(`[useBookingFetch] Auto-synced calendar events for booking ${id}`);
+        }
+      }
+
       // Fetch all dates for this booking from calendar events
       await loadAllBookingDates(id);
       
