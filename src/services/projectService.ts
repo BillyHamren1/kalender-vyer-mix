@@ -93,6 +93,14 @@ export const createProject = async (project: {
   return data as unknown as Project;
 };
 
+export const updateProjectFields = async (id: string, updates: Record<string, unknown>): Promise<void> => {
+  const { error } = await supabase
+    .from('projects')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+};
+
 export const updateProjectStatus = async (id: string, status: ProjectStatus): Promise<void> => {
   // First get the project to check for booking_id
   const { data: project, error: fetchError } = await supabase

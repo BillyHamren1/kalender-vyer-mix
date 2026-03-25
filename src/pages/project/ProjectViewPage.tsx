@@ -129,6 +129,7 @@ const ProjectViewPage = () => {
             projectId={project.id}
             projectType="medium"
             projectLeader={project.project_leader}
+            onChangeLeader={(name) => detail.updateProject({ project_leader: name })}
           />
           <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
           <ProjectInternalNotes

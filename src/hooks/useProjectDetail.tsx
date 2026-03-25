@@ -8,6 +8,7 @@ import {
   fetchProjectFiles,
   fetchBookingAttachments,
   updateProjectStatus,
+  updateProjectFields,
   createProjectTask,
   updateProjectTask,
   deleteProjectTask,
@@ -214,6 +215,15 @@ export const useProjectDetail = (projectId: string) => {
     invalidateKeys: [['projects']],
   });
 
+  const updateFieldsMutation = useMutation({
+    mutationFn: (updates: Record<string, unknown>) => updateProjectFields(projectId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+    onError: () => toast.error('Kunde inte uppdatera projekt'),
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: (status: ProjectStatus) => updateProjectStatus(projectId, status),
     ...statusOptimistic,
@@ -374,6 +384,7 @@ export const useProjectDetail = (projectId: string) => {
     activities: activitiesQuery.data || [],
     bookingAttachments: bookingAttachmentsQuery.data || [],
     isLoading: projectQuery.isLoading,
+    updateProject: updateFieldsMutation.mutate,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
