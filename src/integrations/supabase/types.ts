@@ -2464,6 +2464,41 @@ export type Database = {
           },
         ]
       }
+      project_assistants: {
+        Row: {
+          assistant_name: string
+          created_at: string | null
+          id: string
+          organization_id: string
+          project_id: string
+          project_type: string
+        }
+        Insert: {
+          assistant_name: string
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          project_id: string
+          project_type?: string
+        }
+        Update: {
+          assistant_name?: string
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          project_id?: string
+          project_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_assistants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_billing: {
         Row: {
           approved_by: string | null

@@ -14,6 +14,7 @@ import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
 import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
+import ProjectAssistants from "@/components/project/ProjectAssistants";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -122,8 +123,13 @@ const ProjectViewPage = () => {
           </div>
         )}
 
-        {/* Right: Internal notes – same max height */}
+        {/* Right: Team + Internal notes */}
         <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
+          <ProjectAssistants
+            projectId={project.id}
+            projectType="medium"
+            projectLeader={project.project_leader}
+          />
           <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
           <ProjectInternalNotes
             bookingId={bookingId}

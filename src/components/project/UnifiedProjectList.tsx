@@ -21,6 +21,7 @@ interface UnifiedProject {
   name: string;
   type: 'small' | 'medium' | 'large';
   date: string | null;
+  eventDate: string | null;
   status: string;
   subtitle: string | null;
   address: string | null;
@@ -89,6 +90,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
       type: 'small',
       date: j.booking?.eventDate ?? null,
+      eventDate: j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.deliveryAddress ?? null,
       address: j.booking?.deliveryAddress ?? null,
@@ -108,6 +110,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         name: displayName,
         type: 'medium',
         date: p.booking?.eventdate ?? null,
+        eventDate: p.booking?.eventdate ?? p.eventdate ?? null,
         status: p.status,
         subtitle: fullAddress,
         address: fullAddress,
@@ -122,17 +125,20 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       name: lp.name,
       type: 'large',
       date: lp.start_date ?? null,
+      eventDate: lp.end_date ?? lp.start_date ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
-      bookingId: null, // large projects have multiple bookings
+      bookingId: null,
     }));
 
     return items;
   }, [jobs, projects, largeProjects]);
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
+
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const filtered = useMemo(() => {
     if (!hasActiveFilters) return [];
@@ -147,6 +153,10 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (statusFilter === 'all_active') return p.status !== 'completed';
         if (statusFilter === 'planning') return p.status === 'planning';
         if (statusFilter === 'in_progress') return p.status === 'in_progress';
+        if (statusFilter === 'closing') {
+          // Projects past event date but not yet completed
+          return p.status !== 'completed' && p.eventDate && p.eventDate < today;
+        }
         if (statusFilter === 'completed') return p.status === 'completed';
         return p.status !== 'completed';
       })
