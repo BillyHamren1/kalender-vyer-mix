@@ -39,7 +39,7 @@ export function usePackingProgressBatch(bookingIds: string[]) {
       // Fetch packing list items for all packing projects
       const { data: items, error: iErr } = await supabase
         .from('packing_list_items')
-        .select('packing_id, quantity_to_pack, scanned_quantity, updated_at')
+        .select('packing_id, quantity_to_pack, quantity_packed, packed_at')
         .in('packing_id', packingIds);
 
       // Aggregate per packing
@@ -47,9 +47,9 @@ export function usePackingProgressBatch(bookingIds: string[]) {
       (items || []).forEach(item => {
         const existing = itemsByPacking.get(item.packing_id) || { total: 0, scanned: 0, lastUpdated: null };
         existing.total += (item.quantity_to_pack || 0);
-        existing.scanned += (item.scanned_quantity || 0);
-        if (item.updated_at && (!existing.lastUpdated || item.updated_at > existing.lastUpdated)) {
-          existing.lastUpdated = item.updated_at;
+        existing.scanned += (item.quantity_packed || 0);
+        if (item.packed_at && (!existing.lastUpdated || item.packed_at > existing.lastUpdated)) {
+          existing.lastUpdated = item.packed_at;
         }
         itemsByPacking.set(item.packing_id, existing);
       });
