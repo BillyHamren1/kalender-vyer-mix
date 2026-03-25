@@ -13,6 +13,7 @@ import { IncomingBookingsList } from "@/components/project/IncomingBookingsList"
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
 import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidgets";
+import ClosingProjectsList from "@/components/project/ClosingProjectsList";
 import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { toast } from "sonner";
