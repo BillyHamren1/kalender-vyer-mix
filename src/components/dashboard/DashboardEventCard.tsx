@@ -1,8 +1,12 @@
-import { Calendar, Users, Package, Truck, MapPin } from "lucide-react";
+import { Calendar, Users, Package, Truck, MapPin, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DashboardEvent, EventCategory } from "@/hooks/useDashboardEvents";
 import { useNavigate } from "react-router-dom";
+import { usePackingProgressContext } from "./PackingProgressProvider";
+import { PackingProgress } from "@/hooks/usePackingProgress";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
 
 // Shared event card styling used across all calendar views
 export function getEventCategoryColor(category: EventCategory) {
@@ -62,6 +66,64 @@ export function getCategoryIcon(category: EventCategory) {
   }
 }
 
+// Packing status color config
+const PACKING_STATUS_STYLES: Record<string, { bg: string; bar: string; text: string; label: string }> = {
+  planning:     { bg: 'bg-muted',         bar: 'bg-muted-foreground/30', text: 'text-muted-foreground', label: 'Ej påbörjad' },
+  in_progress:  { bg: 'bg-blue-500/10',   bar: 'bg-blue-500',           text: 'text-blue-600',         label: 'Pågår' },
+  packed:       { bg: 'bg-emerald-500/10', bar: 'bg-emerald-500',        text: 'text-emerald-600',      label: 'Packad' },
+  delivered:    { bg: 'bg-emerald-700/10', bar: 'bg-emerald-700',        text: 'text-emerald-700',      label: 'Levererad' },
+  cancelled:    { bg: 'bg-destructive/10', bar: 'bg-destructive',        text: 'text-destructive',      label: 'Avbokad' },
+};
+
+function PackingProgressBar({ progress }: { progress: PackingProgress }) {
+  const style = PACKING_STATUS_STYLES[progress.status] || PACKING_STATUS_STYLES.planning;
+  const pct = progress.totalItems > 0 ? Math.min(100, Math.round((progress.scannedItems / progress.totalItems) * 100)) : 0;
+
+  // Edge states
+  const getStatusText = () => {
+    if (progress.totalItems === 0) return 'Inga artiklar';
+    if (progress.scannedItems === 0) return 'Ej påbörjad';
+    if (progress.scannedItems >= progress.totalItems) return 'Klar för leverans';
+    return `${progress.scannedItems} / ${progress.totalItems} packade`;
+  };
+
+  return (
+    <div className={cn("mt-1 rounded px-1.5 py-1", style.bg)}>
+      {/* Status + count row */}
+      <div className="flex items-center justify-between gap-1 mb-0.5">
+        <div className="flex items-center gap-1">
+          <Package className={cn("w-2.5 h-2.5", style.text)} />
+          <span className={cn("text-[9px] font-semibold", style.text)}>{style.label}</span>
+        </div>
+        {progress.totalItems > 0 && progress.remainingItems > 0 && (
+          <span className="text-[9px] text-muted-foreground">{progress.remainingItems} kvar</span>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      {progress.totalItems > 0 && (
+        <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn("h-full rounded-full transition-all duration-500", style.bar)}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      {/* Text summary */}
+      <div className="flex items-center justify-between mt-0.5">
+        <span className="text-[9px] text-muted-foreground">{getStatusText()}</span>
+        {progress.lastActivity && (
+          <span className="text-[8px] text-muted-foreground/70 flex items-center gap-0.5">
+            <Clock className="w-2 h-2" />
+            {formatDistanceToNow(new Date(progress.lastActivity), { addSuffix: true, locale: sv })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface DashboardEventCardProps {
   event: DashboardEvent;
   compact?: boolean;
@@ -72,12 +134,17 @@ const DashboardEventCard = ({ event, compact = false }: DashboardEventCardProps)
   const categoryColor = getEventCategoryColor(event.category);
   const badgeStyle = getEventTypeBadgeStyle(event.eventType, event.category);
   const CategoryIcon = getCategoryIcon(event.category);
+  const progressMap = usePackingProgressContext();
+  const packingProgress = event.category === 'planning' ? progressMap.get(event.bookingId) : undefined;
 
   const handleClick = () => {
     if (event.category === 'warehouse' && event.eventType.toLowerCase() === 'packing') {
       navigate(`/warehouse/packing?booking=${event.bookingId}`);
     } else if (event.category === 'logistics') {
       navigate('/logistics/planning');
+    } else if (event.category === 'planning' && packingProgress?.packingId) {
+      // Navigate to scanner with the exact packing job
+      navigate(`/scanner?packingId=${packingProgress.packingId}`);
     } else {
       navigate(`/booking/${event.bookingId}`);
     }
@@ -145,6 +212,19 @@ const DashboardEventCard = ({ event, compact = false }: DashboardEventCardProps)
                 {event.assignedStaff.map(s => s.name.split(' ')[0]).join(', ')}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Packing progress (planning only) */}
+        {event.category === 'planning' && packingProgress && (
+          <PackingProgressBar progress={packingProgress} />
+        )}
+        {event.category === 'planning' && !packingProgress && (
+          <div className="mt-1 rounded px-1.5 py-0.5 bg-muted">
+            <div className="flex items-center gap-1">
+              <Package className="w-2.5 h-2.5 text-muted-foreground/50" />
+              <span className="text-[9px] text-muted-foreground/60 italic">Ingen packning</span>
+            </div>
           </div>
         )}
 

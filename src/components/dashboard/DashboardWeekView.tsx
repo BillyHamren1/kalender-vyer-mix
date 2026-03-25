@@ -6,6 +6,7 @@ import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDas
 import DashboardEventCard from "./DashboardEventCard";
 import { useNavigate } from "react-router-dom";
 import CalendarHeader from "./CalendarHeader";
+import { PackingProgressProvider } from "./PackingProgressProvider";
 
 interface DashboardWeekViewProps {
   events: DashboardEvent[];
