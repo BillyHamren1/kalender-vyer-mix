@@ -64,15 +64,8 @@ export const createPacking = async (packing: { name: string; booking_id?: string
   return data as Packing;
 };
 
-// Update packing status
-export const updatePackingStatus = async (id: string, status: PackingStatus): Promise<void> => {
-  const { error } = await supabase
-    .from('packing_projects')
-    .update({ status })
-    .eq('id', id);
-
-  if (error) throw error;
-};
+// Status is now fully backend-driven via scanner-api.
+// No manual updatePackingStatus function.
 
 // Delete a packing
 export const deletePacking = async (id: string): Promise<void> => {
