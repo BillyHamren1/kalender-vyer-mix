@@ -17,7 +17,6 @@ interface PackingListItemRowProps {
   item: PackingListItem;
   onUpdate: (id: string, updates: Partial<PackingListItem>) => void;
   isAccessory?: boolean;
-  isOrphaned?: boolean;
   isNewlyAdded?: boolean;
 }
 
@@ -25,7 +24,6 @@ const PackingListItemRow = ({
   item, 
   onUpdate, 
   isAccessory = false,
-  isOrphaned = false,
   isNewlyAdded = false 
 }: PackingListItemRowProps) => {
   const [packerName, setPackerName] = useState("");
@@ -79,29 +77,6 @@ const PackingListItemRow = ({
     }
   };
 
-  // Orphaned items: struck through, at bottom, non-interactive
-  if (isOrphaned) {
-    return (
-      <div
-        className={cn(
-          "flex items-center gap-2 py-1.5 px-2 rounded-md text-xs opacity-60",
-          isAccessory && "ml-5 border-l-2 border-muted",
-          "bg-destructive/10 border border-dashed border-destructive/30"
-        )}
-      >
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate text-xs line-through text-muted-foreground">
-            {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-            {(item.product?.name || "Borttagen produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
-          </p>
-          <p className="text-[10px] text-destructive">Borttagen från bokningen</p>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {item.quantity_packed}/{item.quantity_to_pack}
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div
