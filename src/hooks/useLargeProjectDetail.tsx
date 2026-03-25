@@ -102,15 +102,27 @@ export const useLargeProjectDetail = (projectId: string) => {
     sort_order: s.sort_order,
   }));
 
-  // Status mutation
+  // Status mutation — sync to Booking first if completing
   const updateStatusMutation = useMutation({
-    mutationFn: (status: LargeProjectStatus) => updateLargeProject(projectId, { status }),
+    mutationFn: async (status: LargeProjectStatus) => {
+      if (status === 'completed') {
+        const { syncBookingsForInvoicing, getLargeProjectBookingIds } = await import('@/services/bookingCloseSyncService');
+        const bookingIds = await getLargeProjectBookingIds(projectId);
+        if (bookingIds.length > 0) {
+          const result = await syncBookingsForInvoicing(bookingIds);
+          if (result.failedIds.length > 0) {
+            throw new Error(`Kunde inte synka ${result.failedIds.length} bokningar till Booking-systemet. Projektet stängdes inte.`);
+          }
+        }
+      }
+      return updateLargeProject(projectId, { status });
+    },
     onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ['large-project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       toast.success(`Status ändrad till "${LARGE_PROJECT_STATUS_LABELS[status]}"`);
     },
-    onError: () => toast.error('Kunde inte uppdatera status'),
+    onError: (err: Error) => toast.error(err.message || 'Kunde inte uppdatera status'),
   });
 
   // General project update mutation
