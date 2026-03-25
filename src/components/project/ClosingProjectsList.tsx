@@ -141,14 +141,12 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     setApprovingPurchaseIds(prev => new Set(prev).add(purchaseId));
     try {
       const approverName = await getApproverName();
-      const { error } = await supabase
-        .from(purchaseTable)
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: approverName,
-        } as any)
-        .eq('id', purchaseId);
+      const updatePayload = {
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: approverName,
+      };
+      const { error } = await approvePurchaseInDb(updatePayload, { id: purchaseId });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['closing-purchases', item.projectId, item.type] });
       toast.success('Utlägg godkänt');
@@ -170,14 +168,12 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     setApprovingPurchaseIds(new Set(ids));
     try {
       const approverName = await getApproverName();
-      const { error } = await supabase
-        .from(purchaseTable)
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: approverName,
-        } as any)
-        .in('id', ids);
+      const updatePayload = {
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: approverName,
+      };
+      const { error } = await approvePurchaseInDb(updatePayload, { ids });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['closing-purchases', item.projectId, item.type] });
       toast.success(`${ids.length} utlägg godkända`);
