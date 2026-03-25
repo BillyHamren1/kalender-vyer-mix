@@ -8,7 +8,7 @@ import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { deleteProject } from "@/services/projectService";
-import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
+import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -33,19 +33,12 @@ const ProjectLayout = () => {
       toast.error('Projektet har ingen kopplad bokning');
       return;
     }
-    if (!confirm(`Ändra till ${targetType === 'small' ? 'litet' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+    if (!confirm(`Ändra till stort projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
 
     const current = { type: 'medium' as const, id: projectId! };
     try {
       if (targetType === 'medium') return;
-      if (targetType === 'small') {
-        const newId = await convertToSmall(current, project.booking_id);
-        queryClient.invalidateQueries({ queryKey: ['jobs'] });
-        queryClient.invalidateQueries({ queryKey: ['projects'] });
-        queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-        toast.success('Konverterat till litet projekt');
-        navigate(`/jobs/${newId}`);
-      } else {
+      if (targetType === 'large') {
         await prepareConvertToLarge(current, project.booking_id);
         queryClient.invalidateQueries({ queryKey: ['projects'] });
         queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
