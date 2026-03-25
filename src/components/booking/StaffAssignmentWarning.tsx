@@ -28,8 +28,8 @@ const StaffAssignmentWarning: React.FC<StaffAssignmentWarningProps> = ({ booking
   if (!isConfirmed || hasStaff !== false) return null;
 
   return (
-    <Alert variant="destructive" className="border-amber-500 bg-amber-50 text-amber-800">
-      <AlertTriangle className="h-4 w-4 text-amber-600" />
+    <Alert variant="destructive" className="border-destructive/50 bg-destructive/10 text-destructive">
+      <AlertTriangle className="h-4 w-4 text-destructive" />
       <AlertDescription className="text-sm">
         Ingen personal är tilldelad denna bokning. Den visas inte i personalkalendern förrän personal tilldelas via planeringen.
       </AlertDescription>
