@@ -39,6 +39,7 @@ interface ClosingItem {
   navigateTo: string;
   daysSinceEvent: number;
   bookingId: string | null;
+  bookingIds: string[]; // for large projects with multiple bookings
   projectId: string | null;
 }
 
