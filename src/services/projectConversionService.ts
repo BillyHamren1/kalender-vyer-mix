@@ -1,4 +1,4 @@
-import { deleteJob, createJobFromBooking } from '@/services/jobService';
+import { deleteJob } from '@/services/jobService';
 import { deleteProject, createProject } from '@/services/projectService';
 import { deleteLargeProject } from '@/services/largeProjectService';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,16 +33,6 @@ async function deleteCurrentProject({ type, id }: DeleteCurrentProjectParams): P
   if (type === 'small') await deleteJob(id);
   else if (type === 'medium') await deleteProject(id);
   else await deleteLargeProject(id);
-}
-
-/**
- * Convert a project to a small (job) project.
- * Returns the new job ID.
- */
-export async function convertToSmall(current: DeleteCurrentProjectParams, bookingId: string): Promise<string> {
-  await deleteCurrentProject(current);
-  const job = await createJobFromBooking(bookingId);
-  return job.id;
 }
 
 /**

@@ -20,7 +20,7 @@ import {
   deleteJob
 } from '@/services/jobService';
 import { fetchStaffMembers } from '@/services/staffService';
-import { convertToSmall, convertToMedium, prepareConvertToLarge, type ProjectType } from '@/services/projectConversionService';
+import { convertToMedium, prepareConvertToLarge, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
 import { AddToLargeProjectDialog } from '@/components/project/AddToLargeProjectDialog';
 import { format } from 'date-fns';

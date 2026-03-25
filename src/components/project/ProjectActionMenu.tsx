@@ -25,7 +25,7 @@ const TYPE_LABELS: Record<ProjectType, string> = {
 };
 
 const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName, disabled }: ProjectActionMenuProps) => {
-  const otherTypes = (['small', 'medium', 'large'] as ProjectType[]).filter(t => t !== currentType);
+  const otherTypes = (['medium', 'large'] as ProjectType[]).filter(t => t !== currentType);
 
   return (
     <DropdownMenu>

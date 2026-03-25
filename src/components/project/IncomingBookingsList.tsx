@@ -230,17 +230,6 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => createJobMutation.mutate(booking.id)}
-                      disabled={createJobMutation.isPending}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Litet projekt"
-                    >
-                      <Briefcase className="w-3.5 h-3.5" />
-                      <span>Litet</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
                       onClick={() => onCreateProject(booking.id)}
                       className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
                       title="Medelstort projekt"
