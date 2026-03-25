@@ -8,6 +8,7 @@ import {
   fetchProjectFiles,
   fetchBookingAttachments,
   updateProjectStatus,
+  updateProjectFields,
   createProjectTask,
   updateProjectTask,
   deleteProjectTask,
