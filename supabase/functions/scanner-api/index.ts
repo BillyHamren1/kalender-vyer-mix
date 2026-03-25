@@ -232,53 +232,76 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
           .single()
 
+        // Full validation & self-healing sync
         if (packing?.booking_id) {
-          const [itemsCount, productsCount] = await Promise.all([
-            supabase.from('packing_list_items').select('id', { count: 'exact', head: true }).eq('packing_id', packingId).eq('organization_id', ORG_ID),
-            supabase.from('booking_products').select('id', { count: 'exact', head: true }).eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID)
+          const [{ data: products }, { data: existingItems }] = await Promise.all([
+            supabase.from('booking_products').select('id, quantity').eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID),
+            supabase.from('packing_list_items').select('id, booking_product_id, quantity_to_pack').eq('packing_id', packingId).eq('organization_id', ORG_ID)
           ])
 
-          const existingCount = itemsCount.count || 0
-          const productCount = productsCount.count || 0
+          const productMap = new Map((products || []).map((p: any) => [p.id, p]))
+          const existingMap = new Map((existingItems || []).map((i: any) => [i.booking_product_id, i]))
 
-          if (existingCount === 0 && productCount > 0) {
-            const { data: products } = await supabase
-              .from('booking_products')
-              .select('id, quantity')
-              .eq('booking_id', packing.booking_id)
-              .eq('organization_id', ORG_ID)
+          const toInsert: any[] = []
+          const toUpdate: any[] = []
+          const toDelete: string[] = []
 
-            if (products && products.length > 0) {
-              await supabase.from('packing_list_items').insert(
-                products.map((p: any) => ({
-                  packing_id: packingId,
-                  booking_product_id: p.id,
-                  quantity_to_pack: p.quantity,
-                  quantity_packed: 0,
-                  organization_id: ORG_ID
-                }))
-              )
+          // Check for new or changed products
+          for (const [productId, product] of productMap) {
+            const existing = existingMap.get(productId)
+            if (!existing) {
+              toInsert.push({
+                packing_id: packingId,
+                booking_product_id: productId,
+                quantity_to_pack: (product as any).quantity,
+                quantity_packed: 0,
+                organization_id: ORG_ID
+              })
+            } else if (existing.quantity_to_pack !== (product as any).quantity) {
+              toUpdate.push({ id: existing.id, quantity_to_pack: (product as any).quantity })
             }
-          } else if (existingCount < productCount) {
-            const [{ data: products }, { data: existingItems }] = await Promise.all([
-              supabase.from('booking_products').select('id, quantity').eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID),
-              supabase.from('packing_list_items').select('booking_product_id').eq('packing_id', packingId).eq('organization_id', ORG_ID)
-            ])
+          }
 
-            const existingIds = new Set((existingItems || []).map((i: any) => i.booking_product_id))
-            const toAdd = (products || []).filter((p: any) => !existingIds.has(p.id))
-
-            if (toAdd.length > 0) {
-              await supabase.from('packing_list_items').insert(
-                toAdd.map((p: any) => ({
-                  packing_id: packingId,
-                  booking_product_id: p.id,
-                  quantity_to_pack: p.quantity,
-                  quantity_packed: 0,
-                  organization_id: ORG_ID
-                }))
-              )
+          // Check for orphaned packing items (product removed from booking)
+          for (const [bpId, item] of existingMap) {
+            if (!productMap.has(bpId)) {
+              toDelete.push((item as any).id)
             }
+          }
+
+          const hasMismatch = toInsert.length > 0 || toUpdate.length > 0 || toDelete.length > 0
+
+          if (hasMismatch) {
+            console.warn(`[packing-sync] Mismatch detected for packing ${packingId}: +${toInsert.length} ins, ${toUpdate.length} upd, -${toDelete.length} del`)
+
+            // Self-heal
+            const ops: Promise<any>[] = []
+            if (toInsert.length > 0) {
+              ops.push(supabase.from('packing_list_items').insert(toInsert))
+            }
+            for (const upd of toUpdate) {
+              ops.push(supabase.from('packing_list_items').update({ quantity_to_pack: upd.quantity_to_pack }).eq('id', upd.id).eq('organization_id', ORG_ID))
+            }
+            if (toDelete.length > 0) {
+              ops.push(supabase.from('packing_list_items').delete().in('id', toDelete).eq('organization_id', ORG_ID))
+            }
+            await Promise.all(ops)
+
+            // Log the sync event
+            await supabase.from('packing_sync_log').insert({
+              packing_id: packingId,
+              action: 'packing_sync_mismatch',
+              details: {
+                inserted: toInsert.length,
+                updated: toUpdate.length,
+                deleted: toDelete.length,
+                inserted_products: toInsert.map((i: any) => i.booking_product_id),
+                updated_items: toUpdate.map((u: any) => ({ id: u.id, new_qty: u.quantity_to_pack })),
+                deleted_items: toDelete,
+              },
+              performed_by: 'system',
+              organization_id: ORG_ID,
+            })
           }
         }
 
