@@ -1,4 +1,4 @@
-export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed';
+export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed' | 'cancelled';
 
 export interface Packing {
   id: string;
@@ -10,6 +10,12 @@ export interface Packing {
   signed_at: string | null;
   created_at: string;
   updated_at: string;
+  // Synced from booking
+  client_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  delivery_address: string | null;
+  notes: string | null;
 }
 
 export interface PackingTask {
