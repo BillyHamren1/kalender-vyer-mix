@@ -443,6 +443,7 @@ const ClosingProjectsList = () => {
           navigateTo: `/jobs/${j.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: j.bookingId ?? null,
+          bookingIds: j.bookingId ? [j.bookingId] : [],
           projectId: j.id,
         });
       }
@@ -464,11 +465,13 @@ const ClosingProjectsList = () => {
           navigateTo: `/project/${p.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: p.booking_id ?? null,
+          bookingIds: p.booking_id ? [p.booking_id] : [],
           projectId: p.id,
         });
       }
     });
 
+    // Large projects — we'll enrich with booking IDs after
     largeProjects.forEach(lp => {
       const eventDate = lp.end_date ?? lp.start_date;
       if (lp.status !== 'completed' && eventDate && eventDate < todayStr) {
@@ -481,6 +484,7 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
+          bookingIds: [], // will be populated by separate query
           projectId: lp.id,
         });
       }
