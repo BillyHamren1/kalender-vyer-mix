@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardEventCard, { getEventCategoryColor } from "./DashboardEventCard";
 import CalendarHeader from "./CalendarHeader";
+import { PackingProgressProvider } from "./PackingProgressProvider";
 
 interface DashboardMonthViewProps {
   events: DashboardEvent[];
@@ -64,6 +65,7 @@ const DashboardMonthView = ({
   const weekDayNames = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
   return (
+    <PackingProgressProvider events={events}>
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
       <CalendarHeader
         title={monthLabel}
@@ -136,6 +138,7 @@ const DashboardMonthView = ({
         </div>
       </div>
     </div>
+    </PackingProgressProvider>
   );
 };
 
