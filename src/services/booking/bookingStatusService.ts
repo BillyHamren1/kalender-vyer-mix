@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { smartUpdateBookingCalendar } from "@/services/bookingCalendarService";
+import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 
 export type BookingStatus = 'OFFER' | 'CONFIRMED' | 'CANCELLED';
 
@@ -37,6 +38,11 @@ export const updateBookingStatusWithCalendarSync = async (
   // Use smart calendar update to handle sync only when necessary
   const newBookingData = { ...oldBooking, status: newStatus };
   await smartUpdateBookingCalendar(id, oldBooking, newBookingData);
+
+  // Sync packing project (non-blocking - DB trigger handles name, this syncs list items)
+  if (oldBooking?.organization_id) {
+    syncBookingToPacking(id, oldBooking.organization_id);
+  }
 };
 
 export const getStatusColor = (status: BookingStatus): string => {
