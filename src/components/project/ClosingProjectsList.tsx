@@ -9,7 +9,7 @@ import {
   Clock, Receipt, Lock, Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchJobs } from '@/services/jobService';
+
 import { fetchProjects } from '@/services/projectService';
 import { fetchLargeProjects } from '@/services/largeProjectService';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 interface ClosingItem {
   id: string;
   name: string;
-  type: 'small' | 'medium' | 'large';
+  type: 'medium' | 'large';
   eventDate: string;
   subtitle: string | null;
   navigateTo: string;
@@ -30,9 +30,8 @@ interface ClosingItem {
   projectId: string | null;
 }
 
-const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
+const TYPE_LABELS: Record<string, string> = { medium: 'Medel', large: 'Stort' };
 const TYPE_BADGE_CLASSES: Record<string, string> = {
-  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
   medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
   large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
 };
@@ -100,14 +99,15 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   };
 
   const handleCloseProject = async () => {
-    if (item.type !== 'medium' || !item.projectId) {
-      toast.error('Stängning stöds just nu bara för medelstora projekt');
+    if (!item.projectId) {
+      toast.error('Inget projekt-ID kopplat');
       return;
     }
     setIsClosing(true);
     try {
+      const table = item.type === 'large' ? 'large_projects' : 'projects';
       const { error } = await supabase
-        .from('projects')
+        .from(table)
         .update({ status: 'completed' })
         .eq('id', item.projectId);
       if (error) throw error;
@@ -123,6 +123,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
 
       toast.success(`${item.name} stängt`);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     } catch (err) {
       console.error(err);
@@ -262,7 +263,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         </div>
         <Button
           size="sm"
-          disabled={!canClose || isClosing || item.type !== 'medium'}
+          disabled={!canClose || isClosing}
           onClick={handleCloseProject}
           className="bg-green-600 hover:bg-green-700 text-white"
         >
@@ -281,7 +282,7 @@ const ClosingProjectsList = () => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
+  
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [] } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
 
@@ -290,24 +291,6 @@ const ClosingProjectsList = () => {
 
   const closingItems = useMemo<ClosingItem[]>(() => {
     const items: ClosingItem[] = [];
-
-    jobs.forEach(j => {
-      const status = j.status === 'planned' ? 'planning' : j.status;
-      const eventDate = j.booking?.eventDate;
-      if (status !== 'completed' && eventDate && eventDate < todayStr) {
-        items.push({
-          id: j.id,
-          name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
-          type: 'small',
-          eventDate,
-          subtitle: j.booking?.deliveryAddress ?? null,
-          navigateTo: `/jobs/${j.id}`,
-          daysSinceEvent: differenceInDays(today, new Date(eventDate)),
-          bookingId: j.bookingId ?? null,
-          projectId: null,
-        });
-      }
-    });
 
     projects.forEach(p => {
       const eventDate = p.booking?.eventdate ?? p.eventdate;
@@ -342,13 +325,13 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
-          projectId: null,
+          projectId: lp.id,
         });
       }
     });
 
     return items.sort((a, b) => b.daysSinceEvent - a.daysSinceEvent);
-  }, [jobs, projects, largeProjects, todayStr, today]);
+  }, [projects, largeProjects, todayStr, today]);
 
   if (closingItems.length === 0) {
     return (
