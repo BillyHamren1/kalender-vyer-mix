@@ -9,6 +9,7 @@ import {
   Clock, Receipt, Lock, Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { syncBookingsForInvoicing, getLargeProjectBookingIds } from '@/services/bookingCloseSyncService';
 
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
@@ -39,6 +40,7 @@ interface ClosingItem {
   navigateTo: string;
   daysSinceEvent: number;
   bookingId: string | null;
+  bookingIds: string[]; // for large projects with multiple bookings
   projectId: string | null;
 }
 
@@ -192,6 +194,30 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     }
     setIsClosing(true);
     try {
+      // 1. Collect all booking IDs to sync
+      let bookingIdsToSync = [...item.bookingIds];
+      if (item.bookingId && !bookingIdsToSync.includes(item.bookingId)) {
+        bookingIdsToSync.push(item.bookingId);
+      }
+      // For large projects, fetch from junction table
+      if (item.type === 'large' && bookingIdsToSync.length === 0) {
+        bookingIdsToSync = await getLargeProjectBookingIds(item.projectId);
+      }
+
+      // 2. Sync to Booking system FIRST (strict – must succeed)
+      if (bookingIdsToSync.length > 0) {
+        const syncResult = await syncBookingsForInvoicing(bookingIdsToSync);
+        if (syncResult.failedIds.length > 0) {
+          toast.error(
+            `Kunde inte synka till Booking (${syncResult.failedIds.length} av ${bookingIdsToSync.length} misslyckades). Projektet stängdes INTE.`,
+            { duration: 8000 }
+          );
+          setIsClosing(false);
+          return; // ABORT – do not close locally
+        }
+      }
+
+      // 3. Only now update local status
       const table = item.type === 'large' ? 'large_projects' : item.type === 'small' ? 'jobs' : 'projects';
       const { error } = await supabase
         .from(table)
@@ -199,16 +225,10 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         .eq('id', item.projectId);
       if (error) throw error;
 
-      if (item.bookingId) {
-        try {
-          const { markReadyForInvoicing } = await import('@/services/planningApiService');
-          await markReadyForInvoicing(item.bookingId);
-        } catch (syncErr) {
-          console.warn('External sync failed (non-blocking):', syncErr);
-        }
-      }
-
-      toast.success(`${item.name} stängt`);
+      const syncNote = bookingIdsToSync.length > 0
+        ? ` (${bookingIdsToSync.length} bokningar synkade till Booking)`
+        : '';
+      toast.success(`${item.name} stängt${syncNote}`);
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
@@ -442,6 +462,7 @@ const ClosingProjectsList = () => {
           navigateTo: `/jobs/${j.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: j.bookingId ?? null,
+          bookingIds: j.bookingId ? [j.bookingId] : [],
           projectId: j.id,
         });
       }
@@ -463,11 +484,13 @@ const ClosingProjectsList = () => {
           navigateTo: `/project/${p.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: p.booking_id ?? null,
+          bookingIds: p.booking_id ? [p.booking_id] : [],
           projectId: p.id,
         });
       }
     });
 
+    // Large projects — we'll enrich with booking IDs after
     largeProjects.forEach(lp => {
       const eventDate = lp.end_date ?? lp.start_date;
       if (lp.status !== 'completed' && eventDate && eventDate < todayStr) {
@@ -480,6 +503,7 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
+          bookingIds: [], // will be populated by separate query
           projectId: lp.id,
         });
       }

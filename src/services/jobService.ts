@@ -268,6 +268,18 @@ export const createJobFromBooking = async (bookingId: string): Promise<Job> => {
 
 // Update job status
 export const updateJobStatus = async (jobId: string, status: string): Promise<void> => {
+  // If completing, sync to Booking system first
+  if (status === 'completed') {
+    const { data: job } = await supabase.from('jobs').select('booking_id').eq('id', jobId).single();
+    if (job?.booking_id) {
+      const { syncBookingsForInvoicing } = await import('@/services/bookingCloseSyncService');
+      const result = await syncBookingsForInvoicing([job.booking_id]);
+      if (result.failedIds.length > 0) {
+        throw new Error('Kunde inte synka till Booking-systemet. Jobbet stängdes inte.');
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('jobs')
     .update({ status, updated_at: new Date().toISOString() })

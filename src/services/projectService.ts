@@ -111,6 +111,16 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
 
   if (fetchError) throw fetchError;
 
+  // If completing and has a booking, sync to Booking system FIRST
+  if (status === 'completed' && project?.booking_id) {
+    console.log('[ProjectService] Project completing, syncing booking:', project.booking_id);
+    const { syncBookingsForInvoicing } = await import('@/services/bookingCloseSyncService');
+    const result = await syncBookingsForInvoicing([project.booking_id]);
+    if (result.failedIds.length > 0) {
+      throw new Error('Kunde inte synka till Booking-systemet. Projektet stängdes inte.');
+    }
+  }
+
   const { error } = await supabase
     .from('projects')
     .update({ status, updated_at: new Date().toISOString() })
@@ -118,10 +128,8 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
 
   if (error) throw error;
 
-  // If project is marked as completed and has a booking, record analytics
+  // Record analytics (fire and forget)
   if (status === 'completed' && project?.booking_id) {
-    console.log('[ProjectService] Project completed, recording job analytics for booking:', project.booking_id);
-    // Fire and forget - don't block status update on analytics
     recordJobCompletion(project.booking_id).catch(err => {
       console.error('[ProjectService] Failed to record job completion:', err);
     });
