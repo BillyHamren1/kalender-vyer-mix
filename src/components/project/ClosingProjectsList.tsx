@@ -83,12 +83,20 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     queryKey: ['closing-purchases', item.projectId, item.type],
     queryFn: async () => {
       if (!item.projectId) return [];
+      if (item.type === 'large') {
+        const { data } = await supabase
+          .from('large_project_purchases')
+          .select('id, purchase_date, amount, description, supplier, category, approved, approved_by')
+          .eq('large_project_id', item.projectId)
+          .order('purchase_date', { ascending: false });
+        return (data ?? []) as any[];
+      }
       const { data } = await supabase
-        .from(purchaseTable)
+        .from('project_purchases')
         .select('id, purchase_date, amount, description, supplier, category, approved, approved_by')
-        .eq(purchaseFkCol, item.projectId)
+        .eq('project_id', item.projectId)
         .order('purchase_date', { ascending: false });
-      return data ?? [];
+      return (data ?? []) as any[];
     },
     enabled: !!item.projectId && item.type !== 'small',
   });
