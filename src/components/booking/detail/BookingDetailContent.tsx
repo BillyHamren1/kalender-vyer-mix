@@ -11,6 +11,7 @@ import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
 import PackingStatusCard from '../PackingStatusCard';
+import StaffAssignmentWarning from '../StaffAssignmentWarning';
 
 interface BookingDetailContentProps {
   booking: Booking;
@@ -45,6 +46,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
 }) => {
   return (
     <div className="space-y-6">
+      <StaffAssignmentWarning bookingId={booking.id} status={booking.status} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <ClientInformation client={booking.client} />

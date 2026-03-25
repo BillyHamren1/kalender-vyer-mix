@@ -326,6 +326,51 @@ export const forceFullBookingSync = async (): Promise<number> => {
   }
 };
 
+// Ensure a confirmed booking has calendar events — self-healing failsafe
+export const ensureBookingCalendarEvents = async (bookingId: string, booking?: any): Promise<boolean> => {
+  try {
+    // Quick check: does this booking already have calendar events?
+    const { count, error: countError } = await supabase
+      .from('calendar_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId);
+
+    if (countError) {
+      console.error('Error checking calendar events:', countError);
+      return false;
+    }
+
+    if ((count ?? 0) > 0) {
+      return false; // Already has events, nothing to do
+    }
+
+    // No events exist — check if booking is confirmed
+    let bookingData = booking;
+    if (!bookingData) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, status, client, booking_number, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city, organization_id')
+        .eq('id', bookingId)
+        .single();
+      if (error || !data) return false;
+      bookingData = data;
+    }
+
+    const status = (bookingData.status ?? '').toString().trim().toUpperCase();
+    if (status !== 'CONFIRMED') return false;
+
+    // Has dates to sync?
+    if (!bookingData.rigdaydate && !bookingData.eventdate && !bookingData.rigdowndate) return false;
+
+    console.log(`[ensureBookingCalendarEvents] Auto-syncing missing calendar events for confirmed booking ${bookingId}`);
+    await syncSingleBookingToCalendar(bookingId, bookingData);
+    return true;
+  } catch (error) {
+    console.error(`[ensureBookingCalendarEvents] Error:`, error);
+    return false;
+  }
+};
+
 // Get booking dates by type from calendar events
 export const fetchBookingDatesByType = async (
   bookingId: string, 

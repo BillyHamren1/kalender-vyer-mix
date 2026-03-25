@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Booking } from '@/types/booking';
 import { fetchBookingById, markBookingAsViewed } from '@/services/bookingService';
-import { fetchBookingDatesByType } from '@/services/bookingCalendarService';
+import { fetchBookingDatesByType, ensureBookingCalendarEvents } from '@/services/bookingCalendarService';
 
 export const useBookingFetch = (id: string | undefined) => {
   const queryClient = useQueryClient();
@@ -71,6 +71,14 @@ export const useBookingFetch = (id: string | undefined) => {
         }
       }
       
+      // Self-healing: ensure confirmed bookings have calendar events
+      if (bookingData && (bookingData.status === 'CONFIRMED' || bookingData.status === 'Bekräftad')) {
+        const synced = await ensureBookingCalendarEvents(id);
+        if (synced) {
+          console.log(`[useBookingFetch] Auto-synced calendar events for booking ${id}`);
+        }
+      }
+
       // Fetch all dates for this booking from calendar events
       await loadAllBookingDates(id);
       
