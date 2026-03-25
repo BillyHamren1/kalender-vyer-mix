@@ -820,7 +820,9 @@ const reconnectPackingListItems = async (
 const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
   const fields = [
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
-    'delivery_city', 'delivery_postal_code', 'status', 'booking_number'
+    'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
+    'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time',
+    'rigdown_start_time', 'rigdown_end_time'
   ];
   
   for (const field of fields) {
@@ -2537,8 +2539,10 @@ serve(async (req) => {
           );
 
           for (const date of rigDates) {
-            const startTime = `${date}T08:00:00`;
-            const endTime = getEndTimeForEventType(startTime, 'rig');
+            const rigStartRaw = bookingData.rig_start_time;
+            const rigEndRaw = bookingData.rig_end_time;
+            const startTime = rigStartRaw ? (rigStartRaw.includes('T') ? `${date}T${rigStartRaw.split('T')[1]}` : `${date}T${rigStartRaw}`) : `${date}T08:00:00`;
+            const endTime = rigEndRaw ? (rigEndRaw.includes('T') ? `${date}T${rigEndRaw.split('T')[1]}` : `${date}T${rigEndRaw}`) : getEndTimeForEventType(startTime, 'rig');
             if (!existingEventKeys.has(`rig|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
@@ -2554,8 +2558,10 @@ serve(async (req) => {
           }
 
           for (const date of eventDates) {
-            const startTime = `${date}T08:00:00`;
-            const endTime = getEndTimeForEventType(startTime, 'event');
+            const evtStartRaw = bookingData.event_start_time;
+            const evtEndRaw = bookingData.event_end_time;
+            const startTime = evtStartRaw ? (evtStartRaw.includes('T') ? `${date}T${evtStartRaw.split('T')[1]}` : `${date}T${evtStartRaw}`) : `${date}T08:00:00`;
+            const endTime = evtEndRaw ? (evtEndRaw.includes('T') ? `${date}T${evtEndRaw.split('T')[1]}` : `${date}T${evtEndRaw}`) : getEndTimeForEventType(startTime, 'event');
             if (!existingEventKeys.has(`event|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
@@ -2571,8 +2577,10 @@ serve(async (req) => {
           }
 
           for (const date of rigdownDates) {
-            const startTime = `${date}T08:00:00`;
-            const endTime = getEndTimeForEventType(startTime, 'rigDown');
+            const rdStartRaw = bookingData.rigdown_start_time;
+            const rdEndRaw = bookingData.rigdown_end_time;
+            const startTime = rdStartRaw ? (rdStartRaw.includes('T') ? `${date}T${rdStartRaw.split('T')[1]}` : `${date}T${rdStartRaw}`) : `${date}T08:00:00`;
+            const endTime = rdEndRaw ? (rdEndRaw.includes('T') ? `${date}T${rdEndRaw.split('T')[1]}` : `${date}T${rdEndRaw}`) : getEndTimeForEventType(startTime, 'rigDown');
             if (!existingEventKeys.has(`rigDown|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
