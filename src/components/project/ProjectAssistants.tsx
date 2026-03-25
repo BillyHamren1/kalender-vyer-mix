@@ -14,6 +14,7 @@ interface ProjectAssistantsProps {
   projectId: string;
   projectType: 'small' | 'medium' | 'large';
   projectLeader: string | null;
+  onChangeLeader?: (newLeader: string) => void;
 }
 
 export const useProjectAssistants = (projectId: string, projectType: string) => {
@@ -40,7 +41,6 @@ export const autoAssignAssistants = async (
 ) => {
   if (!leaderName) return;
   
-  // Determine which team members should be assistants (everyone except the leader)
   const leaderFirstName = leaderName.split(' ')[0];
   const assistants = DEFAULT_TEAM.filter(
     name => name.toLowerCase() !== leaderFirstName.toLowerCase()
@@ -63,31 +63,15 @@ export const autoAssignAssistants = async (
   }
 };
 
-const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAssistantsProps) => {
+const ProjectAssistants = ({ projectId, projectType, projectLeader, onChangeLeader }: ProjectAssistantsProps) => {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [selectedName, setSelectedName] = useState('');
+  const [editingLeader, setEditingLeader] = useState(false);
 
   const { data: assistants = [] } = useProjectAssistants(projectId, projectType);
 
-  // Resolve leader display name
-  const { data: leaderProfile } = useQuery({
-    queryKey: ['profile-name', projectLeader],
-    queryFn: async () => {
-      if (!projectLeader) return null;
-      const { data } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('user_id', projectLeader)
-        .single();
-      return data;
-    },
-    enabled: !!projectLeader,
-  });
-
-  const leaderDisplayName = leaderProfile?.full_name || leaderProfile?.email || projectLeader;
-
-  // Available profiles for adding
+  // Available names for dropdowns – always loaded so leader dropdown works
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
     queryFn: async () => {
@@ -97,8 +81,9 @@ const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAss
         .order('full_name');
       return (data || []).filter(p => p.full_name || p.email);
     },
-    enabled: adding,
   });
+
+  const leaderDisplayName = projectLeader || 'Ej tilldelad';
 
   const addMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -133,6 +118,21 @@ const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAss
 
   const existingNames = new Set(assistants.map(a => a.assistant_name.toLowerCase()));
 
+  // Build combined options: profiles + DEFAULT_TEAM names not in profiles
+  const profileNames = profiles.map(p => p.full_name || p.email || '');
+  const allOptions = [
+    ...profileNames,
+    ...DEFAULT_TEAM.filter(name => !profileNames.some(pn => pn.toLowerCase() === name.toLowerCase())),
+  ];
+
+  const handleLeaderChange = (name: string) => {
+    if (onChangeLeader) {
+      onChangeLeader(name);
+      toast.success(`Projektledare ändrad till ${name}`);
+    }
+    setEditingLeader(false);
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 mb-1">
@@ -141,20 +141,43 @@ const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAss
       </div>
 
       {/* Main project leader */}
-      {projectLeader && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
-          <Crown className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">{leaderDisplayName}</span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary font-semibold">
-            HUVUDANSVARIG
-          </Badge>
-        </div>
-      )}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
+        <Crown className="h-4 w-4 text-primary flex-shrink-0" />
+        {editingLeader ? (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Select onValueChange={handleLeaderChange}>
+              <SelectTrigger className="h-8 text-sm flex-1">
+                <SelectValue placeholder={leaderDisplayName} />
+              </SelectTrigger>
+              <SelectContent>
+                {allOptions.map(name => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setEditingLeader(false)}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setEditingLeader(true)}
+              className="text-sm font-medium text-foreground hover:underline cursor-pointer text-left"
+            >
+              {leaderDisplayName}
+            </button>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary font-semibold ml-auto flex-shrink-0">
+              HUVUDANSVARIG
+            </Badge>
+          </>
+        )}
+      </div>
 
       {/* Assistants */}
       {assistants.map(a => (
         <div key={a.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/40 group">
-          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           <span className="text-sm text-foreground flex-1">{a.assistant_name}</span>
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground font-medium">
             ASSISTENT
@@ -176,16 +199,9 @@ const ProjectAssistants = ({ projectId, projectType, projectLeader }: ProjectAss
               <SelectValue placeholder="Välj person..." />
             </SelectTrigger>
             <SelectContent>
-              {profiles
-                .filter(p => !existingNames.has((p.full_name || p.email || '').toLowerCase()))
-                .filter(p => p.user_id !== projectLeader)
-                .map(p => (
-                  <SelectItem key={p.user_id} value={p.full_name || p.email || ''}>
-                    {p.full_name || p.email}
-                  </SelectItem>
-                ))}
-              {DEFAULT_TEAM
+              {allOptions
                 .filter(name => !existingNames.has(name.toLowerCase()))
+                .filter(name => name.toLowerCase() !== (projectLeader || '').toLowerCase())
                 .map(name => (
                   <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}
