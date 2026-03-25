@@ -2237,6 +2237,36 @@ export type Database = {
           },
         ]
       }
+      packing_sync_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          organization_id: string
+          packing_id: string
+          performed_by: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string
+          packing_id: string
+          performed_by?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string
+          packing_id?: string
+          performed_by?: string | null
+        }
+        Relationships: []
+      }
       packing_task_comments: {
         Row: {
           author_id: string | null
