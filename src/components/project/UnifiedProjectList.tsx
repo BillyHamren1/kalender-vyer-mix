@@ -21,6 +21,7 @@ interface UnifiedProject {
   name: string;
   type: 'small' | 'medium' | 'large';
   date: string | null;
+  eventDate: string | null;
   status: string;
   subtitle: string | null;
   address: string | null;

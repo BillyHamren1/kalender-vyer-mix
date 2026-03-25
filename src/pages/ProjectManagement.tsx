@@ -17,12 +17,13 @@ import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { toast } from "sonner";
 
-export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'completed' | 'all';
+export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'all';
 
 const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
   all_active: 'Alla aktiva',
   planning: 'Planering',
   in_progress: 'Pågående',
+  closing: 'Under slutförande',
   completed: 'Avslutade',
   all: 'Alla inkl. gamla',
 };
