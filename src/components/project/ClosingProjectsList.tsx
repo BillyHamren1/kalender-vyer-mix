@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
 import { fetchLargeProjects } from '@/services/largeProjectService';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils';
 interface ClosingItem {
   id: string;
   name: string;
-  type: 'medium' | 'large';
+  type: 'small' | 'medium' | 'large';
   eventDate: string;
   subtitle: string | null;
   navigateTo: string;
@@ -30,8 +31,9 @@ interface ClosingItem {
   projectId: string | null;
 }
 
-const TYPE_LABELS: Record<string, string> = { medium: 'Medel', large: 'Stort' };
+const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
 const TYPE_BADGE_CLASSES: Record<string, string> = {
+  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
   medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
   large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
 };
@@ -105,7 +107,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     }
     setIsClosing(true);
     try {
-      const table = item.type === 'large' ? 'large_projects' : 'projects';
+      const table = item.type === 'large' ? 'large_projects' : item.type === 'small' ? 'jobs' : 'projects';
       const { error } = await supabase
         .from(table)
         .update({ status: 'completed' })
@@ -122,6 +124,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
       }
 
       toast.success(`${item.name} stängt`);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
@@ -282,7 +285,7 @@ const ClosingProjectsList = () => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  
+  const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [] } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
 
@@ -291,6 +294,27 @@ const ClosingProjectsList = () => {
 
   const closingItems = useMemo<ClosingItem[]>(() => {
     const items: ClosingItem[] = [];
+
+    // Small projects (jobs)
+    jobs.forEach(j => {
+      const eventDate = j.booking?.eventDate;
+      if (j.status !== 'completed' && eventDate && eventDate < todayStr) {
+        const client = j.booking?.client;
+        const bookingNum = j.booking?.bookingNumber;
+        const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : j.name;
+        items.push({
+          id: j.id,
+          name: displayName,
+          type: 'small',
+          eventDate,
+          subtitle: j.booking?.deliveryAddress ?? null,
+          navigateTo: `/jobs/${j.id}`,
+          daysSinceEvent: differenceInDays(today, new Date(eventDate)),
+          bookingId: j.bookingId ?? null,
+          projectId: j.id,
+        });
+      }
+    });
 
     projects.forEach(p => {
       const eventDate = p.booking?.eventdate ?? p.eventdate;
@@ -331,7 +355,7 @@ const ClosingProjectsList = () => {
     });
 
     return items.sort((a, b) => b.daysSinceEvent - a.daysSinceEvent);
-  }, [projects, largeProjects, todayStr, today]);
+  }, [jobs, projects, largeProjects, todayStr, today]);
 
   if (closingItems.length === 0) {
     return (

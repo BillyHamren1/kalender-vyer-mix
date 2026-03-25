@@ -6,7 +6,7 @@ import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'luc
 import { fetchJobs, deleteJob } from '@/services/jobService';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
-import { convertToSmall, convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
+import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
 import { AddToLargeProjectDialog } from '@/components/project/AddToLargeProjectDialog';
 import { toast } from 'sonner';
@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
 
-export type ProjectTypeFilter = 'all' | 'small' | 'medium' | 'large';
+export type ProjectTypeFilter = 'all' | 'medium' | 'large';
 
 interface UnifiedProject {
   id: string;
@@ -189,17 +189,12 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       return;
     }
 
-    if (!confirm(`Ändra till ${targetType === 'small' ? 'litet' : targetType === 'medium' ? 'medel' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
+    if (!confirm(`Ändra till ${targetType === 'medium' ? 'medel' : 'stort'} projekt? Det befintliga projektet raderas och ett nytt skapas.`)) return;
 
     const current = { type: project.type, id: project.id };
 
     try {
-      if (targetType === 'small') {
-        const newId = await convertToSmall(current, bookingId);
-        invalidateAll();
-        toast.success('Projekt konverterat till litet');
-        navigate(`/jobs/${newId}`);
-      } else if (targetType === 'medium') {
+      if (targetType === 'medium') {
         const newId = await convertToMedium(current, bookingId);
         invalidateAll();
         toast.success('Projekt konverterat till medel');

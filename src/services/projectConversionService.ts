@@ -36,16 +36,6 @@ async function deleteCurrentProject({ type, id }: DeleteCurrentProjectParams): P
 }
 
 /**
- * Convert a project to a small (job) project.
- * Returns the new job ID.
- */
-export async function convertToSmall(current: DeleteCurrentProjectParams, bookingId: string): Promise<string> {
-  await deleteCurrentProject(current);
-  const job = await createJobFromBooking(bookingId);
-  return job.id;
-}
-
-/**
  * Convert a project to a medium project.
  * Returns the new project ID.
  */
