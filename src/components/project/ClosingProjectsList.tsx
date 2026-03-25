@@ -76,8 +76,20 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   });
 
   // Fetch purchases for this project (medium uses project_purchases, large uses large_project_purchases)
-  const purchaseTable = item.type === 'large' ? 'large_project_purchases' : 'project_purchases';
-  const purchaseFkCol = item.type === 'large' ? 'large_project_id' : 'project_id';
+  const isLargeProject = item.type === 'large';
+
+  const approvePurchaseInDb = async (updatePayload: any, filter: { id?: string; ids?: string[] }) => {
+    if (isLargeProject) {
+      if (filter.ids) {
+        return supabase.from('large_project_purchases').update(updatePayload).in('id', filter.ids);
+      }
+      return supabase.from('large_project_purchases').update(updatePayload).eq('id', filter.id!);
+    }
+    if (filter.ids) {
+      return supabase.from('project_purchases').update(updatePayload).in('id', filter.ids);
+    }
+    return supabase.from('project_purchases').update(updatePayload).eq('id', filter.id!);
+  };
 
   const { data: purchases = [], isLoading: loadingPurchases } = useQuery({
     queryKey: ['closing-purchases', item.projectId, item.type],
