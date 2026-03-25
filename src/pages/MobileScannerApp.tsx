@@ -154,18 +154,32 @@ const MobileScannerApp: React.FC = () => {
 
   // Get status badge style
   const getStatusBadge = (status: string) => {
-    if (status === 'in_progress') {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
-          Pågående
-        </span>
-      );
+    switch (status) {
+      case 'in_progress':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
+            Pågående
+          </span>
+        );
+      case 'packed':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+            Packad ✓
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+            Levererad
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+            Planering
+          </span>
+        );
     }
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-        Planering
-      </span>
-    );
   };
 
   // Render packing card
