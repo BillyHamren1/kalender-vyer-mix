@@ -90,14 +90,6 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
-  // Realtime sync: refetch when packing data changes
-  const realtimeTables = useMemo(() => ['packing_list_items', 'packing_projects'], []);
-  useScannerRealtime({
-    tables: realtimeTables,
-    onChanged: useCallback(() => loadData(true), [loadData]),
-    pollingInterval: 30000,
-  });
-
   const loadData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setIsLoading(true);
@@ -156,6 +148,14 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       if (!isBackground) setIsLoading(false);
     }
   }, [packingId]);
+
+  // Realtime sync: refetch when packing data changes
+  const realtimeTables = useMemo(() => ['packing_list_items', 'packing_projects'], []);
+  useScannerRealtime({
+    tables: realtimeTables,
+    onChanged: useCallback(() => loadData(true), [loadData]),
+    pollingInterval: 30000,
+  });
 
   useEffect(() => { loadData(false); }, [loadData]);
 
