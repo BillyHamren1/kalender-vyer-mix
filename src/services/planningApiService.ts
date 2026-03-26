@@ -91,6 +91,9 @@ export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: 
 export const markReadyForInvoicing = (bookingId: string) =>
   callPlanningApi({ type: 'close_project', method: 'POST', booking_id: bookingId, data: { status: 'READY_FOR_INVOICING' } });
 
+export const markReopenedInBooking = (bookingId: string) =>
+  callPlanningApi({ type: 'reopen_project', method: 'POST', booking_id: bookingId, data: { status: 'REOPENED' } });
+
 // ===== Batch (all economy data in one call) =====
 
 export interface BatchEconomyData {

@@ -233,10 +233,10 @@ Deno.serve(async (req) => {
       fetchOptions.body = JSON.stringify(params.data);
     }
 
-    // Log close_project calls for debugging
-    if (type === 'close_project') {
-      console.log(`[close_project] Sending to: ${targetUrl}`);
-      console.log(`[close_project] Method: ${method}, Body: ${fetchOptions.body ?? 'none'}`);
+    // Log close_project and reopen_project calls for debugging
+    if (type === 'close_project' || type === 'reopen_project') {
+      console.log(`[${type}] Sending to: ${targetUrl}`);
+      console.log(`[${type}] Method: ${method}, Body: ${fetchOptions.body ?? 'none'}`);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
