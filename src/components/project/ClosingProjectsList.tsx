@@ -42,6 +42,7 @@ interface ClosingItem {
   bookingId: string | null;
   bookingIds: string[]; // for large projects with multiple bookings
   projectId: string | null;
+  isClosed: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
