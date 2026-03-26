@@ -110,16 +110,33 @@ const ProjectEconomyPage = () => {
             {isClosed ? 'STÄNGD' : 'ÖPPEN'}
           </Badge>
         </div>
-        {!isClosed && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowCloseDialog(true)}
-          >
-            <Lock className="h-4 w-4 mr-1.5" />
-            Stäng projekt
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReopenProject}
+              disabled={isReopening}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {isReopening ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Återöppnar...</>
+              ) : (
+                <><Unlock className="h-4 w-4 mr-1.5" /> Återöppna</>
+              )}
+            </Button>
+          )}
+          {!isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCloseDialog(true)}
+            >
+              <Lock className="h-4 w-4 mr-1.5" />
+              Stäng projekt
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="economy" className="space-y-6">
