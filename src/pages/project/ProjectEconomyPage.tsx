@@ -38,17 +38,43 @@ const ProjectEconomyPage = () => {
 
   const isClosed = project.status === 'completed';
 
+  const handleReopenProject = async () => {
+    setIsReopening(true);
+    try {
+      if (project.booking_id) {
+        const { reopenBookingsInInvoicing } = await import('@/services/bookingCloseSyncService');
+        const result = await reopenBookingsInInvoicing([project.booking_id]);
+        if (result.failedIds.length > 0) {
+          toast.error('Kunde inte återöppna i Booking — projektet förblir stängt');
+          setIsReopening(false);
+          return;
+        }
+      }
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'delivered' })
+        .eq('id', project.id);
+      if (error) throw error;
+      toast.success(`${project.name} har återöppnats`);
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error('Reopen project error:', err);
+      toast.error('Kunde inte återöppna projektet');
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   const handleCloseProject = async () => {
     setIsClosing(true);
     try {
-      // A. Mark project as closed locally first
       const { error } = await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', project.id);
       if (error) throw error;
 
-      // B. Only after local success: send external sync
       if (project.booking_id) {
         try {
           const { markReadyForInvoicing } = await import('@/services/planningApiService');
