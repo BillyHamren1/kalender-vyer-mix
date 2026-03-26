@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Lock, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Lock, CheckCircle2, Circle, Unlock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ const ProjectEconomyDetail: React.FC = () => {
   const queryClient = useQueryClient();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [checklist, setChecklist] = useState([false, false, false]);
 
   const { data: project, isLoading } = useQuery({
@@ -41,6 +42,35 @@ const ProjectEconomyDetail: React.FC = () => {
     },
     enabled: !!id
   });
+
+  const handleReopenProject = async () => {
+    if (!project) return;
+    setIsReopening(true);
+    try {
+      if (project.booking_id) {
+        const { reopenBookingsInInvoicing } = await import('@/services/bookingCloseSyncService');
+        const result = await reopenBookingsInInvoicing([project.booking_id]);
+        if (result.failedIds.length > 0) {
+          toast.error('Kunde inte återöppna i Booking — projektet förblir stängt');
+          setIsReopening(false);
+          return;
+        }
+      }
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'delivered' })
+        .eq('id', project.id);
+      if (error) throw error;
+      toast.success(`${project.name} har återöppnats`);
+      queryClient.invalidateQueries({ queryKey: ['project-economy-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error('Reopen project error:', err);
+      toast.error('Kunde inte återöppna projektet');
+    } finally {
+      setIsReopening(false);
+    }
+  };
 
   const handleCloseProject = async () => {
     if (!project) return;
@@ -120,7 +150,21 @@ const ProjectEconomyDetail: React.FC = () => {
           </div>
           <p className="text-muted-foreground">Projektets ekonomiska översikt</p>
         </div>
-        {!isClosed && (
+        {isClosed ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReopenProject}
+            disabled={isReopening}
+            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            {isReopening ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Återöppnar...</>
+            ) : (
+              <><Unlock className="h-4 w-4 mr-1.5" /> Återöppna</>
+            )}
+          </Button>
+        ) : (
           <Button
             variant="outline"
             size="sm"

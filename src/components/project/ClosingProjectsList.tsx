@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   ChevronRight, ChevronDown, Calendar, AlertCircle, Check, CheckCheck,
-  Clock, Receipt, Lock, Loader2,
+  Clock, Receipt, Lock, Loader2, Unlock,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { syncBookingsForInvoicing, getLargeProjectBookingIds } from '@/services/bookingCloseSyncService';
+import { syncBookingsForInvoicing, getLargeProjectBookingIds, reopenBookingsInInvoicing } from '@/services/bookingCloseSyncService';
 
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
@@ -42,6 +42,7 @@ interface ClosingItem {
   bookingId: string | null;
   bookingIds: string[]; // for large projects with multiple bookings
   projectId: string | null;
+  isClosed: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
@@ -56,6 +57,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   const queryClient = useQueryClient();
   const { approveMutation } = useApproveTimeReport();
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [approvingPurchaseIds, setApprovingPurchaseIds] = useState<Set<string>>(new Set());
 
   // Fetch time reports for this booking
@@ -184,6 +186,57 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
       toast.error('Kunde inte godkänna utlägg');
     } finally {
       setApprovingPurchaseIds(new Set());
+    }
+  };
+
+  const handleReopenProject = async () => {
+    if (!item.projectId) {
+      toast.error('Inget projekt-ID kopplat');
+      return;
+    }
+    setIsReopening(true);
+    try {
+      // 1. Collect booking IDs
+      let bookingIdsToSync = [...item.bookingIds];
+      if (item.bookingId && !bookingIdsToSync.includes(item.bookingId)) {
+        bookingIdsToSync.push(item.bookingId);
+      }
+      if (item.type === 'large' && bookingIdsToSync.length === 0) {
+        bookingIdsToSync = await getLargeProjectBookingIds(item.projectId);
+      }
+
+      // 2. Signal Booking system to reopen (strict)
+      if (bookingIdsToSync.length > 0) {
+        const syncResult = await reopenBookingsInInvoicing(bookingIdsToSync);
+        if (syncResult.failedIds.length > 0) {
+          toast.error(
+            `Kunde inte återöppna i Booking (${syncResult.failedIds.length} av ${bookingIdsToSync.length} misslyckades). Projektet förblir stängt.`,
+            { duration: 8000 }
+          );
+          setIsReopening(false);
+          return;
+        }
+      }
+
+      // 3. Revert local status
+      const table = item.type === 'large' ? 'large_projects' : item.type === 'small' ? 'jobs' : 'projects';
+      const newStatus = item.type === 'small' ? 'planned' : 'delivered';
+      const { error } = await supabase
+        .from(table)
+        .update({ status: newStatus })
+        .eq('id', item.projectId);
+      if (error) throw error;
+
+      toast.success(`${item.name} har återöppnats`);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte återöppna projektet');
+    } finally {
+      setIsReopening(false);
     }
   };
 
@@ -406,27 +459,47 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         )}
       </div>
 
-      {/* Close Project Action */}
+      {/* Close / Reopen Project Action */}
       <div className="flex items-center justify-between pt-2 border-t border-border/30">
         <div className="text-xs text-muted-foreground">
-          {canClose ? (
+          {item.isClosed ? (
+            <span className="text-red-600 font-medium">🔒 Stängt</span>
+          ) : canClose ? (
             <span className="text-green-600 font-medium">✓ Redo att stängas</span>
           ) : (
             <span className="text-amber-600">Godkänn {blockers.join(' och ')} innan stängning</span>
           )}
         </div>
-        <Button
-          size="sm"
-          disabled={!canClose || isClosing}
-          onClick={handleCloseProject}
-          className="bg-green-600 hover:bg-green-700 text-white"
-        >
-          {isClosing ? (
-            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Stänger...</>
+        <div className="flex gap-2">
+          {item.isClosed ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isReopening}
+              onClick={handleReopenProject}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {isReopening ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Återöppnar...</>
+              ) : (
+                <><Unlock className="h-3.5 w-3.5 mr-1.5" /> Återöppna projekt</>
+              )}
+            </Button>
           ) : (
-            <><Lock className="h-3.5 w-3.5 mr-1.5" /> Stäng projekt</>
+            <Button
+              size="sm"
+              disabled={!canClose || isClosing}
+              onClick={handleCloseProject}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isClosing ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Stänger...</>
+              ) : (
+                <><Lock className="h-3.5 w-3.5 mr-1.5" /> Stäng projekt</>
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
     </div>
   );
@@ -449,7 +522,8 @@ const ClosingProjectsList = () => {
     // Small projects (jobs)
     jobs.forEach(j => {
       const eventDate = j.booking?.eventDate;
-      if (j.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = j.status === 'completed';
+      if (eventDate && eventDate < todayStr && (j.status !== 'completed' || isClosed)) {
         const client = j.booking?.client;
         const bookingNum = j.booking?.bookingNumber;
         const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : j.name;
@@ -464,13 +538,15 @@ const ClosingProjectsList = () => {
           bookingId: j.bookingId ?? null,
           bookingIds: j.bookingId ? [j.bookingId] : [],
           projectId: j.id,
+          isClosed,
         });
       }
     });
 
     projects.forEach(p => {
       const eventDate = p.booking?.eventdate ?? p.eventdate;
-      if (p.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = p.status === 'completed';
+      if (eventDate && eventDate < todayStr) {
         const client = p.booking?.client;
         const bookingNum = p.booking?.booking_number;
         const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
@@ -486,14 +562,16 @@ const ClosingProjectsList = () => {
           bookingId: p.booking_id ?? null,
           bookingIds: p.booking_id ? [p.booking_id] : [],
           projectId: p.id,
+          isClosed,
         });
       }
     });
 
-    // Large projects — we'll enrich with booking IDs after
+    // Large projects
     largeProjects.forEach(lp => {
       const eventDate = lp.end_date ?? lp.start_date;
-      if (lp.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = lp.status === 'completed';
+      if (eventDate && eventDate < todayStr) {
         items.push({
           id: lp.id,
           name: lp.name,
@@ -503,8 +581,9 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
-          bookingIds: [], // will be populated by separate query
+          bookingIds: [],
           projectId: lp.id,
+          isClosed,
         });
       }
     });
@@ -562,7 +641,14 @@ const ClosingProjectsList = () => {
               </Badge>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+                  {item.isClosed && (
+                    <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50 text-[10px] px-1.5 py-0 shrink-0">
+                      STÄNGD
+                    </Badge>
+                  )}
+                </div>
                 {item.subtitle && (
                   <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
                 )}

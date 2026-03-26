@@ -6,7 +6,7 @@ import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lock, CheckCircle2, Circle } from "lucide-react";
+import { Lock, CheckCircle2, Circle, Unlock, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,23 +31,50 @@ const ProjectEconomyPage = () => {
   const queryClient = useQueryClient();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [checklist, setChecklist] = useState([false, false, false]);
 
   if (!project) return null;
 
   const isClosed = project.status === 'completed';
 
+  const handleReopenProject = async () => {
+    setIsReopening(true);
+    try {
+      if (project.booking_id) {
+        const { reopenBookingsInInvoicing } = await import('@/services/bookingCloseSyncService');
+        const result = await reopenBookingsInInvoicing([project.booking_id]);
+        if (result.failedIds.length > 0) {
+          toast.error('Kunde inte återöppna i Booking — projektet förblir stängt');
+          setIsReopening(false);
+          return;
+        }
+      }
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'delivered' })
+        .eq('id', project.id);
+      if (error) throw error;
+      toast.success(`${project.name} har återöppnats`);
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error('Reopen project error:', err);
+      toast.error('Kunde inte återöppna projektet');
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   const handleCloseProject = async () => {
     setIsClosing(true);
     try {
-      // A. Mark project as closed locally first
       const { error } = await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', project.id);
       if (error) throw error;
 
-      // B. Only after local success: send external sync
       if (project.booking_id) {
         try {
           const { markReadyForInvoicing } = await import('@/services/planningApiService');
@@ -83,16 +110,33 @@ const ProjectEconomyPage = () => {
             {isClosed ? 'STÄNGD' : 'ÖPPEN'}
           </Badge>
         </div>
-        {!isClosed && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowCloseDialog(true)}
-          >
-            <Lock className="h-4 w-4 mr-1.5" />
-            Stäng projekt
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReopenProject}
+              disabled={isReopening}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {isReopening ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Återöppnar...</>
+              ) : (
+                <><Unlock className="h-4 w-4 mr-1.5" /> Återöppna</>
+              )}
+            </Button>
+          )}
+          {!isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCloseDialog(true)}
+            >
+              <Lock className="h-4 w-4 mr-1.5" />
+              Stäng projekt
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="economy" className="space-y-6">
