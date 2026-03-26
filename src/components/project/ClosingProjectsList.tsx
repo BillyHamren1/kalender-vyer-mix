@@ -57,6 +57,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
   const queryClient = useQueryClient();
   const { approveMutation } = useApproveTimeReport();
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [approvingPurchaseIds, setApprovingPurchaseIds] = useState<Set<string>>(new Set());
 
   // Fetch time reports for this booking
