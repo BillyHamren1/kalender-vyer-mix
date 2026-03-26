@@ -450,7 +450,8 @@ const ClosingProjectsList = () => {
     // Small projects (jobs)
     jobs.forEach(j => {
       const eventDate = j.booking?.eventDate;
-      if (j.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = j.status === 'completed';
+      if (eventDate && eventDate < todayStr && (j.status !== 'completed' || isClosed)) {
         const client = j.booking?.client;
         const bookingNum = j.booking?.bookingNumber;
         const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : j.name;
@@ -465,13 +466,15 @@ const ClosingProjectsList = () => {
           bookingId: j.bookingId ?? null,
           bookingIds: j.bookingId ? [j.bookingId] : [],
           projectId: j.id,
+          isClosed,
         });
       }
     });
 
     projects.forEach(p => {
       const eventDate = p.booking?.eventdate ?? p.eventdate;
-      if (p.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = p.status === 'completed';
+      if (eventDate && eventDate < todayStr) {
         const client = p.booking?.client;
         const bookingNum = p.booking?.booking_number;
         const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
@@ -487,14 +490,16 @@ const ClosingProjectsList = () => {
           bookingId: p.booking_id ?? null,
           bookingIds: p.booking_id ? [p.booking_id] : [],
           projectId: p.id,
+          isClosed,
         });
       }
     });
 
-    // Large projects — we'll enrich with booking IDs after
+    // Large projects
     largeProjects.forEach(lp => {
       const eventDate = lp.end_date ?? lp.start_date;
-      if (lp.status !== 'completed' && eventDate && eventDate < todayStr) {
+      const isClosed = lp.status === 'completed';
+      if (eventDate && eventDate < todayStr) {
         items.push({
           id: lp.id,
           name: lp.name,
@@ -504,8 +509,9 @@ const ClosingProjectsList = () => {
           navigateTo: `/large-project/${lp.id}`,
           daysSinceEvent: differenceInDays(today, new Date(eventDate)),
           bookingId: null,
-          bookingIds: [], // will be populated by separate query
+          bookingIds: [],
           projectId: lp.id,
+          isClosed,
         });
       }
     });
