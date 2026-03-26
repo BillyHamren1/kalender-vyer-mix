@@ -243,9 +243,9 @@ Deno.serve(async (req) => {
     const responseData = await response.json();
 
     // Log close_project response for debugging
-    if (type === 'close_project') {
-      console.log(`[close_project] Response status: ${response.status}`);
-      console.log(`[close_project] Response data: ${JSON.stringify(responseData)}`);
+    if (type === 'close_project' || type === 'reopen_project') {
+      console.log(`[${type}] Response status: ${response.status}`);
+      console.log(`[${type}] Response data: ${JSON.stringify(responseData)}`);
     }
 
     return new Response(JSON.stringify(responseData), {

@@ -65,6 +65,32 @@ export async function getProjectBookingId(projectId: string): Promise<string | n
 }
 
 /**
+ * Reopen one or more bookings in external Booking system (markReopenedInBooking).
+ * Returns a structured result so callers can decide whether to proceed.
+ */
+export async function reopenBookingsInInvoicing(bookingIds: string[]): Promise<SyncResult> {
+  const unique = [...new Set(bookingIds.filter(Boolean))];
+  const result: SyncResult = { successIds: [], failedIds: [], errors: [] };
+
+  if (unique.length === 0) return result;
+
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        await markReopenedInBooking(id);
+        result.successIds.push(id);
+      } catch (err: any) {
+        result.failedIds.push(id);
+        result.errors.push(`Booking ${id}: ${err?.message || 'Okänt fel'}`);
+        console.error(`[BookingReopenSync] Failed for ${id}:`, err);
+      }
+    })
+  );
+
+  return result;
+}
+
+/**
  * Resync all recently closed projects that have linked bookings.
  * Returns aggregated result.
  */
