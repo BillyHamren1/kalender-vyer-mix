@@ -189,6 +189,57 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
     }
   };
 
+  const handleReopenProject = async () => {
+    if (!item.projectId) {
+      toast.error('Inget projekt-ID kopplat');
+      return;
+    }
+    setIsReopening(true);
+    try {
+      // 1. Collect booking IDs
+      let bookingIdsToSync = [...item.bookingIds];
+      if (item.bookingId && !bookingIdsToSync.includes(item.bookingId)) {
+        bookingIdsToSync.push(item.bookingId);
+      }
+      if (item.type === 'large' && bookingIdsToSync.length === 0) {
+        bookingIdsToSync = await getLargeProjectBookingIds(item.projectId);
+      }
+
+      // 2. Signal Booking system to reopen (strict)
+      if (bookingIdsToSync.length > 0) {
+        const syncResult = await reopenBookingsInInvoicing(bookingIdsToSync);
+        if (syncResult.failedIds.length > 0) {
+          toast.error(
+            `Kunde inte återöppna i Booking (${syncResult.failedIds.length} av ${bookingIdsToSync.length} misslyckades). Projektet förblir stängt.`,
+            { duration: 8000 }
+          );
+          setIsReopening(false);
+          return;
+        }
+      }
+
+      // 3. Revert local status
+      const table = item.type === 'large' ? 'large_projects' : item.type === 'small' ? 'jobs' : 'projects';
+      const newStatus = item.type === 'small' ? 'planned' : 'delivered';
+      const { error } = await supabase
+        .from(table)
+        .update({ status: newStatus })
+        .eq('id', item.projectId);
+      if (error) throw error;
+
+      toast.success(`${item.name} har återöppnats`);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte återöppna projektet');
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   const handleCloseProject = async () => {
     if (!item.projectId) {
       toast.error('Inget projekt-ID kopplat');
