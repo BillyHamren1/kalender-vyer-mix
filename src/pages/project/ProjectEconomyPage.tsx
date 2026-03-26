@@ -6,7 +6,7 @@ import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lock, CheckCircle2, Circle } from "lucide-react";
+import { Lock, CheckCircle2, Circle, Unlock, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,7 @@ const ProjectEconomyPage = () => {
   const queryClient = useQueryClient();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [checklist, setChecklist] = useState([false, false, false]);
 
   if (!project) return null;

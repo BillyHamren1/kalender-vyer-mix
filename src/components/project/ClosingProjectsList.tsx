@@ -641,7 +641,14 @@ const ClosingProjectsList = () => {
               </Badge>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+                  {item.isClosed && (
+                    <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50 text-[10px] px-1.5 py-0 shrink-0">
+                      STÄNGD
+                    </Badge>
+                  )}
+                </div>
                 {item.subtitle && (
                   <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
                 )}
