@@ -1,56 +1,63 @@
 
-Målet: stängning av projekt ska alltid skicka signal till Booking, och stängning ska inte “gå igenom tyst” om synken misslyckas.
 
-1) Rotorsak att fixa (identifierad i koden)
-- Statusändring via vanliga statusflöden saknar Booking-sync:
-  - `projectService.updateProjectStatus(...)` uppdaterar bara lokal status.
-  - `jobService.updateJobStatus(...)` uppdaterar bara lokal status.
-  - `useLargeProjectDetail` sätter status på `large_projects` utan Booking-sync.
-- I `ClosingProjectsList` är sync-fel non-blocking (fångas och ignoreras), så projekt kan stängas lokalt även om Booking aldrig informerades.
-- Stora projekt skickar idag ingen booking-id alls i closing-listan (`bookingId: null`), trots att de kan ha flera kopplade bokningar.
+# Återöppna felstängda projekt
 
-2) Ny gemensam synk-orchestrator (en källa till sanning)
-- Införa en central tjänst, t.ex. `bookingCloseSyncService.ts`, som:
-  - tar emot en eller flera `bookingId`
-  - anropar `markReadyForInvoicing`
-  - returnerar tydligt resultat (`successIds`, `failedIds`, felmeddelanden)
-- All stängningslogik (small/medium/large) använder denna tjänst istället för egna ad-hoc anrop.
+## Vad som byggs
 
-3) Gör stängning “strict” i alla flöden
-- Regel: om status sätts till `completed` och det finns kopplade bokningar, då måste Booking-sync lyckas först.
-- Uppdatera:
-  - `projectService.updateProjectStatus`
-  - `jobService.updateJobStatus`
-  - `useLargeProjectDetail` (hämta alla `booking_id` från `large_project_bookings` vid completed)
-  - `ClosingProjectsList.handleCloseProject`
-- Vid sync-fel:
-  - visa tydlig toast med “inte stängt – synk till Booking misslyckades”
-  - avbryt lokal statusuppdatering (ingen tyst mismatch)
+En "Återöppna projekt"-funktion som:
+1. Sätter tillbaka lokal status från `completed` till föregående status
+2. Skickar en `reopen_project`-signal till Booking-systemet
+3. Tillgänglig via en knapp på stängda projekt i "Under slutförande"-vyn
 
-4) Rätta stora projekt i closing-vyn
-- I `ClosingProjectsList` utöka modellen för large till att bära `bookingIds: string[]`.
-- Vid “Stäng projekt” för large:
-  - synka alla kopplade bokningar
-  - endast om alla lyckas sätts `large_projects.status = completed`.
+## Teknisk plan
 
-5) Återställning för projekt du redan stängt
-- Lägg till en “Skicka stängda igen till Booking”-åtgärd på `/projects/closing` (t.ex. knapp i header).
-- Den hämtar nyligen stängda small/medium/large med kopplade booking-id och kör batch-sync via samma orchestrator.
-- Resultat visas med antal lyckade/misslyckade så du direkt ser vad som faktiskt skickats.
+### 1. Ny API-funktion i `planningApiService.ts`
+Lägg till `markReopenedInBooking(bookingId)` som anropar proxyn med `type=reopen_project`, body `{ status: 'REOPENED' }`.
 
-6) Verifiering (obligatorisk)
-- End-to-end testfall:
-  - Stäng small/medium/large och verifiera att Booking-sync-anrop sker.
-  - Tvinga sync-fel och verifiera att status INTE blir completed lokalt.
-  - Kör “Skicka stängda igen” och verifiera att tidigare stängda faktiskt skickas.
-- Kontrollera även att inga gamla flöden längre kan sätta `completed` utan sync.
+### 2. Ny service-funktion i `bookingCloseSyncService.ts`
+Lägg till `reopenBookingsInInvoicing(bookingIds)` — samma mönster som `syncBookingsForInvoicing` men anropar `markReopenedInBooking` istället.
 
-Tekniska detaljer (kort)
-- Primära filer:
-  - `src/components/project/ClosingProjectsList.tsx`
-  - `src/services/projectService.ts`
-  - `src/services/jobService.ts`
-  - `src/hooks/useLargeProjectDetail.tsx`
-  - `src/pages/ProjectClosing.tsx`
-  - ny: `src/services/bookingCloseSyncService.ts`
-- Ingen databasändring krävs för grundfixen; fokus är att centralisera och tvinga korrekt sync-beteende i samtliga stängningsvägar.
+### 3. Uppdatera `planning-api-proxy` Edge Function
+Lägg till loggning för `reopen_project`-typen (samma mönster som `close_project`). Proxyn vidarebefordrar redan alla typer generiskt, så ingen ny routing behövs — bara loggning.
+
+### 4. UI: "Återöppna"-knapp i `ClosingProjectsList.tsx`
+- Visa en "Återöppna"-knapp på rader med status `completed` (stängda projekt)
+- Knappen öppnar en bekräftelsedialog
+- Vid bekräftelse:
+  - Anropar `reopenBookingsInInvoicing` med projektets booking_id(s)
+  - Om synk lyckas: sätter status tillbaka (`jobs` → `planned`, `projects` → `delivered`, `large_projects` → `delivered`)
+  - Invaliderar queries
+
+### 5. UI: Även i `ProjectEconomyPage.tsx` och `ProjectEconomyDetail.tsx`
+- På stängda projekt, visa "Återöppna"-knapp bredvid STÄNGD-badgen
+- Samma logik som ovan
+
+---
+
+## Info att ge till Booking-teamet
+
+När implementationen är klar kan du skicka detta till Booking-teamet:
+
+```text
+=== NY ENDPOINT: reopen_project ===
+
+Vi skickar nu även en signal när ett projekt återöppnas (ångrat stängning).
+
+Anrop som görs:
+  POST {EF_SUPABASE_URL}/functions/v1/planning-api?type=reopen_project&booking_id=<UUID>
+  Header: x-api-key: <PLANNING_API_KEY>
+  Body: { "status": "REOPENED" }
+
+Förväntad hantering:
+  - Ta bort bokningen från faktureringskön (READY_FOR_INVOICING → DRAFT/CONFIRMED)
+  - Returnera { success: true } vid lyckad hantering
+  - Returnera { error: "..." } vid fel
+
+Detta är motsatsen till close_project. Tidslinjen:
+  1. close_project  → Bokning läggs i faktureringskö
+  2. reopen_project → Bokning tas BORT ur faktureringskö
+
+Om reopen_project-endpointen inte finns ännu kommer vårt system
+visa ett felmeddelande och projektet förblir stängt tills synk lyckas.
+```
+
