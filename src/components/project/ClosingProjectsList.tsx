@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   ChevronRight, ChevronDown, Calendar, AlertCircle, Check, CheckCheck,
-  Clock, Receipt, Lock, Loader2,
+  Clock, Receipt, Lock, Loader2, Unlock,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { syncBookingsForInvoicing, getLargeProjectBookingIds } from '@/services/bookingCloseSyncService';
+import { syncBookingsForInvoicing, getLargeProjectBookingIds, reopenBookingsInInvoicing } from '@/services/bookingCloseSyncService';
 
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
