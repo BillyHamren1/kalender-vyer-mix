@@ -408,27 +408,47 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
         )}
       </div>
 
-      {/* Close Project Action */}
+      {/* Close / Reopen Project Action */}
       <div className="flex items-center justify-between pt-2 border-t border-border/30">
         <div className="text-xs text-muted-foreground">
-          {canClose ? (
+          {item.isClosed ? (
+            <span className="text-red-600 font-medium">🔒 Stängt</span>
+          ) : canClose ? (
             <span className="text-green-600 font-medium">✓ Redo att stängas</span>
           ) : (
             <span className="text-amber-600">Godkänn {blockers.join(' och ')} innan stängning</span>
           )}
         </div>
-        <Button
-          size="sm"
-          disabled={!canClose || isClosing}
-          onClick={handleCloseProject}
-          className="bg-green-600 hover:bg-green-700 text-white"
-        >
-          {isClosing ? (
-            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Stänger...</>
+        <div className="flex gap-2">
+          {item.isClosed ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isReopening}
+              onClick={handleReopenProject}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {isReopening ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Återöppnar...</>
+              ) : (
+                <><Unlock className="h-3.5 w-3.5 mr-1.5" /> Återöppna projekt</>
+              )}
+            </Button>
           ) : (
-            <><Lock className="h-3.5 w-3.5 mr-1.5" /> Stäng projekt</>
+            <Button
+              size="sm"
+              disabled={!canClose || isClosing}
+              onClick={handleCloseProject}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isClosing ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Stänger...</>
+              ) : (
+                <><Lock className="h-3.5 w-3.5 mr-1.5" /> Stäng projekt</>
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
     </div>
   );
