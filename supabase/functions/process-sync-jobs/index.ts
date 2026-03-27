@@ -1,11 +1,11 @@
 /**
  * process-sync-jobs — Durable worker for booking sync queue.
  *
- * Called by pg_cron every minute. Picks up pending booking_sync_jobs,
- * calls import-bookings for each, and marks them completed or failed.
+ * Called by pg_cron every minute. Uses claim_sync_jobs() RPC for atomic
+ * job claiming with FOR UPDATE SKIP LOCKED — no two workers can grab
+ * the same job concurrently.
  *
  * Retry logic: jobs are retried up to max_attempts (default 3).
- * After max_attempts, status stays 'failed' with error_message preserved.
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
@@ -26,53 +26,32 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-  // ── 1. Claim pending jobs (atomic status transition) ─────────────────
-  // Also pick up failed jobs that haven't exhausted retries
-  // Fetch pending jobs OR failed jobs that still have retries left
-  const { data: jobs, error: fetchError } = await supabase
-    .from('booking_sync_jobs')
-    .select('*')
-    .in('status', ['pending', 'failed'])
-    .order('received_at', { ascending: true })
-    .limit(BATCH_SIZE)
+  // ── 1. Atomically claim jobs (SELECT FOR UPDATE SKIP LOCKED) ────────
+  const { data: claimedJobs, error: claimError } = await supabase
+    .rpc('claim_sync_jobs', { batch_limit: BATCH_SIZE })
 
-  // Filter out exhausted retries in-memory (simpler than complex PostgREST filters)
-  const eligibleJobs = (jobs || []).filter(
-    j => j.status === 'pending' || (j.status === 'failed' && j.attempts < j.max_attempts)
-  )
-
-  if (fetchError) {
-    console.error('[process-sync-jobs] Failed to fetch jobs', fetchError.message)
+  if (claimError) {
+    console.error('[process-sync-jobs] Failed to claim jobs', claimError.message)
     return new Response(
-      JSON.stringify({ error: 'Failed to fetch jobs' }),
+      JSON.stringify({ error: 'Failed to claim jobs' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  if (eligibleJobs.length === 0) {
+  if (!claimedJobs || claimedJobs.length === 0) {
     return new Response(
       JSON.stringify({ processed: 0, message: 'No pending jobs' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  console.log(`[process-sync-jobs] Processing ${eligibleJobs.length} jobs`)
+  console.log(`[process-sync-jobs] Claimed ${claimedJobs.length} jobs`)
 
   const results: Array<{ job_id: string; booking_id: string; status: string; error?: string }> = []
 
-  for (const job of eligibleJobs) {
-    // ── 2. Mark as processing ────────────────────────────────────────────
-    await supabase
-      .from('booking_sync_jobs')
-      .update({
-        status: 'processing',
-        started_at: new Date().toISOString(),
-        attempts: job.attempts + 1,
-      })
-      .eq('id', job.id)
-
+  for (const job of claimedJobs) {
     try {
-      // ── 3. Call import-bookings ──────────────────────────────────────────
+      // ── 2. Call import-bookings ──────────────────────────────────────────
       const importPayload = {
         booking_id: job.booking_id,
         organization_id: job.organization_id,
@@ -94,7 +73,7 @@ serve(async (req) => {
         throw new Error(`import-bookings returned ${res.status}: ${errorBody.substring(0, 500)}`)
       }
 
-      // ── 4. Mark completed ────────────────────────────────────────────────
+      // ── 3. Mark completed ────────────────────────────────────────────────
       await supabase
         .from('booking_sync_jobs')
         .update({
@@ -108,20 +87,19 @@ serve(async (req) => {
       results.push({ job_id: job.id, booking_id: job.booking_id, status: 'completed' })
 
     } catch (err) {
-      // ── 5. Mark failed with error ────────────────────────────────────────
-      const newAttempts = job.attempts + 1
-      const isFinal = newAttempts >= job.max_attempts
+      // ── 4. Mark failed with error ────────────────────────────────────────
+      const isFinal = job.attempts >= job.max_attempts
 
       await supabase
         .from('booking_sync_jobs')
         .update({
-          status: isFinal ? 'failed' : 'failed',
+          status: 'failed',
           error_message: err.message?.substring(0, 1000),
           processed_at: new Date().toISOString(),
         })
         .eq('id', job.id)
 
-      console.error(`[process-sync-jobs] Job ${job.id} failed (attempt ${newAttempts}/${job.max_attempts})`, err.message)
+      console.error(`[process-sync-jobs] Job ${job.id} failed (attempt ${job.attempts}/${job.max_attempts}${isFinal ? ' FINAL' : ''})`, err.message)
       results.push({ job_id: job.id, booking_id: job.booking_id, status: 'failed', error: err.message })
     }
   }

@@ -5103,6 +5103,29 @@ export type Database = {
       }
     }
     Functions: {
+      claim_sync_jobs: {
+        Args: { batch_limit?: number }
+        Returns: {
+          attempts: number
+          booking_id: string
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          max_attempts: number
+          organization_id: string
+          processed_at: string | null
+          received_at: string
+          started_at: string | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "booking_sync_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cleanup_duplicate_calendar_events: {
         Args: never
         Returns: {
