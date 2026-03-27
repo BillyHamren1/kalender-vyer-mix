@@ -203,13 +203,14 @@ Deno.test("Test D — event identity is (booking_id, event_type, source_date), n
     assertExists(existing, "Event must be found by stable key");
 
     // 3. Update to new time (identity stays the same)
-    await supabase
+    const { error: updateErr } = await supabase
       .from("calendar_events")
       .update({
-        start_time: `${sourceDate}T12:00:00+02:00`,
-        end_time: `${sourceDate}T20:00:00+02:00`,
+        start_time: `${sourceDate}T12:00:00Z`,
+        end_time: `${sourceDate}T20:00:00Z`,
       })
       .eq("id", existing.id);
+    assert(!updateErr, `Update error: ${updateErr?.message}`);
 
     // 4. Verify: still only 1 event, with updated time
     const { data: allEvents } = await supabase
