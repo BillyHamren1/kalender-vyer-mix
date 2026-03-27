@@ -2627,7 +2627,7 @@ serve(async (req) => {
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam,
                   organization_id: bookingData.organization_id || organizationId
-                }, { onConflict: 'unique_booking_event_time', ignoreDuplicates: true })
+                }, { onConflict: 'booking_id,event_type,start_time', ignoreDuplicates: true })
 
               if (eventError) {
                 console.error(`Error creating calendar event:`, eventError)
