@@ -2829,20 +2829,31 @@ serve(async (req) => {
       console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
     }
 
-    console.log('Import results:', {
+    const importCompletedAt = new Date().toISOString();
+
+    // ── Structured pipeline completion log ───────────────────────────────
+    console.log('[import-bookings] Pipeline completed', JSON.stringify({
+      import_started: importStartedAt,
+      import_completed: importCompletedAt,
+      booking_id: normalizedSingleBookingId,
+      organization_id: organizationId,
+      event_type_hint: webhookEventType,
       total: results.total,
       imported: results.imported,
+      failed: results.failed,
       new_bookings: results.new_bookings.length,
       updated_bookings: results.updated_bookings.length,
       unchanged_skipped: results.unchanged_bookings_skipped.length,
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
+      calendar_reconciled: results.calendar_events_created > 0 || results.status_changed_bookings.length > 0,
       warehouse_events_created: results.warehouse_events_created,
       packing_projects_created: results.packing_projects_created,
       team_distribution: results.team_distribution,
-      mode: isHistoricalImport ? 'HISTORICAL' : syncMode
-    })
+      mode: isHistoricalImport ? 'HISTORICAL' : syncMode,
+      errors: results.errors.length > 0 ? results.errors : undefined,
+    }))
 
     return new Response(
       JSON.stringify({ success: true, results }),
