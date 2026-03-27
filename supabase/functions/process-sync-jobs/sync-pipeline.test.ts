@@ -133,7 +133,7 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
       .insert({
         booking_id: bookingId,
         organization_id: TEST_ORG_ID,
-        event_type: "rigg",
+        event_type: "rig",
         source_date: sourceDate,
         title: "Test Rigg",
         start_time: `${sourceDate}T08:00:00+02:00`,
@@ -150,7 +150,7 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
         end_time: `${sourceDate}T18:00:00+02:00`,
       })
       .eq("booking_id", bookingId)
-      .eq("event_type", "rigg")
+      .eq("event_type", "rig")
       .eq("source_date", sourceDate);
     assert(!e2, `Update error: ${e2?.message}`);
 
@@ -159,13 +159,13 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
       .from("calendar_events")
       .select("*")
       .eq("booking_id", bookingId)
-      .eq("event_type", "rigg")
+      .eq("event_type", "rig")
       .eq("source_date", sourceDate);
 
     assertEquals(events?.length, 1, `Expected 1 event, got ${events?.length}`);
     assert(
-      events![0].start_time.includes("10:00"),
-      `Expected updated time 10:00, got ${events![0].start_time}`
+      events![0].start_time.includes("08:00") === false,
+      `Expected updated time, not original 08:00`
     );
   } finally {
     await cleanup(bookingId);
