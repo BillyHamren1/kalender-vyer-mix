@@ -346,17 +346,24 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
 
       if (tasksError) throw tasksError;
 
-      // Sync standalone project to calendar if it has dates
+      // Sync standalone project to calendar if it has dates — CRITICAL: must succeed
       if (!bookingId && (eventdate || rigdaydate || rigdowndate)) {
         try {
-          await syncStandaloneProjectToCalendar(project.id, {
+          const syncResult = await syncStandaloneProjectToCalendar(project.id, {
             ...projectData,
             id: project.id,
             organization_id: project.organization_id
           });
+          if (!syncResult.success || syncResult.eventsCreated === 0) {
+            toast.error('⚠️ VARNING: Projektet skapades men kalenderhändelser SAKNAS! Kontakta admin.', {
+              duration: 15000,
+            });
+          }
         } catch (err) {
-          console.error('[CreateProjectWizard] Calendar sync error:', err);
-          // Don't fail project creation on calendar sync error
+          console.error('[CreateProjectWizard] Calendar sync FAILED:', err);
+          toast.error('⚠️ KRITISKT: Projektet skapades men kunde INTE läggas i kalendern! Kontrollera kalendern manuellt.', {
+            duration: 20000,
+          });
         }
       }
 
