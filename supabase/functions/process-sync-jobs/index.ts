@@ -49,18 +49,18 @@ serve(async (req) => {
     )
   }
 
-  if (!jobs || jobs.length === 0) {
+  if (eligibleJobs.length === 0) {
     return new Response(
       JSON.stringify({ processed: 0, message: 'No pending jobs' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  console.log(`[process-sync-jobs] Processing ${jobs.length} jobs`)
+  console.log(`[process-sync-jobs] Processing ${eligibleJobs.length} jobs`)
 
   const results: Array<{ job_id: string; booking_id: string; status: string; error?: string }> = []
 
-  for (const job of jobs) {
+  for (const job of eligibleJobs) {
     // ── 2. Mark as processing ────────────────────────────────────────────
     await supabase
       .from('booking_sync_jobs')
