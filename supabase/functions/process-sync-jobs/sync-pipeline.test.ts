@@ -185,8 +185,8 @@ Deno.test("Test D — event identity is (booking_id, event_type, source_date), n
       event_type: "event",
       source_date: sourceDate,
       title: "Test Event",
-      start_time: `${sourceDate}T09:00:00+02:00`,
-      end_time: `${sourceDate}T15:00:00+02:00`,
+      start_time: `${sourceDate}T09:00:00Z`,
+      end_time: `${sourceDate}T15:00:00Z`,
       resource_id: "unassigned",
     });
     assert(!insertErr, `Insert error: ${insertErr?.message}`);
