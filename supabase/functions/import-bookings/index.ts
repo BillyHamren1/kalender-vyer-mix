@@ -1595,6 +1595,74 @@ serve(async (req) => {
 
     console.log(`Fetched ${externalData.data.length} bookings from external API`)
 
+    // ── LOCAL-DATA FALLBACK for single-booking refresh ────────────────────
+    // When the external API returns 0 bookings for a webhook-triggered sync,
+    // fall back to local data so calendar reconciliation still runs.
+    if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {
+      console.log(`[Local Fallback] External API returned 0 for ${normalizedSingleBookingId}, checking local bookings table`);
+      const { data: localBooking, error: localErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', normalizedSingleBookingId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (localErr) {
+        console.error(`[Local Fallback] Error fetching local booking:`, localErr.message);
+      } else if (localBooking && localBooking.status === 'CONFIRMED') {
+        console.log(`[Local Fallback] Found local CONFIRMED booking ${normalizedSingleBookingId}, running calendar reconciliation from local data`);
+
+        // Build a minimal results object for reconciliation
+        const fallbackResults = {
+          calendar_events_created: 0,
+          team_distribution: { 'team-1': 0, 'team-2': 0, 'team-3': 0, 'team-4': 0, 'team-5': 0, 'team-11': 0 },
+        };
+
+        const localBookingData: BookingData = {
+          id: localBooking.id,
+          client: localBooking.client,
+          rigdaydate: localBooking.rigdaydate,
+          eventdate: localBooking.eventdate,
+          rigdowndate: localBooking.rigdowndate,
+          rig_start_time: localBooking.rig_start_time,
+          rig_end_time: localBooking.rig_end_time,
+          event_start_time: localBooking.event_start_time,
+          event_end_time: localBooking.event_end_time,
+          rigdown_start_time: localBooking.rigdown_start_time,
+          rigdown_end_time: localBooking.rigdown_end_time,
+          deliveryaddress: localBooking.deliveryaddress,
+          status: localBooking.status,
+          booking_number: localBooking.booking_number,
+          organization_id: localBooking.organization_id,
+        };
+
+        await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        console.log(`[Local Fallback] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            results: {
+              total: 1,
+              imported: 0,
+              failed: 0,
+              calendar_events_created: fallbackResults.calendar_events_created,
+              warehouse_events_created: 0,
+              new_bookings: [],
+              updated_bookings: [],
+              unchanged_bookings_skipped: [],
+              errors: [],
+              sync_mode: 'local_fallback',
+              fallback_reason: 'external_api_returned_0',
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      } else {
+        console.log(`[Local Fallback] Local booking ${normalizedSingleBookingId} not found or not CONFIRMED (status: ${localBooking?.status || 'NOT_FOUND'})`);
+      }
+    }
+
     const results = {
       total: 0,
       imported: 0,
