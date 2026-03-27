@@ -670,28 +670,37 @@ interface AttachmentData {
 }
 
 /**
- * Helper function to calculate end time based on event type
+ * Calculate end time by adding hours to a start time string.
+ * Uses string manipulation to avoid timezone conversion issues from Date.toISOString().
  */
 const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 'rigDown'): string => {
-  const start = new Date(startTime);
   let hoursToAdd: number;
   
   switch (eventType) {
     case 'rig':
-      hoursToAdd = 4; // 4 hours for rig events
+      hoursToAdd = 4;
       break;
     case 'event':
-      hoursToAdd = 2.5; // 2.5 hours for event days
+      hoursToAdd = 2.5;
       break;
     case 'rigDown':
-      hoursToAdd = 4; // 4 hours for rig down events
+      hoursToAdd = 4;
       break;
     default:
-      hoursToAdd = 4; // fallback to 4 hours
+      hoursToAdd = 4;
   }
   
-  const end = new Date(start.getTime() + (hoursToAdd * 60 * 60 * 1000));
-  return end.toISOString();
+  // Parse the start time parts to avoid timezone shifts
+  const datePart = startTime.split('T')[0];
+  const timePart = startTime.split('T')[1] || '08:00:00';
+  const [hh, mm, ss] = timePart.split(':').map(Number);
+  
+  const totalMinutes = hh * 60 + mm + (hoursToAdd * 60);
+  const endHH = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
+  const endMM = String(Math.floor(totalMinutes % 60)).padStart(2, '0');
+  const endSS = String(ss || 0).padStart(2, '0');
+  
+  return `${datePart}T${endHH}:${endMM}:${endSS}`;
 };
 
 /**
