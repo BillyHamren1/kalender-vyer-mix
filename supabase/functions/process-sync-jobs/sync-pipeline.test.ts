@@ -179,7 +179,7 @@ Deno.test("Test D — event identity is (booking_id, event_type, source_date), n
 
   try {
     // 1. Create event with initial time
-    await supabase.from("calendar_events").insert({
+    const { error: insertErr } = await supabase.from("calendar_events").insert({
       booking_id: bookingId,
       organization_id: TEST_ORG_ID,
       event_type: "event",
@@ -189,6 +189,7 @@ Deno.test("Test D — event identity is (booking_id, event_type, source_date), n
       end_time: `${sourceDate}T15:00:00+02:00`,
       resource_id: "unassigned",
     });
+    assert(!insertErr, `Insert error: ${insertErr?.message}`);
 
     // 2. Simulate reconciler: find by identity key, update time
     const { data: existing } = await supabase
