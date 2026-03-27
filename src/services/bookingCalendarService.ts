@@ -276,7 +276,19 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       }
     }
 
-    console.log(`Successfully synced events for booking ${bookingId}`);
+    // Verify events were created
+    const { count: finalCount } = await supabase
+      .from('calendar_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId);
+
+    const expectedCount = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean).length;
+    if ((finalCount ?? 0) < expectedCount) {
+      console.error(`[syncSingleBookingToCalendar] ⚠️ VERIFICATION FAILED: Expected ${expectedCount} events, found ${finalCount} for booking ${bookingId}`);
+      throw new Error(`Calendar sync verification failed: expected ${expectedCount} events, found ${finalCount}`);
+    }
+
+    console.log(`✅ [syncSingleBookingToCalendar] Verified ${finalCount} events for booking ${bookingId}`);
 
   } catch (error) {
     console.error(`Error syncing booking ${bookingId}:`, error);
