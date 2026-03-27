@@ -35,6 +35,12 @@ interface BookingData {
   rigdaydate?: string;
   eventdate?: string;
   rigdowndate?: string;
+  rig_start_time?: string;
+  rig_end_time?: string;
+  event_start_time?: string;
+  event_end_time?: string;
+  rigdown_start_time?: string;
+  rigdown_end_time?: string;
   // Full date arrays for multi-day support (calendar level only)
   allRigDates?: string[];
   allEventDates?: string[];
@@ -84,6 +90,76 @@ const addDays = (dateString: string, days: number): string => {
   const date = new Date(dateString);
   date.setDate(date.getDate() + days);
   return date.toISOString().split('T')[0];
+};
+
+const normalizeDateOnly = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+  const dateMatch = asString.match(/\d{4}-\d{2}-\d{2}/);
+  return dateMatch ? dateMatch[0] : undefined;
+};
+
+const normalizeDateArray = (...candidates: unknown[]): string[] => {
+  const dates: string[] = [];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      for (const value of candidate) {
+        const normalized = normalizeDateOnly(value);
+        if (normalized && !dates.includes(normalized)) {
+          dates.push(normalized);
+        }
+      }
+      continue;
+    }
+
+    const normalized = normalizeDateOnly(candidate);
+    if (normalized && !dates.includes(normalized)) {
+      dates.push(normalized);
+    }
+  }
+
+  return dates;
+};
+
+const extractTimePart = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+
+  const hhmmss = asString.match(/(\d{2}:\d{2}:\d{2})/);
+  if (hhmmss) return hhmmss[1];
+
+  const hhmm = asString.match(/(\d{2}:\d{2})/);
+  if (hhmm) return `${hhmm[1]}:00`;
+
+  return undefined;
+};
+
+const buildDateTimeFromParts = (
+  date: string,
+  explicitTime: unknown,
+  fallbackTime = '08:00:00'
+): string => {
+  const time = extractTimePart(explicitTime) || fallbackTime;
+  return `${date}T${time}`;
+};
+
+const normalizeDateTimeForBookingField = (
+  value: unknown,
+  fallbackDate?: string
+): string | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+
+  const datePart = normalizeDateOnly(asString);
+  const timePart = extractTimePart(asString);
+
+  if (datePart && timePart) return `${datePart}T${timePart}`;
+  if (timePart && fallbackDate) return `${fallbackDate}T${timePart}`;
+  return undefined;
 };
 
 /**
@@ -1272,13 +1348,18 @@ serve(async (req) => {
       
       // Array format from external API
       if (Array.isArray(booking.rig_up_dates)) allDates.push(...booking.rig_up_dates);
+      if (Array.isArray(booking.rig_dates)) allDates.push(...booking.rig_dates);
       if (Array.isArray(booking.event_dates)) allDates.push(...booking.event_dates);
       if (Array.isArray(booking.rig_down_dates)) allDates.push(...booking.rig_down_dates);
       
       // Legacy single-value field names (fallback)
       if (booking.rigdaydate) allDates.push(booking.rigdaydate);
+      if (booking.rig_up_date) allDates.push(booking.rig_up_date);
+      if (booking.rig_date) allDates.push(booking.rig_date);
       if (booking.eventdate) allDates.push(booking.eventdate);
+      if (booking.event_date) allDates.push(booking.event_date);
       if (booking.rigdowndate) allDates.push(booking.rigdowndate);
+      if (booking.rig_down_date) allDates.push(booking.rig_down_date);
       
       const validDates = allDates.filter(Boolean);
       if (validDates.length === 0) {
@@ -1297,11 +1378,16 @@ serve(async (req) => {
       if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
         const allBookingDates: string[] = [];
         if (Array.isArray(externalBooking.rig_up_dates)) allBookingDates.push(...externalBooking.rig_up_dates);
+        if (Array.isArray(externalBooking.rig_dates)) allBookingDates.push(...externalBooking.rig_dates);
         if (Array.isArray(externalBooking.event_dates)) allBookingDates.push(...externalBooking.event_dates);
         if (Array.isArray(externalBooking.rig_down_dates)) allBookingDates.push(...externalBooking.rig_down_dates);
         if (externalBooking.rigdaydate) allBookingDates.push(externalBooking.rigdaydate);
+        if (externalBooking.rig_up_date) allBookingDates.push(externalBooking.rig_up_date);
+        if (externalBooking.rig_date) allBookingDates.push(externalBooking.rig_date);
         if (externalBooking.eventdate) allBookingDates.push(externalBooking.eventdate);
+        if (externalBooking.event_date) allBookingDates.push(externalBooking.event_date);
         if (externalBooking.rigdowndate) allBookingDates.push(externalBooking.rigdowndate);
+        if (externalBooking.rig_down_date) allBookingDates.push(externalBooking.rig_down_date);
         const latestDate = allBookingDates.filter(Boolean).sort().pop() || 'no dates';
         console.log(`SKIPPING OLD BOOKING ${externalBooking.id} (${externalBooking.client}) - latest date: ${latestDate}`);
         continue;
@@ -1470,13 +1556,23 @@ serve(async (req) => {
           clientName = ''
         }
 
-        // Handle multiple date arrays - use first date for bookings table, keep all for calendar
-        const allRigDates = (externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0)
-          ? externalBooking.rig_up_dates : [];
-        const allEventDates = (externalBooking.event_dates && externalBooking.event_dates.length > 0)
-          ? externalBooking.event_dates : [];
-        const allRigdownDates = (externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0)
-          ? externalBooking.rig_down_dates : [];
+        // Handle multiple date formats from external API (arrays + legacy single fields)
+        const allRigDates = normalizeDateArray(
+          externalBooking.rig_up_dates,
+          externalBooking.rigdaydate,
+          externalBooking.rig_up_date,
+          externalBooking.rig_date
+        );
+        const allEventDates = normalizeDateArray(
+          externalBooking.event_dates,
+          externalBooking.eventdate,
+          externalBooking.event_date
+        );
+        const allRigdownDates = normalizeDateArray(
+          externalBooking.rig_down_dates,
+          externalBooking.rigdowndate,
+          externalBooking.rig_down_date
+        );
 
         const rigdaydate = allRigDates[0] || undefined;
         const eventdate = allEventDates[0] || undefined;
@@ -1488,6 +1584,30 @@ serve(async (req) => {
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
+          rig_start_time: normalizeDateTimeForBookingField(
+            externalBooking.rig_start_time ?? externalBooking.rig_up_start_time,
+            rigdaydate
+          ),
+          rig_end_time: normalizeDateTimeForBookingField(
+            externalBooking.rig_end_time ?? externalBooking.rig_up_end_time,
+            rigdaydate
+          ),
+          event_start_time: normalizeDateTimeForBookingField(
+            externalBooking.event_start_time ?? externalBooking.event_start,
+            eventdate
+          ),
+          event_end_time: normalizeDateTimeForBookingField(
+            externalBooking.event_end_time ?? externalBooking.event_end,
+            eventdate
+          ),
+          rigdown_start_time: normalizeDateTimeForBookingField(
+            externalBooking.rigdown_start_time ?? externalBooking.rig_down_start_time,
+            rigdowndate
+          ),
+          rigdown_end_time: normalizeDateTimeForBookingField(
+            externalBooking.rigdown_end_time ?? externalBooking.rig_down_end_time,
+            rigdowndate
+          ),
           allRigDates,
           allEventDates,
           allRigdownDates,
@@ -2541,8 +2661,8 @@ serve(async (req) => {
           for (const date of rigDates) {
             const rigStartRaw = bookingData.rig_start_time;
             const rigEndRaw = bookingData.rig_end_time;
-            const startTime = rigStartRaw ? (rigStartRaw.includes('T') ? `${date}T${rigStartRaw.split('T')[1]}` : `${date}T${rigStartRaw}`) : `${date}T08:00:00`;
-            const endTime = rigEndRaw ? (rigEndRaw.includes('T') ? `${date}T${rigEndRaw.split('T')[1]}` : `${date}T${rigEndRaw}`) : getEndTimeForEventType(startTime, 'rig');
+            const startTime = buildDateTimeFromParts(date, rigStartRaw);
+            const endTime = rigEndRaw ? buildDateTimeFromParts(date, rigEndRaw) : getEndTimeForEventType(startTime, 'rig');
             if (!existingEventKeys.has(`rig|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
@@ -2560,8 +2680,8 @@ serve(async (req) => {
           for (const date of eventDates) {
             const evtStartRaw = bookingData.event_start_time;
             const evtEndRaw = bookingData.event_end_time;
-            const startTime = evtStartRaw ? (evtStartRaw.includes('T') ? `${date}T${evtStartRaw.split('T')[1]}` : `${date}T${evtStartRaw}`) : `${date}T08:00:00`;
-            const endTime = evtEndRaw ? (evtEndRaw.includes('T') ? `${date}T${evtEndRaw.split('T')[1]}` : `${date}T${evtEndRaw}`) : getEndTimeForEventType(startTime, 'event');
+            const startTime = buildDateTimeFromParts(date, evtStartRaw);
+            const endTime = evtEndRaw ? buildDateTimeFromParts(date, evtEndRaw) : getEndTimeForEventType(startTime, 'event');
             if (!existingEventKeys.has(`event|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
@@ -2579,8 +2699,8 @@ serve(async (req) => {
           for (const date of rigdownDates) {
             const rdStartRaw = bookingData.rigdown_start_time;
             const rdEndRaw = bookingData.rigdown_end_time;
-            const startTime = rdStartRaw ? (rdStartRaw.includes('T') ? `${date}T${rdStartRaw.split('T')[1]}` : `${date}T${rdStartRaw}`) : `${date}T08:00:00`;
-            const endTime = rdEndRaw ? (rdEndRaw.includes('T') ? `${date}T${rdEndRaw.split('T')[1]}` : `${date}T${rdEndRaw}`) : getEndTimeForEventType(startTime, 'rigDown');
+            const startTime = buildDateTimeFromParts(date, rdStartRaw);
+            const endTime = rdEndRaw ? buildDateTimeFromParts(date, rdEndRaw) : getEndTimeForEventType(startTime, 'rigDown');
             if (!existingEventKeys.has(`rigDown|${date}`)) {
               calendarEvents.push({
                 booking_id: bookingData.id,
