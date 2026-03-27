@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
-import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
+import { smartUpdateBookingCalendar, ensureBookingCalendarEvents } from '@/services/bookingCalendarService';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
@@ -261,10 +261,82 @@ export const useRealTimeCalendarEvents = () => {
         toast.info('Borttagen bokning borttagen från kalendern');
       }
     } catch (error) {
-      console.error('Error handling booking change:', error);
-      // Don't show toast for every minor error — only log it
+      console.error('⚠️ CRITICAL: Error handling booking change for calendar:', error);
+      const bookingRef = newRecord?.booking_number || newRecord?.id || oldRecord?.id || 'okänd';
+      toast.error(`⚠️ KRITISKT: Bokning ${bookingRef} kunde inte synkas till kalendern! Kontrollera manuellt.`, {
+        duration: 15000,
+      });
     }
   }, []);
+
+  // Periodic health check: verify confirmed bookings have calendar events
+  const runCalendarHealthCheck = useCallback(async () => {
+    try {
+      // Get all confirmed bookings that have dates
+      const { data: confirmedBookings, error } = await supabase
+        .from('bookings')
+        .select('id, booking_number, client, status, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city, organization_id')
+        .eq('status', 'CONFIRMED');
+
+      if (error || !confirmedBookings) return;
+
+      // Filter to bookings that have at least one date
+      const bookingsWithDates = confirmedBookings.filter(
+        b => b.rigdaydate || b.eventdate || b.rigdowndate
+      );
+
+      if (bookingsWithDates.length === 0) return;
+
+      // Get all calendar events in one query
+      const bookingIds = bookingsWithDates.map(b => b.id);
+      const { data: calendarEvents, error: eventsError } = await supabase
+        .from('calendar_events')
+        .select('booking_id')
+        .in('booking_id', bookingIds);
+
+      if (eventsError) return;
+
+      // Find bookings missing calendar events
+      const bookingsWithEvents = new Set(calendarEvents?.map(e => e.booking_id) || []);
+      const missingBookings = bookingsWithDates.filter(b => !bookingsWithEvents.has(b.id));
+
+      if (missingBookings.length === 0) return;
+
+      console.warn(`[CalendarHealthCheck] Found ${missingBookings.length} confirmed bookings WITHOUT calendar events! Auto-healing...`);
+
+      let healed = 0;
+      for (const booking of missingBookings) {
+        try {
+          const created = await ensureBookingCalendarEvents(booking.id, booking);
+          if (created) healed++;
+        } catch (err) {
+          console.error(`[CalendarHealthCheck] Failed to heal booking ${booking.id}:`, err);
+        }
+      }
+
+      if (healed > 0) {
+        toast.warning(`⚠️ ${healed} bokning(ar) saknade kalenderhändelser och har återskapats automatiskt.`, {
+          duration: 10000,
+        });
+        // Reload events to show the healed ones
+        await loadEvents();
+      }
+
+      // If some couldn't be healed, show critical warning
+      const stillMissing = missingBookings.length - healed;
+      if (stillMissing > 0) {
+        const refs = missingBookings
+          .slice(0, 3)
+          .map(b => b.booking_number || b.client)
+          .join(', ');
+        toast.error(`⚠️ KRITISKT: ${stillMissing} bokning(ar) saknar fortfarande kalenderhändelser! (${refs})`, {
+          duration: 20000,
+        });
+      }
+    } catch (err) {
+      console.error('[CalendarHealthCheck] Error:', err);
+    }
+  }, [loadEvents]);
 
   // Initialize calendar events and set up real-time subscriptions
   useEffect(() => {
@@ -272,6 +344,18 @@ export const useRealTimeCalendarEvents = () => {
 
     // Load initial events
     loadEvents();
+
+    // Run health check after initial load (with delay to not block UI)
+    const healthCheckTimeout = setTimeout(() => {
+      runCalendarHealthCheck();
+    }, 5000);
+
+    // Periodic health check every 90 seconds
+    const healthCheckInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        runCalendarHealthCheck();
+      }
+    }, 90000);
 
     // Set up real-time subscription for calendar events
     const calendarChannel = supabase
@@ -301,11 +385,13 @@ export const useRealTimeCalendarEvents = () => {
 
     return () => {
       activeRef.current = false;
+      clearTimeout(healthCheckTimeout);
+      clearInterval(healthCheckInterval);
       supabase.removeChannel(calendarChannel);
       supabase.removeChannel(bookingChannel);
       console.log('Real-time subscriptions cleaned up');
     };
-  }, [loadEvents, handleCalendarEventChange, handleBookingChange]);
+  }, [loadEvents, handleCalendarEventChange, handleBookingChange, runCalendarHealthCheck]);
 
   // Handle date changes
   const handleDatesSet = useCallback((dateInfo: any) => {
