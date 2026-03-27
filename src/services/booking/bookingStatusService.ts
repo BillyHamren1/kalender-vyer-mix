@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { smartUpdateBookingCalendar } from "@/services/bookingCalendarService";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 
 export type BookingStatus = 'OFFER' | 'CONFIRMED' | 'CANCELLED';
@@ -35,10 +34,8 @@ export const updateBookingStatusWithCalendarSync = async (
     throw error;
   }
 
-  // Use smart calendar update to handle sync only when necessary
-  const newBookingData = { ...oldBooking, status: newStatus };
-  await smartUpdateBookingCalendar(id, oldBooking, newBookingData);
-
+  // Calendar sync is handled by the backend (import-bookings) via booking change detection.
+  // No frontend calendar mutation needed.
   // Sync packing project (non-blocking - DB trigger handles name, this syncs list items)
   if (oldBooking?.organization_id) {
     syncBookingToPacking(id, oldBooking.organization_id);

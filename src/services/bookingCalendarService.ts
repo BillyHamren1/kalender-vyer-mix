@@ -1,401 +1,69 @@
+/**
+ * bookingCalendarService.ts
+ * 
+ * READ-ONLY calendar service for the Planning frontend.
+ * 
+ * All booking → calendar_events transformation is handled by the backend
+ * (import-bookings edge function). The frontend MUST NOT create, repair,
+ * or sync calendar events from bookings.
+ * 
+ * This file retains only read helpers and the status change function
+ * which updates the booking status (the backend handles calendar side-effects).
+ */
 
 import { supabase } from "@/integrations/supabase/client";
-import { addCalendarEvent, deleteCalendarEvent } from './eventService';
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { format } from 'date-fns';
-import { 
-  removeWarehouseEventsForBooking,
-  checkAndMarkWarehouseChanges 
-} from './warehouseCalendarService';
 
-const normalizeStatus = (status: unknown) => {
-  const normalized = (status ?? '').toString().trim().toUpperCase();
-
-  // Normalize common Swedish/legacy values into our canonical set
-  if (normalized === 'BEKRÄFTAD') return 'CONFIRMED';
-  if (normalized === 'AVBOKAD') return 'CANCELLED';
-
-  return normalized;
-};
-
-// Smart update that only changes calendar when booking changes affect calendar events
+/**
+ * Update booking status in the database.
+ * Calendar side-effects (event creation/removal) are handled by the backend
+ * via the booking change trigger and import-bookings pipeline.
+ */
 export const smartUpdateBookingCalendar = async (
   bookingId: string, 
   oldBooking: any, 
   newBooking: any
 ): Promise<void> => {
-  console.log(`SmartUpdateBookingCalendar: Processing booking ${bookingId}`);
-  
-  try {
-    const oldStatus = normalizeStatus(oldBooking?.status);
-    const newStatus = normalizeStatus(newBooking?.status);
-
-    // Handle booking deletion
-    if (newStatus === 'DELETED') {
-      await removeAllBookingEvents(bookingId);
-      console.log(`Removed all calendar events for deleted booking ${bookingId}`);
-      return;
-    }
-
-    // If booking was confirmed but now isn't, remove all events
-    if (oldStatus === 'CONFIRMED' && newStatus !== 'CONFIRMED') {
-      await removeAllBookingEvents(bookingId);
-      console.log(`Removed calendar events for booking ${bookingId} - status changed from CONFIRMED`);
-      return;
-    }
-
-    // If booking is now confirmed but wasn't before, create all events
-    if (oldStatus !== 'CONFIRMED' && newStatus === 'CONFIRMED') {
-      await syncSingleBookingToCalendar(bookingId, newBooking);
-      console.log(`Created calendar events for newly confirmed booking ${bookingId}`);
-      return;
-    }
-
-    // If booking is confirmed and dates changed, update calendar events
-    if (newStatus === 'CONFIRMED') {
-      const dateFields = ['rigdaydate', 'eventdate', 'rigdowndate'];
-      const timeFields = ['rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time'];
-      
-      const datesChanged = dateFields.some(field => (oldBooking?.[field] ?? null) !== (newBooking?.[field] ?? null));
-      const timesChanged = timeFields.some(field => (oldBooking?.[field] ?? null) !== (newBooking?.[field] ?? null));
-      
-      if (datesChanged || timesChanged) {
-        console.log(`Dates or times changed for confirmed booking ${bookingId}, updating calendar`);
-        await removeAllBookingEvents(bookingId);
-        await syncSingleBookingToCalendar(bookingId, newBooking);
-        
-        // Check and mark warehouse events as changed (don't auto-update, just flag)
-        await checkAndMarkWarehouseChanges(
-          bookingId,
-          newBooking.rigdaydate,
-          newBooking.rigdowndate,
-          newBooking.eventdate
-        );
-      }
-    }
-  } catch (error) {
-    console.error(`Error in smartUpdateBookingCalendar for booking ${bookingId}:`, error);
-    throw error;
-  }
+  // No-op: calendar sync is now fully backend-driven.
+  // This function is kept as a stub to avoid breaking callers during transition.
+  console.log(`[bookingCalendarService] smartUpdateBookingCalendar called for ${bookingId} — no-op (backend handles calendar sync)`);
 };
 
-// Remove all calendar events for a booking
-export const removeAllBookingEvents = async (bookingId: string): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('booking_id', bookingId);
-
-    if (error) {
-      console.error('Error removing booking events:', error);
-      throw error;
-    }
-
-    // Also remove warehouse events
-    await removeWarehouseEventsForBooking(bookingId);
-
-    console.log(`Successfully removed all calendar events for booking ${bookingId}`);
-  } catch (error) {
-    console.error(`Error removing events for booking ${bookingId}:`, error);
-    throw error;
-  }
+/**
+ * @deprecated Frontend must not create calendar events. Backend handles this.
+ */
+export const syncSingleBookingToCalendar = async (_bookingId: string, _booking?: any): Promise<void> => {
+  console.warn(`[bookingCalendarService] syncSingleBookingToCalendar called — no-op (backend handles calendar sync)`);
 };
 
-// Sync a single confirmed booking to calendar events
-export const syncSingleBookingToCalendar = async (bookingId: string, booking?: any): Promise<void> => {
-  console.log(`🔄 [syncSingleBookingToCalendar] Starting sync for booking ${bookingId}`);
-  
-  try {
-    // Fetch booking if not provided
-    if (!booking) {
-      const { data: fetchedBooking, error: bookingError } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('id', bookingId)
-        .single();
-
-      if (bookingError) {
-        console.error('Error fetching booking:', bookingError);
-        throw bookingError;
-      }
-      booking = fetchedBooking;
-    }
-    
-    console.log(`📋 [syncSingleBookingToCalendar] Booking data:`, {
-      id: booking.id,
-      client: booking.client,
-      status: booking.status,
-      rig_start_time: booking.rig_start_time,
-      rig_end_time: booking.rig_end_time,
-      event_start_time: booking.event_start_time,
-      event_end_time: booking.event_end_time,
-      rigdown_start_time: booking.rigdown_start_time,
-      rigdown_end_time: booking.rigdown_end_time
-    });
-
-    if (booking.status !== 'CONFIRMED') {
-      console.log(`⏭️ [syncSingleBookingToCalendar] Booking ${bookingId} is not confirmed (status: ${booking.status}), skipping sync`);
-      return;
-    }
-
-    // Check if events already exist for this booking
-    let existingEventsQuery = supabase
-      .from('calendar_events')
-      .select('id, event_type, start_time, end_time')
-      .eq('booking_id', bookingId);
-
-    if (booking?.organization_id) {
-      existingEventsQuery = existingEventsQuery.eq('organization_id', booking.organization_id);
-    }
-
-    const { data: existingEvents, error: checkError } = await existingEventsQuery;
-
-    if (checkError) {
-      console.error('Error checking existing events:', checkError);
-      throw checkError;
-    }
-
-    // Build map of existing events by type
-    const existingEventMap = new Map(
-      existingEvents?.map(e => [e.event_type, e]) || []
-    );
-
-    // Process each date type and UPDATE or CREATE as needed
-    const processEventType = async (
-      dateField: string | null,
-      startTimeField: string | null,
-      endTimeField: string | null,
-      eventType: 'rig' | 'event' | 'rigDown',
-      title: string,
-      resourceId: string
-    ) => {
-      if (!dateField) return;
-
-      // CRITICAL: Use actual times from booking, with proper defaults
-      // These times should already be in ISO format from the database
-      const startTime = startTimeField || `${dateField}T08:00:00`;
-      const endTime = endTimeField || `${dateField}T14:00:00`;
-      
-      console.log(`📅 [syncSingleBookingToCalendar] ${eventType} times:`, {
-        bookingId: booking.id,
-        startTimeField,
-        endTimeField,
-        finalStartTime: startTime,
-        finalEndTime: endTime
-      });
-
-      const eventData = {
-        title,
-        start_time: startTime,
-        end_time: endTime,
-        resource_id: resourceId,
-        event_type: eventType,
-        booking_id: booking.id,
-        booking_number: booking.booking_number || booking.id,
-        delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided',
-        organization_id: booking.organization_id
-      };
-
-      const existingEvent = existingEventMap.get(eventType);
-
-      if (existingEvent) {
-        // UPDATE existing event to preserve manual edits
-        console.log(`Updating existing ${eventType} event for booking ${bookingId}`);
-        const { error: updateError } = await supabase
-          .from('calendar_events')
-          .update({
-            title: eventData.title,
-            start_time: eventData.start_time,
-            end_time: eventData.end_time,
-            resource_id: eventData.resource_id,
-            booking_number: eventData.booking_number,
-            delivery_address: eventData.delivery_address
-          })
-          .eq('id', existingEvent.id);
-
-        if (updateError) {
-          console.error(`Error updating ${eventType} event:`, updateError);
-          throw updateError;
-        }
-      } else {
-        // CREATE new event
-        console.log(`Creating new ${eventType} event for booking ${bookingId}`);
-        const { error: insertError } = await supabase
-          .from('calendar_events')
-          .insert([eventData]);
-
-        if (insertError) {
-          console.error(`Error creating ${eventType} event:`, insertError);
-          throw insertError;
-        }
-      }
-    };
-
-    // Process each event type
-    await processEventType(
-      booking.rigdaydate,
-      booking.rig_start_time,
-      booking.rig_end_time,
-      'rig',
-      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
-      'team-1'
-    );
-
-    await processEventType(
-      booking.eventdate,
-      booking.event_start_time,
-      booking.event_end_time,
-      'event',
-      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
-      'team-11'
-    );
-
-    await processEventType(
-      booking.rigdowndate,
-      booking.rigdown_start_time,
-      booking.rigdown_end_time,
-      'rigDown',
-      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
-      'team-1'
-    );
-
-    // Delete any events that no longer have corresponding dates in the booking
-    const validEventTypes = new Set<string>();
-    if (booking.rigdaydate) validEventTypes.add('rig');
-    if (booking.eventdate) validEventTypes.add('event');
-    if (booking.rigdowndate) validEventTypes.add('rigDown');
-
-    for (const [eventType, existingEvent] of existingEventMap) {
-      if (!validEventTypes.has(eventType)) {
-        console.log(`Removing obsolete ${eventType} event for booking ${bookingId}`);
-        await supabase
-          .from('calendar_events')
-          .delete()
-          .eq('id', existingEvent.id);
-      }
-    }
-
-    // Verify events were created
-    const { count: finalCount } = await supabase
-      .from('calendar_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('booking_id', bookingId);
-
-    const expectedCount = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean).length;
-    if ((finalCount ?? 0) < expectedCount) {
-      console.error(`[syncSingleBookingToCalendar] ⚠️ VERIFICATION FAILED: Expected ${expectedCount} events, found ${finalCount} for booking ${bookingId}`);
-      throw new Error(`Calendar sync verification failed: expected ${expectedCount} events, found ${finalCount}`);
-    }
-
-    console.log(`✅ [syncSingleBookingToCalendar] Verified ${finalCount} events for booking ${bookingId}`);
-
-  } catch (error) {
-    console.error(`Error syncing booking ${bookingId}:`, error);
-    throw error;
-  }
+/**
+ * @deprecated Frontend must not remove calendar events for sync purposes.
+ * Direct user actions (drag-drop, manual delete) still go through eventService.
+ */
+export const removeAllBookingEvents = async (_bookingId: string): Promise<void> => {
+  console.warn(`[bookingCalendarService] removeAllBookingEvents called — no-op (backend handles calendar sync)`);
 };
 
-// Force sync all confirmed bookings to calendar
+/**
+ * @deprecated Frontend must not force-sync bookings to calendar.
+ */
 export const forceFullBookingSync = async (): Promise<number> => {
-  console.log('Starting full booking sync to calendar...');
-  
-  try {
-    // Get all confirmed bookings
-    const { data: confirmedBookings, error: bookingError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('status', 'CONFIRMED');
-
-    if (bookingError) {
-      console.error('Error fetching confirmed bookings:', bookingError);
-      throw bookingError;
-    }
-
-    console.log(`Found ${confirmedBookings?.length || 0} confirmed bookings to sync`);
-
-    if (!confirmedBookings || confirmedBookings.length === 0) {
-      return 0;
-    }
-
-    let eventsCreated = 0;
-
-    for (const booking of confirmedBookings) {
-      try {
-        await syncSingleBookingToCalendar(booking.id, booking);
-        eventsCreated++;
-      } catch (error) {
-        console.error(`Failed to sync booking ${booking.id}:`, error);
-      }
-    }
-
-    console.log(`Full booking sync completed. Synced ${eventsCreated} bookings.`);
-    return eventsCreated;
-
-  } catch (error) {
-    console.error('Error in full booking sync:', error);
-    throw error;
-  }
+  console.warn(`[bookingCalendarService] forceFullBookingSync called — no-op (backend handles calendar sync)`);
+  return 0;
 };
 
-// Ensure a confirmed booking has calendar events — self-healing failsafe
-export const ensureBookingCalendarEvents = async (bookingId: string, booking?: any): Promise<boolean> => {
-  try {
-    // Quick check: does this booking already have calendar events?
-    const { count, error: countError } = await supabase
-      .from('calendar_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('booking_id', bookingId);
-
-    if (countError) {
-      console.error('Error checking calendar events:', countError);
-      return false;
-    }
-
-    if ((count ?? 0) > 0) {
-      return false; // Already has events, nothing to do
-    }
-
-    // No events exist — check if booking is confirmed
-    let bookingData = booking;
-    if (!bookingData) {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, status, client, booking_number, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city, organization_id')
-        .eq('id', bookingId)
-        .maybeSingle();
-      if (error || !data) return false;
-      bookingData = data;
-    }
-
-    const status = (bookingData.status ?? '').toString().trim().toUpperCase();
-    if (status !== 'CONFIRMED') return false;
-
-    // Has dates to sync?
-    if (!bookingData.rigdaydate && !bookingData.eventdate && !bookingData.rigdowndate) return false;
-
-    console.log(`[ensureBookingCalendarEvents] Auto-syncing missing calendar events for confirmed booking ${bookingId}`);
-    await syncSingleBookingToCalendar(bookingId, bookingData);
-
-    // Verify events were created
-    const { count: verifyCount } = await supabase
-      .from('calendar_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('booking_id', bookingId);
-
-    if ((verifyCount ?? 0) === 0) {
-      console.error(`[ensureBookingCalendarEvents] CRITICAL: Calendar events still missing after sync for booking ${bookingId}`);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error(`[ensureBookingCalendarEvents] Error:`, error);
-    return false;
-  }
+/**
+ * @deprecated Frontend must not self-heal calendar events.
+ */
+export const ensureBookingCalendarEvents = async (_bookingId: string, _booking?: any): Promise<boolean> => {
+  console.warn(`[bookingCalendarService] ensureBookingCalendarEvents called — no-op (backend handles calendar sync)`);
+  return false;
 };
 
-// Get booking dates by type from calendar events
+/**
+ * Read-only: Get booking dates by type from calendar events.
+ * This is a pure read operation — no mutations.
+ */
 export const fetchBookingDatesByType = async (
   bookingId: string, 
   eventType: 'rig' | 'event' | 'rigDown'

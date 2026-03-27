@@ -15,6 +15,7 @@ export {
   findAvailableTeam
 } from './teamService';
 
+// Calendar sync stubs — all sync is now backend-driven
 export {
   smartUpdateBookingCalendar,
   syncSingleBookingToCalendar,
