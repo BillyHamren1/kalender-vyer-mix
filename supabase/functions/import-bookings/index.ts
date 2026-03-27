@@ -146,6 +146,22 @@ const buildDateTimeFromParts = (
   return `${date}T${time}`;
 };
 
+const normalizeDateTimeForBookingField = (
+  value: unknown,
+  fallbackDate?: string
+): string | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+
+  const datePart = normalizeDateOnly(asString);
+  const timePart = extractTimePart(asString);
+
+  if (datePart && timePart) return `${datePart}T${timePart}`;
+  if (timePart && fallbackDate) return `${fallbackDate}T${timePart}`;
+  return undefined;
+};
+
 /**
  * Unified attachment sync — fetches existing URLs once, then processes
  * products[], files_metadata[], and tent_images[] against a SHARED seenUrls set.
@@ -1332,13 +1348,18 @@ serve(async (req) => {
       
       // Array format from external API
       if (Array.isArray(booking.rig_up_dates)) allDates.push(...booking.rig_up_dates);
+      if (Array.isArray(booking.rig_dates)) allDates.push(...booking.rig_dates);
       if (Array.isArray(booking.event_dates)) allDates.push(...booking.event_dates);
       if (Array.isArray(booking.rig_down_dates)) allDates.push(...booking.rig_down_dates);
       
       // Legacy single-value field names (fallback)
       if (booking.rigdaydate) allDates.push(booking.rigdaydate);
+      if (booking.rig_up_date) allDates.push(booking.rig_up_date);
+      if (booking.rig_date) allDates.push(booking.rig_date);
       if (booking.eventdate) allDates.push(booking.eventdate);
+      if (booking.event_date) allDates.push(booking.event_date);
       if (booking.rigdowndate) allDates.push(booking.rigdowndate);
+      if (booking.rig_down_date) allDates.push(booking.rig_down_date);
       
       const validDates = allDates.filter(Boolean);
       if (validDates.length === 0) {
@@ -1357,11 +1378,16 @@ serve(async (req) => {
       if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
         const allBookingDates: string[] = [];
         if (Array.isArray(externalBooking.rig_up_dates)) allBookingDates.push(...externalBooking.rig_up_dates);
+        if (Array.isArray(externalBooking.rig_dates)) allBookingDates.push(...externalBooking.rig_dates);
         if (Array.isArray(externalBooking.event_dates)) allBookingDates.push(...externalBooking.event_dates);
         if (Array.isArray(externalBooking.rig_down_dates)) allBookingDates.push(...externalBooking.rig_down_dates);
         if (externalBooking.rigdaydate) allBookingDates.push(externalBooking.rigdaydate);
+        if (externalBooking.rig_up_date) allBookingDates.push(externalBooking.rig_up_date);
+        if (externalBooking.rig_date) allBookingDates.push(externalBooking.rig_date);
         if (externalBooking.eventdate) allBookingDates.push(externalBooking.eventdate);
+        if (externalBooking.event_date) allBookingDates.push(externalBooking.event_date);
         if (externalBooking.rigdowndate) allBookingDates.push(externalBooking.rigdowndate);
+        if (externalBooking.rig_down_date) allBookingDates.push(externalBooking.rig_down_date);
         const latestDate = allBookingDates.filter(Boolean).sort().pop() || 'no dates';
         console.log(`SKIPPING OLD BOOKING ${externalBooking.id} (${externalBooking.client}) - latest date: ${latestDate}`);
         continue;
@@ -1558,12 +1584,30 @@ serve(async (req) => {
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
-          rig_start_time: extractTimePart(externalBooking.rig_start_time ?? externalBooking.rig_up_start_time),
-          rig_end_time: extractTimePart(externalBooking.rig_end_time ?? externalBooking.rig_up_end_time),
-          event_start_time: extractTimePart(externalBooking.event_start_time ?? externalBooking.event_start),
-          event_end_time: extractTimePart(externalBooking.event_end_time ?? externalBooking.event_end),
-          rigdown_start_time: extractTimePart(externalBooking.rigdown_start_time ?? externalBooking.rig_down_start_time),
-          rigdown_end_time: extractTimePart(externalBooking.rigdown_end_time ?? externalBooking.rig_down_end_time),
+          rig_start_time: normalizeDateTimeForBookingField(
+            externalBooking.rig_start_time ?? externalBooking.rig_up_start_time,
+            rigdaydate
+          ),
+          rig_end_time: normalizeDateTimeForBookingField(
+            externalBooking.rig_end_time ?? externalBooking.rig_up_end_time,
+            rigdaydate
+          ),
+          event_start_time: normalizeDateTimeForBookingField(
+            externalBooking.event_start_time ?? externalBooking.event_start,
+            eventdate
+          ),
+          event_end_time: normalizeDateTimeForBookingField(
+            externalBooking.event_end_time ?? externalBooking.event_end,
+            eventdate
+          ),
+          rigdown_start_time: normalizeDateTimeForBookingField(
+            externalBooking.rigdown_start_time ?? externalBooking.rig_down_start_time,
+            rigdowndate
+          ),
+          rigdown_end_time: normalizeDateTimeForBookingField(
+            externalBooking.rigdown_end_time ?? externalBooking.rig_down_end_time,
+            rigdowndate
+          ),
           allRigDates,
           allEventDates,
           allRigdownDates,
