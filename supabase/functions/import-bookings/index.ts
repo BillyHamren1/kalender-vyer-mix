@@ -1134,7 +1134,10 @@ serve(async (req) => {
       startDate,
       endDate,
       booking_id: singleBookingId = null,
+      event_type: webhookEventType = null,
     } = body;
+
+    const importStartedAt = new Date().toISOString();
 
     const normalizedSingleBookingId = typeof singleBookingId === 'string'
       ? singleBookingId.trim()
@@ -1144,12 +1147,19 @@ serve(async (req) => {
     // Accept explicit organization_id from payload (sent by Hub/receive-booking)
     const explicitOrgId = body?.organization_id;
     const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
-    console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
-    
+
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!normalizedSingleBookingId;
-    
-    console.log(`Starting import with sync mode: ${syncMode}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
+
+    // ── Structured pipeline log ──────────────────────────────────────────
+    console.log('[import-bookings] Pipeline started', JSON.stringify({
+      import_started: importStartedAt,
+      booking_id: normalizedSingleBookingId,
+      organization_id: organizationId,
+      event_type_hint: webhookEventType,
+      sync_mode: syncMode,
+      historical: isHistoricalImport,
+    }))
 
     // Get API key from secrets
     const importApiKey = Deno.env.get('IMPORT_API_KEY')
