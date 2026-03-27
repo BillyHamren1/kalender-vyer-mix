@@ -3880,6 +3880,68 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_audit_log: {
+        Row: {
+          actual_events: Json | null
+          booking_dates: Json | null
+          booking_id: string
+          booking_status: string | null
+          created_at: string
+          error_message: string | null
+          events_created: number | null
+          events_deleted: number | null
+          events_updated: number | null
+          expected_events: Json | null
+          has_mismatch: boolean | null
+          id: string
+          mismatch_details: string | null
+          organization_id: string
+          sync_action: string
+        }
+        Insert: {
+          actual_events?: Json | null
+          booking_dates?: Json | null
+          booking_id: string
+          booking_status?: string | null
+          created_at?: string
+          error_message?: string | null
+          events_created?: number | null
+          events_deleted?: number | null
+          events_updated?: number | null
+          expected_events?: Json | null
+          has_mismatch?: boolean | null
+          id?: string
+          mismatch_details?: string | null
+          organization_id: string
+          sync_action: string
+        }
+        Update: {
+          actual_events?: Json | null
+          booking_dates?: Json | null
+          booking_id?: string
+          booking_status?: string | null
+          created_at?: string
+          error_message?: string | null
+          events_created?: number | null
+          events_deleted?: number | null
+          events_updated?: number | null
+          expected_events?: Json | null
+          has_mismatch?: boolean | null
+          id?: string
+          mismatch_details?: string | null
+          organization_id?: string
+          sync_action?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_state: {
         Row: {
           created_at: string

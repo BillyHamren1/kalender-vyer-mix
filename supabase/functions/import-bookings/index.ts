@@ -2820,6 +2820,98 @@ serve(async (req) => {
           }
 
           console.log(`[Calendar Reconcile] ✅ Booking ${bookingData.id} reconciliation complete`);
+
+          // ── AUDIT LOG: write sync audit entry ──────────────────────────────
+          {
+            let auditEventsCreated = 0;
+            let auditEventsUpdated = 0;
+            let auditEventsDeleted = staleEvents.length;
+
+            // Count creates vs updates from this reconciliation pass
+            for (const desired of desiredEvents) {
+              const key = `${desired.event_type}|${desired.date}`;
+              const existing = existingByKey.get(key);
+              if (!existing) {
+                auditEventsCreated++;
+              } else if (
+                existing.start_time !== desired.start_time ||
+                existing.end_time !== desired.end_time ||
+                existing.title !== desired.title ||
+                existing.booking_number !== desired.booking_number ||
+                existing.delivery_address !== desired.delivery_address
+              ) {
+                auditEventsUpdated++;
+              }
+            }
+
+            // Re-fetch actual events after reconciliation to detect mismatches
+            const { data: postReconcileEvents } = await supabase
+              .from('calendar_events')
+              .select('id, event_type, start_time, end_time, resource_id, source_date')
+              .eq('booking_id', bookingData.id)
+              .eq('organization_id', bookingData.organization_id || organizationId);
+
+            const actualEventsJson = (postReconcileEvents || []).map((e: any) => ({
+              id: e.id,
+              event_type: e.event_type,
+              date: e.source_date || e.start_time?.split('T')[0],
+              start_time: e.start_time,
+              end_time: e.end_time,
+              resource_id: e.resource_id,
+            }));
+
+            const expectedEventsJson = desiredEvents.map(d => ({
+              event_type: d.event_type,
+              date: d.date,
+              start_time: d.start_time,
+              end_time: d.end_time,
+            }));
+
+            // Mismatch detection: compare expected count vs actual count per type|date
+            const expectedKeys = new Set(desiredEvents.map(d => `${d.event_type}|${d.date}`));
+            const actualKeys = new Set(actualEventsJson.map((a: any) => `${a.event_type}|${a.date}`));
+            const missingKeys = [...expectedKeys].filter(k => !actualKeys.has(k));
+            const extraKeys = [...actualKeys].filter(k => !expectedKeys.has(k));
+
+            const hasMismatch = missingKeys.length > 0 || extraKeys.length > 0;
+            let mismatchDetails: string | null = null;
+            if (hasMismatch) {
+              const parts: string[] = [];
+              if (missingKeys.length > 0) parts.push(`missing: ${missingKeys.join(', ')}`);
+              if (extraKeys.length > 0) parts.push(`extra: ${extraKeys.join(', ')}`);
+              mismatchDetails = parts.join('; ');
+              console.error(`[Sync Audit] ⚠️ MISMATCH for ${bookingData.id}: ${mismatchDetails}`);
+            }
+
+            // Write audit log (fire-and-forget, don't block pipeline)
+            supabase.from('sync_audit_log').insert({
+              booking_id: bookingData.id,
+              organization_id: bookingData.organization_id || organizationId,
+              sync_action: existingBooking ? 'updated' : 'imported',
+              booking_status: bookingData.status,
+              booking_dates: {
+                rigdaydate: bookingData.rigdaydate || null,
+                eventdate: bookingData.eventdate || null,
+                rigdowndate: bookingData.rigdowndate || null,
+                rig_start_time: bookingData.rig_start_time || null,
+                rig_end_time: bookingData.rig_end_time || null,
+                event_start_time: bookingData.event_start_time || null,
+                event_end_time: bookingData.event_end_time || null,
+                rigdown_start_time: bookingData.rigdown_start_time || null,
+                rigdown_end_time: bookingData.rigdown_end_time || null,
+              },
+              expected_events: expectedEventsJson,
+              actual_events: actualEventsJson,
+              events_created: auditEventsCreated,
+              events_updated: auditEventsUpdated,
+              events_deleted: auditEventsDeleted,
+              has_mismatch: hasMismatch,
+              mismatch_details: mismatchDetails,
+            }).then(({ error: auditErr }: any) => {
+              if (auditErr) console.error(`[Sync Audit] Error writing audit log:`, auditErr);
+            });
+          }
+          // ── END AUDIT LOG ──────────────────────────────────────────────────
           
           // Sync warehouse calendar events for confirmed bookings with dates
           // Guard: only sync if booking is new, dates changed, or status just became CONFIRMED
