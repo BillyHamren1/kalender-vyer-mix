@@ -276,7 +276,19 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       }
     }
 
-    console.log(`Successfully synced events for booking ${bookingId}`);
+    // Verify events were created
+    const { count: finalCount } = await supabase
+      .from('calendar_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId);
+
+    const expectedCount = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean).length;
+    if ((finalCount ?? 0) < expectedCount) {
+      console.error(`[syncSingleBookingToCalendar] ⚠️ VERIFICATION FAILED: Expected ${expectedCount} events, found ${finalCount} for booking ${bookingId}`);
+      throw new Error(`Calendar sync verification failed: expected ${expectedCount} events, found ${finalCount}`);
+    }
+
+    console.log(`✅ [syncSingleBookingToCalendar] Verified ${finalCount} events for booking ${bookingId}`);
 
   } catch (error) {
     console.error(`Error syncing booking ${bookingId}:`, error);
@@ -351,7 +363,7 @@ export const ensureBookingCalendarEvents = async (bookingId: string, booking?: a
         .from('bookings')
         .select('id, status, client, booking_number, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city, organization_id')
         .eq('id', bookingId)
-        .single();
+        .maybeSingle();
       if (error || !data) return false;
       bookingData = data;
     }
@@ -364,6 +376,18 @@ export const ensureBookingCalendarEvents = async (bookingId: string, booking?: a
 
     console.log(`[ensureBookingCalendarEvents] Auto-syncing missing calendar events for confirmed booking ${bookingId}`);
     await syncSingleBookingToCalendar(bookingId, bookingData);
+
+    // Verify events were created
+    const { count: verifyCount } = await supabase
+      .from('calendar_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId);
+
+    if ((verifyCount ?? 0) === 0) {
+      console.error(`[ensureBookingCalendarEvents] CRITICAL: Calendar events still missing after sync for booking ${bookingId}`);
+      return false;
+    }
+
     return true;
   } catch (error) {
     console.error(`[ensureBookingCalendarEvents] Error:`, error);
