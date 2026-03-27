@@ -931,6 +931,96 @@ export type Database = {
           },
         ]
       }
+      establishment_tasks: {
+        Row: {
+          assigned_to: string | null
+          booking_id: string
+          category: string
+          completed: boolean | null
+          created_at: string | null
+          end_date: string
+          id: string
+          notes: string | null
+          organization_id: string
+          sort_order: number | null
+          source: string | null
+          source_product_id: string | null
+          start_date: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          booking_id: string
+          category?: string
+          completed?: boolean | null
+          created_at?: string | null
+          end_date: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          sort_order?: number | null
+          source?: string | null
+          source_product_id?: string | null
+          start_date: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          booking_id?: string
+          category?: string
+          completed?: boolean | null
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          sort_order?: number | null
+          source?: string | null
+          source_product_id?: string | null
+          start_date?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "establishment_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "booking_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_completion_analytics: {
         Row: {
           booking_id: string
