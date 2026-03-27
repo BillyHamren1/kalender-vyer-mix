@@ -218,7 +218,7 @@ const EstablishmentGanttChart = ({
 
   return (
     <>
-      <Card className="flex flex-col" style={{ height: 'calc(100vh - 280px)', minHeight: 400 }}>
+      <Card className="flex flex-col">
         <CardHeader className="pb-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -246,8 +246,8 @@ const EstablishmentGanttChart = ({
           </div>
         </CardHeader>
 
-        <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
-          <div className="flex flex-1 overflow-hidden">
+        <CardContent className="p-0 flex flex-col">
+          <div className="flex">
             {/* Task labels column */}
             <div className="flex-shrink-0 border-r bg-background z-10 flex flex-col" style={{ width: taskLabelWidth }}>
               <div
@@ -256,7 +256,7 @@ const EstablishmentGanttChart = ({
               >
                 Aktivitet
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1">
                 {ganttData.taskDates.map((task) => {
                   const dbTask = tasks.find(t => t.id === task.id);
                   const IconComponent = CATEGORY_ICONS[task.category] || Wrench;
@@ -306,7 +306,7 @@ const EstablishmentGanttChart = ({
             </div>
 
             {/* Scrollable timeline */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto" ref={scrollRef}>
+            <div className="flex-1 overflow-x-auto" ref={scrollRef}>
               <div style={{ width: timelineWidth, minWidth: '100%' }}>
                 {/* Date headers */}
                 <div className="flex border-b bg-muted/50 sticky top-0 z-10" style={{ height: headerHeight }}>
