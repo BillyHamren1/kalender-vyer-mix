@@ -1649,7 +1649,9 @@ serve(async (req) => {
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
         // Declare recovery flags at booking-level scope so they're accessible later
-        let needsCalendarRecovery = false;
+        // Calendar reconciliation is now fully deterministic (handled later in the pipeline).
+        // Recovery flags for warehouse and products still needed.
+        let needsCalendarRecovery = false; // kept for variable reference compatibility
         let needsWarehouseRecovery = false;
         let needsProductRecovery = false;
 
@@ -1661,18 +1663,8 @@ serve(async (req) => {
           const statusChanged = existingBooking.status !== bookingData.status;
           
           if (bookingData.status === 'CONFIRMED') {
-            const { data: existingCalEvents, error: calCheckError } = await supabase
-              .from('calendar_events')
-              .select('id')
-              .eq('booking_id', existingBooking.id)
-              .eq('organization_id', bookingData.organization_id)
-              .limit(1);
-            
-            if (!calCheckError && (!existingCalEvents || existingCalEvents.length === 0)) {
-              needsCalendarRecovery = true;
-              console.log(`Booking ${bookingData.id} is CONFIRMED but has NO calendar events - will recover`);
-            }
-            
+            // Calendar recovery is handled by deterministic reconciliation below — no check needed here
+
             // Check if warehouse events are missing or outdated
             const { data: existingWhEvents, error: whCheckError } = await supabase
               .from('warehouse_calendar_events')
