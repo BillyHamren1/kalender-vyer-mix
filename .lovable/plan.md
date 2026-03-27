@@ -1,63 +1,80 @@
 
 
-# Återöppna felstängda projekt
+# Förbättra Etableringsfliken - Rensa & Gör Funktionell
+
+## Problem
+1. **Aktiviteter är hårdkodade** - `generateDefaultTasks()` skapar alltid samma 8 uppgifter, inget sparas i databasen
+2. **"Lägg till aktivitet"-knappen gör ingenting**
+3. **Sidopanelen är rörig** - AI-assistent + drag-drop datapanel tar plats utan att ge värde
+4. **Ingen CRUD** - kan inte skapa, redigera eller ta bort aktiviteter
 
 ## Vad som byggs
 
-En "Återöppna projekt"-funktion som:
-1. Sätter tillbaka lokal status från `completed` till föregående status
-2. Skickar en `reopen_project`-signal till Booking-systemet
-3. Tillgänglig via en knapp på stängda projekt i "Under slutförande"-vyn
+### 1. Ny databastabell `establishment_tasks`
+Persistera aktiviteter per bokning istället för hårdkodade defaults.
+
+```sql
+create table establishment_tasks (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references bookings(id) on delete cascade,
+  title text not null,
+  category text not null default 'installation',
+  start_date date not null,
+  end_date date not null,
+  completed boolean default false,
+  sort_order int default 0,
+  notes text,
+  assigned_to uuid references staff_members(id),
+  source text default 'manual', -- 'manual', 'product', 'default'
+  source_product_id uuid references booking_products(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+```
+RLS: authenticated users full access (samma mönster som establishment_subtasks).
+
+### 2. Service-fil `establishmentTaskService.ts`
+- `fetchTasks(bookingId)` - hämta alla tasks
+- `createTask(task)` - skapa
+- `updateTask(id, updates)` - uppdatera (completed, title, dates)
+- `deleteTask(id)` - ta bort
+- `generateDefaultTasks(bookingId, rigDate, eventDate)` - skapa standarduppsättning i DB vid första besök
+
+### 3. Rensa layouten
+- **Ta bort** `EstablishmentAIAssistant` från Gantt-vyn (AI-panelen)
+- **Ta bort** `EstablishmentDataPanel` (drag-drop-panelen)
+- **Ersätt sidopanelen** med en kompakt bokningssammanfattning direkt i Gantt-kortet (produkter, datum, personal - bara text, ingen drag-drop)
+- Gantt-schemat tar nu full bredd istället för att dela med sidopanel
+
+### 4. "Lägg till aktivitet" - Dialog med två lägen
+En dialog som öppnas vid klick på knappen:
+
+**Snabbval från bokning:**
+- Lista produkter från bokningen som klickbara förslag
+- Klick → skapar aktivitet med produktnamn som titel, riggdatum som default, kategori auto-mappad
+- Ex: "H Mastertent - 3x3" → kategori `installation`, datum = riggdag
+
+**Manuellt:**
+- Titel (fritext)
+- Kategori (dropdown: Transport, Material, Personal, Installation, Kontroll)
+- Start-/slutdatum (datumväljare, default = riggdag)
+
+### 5. Gantt-schemat använder DB-data
+- Vid första laddning: om inga tasks finns → kör `generateDefaultTasks` för att skapa standarduppsättningen i DB
+- Sedan hämtas alltid från DB
+- Klick på task → öppnar befintliga `EstablishmentTaskDetailSheet` (med subtasks)
+- Checkbox/klick för att markera som klar
+- Högerklick/knapp för att ta bort
 
 ## Teknisk plan
 
-### 1. Ny API-funktion i `planningApiService.ts`
-Lägg till `markReopenedInBooking(bookingId)` som anropar proxyn med `type=reopen_project`, body `{ status: 'REOPENED' }`.
+| Fil | Ändring |
+|---|---|
+| `supabase/migrations/new` | Skapa `establishment_tasks`-tabell + RLS |
+| `src/services/establishmentTaskService.ts` | Ny CRUD-service |
+| `src/components/project/EstablishmentGanttChart.tsx` | Refaktorera: ta bort sidopanel, hämta tasks från DB, koppla "Lägg till"-knappen |
+| `src/components/project/AddEstablishmentTaskDialog.tsx` | Ny dialog med snabbval + manuellt läge |
+| `src/components/project/EstablishmentGanttChart.tsx` | Ta bort imports av AI/DataPanel |
 
-### 2. Ny service-funktion i `bookingCloseSyncService.ts`
-Lägg till `reopenBookingsInInvoicing(bookingIds)` — samma mönster som `syncBookingsForInvoicing` men anropar `markReopenedInBooking` istället.
-
-### 3. Uppdatera `planning-api-proxy` Edge Function
-Lägg till loggning för `reopen_project`-typen (samma mönster som `close_project`). Proxyn vidarebefordrar redan alla typer generiskt, så ingen ny routing behövs — bara loggning.
-
-### 4. UI: "Återöppna"-knapp i `ClosingProjectsList.tsx`
-- Visa en "Återöppna"-knapp på rader med status `completed` (stängda projekt)
-- Knappen öppnar en bekräftelsedialog
-- Vid bekräftelse:
-  - Anropar `reopenBookingsInInvoicing` med projektets booking_id(s)
-  - Om synk lyckas: sätter status tillbaka (`jobs` → `planned`, `projects` → `delivered`, `large_projects` → `delivered`)
-  - Invaliderar queries
-
-### 5. UI: Även i `ProjectEconomyPage.tsx` och `ProjectEconomyDetail.tsx`
-- På stängda projekt, visa "Återöppna"-knapp bredvid STÄNGD-badgen
-- Samma logik som ovan
-
----
-
-## Info att ge till Booking-teamet
-
-När implementationen är klar kan du skicka detta till Booking-teamet:
-
-```text
-=== NY ENDPOINT: reopen_project ===
-
-Vi skickar nu även en signal när ett projekt återöppnas (ångrat stängning).
-
-Anrop som görs:
-  POST {EF_SUPABASE_URL}/functions/v1/planning-api?type=reopen_project&booking_id=<UUID>
-  Header: x-api-key: <PLANNING_API_KEY>
-  Body: { "status": "REOPENED" }
-
-Förväntad hantering:
-  - Ta bort bokningen från faktureringskön (READY_FOR_INVOICING → DRAFT/CONFIRMED)
-  - Returnera { success: true } vid lyckad hantering
-  - Returnera { error: "..." } vid fel
-
-Detta är motsatsen till close_project. Tidslinjen:
-  1. close_project  → Bokning läggs i faktureringskö
-  2. reopen_project → Bokning tas BORT ur faktureringskö
-
-Om reopen_project-endpointen inte finns ännu kommer vårt system
-visa ett felmeddelande och projektet förblir stängt tills synk lyckas.
-```
+Befintliga filer som **inte ändras**: `EstablishmentTaskDetailSheet`, `EstablishmentPage` (tabs behålls), `DeestablishmentGanttChart`.
 
