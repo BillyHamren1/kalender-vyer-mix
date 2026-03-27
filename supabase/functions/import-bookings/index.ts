@@ -137,13 +137,28 @@ const extractTimePart = (value: unknown): string | undefined => {
   return undefined;
 };
 
+/**
+ * Build a datetime string from a date and an explicit time value.
+ * Returns { dateTime, isExplicit } so callers know whether a real
+ * booking time was used or a fallback default.
+ */
+const buildDateTimeFromPartsEx = (
+  date: string,
+  explicitTime: unknown,
+  fallbackTime = '08:00:00'
+): { dateTime: string; isExplicit: boolean } => {
+  const extracted = extractTimePart(explicitTime);
+  const time = extracted || fallbackTime;
+  return { dateTime: `${date}T${time}`, isExplicit: !!extracted };
+};
+
+/** Legacy wrapper — returns just the datetime string */
 const buildDateTimeFromParts = (
   date: string,
   explicitTime: unknown,
   fallbackTime = '08:00:00'
 ): string => {
-  const time = extractTimePart(explicitTime) || fallbackTime;
-  return `${date}T${time}`;
+  return buildDateTimeFromPartsEx(date, explicitTime, fallbackTime).dateTime;
 };
 
 const normalizeDateTimeForBookingField = (
@@ -655,28 +670,37 @@ interface AttachmentData {
 }
 
 /**
- * Helper function to calculate end time based on event type
+ * Calculate end time by adding hours to a start time string.
+ * Uses string manipulation to avoid timezone conversion issues from Date.toISOString().
  */
 const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 'rigDown'): string => {
-  const start = new Date(startTime);
   let hoursToAdd: number;
   
   switch (eventType) {
     case 'rig':
-      hoursToAdd = 4; // 4 hours for rig events
+      hoursToAdd = 4;
       break;
     case 'event':
-      hoursToAdd = 2.5; // 2.5 hours for event days
+      hoursToAdd = 2.5;
       break;
     case 'rigDown':
-      hoursToAdd = 4; // 4 hours for rig down events
+      hoursToAdd = 4;
       break;
     default:
-      hoursToAdd = 4; // fallback to 4 hours
+      hoursToAdd = 4;
   }
   
-  const end = new Date(start.getTime() + (hoursToAdd * 60 * 60 * 1000));
-  return end.toISOString();
+  // Parse the start time parts to avoid timezone shifts
+  const datePart = startTime.split('T')[0];
+  const timePart = startTime.split('T')[1] || '08:00:00';
+  const [hh, mm, ss] = timePart.split(':').map(Number);
+  
+  const totalMinutes = hh * 60 + mm + (hoursToAdd * 60);
+  const endHH = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
+  const endMM = String(Math.floor(totalMinutes % 60)).padStart(2, '0');
+  const endSS = String(ss || 0).padStart(2, '0');
+  
+  return `${datePart}T${endHH}:${endMM}:${endSS}`;
 };
 
 /**
@@ -2651,36 +2675,39 @@ serve(async (req) => {
           const desiredTitle = bookingData.client || 'Bokning';
 
           for (const date of rigDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.rig_start_time);
-            const endTime = bookingData.rig_end_time 
-              ? buildDateTimeFromParts(date, bookingData.rig_end_time) 
-              : getEndTimeForEventType(startTime, 'rig');
+            const start = buildDateTimeFromPartsEx(date, bookingData.rig_start_time);
+            const end = bookingData.rig_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.rig_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'rig'), isExplicit: false };
+            console.log(`[Calendar Time] rig ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'rig', start_time: startTime, end_time: endTime,
+              event_type: 'rig', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
           }
 
           for (const date of eventDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.event_start_time);
-            const endTime = bookingData.event_end_time 
-              ? buildDateTimeFromParts(date, bookingData.event_end_time) 
-              : getEndTimeForEventType(startTime, 'event');
+            const start = buildDateTimeFromPartsEx(date, bookingData.event_start_time);
+            const end = bookingData.event_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.event_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'event'), isExplicit: false };
+            console.log(`[Calendar Time] event ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'event', start_time: startTime, end_time: endTime,
+              event_type: 'event', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
           }
 
           for (const date of rigdownDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.rigdown_start_time);
-            const endTime = bookingData.rigdown_end_time 
-              ? buildDateTimeFromParts(date, bookingData.rigdown_end_time) 
-              : getEndTimeForEventType(startTime, 'rigDown');
+            const start = buildDateTimeFromPartsEx(date, bookingData.rigdown_start_time);
+            const end = bookingData.rigdown_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.rigdown_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'rigDown'), isExplicit: false };
+            console.log(`[Calendar Time] rigDown ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'rigDown', start_time: startTime, end_time: endTime,
+              event_type: 'rigDown', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
