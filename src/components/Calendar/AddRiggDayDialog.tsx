@@ -135,6 +135,8 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
         throw new Error('Kunde inte hämta bokningsdata');
       }
 
+      const sourceDate = startDateTime.split('T')[0];
+      
       const { error: insertError } = await supabase
         .from('calendar_events')
         .insert({
@@ -146,7 +148,8 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
           event_type: eventType,
           organization_id: booking.organization_id,
           booking_number: booking.booking_number,
-          delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null
+          delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+          source_date: sourceDate
         });
 
       if (insertError) {
