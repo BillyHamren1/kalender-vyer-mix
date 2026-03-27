@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
-import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
+import { smartUpdateBookingCalendar, ensureBookingCalendarEvents } from '@/services/bookingCalendarService';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
@@ -261,8 +261,11 @@ export const useRealTimeCalendarEvents = () => {
         toast.info('Borttagen bokning borttagen från kalendern');
       }
     } catch (error) {
-      console.error('Error handling booking change:', error);
-      // Don't show toast for every minor error — only log it
+      console.error('⚠️ CRITICAL: Error handling booking change for calendar:', error);
+      const bookingRef = newRecord?.booking_number || newRecord?.id || oldRecord?.id || 'okänd';
+      toast.error(`⚠️ KRITISKT: Bokning ${bookingRef} kunde inte synkas till kalendern! Kontrollera manuellt.`, {
+        duration: 15000,
+      });
     }
   }, []);
 
