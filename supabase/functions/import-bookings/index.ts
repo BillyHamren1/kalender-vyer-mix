@@ -2864,7 +2864,11 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Import error:', error)
+    console.error('[import-bookings] Pipeline failed', JSON.stringify({
+      error: error.message,
+      import_started: typeof importStartedAt !== 'undefined' ? importStartedAt : null,
+      import_completed: new Date().toISOString(),
+    }))
     return new Response(
       JSON.stringify({ 
         success: false, 
