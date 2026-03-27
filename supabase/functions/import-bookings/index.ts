@@ -1134,7 +1134,10 @@ serve(async (req) => {
       startDate,
       endDate,
       booking_id: singleBookingId = null,
+      event_type: webhookEventType = null,
     } = body;
+
+    const importStartedAt = new Date().toISOString();
 
     const normalizedSingleBookingId = typeof singleBookingId === 'string'
       ? singleBookingId.trim()
@@ -1144,12 +1147,19 @@ serve(async (req) => {
     // Accept explicit organization_id from payload (sent by Hub/receive-booking)
     const explicitOrgId = body?.organization_id;
     const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
-    console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
-    
+
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!normalizedSingleBookingId;
-    
-    console.log(`Starting import with sync mode: ${syncMode}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
+
+    // ── Structured pipeline log ──────────────────────────────────────────
+    console.log('[import-bookings] Pipeline started', JSON.stringify({
+      import_started: importStartedAt,
+      booking_id: normalizedSingleBookingId,
+      organization_id: organizationId,
+      event_type_hint: webhookEventType,
+      sync_mode: syncMode,
+      historical: isHistoricalImport,
+    }))
 
     // Get API key from secrets
     const importApiKey = Deno.env.get('IMPORT_API_KEY')
@@ -2819,20 +2829,31 @@ serve(async (req) => {
       console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
     }
 
-    console.log('Import results:', {
+    const importCompletedAt = new Date().toISOString();
+
+    // ── Structured pipeline completion log ───────────────────────────────
+    console.log('[import-bookings] Pipeline completed', JSON.stringify({
+      import_started: importStartedAt,
+      import_completed: importCompletedAt,
+      booking_id: normalizedSingleBookingId,
+      organization_id: organizationId,
+      event_type_hint: webhookEventType,
       total: results.total,
       imported: results.imported,
+      failed: results.failed,
       new_bookings: results.new_bookings.length,
       updated_bookings: results.updated_bookings.length,
       unchanged_skipped: results.unchanged_bookings_skipped.length,
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
+      calendar_reconciled: results.calendar_events_created > 0 || results.status_changed_bookings.length > 0,
       warehouse_events_created: results.warehouse_events_created,
       packing_projects_created: results.packing_projects_created,
       team_distribution: results.team_distribution,
-      mode: isHistoricalImport ? 'HISTORICAL' : syncMode
-    })
+      mode: isHistoricalImport ? 'HISTORICAL' : syncMode,
+      errors: results.errors.length > 0 ? results.errors : undefined,
+    }))
 
     return new Response(
       JSON.stringify({ success: true, results }),
@@ -2843,7 +2864,11 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Import error:', error)
+    console.error('[import-bookings] Pipeline failed', JSON.stringify({
+      error: error.message,
+      import_started: typeof importStartedAt !== 'undefined' ? importStartedAt : null,
+      import_completed: new Date().toISOString(),
+    }))
     return new Response(
       JSON.stringify({ 
         success: false, 
