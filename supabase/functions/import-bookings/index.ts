@@ -1979,36 +1979,51 @@ serve(async (req) => {
         const eventdate = allEventDates[0] || undefined;
         const rigdowndate = allRigdownDates[0] || undefined;
 
+        // ── Parse combined time-range fields from Booking export ─────────────
+        // The external API may send "rig_up_time" / "rig_down_time" as combined
+        // range strings like "08:00 - 12:00" instead of discrete start/end fields.
+        const parsedRigUpRange = parseTimeRange(externalBooking.rig_up_time);
+        const parsedRigDownRange = parseTimeRange(externalBooking.rig_down_time);
+        const parsedEventRange = parseTimeRange(externalBooking.event_time);
+
+        if (externalBooking.rig_up_time) {
+          console.log(`[Time Parse] Booking ${externalBooking.id} rig_up_time raw: "${externalBooking.rig_up_time}" → parsed: ${parsedRigUpRange ? `${parsedRigUpRange.start} / ${parsedRigUpRange.end}` : 'UNPARSEABLE'}`);
+        }
+        if (externalBooking.rig_down_time) {
+          console.log(`[Time Parse] Booking ${externalBooking.id} rig_down_time raw: "${externalBooking.rig_down_time}" → parsed: ${parsedRigDownRange ? `${parsedRigDownRange.start} / ${parsedRigDownRange.end}` : 'UNPARSEABLE'}`);
+        }
+        if (externalBooking.event_time) {
+          console.log(`[Time Parse] Booking ${externalBooking.id} event_time raw: "${externalBooking.event_time}" → parsed: ${parsedEventRange ? `${parsedEventRange.start} / ${parsedEventRange.end}` : 'UNPARSEABLE'}`);
+        }
+
+        // Discrete fields take priority; combined range fields are fallback
+        const rigStartRaw = externalBooking.rig_start_time ?? externalBooking.rig_up_start_time ?? parsedRigUpRange?.start;
+        const rigEndRaw = externalBooking.rig_end_time ?? externalBooking.rig_up_end_time ?? parsedRigUpRange?.end;
+        const rigdownStartRaw = externalBooking.rigdown_start_time ?? externalBooking.rig_down_start_time ?? parsedRigDownRange?.start;
+        const rigdownEndRaw = externalBooking.rigdown_end_time ?? externalBooking.rig_down_end_time ?? parsedRigDownRange?.end;
+        const eventStartRaw = externalBooking.event_start_time ?? externalBooking.event_start ?? parsedEventRange?.start;
+        const eventEndRaw = externalBooking.event_end_time ?? externalBooking.event_end ?? parsedEventRange?.end;
+
+        // Log resolved time sources
+        console.log(`[Time Resolve] Booking ${externalBooking.id}: rig=${rigStartRaw || 'DEFAULT'}-${rigEndRaw || 'DEFAULT'}, event=${eventStartRaw || 'DEFAULT'}-${eventEndRaw || 'DEFAULT'}, rigdown=${rigdownStartRaw || 'DEFAULT'}-${rigdownEndRaw || 'DEFAULT'}`);
+
+        // NOTE: If Booking export does not send a discrete event_start_time / event_end_time
+        // or an event_time range field, event calendar times will fall back to defaults (08:00).
+        // This is documented behavior — event-specific times require the Booking system to
+        // export them explicitly.
+
         const bookingData: BookingData = {
           id: externalBooking.id,
           client: clientName,
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
-          rig_start_time: normalizeDateTimeForBookingField(
-            externalBooking.rig_start_time ?? externalBooking.rig_up_start_time,
-            rigdaydate
-          ),
-          rig_end_time: normalizeDateTimeForBookingField(
-            externalBooking.rig_end_time ?? externalBooking.rig_up_end_time,
-            rigdaydate
-          ),
-          event_start_time: normalizeDateTimeForBookingField(
-            externalBooking.event_start_time ?? externalBooking.event_start,
-            eventdate
-          ),
-          event_end_time: normalizeDateTimeForBookingField(
-            externalBooking.event_end_time ?? externalBooking.event_end,
-            eventdate
-          ),
-          rigdown_start_time: normalizeDateTimeForBookingField(
-            externalBooking.rigdown_start_time ?? externalBooking.rig_down_start_time,
-            rigdowndate
-          ),
-          rigdown_end_time: normalizeDateTimeForBookingField(
-            externalBooking.rigdown_end_time ?? externalBooking.rig_down_end_time,
-            rigdowndate
-          ),
+          rig_start_time: normalizeDateTimeForBookingField(rigStartRaw, rigdaydate),
+          rig_end_time: normalizeDateTimeForBookingField(rigEndRaw, rigdaydate),
+          event_start_time: normalizeDateTimeForBookingField(eventStartRaw, eventdate),
+          event_end_time: normalizeDateTimeForBookingField(eventEndRaw, eventdate),
+          rigdown_start_time: normalizeDateTimeForBookingField(rigdownStartRaw, rigdowndate),
+          rigdown_end_time: normalizeDateTimeForBookingField(rigdownEndRaw, rigdowndate),
           allRigDates,
           allEventDates,
           allRigdownDates,
