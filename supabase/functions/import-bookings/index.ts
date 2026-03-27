@@ -137,13 +137,28 @@ const extractTimePart = (value: unknown): string | undefined => {
   return undefined;
 };
 
+/**
+ * Build a datetime string from a date and an explicit time value.
+ * Returns { dateTime, isExplicit } so callers know whether a real
+ * booking time was used or a fallback default.
+ */
+const buildDateTimeFromPartsEx = (
+  date: string,
+  explicitTime: unknown,
+  fallbackTime = '08:00:00'
+): { dateTime: string; isExplicit: boolean } => {
+  const extracted = extractTimePart(explicitTime);
+  const time = extracted || fallbackTime;
+  return { dateTime: `${date}T${time}`, isExplicit: !!extracted };
+};
+
+/** Legacy wrapper — returns just the datetime string */
 const buildDateTimeFromParts = (
   date: string,
   explicitTime: unknown,
   fallbackTime = '08:00:00'
 ): string => {
-  const time = extractTimePart(explicitTime) || fallbackTime;
-  return `${date}T${time}`;
+  return buildDateTimeFromPartsEx(date, explicitTime, fallbackTime).dateTime;
 };
 
 const normalizeDateTimeForBookingField = (
