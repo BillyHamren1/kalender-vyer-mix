@@ -28,12 +28,18 @@ serve(async (req) => {
 
   // ── 1. Claim pending jobs (atomic status transition) ─────────────────
   // Also pick up failed jobs that haven't exhausted retries
+  // Fetch pending jobs OR failed jobs that still have retries left
   const { data: jobs, error: fetchError } = await supabase
     .from('booking_sync_jobs')
     .select('*')
-    .or('status.eq.pending,and(status.eq.failed,attempts.lt.max_attempts)')
+    .in('status', ['pending', 'failed'])
     .order('received_at', { ascending: true })
     .limit(BATCH_SIZE)
+
+  // Filter out exhausted retries in-memory (simpler than complex PostgREST filters)
+  const eligibleJobs = (jobs || []).filter(
+    j => j.status === 'pending' || (j.status === 'failed' && j.attempts < j.max_attempts)
+  )
 
   if (fetchError) {
     console.error('[process-sync-jobs] Failed to fetch jobs', fetchError.message)

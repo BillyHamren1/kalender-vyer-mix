@@ -144,3 +144,6 @@ verify_jwt = false
 
 [functions.analytics-ai-pipeline]
 verify_jwt = false
+
+[functions.process-sync-jobs]
+verify_jwt = false
