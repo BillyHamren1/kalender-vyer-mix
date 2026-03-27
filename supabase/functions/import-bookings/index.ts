@@ -138,6 +138,34 @@ const extractTimePart = (value: unknown): string | undefined => {
 };
 
 /**
+ * Parse a combined time-range string like "08:00 - 12:00" or "08:00-12:00"
+ * into discrete start and end time parts.
+ * Returns { start, end } with HH:MM:SS strings, or undefined if unparsable.
+ */
+const parseTimeRange = (value: unknown): { start: string; end: string } | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+
+  // Match patterns like "08:00 - 12:00", "08:00-12:00", "08:00 – 12:00"
+  const rangeMatch = asString.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/);
+  if (!rangeMatch) return undefined;
+
+  const normalizeTime = (t: string): string => {
+    const parts = t.split(':');
+    const hh = parts[0].padStart(2, '0');
+    const mm = parts[1] || '00';
+    const ss = parts[2] || '00';
+    return `${hh}:${mm}:${ss}`;
+  };
+
+  return {
+    start: normalizeTime(rangeMatch[1]),
+    end: normalizeTime(rangeMatch[2]),
+  };
+};
+
+/**
  * Build a datetime string from a date and an explicit time value.
  * Returns { dateTime, isExplicit } so callers know whether a real
  * booking time was used or a fallback default.
