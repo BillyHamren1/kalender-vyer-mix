@@ -481,6 +481,7 @@ export type Database = {
           id: string
           organization_id: string
           resource_id: string
+          source_date: string
           start_time: string
           title: string
           viewed: boolean | null
@@ -495,6 +496,7 @@ export type Database = {
           id?: string
           organization_id?: string
           resource_id: string
+          source_date: string
           start_time: string
           title: string
           viewed?: boolean | null
@@ -509,6 +511,7 @@ export type Database = {
           id?: string
           organization_id?: string
           resource_id?: string
+          source_date?: string
           start_time?: string
           title?: string
           viewed?: boolean | null
