@@ -1,80 +1,63 @@
 
 
-# Förbättra Etableringsfliken - Rensa & Gör Funktionell
+## Root Cause Analysis
 
-## Problem
-1. **Aktiviteter är hårdkodade** - `generateDefaultTasks()` skapar alltid samma 8 uppgifter, inget sparas i databasen
-2. **"Lägg till aktivitet"-knappen gör ingenting**
-3. **Sidopanelen är rörig** - AI-assistent + drag-drop datapanel tar plats utan att ge värde
-4. **Ingen CRUD** - kan inte skapa, redigera eller ta bort aktiviteter
+There are **two distinct bugs** causing specific booking times to show as default (08:00) in the calendar:
 
-## Vad som byggs
+### Bug 1: Calendar reconciliation is skipped for "unchanged" bookings
 
-### 1. Ny databastabell `establishment_tasks`
-Persistera aktiviteter per bokning istället för hårdkodade defaults.
+The deterministic calendar reconciliation code (line ~2647) only runs if the code reaches that point. But there are **three `continue` statements** that skip it:
 
-```sql
-create table establishment_tasks (
-  id uuid primary key default gen_random_uuid(),
-  booking_id uuid not null references bookings(id) on delete cascade,
-  title text not null,
-  category text not null default 'installation',
-  start_date date not null,
-  end_date date not null,
-  completed boolean default false,
-  sort_order int default 0,
-  notes text,
-  assigned_to uuid references staff_members(id),
-  source text default 'manual', -- 'manual', 'product', 'default'
-  source_product_id uuid references booking_products(id),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-```
-RLS: authenticated users full access (samma mönster som establishment_subtasks).
+1. **Line 1837**: `hasBookingChanged` returns false → `continue` (skips calendar reconcile entirely)
+2. **Line 1855**: Only warehouse recovery needed → `continue` (skips calendar reconcile)
+3. **Line 1859+**: Only product recovery needed → `continue` (skips calendar reconcile)
 
-### 2. Service-fil `establishmentTaskService.ts`
-- `fetchTasks(bookingId)` - hämta alla tasks
-- `createTask(task)` - skapa
-- `updateTask(id, updates)` - uppdatera (completed, title, dates)
-- `deleteTask(id)` - ta bort
-- `generateDefaultTasks(bookingId, rigDate, eventDate)` - skapa standarduppsättning i DB vid första besök
+This means: if a booking was imported **before** the calendar reconciliation code was added (or was imported with default times), and the booking data hasn't changed since, the reconciliation **never runs** and calendar events stay on default times forever.
 
-### 3. Rensa layouten
-- **Ta bort** `EstablishmentAIAssistant` från Gantt-vyn (AI-panelen)
-- **Ta bort** `EstablishmentDataPanel` (drag-drop-panelen)
-- **Ersätt sidopanelen** med en kompakt bokningssammanfattning direkt i Gantt-kortet (produkter, datum, personal - bara text, ingen drag-drop)
-- Gantt-schemat tar nu full bredd istället för att dela med sidopanel
+### Bug 2: process-sync-jobs gets 0 bookings from external API
 
-### 4. "Lägg till aktivitet" - Dialog med två lägen
-En dialog som öppnas vid klick på knappen:
+The logs show every single-booking refresh via `process-sync-jobs` results in "Fetched 0 bookings from external API" after 3 retry attempts. The webhook path is essentially a no-op — bookings are never actually processed through it.
 
-**Snabbval från bokning:**
-- Lista produkter från bokningen som klickbara förslag
-- Klick → skapar aktivitet med produktnamn som titel, riggdatum som default, kategori auto-mappad
-- Ex: "H Mastertent - 3x3" → kategori `installation`, datum = riggdag
+---
 
-**Manuellt:**
-- Titel (fritext)
-- Kategori (dropdown: Transport, Material, Personal, Installation, Kontroll)
-- Start-/slutdatum (datumväljare, default = riggdag)
+## Plan
 
-### 5. Gantt-schemat använder DB-data
-- Vid första laddning: om inga tasks finns → kör `generateDefaultTasks` för att skapa standarduppsättningen i DB
-- Sedan hämtas alltid från DB
-- Klick på task → öppnar befintliga `EstablishmentTaskDetailSheet` (med subtasks)
-- Checkbox/klick för att markera som klar
-- Högerklick/knapp för att ta bort
+### Step 1: Always reconcile calendar events for confirmed bookings
 
-## Teknisk plan
+Move the calendar reconciliation out of the "only runs if booking changed" gate. For every confirmed booking that passes through `import-bookings` — whether changed or unchanged — run the deterministic reconciliation. This is safe because the reconciliation is idempotent (it compares desired vs actual state).
 
-| Fil | Ändring |
-|---|---|
-| `supabase/migrations/new` | Skapa `establishment_tasks`-tabell + RLS |
-| `src/services/establishmentTaskService.ts` | Ny CRUD-service |
-| `src/components/project/EstablishmentGanttChart.tsx` | Refaktorera: ta bort sidopanel, hämta tasks från DB, koppla "Lägg till"-knappen |
-| `src/components/project/AddEstablishmentTaskDialog.tsx` | Ny dialog med snabbval + manuellt läge |
-| `src/components/project/EstablishmentGanttChart.tsx` | Ta bort imports av AI/DataPanel |
+Specifically:
+- At each `continue` statement (lines 1837, 1855, ~product-recovery), add the calendar reconciliation block **before** continuing
+- Or better: extract the reconciliation into a helper function and call it at all three early-exit paths plus the main path
 
-Befintliga filer som **inte ändras**: `EstablishmentTaskDetailSheet`, `EstablishmentPage` (tabs behålls), `DeestablishmentGanttChart`.
+### Step 2: Fix the external API single-booking lookup
+
+The `process-sync-jobs` worker sends `organization_id` from the webhook payload (org `c00d649b-...`) but the external API at `wpzhsmrbjmxglowyoyky.supabase.co` may not recognize that org or booking ID. Need to investigate and fix:
+- Add logging of the actual external API URL being called for single-booking refreshes
+- Ensure the correct `organization_id` is used when querying the external API
+- If the external API doesn't support single-booking lookup by that org's IDs, fall back to fetching from the local `bookings` table and reconciling calendar events from stored data
+
+### Step 3: Add a local-data reconciliation fallback
+
+When the external API returns 0 bookings for a single-booking refresh, the worker should fall back to reading the booking from the local `bookings` table and still run calendar reconciliation. The booking data is already stored locally — the times are there.
+
+### Technical Details
+
+**File: `supabase/functions/import-bookings/index.ts`**
+
+1. Extract calendar reconciliation (lines ~2647–2830) into a standalone async function:
+   ```
+   async function reconcileCalendarEvents(supabase, bookingData, organizationId, results)
+   ```
+
+2. Call this function at every exit path for CONFIRMED bookings:
+   - Before `continue` at line 1837 (unchanged skip)
+   - Before `continue` at line 1855 (warehouse-only recovery)
+   - Before `continue` at product-only recovery
+   - At the existing location (main path)
+
+3. Add local-data fallback when external API returns 0 for single-booking refresh:
+   - Query the local `bookings` table for the booking_id
+   - If found and CONFIRMED, run `reconcileCalendarEvents` using local data
+   - This ensures webhook-triggered syncs always produce correct calendar events
 
