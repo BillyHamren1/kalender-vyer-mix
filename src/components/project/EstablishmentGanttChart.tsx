@@ -306,7 +306,7 @@ const EstablishmentGanttChart = ({
             </div>
 
             {/* Scrollable timeline */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto" ref={scrollRef}>
+            <div className="flex-1 overflow-x-auto" ref={scrollRef}>
               <div style={{ width: timelineWidth, minWidth: '100%' }}>
                 {/* Date headers */}
                 <div className="flex border-b bg-muted/50 sticky top-0 z-10" style={{ height: headerHeight }}>
