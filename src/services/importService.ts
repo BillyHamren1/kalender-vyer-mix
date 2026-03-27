@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { smartUpdateBookingCalendar } from "./bookingCalendarService";
+// Calendar sync imports removed — all sync is backend-driven
 import { cleanupDuplicateCalendarEvents } from "./duplicateCleanupService";
 import { isScannerApp } from "@/config/appMode";
 import { 
