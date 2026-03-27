@@ -477,21 +477,10 @@ export const getSyncStatus = async (): Promise<{
 };
 
 /**
- * Manually resync a specific booking calendar events
+ * @deprecated Calendar sync is now fully backend-driven via import-bookings.
  */
-export const resyncBookingCalendarEvents = async (bookingId: string): Promise<boolean> => {
-  try {
-    toast.info(`Resyncing booking ${bookingId} to calendar...`);
-    
-    // Import the sync function and call it properly
-    const { syncSingleBookingToCalendar } = await import('./bookingCalendarService');
-    await syncSingleBookingToCalendar(bookingId);
-    
-    toast.success(`Successfully resynced booking ${bookingId} calendar events`);
-    return true;
-  } catch (error) {
-    console.error(`Error resyncing booking ${bookingId}:`, error);
-    toast.error(`Error resyncing booking: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return false;
-  }
+export const resyncBookingCalendarEvents = async (_bookingId: string): Promise<boolean> => {
+  console.warn('[importService] resyncBookingCalendarEvents — no-op (backend handles calendar sync)');
+  toast.info('Kalendersynk hanteras nu av backend. Kontakta admin om data saknas.');
+  return false;
 };
