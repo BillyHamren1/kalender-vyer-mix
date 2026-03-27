@@ -2624,7 +2624,7 @@ serve(async (req) => {
           // 1. Fetch ALL existing calendar events for this booking
           const { data: existingEvents } = await supabase
             .from('calendar_events')
-            .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id')
+            .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date')
             .eq('booking_id', bookingData.id)
             .eq('organization_id', bookingData.organization_id || organizationId);
 
@@ -2688,12 +2688,11 @@ serve(async (req) => {
 
           console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${desiredEvents.length} desired events (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`);
 
-          // 3. Build lookup of existing events by composite key: event_type|date
+          // 3. Build lookup of existing events by composite key: event_type|source_date
           const existingByKey = new Map<string, any>();
           for (const evt of (existingEvents || [])) {
-            const evtDate = evt.start_time?.split('T')[0] || '';
+            const evtDate = evt.source_date || evt.start_time?.split('T')[0] || '';
             const key = `${evt.event_type}|${evtDate}`;
-            // If there are duplicates for the same key, keep the first (others will be cleaned up)
             if (!existingByKey.has(key)) {
               existingByKey.set(key, evt);
             }
@@ -2766,7 +2765,8 @@ serve(async (req) => {
                   event_type: desired.event_type,
                   delivery_address: desired.delivery_address,
                   resource_id: assignedTeam,
-                  organization_id: bookingData.organization_id || organizationId
+                  organization_id: bookingData.organization_id || organizationId,
+                  source_date: desired.date
                 });
 
               if (insertErr) {

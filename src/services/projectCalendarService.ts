@@ -52,6 +52,7 @@ export const syncStandaloneProjectToCalendar = async (
     resourceId: string
   ) => {
     if (!dateField) return;
+    const sourceDate = dateField.split('T')[0];
     const startTime = startTimeField || `${dateField}T08:00:00`;
     const endTime = endTimeField || `${dateField}T14:00:00`;
 
@@ -64,7 +65,8 @@ export const syncStandaloneProjectToCalendar = async (
       booking_id: projectBookingId,
       booking_number: `P-${projectId.slice(0, 6)}`,
       delivery_address: address || 'Ingen adress',
-      organization_id: projectData.organization_id
+      organization_id: projectData.organization_id,
+      source_date: sourceDate
     });
   };
 

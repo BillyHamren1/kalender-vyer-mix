@@ -70,6 +70,8 @@ export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Pro
 export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
   console.log('📝 Adding new calendar event:', event);
   
+  const sourceDate = event.start?.split('T')[0] || new Date().toISOString().split('T')[0];
+  
   const { data, error } = await supabase
     .from('calendar_events')
     .insert({
@@ -80,7 +82,8 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       booking_id: event.bookingId,
       event_type: event.eventType,
       delivery_address: event.delivery_address,
-      booking_number: event.booking_number
+      booking_number: event.booking_number,
+      source_date: sourceDate
     })
     .select()
     .single();
