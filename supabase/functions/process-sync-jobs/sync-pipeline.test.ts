@@ -136,8 +136,8 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
         event_type: "rig",
         source_date: sourceDate,
         title: "Test Rigg",
-        start_time: `${sourceDate}T08:00:00+02:00`,
-        end_time: `${sourceDate}T17:00:00+02:00`,
+        start_time: `${sourceDate}T08:00:00Z`,
+        end_time: `${sourceDate}T17:00:00Z`,
         resource_id: "unassigned",
       });
     assert(!e1, `Insert error: ${e1?.message}`);
@@ -146,8 +146,8 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
     const { error: e2 } = await supabase
       .from("calendar_events")
       .update({
-        start_time: `${sourceDate}T10:00:00+02:00`,
-        end_time: `${sourceDate}T18:00:00+02:00`,
+        start_time: `${sourceDate}T10:00:00Z`,
+        end_time: `${sourceDate}T18:00:00Z`,
       })
       .eq("booking_id", bookingId)
       .eq("event_type", "rig")
@@ -164,8 +164,8 @@ Deno.test("Test C — calendar event updates on time change, no duplicates", asy
 
     assertEquals(events?.length, 1, `Expected 1 event, got ${events?.length}`);
     assert(
-      events![0].start_time.includes("08:00") === false,
-      `Expected updated time, not original 08:00`
+      events![0].start_time.includes("10:00"),
+      `Expected updated start_time to contain 10:00, got ${events![0].start_time}`
     );
   } finally {
     await cleanup(bookingId);
