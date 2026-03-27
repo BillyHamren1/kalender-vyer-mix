@@ -2675,36 +2675,39 @@ serve(async (req) => {
           const desiredTitle = bookingData.client || 'Bokning';
 
           for (const date of rigDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.rig_start_time);
-            const endTime = bookingData.rig_end_time 
-              ? buildDateTimeFromParts(date, bookingData.rig_end_time) 
-              : getEndTimeForEventType(startTime, 'rig');
+            const start = buildDateTimeFromPartsEx(date, bookingData.rig_start_time);
+            const end = bookingData.rig_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.rig_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'rig'), isExplicit: false };
+            console.log(`[Calendar Time] rig ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'rig', start_time: startTime, end_time: endTime,
+              event_type: 'rig', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
           }
 
           for (const date of eventDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.event_start_time);
-            const endTime = bookingData.event_end_time 
-              ? buildDateTimeFromParts(date, bookingData.event_end_time) 
-              : getEndTimeForEventType(startTime, 'event');
+            const start = buildDateTimeFromPartsEx(date, bookingData.event_start_time);
+            const end = bookingData.event_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.event_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'event'), isExplicit: false };
+            console.log(`[Calendar Time] event ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'event', start_time: startTime, end_time: endTime,
+              event_type: 'event', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
           }
 
           for (const date of rigdownDates) {
-            const startTime = buildDateTimeFromParts(date, bookingData.rigdown_start_time);
-            const endTime = bookingData.rigdown_end_time 
-              ? buildDateTimeFromParts(date, bookingData.rigdown_end_time) 
-              : getEndTimeForEventType(startTime, 'rigDown');
+            const start = buildDateTimeFromPartsEx(date, bookingData.rigdown_start_time);
+            const end = bookingData.rigdown_end_time 
+              ? buildDateTimeFromPartsEx(date, bookingData.rigdown_end_time)
+              : { dateTime: getEndTimeForEventType(start.dateTime, 'rigDown'), isExplicit: false };
+            console.log(`[Calendar Time] rigDown ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
             desiredEvents.push({
-              event_type: 'rigDown', start_time: startTime, end_time: endTime,
+              event_type: 'rigDown', start_time: start.dateTime, end_time: end.dateTime,
               title: desiredTitle, booking_number: bookingData.booking_number || null,
               delivery_address: bookingData.deliveryaddress || null, date
             });
