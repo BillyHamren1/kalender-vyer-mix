@@ -290,6 +290,51 @@ export type Database = {
           },
         ]
       }
+      booking_sync_jobs: {
+        Row: {
+          attempts: number
+          booking_id: string
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          max_attempts: number
+          organization_id: string
+          processed_at: string | null
+          received_at: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          booking_id: string
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          max_attempts?: number
+          organization_id: string
+          processed_at?: string | null
+          received_at?: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          booking_id?: string
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          max_attempts?: number
+          organization_id?: string
+          processed_at?: string | null
+          received_at?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           assigned_project_id: string | null
