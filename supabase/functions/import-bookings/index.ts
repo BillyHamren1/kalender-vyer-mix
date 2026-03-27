@@ -1649,7 +1649,9 @@ serve(async (req) => {
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
         // Declare recovery flags at booking-level scope so they're accessible later
-        let needsCalendarRecovery = false;
+        // Calendar reconciliation is now fully deterministic (handled later in the pipeline).
+        // Recovery flags for warehouse and products still needed.
+        let needsCalendarRecovery = false; // kept for variable reference compatibility
         let needsWarehouseRecovery = false;
         let needsProductRecovery = false;
 
@@ -1661,18 +1663,8 @@ serve(async (req) => {
           const statusChanged = existingBooking.status !== bookingData.status;
           
           if (bookingData.status === 'CONFIRMED') {
-            const { data: existingCalEvents, error: calCheckError } = await supabase
-              .from('calendar_events')
-              .select('id')
-              .eq('booking_id', existingBooking.id)
-              .eq('organization_id', bookingData.organization_id)
-              .limit(1);
-            
-            if (!calCheckError && (!existingCalEvents || existingCalEvents.length === 0)) {
-              needsCalendarRecovery = true;
-              console.log(`Booking ${bookingData.id} is CONFIRMED but has NO calendar events - will recover`);
-            }
-            
+            // Calendar recovery is handled by deterministic reconciliation below — no check needed here
+
             // Check if warehouse events are missing or outdated
             const { data: existingWhEvents, error: whCheckError } = await supabase
               .from('warehouse_calendar_events')
@@ -2199,25 +2191,8 @@ serve(async (req) => {
             continue
           }
 
-          // Only clear calendar events if actual DATE fields changed (not metadata)
-          // Compare ALL dates, not just the first one
-          const allDatesStr = (bookingData.allRigDates || []).join(',') + '|' + 
-            (bookingData.allEventDates || []).join(',') + '|' + 
-            (bookingData.allRigdownDates || []).join(',');
-          const existingDatesStr = (existingBooking.rigdaydate || '') + '|' + 
-            (existingBooking.eventdate || '') + '|' + 
-            (existingBooking.rigdowndate || '');
-          const datesChanged = ['rigdaydate', 'eventdate', 'rigdowndate'].some(f =>
-            (bookingData[f] || '') !== (existingBooking[f] || '')
-          ) || (bookingData.allRigDates?.length > 1 || bookingData.allEventDates?.length > 1 || bookingData.allRigdownDates?.length > 1);
-          if (datesChanged) {
-            console.log(`Dates changed — recreating calendar events for booking ${existingBooking.id}`)
-            await supabase
-              .from('calendar_events')
-              .delete()
-              .eq('booking_id', existingBooking.id)
-              .eq('organization_id', bookingData.organization_id);
-          }
+          // Calendar reconciliation is now handled deterministically below (lines ~2644+)
+          // No longer delete-and-recreate here — the reconciler handles create/update/delete
 
           // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
           // 1. Fetch packing project for this booking (if exists)
@@ -2641,21 +2616,31 @@ serve(async (req) => {
 
         results.imported++
 
-        // SMART CALENDAR EVENT HANDLING - CREATE EVENTS FOR ALL CONFIRMED BOOKINGS (INCLUDING HISTORICAL)
+        // ═══════════════════════════════════════════════════════════════════
+        // DETERMINISTIC CALENDAR RECONCILIATION
+        // Computes the exact desired state and reconciles: create / update / delete
+        // ═══════════════════════════════════════════════════════════════════
         if (bookingData.status === 'CONFIRMED') {
-          // Check if calendar events already exist for this booking
+          // 1. Fetch ALL existing calendar events for this booking
           const { data: existingEvents } = await supabase
             .from('calendar_events')
-            .select('id, event_type, start_time, booking_id, resource_id')
+            .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id')
             .eq('booking_id', bookingData.id)
-            .eq('organization_id', bookingData.organization_id)
+            .eq('organization_id', bookingData.organization_id || organizationId);
 
-          const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
-          console.log(`Found ${existingEvents?.length || 0} existing calendar events for booking ${bookingData.id}`)
+          console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${existingEvents?.length || 0} existing events`);
 
-          const calendarEvents = []
-          
-          // Create events for ALL dates in each array, not just the first
+          // 2. Compute the DESIRED state from booking data
+          const desiredEvents: Array<{
+            event_type: string;
+            start_time: string;
+            end_time: string;
+            title: string;
+            booking_number: string | null;
+            delivery_address: string | null;
+            date: string;
+          }> = [];
+
           const rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0 
             ? bookingData.allRigDates : (bookingData.rigdaydate ? [bookingData.rigdaydate] : []);
           const eventDates = bookingData.allEventDates && bookingData.allEventDates.length > 0
@@ -2663,111 +2648,151 @@ serve(async (req) => {
           const rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
             ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
 
-          // Build set of existing event keys (type+start_time) to avoid recreating manually assigned ones
-          const existingEventKeys = new Set(
-            (existingEvents || []).map(e => `${e.event_type}|${e.start_time?.split('T')[0]}`)
-          );
+          const desiredTitle = bookingData.client || 'Bokning';
 
           for (const date of rigDates) {
-            const rigStartRaw = bookingData.rig_start_time;
-            const rigEndRaw = bookingData.rig_end_time;
-            const startTime = buildDateTimeFromParts(date, rigStartRaw);
-            const endTime = rigEndRaw ? buildDateTimeFromParts(date, rigEndRaw) : getEndTimeForEventType(startTime, 'rig');
-            if (!existingEventKeys.has(`rig|${date}`)) {
-              calendarEvents.push({
-                booking_id: bookingData.id,
-                booking_number: bookingData.booking_number,
-                title: `${bookingData.client}`,
-                start_time: startTime,
-                end_time: endTime,
-                event_type: 'rig',
-                delivery_address: bookingData.deliveryaddress,
-                date: date
-              });
-            }
+            const startTime = buildDateTimeFromParts(date, bookingData.rig_start_time);
+            const endTime = bookingData.rig_end_time 
+              ? buildDateTimeFromParts(date, bookingData.rig_end_time) 
+              : getEndTimeForEventType(startTime, 'rig');
+            desiredEvents.push({
+              event_type: 'rig', start_time: startTime, end_time: endTime,
+              title: desiredTitle, booking_number: bookingData.booking_number || null,
+              delivery_address: bookingData.deliveryaddress || null, date
+            });
           }
 
           for (const date of eventDates) {
-            const evtStartRaw = bookingData.event_start_time;
-            const evtEndRaw = bookingData.event_end_time;
-            const startTime = buildDateTimeFromParts(date, evtStartRaw);
-            const endTime = evtEndRaw ? buildDateTimeFromParts(date, evtEndRaw) : getEndTimeForEventType(startTime, 'event');
-            if (!existingEventKeys.has(`event|${date}`)) {
-              calendarEvents.push({
-                booking_id: bookingData.id,
-                booking_number: bookingData.booking_number,
-                title: `${bookingData.client}`,
-                start_time: startTime,
-                end_time: endTime,
-                event_type: 'event',
-                delivery_address: bookingData.deliveryaddress,
-                date: date
-              });
-            }
+            const startTime = buildDateTimeFromParts(date, bookingData.event_start_time);
+            const endTime = bookingData.event_end_time 
+              ? buildDateTimeFromParts(date, bookingData.event_end_time) 
+              : getEndTimeForEventType(startTime, 'event');
+            desiredEvents.push({
+              event_type: 'event', start_time: startTime, end_time: endTime,
+              title: desiredTitle, booking_number: bookingData.booking_number || null,
+              delivery_address: bookingData.deliveryaddress || null, date
+            });
           }
 
           for (const date of rigdownDates) {
-            const rdStartRaw = bookingData.rigdown_start_time;
-            const rdEndRaw = bookingData.rigdown_end_time;
-            const startTime = buildDateTimeFromParts(date, rdStartRaw);
-            const endTime = rdEndRaw ? buildDateTimeFromParts(date, rdEndRaw) : getEndTimeForEventType(startTime, 'rigDown');
-            if (!existingEventKeys.has(`rigDown|${date}`)) {
-              calendarEvents.push({
-                booking_id: bookingData.id,
-                booking_number: bookingData.booking_number,
-                title: `${bookingData.client}`,
-                start_time: startTime,
-                end_time: endTime,
-                event_type: 'rigDown',
-                delivery_address: bookingData.deliveryaddress,
-                date: date
-              });
+            const startTime = buildDateTimeFromParts(date, bookingData.rigdown_start_time);
+            const endTime = bookingData.rigdown_end_time 
+              ? buildDateTimeFromParts(date, bookingData.rigdown_end_time) 
+              : getEndTimeForEventType(startTime, 'rigDown');
+            desiredEvents.push({
+              event_type: 'rigDown', start_time: startTime, end_time: endTime,
+              title: desiredTitle, booking_number: bookingData.booking_number || null,
+              delivery_address: bookingData.deliveryaddress || null, date
+            });
+          }
+
+          console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${desiredEvents.length} desired events (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`);
+
+          // 3. Build lookup of existing events by composite key: event_type|date
+          const existingByKey = new Map<string, any>();
+          for (const evt of (existingEvents || [])) {
+            const evtDate = evt.start_time?.split('T')[0] || '';
+            const key = `${evt.event_type}|${evtDate}`;
+            // If there are duplicates for the same key, keep the first (others will be cleaned up)
+            if (!existingByKey.has(key)) {
+              existingByKey.set(key, evt);
             }
           }
 
-          if (calendarEvents.length > 0) {
-            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''} (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`)
+          // Track which existing events are still desired (for stale detection)
+          const matchedExistingIds = new Set<string>();
 
-            // Use smart team assignment for each event
-            for (const event of calendarEvents) {
+          // 4. Reconcile: create missing, update changed
+          for (const desired of desiredEvents) {
+            const key = `${desired.event_type}|${desired.date}`;
+            const existing = existingByKey.get(key);
+
+            if (existing) {
+              // Event exists — check if it needs updating
+              matchedExistingIds.add(existing.id);
+
+              const needsUpdate = 
+                existing.start_time !== desired.start_time ||
+                existing.end_time !== desired.end_time ||
+                existing.title !== desired.title ||
+                existing.booking_number !== desired.booking_number ||
+                existing.delivery_address !== desired.delivery_address;
+
+              if (needsUpdate) {
+                console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): time/title/address changed`);
+                const { error: updateErr } = await supabase
+                  .from('calendar_events')
+                  .update({
+                    start_time: desired.start_time,
+                    end_time: desired.end_time,
+                    title: desired.title,
+                    booking_number: desired.booking_number,
+                    delivery_address: desired.delivery_address,
+                  })
+                  .eq('id', existing.id);
+
+                if (updateErr) {
+                  console.error(`[Calendar Reconcile] Error updating event ${existing.id}:`, updateErr);
+                } else {
+                  results.calendar_events_created++; // count as reconciled
+                }
+              } else {
+                console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
+              }
+            } else {
+              // Event does not exist — create it with smart team assignment
               const assignedTeam = await getNextTeamAssignment(
                 supabase,
-                event.event_type,
-                event.date,
+                desired.event_type,
+                desired.date,
                 bookingData.id,
                 bookingData.organization_id || organizationId
               );
-              
-              // Track team distribution
+
               if (results.team_distribution[assignedTeam] !== undefined) {
                 results.team_distribution[assignedTeam]++;
               }
 
-              console.log(`Assigning ${event.event_type} event to ${assignedTeam} for booking ${bookingData.id} on ${event.date}`);
+              console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${assignedTeam}`);
 
-              const { error: eventError } = await supabase
+              const { error: insertErr } = await supabase
                 .from('calendar_events')
-                .upsert({
-                  booking_id: event.booking_id,
-                  booking_number: event.booking_number,
-                  title: event.title,
-                  start_time: event.start_time,
-                  end_time: event.end_time,
-                  event_type: event.event_type,
-                  delivery_address: event.delivery_address,
+                .insert({
+                  booking_id: bookingData.id,
+                  booking_number: desired.booking_number,
+                  title: desired.title,
+                  start_time: desired.start_time,
+                  end_time: desired.end_time,
+                  event_type: desired.event_type,
+                  delivery_address: desired.delivery_address,
                   resource_id: assignedTeam,
                   organization_id: bookingData.organization_id || organizationId
-                }, { onConflict: 'booking_id,event_type,start_time', ignoreDuplicates: true })
+                });
 
-              if (eventError) {
-                console.error(`Error creating calendar event:`, eventError)
+              if (insertErr) {
+                console.error(`[Calendar Reconcile] Error creating event:`, insertErr);
               } else {
-                results.calendar_events_created++
+                results.calendar_events_created++;
               }
             }
-          } else {
-            console.log(`No new calendar events needed for booking ${bookingData.id}`)
           }
+
+          // 5. Delete stale events (exist in DB but no longer in desired state)
+          const staleEvents = (existingEvents || []).filter(e => !matchedExistingIds.has(e.id));
+          if (staleEvents.length > 0) {
+            const staleIds = staleEvents.map(e => e.id);
+            console.log(`[Calendar Reconcile] DELETE ${staleEvents.length} stale events: ${staleEvents.map(e => `${e.event_type}@${e.start_time?.split('T')[0]}`).join(', ')}`);
+            const { error: deleteErr } = await supabase
+              .from('calendar_events')
+              .delete()
+              .in('id', staleIds);
+
+            if (deleteErr) {
+              console.error(`[Calendar Reconcile] Error deleting stale events:`, deleteErr);
+            }
+          }
+
+          console.log(`[Calendar Reconcile] ✅ Booking ${bookingData.id} reconciliation complete`);
           
           // Sync warehouse calendar events for confirmed bookings with dates
           // Guard: only sync if booking is new, dates changed, or status just became CONFIRMED
