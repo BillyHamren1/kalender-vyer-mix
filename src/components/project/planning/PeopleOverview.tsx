@@ -219,12 +219,15 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
 
     for (const task of analytics.tasks) {
       if (task.status === "cancelled") continue;
-      if (!task.assigned_to) {
+      const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+      if (ids.length === 0) {
         if (task.status !== "done") unassigned.push(task);
         continue;
       }
-      if (!byPerson.has(task.assigned_to)) byPerson.set(task.assigned_to, []);
-      byPerson.get(task.assigned_to)!.push(task);
+      for (const staffId of ids) {
+        if (!byPerson.has(staffId)) byPerson.set(staffId, []);
+        byPerson.get(staffId)!.push(task);
+      }
     }
 
     const people: PersonData[] = [];
