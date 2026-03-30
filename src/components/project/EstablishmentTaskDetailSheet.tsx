@@ -360,8 +360,40 @@ const EstablishmentTaskDetailSheet = ({
 
   const handleAddSubtask = () => {
     const title = newSubtaskTitle.trim();
-    if (!title || !bookingId) return;
+    if (!title || !effectiveBookingId) return;
     addMutation.mutate(title);
+  };
+
+  // Handle checking/unchecking a product in the checklist
+  const handleProductCheck = async (productId: string, productName: string, quantity: number, checked: boolean) => {
+    if (!effectiveBookingId || !task) return;
+    
+    const label = quantity > 1 ? `${productName} x${quantity}` : productName;
+    
+    // Find existing subtask for this product
+    const existingSubtask = subtasks.find(st => st.title === label || st.title === productName);
+    
+    if (existingSubtask) {
+      // Update existing subtask
+      updateMutation.mutate({ id: existingSubtask.id, updates: { completed: checked } });
+    } else {
+      // Create a new subtask and mark it
+      try {
+        const created = await createSubtask({
+          booking_id: effectiveBookingId,
+          parent_task_id: task.id,
+          title: label,
+          sort_order: subtasks.length,
+        });
+        if (checked) {
+          await updateSubtask(created.id, { completed: true });
+        }
+        queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task.id] });
+        queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
+      } catch {
+        toast.error("Kunde inte uppdatera checklista");
+      }
+    }
   };
 
   return (
