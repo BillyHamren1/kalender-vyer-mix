@@ -238,38 +238,8 @@ const TodayFocus = ({ analytics, staffPool, onTaskClick }: {
 }) => {
   const todayTasks = analytics.upcomingToday;
   const tomorrowTasks = analytics.upcomingTomorrow;
-  const nextUp = analytics.nextUpcoming;
 
-  // Nothing at all — this component won't render
-  if (todayTasks.length === 0 && tomorrowTasks.length === 0 && !nextUp) return null;
-
-  // Fallback: show next upcoming
-  if (todayTasks.length === 0 && tomorrowTasks.length === 0 && nextUp) {
-    const daysUntil = differenceInDays(new Date(nextUp.start_date), new Date());
-    const staffName = nextUp.assigned_to ? staffPool.find(s => s.id === nextUp.assigned_to)?.name : null;
-    return (
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">Kommande</h3>
-        </div>
-        <button
-          onClick={() => onTaskClick?.(nextUp.id)}
-          className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
-        >
-          <CalendarDays className="h-4 w-4 text-primary shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm truncate group-hover:text-primary transition-colors">{nextUp.title}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {format(new Date(nextUp.start_date), "d MMM", { locale: sv })} · om {daysUntil} dag{daysUntil !== 1 ? "ar" : ""}
-              {staffName && ` · ${staffName}`}
-            </p>
-          </div>
-          <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
-        </button>
-      </div>
-    );
-  }
+  if (todayTasks.length === 0 && tomorrowTasks.length === 0) return null;
 
   return (
     <div>
