@@ -7,7 +7,7 @@ import { formatDistanceToNow, format, isToday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { OpsTimelineStaff } from '@/services/opsControlService';
 
 interface Props {
@@ -46,17 +46,14 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
   const [showNewMsg, setShowNewMsg] = useState(false);
   const [staffSearch, setStaffSearch] = useState('');
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { allIds, displayName } = useMyIdentity();
   const feedRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Get planner ID for DM inbox
-  const plannerId = user?.id || '';
-
   const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0,
     refetchInterval: 15000,
   });
 
@@ -123,7 +120,7 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
     if (!msg.trim() || sending) return;
     setSending(true);
     try {
-      await sendAdminMessage(msg, user?.email?.split('@')[0] || 'Admin');
+      await sendAdminMessage(msg, displayName);
       setMsg('');
       queryClient.invalidateQueries({ queryKey: ['ops-control', 'messages'] });
     } finally {

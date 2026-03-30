@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
 import { sendDirectMessage, uploadDMFile, markDirectMessagesRead } from '@/services/directMessageService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format, isToday } from 'date-fns';
@@ -28,10 +28,10 @@ interface Props {
 const isImageType = (type: string) => type.startsWith('image/');
 
 const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: Props) => {
-  const { user } = useAuth();
-  const myId = user?.id || 'admin';
-  const myName = user?.email?.split('@')[0] || 'Admin';
-  const { messages, isLoading } = useDirectMessages(myId, staffId);
+  const { primaryId, displayName, allIds } = useMyIdentity();
+  const myId = primaryId || 'admin';
+  const myName = displayName;
+  const { messages, isLoading } = useDirectMessages(allIds, [staffId]);
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
@@ -51,8 +51,8 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
 
   // Mark as read on open and invalidate inbox cache so badge updates
   useEffect(() => {
-    if (myId && staffId) {
-      markDirectMessagesRead(myId, staffId).then(() => {
+    if (allIds.length > 0 && staffId) {
+      markDirectMessagesRead(allIds, staffId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
         queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
       });
@@ -176,7 +176,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
           </div>
         ) : (
           messages.map((m, idx) => {
-            const isOwn = m.sender_id === myId;
+            const isOwn = allIds.includes(m.sender_id);
             const prevMsg = idx > 0 ? messages[idx - 1] : null;
             const showSender = !prevMsg || prevMsg.sender_id !== m.sender_id;
 

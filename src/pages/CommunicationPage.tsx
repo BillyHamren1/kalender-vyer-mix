@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useStaffDashboard } from '@/hooks/useStaffDashboard';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDMInboxGrouped, GroupedConversation } from '@/services/directMessageService';
 import { StaffMessage, sendAdminMessage, markAllMessagesAsRead, JobActivityItem } from '@/services/staffDashboardService';
@@ -26,10 +26,9 @@ interface FeedEvent {
 
 const CommunicationPage = () => {
   const { messages, isLoadingMessages, activity, isLoadingActivity } = useStaffDashboard();
-  const { user } = useAuth();
+  const { allIds, displayName } = useMyIdentity();
   const queryClient = useQueryClient();
-  const plannerId = user?.id || '';
-  const adminName = user?.email?.split('@')[0] || 'Admin';
+  const adminName = displayName;
 
   const [tab, setTab] = useState<'feed' | 'conversations' | 'chat'>('conversations');
   const [dmTarget, setDmTarget] = useState<{ staffId: string; staffName: string } | null>(null);
@@ -41,9 +40,9 @@ const CommunicationPage = () => {
 
   // Fetch DM inbox
   const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0,
     refetchInterval: 15000,
   });
 

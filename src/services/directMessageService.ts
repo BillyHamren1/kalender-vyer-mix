@@ -18,17 +18,28 @@ export interface DirectMessage {
 
 /**
  * Fetch conversation between two participants (sorted by time).
+ * Uses dual-identity: allMyIds covers both staff_members.id and auth.users.id.
+ * allPartnerIds does the same for the partner.
  */
 export const fetchDirectMessages = async (
-  participantA: string,
-  participantB: string,
+  allMyIds: string[],
+  allPartnerIds: string[],
 ): Promise<DirectMessage[]> => {
+  if (allMyIds.length === 0 || allPartnerIds.length === 0) return [];
+
+  // Build OR filter: any combination of my IDs as sender+partner as recipient, or vice versa
+  const conditions: string[] = [];
+  for (const myId of allMyIds) {
+    for (const partnerId of allPartnerIds) {
+      conditions.push(`and(sender_id.eq.${myId},recipient_id.eq.${partnerId})`);
+      conditions.push(`and(sender_id.eq.${partnerId},recipient_id.eq.${myId})`);
+    }
+  }
+
   const { data, error } = await supabase
     .from('direct_messages')
     .select('*')
-    .or(
-      `and(sender_id.eq.${participantA},recipient_id.eq.${participantB}),and(sender_id.eq.${participantB},recipient_id.eq.${participantA})`
-    )
+    .or(conditions.join(','))
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -93,7 +104,7 @@ export const sendDirectMessage = async (
           sender_name: senderName,
           recipient_id: recipientId,
           content: content.trim(),
-          organization_id: '', // resolved by push-notification-trigger via device_tokens
+          organization_id: '',
         },
       },
     }).catch(err => console.error('Push trigger failed:', err));
@@ -134,29 +145,41 @@ export const uploadDMFile = async (
 
 /**
  * Mark all messages from a specific sender as read.
+ * Uses dual-identity: allMyIds for recipient matching.
  */
 export const markDirectMessagesRead = async (
-  recipientId: string,
+  allMyIds: string[],
   senderId: string,
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('direct_messages')
-    .update({ is_read: true })
-    .eq('recipient_id', recipientId)
-    .eq('sender_id', senderId)
-    .eq('is_read', false);
+  if (allMyIds.length === 0) return;
 
-  if (error) console.error('Error marking DMs as read:', error);
+  // Mark read for all my known IDs as recipient
+  const promises = allMyIds.map(myId =>
+    supabase
+      .from('direct_messages')
+      .update({ is_read: true })
+      .eq('recipient_id', myId)
+      .eq('sender_id', senderId)
+      .eq('is_read', false)
+  );
+
+  const results = await Promise.all(promises);
+  for (const { error } of results) {
+    if (error) console.error('Error marking DMs as read:', error);
+  }
 };
 
 /**
- * Get unread DM count for a recipient.
+ * Get unread DM count for a recipient (supports multiple IDs).
  */
-export const fetchUnreadDMCount = async (recipientId: string): Promise<number> => {
+export const fetchUnreadDMCount = async (allMyIds: string[]): Promise<number> => {
+  if (allMyIds.length === 0) return 0;
+
+  const orFilter = allMyIds.map(id => `recipient_id.eq.${id}`).join(',');
   const { count, error } = await supabase
     .from('direct_messages')
     .select('id', { count: 'exact', head: true })
-    .eq('recipient_id', recipientId)
+    .or(orFilter)
     .eq('is_read', false);
 
   if (error) return 0;
@@ -166,11 +189,14 @@ export const fetchUnreadDMCount = async (recipientId: string): Promise<number> =
 /**
  * Get DM inbox for a staff member.
  */
-export const fetchDMInbox = async (staffId: string): Promise<DirectMessage[]> => {
+export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
+  if (allMyIds.length === 0) return [];
+
+  const orFilter = allMyIds.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',');
   const { data, error } = await supabase
     .from('direct_messages')
     .select('*')
-    .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+    .or(orFilter)
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -192,12 +218,18 @@ export interface GroupedConversation {
 
 /**
  * Get DM inbox grouped by conversation partner.
+ * Uses dual-identity via allMyIds.
  */
-export const fetchDMInboxGrouped = async (myId: string): Promise<GroupedConversation[]> => {
+export const fetchDMInboxGrouped = async (allMyIds: string[]): Promise<GroupedConversation[]> => {
+  if (allMyIds.length === 0) return [];
+
+  const myIdSet = new Set(allMyIds);
+  const orFilter = allMyIds.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',');
+
   const { data, error } = await supabase
     .from('direct_messages')
     .select('*')
-    .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
+    .or(orFilter)
     .order('created_at', { ascending: false })
     .limit(200);
 
@@ -210,9 +242,12 @@ export const fetchDMInboxGrouped = async (myId: string): Promise<GroupedConversa
   const convMap = new Map<string, GroupedConversation>();
 
   for (const m of msgs) {
-    const isMe = m.sender_id === myId;
+    const isMe = myIdSet.has(m.sender_id);
     const partnerId = isMe ? m.recipient_id : m.sender_id;
     const partnerName = isMe ? m.recipient_name : m.sender_name;
+
+    // Skip if the partner is also one of my IDs (self-conversations across identities)
+    if (myIdSet.has(partnerId)) continue;
 
     if (!convMap.has(partnerId)) {
       convMap.set(partnerId, {

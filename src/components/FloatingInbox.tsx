@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, ArrowLeft, Search } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDMInboxGrouped, GroupedConversation } from '@/services/directMessageService';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,15 +16,14 @@ const FloatingInbox = () => {
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [showNewMsg, setShowNewMsg] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { allIds } = useMyIdentity();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const plannerId = user?.id || '';
 
   const { data: conversations = [] } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId && isOpen,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0 && isOpen,
     refetchInterval: 10000,
   });
 
@@ -32,15 +31,15 @@ const FloatingInbox = () => {
 
   // Realtime badge update
   useEffect(() => {
-    if (!plannerId) return;
+    if (allIds.length === 0) return;
     const channel = supabase
       .channel('floating-inbox-badge')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', plannerId] });
+        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', ...allIds] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [plannerId, queryClient]);
+  }, [allIds, queryClient]);
 
   // Load staff for new message
   useEffect(() => {

@@ -148,11 +148,11 @@ Deno.serve(async (req) => {
       case 'get_contacts':
         return await handleGetContacts(supabase, staffId, organizationId)
       case 'get_direct_messages':
-        return await handleGetDirectMessages(supabase, staffId, organizationId)
+        return await handleGetDirectMessages(supabase, staffId, organizationId, staffOrg?.user_id || null)
       case 'send_direct_message':
-        return await handleSendDirectMessage(supabase, staffId, data, organizationId)
+        return await handleSendDirectMessage(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'mark_dm_read':
-        return await handleMarkDMRead(supabase, staffId, data, organizationId)
+        return await handleMarkDMRead(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'get_job_messages':
         return await handleGetJobMessages(supabase, staffId, data, organizationId)
       case 'send_job_message':
@@ -1776,13 +1776,18 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
 
 // ============= Direct Messages Handlers =============
 
-async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string) {
-  // Get all DM conversations for this staff member
+async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string, userId: string | null) {
+  // Build dual-identity filter (same pattern as handleGetInboxAll)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',')
+  const myIds = new Set(ids)
+
   const { data, error } = await supabase
     .from('direct_messages')
     .select('*')
     .eq('organization_id', organizationId)
-    .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+    .or(orFilter)
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -1798,8 +1803,12 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
   const conversations = new Map<string, { partner_id: string, partner_name: string, last_message: any, unread_count: number, messages: any[] }>()
 
   for (const msg of (data || [])) {
-    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
-    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+    const isSender = myIds.has(msg.sender_id)
+    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerName = isSender ? msg.recipient_name : msg.sender_name
+
+    // Skip self-conversations across identities
+    if (myIds.has(partnerId)) continue
 
     if (!conversations.has(partnerId)) {
       conversations.set(partnerId, {
@@ -1813,7 +1822,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
 
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && msg.recipient_id === staffId) {
+    if (!msg.is_read && !isSender) {
       conv.unread_count++
     }
   }
@@ -1827,7 +1836,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
   )
 }
 
-async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { recipient_id, content } = data
 
   if (!recipient_id || !content?.trim()) {
@@ -1847,7 +1856,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
 
   const senderName = staffMember?.name || 'Okänd'
 
-  // Get recipient name
+  // Get recipient name — check staff_members first, then profiles (for planners using auth user id)
   let recipientName = 'Planerare'
   const { data: recipientStaff } = await supabase
     .from('staff_members')
@@ -1891,14 +1900,40 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
   }
 
   // ── Trigger push notification to recipient ──
+  // Search device_tokens for BOTH recipient_id directly AND via staff_members.user_id mapping
   try {
     console.log(`[DM Push] message created id=${message.id}, sender=${staffId}, recipient=${recipient_id}`)
     
-    // Fetch recipient device tokens
+    // Build list of IDs to search device_tokens for
+    const recipientSearchIds = [recipient_id]
+    // Check if recipient is a planner (auth user) — find their staff_members.id
+    const { data: recipientStaffByUserId } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('user_id', recipient_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (recipientStaffByUserId && recipientStaffByUserId.id !== recipient_id) {
+      recipientSearchIds.push(recipientStaffByUserId.id)
+    }
+    // Also check reverse: if recipient_id is a staff_members.id, get their user_id
+    const { data: recipientStaffRecord } = await supabase
+      .from('staff_members')
+      .select('user_id')
+      .eq('id', recipient_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (recipientStaffRecord?.user_id && recipientStaffRecord.user_id !== recipient_id) {
+      recipientSearchIds.push(recipientStaffRecord.user_id)
+    }
+
+    const uniqueRecipientIds = [...new Set(recipientSearchIds)]
+    
+    // Fetch device tokens for all recipient identities
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
       .select('token, staff_id, platform')
-      .eq('staff_id', recipient_id)
+      .in('staff_id', uniqueRecipientIds)
       .eq('organization_id', organizationId)
     
     console.log(`[DM Push] recipient=${recipient_id} device_tokens_found=${tokens?.length ?? 0}${tokenErr ? ' tokenError=' + tokenErr.message : ''}`)
@@ -1941,7 +1976,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
   )
 }
 
-async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { sender_id } = data
 
   if (!sender_id) {
@@ -1951,16 +1986,25 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
     )
   }
 
-  const { error } = await supabase
-    .from('direct_messages')
-    .update({ is_read: true })
-    .eq('recipient_id', staffId)
-    .eq('sender_id', sender_id)
-    .eq('organization_id', organizationId)
-    .eq('is_read', false)
+  // Mark read for both identities (staffId and userId)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
 
-  if (error) {
-    console.error('Mark DM read error:', error)
+  const markPromises = ids.map(myId =>
+    supabase
+      .from('direct_messages')
+      .update({ is_read: true })
+      .eq('recipient_id', myId)
+      .eq('sender_id', sender_id)
+      .eq('organization_id', organizationId)
+      .eq('is_read', false)
+  )
+
+  const results = await Promise.all(markPromises)
+  const firstError = results.find(r => r.error)?.error
+
+  if (firstError) {
+    console.error('Mark DM read error:', firstError)
     return new Response(
       JSON.stringify({ error: 'Failed to mark messages as read' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
