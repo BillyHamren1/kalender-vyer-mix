@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +29,14 @@ const LargeProjectLayout = () => {
   const location = useLocation();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
+  const toggleBookingExpanded = useCallback((bookingId: string) => {
+    setExpandedBookingIds(prev => {
+      const next = new Set(prev);
+      if (next.has(bookingId)) next.delete(bookingId); else next.add(bookingId);
+      return next;
+    });
+  }, []);
 
   const detail = useLargeProjectDetail(id || "");
   const { project, isLoading } = detail;
@@ -183,38 +191,54 @@ const LargeProjectLayout = () => {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-border/50 shadow-sm">
+              <Card className="border-border/50 shadow-sm overflow-hidden">
                 <div className="divide-y divide-border/40">
                   {bookings.map((lpb) => {
                     const b = lpb.booking;
+                    const isExpanded = expandedBookingIds.has(lpb.booking_id);
                     return (
-                      <div key={lpb.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-sm font-medium truncate">{b?.client || lpb.display_name || "Bokning"}</span>
-                          {b?.booking_number && (
-                            <Badge variant="outline" className="text-[10px] shrink-0">#{b.booking_number}</Badge>
-                          )}
+                      <div key={lpb.id}>
+                        <div
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
+                          onClick={() => toggleBookingExpanded(lpb.booking_id)}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                            <span className="text-sm font-medium truncate">{b?.client || lpb.display_name || "Bokning"}</span>
+                            {b?.booking_number && (
+                              <Badge variant="outline" className="text-[10px] shrink-0">#{b.booking_number}</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {b?.deliveryaddress && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {b.deliveryaddress}
+                              </span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm("Ta bort bokningen från projektet?")) {
+                                  detail.removeBooking(lpb.booking_id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {b?.deliveryaddress && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {b.deliveryaddress}
-                            </span>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              if (confirm("Ta bort bokningen från projektet?")) {
-                                detail.removeBooking(lpb.booking_id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        {isExpanded && b && (
+                          <div className="px-3 pb-3">
+                            <BookingInfoExpanded
+                              booking={b}
+                              projectLeader={detail.project?.project_leader}
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
