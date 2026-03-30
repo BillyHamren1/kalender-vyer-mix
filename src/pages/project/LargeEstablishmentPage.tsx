@@ -190,13 +190,13 @@ const LargeEstablishmentPage = () => {
           </Card>
         </div>
 
-        {/* RIGHT: Collaboration panel (hidden on small screens) */}
-        <div className="hidden lg:block">
-          <CollaborationPanel
-            collapsed={collaborationCollapsed}
-            onToggle={() => setCollaborationCollapsed(prev => !prev)}
-          />
-        </div>
+        {/* RIGHT: Collaboration panel */}
+        <CollaborationPanel
+          collapsed={collaborationCollapsed}
+          onToggle={() => setCollaborationCollapsed(prev => !prev)}
+          comments={detail.comments}
+          onAddComment={detail.addComment}
+        />
       </div>
 
       <EstablishmentTaskDetailSheet
