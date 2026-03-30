@@ -18,6 +18,7 @@ import {
   type EstablishmentTask,
 } from "@/services/establishmentTaskService";
 import AddEstablishmentTaskDialog from "./AddEstablishmentTaskDialog";
+import type { ProjectBookingInfo } from "./AddEstablishmentTaskDialog";
 import { toast } from "sonner";
 
 interface EstablishmentGanttChartProps {
@@ -29,6 +30,7 @@ interface EstablishmentGanttChartProps {
   endDate?: string | null;
   client?: string;
   address?: string | null;
+  projectBookings?: ProjectBookingInfo[];
   onTaskClick?: (task: { id: string; title: string; category: string; startDate: Date; endDate: Date; completed: boolean }) => void;
 }
 
@@ -65,6 +67,7 @@ const EstablishmentGanttChart = ({
   endDate,
   client = 'Okänd kund',
   address,
+  projectBookings = [],
   onTaskClick,
 }: EstablishmentGanttChartProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -320,9 +323,19 @@ const EstablishmentGanttChart = ({
                         )}
                       </button>
                       <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                      <span className={cn("text-sm truncate flex-1", task.completed && "line-through text-muted-foreground")}>
-                        {task.title}
-                      </span>
+                      <div className={cn("flex flex-col min-w-0 flex-1", task.completed && "opacity-60")}>
+                        <span className={cn("text-sm truncate", task.completed && "line-through text-muted-foreground")}>
+                          {task.title}
+                        </span>
+                        {isProjectMode && (task as any).booking_id && (() => {
+                          const linkedBooking = projectBookings.find(b => b.booking_id === (task as any).booking_id);
+                          return linkedBooking ? (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              {linkedBooking.display_name || linkedBooking.client || linkedBooking.booking_id}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       <button
                         onClick={(e) => handleDeleteTask(task.id, e)}
                         className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-destructive/10 transition-all"
@@ -456,6 +469,7 @@ const EstablishmentGanttChart = ({
         products={bookingData?.products || []}
         defaultDate={effectiveStartDate || null}
         onTaskCreated={invalidateTasks}
+        projectBookings={projectBookings}
       />
     </>
   );

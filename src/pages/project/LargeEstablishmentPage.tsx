@@ -86,6 +86,11 @@ const LargeEstablishmentPage = () => {
             startDate={project.start_date}
             endDate={project.end_date}
             onTaskClick={handleTaskClick}
+            projectBookings={(project.bookings || []).map(b => ({
+              booking_id: b.booking_id,
+              display_name: b.display_name,
+              client: (b as any).client,
+            }))}
           />
         </TabsContent>
 
@@ -106,6 +111,11 @@ const LargeEstablishmentPage = () => {
         bookingId={null}
         largeProjectId={project.id}
         staffPool={staffPool}
+        projectBookings={(project.bookings || []).map(b => ({
+          booking_id: b.booking_id,
+          display_name: b.display_name,
+          client: (b as any).client,
+        }))}
       />
     </div>
   );
