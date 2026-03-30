@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,6 +8,7 @@ import DeestablishmentGanttChart from "@/components/project/DeestablishmentGantt
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
+import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 
@@ -57,12 +58,30 @@ const LargeEstablishmentPage = () => {
     enabled: !!project?.id,
   });
 
+  const { analytics } = useTaskAnalytics(project?.id);
+
   if (!project) return null;
 
   const handleTaskClick = (task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
   };
+
+  const handleControlPanelTaskClick = useCallback((taskId: string) => {
+    // Find the task in analytics data and open the detail sheet
+    const task = analytics.tasks.find(t => t.id === taskId);
+    if (task) {
+      setSelectedTask({
+        id: task.id,
+        title: task.title,
+        category: task.category,
+        startDate: new Date(task.start_date),
+        endDate: new Date(task.end_date),
+        completed: task.completed,
+      });
+      setSheetOpen(true);
+    }
+  }, [analytics.tasks]);
 
   const projectBookings = (project.bookings || []).map(b => ({
     booking_id: b.booking_id,
@@ -73,7 +92,11 @@ const LargeEstablishmentPage = () => {
   return (
     <div className="space-y-4">
       {/* TOP: Project Control Panel */}
-      <ProjectControlPanel />
+      <ProjectControlPanel
+        analytics={analytics}
+        staffPool={staffPool}
+        onTaskClick={handleControlPanelTaskClick}
+      />
 
       {/* CENTER + RIGHT: Main workspace */}
       <div className="flex gap-4 items-start">
