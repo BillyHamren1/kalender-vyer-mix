@@ -23,6 +23,7 @@ export interface TaskAnalytics {
   upcomingToday: EstablishmentTask[];
   upcomingTomorrow: EstablishmentTask[];
   upcomingWeek: EstablishmentTask[];
+  upcomingNext10: EstablishmentTask[];
   nextUpcoming: EstablishmentTask | null;
   criticalIssues: CriticalIssue[];
 }
