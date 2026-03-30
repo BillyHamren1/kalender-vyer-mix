@@ -9,7 +9,7 @@ import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChar
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
-import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
+
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
@@ -33,7 +33,7 @@ const LargeEstablishmentPage = () => {
   const { project } = detail;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [collaborationCollapsed, setCollaborationCollapsed] = useState(true);
+  
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
 
@@ -117,105 +117,93 @@ const LargeEstablishmentPage = () => {
       />
 
       {/* LEVEL 2: Workspace — answers "what's the full picture?" */}
-      <div className="flex gap-3 items-start">
-        <div className="flex-1 min-w-0">
-          <Card className="border-border/50 shadow-sm overflow-hidden">
-            <Tabs defaultValue="establishment">
-              <div className="border-b border-border/40 px-3 flex items-center justify-between">
-                <TabsList className="h-auto p-0 bg-transparent gap-0">
-                  <TabsTrigger value="establishment" className={tabTriggerClass}>
-                    Etablering
-                  </TabsTrigger>
-                  <TabsTrigger value="deestablishment" className={tabTriggerClass}>
-                    Avetablering
-                  </TabsTrigger>
-                </TabsList>
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <Tabs defaultValue="establishment">
+          <div className="border-b border-border/40 px-3 flex items-center justify-between">
+            <TabsList className="h-auto p-0 bg-transparent gap-0">
+              <TabsTrigger value="establishment" className={tabTriggerClass}>
+                Etablering
+              </TabsTrigger>
+              <TabsTrigger value="deestablishment" className={tabTriggerClass}>
+                Avetablering
+              </TabsTrigger>
+            </TabsList>
 
-                <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-                  <Button
-                    variant={viewMode === "gantt" ? "default" : "ghost"}
-                    size="sm"
-                    className="h-7 px-2.5 text-xs gap-1"
-                    onClick={() => setViewMode("gantt")}
-                  >
-                    <GanttChart className="h-3.5 w-3.5" />
-                    Gantt
-                  </Button>
-                  <Button
-                    variant={viewMode === "list" ? "default" : "ghost"}
-                    size="sm"
-                    className="h-7 px-2.5 text-xs gap-1"
-                    onClick={() => setViewMode("list")}
-                  >
-                    <List className="h-3.5 w-3.5" />
-                    Lista
-                  </Button>
-                  <Button
-                    variant={viewMode === "people" ? "default" : "ghost"}
-                    size="sm"
-                    className="h-7 px-2.5 text-xs gap-1"
-                    onClick={() => setViewMode("people")}
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    Personal
-                  </Button>
-                </div>
-              </div>
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+              <Button
+                variant={viewMode === "gantt" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("gantt")}
+              >
+                <GanttChart className="h-3.5 w-3.5" />
+                Gantt
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === "people" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("people")}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Personal
+              </Button>
+            </div>
+          </div>
 
-              <TabsContent value="establishment" className="mt-0 p-3 space-y-2">
-                <PlanningFilterBar
-                  tasks={analytics.tasks}
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  staffPool={staffPool}
-                  filteredCount={filteredTasks.length}
-                />
-                {viewMode === "gantt" ? (
-                  <EstablishmentGanttChart
-                    largeProjectId={project.id}
-                    startDate={project.start_date}
-                    endDate={project.end_date}
-                    onTaskClick={handleTaskClick}
-                    staffPool={staffPool}
-                    projectBookings={projectBookings}
-                    visibleTaskIds={visibleTaskIds}
-                  />
-                ) : viewMode === "list" ? (
-                  <PlanningTaskList
-                    tasks={filteredTasks}
-                    staffPool={staffPool}
-                    onTaskClick={handleTaskClick}
-                    largeProjectId={project.id}
-                  />
-                ) : (
-                  <PeopleOverview
-                    analytics={analytics}
-                    staffPool={staffPool}
-                    onTaskClick={handleControlPanelTaskClick}
-                  />
-                )}
-              </TabsContent>
+          <TabsContent value="establishment" className="mt-0 p-3 space-y-2">
+            <PlanningFilterBar
+              tasks={analytics.tasks}
+              filters={filters}
+              onFiltersChange={setFilters}
+              staffPool={staffPool}
+              filteredCount={filteredTasks.length}
+            />
+            {viewMode === "gantt" ? (
+              <EstablishmentGanttChart
+                largeProjectId={project.id}
+                startDate={project.start_date}
+                endDate={project.end_date}
+                onTaskClick={handleTaskClick}
+                staffPool={staffPool}
+                projectBookings={projectBookings}
+                visibleTaskIds={visibleTaskIds}
+              />
+            ) : viewMode === "list" ? (
+              <PlanningTaskList
+                tasks={filteredTasks}
+                staffPool={staffPool}
+                onTaskClick={handleTaskClick}
+                largeProjectId={project.id}
+              />
+            ) : (
+              <PeopleOverview
+                analytics={analytics}
+                staffPool={staffPool}
+                onTaskClick={handleControlPanelTaskClick}
+              />
+            )}
+          </TabsContent>
 
-              <TabsContent value="deestablishment" className="mt-0 p-3">
-                <DeestablishmentGanttChart
-                  eventDate={project.end_date}
-                  rigdownDate={project.end_date}
-                  bookingId={null}
-                  onTaskClick={handleTaskClick}
-                />
-              </TabsContent>
-            </Tabs>
-          </Card>
-        </div>
-
-        {/* Collaboration — collapsed by default, non-intrusive */}
-        <CollaborationPanel
-          collapsed={collaborationCollapsed}
-          onToggle={() => setCollaborationCollapsed(prev => !prev)}
-          comments={detail.comments}
-          onAddComment={detail.addComment}
-        />
-      </div>
+          <TabsContent value="deestablishment" className="mt-0 p-3">
+            <DeestablishmentGanttChart
+              eventDate={project.end_date}
+              rigdownDate={project.end_date}
+              bookingId={null}
+              onTaskClick={handleTaskClick}
+            />
+          </TabsContent>
+        </Tabs>
+      </Card>
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
