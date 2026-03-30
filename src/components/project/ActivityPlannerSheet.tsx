@@ -462,6 +462,16 @@ const ActivityPlannerSheet = ({
                 </Select>
               </div>
 
+              <div>
+                <Label className="text-xs">Aktivitetsnamn (valfritt)</Label>
+                <Input
+                  value={customTitle}
+                  onChange={e => setCustomTitle(e.target.value)}
+                  placeholder="Lämna tomt för automatiskt namn"
+                  className="h-8 text-sm"
+                />
+              </div>
+
               <p className="text-[10px] text-muted-foreground">
                 Nya aktiviteter skapas som "Ej startad" med beredskap "Saknar information"
               </p>
