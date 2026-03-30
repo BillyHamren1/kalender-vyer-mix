@@ -83,7 +83,8 @@ const EstablishmentTaskDetailSheet = ({
   const [taskNotes, setTaskNotes] = useState("");
   const [taskAssignedTo, setTaskAssignedTo] = useState<string | null>(null);
 
-  // Fetch staff members - use staffPool if provided, otherwise fetch all
+  // Fetch staff members - use staffPool if provided and non-empty, otherwise fetch all
+  const hasStaffPool = staffPool && staffPool.length > 0;
   const { data: allStaffMembers = [] } = useQuery({
     queryKey: ["staff-members"],
     queryFn: async () => {
@@ -94,10 +95,10 @@ const EstablishmentTaskDetailSheet = ({
         .order("name");
       return data || [];
     },
-    enabled: !staffPool,
+    enabled: !hasStaffPool,
   });
 
-  const effectiveStaff: StaffMember[] = staffPool || allStaffMembers;
+  const effectiveStaff: StaffMember[] = hasStaffPool ? staffPool : allStaffMembers;
 
   // Fetch the task's current assigned_to and booking_id from DB
   const { data: taskDbData } = useQuery({
