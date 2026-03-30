@@ -227,12 +227,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   }
 
   if (!hasActiveFilters) {
-    return (
-      <div className="rounded-xl border border-border/60 bg-card text-center py-12 px-4">
-        <Search className="h-8 w-8 text-muted-foreground/25 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">Sök eller filtrera för att visa projektlistan</p>
-      </div>
-    );
+    return null;
   }
 
   if (filtered.length === 0) {
