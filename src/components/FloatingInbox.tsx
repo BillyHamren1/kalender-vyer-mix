@@ -31,11 +31,11 @@ const FloatingInbox = () => {
 
   // Realtime badge update
   useEffect(() => {
-    if (!plannerId) return;
+    if (allIds.length === 0) return;
     const channel = supabase
       .channel('floating-inbox-badge')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', plannerId] });
+        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', ...allIds] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
