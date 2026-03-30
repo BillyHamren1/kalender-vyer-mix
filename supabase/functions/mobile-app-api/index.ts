@@ -1776,13 +1776,18 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
 
 // ============= Direct Messages Handlers =============
 
-async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string) {
-  // Get all DM conversations for this staff member
+async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string, userId: string | null) {
+  // Build dual-identity filter (same pattern as handleGetInboxAll)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',')
+  const myIds = new Set(ids)
+
   const { data, error } = await supabase
     .from('direct_messages')
     .select('*')
     .eq('organization_id', organizationId)
-    .or(`sender_id.eq.${staffId},recipient_id.eq.${staffId}`)
+    .or(orFilter)
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -1798,8 +1803,12 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
   const conversations = new Map<string, { partner_id: string, partner_name: string, last_message: any, unread_count: number, messages: any[] }>()
 
   for (const msg of (data || [])) {
-    const partnerId = msg.sender_id === staffId ? msg.recipient_id : msg.sender_id
-    const partnerName = msg.sender_id === staffId ? msg.recipient_name : msg.sender_name
+    const isSender = myIds.has(msg.sender_id)
+    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerName = isSender ? msg.recipient_name : msg.sender_name
+
+    // Skip self-conversations across identities
+    if (myIds.has(partnerId)) continue
 
     if (!conversations.has(partnerId)) {
       conversations.set(partnerId, {
@@ -1813,7 +1822,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
 
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && msg.recipient_id === staffId) {
+    if (!msg.is_read && !isSender) {
       conv.unread_count++
     }
   }
