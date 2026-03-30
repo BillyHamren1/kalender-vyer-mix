@@ -451,18 +451,18 @@ const EstablishmentTaskDetailSheet = ({
               <label className="text-[11px] text-muted-foreground">Start</label>
               <Input
                 type="date"
-                defaultValue={task.startDate.toISOString().split("T")[0]}
+                value={startDateDraft}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 className="h-9 text-sm"
-                readOnly
               />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Slut</label>
               <Input
                 type="date"
-                defaultValue={task.endDate.toISOString().split("T")[0]}
+                value={endDateDraft}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 className="h-9 text-sm"
-                readOnly
               />
             </div>
           </div>
