@@ -65,6 +65,11 @@ const getStaffName = (staffId: string | null, staffPool: Array<{ id: string; nam
   return staffPool.find(s => s.id === staffId)?.name || null;
 };
 
+const getStaffNames = (task: EstablishmentTask, staffPool: Array<{ id: string; name: string }>) => {
+  const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+  return ids.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean) as string[];
+};
+
 const isOverdue = (task: EstablishmentTask) => {
   if (task.status === "done" || task.status === "cancelled") return false;
   if (!task.end_date) return false;
