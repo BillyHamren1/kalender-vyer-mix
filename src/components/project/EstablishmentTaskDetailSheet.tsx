@@ -235,6 +235,25 @@ const EstablishmentTaskDetailSheet = ({
     }
   };
 
+  const handleTitleSave = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || !task) return;
+    if (trimmed !== (taskDbData?.title || task.title)) {
+      await handleFieldUpdate({ title: trimmed });
+    }
+    setEditingTitle(false);
+  };
+
+  const handleStartDateChange = async (val: string) => {
+    setStartDateDraft(val);
+    if (val) await handleFieldUpdate({ start_date: val });
+  };
+
+  const handleEndDateChange = async (val: string) => {
+    setEndDateDraft(val);
+    if (val) await handleFieldUpdate({ end_date: val });
+  };
+
   const handleBlockersBlur = async () => {
     if (task && taskDbData && taskBlockers !== (taskDbData.blockers || "")) {
       await handleFieldUpdate({ blockers: taskBlockers || null });
