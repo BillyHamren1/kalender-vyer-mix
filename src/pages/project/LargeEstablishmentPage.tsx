@@ -11,6 +11,7 @@ import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTask
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
+import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ const LargeEstablishmentPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [collaborationCollapsed, setCollaborationCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
+  const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
 
   const tabTriggerClass =
     "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
@@ -66,6 +68,16 @@ const LargeEstablishmentPage = () => {
   });
 
   const { analytics } = useTaskAnalytics(project?.id);
+
+  const filteredTasks = useMemo(() => {
+    if (!hasActiveFilters(filters)) return analytics.tasks;
+    return applyFilters(analytics.tasks, filters);
+  }, [analytics.tasks, filters]);
+
+  const visibleTaskIds = useMemo(() => {
+    if (!hasActiveFilters(filters)) return null; // null = show all
+    return new Set(filteredTasks.map(t => t.id));
+  }, [filteredTasks, filters]);
 
   const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
