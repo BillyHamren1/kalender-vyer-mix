@@ -243,28 +243,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const baseTeamColumnWidth = 73;
   const wideTeamColumnWidth = 140;
 
-  // Precompute which resources have overlapping events (need wider columns)
-  const resourceHasOverlaps = useMemo(() => {
-    const result = new Map<string, boolean>();
-    resources.forEach(resource => {
-      const resourceEvents = getEventsForDayAndResource(day, resource.id);
-      if (resourceEvents.length > 1) {
-        const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
-        const hasOverlap = Array.from(overlapMap.values()).some(info => info.totalColumns > 1);
-        result.set(resource.id, hasOverlap);
-      } else {
-        result.set(resource.id, false);
-      }
-    });
-    return result;
-  }, [resources, events, day]);
-
-  const getTeamColumnWidth = (resourceId: string) => {
-    return resourceHasOverlaps.get(resourceId) ? wideTeamColumnWidth : baseTeamColumnWidth;
-  };
-
-  const totalTeamColumnsWidth = resources.reduce((sum, r) => sum + getTeamColumnWidth(r.id), 0);
-
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
@@ -287,6 +265,28 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     
     return { top, height };
   };
+
+  // Precompute which resources have overlapping events (need wider columns)
+  const resourceHasOverlaps = useMemo(() => {
+    const result = new Map<string, boolean>();
+    resources.forEach(resource => {
+      const resourceEvents = getEventsForDayAndResource(day, resource.id);
+      if (resourceEvents.length > 1) {
+        const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
+        const hasOverlap = Array.from(overlapMap.values()).some(info => info.totalColumns > 1);
+        result.set(resource.id, hasOverlap);
+      } else {
+        result.set(resource.id, false);
+      }
+    });
+    return result;
+  }, [resources, events, day]);
+
+  const getTeamColumnWidth = (resourceId: string) => {
+    return resourceHasOverlaps.get(resourceId) ? wideTeamColumnWidth : baseTeamColumnWidth;
+  };
+
+  const totalTeamColumnsWidth = resources.reduce((sum, r) => sum + getTeamColumnWidth(r.id), 0);
 
   // Handle event click - format event data for navigation hook OR use custom handler
   const handleBookingEventClick = (event: CalendarEvent) => {
