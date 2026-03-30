@@ -263,7 +263,7 @@ const EstablishmentTaskDetailSheet = ({
     if (!open) {
       setTaskNotes("");
       setNewSubtaskTitle("");
-      setTaskAssignedTo(null);
+      setTaskAssignedToIds([]);
       setTaskDescription("");
       setTaskBlockers("");
       setTaskBlockerResponsible(null);
