@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { sv } from "date-fns/locale";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle, Pencil, Check, Clock } from "lucide-react";
 import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,6 +116,10 @@ const EstablishmentTaskDetailSheet = ({
   const [taskBlockers, setTaskBlockers] = useState("");
   const [taskBlockerResponsible, setTaskBlockerResponsible] = useState<string | null>(null);
   const [taskDecisionNeeded, setTaskDecisionNeeded] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [startDateDraft, setStartDateDraft] = useState("");
+  const [endDateDraft, setEndDateDraft] = useState("");
 
   const effectiveStaff: StaffMember[] = staffPool || [];
 
@@ -122,7 +128,7 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed")
+        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
         .eq("id", task!.id)
         .single();
       return data;
@@ -141,6 +147,9 @@ const EstablishmentTaskDetailSheet = ({
       setTaskBlockers(taskDbData.blockers || "");
       setTaskBlockerResponsible(taskDbData.blocker_responsible || null);
       setTaskDecisionNeeded(taskDbData.decision_needed || false);
+      setTitleDraft(taskDbData.title || task?.title || "");
+      setStartDateDraft(taskDbData.start_date || "");
+      setEndDateDraft(taskDbData.end_date || "");
     }
   }, [taskDbData]);
 
@@ -159,6 +168,7 @@ const EstablishmentTaskDetailSheet = ({
       setTaskBlockers("");
       setTaskBlockerResponsible(null);
       setTaskDecisionNeeded(false);
+      setEditingTitle(false);
     }
   }, [open, task?.id]);
 
@@ -223,6 +233,25 @@ const EstablishmentTaskDetailSheet = ({
     if (task && taskDbData && taskDescription !== (taskDbData.description || "")) {
       await handleFieldUpdate({ description: taskDescription || null });
     }
+  };
+
+  const handleTitleSave = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || !task) return;
+    if (trimmed !== (taskDbData?.title || task.title)) {
+      await handleFieldUpdate({ title: trimmed });
+    }
+    setEditingTitle(false);
+  };
+
+  const handleStartDateChange = async (val: string) => {
+    setStartDateDraft(val);
+    if (val) await handleFieldUpdate({ start_date: val });
+  };
+
+  const handleEndDateChange = async (val: string) => {
+    setEndDateDraft(val);
+    if (val) await handleFieldUpdate({ end_date: val });
   };
 
   const handleBlockersBlur = async () => {
@@ -292,11 +321,35 @@ const EstablishmentTaskDetailSheet = ({
               <IconComponent className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-left">{task.title}</SheetTitle>
+              {editingTitle ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
+                    className="h-8 text-base font-semibold"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleTitleSave}>
+                    <Check className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <SheetTitle className="text-left cursor-pointer group flex items-center gap-1.5" onClick={() => { setTitleDraft(taskDbData?.title || task.title); setEditingTitle(true); }}>
+                  {taskDbData?.title || task.title}
+                  <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </SheetTitle>
+              )}
               <div className="flex items-center gap-1.5 mt-1">
                 <Badge variant="outline" className="text-xs capitalize">
                   {task.category}
                 </Badge>
+                {taskDbData?.updated_at && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <Clock className="h-2.5 w-2.5" />
+                    {format(new Date(taskDbData.updated_at), "d MMM HH:mm", { locale: sv })}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -398,18 +451,18 @@ const EstablishmentTaskDetailSheet = ({
               <label className="text-[11px] text-muted-foreground">Start</label>
               <Input
                 type="date"
-                defaultValue={task.startDate.toISOString().split("T")[0]}
+                value={startDateDraft}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 className="h-9 text-sm"
-                readOnly
               />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Slut</label>
               <Input
                 type="date"
-                defaultValue={task.endDate.toISOString().split("T")[0]}
+                value={endDateDraft}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 className="h-9 text-sm"
-                readOnly
               />
             </div>
           </div>
