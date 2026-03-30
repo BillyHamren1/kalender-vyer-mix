@@ -184,12 +184,16 @@ const EstablishmentTaskDetailSheet = ({
       const checked = new Set<string>();
       subtasks.forEach(st => {
         if (st.completed && st.title) {
-          // Match subtask to product by checking if the title starts with the product name
-          const matchingProduct = linkedProducts.find(p => st.title.startsWith(p.name));
+          const matchingProduct = linkedProducts.find(p => {
+            const label = p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name;
+            return st.title === label || st.title === p.name || st.title.startsWith(p.name);
+          });
           if (matchingProduct) checked.add(matchingProduct.id);
         }
       });
       setCheckedProducts(checked);
+    } else if (subtasks.length === 0) {
+      setCheckedProducts(new Set());
     }
   }, [subtasks, linkedProducts]);
 
