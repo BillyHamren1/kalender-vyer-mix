@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle } from "lucide-react";
+import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { updateEstablishmentTask } from "@/services/establishmentTaskService";
@@ -540,6 +541,13 @@ const EstablishmentTaskDetailSheet = ({
               </Button>
             </div>
           )}
+        </div>
+
+        <Separator />
+
+        {/* Comments thread */}
+        <div className="py-3">
+          <TaskCommentThread taskId={task.id} staffPool={effectiveStaff} />
         </div>
 
         <Separator />

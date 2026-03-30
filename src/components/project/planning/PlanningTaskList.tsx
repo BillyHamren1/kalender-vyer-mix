@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import type { EstablishmentTask, TaskStatus, TaskPriority } from "@/services/establishmentTaskService";
 import { updateEstablishmentTask } from "@/services/establishmentTaskService";
-import { useQueryClient } from "@tanstack/react-query";
+import { fetchEstablishmentTaskCommentCounts } from "@/services/establishmentTaskCommentService";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 type GroupBy = "none" | "status" | "person" | "date";
@@ -76,6 +77,14 @@ const hasNoOwner = (task: EstablishmentTask) => !task.assigned_to && task.status
 const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, bookingId }: PlanningTaskListProps) => {
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const queryClient = useQueryClient();
+
+  const taskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+
+  const { data: commentCounts = {} } = useQuery({
+    queryKey: ["establishment-task-comment-counts", taskIds],
+    queryFn: () => fetchEstablishmentTaskCommentCounts(taskIds),
+    enabled: taskIds.length > 0,
+  });
 
   const queryKey = largeProjectId
     ? ["establishment-tasks", "project", largeProjectId]
@@ -277,6 +286,12 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                           <Badge variant="destructive" className="text-[9px] h-4 px-1 flex-shrink-0">
                             Försenad
                           </Badge>
+                        )}
+                        {(commentCounts[task.id] || 0) > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground flex-shrink-0">
+                            <MessageSquare className="h-3 w-3" />
+                            {commentCounts[task.id]}
+                          </span>
                         )}
                       </div>
                       {/* Warnings row */}
