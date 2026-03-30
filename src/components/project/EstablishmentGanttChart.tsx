@@ -786,7 +786,7 @@ const EstablishmentGanttChart = ({
         onTaskCreated={invalidateTasks}
         projectBookings={projectBookings}
         staffPool={staffPool}
-        existingTasks={tasks}
+        existingTasks={dbTasks || []}
       />
     </>
   );
