@@ -60,16 +60,12 @@ const LargeEstablishmentPage = () => {
 
   const { analytics } = useTaskAnalytics(project?.id);
 
-  if (!project) return null;
-
-
-  const handleTaskClick = (task: SelectedTask) => {
+  const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
-  };
+  }, []);
 
   const handleControlPanelTaskClick = useCallback((taskId: string) => {
-    // Find the task in analytics data and open the detail sheet
     const task = analytics.tasks.find(t => t.id === taskId);
     if (task) {
       setSelectedTask({
@@ -83,6 +79,8 @@ const LargeEstablishmentPage = () => {
       setSheetOpen(true);
     }
   }, [analytics.tasks]);
+
+  if (!project) return null;
 
   const projectBookings = (project.bookings || []).map(b => ({
     booking_id: b.booking_id,
