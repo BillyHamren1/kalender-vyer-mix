@@ -151,6 +151,7 @@ const ActivityPlannerSheet = ({
       setSelectedBookingId("none");
       setPriority("medium");
       setManualTitle("");
+      setCustomTitle("");
     }
   }, [open]);
 
