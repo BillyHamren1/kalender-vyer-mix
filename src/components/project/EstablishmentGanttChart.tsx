@@ -352,12 +352,38 @@ const EstablishmentGanttChart = ({
     );
   }
 
-  const dayWidth = 60;
+  const DAY_WIDTH = 80;
+  const GAP_WIDTH = 40;
   const rowHeight = 56;
   const headerHeight = 60;
   const taskLabelWidth = 360;
-  const timelineWidth = ganttData.totalDays * dayWidth;
+
+  // Compute column widths
+  const columnWidths = useMemo(() => {
+    return visibleColumns.map(col => col.type === 'day' ? DAY_WIDTH : GAP_WIDTH);
+  }, [visibleColumns]);
+  const timelineWidth = columnWidths.reduce((a, b) => a + b, 0);
   const today = startOfDay(new Date());
+
+  // Build a lookup: dayIndex -> x offset in the visible timeline
+  const dayIndexToX = useMemo(() => {
+    const map = new Map<number, { x: number; width: number }>();
+    let x = 0;
+    for (let i = 0; i < visibleColumns.length; i++) {
+      const col = visibleColumns[i];
+      const w = columnWidths[i];
+      if (col.type === 'day') {
+        map.set(col.dayIndex, { x, width: w });
+      } else {
+        // Map gap days to collapsed position
+        for (const di of col.dayIndices) {
+          map.set(di, { x, width: 0 }); // collapsed
+        }
+      }
+      x += w;
+    }
+    return map;
+  }, [visibleColumns, columnWidths]);
 
   return (
     <>
