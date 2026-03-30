@@ -289,7 +289,7 @@ const PlanningFilterBar = ({ tasks, filters, onFiltersChange, staffPool, filtere
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Alla personer</SelectItem>
-            <SelectItem value="__unassigned__">Utan ägare</SelectItem>
+            
             {staffPool.map(s => (
               <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
             ))}
