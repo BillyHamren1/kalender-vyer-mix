@@ -218,6 +218,8 @@ const issueConfig: Record<CriticalIssue["type"], { icon: typeof AlertTriangle; l
   blocked: { icon: ShieldAlert, label: "Blockerad", className: "text-destructive bg-destructive/10" },
   overdue: { icon: Clock, label: "Försenad", className: "text-amber-600 dark:text-amber-400 bg-amber-500/10" },
   decision_needed: { icon: HelpCircle, label: "Beslut krävs", className: "text-violet-600 dark:text-violet-400 bg-violet-500/10" },
+  missing_setup: { icon: AlertTriangle, label: "Saknar information", className: "text-amber-600 dark:text-amber-400 bg-amber-500/10" },
+  waiting_for_external: { icon: Clock, label: "Väntar extern", className: "text-orange-600 dark:text-orange-400 bg-orange-500/10" },
   no_owner: { icon: UserX, label: "Saknar ägare", className: "text-orange-600 dark:text-orange-400 bg-orange-500/10" },
   no_dates: { icon: CalendarDays, label: "Saknar datum", className: "text-muted-foreground bg-muted/50" },
 };
@@ -268,19 +270,39 @@ const CriticalIssuesSection = ({ issues, staffPool, onTaskClick }: {
               <button
                 key={`${issue.taskId}-${issue.type}`}
                 onClick={() => onTaskClick?.(issue.taskId)}
-                className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
+                className="w-full flex items-start gap-2.5 py-2 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
               >
-                <div className={cn("h-6 w-6 rounded-md flex items-center justify-center shrink-0", config.className)}>
+                <div className={cn("h-6 w-6 rounded-md flex items-center justify-center shrink-0 mt-0.5", config.className)}>
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm truncate group-hover:text-primary transition-colors">{issue.taskTitle}</p>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span>{config.label}</span>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
+                    <span className="font-medium">{config.label}</span>
                     {staffName && <span>• {staffName}</span>}
                   </div>
+                  {/* Blocker context for blocked tasks */}
+                  {issue.type === "blocked" && (
+                    <div className="mt-1 space-y-0.5">
+                      {issue.blockerReason && (
+                        <p className="text-[11px] text-destructive/80 leading-tight">
+                          Orsak: {issue.blockerReason}
+                        </p>
+                      )}
+                      {issue.blockerResponsible && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Ansvarig: {staffPool.find(s => s.id === issue.blockerResponsible)?.name || "—"}
+                        </p>
+                      )}
+                      {issue.blockedSince && (
+                        <p className="text-[10px] text-muted-foreground/70">
+                          Sedan: {(() => { try { return format(new Date(issue.blockedSince), "d MMM", { locale: sv }); } catch { return "—"; } })()}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
               </button>
             );
           })}
@@ -305,13 +327,15 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectContr
   return (
     <div className="space-y-4">
       {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2.5">
         <StatCard icon={ListTodo} label="Totalt" value={analytics.total} variant="info" />
-        <StatCard icon={CalendarDays} label="Med datum" value={analytics.withDates} variant="default" />
         <StatCard icon={CalendarDays} label="Utan datum" value={analytics.withoutDates} variant={analytics.withoutDates > 0 ? "warning" : "default"} />
         <StatCard icon={UserX} label="Utan ägare" value={analytics.withoutOwner} variant={analytics.withoutOwner > 0 ? "warning" : "default"} />
         <StatCard icon={Clock} label="Försenade" value={analytics.overdue} variant={analytics.overdue > 0 ? "danger" : "default"} />
         <StatCard icon={ShieldAlert} label="Blockerade" value={analytics.blocked} variant={analytics.blocked > 0 ? "danger" : "default"} />
+        <StatCard icon={HelpCircle} label="Beslut krävs" value={analytics.waitingForDecision} variant={analytics.waitingForDecision > 0 ? "warning" : "default"} />
+        <StatCard icon={AlertTriangle} label="Saknar info" value={analytics.missingSetup} variant={analytics.missingSetup > 0 ? "warning" : "default"} />
+        <StatCard icon={AlertCircle} label="Väntar extern" value={analytics.waitingForExternal} variant={analytics.waitingForExternal > 0 ? "warning" : "default"} />
         <StatCard icon={CheckCircle2} label="Klara" value={`${analytics.completed}/${analytics.total}`} subtext={`${completionPct}%`} variant="success" />
       </div>
 

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { startOfDay, addDays, isBefore, isAfter, isEqual, isToday, isTomorrow, isWithinInterval } from "date-fns";
+import { startOfDay, addDays, isBefore, isToday, isTomorrow, isWithinInterval } from "date-fns";
 import { fetchEstablishmentTasksByProject } from "@/services/establishmentTaskService";
-import type { EstablishmentTask, TaskStatus } from "@/services/establishmentTaskService";
+import type { EstablishmentTask } from "@/services/establishmentTaskService";
 
 export interface TaskAnalytics {
   tasks: EstablishmentTask[];
@@ -16,6 +16,9 @@ export interface TaskAnalytics {
   inProgress: number;
   cancelled: number;
   notStarted: number;
+  waitingForDecision: number;
+  missingSetup: number;
+  waitingForExternal: number;
   teamWorkload: TeamMemberWorkload[];
   upcomingToday: EstablishmentTask[];
   upcomingTomorrow: EstablishmentTask[];
@@ -37,10 +40,13 @@ export interface TeamMemberWorkload {
 export interface CriticalIssue {
   taskId: string;
   taskTitle: string;
-  type: "no_owner" | "no_dates" | "overdue" | "blocked" | "decision_needed";
+  type: "no_owner" | "no_dates" | "overdue" | "blocked" | "decision_needed" | "missing_setup" | "waiting_for_external";
   assignedTo: string | null;
   startDate: string;
   endDate: string;
+  blockerReason?: string | null;
+  blockerResponsible?: string | null;
+  blockedSince?: string | null;
 }
 
 const hasValidDates = (task: EstablishmentTask) => {
@@ -81,6 +87,9 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
     const withoutOwner = activeTasks.filter(t => !t.assigned_to && t.status !== 'done');
     const overdueTasks = activeTasks.filter(t => isOverdue(t, today));
+    const waitingForDecision = activeTasks.filter(t => t.decision_needed && t.status !== 'done');
+    const missingSetup = activeTasks.filter(t => t.readiness === 'missing_information' && t.status !== 'done');
+    const waitingForExternal = activeTasks.filter(t => t.readiness === 'waiting_for_external' && t.status !== 'done');
 
     // Team workload
     const staffMap = new Map<string, { tasks: EstablishmentTask[] }>();
@@ -133,13 +142,38 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       } catch { return false; }
     });
 
-    // Critical issues
+    // Critical issues — ordered by severity
     const criticalIssues: CriticalIssue[] = [
-      ...blocked.map(t => ({ taskId: t.id, taskTitle: t.title, type: "blocked" as const, assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date })),
-      ...overdueTasks.filter(t => t.status !== 'blocked').map(t => ({ taskId: t.id, taskTitle: t.title, type: "overdue" as const, assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date })),
-      ...activeTasks.filter(t => t.decision_needed && t.status !== 'done').map(t => ({ taskId: t.id, taskTitle: t.title, type: "decision_needed" as const, assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date })),
-      ...withoutOwner.filter(t => t.status !== 'blocked' && !isOverdue(t, today)).map(t => ({ taskId: t.id, taskTitle: t.title, type: "no_owner" as const, assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date })),
-      ...withoutDates.filter(t => t.status !== 'done').map(t => ({ taskId: t.id, taskTitle: t.title, type: "no_dates" as const, assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date })),
+      ...blocked.map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "blocked" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        blockerReason: t.blockers, blockerResponsible: t.blocker_responsible,
+        blockedSince: t.start_date,
+      })),
+      ...overdueTasks.filter(t => t.status !== 'blocked').map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "overdue" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
+      ...waitingForDecision.filter(t => t.status !== 'blocked' && !isOverdue(t, today)).map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "decision_needed" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
+      ...missingSetup.filter(t => t.status !== 'blocked' && !t.decision_needed && !isOverdue(t, today)).map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "missing_setup" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
+      ...waitingForExternal.filter(t => t.status !== 'blocked' && t.readiness !== 'missing_information' && !isOverdue(t, today)).map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "waiting_for_external" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
+      ...withoutOwner.filter(t => t.status !== 'blocked' && !isOverdue(t, today) && !t.decision_needed).map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "no_owner" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
+      ...withoutDates.filter(t => t.status !== 'done' && t.status !== 'blocked').map(t => ({
+        taskId: t.id, taskTitle: t.title, type: "no_dates" as const,
+        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+      })),
     ];
 
     return {
@@ -154,6 +188,9 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       inProgress: inProgress.length,
       cancelled: cancelled.length,
       notStarted: notStarted.length,
+      waitingForDecision: waitingForDecision.length,
+      missingSetup: missingSetup.length,
+      waitingForExternal: waitingForExternal.length,
       teamWorkload,
       upcomingToday,
       upcomingTomorrow,
