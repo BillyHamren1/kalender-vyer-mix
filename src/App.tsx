@@ -37,6 +37,7 @@ import LargeProjectLayout from "./pages/project/LargeProjectLayout";
 import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
 import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
 import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
+import LargeCollaborationPage from "./pages/project/LargeCollaborationPage";
 import EconomyOverview from "./pages/EconomyOverview";
 import EconomyTimeReports from "./pages/EconomyTimeReports";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
@@ -219,6 +220,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<LargeProjectViewPage />} />
               <Route path="establishment" element={<LargeEstablishmentPage />} />
+              <Route path="collaboration" element={<LargeCollaborationPage />} />
               <Route path="economy" element={<LargeProjectEconomyPage />} />
             </Route>
             <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />

@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, Plus, Search, Calendar, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { sv } from "date-fns/locale";
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
   { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
+  { key: "collaboration", label: "Samarbete", icon: MessageSquare, path: "/collaboration" },
   { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
 ];
 
@@ -90,6 +91,8 @@ const LargeProjectLayout = () => {
   const currentPath = location.pathname;
   const activeKey = currentPath.endsWith("/establishment")
     ? "establishment"
+    : currentPath.endsWith("/collaboration")
+    ? "collaboration"
     : currentPath.endsWith("/economy")
     ? "economy"
     : "overview";
