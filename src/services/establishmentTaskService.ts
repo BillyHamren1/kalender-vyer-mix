@@ -86,6 +86,7 @@ export const createEstablishmentTask = async (task: {
       sort_order: task.sort_order ?? 0,
       source: task.source ?? 'manual',
       source_product_id: task.source_product_id ?? null,
+      source_product_ids: task.source_product_ids ?? null,
       notes: task.notes ?? null,
       assigned_to: task.assigned_to ?? null,
       status: task.status ?? 'not_started',
