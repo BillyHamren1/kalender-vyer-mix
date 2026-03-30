@@ -408,7 +408,8 @@ const EstablishmentTaskDetailSheet = ({
   const handleProductCheck = async (productId: string, productName: string, quantity: number, checked: boolean) => {
     if (!effectiveBookingId || !task) return;
     
-    const label = quantity > 1 ? `${productName} x${quantity}` : productName;
+    const cleaned = cleanName(productName);
+    const label = quantity > 1 ? `${cleaned} x${quantity}` : cleaned;
     
     // Find existing subtask for this product
     const existingSubtask = subtasks.find(st => st.title === label || st.title === productName);
