@@ -150,12 +150,69 @@ export const useBookingDates = (
     }
   };
 
+  // Edit a date (change date and/or times)
+  const editDate = async (
+    oldDate: string,
+    newDate: string,
+    startTime: string,
+    endTime: string,
+    dateType: 'rig' | 'event' | 'rigDown'
+  ) => {
+    if (!booking || !id) return;
+
+    try {
+      setIsSaving(true);
+
+      // Update the date in the local array
+      const existingDates = dateType === 'rig' ? rigDates :
+                           dateType === 'event' ? eventDates : rigDownDates;
+      const updatedDates = existingDates.map(d => d === oldDate ? newDate : d);
+
+      switch (dateType) {
+        case 'rig':
+          setRigDates(updatedDates);
+          break;
+        case 'event':
+          setEventDates(updatedDates);
+          break;
+        case 'rigDown':
+          setRigDownDates(updatedDates);
+          break;
+      }
+
+      // Update the booking in DB with date + times
+      await updateBookingDateWithTimes(id, dateType, newDate, startTime, endTime);
+
+      // Update local booking state
+      const timeFieldMap = {
+        rig: { date: 'rigDayDate', start: 'rigStartTime', end: 'rigEndTime' },
+        event: { date: 'eventDate', start: 'eventStartTime', end: 'eventEndTime' },
+        rigDown: { date: 'rigDownDate', start: 'rigDownStartTime', end: 'rigDownEndTime' },
+      };
+      const fields = timeFieldMap[dateType];
+      setBooking({
+        ...booking,
+        [fields.date]: newDate,
+        [fields.start]: startTime ? `${newDate}T${startTime}:00Z` : null,
+        [fields.end]: endTime ? `${newDate}T${endTime}:00Z` : null,
+      });
+
+      console.log(`Edited ${dateType} date: ${oldDate} → ${newDate}, time: ${startTime}–${endTime}`);
+    } catch (err) {
+      console.error(`Error editing ${dateType} date:`, err);
+      toast.error('Kunde inte uppdatera datumet');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return {
     isSaving,
     isSyncingToCalendar: false,
     handleDateChange,
     syncWithCalendar: async () => { /* no-op: backend handles calendar sync */ },
     addDate,
-    removeDate
+    removeDate,
+    editDate
   };
 };
