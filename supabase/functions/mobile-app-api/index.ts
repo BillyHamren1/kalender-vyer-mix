@@ -148,11 +148,11 @@ Deno.serve(async (req) => {
       case 'get_contacts':
         return await handleGetContacts(supabase, staffId, organizationId)
       case 'get_direct_messages':
-        return await handleGetDirectMessages(supabase, staffId, organizationId)
+        return await handleGetDirectMessages(supabase, staffId, organizationId, staffOrg?.user_id || null)
       case 'send_direct_message':
-        return await handleSendDirectMessage(supabase, staffId, data, organizationId)
+        return await handleSendDirectMessage(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'mark_dm_read':
-        return await handleMarkDMRead(supabase, staffId, data, organizationId)
+        return await handleMarkDMRead(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'get_job_messages':
         return await handleGetJobMessages(supabase, staffId, data, organizationId)
       case 'send_job_message':
