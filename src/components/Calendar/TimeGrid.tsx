@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
@@ -240,7 +240,30 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Fixed column widths
   const timeColumnWidth = 50;
   const availableColumnWidth = 70; // Staff column
-  const teamColumnWidth = 110;
+  const baseTeamColumnWidth = 73;
+  const wideTeamColumnWidth = 140;
+
+  // Precompute which resources have overlapping events (need wider columns)
+  const resourceHasOverlaps = useMemo(() => {
+    const result = new Map<string, boolean>();
+    resources.forEach(resource => {
+      const resourceEvents = getEventsForDayAndResource(day, resource.id);
+      if (resourceEvents.length > 1) {
+        const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
+        const hasOverlap = Array.from(overlapMap.values()).some(info => info.totalColumns > 1);
+        result.set(resource.id, hasOverlap);
+      } else {
+        result.set(resource.id, false);
+      }
+    });
+    return result;
+  }, [resources, events, day]);
+
+  const getTeamColumnWidth = (resourceId: string) => {
+    return resourceHasOverlaps.get(resourceId) ? wideTeamColumnWidth : baseTeamColumnWidth;
+  };
+
+  const totalTeamColumnsWidth = resources.reduce((sum, r) => sum + getTeamColumnWidth(r.id), 0);
 
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
@@ -311,10 +334,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Calculate grid template columns - includes available staff column
   const getGridTemplateColumns = () => {
     if (fullWidth) {
-      // In full width mode, use flexible columns with available staff column
       return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, 1fr)`;
     }
-    return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
+    const colWidths = resources.map(r => `${getTeamColumnWidth(r.id)}px`).join(' ');
+    return `${timeColumnWidth}px ${availableColumnWidth}px ${colWidths}`;
   };
 
   // Calculate total width
@@ -322,7 +345,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (fullWidth) {
       return '100%';
     }
-    return `${timeColumnWidth + availableColumnWidth + (resources.length * teamColumnWidth)}px`;
+    return `${timeColumnWidth + availableColumnWidth + totalTeamColumnsWidth}px`;
   };
 
   // Get unassigned available staff (not assigned to any team today)
@@ -356,8 +379,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         <div className="day-header-teams" style={{ 
           gridColumn: '2 / -1',
-          width: fullWidth ? 'auto' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`,
-          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`
+          width: fullWidth ? 'auto' : `${availableColumnWidth + totalTeamColumnsWidth}px`,
+          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + totalTeamColumnsWidth}px`
         }}>
           <div className="day-header-content">
             {/* Left nav arrow - only if carouselNav provided */}
@@ -426,8 +449,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 3,
                 gridRow: 2,
-                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
               onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e as unknown as React.MouseEvent<HTMLButtonElement>)}
               title={`Assign staff to ${resource.title}`}
@@ -500,8 +523,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 3,
                 gridRow: 3,
-                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
             >
               <div className="staff-header-assignment-area">
@@ -585,8 +608,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
                   gridColumn: index + 3,
-                  width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                  minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
+                  width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                  minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
                   position: 'relative'
                 }}
               >
@@ -609,7 +632,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                         event={event}
                         position={position}
                         overlapLayout={overlapMap.get(event.id)}
-                        teamColumnWidth={teamColumnWidth}
+                        teamColumnWidth={getTeamColumnWidth(resource.id)}
                         onEventClick={handleBookingEventClick}
                         onEventResize={onEventResize}
                         readOnly={readOnly}
