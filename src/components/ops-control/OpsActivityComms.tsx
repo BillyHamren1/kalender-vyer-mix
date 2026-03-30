@@ -46,7 +46,7 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
   const [showNewMsg, setShowNewMsg] = useState(false);
   const [staffSearch, setStaffSearch] = useState('');
   const queryClient = useQueryClient();
-  const { allIds } = useMyIdentity();
+  const { allIds, displayName } = useMyIdentity();
   const feedRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
