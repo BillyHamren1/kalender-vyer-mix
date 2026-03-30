@@ -477,7 +477,100 @@ const EstablishmentTaskDetailSheet = ({
           ) : null;
         })()}
 
-        {/* Assignment */}
+        {/* Product checklist from source_product_ids */}
+        {productHierarchy.length > 0 && (
+          <>
+            <div className="py-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label className="text-xs text-muted-foreground">
+                  Produkter ({linkedProducts.filter(p => checkedProducts.has(p.id)).length}/{linkedProducts.length})
+                </Label>
+              </div>
+
+              {linkedProducts.length > 0 && (
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all rounded-full"
+                    style={{ width: `${(linkedProducts.filter(p => checkedProducts.has(p.id)).length / linkedProducts.length) * 100}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-0.5">
+                {productHierarchy.map((parent) => (
+                  <div key={parent.id}>
+                    {/* Parent product */}
+                    <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 group">
+                      <Checkbox
+                        checked={checkedProducts.has(parent.id)}
+                        onCheckedChange={(checked) => {
+                          setCheckedProducts(prev => {
+                            const next = new Set(prev);
+                            if (checked) next.add(parent.id);
+                            else next.delete(parent.id);
+                            return next;
+                          });
+                          // Persist via subtask
+                          handleProductCheck(parent.id, parent.name, parent.quantity, !!checked);
+                        }}
+                      />
+                      <span className={cn(
+                        "text-sm flex-1 min-w-0",
+                        checkedProducts.has(parent.id) && "line-through text-muted-foreground"
+                      )}>
+                        {parent.name}
+                      </span>
+                      {parent.quantity > 1 && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+                          x{parent.quantity}
+                        </Badge>
+                      )}
+                      {parent.sku && (
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">{parent.sku}</span>
+                      )}
+                    </div>
+
+                    {/* Accessories (children) */}
+                    {parent.accessories.length > 0 && (
+                      <div className="ml-6 border-l border-border/40 pl-2 space-y-0.5">
+                        {parent.accessories.map((acc) => (
+                          <div key={acc.id} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 group">
+                            <Checkbox
+                              checked={checkedProducts.has(acc.id)}
+                              onCheckedChange={(checked) => {
+                                setCheckedProducts(prev => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(acc.id);
+                                  else next.delete(acc.id);
+                                  return next;
+                                });
+                                handleProductCheck(acc.id, acc.name, acc.quantity, !!checked);
+                              }}
+                            />
+                            <span className={cn(
+                              "text-xs flex-1 min-w-0 text-muted-foreground",
+                              checkedProducts.has(acc.id) && "line-through"
+                            )}>
+                              • {acc.name}
+                            </span>
+                            {acc.quantity > 1 && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 flex-shrink-0">
+                                x{acc.quantity}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Separator />
+          </>
+        )}
+
         <div className="py-3 space-y-2">
           <Label className="text-xs text-muted-foreground">Tilldelad personal</Label>
           <Select value={taskAssignedTo || "none"} onValueChange={handleTaskAssignmentChange}>
