@@ -4,18 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GanttChart, List } from "lucide-react";
+import { GanttChart, List, Users } from "lucide-react";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
+import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 
-type ViewMode = "gantt" | "list";
+type ViewMode = "gantt" | "list" | "people";
 
 interface SelectedTask {
   id: string;
@@ -139,6 +140,15 @@ const LargeEstablishmentPage = () => {
                     <List className="h-3.5 w-3.5" />
                     Lista
                   </Button>
+                  <Button
+                    variant={viewMode === "people" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1"
+                    onClick={() => setViewMode("people")}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Personal
+                  </Button>
                 </div>
               </div>
 
@@ -152,12 +162,18 @@ const LargeEstablishmentPage = () => {
                     staffPool={staffPool}
                     projectBookings={projectBookings}
                   />
-                ) : (
+                ) : viewMode === "list" ? (
                   <PlanningTaskList
                     tasks={analytics.tasks}
                     staffPool={staffPool}
                     onTaskClick={handleTaskClick}
                     largeProjectId={project.id}
+                  />
+                ) : (
+                  <PeopleOverview
+                    analytics={analytics}
+                    staffPool={staffPool}
+                    onTaskClick={handleControlPanelTaskClick}
                   />
                 )}
               </TabsContent>
