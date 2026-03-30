@@ -288,7 +288,8 @@ const EstablishmentTaskDetailSheet = ({
     try {
       await updateEstablishmentTask(task.id, updates);
       invalidateAll();
-    } catch {
+    } catch (err) {
+      console.error("handleFieldUpdate failed:", err, "updates:", updates, "taskId:", task.id);
       toast.error("Kunde inte uppdatera");
     }
   };
