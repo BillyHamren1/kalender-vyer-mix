@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, ArrowLeft, Search } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDMInboxGrouped, GroupedConversation } from '@/services/directMessageService';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,10 +16,9 @@ const FloatingInbox = () => {
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [showNewMsg, setShowNewMsg] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { allIds } = useMyIdentity();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const plannerId = user?.id || '';
 
   const { data: conversations = [] } = useQuery({
     queryKey: ['dm-inbox-grouped', plannerId],
