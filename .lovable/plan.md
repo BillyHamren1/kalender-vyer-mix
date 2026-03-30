@@ -1,45 +1,44 @@
 
 
-# Fix: Produktchecklista i aktivitetsdetaljer — hierarki och namnrensning
-
 ## Problem
 
-1. **Saknade tillbehör**: Queryn i `EstablishmentTaskDetailSheet` hämtar bara produkter vars ID finns i `source_product_ids`. Men barn-produkter (tillbehör) som inte explicit valdes (t.ex. om bara föräldern valdes) hämtas aldrig.
+Kontrollpanelen är passiv — den listar problem men erbjuder inga snabbåtgärder. En projektledare som ser "8 saknar info" och "7 utan ägare" tvingas klicka in på varje uppgift en i taget och fixa manuellt. Det är inte en kontrollpanel — det är en lista.
 
-2. **Felaktig hierarki**: Logiken i `productHierarchy` grupperar bara produkter som redan finns i det hämtade setet. Om en förälders tillbehör inte hämtades kan de aldrig visas.
+## Vad som saknas
 
-3. **Orensade namn**: Produktnamn visas med rå prefix (`└`, `↳`, `-- K`, `⦿`) istället för att rensas med `cleanName()`.
+1. **Inline-åtgärder per issue-typ** — t.ex. "Tilldela ägare" dropdown direkt i raden för "Utan ägare"-uppgifter, "Sätt datum" för "Utan datum"-uppgifter
+2. **Bulk-åtgärder per grupp** — "Tilldela alla till..." knapp för hela "Utan ägare"-gruppen
+3. **Kontextuell vägledning** — kort text per problemtyp som förklarar *varför* det är ett problem och *vad* som bör göras
+4. **Tom panel är meningslös** — "Inga aktiviteter idag"-kortet tar plats utan nytta. Bör dölja sig eller visa nästa kommande aktivitet istället
 
-## Lösning
+## Plan
 
-### Fil: `EstablishmentTaskDetailSheet.tsx`
+### 1. Gör issue-rader actionable
+Varje rad i "Kräver åtgärd" får en kontextuell snabbknapp beroende på typ:
+- **Utan ägare** → inline staff-dropdown (välj person direkt)
+- **Utan datum** → inline datepicker (sätt start/slutdatum direkt)
+- **Blockerad** → knapp "Visa blockering" som öppnar detalj
+- **Saknar info / Väntar extern / Beslut krävs** → behåll klick-till-detalj men lägg till en liten statustext
 
-**1. Utöka produkthämtningen** — Efter att ha hämtat produkterna i `source_product_ids`, gör en andra query för att hämta **alla barn** vars `parent_product_id` pekar på någon av de hämtade produkterna. Detta säkerställer att alla tillbehör visas oavsett om de explicit valdes.
+### 2. Lägg till bulk-åtgärder per grupp
+Ovanför varje issue-grupp (t.ex. "UTAN ÄGARE (7)") lägg till en "Tilldela alla →" knapp som öppnar en staff-picker och tilldelar vald person till alla uppgifter i gruppen.
 
-```
-Query 1: SELECT * FROM booking_products WHERE id IN (source_product_ids)
-Query 2: SELECT * FROM booking_products WHERE parent_product_id IN (hämtade parent-IDs)
-Merge: Kombinera och deduplicera
-```
+### 3. Fixa tomma "Idag"-panelen
+- Om inga aktiviteter idag/imorgon: visa nästa kommande aktivitet med "Nästa: [titel] om X dagar" istället för ett tomt kort
+- Om inga aktiviteter alls: dölj kortet helt (visa bara issues-kortet i full bredd)
 
-**2. Stärk hierarki-logiken** — Uppdatera `productHierarchy` useMemo:
-- Identifiera föräldrar: produkter utan `parent_product_id`, eller vars `parent_product_id` inte finns i setet
-- Identifiera barn: produkter med `parent_product_id` som pekar på en produkt i setet
-- Filtrera bort `is_package_component: true` (interna paketkomponenter ska döljas per befintlig konvention)
-- Tillbehör (`is_package_component: false` med `parent_product_id`) visas under sin förälder
+### 4. Layout-anpassning
+- När bara ett kort har innehåll → låt det ta full bredd (ändra grid till dynamiskt)
+- Ge issues-kortet mer plats om det finns många problem
 
-**3. Rensa produktnamn** — Lägg till `cleanName()`-funktionen (samma regex som i `ProjectProductsList.tsx`) och applicera på alla produktnamn i renderingen.
+## Tekniska detaljer
 
-**4. Korrekt progress-beräkning** — Räkna bara synliga produkter (exkludera dolda paketkomponenter) i progress-baren.
+**Filer som ändras:**
+- `src/components/project/planning/ProjectControlPanel.tsx` — huvudsakliga ändringar: inline dropdowns, bulk-knappar, dynamisk layout
+- `src/services/establishmentTaskService.ts` — ny funktion `bulkUpdateEstablishmentTasks` för att uppdatera flera uppgifter samtidigt (assigned_to, datum)
+- `src/hooks/useTaskAnalytics.ts` — utöka `upcomingWeek` med "nästa kommande" fallback
 
-### Sammanfattning av ändringar
+**Inline staff-dropdown:** Återanvänder befintlig `staffPool` prop. Vid val anropas `updateEstablishmentTask` direkt + invalidering av react-query cache.
 
-| Vad | Var |
-|-----|-----|
-| Fetch children-produkter | `linkedProducts` query, rad ~143 |
-| Stärk hierarki-gruppering | `productHierarchy` useMemo, rad ~157 |
-| cleanName-funktion + applicering | Ny funktion + renderingsblock, rad ~538-598 |
-| Dölj is_package_component | Filtrera i hierarki-logik |
-
-Inga andra filer behöver ändras.
+**Bulk-uppdatering:** Ny service-funktion som tar en lista av task-IDs och ett updates-objekt, kör en enda Supabase `.in('id', ids).update(...)` för effektivitet.
 
