@@ -50,7 +50,7 @@ export const useRealTimeCalendarEvents = () => {
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
-              status,
+              status, large_project_id,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
@@ -59,6 +59,27 @@ export const useRealTimeCalendarEvents = () => {
             console.error('Error batch fetching bookings:', error);
           } else {
             bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
+          }
+        }
+        
+        // Batch-fetch large project names
+        const largeProjectIds = [...new Set(
+          [...bookingMap.values()]
+            .filter(b => b.large_project_id)
+            .map(b => b.large_project_id)
+        )];
+        
+        let largeProjectMap = new Map<string, string>();
+        if (largeProjectIds.length > 0) {
+          const { data: projects, error: lpError } = await supabase
+            .from('large_projects')
+            .select('id, name')
+            .in('id', largeProjectIds);
+          
+          if (lpError) {
+            console.error('Error fetching large projects:', lpError);
+          } else {
+            largeProjectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
           }
         }
         
