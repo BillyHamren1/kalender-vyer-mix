@@ -345,12 +345,6 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectContr
             </CardContent>
           </Card>
 
-          {/* Column 3: Ownership */}
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-4">
-              <OwnershipOverview analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} />
-            </CardContent>
-          </Card>
         </div>
       )}
     </div>
