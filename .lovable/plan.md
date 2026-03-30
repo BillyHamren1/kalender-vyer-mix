@@ -1,43 +1,49 @@
 
 
-## Fix: Visa personalval alltid i "Lägg till aktivitet"
+## Plan: Ny teamfördelningslogik (round-robin med sekventiell placering)
 
-### Problem
-Personalvalet visas bara om `staffPool.length > 0`. Om inga anställda är tilldelade till projektets bokningar (via `booking_staff_assignments`) blir listan tom och hela dropdown:en döljs.
+### Nuvarande beteende
+`getNextTeamAssignment` i `supabase/functions/import-bookings/index.ts` väljer team baserat på minst antal överlappningar. Ingen round-robin-ordning.
 
-### Lösning
+### Nytt beteende
+1. **Round-robin**: Jobb fördelas i ordning Team 1 → Team 2 → ... → Team 5, sedan börjar om.
+2. **Sekventiell starttid**: När ett team redan har ett jobb, placeras nästa jobb på samma team med starttid EFTER det befintliga jobbets sluttid (om jobbet inte har bestämd tid).
+3. **Bestämd starttid**: Om ett jobb har en explicit starttid (`isExplicit = true`), välj det team som har en ledig lucka vid den tiden. Om inget team har öppning, placera på Team 1 (eller nästa i round-robin) och låt dem överlappa.
 
-**1. `src/pages/project/LargeEstablishmentPage.tsx`**
-Ändra staffPool-queryn: om `booking_staff_assignments` ger 0 resultat (eller om det inte finns bokningar), hämta **alla** aktiva `staff_members` som fallback istället för att returnera tom lista.
+### Ändringar
 
+**Fil: `supabase/functions/import-bookings/index.ts`**
+
+Ersätt `getNextTeamAssignment`-funktionen med ny logik:
+
+- Hämta alla befintliga events för datumet på team-1 till team-5
+- Bygg en map per team med slutdatum för sista jobbet
+- **Om jobbet har EXPLICIT starttid**: gå igenom team 1–5 i ordning, hitta första team utan överlappning vid den tiden. Om inget hittas → team-1 (överlapp tillåtet).
+- **Om jobbet har DEFAULT-tider (ingen bestämd starttid)**: Round-robin baserat på antal jobb per team. Teamet med minst antal jobb (lägst nummer vid lika) väljs. Jobbets starttid sätts till efter sista jobbets sluttid på det teamet.
+
+Uppdatera `desiredEvents`-strukturen att inkludera `isExplicit`-flagga (start/end) så att `getNextTeamAssignment` vet om tiden är bestämd.
+
+Funktionssignaturen utökas med en `isExplicitStart: boolean`-parameter.
+
+Där anropet sker (rad ~868) skickas `isExplicit`-flaggan med från `buildDateTimeFromPartsEx`.
+
+**Fil: `src/utils/teamAvailability.ts`**
+
+Uppdatera `findAvailableTeam` med samma logik för klientsidan (manuellt tillagda events).
+
+### Tekniska detaljer
+
+```text
+Jobb utan bestämd tid:
+  Round-robin: Team 1 → 2 → 3 → 4 → 5 → 1 → ...
+  Team 1: [Job A 08-12] [Job F 12-16]  ← Job F startar efter Job A
+  Team 2: [Job B 08-12]
+  Team 3: [Job C 08-12]
+  ...
+
+Jobb med bestämd tid (t.ex. 10:00-14:00):
+  Sök team utan krock kl 10-14
+  → Team 2 ledig? → Placera där
+  → Alla upptagna? → Team 1 (överlapp ok)
 ```
-queryFn: async () => {
-  let staffIds: string[] = [];
-  
-  if (bookingIds.length > 0) {
-    const { data } = await supabase
-      .from('booking_staff_assignments')
-      .select('staff_id')
-      .in('booking_id', bookingIds);
-    staffIds = [...new Set((data || []).map(d => d.staff_id))];
-  }
-
-  // Fallback: hämta alla aktiva personal om ingen är tilldelad
-  const query = supabase.from('staff_members').select('id, name').eq('is_active', true).order('name');
-  if (staffIds.length > 0) {
-    query.in('id', staffIds);
-  }
-  const { data: staffData } = await query;
-  return staffData || [];
-}
-```
-
-Ändra också `enabled` till bara `!!project?.id` (ta bort `bookingIds.length > 0`-kravet).
-
-**2. `src/components/project/AddEstablishmentTaskDialog.tsx`**
-Ta bort villkoret `staffPool.length > 0` runt personalvalet (rad 234). Dropdown:en ska alltid visas — om listan är tom visas bara "Ingen tilldelad".
-
-### Filer att ändra
-- `src/pages/project/LargeEstablishmentPage.tsx` — fallback-hämtning av all personal
-- `src/components/project/AddEstablishmentTaskDialog.tsx` — visa dropdown oavsett listans storlek
 
