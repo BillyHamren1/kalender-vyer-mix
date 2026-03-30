@@ -18,7 +18,7 @@ import { sv } from "date-fns/locale";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
-  { key: "establishment", label: "Etableringsschema", icon: HardHat, path: "/establishment" },
+  { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
   { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
 ];
 
