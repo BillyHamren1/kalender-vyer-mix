@@ -26,10 +26,9 @@ interface FeedEvent {
 
 const CommunicationPage = () => {
   const { messages, isLoadingMessages, activity, isLoadingActivity } = useStaffDashboard();
-  const { user } = useAuth();
+  const { allIds, displayName } = useMyIdentity();
   const queryClient = useQueryClient();
-  const plannerId = user?.id || '';
-  const adminName = user?.email?.split('@')[0] || 'Admin';
+  const adminName = displayName;
 
   const [tab, setTab] = useState<'feed' | 'conversations' | 'chat'>('conversations');
   const [dmTarget, setDmTarget] = useState<{ staffId: string; staffName: string } | null>(null);
