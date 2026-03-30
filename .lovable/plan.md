@@ -1,63 +1,56 @@
 
 
-## Root Cause Analysis
+## Problem
 
-There are **two distinct bugs** causing specific booking times to show as default (08:00) in the calendar:
+When two jobs land on the same team, same day, same time, they get identical absolute positions (`top` and `height` in pixels). One event renders directly on top of the other — completely hidden. There is no collision detection or layout adjustment.
 
-### Bug 1: Calendar reconciliation is skipped for "unchanged" bookings
+## Current Rendering Logic
 
-The deterministic calendar reconciliation code (line ~2647) only runs if the code reaches that point. But there are **three `continue` statements** that skip it:
+In `TimeGrid.tsx`, `getEventPosition()` returns `{ top, height }` based purely on the event's start/end time. Events are then rendered with `position: absolute` at that exact pixel offset. No width or left-offset adjustment is made for overlapping events.
 
-1. **Line 1837**: `hasBookingChanged` returns false → `continue` (skips calendar reconcile entirely)
-2. **Line 1855**: Only warehouse recovery needed → `continue` (skips calendar reconcile)
-3. **Line 1859+**: Only product recovery needed → `continue` (skips calendar reconcile)
+## What Should Happen
 
-This means: if a booking was imported **before** the calendar reconciliation code was added (or was imported with default times), and the booking data hasn't changed since, the reconciliation **never runs** and calendar events stay on default times forever.
+Overlapping events on the same team column should be displayed **side-by-side**, each taking a fraction of the column width. This is the standard calendar pattern (Google Calendar, Outlook, FullCalendar all do this).
 
-### Bug 2: process-sync-jobs gets 0 bookings from external API
-
-The logs show every single-booking refresh via `process-sync-jobs` results in "Fetched 0 bookings from external API" after 3 retry attempts. The webhook path is essentially a no-op — bookings are never actually processed through it.
-
----
+```text
+Before (broken):          After (fixed):
+┌──────────┐              ┌─────┬─────┐
+│ Event A  │              │  A  │  B  │
+│ (hides B)│              │     │     │
+└──────────┘              └─────┴─────┘
+```
 
 ## Plan
 
-### Step 1: Always reconcile calendar events for confirmed bookings
+### Step 1: Add overlap detection utility
 
-Move the calendar reconciliation out of the "only runs if booking changed" gate. For every confirmed booking that passes through `import-bookings` — whether changed or unchanged — run the deterministic reconciliation. This is safe because the reconciliation is idempotent (it compares desired vs actual state).
+Create a function `computeOverlapLayout(events)` that:
+- Groups events by time overlap (if event A's time range intersects event B's, they're in the same group)
+- For each overlap group, assigns a `column` index (0, 1, 2...) and `totalColumns` count
+- Returns a map of `eventId → { column, totalColumns }`
 
-Specifically:
-- At each `continue` statement (lines 1837, 1855, ~product-recovery), add the calendar reconciliation block **before** continuing
-- Or better: extract the reconciliation into a helper function and call it at all three early-exit paths plus the main path
+Algorithm: sort by start time, then greedily assign columns using a sweep-line approach.
 
-### Step 2: Fix the external API single-booking lookup
+### Step 2: Apply layout in TimeGrid.tsx
 
-The `process-sync-jobs` worker sends `organization_id` from the webhook payload (org `c00d649b-...`) but the external API at `wpzhsmrbjmxglowyoyky.supabase.co` may not recognize that org or booking ID. Need to investigate and fix:
-- Add logging of the actual external API URL being called for single-booking refreshes
-- Ensure the correct `organization_id` is used when querying the external API
-- If the external API doesn't support single-booking lookup by that org's IDs, fall back to fetching from the local `bookings` table and reconciling calendar events from stored data
+In the rendering section (lines 528-543), use the overlap layout to set:
+- `width`: `100% / totalColumns` (e.g., 50% if 2 events overlap)
+- `left`: `column * (100% / totalColumns)`
 
-### Step 3: Add a local-data reconciliation fallback
+Non-overlapping events continue to use `width: 100%`.
 
-When the external API returns 0 bookings for a single-booking refresh, the worker should fall back to reading the booking from the local `bookings` table and still run calendar reconciliation. The booking data is already stored locally — the times are there.
+### Step 3: Adjust EventWrapper styling
+
+Update the `EventWrapper` component to accept and apply `left` and `width` style props from the overlap calculation, replacing the current fixed full-width positioning.
 
 ### Technical Details
 
-**File: `supabase/functions/import-bookings/index.ts`**
+**File: `src/components/Calendar/TimeGrid.tsx`**
 
-1. Extract calendar reconciliation (lines ~2647–2830) into a standalone async function:
-   ```
-   async function reconcileCalendarEvents(supabase, bookingData, organizationId, results)
-   ```
+1. Add `computeOverlapLayout` function (~30 lines) that takes an array of events and their positions, returns a Map of layout info per event ID
+2. Call it per resource in the render loop (line 502), after `getEventsForDayAndResource`
+3. Pass `overlapLayout` data to each `EventWrapper`
+4. In `EventWrapper`, apply `left` and `width` styles from the layout data
 
-2. Call this function at every exit path for CONFIRMED bookings:
-   - Before `continue` at line 1837 (unchanged skip)
-   - Before `continue` at line 1855 (warehouse-only recovery)
-   - Before `continue` at product-only recovery
-   - At the existing location (main path)
-
-3. Add local-data fallback when external API returns 0 for single-booking refresh:
-   - Query the local `bookings` table for the booking_id
-   - If found and CONFIRMED, run `reconcileCalendarEvents` using local data
-   - This ensures webhook-triggered syncs always produce correct calendar events
+**No other files need changes** — this is purely a rendering concern within TimeGrid.
 
