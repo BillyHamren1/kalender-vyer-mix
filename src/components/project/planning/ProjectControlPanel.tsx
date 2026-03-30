@@ -307,13 +307,15 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectContr
   return (
     <div className="space-y-4">
       {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2.5">
         <StatCard icon={ListTodo} label="Totalt" value={analytics.total} variant="info" />
-        <StatCard icon={CalendarDays} label="Med datum" value={analytics.withDates} variant="default" />
         <StatCard icon={CalendarDays} label="Utan datum" value={analytics.withoutDates} variant={analytics.withoutDates > 0 ? "warning" : "default"} />
         <StatCard icon={UserX} label="Utan ägare" value={analytics.withoutOwner} variant={analytics.withoutOwner > 0 ? "warning" : "default"} />
         <StatCard icon={Clock} label="Försenade" value={analytics.overdue} variant={analytics.overdue > 0 ? "danger" : "default"} />
         <StatCard icon={ShieldAlert} label="Blockerade" value={analytics.blocked} variant={analytics.blocked > 0 ? "danger" : "default"} />
+        <StatCard icon={HelpCircle} label="Beslut krävs" value={analytics.waitingForDecision} variant={analytics.waitingForDecision > 0 ? "warning" : "default"} />
+        <StatCard icon={AlertTriangle} label="Saknar info" value={analytics.missingSetup} variant={analytics.missingSetup > 0 ? "warning" : "default"} />
+        <StatCard icon={AlertCircle} label="Väntar extern" value={analytics.waitingForExternal} variant={analytics.waitingForExternal > 0 ? "warning" : "default"} />
         <StatCard icon={CheckCircle2} label="Klara" value={`${analytics.completed}/${analytics.total}`} subtext={`${completionPct}%`} variant="success" />
       </div>
 
