@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_CATEGORIES = ["Montering", "Demontering", "Transport"];
