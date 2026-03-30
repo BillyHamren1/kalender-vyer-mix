@@ -205,7 +205,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       upcomingToday,
       upcomingTomorrow,
       upcomingWeek,
-      nextUpcoming,
+      upcomingNext10,
       criticalIssues,
     };
   }, [tasks]);
