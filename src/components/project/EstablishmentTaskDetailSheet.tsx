@@ -233,7 +233,7 @@ const EstablishmentTaskDetailSheet = ({
         }
       });
       setCheckedProducts(checked);
-    } else if (subtasks.length === 0) {
+    } else if (subtasks.length === 0 && checkedProducts.size > 0) {
       setCheckedProducts(new Set());
     }
   }, [subtasks, linkedProducts]);
