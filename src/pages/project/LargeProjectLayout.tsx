@@ -183,55 +183,43 @@ const LargeProjectLayout = () => {
                 </CardContent>
               </Card>
             ) : (
-              bookings.map((lpb) =>
-                lpb.booking ? (
-                  <div key={lpb.id} className="relative">
-                    <BookingInfoExpanded
-                      booking={{
-                        id: lpb.booking.id,
-                        client: lpb.booking.client,
-                        eventdate: lpb.booking.eventdate,
-                        rigdaydate: lpb.booking.rigdaydate,
-                        rigdowndate: lpb.booking.rigdowndate,
-                        deliveryaddress: lpb.booking.deliveryaddress,
-                        contact_name: lpb.booking.contact_name,
-                        booking_number: lpb.booking.booking_number,
-                      }}
-                      projectLeader={project.project_leader}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-3 right-28 h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        if (confirm("Ta bort bokningen från projektet?")) {
-                          detail.removeBooking(lpb.booking_id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Card key={lpb.id} className="mb-2">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{lpb.display_name || "Bokning"}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          if (confirm("Ta bort bokningen från projektet?")) {
-                            detail.removeBooking(lpb.booking_id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )
-              )
+              <Card className="border-border/50 shadow-sm">
+                <div className="divide-y divide-border/40">
+                  {bookings.map((lpb) => {
+                    const b = lpb.booking;
+                    return (
+                      <div key={lpb.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-sm font-medium truncate">{b?.client || lpb.display_name || "Bokning"}</span>
+                          {b?.booking_number && (
+                            <Badge variant="outline" className="text-[10px] shrink-0">#{b.booking_number}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {b?.deliveryaddress && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {b.deliveryaddress}
+                            </span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              if (confirm("Ta bort bokningen från projektet?")) {
+                                detail.removeBooking(lpb.booking_id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
             )}
           </div>
         )}
