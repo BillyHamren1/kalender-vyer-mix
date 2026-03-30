@@ -120,7 +120,7 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
     if (!msg.trim() || sending) return;
     setSending(true);
     try {
-      await sendAdminMessage(msg, user?.email?.split('@')[0] || 'Admin');
+      await sendAdminMessage(msg, displayName);
       setMsg('');
       queryClient.invalidateQueries({ queryKey: ['ops-control', 'messages'] });
     } finally {
