@@ -2,14 +2,17 @@ import { useState, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
+import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
+import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 
 const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+  "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
 interface SelectedTask {
   id: string;
@@ -25,20 +28,18 @@ const LargeEstablishmentPage = () => {
   const { project } = detail;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [collaborationCollapsed, setCollaborationCollapsed] = useState(false);
 
-  // Get booking IDs for staff pool
   const bookingIds = useMemo(() => {
     return (project?.bookings || [])
       .map(b => b.booking_id)
       .filter(Boolean);
   }, [project?.bookings]);
 
-  // Fetch staff pool: unique staff assigned to any booking in this project
   const { data: staffPool = [] } = useQuery({
     queryKey: ['large-project-staff-pool', project?.id, bookingIds],
     queryFn: async () => {
       let staffIds: string[] = [];
-
       if (bookingIds.length > 0) {
         const { data } = await supabase
           .from('booking_staff_assignments')
@@ -46,8 +47,6 @@ const LargeEstablishmentPage = () => {
           .in('booking_id', bookingIds);
         staffIds = [...new Set((data || []).map(d => d.staff_id))];
       }
-
-      // Fallback: fetch all active staff if none assigned to bookings
       const query = supabase.from('staff_members').select('id, name').eq('is_active', true).order('name');
       if (staffIds.length > 0) {
         query.in('id', staffIds);
@@ -65,44 +64,65 @@ const LargeEstablishmentPage = () => {
     setSheetOpen(true);
   };
 
+  const projectBookings = (project.bookings || []).map(b => ({
+    booking_id: b.booking_id,
+    display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
+    client: (b as any).booking?.client || null,
+  }));
+
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="establishment" className="space-y-6">
-        <div className="border-b border-border/40 overflow-x-auto">
-          <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="establishment" className={tabTriggerClass}>
-              Etablering
-            </TabsTrigger>
-            <TabsTrigger value="deestablishment" className={tabTriggerClass}>
-              Avetablering
-            </TabsTrigger>
-          </TabsList>
+    <div className="space-y-4">
+      {/* TOP: Project Control Panel */}
+      <ProjectControlPanel />
+
+      {/* CENTER + RIGHT: Main workspace */}
+      <div className="flex gap-4 items-start">
+        {/* CENTER: Planning workspace */}
+        <div className="flex-1 min-w-0 space-y-4">
+          <Card className="border-border/50 shadow-sm overflow-hidden">
+            <Tabs defaultValue="establishment">
+              <div className="border-b border-border/40 px-4">
+                <TabsList className="h-auto p-0 bg-transparent gap-0">
+                  <TabsTrigger value="establishment" className={tabTriggerClass}>
+                    Etablering
+                  </TabsTrigger>
+                  <TabsTrigger value="deestablishment" className={tabTriggerClass}>
+                    Avetablering
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="establishment" className="mt-0 p-4">
+                <EstablishmentGanttChart
+                  largeProjectId={project.id}
+                  startDate={project.start_date}
+                  endDate={project.end_date}
+                  onTaskClick={handleTaskClick}
+                  staffPool={staffPool}
+                  projectBookings={projectBookings}
+                />
+              </TabsContent>
+
+              <TabsContent value="deestablishment" className="mt-0 p-4">
+                <DeestablishmentGanttChart
+                  eventDate={project.end_date}
+                  rigdownDate={project.end_date}
+                  bookingId={null}
+                  onTaskClick={handleTaskClick}
+                />
+              </TabsContent>
+            </Tabs>
+          </Card>
         </div>
 
-        <TabsContent value="establishment">
-          <EstablishmentGanttChart
-            largeProjectId={project.id}
-            startDate={project.start_date}
-            endDate={project.end_date}
-            onTaskClick={handleTaskClick}
-            staffPool={staffPool}
-            projectBookings={(project.bookings || []).map(b => ({
-              booking_id: b.booking_id,
-              display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
-              client: (b as any).booking?.client || null,
-            }))}
+        {/* RIGHT: Collaboration panel (hidden on small screens) */}
+        <div className="hidden lg:block">
+          <CollaborationPanel
+            collapsed={collaborationCollapsed}
+            onToggle={() => setCollaborationCollapsed(prev => !prev)}
           />
-        </TabsContent>
-
-        <TabsContent value="deestablishment">
-          <DeestablishmentGanttChart
-            eventDate={project.end_date}
-            rigdownDate={project.end_date}
-            bookingId={null}
-            onTaskClick={handleTaskClick}
-          />
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
@@ -111,11 +131,7 @@ const LargeEstablishmentPage = () => {
         bookingId={null}
         largeProjectId={project.id}
         staffPool={staffPool}
-        projectBookings={(project.bookings || []).map(b => ({
-          booking_id: b.booking_id,
-          display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
-          client: (b as any).booking?.client || null,
-        }))}
+        projectBookings={projectBookings}
       />
     </div>
   );
