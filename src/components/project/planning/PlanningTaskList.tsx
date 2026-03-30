@@ -341,7 +341,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                       )}>
                         <div className="flex items-center gap-1 truncate">
                           <User className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{assignedName || "Tilldela"}</span>
+                          <span className="truncate">{assignedNames.length > 0 ? assignedNames.join(", ") : "Tilldela"}</span>
                         </div>
                       </SelectTrigger>
                       <SelectContent>
