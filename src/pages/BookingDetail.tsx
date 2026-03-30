@@ -33,6 +33,7 @@ const BookingDetail = () => {
     setBooking,
     addDate,
     removeDate,
+    editDate,
     isSavingInternalNotes
   } = useBookingDetail(actualBookingId);
   
@@ -70,6 +71,10 @@ const BookingDetail = () => {
 
   const handleRemoveDate = (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => {
     removeDate(date, eventType, autoSync);
+  };
+
+  const handleEditDate = (oldDate: string, newDate: string, startTime: string, endTime: string, eventType: 'rig' | 'event' | 'rigDown') => {
+    editDate(oldDate, newDate, startTime, endTime, eventType);
   };
 
   // Show error if no booking ID
@@ -118,6 +123,7 @@ const BookingDetail = () => {
         isSaving={isSaving}
         onAddDate={handleAddDate}
         onRemoveDate={handleRemoveDate}
+        onEditDate={handleEditDate}
         onDeliveryDetailsChange={handleDeliveryDetailsChange}
         onInternalNotesChange={handleInternalNotesChange}
         isSavingInternalNotes={isSavingInternalNotes}
