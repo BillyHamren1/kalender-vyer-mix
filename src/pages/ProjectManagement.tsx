@@ -150,11 +150,6 @@ const ProjectManagement = () => {
           </>
         )}
 
-        <UnifiedProjectList
-          search={globalSearch}
-          statusFilter={globalStatusFilter}
-          typeFilter={typeFilter}
-        />
 
         <CreateProjectWizard 
           open={isCreateOpen} 
