@@ -47,6 +47,43 @@ export const updateBookingDates = async (
   }
 };
 
+export const updateBookingDateWithTimes = async (
+  id: string,
+  dateType: 'rig' | 'event' | 'rigDown',
+  date: string,
+  startTime: string,
+  endTime: string
+): Promise<void> => {
+  const fieldMap = {
+    rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+    event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+    rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+  };
+
+  const fields = fieldMap[dateType];
+  const updateData: Record<string, string | null> = {
+    [fields.date]: date,
+  };
+
+  // Build ISO timestamps if times provided
+  if (startTime) {
+    updateData[fields.start] = `${date}T${startTime}:00Z`;
+  }
+  if (endTime) {
+    updateData[fields.end] = `${date}T${endTime}:00Z`;
+  }
+
+  const { error } = await supabase
+    .from('bookings')
+    .update(updateData)
+    .eq('id', id);
+
+  if (error) {
+    console.error(`Error updating ${dateType} date with times:`, error);
+    throw error;
+  }
+};
+
 export const updateBookingLogistics = async (
   id: string, 
   logisticsData: {
