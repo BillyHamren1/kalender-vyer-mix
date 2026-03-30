@@ -16,7 +16,7 @@ import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, 
 import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { updateEstablishmentTask } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, deleteEstablishmentTask } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import {
   fetchSubtasks,
@@ -615,6 +615,33 @@ const EstablishmentTaskDetailSheet = ({
             onBlur={handleNotesBlur}
             className="min-h-[80px] text-sm resize-none"
           />
+        </div>
+
+        <Separator />
+
+        {/* Delete */}
+        <div className="pt-2 pb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={async () => {
+              if (!task) return;
+              const confirmed = window.confirm("Vill du radera denna aktivitet? Det går inte att ångra.");
+              if (!confirmed) return;
+              try {
+                await deleteEstablishmentTask(task.id);
+                invalidateAll();
+                toast.success("Aktivitet raderad");
+                onOpenChange(false);
+              } catch {
+                toast.error("Kunde inte radera aktivitet");
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Radera aktivitet
+          </Button>
         </div>
       </SheetContent>
     </Sheet>
