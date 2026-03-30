@@ -34,6 +34,7 @@ interface EstablishmentGanttChartProps {
   projectBookings?: ProjectBookingInfo[];
   staffPool?: Array<{ id: string; name: string }>;
   onTaskClick?: (task: { id: string; title: string; category: string; startDate: Date; endDate: Date; completed: boolean }) => void;
+  visibleTaskIds?: Set<string> | null;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -101,6 +102,7 @@ const EstablishmentGanttChart = ({
   projectBookings = [],
   staffPool = [],
   onTaskClick,
+  visibleTaskIds = null,
 }: EstablishmentGanttChartProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [todayPosition, setTodayPosition] = useState(0);
