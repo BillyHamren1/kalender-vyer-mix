@@ -1,16 +1,29 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote, MessageSquare, Send, Loader2 } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote, MessageSquare, Send, Loader2, Truck, Package, Users, CheckSquare } from 'lucide-react';
 import InspectionWizard from '@/components/mobile-app/inspection/InspectionWizard';
 import { mobileApi } from '@/services/mobileApiService';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+
+interface EstablishmentTask {
+  id: string;
+  title: string;
+  category: string;
+  start_date: string;
+  end_date: string;
+  completed: boolean;
+  notes: string | null;
+}
 
 interface JobInfoTabProps {
   booking: any;
   bookingId: string;
+  establishmentTasks?: EstablishmentTask[];
   onCommentsUpdated?: () => void;
+  onTaskToggled?: () => void;
 }
 
 // --- Product grouping logic (mirrors desktop ProductsList.tsx) ---
@@ -248,9 +261,87 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
   );
 };
 
+// --- Category icon helper ---
+const categoryIcon = (category: string) => {
+  switch (category) {
+    case 'transport': return Truck;
+    case 'material': return Package;
+    case 'personal': return Users;
+    default: return CheckSquare;
+  }
+};
+
+// --- Establishment Tasks Section ---
+const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: EstablishmentTask[]; onTaskToggled?: () => void }) => {
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [localTasks, setLocalTasks] = useState(tasks);
+
+  const handleToggle = async (taskId: string) => {
+    setTogglingIds(prev => new Set(prev).add(taskId));
+    try {
+      const result = await mobileApi.toggleEstablishmentTask(taskId);
+      setLocalTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: result.completed } : t));
+      onTaskToggled?.();
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte uppdatera uppgift');
+    } finally {
+      setTogglingIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
+    }
+  };
+
+  if (localTasks.length === 0) return null;
+
+  const completedCount = localTasks.filter(t => t.completed).length;
+
+  return (
+    <div className="rounded-xl border bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CheckSquare className="w-4 h-4 text-primary" />
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mina uppgifter</p>
+        </div>
+        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+          {completedCount}/{localTasks.length}
+        </span>
+      </div>
+      <div className="space-y-1">
+        {localTasks.map(task => {
+          const Icon = categoryIcon(task.category);
+          const isToggling = togglingIds.has(task.id);
+          return (
+            <button
+              key={task.id}
+              type="button"
+              onClick={() => !isToggling && handleToggle(task.id)}
+              disabled={isToggling}
+              className="w-full flex items-center gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/50 active:bg-muted/70 transition-colors text-left"
+            >
+              <Checkbox
+                checked={task.completed}
+                disabled={isToggling}
+                className="pointer-events-none"
+              />
+              <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                  {task.title}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {format(parseISO(task.start_date), 'd MMM', { locale: sv })} → {format(parseISO(task.end_date), 'd MMM', { locale: sv })}
+                </p>
+              </div>
+              {isToggling && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // --- Main component ---
 
-const JobInfoTab = ({ booking, bookingId, onCommentsUpdated }: JobInfoTabProps) => {
+const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated, onTaskToggled }: JobInfoTabProps) => {
   const [showInspection, setShowInspection] = useState(false);
   const products: ProductItem[] = booking.products || [];
   const groups = groupProducts(products);
@@ -295,6 +386,11 @@ const JobInfoTab = ({ booking, bookingId, onCommentsUpdated }: JobInfoTabProps) 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Establishment tasks */}
+      {establishmentTasks && establishmentTasks.length > 0 && (
+        <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
       )}
 
       {/* Comments */}

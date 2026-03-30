@@ -294,4 +294,7 @@ export const mobileApi = {
 
   getContacts: () =>
     callApi<{ contacts: { id: string; name: string; type: string }[] }>('get_contacts'),
+
+  toggleEstablishmentTask: (taskId: string) =>
+    callApi<{ success: boolean; completed: boolean }>('toggle_establishment_task', { task_id: taskId }),
 };
