@@ -360,13 +360,14 @@ const EstablishmentGanttChart = ({
                       <button
                         onClick={(e) => { e.stopPropagation(); if (dbTask) handleToggleCompleted(dbTask); }}
                         className="flex-shrink-0"
-                        title={statusConfig.label}
                       >
                         <StatusIcon className={cn("h-4 w-4", statusConfig.text)} />
                       </button>
 
                       {/* Priority indicator */}
-                      <PriorityIcon className={cn("h-3 w-3 flex-shrink-0", PRIORITY_CONFIG[priority]?.className)} title={PRIORITY_CONFIG[priority]?.label} />
+                      <span className="flex-shrink-0">
+                        <PriorityIcon className={cn("h-3 w-3", PRIORITY_CONFIG[priority]?.className)} />
+                      </span>
 
                       {/* Category icon */}
                       <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
@@ -378,7 +379,9 @@ const EstablishmentGanttChart = ({
                             {task.title}
                           </span>
                           {hasBlockers && (
-                            <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" title="Har blockeringar" />
+                            <span className="flex-shrink-0">
+                              <AlertTriangle className="h-3 w-3 text-destructive" />
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px]">
