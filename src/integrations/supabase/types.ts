@@ -982,55 +982,76 @@ export type Database = {
       establishment_tasks: {
         Row: {
           assigned_to: string | null
+          blocker_responsible: string | null
+          blockers: string | null
           booking_id: string | null
           category: string
           completed: boolean | null
           created_at: string | null
+          decision_needed: boolean
+          description: string | null
           end_date: string
           id: string
           large_project_id: string | null
           notes: string | null
           organization_id: string
+          priority: string
+          readiness: string
           sort_order: number | null
           source: string | null
           source_product_id: string | null
           start_date: string
+          status: string
           title: string
           updated_at: string | null
         }
         Insert: {
           assigned_to?: string | null
+          blocker_responsible?: string | null
+          blockers?: string | null
           booking_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
+          decision_needed?: boolean
+          description?: string | null
           end_date: string
           id?: string
           large_project_id?: string | null
           notes?: string | null
           organization_id?: string
+          priority?: string
+          readiness?: string
           sort_order?: number | null
           source?: string | null
           source_product_id?: string | null
           start_date: string
+          status?: string
           title: string
           updated_at?: string | null
         }
         Update: {
           assigned_to?: string | null
+          blocker_responsible?: string | null
+          blockers?: string | null
           booking_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
+          decision_needed?: boolean
+          description?: string | null
           end_date?: string
           id?: string
           large_project_id?: string | null
           notes?: string | null
           organization_id?: string
+          priority?: string
+          readiness?: string
           sort_order?: number | null
           source?: string | null
           source_product_id?: string | null
           start_date?: string
+          status?: string
           title?: string
           updated_at?: string | null
         }
