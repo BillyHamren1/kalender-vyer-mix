@@ -30,7 +30,8 @@ export const useBookingDetail = (id: string | undefined) => {
     handleDateChange,
     syncWithCalendar,
     addDate,
-    removeDate
+    removeDate,
+    editDate
   } = useBookingDates(
     id,
     booking,
@@ -82,6 +83,7 @@ export const useBookingDetail = (id: string | undefined) => {
     setBooking,
     addDate,
     removeDate,
+    editDate,
     isSavingInternalNotes
   };
 };

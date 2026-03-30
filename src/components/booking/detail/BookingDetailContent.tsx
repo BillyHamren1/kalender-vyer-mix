@@ -21,6 +21,7 @@ interface BookingDetailContentProps {
   isSaving: boolean;
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onEditDate: (oldDate: string, newDate: string, startTime: string, endTime: string, eventType: 'rig' | 'event' | 'rigDown') => void;
   onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
   onInternalNotesChange: (notes: string) => Promise<void>;
   isSavingInternalNotes: boolean;
@@ -37,6 +38,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   isSaving,
   onAddDate,
   onRemoveDate,
+  onEditDate,
   onDeliveryDetailsChange,
   onInternalNotesChange,
   isSavingInternalNotes,
@@ -80,6 +82,8 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             rigDownDates={rigDownDates}
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
+            onEditDate={onEditDate}
+            booking={booking}
           />
           <ProductsList products={booking.products || []} />
           <AttachmentsList 

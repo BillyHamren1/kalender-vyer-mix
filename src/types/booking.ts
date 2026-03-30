@@ -58,6 +58,12 @@ export interface Booking {
   rigDayDate: string;
   eventDate: string;
   rigDownDate: string;
+  rigStartTime?: string | null;
+  rigEndTime?: string | null;
+  eventStartTime?: string | null;
+  eventEndTime?: string | null;
+  rigDownStartTime?: string | null;
+  rigDownEndTime?: string | null;
   deliveryAddress?: string;
   deliveryCity?: string;
   deliveryPostalCode?: string;
