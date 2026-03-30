@@ -116,6 +116,10 @@ const EstablishmentTaskDetailSheet = ({
   const [taskBlockers, setTaskBlockers] = useState("");
   const [taskBlockerResponsible, setTaskBlockerResponsible] = useState<string | null>(null);
   const [taskDecisionNeeded, setTaskDecisionNeeded] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [startDateDraft, setStartDateDraft] = useState("");
+  const [endDateDraft, setEndDateDraft] = useState("");
 
   const effectiveStaff: StaffMember[] = staffPool || [];
 
@@ -124,7 +128,7 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed")
+        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
         .eq("id", task!.id)
         .single();
       return data;
@@ -143,6 +147,9 @@ const EstablishmentTaskDetailSheet = ({
       setTaskBlockers(taskDbData.blockers || "");
       setTaskBlockerResponsible(taskDbData.blocker_responsible || null);
       setTaskDecisionNeeded(taskDbData.decision_needed || false);
+      setTitleDraft(taskDbData.title || task?.title || "");
+      setStartDateDraft(taskDbData.start_date || "");
+      setEndDateDraft(taskDbData.end_date || "");
     }
   }, [taskDbData]);
 
@@ -161,6 +168,7 @@ const EstablishmentTaskDetailSheet = ({
       setTaskBlockers("");
       setTaskBlockerResponsible(null);
       setTaskDecisionNeeded(false);
+      setEditingTitle(false);
     }
   }, [open, task?.id]);
 
