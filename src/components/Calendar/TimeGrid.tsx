@@ -379,8 +379,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         <div className="day-header-teams" style={{ 
           gridColumn: '2 / -1',
-          width: fullWidth ? 'auto' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`,
-          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`
+          width: fullWidth ? 'auto' : `${availableColumnWidth + totalTeamColumnsWidth}px`,
+          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + totalTeamColumnsWidth}px`
         }}>
           <div className="day-header-content">
             {/* Left nav arrow - only if carouselNav provided */}
@@ -449,8 +449,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 3,
                 gridRow: 2,
-                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
               onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e as unknown as React.MouseEvent<HTMLButtonElement>)}
               title={`Assign staff to ${resource.title}`}
@@ -523,8 +523,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 3,
                 gridRow: 3,
-                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
             >
               <div className="staff-header-assignment-area">
@@ -608,8 +608,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
                   gridColumn: index + 3,
-                  width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                  minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
+                  width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
+                  minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
                   position: 'relative'
                 }}
               >
@@ -632,7 +632,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                         event={event}
                         position={position}
                         overlapLayout={overlapMap.get(event.id)}
-                        teamColumnWidth={teamColumnWidth}
+                        teamColumnWidth={getTeamColumnWidth(resource.id)}
                         onEventClick={handleBookingEventClick}
                         onEventResize={onEventResize}
                         readOnly={readOnly}
