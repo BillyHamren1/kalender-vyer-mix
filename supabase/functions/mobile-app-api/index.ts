@@ -2003,7 +2003,7 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   const results = await Promise.all(markPromises)
   const firstError = results.find(r => r.error)?.error
 
-  if (error) {
+  if (firstError) {
     console.error('Mark DM read error:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to mark messages as read' }),
