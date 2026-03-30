@@ -982,12 +982,13 @@ export type Database = {
       establishment_tasks: {
         Row: {
           assigned_to: string | null
-          booking_id: string
+          booking_id: string | null
           category: string
           completed: boolean | null
           created_at: string | null
           end_date: string
           id: string
+          large_project_id: string | null
           notes: string | null
           organization_id: string
           sort_order: number | null
@@ -999,12 +1000,13 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
-          booking_id: string
+          booking_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
           end_date: string
           id?: string
+          large_project_id?: string | null
           notes?: string | null
           organization_id?: string
           sort_order?: number | null
@@ -1016,12 +1018,13 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
-          booking_id?: string
+          booking_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
           end_date?: string
           id?: string
+          large_project_id?: string | null
           notes?: string | null
           organization_id?: string
           sort_order?: number | null
@@ -1051,6 +1054,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
             referencedColumns: ["id"]
           },
           {

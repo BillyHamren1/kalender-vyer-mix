@@ -16,7 +16,8 @@ import type { BookingProduct } from "@/services/establishmentPlanningService";
 interface AddEstablishmentTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bookingId: string;
+  bookingId?: string;
+  largeProjectId?: string;
   products: BookingProduct[];
   defaultDate: string | null;
   onTaskCreated: () => void;
@@ -34,6 +35,7 @@ const AddEstablishmentTaskDialog = ({
   open,
   onOpenChange,
   bookingId,
+  largeProjectId,
   products,
   defaultDate,
   onTaskCreated,
@@ -55,7 +57,8 @@ const AddEstablishmentTaskDialog = ({
     try {
       const date = defaultDate || format(new Date(), 'yyyy-MM-dd');
       await createEstablishmentTask({
-        booking_id: bookingId,
+        booking_id: bookingId || null,
+        large_project_id: largeProjectId || null,
         title: `${product.name}${product.quantity > 1 ? ` x${product.quantity}` : ''}`,
         category: 'installation',
         start_date: date,
@@ -77,7 +80,8 @@ const AddEstablishmentTaskDialog = ({
     setIsSubmitting(true);
     try {
       await createEstablishmentTask({
-        booking_id: bookingId,
+        booking_id: bookingId || null,
+        large_project_id: largeProjectId || null,
         title: title.trim(),
         category,
         start_date: format(startDate, 'yyyy-MM-dd'),
@@ -101,7 +105,7 @@ const AddEstablishmentTaskDialog = ({
           <DialogTitle>Lägg till aktivitet</DialogTitle>
         </DialogHeader>
 
-        {/* Quick add from products */}
+        {/* Quick add from products - only in booking mode */}
         {mainProducts.length > 0 && (
           <div className="space-y-2">
             <Label className="text-muted-foreground text-xs uppercase tracking-wide">Snabbval från bokning</Label>
@@ -126,11 +130,13 @@ const AddEstablishmentTaskDialog = ({
         )}
 
         {/* Divider */}
-        <div className="flex items-center gap-3 py-1">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground">eller skapa manuellt</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+        {mainProducts.length > 0 && (
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">eller skapa manuellt</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+        )}
 
         {/* Manual form */}
         <div className="space-y-3">

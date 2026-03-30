@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { updateEstablishmentTask } from "@/services/establishmentTaskService";
 import {
   fetchSubtasks,
   createSubtask,
@@ -29,11 +30,18 @@ interface TaskInfo {
   completed: boolean;
 }
 
+interface StaffMember {
+  id: string;
+  name: string;
+}
+
 interface EstablishmentTaskDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task: TaskInfo | null;
   bookingId: string | null;
+  largeProjectId?: string | null;
+  staffPool?: StaffMember[];
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -59,13 +67,16 @@ const EstablishmentTaskDetailSheet = ({
   onOpenChange,
   task,
   bookingId,
+  largeProjectId,
+  staffPool,
 }: EstablishmentTaskDetailSheetProps) => {
   const queryClient = useQueryClient();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [taskNotes, setTaskNotes] = useState("");
+  const [taskAssignedTo, setTaskAssignedTo] = useState<string | null>(null);
 
-  // Fetch staff members
-  const { data: staffMembers = [] } = useQuery({
+  // Fetch staff members - use staffPool if provided, otherwise fetch all
+  const { data: allStaffMembers = [] } = useQuery({
     queryKey: ["staff-members"],
     queryFn: async () => {
       const { data } = await supabase
@@ -75,22 +86,75 @@ const EstablishmentTaskDetailSheet = ({
         .order("name");
       return data || [];
     },
+    enabled: !staffPool,
   });
+
+  const effectiveStaff: StaffMember[] = staffPool || allStaffMembers;
+
+  // Fetch the task's current assigned_to from DB
+  const { data: taskDbData } = useQuery({
+    queryKey: ["establishment-task-detail", task?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("establishment_tasks")
+        .select("assigned_to, notes")
+        .eq("id", task!.id)
+        .single();
+      return data;
+    },
+    enabled: !!task?.id && open,
+  });
+
+  useEffect(() => {
+    if (taskDbData) {
+      setTaskAssignedTo(taskDbData.assigned_to);
+      setTaskNotes(taskDbData.notes || "");
+    }
+  }, [taskDbData]);
 
   // Fetch subtasks for this task
   const { data: subtasks = [], isLoading } = useQuery({
-    queryKey: ["establishment-subtasks", bookingId, task?.id],
+    queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id],
     queryFn: () => fetchSubtasks(bookingId!, task!.id),
     enabled: !!bookingId && !!task?.id && open,
   });
 
-  // Set notes from first subtask or clear
   useEffect(() => {
     if (!open) {
       setTaskNotes("");
       setNewSubtaskTitle("");
+      setTaskAssignedTo(null);
     }
   }, [open, task?.id]);
+
+  const taskQueryKey = largeProjectId
+    ? ['establishment-tasks', 'project', largeProjectId]
+    : ['establishment-tasks', bookingId];
+
+  const handleTaskAssignmentChange = async (val: string) => {
+    const assignedTo = val === "none" ? null : val;
+    setTaskAssignedTo(assignedTo);
+    if (task) {
+      try {
+        await updateEstablishmentTask(task.id, { assigned_to: assignedTo });
+        queryClient.invalidateQueries({ queryKey: taskQueryKey });
+        toast.success("Tilldelning uppdaterad");
+      } catch {
+        toast.error("Kunde inte uppdatera tilldelning");
+      }
+    }
+  };
+
+  const handleNotesBlur = async () => {
+    if (task && taskDbData && taskNotes !== (taskDbData.notes || "")) {
+      try {
+        await updateEstablishmentTask(task.id, { notes: taskNotes || null });
+        queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task.id] });
+      } catch {
+        toast.error("Kunde inte spara anteckningar");
+      }
+    }
+  };
 
   const addMutation = useMutation({
     mutationFn: (title: string) =>
@@ -101,7 +165,7 @@ const EstablishmentTaskDetailSheet = ({
         sort_order: subtasks.length,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
       queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
       setNewSubtaskTitle("");
       toast.success("Delsteg tillagt");
@@ -112,7 +176,7 @@ const EstablishmentTaskDetailSheet = ({
     mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof updateSubtask>[1] }) =>
       updateSubtask(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
       queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
     },
   });
@@ -120,7 +184,7 @@ const EstablishmentTaskDetailSheet = ({
   const deleteMutation = useMutation({
     mutationFn: deleteSubtask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
       queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
       toast.success("Delsteg borttaget");
     },
@@ -154,6 +218,29 @@ const EstablishmentTaskDetailSheet = ({
             </div>
           </div>
         </SheetHeader>
+
+        <Separator />
+
+        {/* Task-level assignment */}
+        <div className="py-4 space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">Tilldelad personal</h4>
+          <Select
+            value={taskAssignedTo || "none"}
+            onValueChange={handleTaskAssignmentChange}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Välj personal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ingen tilldelad</SelectItem>
+              {effectiveStaff.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <Separator />
 
@@ -243,7 +330,7 @@ const EstablishmentTaskDetailSheet = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Ingen</SelectItem>
-                    {staffMembers.map((s) => (
+                    {effectiveStaff.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>
@@ -264,25 +351,27 @@ const EstablishmentTaskDetailSheet = ({
           </div>
 
           {/* Add subtask */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Nytt delsteg..."
-              value={newSubtaskTitle}
-              onChange={(e) => setNewSubtaskTitle(e.target.value)}
-              className="h-9 text-sm"
-              onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 gap-1 flex-shrink-0"
-              onClick={handleAddSubtask}
-              disabled={!newSubtaskTitle.trim() || addMutation.isPending}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Lägg till
-            </Button>
-          </div>
+          {bookingId && (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nytt delsteg..."
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                className="h-9 text-sm"
+                onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 gap-1 flex-shrink-0"
+                onClick={handleAddSubtask}
+                disabled={!newSubtaskTitle.trim() || addMutation.isPending}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Lägg till
+              </Button>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -294,6 +383,7 @@ const EstablishmentTaskDetailSheet = ({
             placeholder="Instruktioner, noteringar..."
             value={taskNotes}
             onChange={(e) => setTaskNotes(e.target.value)}
+            onBlur={handleNotesBlur}
             className="min-h-[80px] text-sm resize-none"
           />
         </div>
