@@ -57,11 +57,13 @@ const LargeEstablishmentPage = () => {
           .in('booking_id', bookingIds);
         staffIds = [...new Set((data || []).map(d => d.staff_id))];
       }
-      const query = supabase.from('staff_members').select('id, name').eq('is_active', true).order('name');
-      if (staffIds.length > 0) {
-        query.in('id', staffIds);
-      }
-      const { data: staffData } = await query;
+      if (staffIds.length === 0) return [];
+      const { data: staffData } = await supabase
+        .from('staff_members')
+        .select('id, name')
+        .eq('is_active', true)
+        .in('id', staffIds)
+        .order('name');
       return staffData || [];
     },
     enabled: !!project?.id,
