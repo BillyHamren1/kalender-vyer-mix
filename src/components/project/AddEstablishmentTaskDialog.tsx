@@ -231,9 +231,8 @@ const AddEstablishmentTaskDialog = ({
             </Select>
           </div>
 
-          {staffPool.length > 0 && (
-            <div>
-              <Label>Tilldela personal</Label>
+          <div>
+            <Label>Tilldela personal</Label>
               <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Ingen tilldelad" />
@@ -245,8 +244,7 @@ const AddEstablishmentTaskDialog = ({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
