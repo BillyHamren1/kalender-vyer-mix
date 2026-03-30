@@ -1,15 +1,32 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { format, differenceInDays } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
   CheckCircle2, CalendarDays, UserX, AlertTriangle, Clock,
-  ArrowUpRight, AlertCircle, ShieldAlert, User,
+  AlertCircle, ShieldAlert, User, Users,
   HelpCircle, ChevronRight, Zap, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { updateEstablishmentTask, bulkUpdateEstablishmentTasks } from "@/services/establishmentTaskService";
+import { toast } from "sonner";
 import type { TaskAnalytics, CriticalIssue } from "@/hooks/useTaskAnalytics";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 
@@ -21,14 +38,20 @@ interface ProjectControlPanelProps {
 
 // ─── Issue config ───────────────────────────────────────────────────────────
 
-const issueConfig: Record<CriticalIssue["type"], { icon: typeof AlertTriangle; label: string; className: string; dotClass: string }> = {
-  blocked:              { icon: ShieldAlert,   label: "Blockerad",       className: "text-destructive",                                         dotClass: "bg-destructive" },
-  overdue:              { icon: Clock,         label: "Försenad",        className: "text-amber-600 dark:text-amber-400",                       dotClass: "bg-amber-500" },
-  decision_needed:      { icon: HelpCircle,    label: "Beslut krävs",    className: "text-violet-600 dark:text-violet-400",                     dotClass: "bg-violet-500" },
-  missing_setup:        { icon: AlertTriangle, label: "Saknar info",     className: "text-amber-600 dark:text-amber-400",                       dotClass: "bg-amber-500" },
-  waiting_for_external: { icon: Clock,         label: "Väntar extern",   className: "text-orange-600 dark:text-orange-400",                     dotClass: "bg-orange-500" },
-  no_owner:             { icon: UserX,         label: "Utan ägare",      className: "text-orange-600 dark:text-orange-400",                     dotClass: "bg-orange-500" },
-  no_dates:             { icon: CalendarDays,  label: "Utan datum",      className: "text-muted-foreground",                                    dotClass: "bg-muted-foreground" },
+const issueConfig: Record<CriticalIssue["type"], {
+  icon: typeof AlertTriangle;
+  label: string;
+  className: string;
+  dotClass: string;
+  hint: string;
+}> = {
+  blocked:              { icon: ShieldAlert,   label: "Blockerad",       className: "text-destructive",                                         dotClass: "bg-destructive",            hint: "Kan inte fortsätta — behöver lösning" },
+  overdue:              { icon: Clock,         label: "Försenad",        className: "text-amber-600 dark:text-amber-400",                       dotClass: "bg-amber-500",              hint: "Slutdatum har passerat" },
+  decision_needed:      { icon: HelpCircle,    label: "Beslut krävs",    className: "text-violet-600 dark:text-violet-400",                     dotClass: "bg-violet-500",             hint: "Väntar på beslut för att gå vidare" },
+  missing_setup:        { icon: AlertTriangle, label: "Saknar info",     className: "text-amber-600 dark:text-amber-400",                       dotClass: "bg-amber-500",              hint: "Information saknas — komplettera" },
+  waiting_for_external: { icon: Clock,         label: "Väntar extern",   className: "text-orange-600 dark:text-orange-400",                     dotClass: "bg-orange-500",             hint: "Beroende av extern part" },
+  no_owner:             { icon: UserX,         label: "Utan ägare",      className: "text-orange-600 dark:text-orange-400",                     dotClass: "bg-orange-500",             hint: "Ingen ansvarig — tilldela person" },
+  no_dates:             { icon: CalendarDays,  label: "Utan datum",      className: "text-muted-foreground",                                    dotClass: "bg-muted-foreground",       hint: "Start/slut saknas — planera in" },
 };
 
 // ─── Progress strip ─────────────────────────────────────────────────────────
@@ -40,7 +63,6 @@ const ProgressStrip = ({ analytics }: { analytics: TaskAnalytics }) => {
 
   return (
     <div className="flex items-center gap-4 px-4 py-3 bg-card border border-border/50 rounded-xl shadow-sm">
-      {/* Progress */}
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tracking-tight">{pct}%</span>
@@ -52,7 +74,6 @@ const ProgressStrip = ({ analytics }: { analytics: TaskAnalytics }) => {
         </span>
       </div>
 
-      {/* Danger indicators */}
       <div className="flex items-center gap-3 shrink-0">
         {dangerCount > 0 && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-destructive/10">
@@ -73,7 +94,6 @@ const ProgressStrip = ({ analytics }: { analytics: TaskAnalytics }) => {
           </div>
         )}
 
-        {/* Key counts */}
         <div className="flex items-center gap-2 pl-2 border-l border-border/50">
           <CountPill icon={Clock} count={analytics.overdue} label="sena" variant="danger" />
           <CountPill icon={ShieldAlert} count={analytics.blocked} label="block" variant="danger" />
@@ -98,6 +118,117 @@ const CountPill = ({ icon: Icon, count, label, variant }: {
   );
 };
 
+// ─── Inline staff assign dropdown ───────────────────────────────────────────
+
+const InlineStaffAssign = ({ taskId, staffPool, largeProjectId }: {
+  taskId: string;
+  staffPool: Array<{ id: string; name: string }>;
+  largeProjectId?: string;
+}) => {
+  const queryClient = useQueryClient();
+
+  const handleAssign = async (staffId: string) => {
+    try {
+      await updateEstablishmentTask(taskId, { assigned_to: staffId });
+      queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
+      const name = staffPool.find(s => s.id === staffId)?.name || "person";
+      toast.success(`Tilldelad till ${name}`);
+    } catch {
+      toast.error("Kunde inte tilldela");
+    }
+  };
+
+  return (
+    <Select onValueChange={handleAssign}>
+      <SelectTrigger className="h-6 w-[110px] text-[10px] border-dashed shrink-0" onClick={(e) => e.stopPropagation()}>
+        <SelectValue placeholder="Tilldela →" />
+      </SelectTrigger>
+      <SelectContent onClick={(e) => e.stopPropagation()}>
+        {staffPool.map(s => (
+          <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+// ─── Inline date picker ─────────────────────────────────────────────────────
+
+const InlineDatePicker = ({ taskId }: { taskId: string }) => {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleDateSelect = async (date: Date | undefined) => {
+    if (!date) return;
+    try {
+      const formatted = format(date, "yyyy-MM-dd");
+      await updateEstablishmentTask(taskId, { start_date: formatted, end_date: formatted });
+      queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
+      toast.success(`Datum satt: ${format(date, "d MMM", { locale: sv })}`);
+      setOpen(false);
+    } catch {
+      toast.error("Kunde inte sätta datum");
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 text-[10px] px-2 border-dashed shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Sätt datum →
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
+        <Calendar
+          mode="single"
+          onSelect={handleDateSelect}
+          initialFocus
+          className="p-3 pointer-events-auto"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+// ─── Bulk assign button ─────────────────────────────────────────────────────
+
+const BulkAssignButton = ({ taskIds, staffPool }: {
+  taskIds: string[];
+  staffPool: Array<{ id: string; name: string }>;
+}) => {
+  const queryClient = useQueryClient();
+
+  const handleBulkAssign = async (staffId: string) => {
+    try {
+      await bulkUpdateEstablishmentTasks(taskIds, { assigned_to: staffId });
+      queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
+      const name = staffPool.find(s => s.id === staffId)?.name || "person";
+      toast.success(`${taskIds.length} uppgifter tilldelade till ${name}`);
+    } catch {
+      toast.error("Kunde inte tilldela");
+    }
+  };
+
+  return (
+    <Select onValueChange={handleBulkAssign}>
+      <SelectTrigger className="h-5 w-auto text-[10px] border-0 bg-transparent gap-1 px-1 text-primary hover:text-primary/80">
+        <Users className="h-3 w-3" />
+        <SelectValue placeholder="Tilldela alla →" />
+      </SelectTrigger>
+      <SelectContent>
+        {staffPool.map(s => (
+          <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 // ─── Today's Focus ──────────────────────────────────────────────────────────
 
 const TodayFocus = ({ analytics, staffPool, onTaskClick }: {
@@ -107,8 +238,38 @@ const TodayFocus = ({ analytics, staffPool, onTaskClick }: {
 }) => {
   const todayTasks = analytics.upcomingToday;
   const tomorrowTasks = analytics.upcomingTomorrow;
+  const nextUp = analytics.nextUpcoming;
 
-  if (todayTasks.length === 0 && tomorrowTasks.length === 0) return null;
+  // Nothing at all — this component won't render
+  if (todayTasks.length === 0 && tomorrowTasks.length === 0 && !nextUp) return null;
+
+  // Fallback: show next upcoming
+  if (todayTasks.length === 0 && tomorrowTasks.length === 0 && nextUp) {
+    const daysUntil = differenceInDays(new Date(nextUp.start_date), new Date());
+    const staffName = nextUp.assigned_to ? staffPool.find(s => s.id === nextUp.assigned_to)?.name : null;
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">Kommande</h3>
+        </div>
+        <button
+          onClick={() => onTaskClick?.(nextUp.id)}
+          className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
+        >
+          <CalendarDays className="h-4 w-4 text-primary shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm truncate group-hover:text-primary transition-colors">{nextUp.title}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {format(new Date(nextUp.start_date), "d MMM", { locale: sv })} · om {daysUntil} dag{daysUntil !== 1 ? "ar" : ""}
+              {staffName && ` · ${staffName}`}
+            </p>
+          </div>
+          <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -145,7 +306,6 @@ const ActionRequired = ({ issues, staffPool, onTaskClick }: {
 }) => {
   if (issues.length === 0) return null;
 
-  // Group by type for cleaner display
   const grouped = useMemo(() => {
     const map = new Map<CriticalIssue["type"], CriticalIssue[]>();
     issues.forEach(issue => {
@@ -166,37 +326,54 @@ const ActionRequired = ({ issues, staffPool, onTaskClick }: {
         {grouped.map(([type, typeIssues]) => {
           const config = issueConfig[type];
           const Icon = config.icon;
+          const taskIds = typeIssues.map(i => i.taskId);
+
           return (
             <div key={type}>
-              <div className="flex items-center gap-1.5 mb-1 px-1">
+              <div className="flex items-center gap-1.5 mb-0.5 px-1">
                 <div className={cn("h-1.5 w-1.5 rounded-full", config.dotClass)} />
-                <span className={cn("text-[11px] font-semibold uppercase tracking-wider", config.className)}>
+                <span className={cn("text-[11px] font-semibold uppercase tracking-wider flex-1", config.className)}>
                   {config.label} ({typeIssues.length})
                 </span>
+                {/* Bulk action for "no_owner" */}
+                {type === "no_owner" && staffPool.length > 0 && (
+                  <BulkAssignButton taskIds={taskIds} staffPool={staffPool} />
+                )}
               </div>
+              <p className="text-[10px] text-muted-foreground px-1 mb-1">{config.hint}</p>
               <div className="space-y-0.5">
                 {typeIssues.slice(0, 4).map(issue => {
                   const staffName = issue.assignedTo
                     ? staffPool.find(s => s.id === issue.assignedTo)?.name
                     : null;
                   return (
-                    <button
+                    <div
                       key={`${issue.taskId}-${issue.type}`}
+                      className="w-full flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group cursor-pointer"
                       onClick={() => onTaskClick?.(issue.taskId)}
-                      className="w-full flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
                     >
                       <Icon className={cn("h-3.5 w-3.5 shrink-0", config.className)} />
                       <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{issue.taskTitle}</span>
-                      {staffName && (
+
+                      {/* Inline action based on type */}
+                      {type === "no_owner" && (
+                        <InlineStaffAssign taskId={issue.taskId} staffPool={staffPool} />
+                      )}
+                      {type === "no_dates" && (
+                        <InlineDatePicker taskId={issue.taskId} />
+                      )}
+
+                      {/* Info for other types */}
+                      {type !== "no_owner" && type !== "no_dates" && staffName && (
                         <span className="text-[10px] text-muted-foreground shrink-0">{staffName}</span>
                       )}
-                      {issue.type === "blocked" && issue.blockerReason && (
+                      {type === "blocked" && issue.blockerReason && (
                         <span className="text-[10px] text-destructive/70 truncate max-w-[120px] shrink-0" title={issue.blockerReason}>
                           {issue.blockerReason}
                         </span>
                       )}
                       <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </button>
+                    </div>
                   );
                 })}
                 {typeIssues.length > 4 && (
@@ -206,62 +383,6 @@ const ActionRequired = ({ issues, staffPool, onTaskClick }: {
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-};
-
-// ─── Ownership overview ─────────────────────────────────────────────────────
-
-const OwnershipOverview = ({ analytics, staffPool, onTaskClick }: {
-  analytics: TaskAnalytics;
-  staffPool: Array<{ id: string; name: string }>;
-  onTaskClick?: (taskId: string) => void;
-}) => {
-  const staffNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    staffPool.forEach(s => map.set(s.id, s.name));
-    return map;
-  }, [staffPool]);
-
-  const workload = analytics.teamWorkload;
-  if (workload.length === 0 && analytics.withoutOwner === 0) return null;
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <User className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Ägarskap</h3>
-      </div>
-      <div className="space-y-1.5">
-        {workload.slice(0, 6).map(w => {
-          const name = staffNameMap.get(w.staffId) || "Okänd";
-          const hasProblems = w.overdue > 0 || w.blocked > 0;
-          return (
-            <div key={w.staffId} className="flex items-center justify-between gap-2 py-1 px-1">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className={cn(
-                  "h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold",
-                  hasProblems ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
-                )}>
-                  {name.charAt(0)}
-                </div>
-                <span className="text-sm truncate">{name}</span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs text-muted-foreground">{w.completed}/{w.totalTasks}</span>
-                {w.overdue > 0 && <span className="text-[10px] font-bold text-destructive">{w.overdue} sen</span>}
-                {w.blocked > 0 && <span className="text-[10px] font-bold text-destructive">{w.blocked} block</span>}
-              </div>
-            </div>
-          );
-        })}
-        {analytics.withoutOwner > 0 && (
-          <div className="flex items-center gap-2 py-1 px-1 text-amber-600 dark:text-amber-400">
-            <UserX className="h-3.5 w-3.5" />
-            <span className="text-sm font-medium">{analytics.withoutOwner} uppgifter utan ägare</span>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -303,48 +424,44 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
 
 const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectControlPanelProps) => {
   const hasIssues = analytics.criticalIssues.length > 0;
-  const hasToday = analytics.upcomingToday.length > 0 || analytics.upcomingTomorrow.length > 0;
-  const hasContent = hasIssues || hasToday || analytics.teamWorkload.length > 0;
+  const hasToday = analytics.upcomingToday.length > 0 || analytics.upcomingTomorrow.length > 0 || !!analytics.nextUpcoming;
+
+  // Dynamic layout: if only one panel has content, let it take full width
+  const showBothColumns = hasIssues && hasToday;
+  const showAnyContent = hasIssues || hasToday;
 
   return (
     <div className="space-y-3">
-      {/* Level 1: Progress strip — always visible, compact */}
       <ProgressStrip analytics={analytics} />
 
-      {/* Level 2: Operational briefing — only if there's content */}
-      {hasContent && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {/* Column 1: Action required (highest priority) */}
-          <Card className={cn(
-            "border-border/50 shadow-sm",
-            hasIssues && "border-destructive/20"
-          )}>
-            <CardContent className="p-4">
-              {hasIssues ? (
+      {showAnyContent && (
+        <div className={cn(
+          "grid gap-3",
+          showBothColumns ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1"
+        )}>
+          {/* Issues card */}
+          {hasIssues && (
+            <Card className={cn(
+              "border-border/50 shadow-sm border-destructive/20",
+              showBothColumns ? "lg:col-span-2" : ""
+            )}>
+              <CardContent className="p-4">
                 <ActionRequired issues={analytics.criticalIssues} staffPool={staffPool} onTaskClick={onTaskClick} />
-              ) : (
-                <div className="flex items-center gap-2 py-4 justify-center text-primary">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="text-sm font-medium">Inga problem att hantera</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Column 2: Today's focus */}
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-4">
-              {hasToday ? (
+          {/* Today's focus card */}
+          {hasToday && (
+            <Card className="border-border/50 shadow-sm">
+              <CardContent className="p-4">
                 <TodayFocus analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} />
-              ) : (
-                <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
-                  <CalendarDays className="h-5 w-5" />
-                  <span className="text-sm">Inga aktiviteter idag</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
+          {/* No issues — show green state only if today panel exists */}
+          {!hasIssues && hasToday && null}
         </div>
       )}
     </div>
