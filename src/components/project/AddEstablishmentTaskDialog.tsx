@@ -34,13 +34,7 @@ interface AddEstablishmentTaskDialogProps {
   staffPool?: Array<{ id: string; name: string }>;
 }
 
-const CATEGORIES = [
-  { value: 'transport', label: 'Transport' },
-  { value: 'material', label: 'Material' },
-  { value: 'personal', label: 'Personal' },
-  { value: 'installation', label: 'Installation' },
-  { value: 'kontroll', label: 'Kontroll' },
-];
+// Categories are now handled by CategoryCombobox
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'high', label: 'Hög' },
@@ -60,7 +54,7 @@ const AddEstablishmentTaskDialog = ({
   staffPool = [],
 }: AddEstablishmentTaskDialogProps) => {
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("installation");
+  const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState<Date | undefined>(
