@@ -409,8 +409,8 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     >
       {highlight === "today" && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
       <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{task.title}</span>
-      {staffName ? (
-        <span className="text-[10px] text-muted-foreground shrink-0">{staffName}</span>
+      {staffNames.length > 0 ? (
+        <span className="text-[10px] text-muted-foreground shrink-0">{staffNames.join(", ")}</span>
       ) : (
         <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Utan ägare</span>
       )}
