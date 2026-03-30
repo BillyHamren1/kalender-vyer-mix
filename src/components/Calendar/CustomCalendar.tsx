@@ -12,6 +12,7 @@ import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   resources: Resource[];
   isLoading: boolean;
   isMounted: boolean;
@@ -35,6 +36,7 @@ interface CustomCalendarProps {
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
   events,
+  setEvents,
   resources,
   isLoading,
   currentDate,
@@ -142,6 +144,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       variant,
       isEventReadOnly,
       onEventClick,
+      setEvents,
       fullWidth,
       availableStaff: getAvailableStaffForDay(date),
       ...(isCenter ? {

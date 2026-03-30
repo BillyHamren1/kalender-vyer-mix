@@ -74,6 +74,7 @@ const CustomCalendarPage = () => {
   // Real-time calendar events (these will update UI when background import updates DB)
   const {
     events,
+    setEvents,
     isLoading,
     isMounted,
     currentDate: hookCurrentDate,
@@ -239,6 +240,7 @@ const CustomCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={events}
+                  setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
                   isMounted={isMounted}
@@ -261,6 +263,7 @@ const CustomCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={events}
+                  setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
                   isMounted={isMounted}
@@ -290,6 +293,7 @@ const CustomCalendarPage = () => {
                 <>
                   <CustomCalendar
                     events={events}
+                    setEvents={setEvents}
                     resources={teamResources}
                     isLoading={isLoading}
                     isMounted={isMounted}

@@ -136,6 +136,7 @@ const WarehouseCalendarPage = () => {
   // Real-time calendar events (standard booking events)
   const {
     events: calendarEvents,
+    setEvents,
     isLoading,
     isMounted,
     currentDate: hookCurrentDate,
@@ -445,6 +446,7 @@ const WarehouseCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={dayEvents}
+                  setEvents={setEvents}
                   resources={resourcesWithWarehouse}
                   isLoading={isLoading || warehouseLoading}
                   isMounted={isMounted}
@@ -471,6 +473,7 @@ const WarehouseCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={combinedEvents}
+                  setEvents={setEvents}
                   resources={resourcesWithWarehouse}
                   isLoading={isLoading || warehouseLoading}
                   isMounted={isMounted}
@@ -494,6 +497,7 @@ const WarehouseCalendarPage = () => {
             <>
               <CustomCalendar
                 events={combinedEvents}
+                setEvents={setEvents}
                 resources={resourcesWithWarehouse}
                 isLoading={isLoading || warehouseLoading}
                 isMounted={isMounted}

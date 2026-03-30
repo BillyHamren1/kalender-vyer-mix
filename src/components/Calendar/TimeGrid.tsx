@@ -45,6 +45,7 @@ interface TimeGridProps {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
   };
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
 // Overlap layout utility — assigns column indices to overlapping events
@@ -119,7 +120,8 @@ const EventWrapper: React.FC<{
   onEventClick: (event: CalendarEvent) => void;
   onEventResize?: () => Promise<void>;
   readOnly?: boolean;
-}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
@@ -167,6 +169,7 @@ const EventWrapper: React.FC<{
         }}
         onEventResize={onEventResize}
         readOnly={readOnly}
+        setEvents={setEvents}
       />
     </div>
   );
@@ -207,7 +210,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventClick,
   fullWidth = false,
   availableStaff = [],
-  carouselNav
+  carouselNav,
+  setEvents
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -609,6 +613,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                         onEventClick={handleBookingEventClick}
                         onEventResize={onEventResize}
                         readOnly={readOnly}
+                        setEvents={setEvents}
                       />
                     );
                   });

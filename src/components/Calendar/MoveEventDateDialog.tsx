@@ -33,6 +33,7 @@ interface MoveEventDateDialogProps {
   resources?: Array<{ id: string; title: string }>;
   onUpdate?: () => void;
   exactTimeNeeded?: boolean;
+  setEvents?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
@@ -41,7 +42,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   event,
   resources = [],
   onUpdate,
-  exactTimeNeeded = false
+  exactTimeNeeded = false,
+  setEvents
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedResourceId, setSelectedResourceId] = useState<string | undefined>(undefined);
@@ -74,6 +76,22 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const newDateStr = format(selectedDate, 'yyyy-MM-dd');
       const newStartISO = buildUTCDateTime(newDateStr, startTime);
       const newEndISO = buildUTCDateTime(newDateStr, endTime);
+
+      // Optimistic UI update — move the event instantly before DB write
+      if (setEvents) {
+        setEvents(prev => prev.map(ev =>
+          ev.id === event.id
+            ? {
+                ...ev,
+                start: newStartISO,
+                end: newEndISO,
+                resourceId: (selectedResourceId && selectedResourceId !== event.resourceId)
+                  ? selectedResourceId
+                  : ev.resourceId
+              }
+            : ev
+        ));
+      }
 
       const updatePayload: any = {
         start: newStartISO,
@@ -121,6 +139,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     } catch (error) {
       console.error('Error moving event:', error);
       toast.error('Kunde inte flytta händelsen');
+      // Revert optimistic update on error
+      if (onUpdate) await onUpdate();
     } finally {
       setIsSubmitting(false);
     }
