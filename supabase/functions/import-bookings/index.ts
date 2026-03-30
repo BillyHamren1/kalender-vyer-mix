@@ -709,7 +709,7 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
       hoursToAdd = 4;
       break;
     case 'event':
-      hoursToAdd = 2.5;
+      hoursToAdd = 3;
       break;
     case 'rigDown':
       hoursToAdd = 4;
@@ -790,17 +790,40 @@ async function reconcileCalendarEvents(
     });
   }
 
+  // Event days: always 3h blocks on team-11, stacked sequentially (08:00, 11:00, 14:00, ...)
+  // Count existing team-11 events for each date to determine stacking offset
+  const eventDateSlotCounts = new Map<string, number>();
+  if (eventDates.length > 0) {
+    // Fetch existing team-11 events for these dates (excluding current booking's events)
+    for (const date of eventDates) {
+      const { data: existingTeam11 } = await supabase
+        .from('calendar_events')
+        .select('id')
+        .eq('organization_id', bookingData.organization_id || organizationId)
+        .eq('resource_id', 'team-11')
+        .eq('event_type', 'event')
+        .eq('source_date', date)
+        .neq('booking_id', bookingData.id);
+      eventDateSlotCounts.set(date, (existingTeam11?.length || 0));
+    }
+  }
+
   for (const date of eventDates) {
-    const start = buildDateTimeFromPartsEx(date, bookingData.event_start_time);
-    const end = bookingData.event_end_time
-      ? buildDateTimeFromPartsEx(date, bookingData.event_end_time)
-      : { dateTime: getEndTimeForEventType(start.dateTime, 'event'), isExplicit: false };
-    console.log(`[Calendar Time] event ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
+    // Count already-pushed desired events for same date (for multi-event-date bookings)
+    const alreadyPushedForDate = desiredEvents.filter(
+      e => e.event_type === 'event' && e.date === date
+    ).length;
+    const slotIndex = (eventDateSlotCounts.get(date) || 0) + alreadyPushedForDate;
+    const startHour = 8 + (slotIndex * 3);
+    const startDateTime = `${date}T${String(startHour).padStart(2, '0')}:00:00`;
+    const endHour = startHour + 3;
+    const endDateTime = `${date}T${String(endHour).padStart(2, '0')}:00:00`;
+    console.log(`[Calendar Time] event ${date}: slot=${slotIndex}, start=${startDateTime}, end=${endDateTime} (STACKED on team-11)`);
     desiredEvents.push({
-      event_type: 'event', start_time: start.dateTime, end_time: end.dateTime,
+      event_type: 'event', start_time: startDateTime, end_time: endDateTime,
       title: desiredTitle, booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: start.isExplicit
+      isExplicitStart: false
     });
   }
 
