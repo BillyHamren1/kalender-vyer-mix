@@ -164,7 +164,7 @@ export const mobileApi = {
   getInboxAll: () => callApi<{ conversations: any[]; broadcasts: any[]; bookings: any[] }>('get_inbox_all'),
 
   getBookingDetails: (bookingId: string) =>
-    callApi<{ booking: any; planning?: any; project?: any; my_time_reports?: any[] }>('get_booking_details', { booking_id: bookingId }),
+    callApi<{ booking: any; planning?: any; project?: any; my_time_reports?: any[]; establishment_tasks?: any[] }>('get_booking_details', { booking_id: bookingId }),
 
   getTimeReports: () => callApi<{ time_reports: MobileTimeReport[] }>('get_time_reports'),
 
