@@ -1,24 +1,43 @@
 
 
-## Fix: Skicka staffPool till EstablishmentGanttChart i stora projekt
+## Fix: Visa personalval alltid i "Lägg till aktivitet"
 
 ### Problem
-`LargeEstablishmentPage.tsx` hämtar `staffPool` korrekt (rad 37-60), men skickar den **inte** till `EstablishmentGanttChart` (rad 84-94). Därför saknas personalvalet i "Lägg till aktivitet"-dialogen för stora projekt.
+Personalvalet visas bara om `staffPool.length > 0`. Om inga anställda är tilldelade till projektets bokningar (via `booking_staff_assignments`) blir listan tom och hela dropdown:en döljs.
 
-### Åtgärd
+### Lösning
 
-**`src/pages/project/LargeEstablishmentPage.tsx`** — Lägg till `staffPool={staffPool}` på rad 88 i `EstablishmentGanttChart`:
+**1. `src/pages/project/LargeEstablishmentPage.tsx`**
+Ändra staffPool-queryn: om `booking_staff_assignments` ger 0 resultat (eller om det inte finns bokningar), hämta **alla** aktiva `staff_members` som fallback istället för att returnera tom lista.
 
-```tsx
-<EstablishmentGanttChart
-  largeProjectId={project.id}
-  startDate={project.start_date}
-  endDate={project.end_date}
-  onTaskClick={handleTaskClick}
-  staffPool={staffPool}              // <-- LÄGG TILL
-  projectBookings={...}
-/>
+```
+queryFn: async () => {
+  let staffIds: string[] = [];
+  
+  if (bookingIds.length > 0) {
+    const { data } = await supabase
+      .from('booking_staff_assignments')
+      .select('staff_id')
+      .in('booking_id', bookingIds);
+    staffIds = [...new Set((data || []).map(d => d.staff_id))];
+  }
+
+  // Fallback: hämta alla aktiva personal om ingen är tilldelad
+  const query = supabase.from('staff_members').select('id, name').eq('is_active', true).order('name');
+  if (staffIds.length > 0) {
+    query.in('id', staffIds);
+  }
+  const { data: staffData } = await query;
+  return staffData || [];
+}
 ```
 
-En enda rad. Allt annat är redan på plats.
+Ändra också `enabled` till bara `!!project?.id` (ta bort `bookingIds.length > 0`-kravet).
+
+**2. `src/components/project/AddEstablishmentTaskDialog.tsx`**
+Ta bort villkoret `staffPool.length > 0` runt personalvalet (rad 234). Dropdown:en ska alltid visas — om listan är tom visas bara "Ingen tilldelad".
+
+### Filer att ändra
+- `src/pages/project/LargeEstablishmentPage.tsx` — fallback-hämtning av all personal
+- `src/components/project/AddEstablishmentTaskDialog.tsx` — visa dropdown oavsett listans storlek
 
