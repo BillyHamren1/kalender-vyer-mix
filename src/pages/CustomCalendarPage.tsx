@@ -240,6 +240,7 @@ const CustomCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={events}
+                  setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
                   isMounted={isMounted}
