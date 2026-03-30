@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
 import { sendDirectMessage, uploadDMFile, markDirectMessagesRead } from '@/services/directMessageService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format, isToday } from 'date-fns';
@@ -28,10 +28,10 @@ interface Props {
 const isImageType = (type: string) => type.startsWith('image/');
 
 const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: Props) => {
-  const { user } = useAuth();
-  const myId = user?.id || 'admin';
-  const myName = user?.email?.split('@')[0] || 'Admin';
-  const { messages, isLoading } = useDirectMessages(myId, staffId);
+  const { primaryId, displayName, allIds } = useMyIdentity();
+  const myId = primaryId || 'admin';
+  const myName = displayName;
+  const { messages, isLoading } = useDirectMessages(allIds, [staffId]);
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
