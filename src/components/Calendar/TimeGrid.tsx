@@ -334,10 +334,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Calculate grid template columns - includes available staff column
   const getGridTemplateColumns = () => {
     if (fullWidth) {
-      // In full width mode, use flexible columns with available staff column
       return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, 1fr)`;
     }
-    return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
+    const colWidths = resources.map(r => `${getTeamColumnWidth(r.id)}px`).join(' ');
+    return `${timeColumnWidth}px ${availableColumnWidth}px ${colWidths}`;
   };
 
   // Calculate total width
@@ -345,7 +345,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (fullWidth) {
       return '100%';
     }
-    return `${timeColumnWidth + availableColumnWidth + (resources.length * teamColumnWidth)}px`;
+    return `${timeColumnWidth + availableColumnWidth + totalTeamColumnsWidth}px`;
   };
 
   // Get unassigned available staff (not assigned to any team today)
