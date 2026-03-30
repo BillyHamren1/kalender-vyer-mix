@@ -167,6 +167,7 @@ const EstablishmentGanttChart = ({
   const allTasks = dbTasks || [];
   const tasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
 
+  // ── Adaptive timeline: detect active days & gaps ──────────────
   const ganttData = useMemo(() => {
     if (tasks.length === 0) return null;
 
@@ -177,8 +178,8 @@ const EstablishmentGanttChart = ({
     }));
 
     const allDates = taskDates.flatMap(t => [t.startDate, t.endDate]);
-    const minDate = subDays(min(allDates), 2);
-    const maxDate = addDays(max(allDates), 2);
+    const minDate = subDays(min(allDates), 1);
+    const maxDate = addDays(max(allDates), 1);
     const totalDays = differenceInDays(maxDate, minDate) + 1;
 
     const days: Date[] = [];
@@ -186,18 +187,93 @@ const EstablishmentGanttChart = ({
       days.push(addDays(minDate, i));
     }
 
-    return { taskDates, minDate, maxDate, totalDays, days };
+    // Mark which day indices have task activity
+    const activeDayIndices = new Set<number>();
+    for (const t of taskDates) {
+      const s = differenceInDays(t.startDate, minDate);
+      const e = differenceInDays(t.endDate, minDate);
+      for (let i = Math.max(0, s - 1); i <= Math.min(totalDays - 1, e + 1); i++) {
+        activeDayIndices.add(i);
+      }
+    }
+
+    // Build segments: runs of active days separated by gaps
+    type Segment = { type: 'days'; dayIndices: number[] } | { type: 'gap'; dayIndices: number[]; gapId: number };
+    const segments: Segment[] = [];
+    let gapCounter = 0;
+    let i = 0;
+    while (i < totalDays) {
+      if (activeDayIndices.has(i)) {
+        const run: number[] = [];
+        while (i < totalDays && activeDayIndices.has(i)) {
+          run.push(i);
+          i++;
+        }
+        segments.push({ type: 'days', dayIndices: run });
+      } else {
+        const run: number[] = [];
+        while (i < totalDays && !activeDayIndices.has(i)) {
+          run.push(i);
+          i++;
+        }
+        // Only collapse gaps of 2+ days
+        if (run.length >= 2) {
+          segments.push({ type: 'gap', dayIndices: run, gapId: gapCounter++ });
+        } else {
+          // Treat single empty days as regular days
+          segments.push({ type: 'days', dayIndices: run });
+        }
+      }
+    }
+
+    return { taskDates, minDate, maxDate, totalDays, days, segments, activeDayIndices };
   }, [tasks]);
+
+  const toggleGap = useCallback((gapId: number) => {
+    setExpandedGaps(prev => {
+      const next = new Set(prev);
+      if (next.has(gapId)) next.delete(gapId);
+      else next.add(gapId);
+      return next;
+    });
+  }, []);
+
+  // Build visible columns from segments
+  const visibleColumns = useMemo(() => {
+    if (!ganttData) return [];
+    type Col = { type: 'day'; dayIndex: number; date: Date } | { type: 'gap'; gapId: number; count: number; dayIndices: number[] };
+    const cols: Col[] = [];
+    for (const seg of ganttData.segments) {
+      if (seg.type === 'days') {
+        for (const di of seg.dayIndices) {
+          cols.push({ type: 'day', dayIndex: di, date: ganttData.days[di] });
+        }
+      } else {
+        if (expandedGaps.has(seg.gapId)) {
+          for (const di of seg.dayIndices) {
+            cols.push({ type: 'day', dayIndex: di, date: ganttData.days[di] });
+          }
+        } else {
+          cols.push({ type: 'gap', gapId: seg.gapId, count: seg.dayIndices.length, dayIndices: seg.dayIndices });
+        }
+      }
+    }
+    return cols;
+  }, [ganttData, expandedGaps]);
 
   useEffect(() => {
     if (ganttData && scrollRef.current) {
       const today = startOfDay(new Date());
       const daysSinceStart = differenceInDays(today, ganttData.minDate);
-      const dayWidth = 60;
-      scrollRef.current.scrollLeft = Math.max(0, daysSinceStart * dayWidth - 100);
+      // Find column position of today
+      let pos = 0;
+      for (const col of visibleColumns) {
+        if (col.type === 'day' && col.dayIndex === daysSinceStart) break;
+        pos++;
+      }
       setTodayPosition(daysSinceStart);
     }
-  }, [ganttData]);
+  }, [ganttData, visibleColumns]);
 
   const handleToggleCompleted = async (task: EstablishmentTask) => {
     try {
