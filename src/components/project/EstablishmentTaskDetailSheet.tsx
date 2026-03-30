@@ -353,6 +353,16 @@ const EstablishmentTaskDetailSheet = ({
     if (val) await handleFieldUpdate({ end_date: val });
   };
 
+  const handleStartTimeChange = async (val: string) => {
+    setStartTimeDraft(val);
+    await handleFieldUpdate({ start_time: val || null } as any);
+  };
+
+  const handleEndTimeChange = async (val: string) => {
+    setEndTimeDraft(val);
+    await handleFieldUpdate({ end_time: val || null } as any);
+  };
+
   const handleBlockersBlur = async () => {
     if (task && taskDbData && taskBlockers !== (taskDbData.blockers || "")) {
       await handleFieldUpdate({ blockers: taskBlockers || null });
