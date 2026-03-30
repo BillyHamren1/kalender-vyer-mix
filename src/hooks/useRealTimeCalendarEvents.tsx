@@ -50,7 +50,7 @@ export const useRealTimeCalendarEvents = () => {
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
-              status,
+              status, large_project_id,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
@@ -59,6 +59,27 @@ export const useRealTimeCalendarEvents = () => {
             console.error('Error batch fetching bookings:', error);
           } else {
             bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
+          }
+        }
+        
+        // Batch-fetch large project names
+        const largeProjectIds = [...new Set(
+          [...bookingMap.values()]
+            .filter(b => b.large_project_id)
+            .map(b => b.large_project_id)
+        )];
+        
+        let largeProjectMap = new Map<string, string>();
+        if (largeProjectIds.length > 0) {
+          const { data: projects, error: lpError } = await supabase
+            .from('large_projects')
+            .select('id, name')
+            .in('id', largeProjectIds);
+          
+          if (lpError) {
+            console.error('Error fetching large projects:', lpError);
+          } else {
+            largeProjectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
           }
         }
         
@@ -87,14 +108,57 @@ export const useRealTimeCalendarEvents = () => {
                 bookingStatus: booking.status,
                 assignedProjectId: booking.assigned_project_id,
                 assignedProjectName: booking.assigned_project_name,
-                assignedToProject: booking.assigned_to_project
+                assignedToProject: booking.assigned_to_project,
+                largeProjectId: booking.large_project_id
               }
             };
           }
           return event;
         });
 
-        setEvents(enhancedEvents);
+        // Consolidate large project events: group by (large_project_id, event_type, source_date)
+        const consolidatedEvents: CalendarEvent[] = [];
+        const lpGroupMap = new Map<string, CalendarEvent>();
+        
+        for (const event of enhancedEvents) {
+          const lpId = event.extendedProps?.largeProjectId;
+          if (!lpId) {
+            consolidatedEvents.push(event);
+            continue;
+          }
+          
+          const sourceDate = (event.extendedProps as any)?.sourceDate || event.start?.split('T')[0] || '';
+          const groupKey = `${lpId}-${event.eventType}-${sourceDate}`;
+          
+          if (!lpGroupMap.has(groupKey)) {
+            const projectName = largeProjectMap.get(lpId) || event.title;
+            const consolidated: CalendarEvent = {
+              ...event,
+              title: projectName,
+              extendedProps: {
+                ...event.extendedProps,
+                isLargeProject: true,
+                largeProjectId: lpId,
+                largeProjectName: projectName,
+                consolidatedBookingIds: [event.bookingId]
+              }
+            };
+            lpGroupMap.set(groupKey, consolidated);
+            consolidatedEvents.push(consolidated);
+          } else {
+            // Merge this event's booking into the existing consolidated event
+            const existing = lpGroupMap.get(groupKey)!;
+            const ids = existing.extendedProps?.consolidatedBookingIds || [];
+            if (event.bookingId && !ids.includes(event.bookingId)) {
+              ids.push(event.bookingId);
+            }
+            // Use earliest start and latest end
+            if (event.start < existing.start) existing.start = event.start;
+            if (event.end > existing.end) existing.end = event.end;
+          }
+        }
+
+        setEvents(consolidatedEvents);
         
         
         // Check if we need to fix any titles (only run once per session)
