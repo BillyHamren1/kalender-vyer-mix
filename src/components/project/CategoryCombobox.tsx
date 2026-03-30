@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -63,53 +62,57 @@ const CategoryCombobox = ({ value, onValueChange, className }: CategoryComboboxP
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Input
-          ref={inputRef}
-          value={inputValue}
-          onChange={(e) => {
-            setInputValue(e.target.value);
-            if (!open) setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={handleBlur}
-          placeholder="Skriv eller välj kategori"
-          className={cn("h-8 text-sm", className)}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-1"
-        align="start"
-        sideOffset={4}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        {filtered.length === 0 ? (
-          <p className="text-xs text-muted-foreground p-2">
-            Tryck Enter för att använda "{inputValue}"
-          </p>
-        ) : (
-          <div className="max-h-40 overflow-y-auto">
-            {filtered.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(cat);
-                }}
-                className={cn(
-                  "w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
-                  cat.toLowerCase() === value.toLowerCase() && "bg-accent font-medium"
-                )}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+    <div className="relative">
+      <Input
+        ref={inputRef}
+        value={inputValue}
+        onChange={(e) => {
+          setInputValue(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (inputValue.trim()) {
+              onValueChange(inputValue.trim());
+            }
+            setOpen(false);
+          }
+        }}
+        placeholder="Skriv eller välj kategori"
+        className={cn("h-8 text-sm", className)}
+      />
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md p-1">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground p-2">
+              Tryck Enter för att använda "{inputValue}"
+            </p>
+          ) : (
+            <div className="max-h-40 overflow-y-auto">
+              {filtered.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(cat);
+                  }}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
+                    cat.toLowerCase() === value.toLowerCase() && "bg-accent font-medium"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
