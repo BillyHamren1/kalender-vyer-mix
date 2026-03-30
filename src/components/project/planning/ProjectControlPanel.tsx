@@ -422,7 +422,7 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
 
 const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectControlPanelProps) => {
   const hasIssues = analytics.criticalIssues.length > 0;
-  const hasToday = analytics.upcomingToday.length > 0 || analytics.upcomingTomorrow.length > 0 || !!analytics.nextUpcoming;
+  const hasToday = analytics.upcomingNext10.length > 0;
 
   // Dynamic layout: if only one panel has content, let it take full width
   const showBothColumns = hasIssues && hasToday;
