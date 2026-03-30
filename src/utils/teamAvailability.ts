@@ -2,55 +2,87 @@
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 
 /**
- * Finds the first available team for a new event based on existing events
+ * Finds the best team for a new event using round-robin + sequential scheduling.
+ * 
+ * Rules:
+ * 1. If isExplicitStart: find first team (ordered 1→5) with no time overlap. If all busy → team-1.
+ * 2. If not explicit: round-robin by event count (fewest events, lowest team number breaks ties).
+ * 
  * @param eventStartTime The start time of the event
  * @param eventEndTime The end time of the event
  * @param events All current events in the calendar
  * @param resources All available resources
- * @returns The ID of the first available team
+ * @param isExplicitStart Whether the start time is explicitly set by the booking
+ * @returns The ID of the assigned team
  */
 export const findAvailableTeam = (
   eventStartTime: Date, 
   eventEndTime: Date,
   events: CalendarEvent[],
-  resources: Resource[]
+  resources: Resource[],
+  isExplicitStart: boolean = false
 ): string => {
-  const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
-  if (teamResources.length === 0) return 'team-1'; // Default if no teams exist
+  const teamResources = resources
+    .filter(resource => resource.id.startsWith('team-') && resource.id !== 'team-11')
+    .filter(resource => {
+      const num = parseInt(resource.id.split('-')[1]);
+      return num >= 1 && num <= 5;
+    })
+    .sort((a, b) => parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1]));
+
+  if (teamResources.length === 0) return 'team-1';
+
+  // Get events for the same date on team-1 through team-5
+  const eventDate = `${eventStartTime.getUTCFullYear()}-${String(eventStartTime.getUTCMonth() + 1).padStart(2, '0')}-${String(eventStartTime.getUTCDate()).padStart(2, '0')}`;
   
-  // Find all teams without events at the given time slot
-  const busyTeams = new Set<string>();
-  
-  events.forEach(event => {
-    const eventStart = new Date(event.start);
-    const eventEnd = new Date(event.end);
-    
-    // Check if the event overlaps with the new time slot
-    if (
-      (eventStartTime <= eventEnd && eventEndTime >= eventStart) &&
-      event.resourceId.startsWith('team-')
-    ) {
-      busyTeams.add(event.resourceId);
-    }
+  const teamIds = new Set(teamResources.map(r => r.id));
+  const sameDayEvents = events.filter(event => {
+    if (!teamIds.has(event.resourceId)) return false;
+    const evStart = new Date(event.start);
+    const evDate = `${evStart.getUTCFullYear()}-${String(evStart.getUTCMonth() + 1).padStart(2, '0')}-${String(evStart.getUTCDate()).padStart(2, '0')}`;
+    return evDate === eventDate;
   });
-  
-  // Find first available team in order
-  const sortedTeams = teamResources.sort((a, b) => {
-    // Extract team numbers for proper numeric sorting
-    const numA = parseInt(a.id.split('-')[1]);
-    const numB = parseInt(b.id.split('-')[1]);
-    return numA - numB;
-  });
-  
-  // Find first available team
-  for (const team of sortedTeams) {
-    if (!busyTeams.has(team.id)) {
-      return team.id;
+
+  if (isExplicitStart) {
+    // === EXPLICIT START: find first team without overlap at this specific time ===
+    for (const team of teamResources) {
+      let hasOverlap = false;
+      for (const event of sameDayEvents) {
+        if (event.resourceId !== team.id) continue;
+        const evStart = new Date(event.start);
+        const evEnd = new Date(event.end);
+        if (eventStartTime < evEnd && eventEndTime > evStart) {
+          hasOverlap = true;
+          break;
+        }
+      }
+      if (!hasOverlap) return team.id;
     }
+    // All teams busy at this time — use first team (overlap allowed)
+    return teamResources[0].id;
+  } else {
+    // === NO EXPLICIT START: round-robin by event count ===
+    const teamCounts = new Map<string, number>();
+    for (const team of teamResources) {
+      teamCounts.set(team.id, 0);
+    }
+    for (const event of sameDayEvents) {
+      teamCounts.set(event.resourceId, (teamCounts.get(event.resourceId) || 0) + 1);
+    }
+
+    let minCount = Number.MAX_SAFE_INTEGER;
+    for (const [, count] of teamCounts) {
+      if (count < minCount) minCount = count;
+    }
+
+    for (const team of teamResources) {
+      if ((teamCounts.get(team.id) || 0) === minCount) {
+        return team.id;
+      }
+    }
+
+    return teamResources[0].id;
   }
-  
-  // If all teams are busy, return the first team
-  return sortedTeams[0].id;
 };
 
 /**
