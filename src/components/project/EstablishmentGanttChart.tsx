@@ -18,7 +18,7 @@ import {
   deleteEstablishmentTask,
   type EstablishmentTask,
 } from "@/services/establishmentTaskService";
-import AddEstablishmentTaskDialog from "./AddEstablishmentTaskDialog";
+import ActivityPlannerSheet from "./ActivityPlannerSheet";
 import type { ProjectBookingInfo } from "./AddEstablishmentTaskDialog";
 import { toast } from "sonner";
 
@@ -776,7 +776,7 @@ const EstablishmentGanttChart = ({
         </CardContent>
       </Card>
 
-      <AddEstablishmentTaskDialog
+      <ActivityPlannerSheet
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         bookingId={bookingId || undefined}
@@ -786,6 +786,7 @@ const EstablishmentGanttChart = ({
         onTaskCreated={invalidateTasks}
         projectBookings={projectBookings}
         staffPool={staffPool}
+        existingTasks={dbTasks || []}
       />
     </>
   );
