@@ -128,13 +128,70 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
+        .select("assigned_to, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
         .eq("id", task!.id)
         .single();
       return data;
     },
     enabled: !!task?.id && open,
   });
+
+  // Fetch linked booking products when source_product_ids exist
+  const sourceProductIds = taskDbData?.source_product_ids as string[] | null;
+  const effectiveBookingId = taskDbData?.booking_id || bookingId;
+
+  const { data: linkedProducts = [] } = useQuery({
+    queryKey: ["linked-booking-products", task?.id, sourceProductIds],
+    queryFn: async () => {
+      if (!sourceProductIds || sourceProductIds.length === 0) return [];
+      const { data } = await supabase
+        .from("booking_products")
+        .select("id, name, quantity, sku, parent_product_id, is_package_component")
+        .in("id", sourceProductIds);
+      return data || [];
+    },
+    enabled: !!sourceProductIds && sourceProductIds.length > 0 && open,
+  });
+
+  // Build hierarchical product structure: parents with their accessories
+  const productHierarchy = useMemo(() => {
+    if (linkedProducts.length === 0) return [];
+    
+    // Find parent products (no parent_product_id or parent not in our set)
+    const productIds = new Set(linkedProducts.map(p => p.id));
+    const parents = linkedProducts.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
+    const children = linkedProducts.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
+    
+    return parents.map(parent => ({
+      ...parent,
+      accessories: children.filter(c => c.parent_product_id === parent.id),
+    }));
+  }, [linkedProducts]);
+
+  // Track checked product IDs locally, persisted via subtasks
+  const [checkedProducts, setCheckedProducts] = useState<Set<string>>(new Set());
+
+  // Auto-create subtasks from products if task has source_product_ids but no subtasks yet
+  const { data: subtasks = [], isLoading } = useQuery({
+    queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id],
+    queryFn: () => fetchSubtasks(effectiveBookingId!, task!.id),
+    enabled: !!effectiveBookingId && !!task?.id && open,
+  });
+
+  // Sync checked state from subtask titles matching product IDs
+  useEffect(() => {
+    if (subtasks.length > 0 && linkedProducts.length > 0) {
+      const checked = new Set<string>();
+      subtasks.forEach(st => {
+        if (st.completed && st.title) {
+          // Match subtask to product by checking if the title starts with the product name
+          const matchingProduct = linkedProducts.find(p => st.title.startsWith(p.name));
+          if (matchingProduct) checked.add(matchingProduct.id);
+        }
+      });
+      setCheckedProducts(checked);
+    }
+  }, [subtasks, linkedProducts]);
 
   useEffect(() => {
     if (taskDbData) {
