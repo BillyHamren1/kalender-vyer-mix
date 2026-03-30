@@ -1,27 +1,128 @@
 
 
-## Plan: Editable category field with custom categories
+# Scanner App - Komplett kodöversikt och Android-uppdatering
 
-### Problem
-The category dropdown is hardcoded with fixed values. User wants to type custom categories and have them saved, with new defaults: **Montering**, **Demontering**, **Transport**.
+## Arkitektur
 
-### Changes
+```text
+┌─────────────────────────────────────────────────────────┐
+│  App.tsx                                                 │
+│  └─ VITE_APP_MODE=scanner → ScannerAppShell             │
+│       └─ MobileAuthProvider                              │
+│            ├─ /scanner/login → ScannerLogin              │
+│            └─ /scanner → ScannerAppLayout                │
+│                 └─ MobileScannerApp (huvudkomponent)      │
+│                      ├─ Home: packlista + QR-scanner      │
+│                      ├─ verifying → VerificationView      │
+│                      └─ manual → ManualChecklistView      │
+└─────────────────────────────────────────────────────────┘
+```
 
-**1. `src/components/project/ActivityPlannerSheet.tsx`**
-- Replace the `CATEGORIES` constant with new defaults: `montering`, `demontering`, `transport`
-- Replace the `<Select>` for category with a combo-box pattern: an `<Input>` with a datalist or a custom dropdown that shows existing categories + allows free text input
-- Use a simple approach: `<Input>` with autocomplete suggestions from a combined list of defaults + previously used categories fetched from the DB
-- Add a query to fetch distinct categories from `establishment_tasks` table to populate suggestions
+## Nyckelflöden
 
-**2. `src/components/project/AddEstablishmentTaskDialog.tsx`**
-- Same change: update default categories to montering/demontering/transport and switch to free-text input with suggestions
+### 1. Scanning-pipeline
+```text
+Zebra DataWedge (hårdvara)
+  → BroadcastReceiver (DataWedgePlugin.java)
+    → Capacitor event "datawedge_scan"
+      → DataWedgeBridge.ts (native listener)
+        → ScannerService.handleIncomingScan()
+          → dedup + ScanQueue
+            → useScannerController.onScan callback
+              → activeScanHandler.current (dynamisk delegation)
+                ├─ Home: parseScanResult → navigera till packlista
+                └─ Verifying: useScanProcessor → optimistic update
+```
 
-**3. `src/components/project/ProjectGanttChart.tsx`**
-- Update `CATEGORY_CONFIG` to handle unknown/custom categories gracefully with a fallback color instead of crashing on missing keys
+### 2. RFID-pipeline (samma mönster)
+```text
+Zebra RFD4030 → ZebraRfidPlugin.java → "rfid_tag" event
+  → ZebraRfidBridge.ts → ScannerService → samma callback-kedja
+```
 
-### Implementation detail
-- Use a `<Popover>` + `<Input>` + filtered list pattern (combobox) so the user can either pick a suggestion or type freely
-- Fetch `SELECT DISTINCT category FROM establishment_tasks` to show previously saved custom categories as suggestions
-- Merge DB categories with the 3 defaults for the suggestion list
-- The category value is stored as-is (free text) in the `category` column
+### 3. Kamera-fallback
+QRScanner.tsx (jsQR + BarcodeDetector API) → submitManualScan → samma pipeline
+
+## Filinventering
+
+### Android Native (Java)
+| Fil | Ansvar |
+|-----|--------|
+| `MainActivity.java` | Registrerar plugins, beviljar WebView kamerabehörigheter |
+| `DataWedgePlugin.java` | BroadcastReceiver för `se.eventflow.scanner.SCAN`, vidarebefordrar till WebView |
+| `ZebraRfidPlugin.java` | RFID SDK-brygga (kräver manuell rfidapi3.aar) |
+
+### Capacitor-konfiguration
+| Fil | Ansvar |
+|-----|--------|
+| `capacitor.scanner.config.ts` | appId: `se.eventflow.scanner`, webDir: `dist` |
+| `capacitor.config.ts` | EventFlow Time (separat app) |
+| `.env.scanner` | `VITE_APP_MODE=scanner` |
+
+### Scanner Service Layer (TypeScript)
+| Fil | Ansvar |
+|-----|--------|
+| `ScannerService.ts` | Singleton orchestrator — init, destroy, dedup, state |
+| `DataWedgeBridge.ts` | Capacitor plugin listener + web fallback |
+| `ZebraRfidBridge.ts` | RFID plugin listener + tag-tracking + simulation |
+| `KeyboardFallbackBridge.ts` | HID-tangentbordsfallback för icke-Zebra |
+| `ScanQueue.ts` | Offline-kö med sync-status |
+| `platform.ts` | Plattformsdetektering (Zebra, Android, Web) |
+| `types.ts` | ScanEvent, ScanMode, ScannerState, ScannerConfig |
+
+### React Hooks
+| Fil | Ansvar |
+|-----|--------|
+| `useScannerController.ts` | Central hook — init, mode switch, RFID-kontroller |
+| `useScanProcessor.ts` | FIFO-kö, sekventiell processing per scan |
+| `useOptimisticPacking.ts` | Optimistisk UI-uppdatering av kvantiteter |
+| `usePackingSync.ts` | Backend-synk med Math.max-strategi |
+| `useKolliManager.ts` | Kolli/parcel-hantering |
+| `useScanFeedback.ts` | Visuell/ljud-feedback vid scan |
+| `useRfidManager.ts` | RFID-inventering och tag-matching |
+| `useScannerRealtime.ts` | Supabase Realtime + 30s polling fallback |
+
+### UI-komponenter
+| Fil | Ansvar |
+|-----|--------|
+| `MobileScannerApp.tsx` | Huvudsida — hemlista, state-routing, activeScanHandler |
+| `VerificationView.tsx` | Scannings-/verifieringsvy (555 rader) |
+| `ManualChecklistView.tsx` | Manuell bocka-av-vy |
+| `QRScanner.tsx` | Kamera-scanner med jsQR fallback |
+| `ScannerDebugPanel.tsx` | Debug-panel med simulering |
+| `ScannerModeIndicator.tsx` | Barcode/RFID-statusindikator |
+| `PackingSelector.tsx` | Packlistval |
+| `BluetoothRFID.tsx` | Bluetooth RFID-status |
+
+### Backend
+- Edge function: `scanner-api` (Supabase) — hanterar auth, packing CRUD, parcel, status
+- API-anrop via `scannerService.ts` med hardcoded Supabase-URL
+- Tabeller: `packing_projects`, `packing_list_items`, `bookings`, `packing_sync_log`
+
+## Android Build-process
+
+```text
+1. VITE_APP_MODE=scanner npm run build     # Bygger till dist/
+2. Kopiera capacitor.scanner.config.ts → capacitor.config.ts
+3. npx cap sync android                     # Synkar dist → android/
+4. Öppna android/ i Android Studio
+5. Build & run (eller npx cap run android)
+```
+
+Alternativt: `npm run android:scanner` (använder `scripts/build-android.js`)
+
+## Konfigurationskrav på enhet
+- DataWedge-profil krävs (se `docs/zebra-datawedge-setup.md`)
+- Intent Action: `se.eventflow.scanner.SCAN`, Broadcast, Keystroke OFF
+- RFID kräver manuell placering av `rfidapi3.aar` i `android/app/libs/`
+
+## Sammanfattning
+
+Hela scanner-appen är en React SPA som körs i en Capacitor WebView på Android. Den har tre skanningskällor (DataWedge, RFID, kamera) som alla matas genom en central ScannerService med deduplicering och en FIFO-kö. Native Java-plugins (DataWedgePlugin + ZebraRfidPlugin) registreras i MainActivity och kommunicerar via Capacitor events. Backend-kommunikation sker via `scanner-api` edge function med token-baserad auth.
+
+För att uppdatera appen på Android behöver du:
+1. Pusha/pulla senaste koden
+2. Köra `npm run build:scanner`
+3. Köra `npx cap sync android` (med rätt capacitor.config.ts)
+4. Bygga APK/AAB i Android Studio
 
