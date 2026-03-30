@@ -10,7 +10,9 @@ import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningS
 import { fetchAllSubtasksForBooking } from "@/services/establishmentSubtaskService";
 import {
   fetchEstablishmentTasks,
+  fetchEstablishmentTasksByProject,
   generateDefaultTasks,
+  generateDefaultTasksForProject,
   updateEstablishmentTask,
   deleteEstablishmentTask,
   type EstablishmentTask,
@@ -22,6 +24,9 @@ interface EstablishmentGanttChartProps {
   rigDate?: string | null;
   eventDate?: string | null;
   bookingId?: string | null;
+  largeProjectId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   client?: string;
   address?: string | null;
   onTaskClick?: (task: { id: string; title: string; category: string; startDate: Date; endDate: Date; completed: boolean }) => void;
@@ -55,6 +60,9 @@ const EstablishmentGanttChart = ({
   rigDate,
   eventDate,
   bookingId,
+  largeProjectId,
+  startDate,
+  endDate,
   client = 'Okänd kund',
   address,
   onTaskClick,
@@ -64,32 +72,48 @@ const EstablishmentGanttChart = ({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch booking data for products list in dialog
+  const isProjectMode = !!largeProjectId;
+  const queryKey = isProjectMode
+    ? ['establishment-tasks', 'project', largeProjectId]
+    : ['establishment-tasks', bookingId];
+
+  // Effective dates for generation
+  const effectiveStartDate = rigDate || startDate;
+  const effectiveEndDate = eventDate || endDate;
+
+  // Fetch booking data for products list in dialog (only in booking mode)
   const { data: bookingData } = useQuery({
     queryKey: ['establishment-booking-data', bookingId],
     queryFn: () => fetchEstablishmentBookingData(bookingId!),
-    enabled: !!bookingId,
+    enabled: !!bookingId && !isProjectMode,
   });
 
   // Fetch DB tasks
   const { data: dbTasks, isLoading: isLoadingTasks } = useQuery({
-    queryKey: ['establishment-tasks', bookingId],
+    queryKey,
     queryFn: async () => {
-      const tasks = await fetchEstablishmentTasks(bookingId!);
-      // Auto-generate defaults if empty and we have dates
-      if (tasks.length === 0 && rigDate && eventDate) {
-        return await generateDefaultTasks(bookingId!, rigDate, eventDate);
+      if (isProjectMode) {
+        const tasks = await fetchEstablishmentTasksByProject(largeProjectId!);
+        if (tasks.length === 0 && effectiveStartDate && effectiveEndDate) {
+          return await generateDefaultTasksForProject(largeProjectId!, effectiveStartDate, effectiveEndDate);
+        }
+        return tasks;
+      } else {
+        const tasks = await fetchEstablishmentTasks(bookingId!);
+        if (tasks.length === 0 && rigDate && eventDate) {
+          return await generateDefaultTasks(bookingId!, rigDate, eventDate);
+        }
+        return tasks;
       }
-      return tasks;
     },
-    enabled: !!bookingId,
+    enabled: isProjectMode ? !!largeProjectId : !!bookingId,
   });
 
   // Fetch subtasks for progress
   const { data: allSubtasks = [] } = useQuery({
     queryKey: ['establishment-all-subtasks', bookingId],
     queryFn: () => fetchAllSubtasksForBooking(bookingId!),
-    enabled: !!bookingId,
+    enabled: !!bookingId && !isProjectMode,
   });
 
   const subtasksByTask = useMemo(() => {
@@ -139,7 +163,7 @@ const EstablishmentGanttChart = ({
   const handleToggleCompleted = async (task: EstablishmentTask) => {
     try {
       await updateEstablishmentTask(task.id, { completed: !task.completed });
-      queryClient.invalidateQueries({ queryKey: ['establishment-tasks', bookingId] });
+      queryClient.invalidateQueries({ queryKey });
     } catch {
       toast.error("Kunde inte uppdatera status");
     }
@@ -149,7 +173,7 @@ const EstablishmentGanttChart = ({
     e.stopPropagation();
     try {
       await deleteEstablishmentTask(taskId);
-      queryClient.invalidateQueries({ queryKey: ['establishment-tasks', bookingId] });
+      queryClient.invalidateQueries({ queryKey });
       toast.success("Aktivitet borttagen");
     } catch {
       toast.error("Kunde inte ta bort aktivitet");
@@ -157,11 +181,13 @@ const EstablishmentGanttChart = ({
   };
 
   const invalidateTasks = () => {
-    queryClient.invalidateQueries({ queryKey: ['establishment-tasks', bookingId] });
+    queryClient.invalidateQueries({ queryKey });
     setShowAddDialog(false);
   };
 
-  if (!rigDate || !eventDate) {
+  const hasDates = isProjectMode ? (!!startDate || !!endDate) : (!!rigDate && !!eventDate);
+
+  if (!hasDates) {
     return (
       <Card>
         <CardHeader>
@@ -172,7 +198,9 @@ const EstablishmentGanttChart = ({
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-center py-8">
-            Ingen rigg- eller eventdatum tillgängligt för denna bokning.
+            {isProjectMode
+              ? 'Ange projektperiod (start- och slutdatum) för att visa Gantt-schemat.'
+              : 'Ingen rigg- eller eventdatum tillgängligt för denna bokning.'}
           </p>
         </CardContent>
       </Card>
@@ -231,19 +259,21 @@ const EstablishmentGanttChart = ({
             </Button>
           </div>
 
-          {/* Compact booking summary */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
-            <span><strong className="text-foreground">{client}</strong></span>
-            {address && <span>{address}</span>}
-            <span>Rigg: {format(new Date(rigDate), 'd MMM', { locale: sv })}</span>
-            <span>Event: {format(new Date(eventDate), 'd MMM', { locale: sv })}</span>
-            {bookingData && (
-              <span>{bookingData.products.filter(p => !p.isPackageComponent).length} produkter</span>
-            )}
-            {bookingData && bookingData.assignedStaff.length > 0 && (
-              <span>{[...new Set(bookingData.assignedStaff.map(s => s.name))].length} personal</span>
-            )}
-          </div>
+          {/* Compact booking summary - only in booking mode */}
+          {!isProjectMode && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
+              <span><strong className="text-foreground">{client}</strong></span>
+              {address && <span>{address}</span>}
+              {rigDate && <span>Rigg: {format(new Date(rigDate), 'd MMM', { locale: sv })}</span>}
+              {eventDate && <span>Event: {format(new Date(eventDate), 'd MMM', { locale: sv })}</span>}
+              {bookingData && (
+                <span>{bookingData.products.filter(p => !p.isPackageComponent).length} produkter</span>
+              )}
+              {bookingData && bookingData.assignedStaff.length > 0 && (
+                <span>{[...new Set(bookingData.assignedStaff.map(s => s.name))].length} personal</span>
+              )}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="p-0 flex flex-col">
@@ -418,16 +448,15 @@ const EstablishmentGanttChart = ({
         </CardContent>
       </Card>
 
-      {bookingId && (
-        <AddEstablishmentTaskDialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          bookingId={bookingId}
-          products={bookingData?.products || []}
-          defaultDate={rigDate || null}
-          onTaskCreated={invalidateTasks}
-        />
-      )}
+      <AddEstablishmentTaskDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        bookingId={bookingId || undefined}
+        largeProjectId={largeProjectId || undefined}
+        products={bookingData?.products || []}
+        defaultDate={effectiveStartDate || null}
+        onTaskCreated={invalidateTasks}
+      />
     </>
   );
 };

@@ -3,7 +3,8 @@ import { subDays, addDays, format } from "date-fns";
 
 export interface EstablishmentTask {
   id: string;
-  booking_id: string;
+  booking_id: string | null;
+  large_project_id: string | null;
   title: string;
   category: string;
   start_date: string;
@@ -19,7 +20,7 @@ export interface EstablishmentTask {
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
     .from('establishment_tasks')
-    .select('id, booking_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id')
+    .select('id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id')
     .eq('booking_id', bookingId)
     .order('sort_order', { ascending: true });
 
@@ -27,8 +28,20 @@ export const fetchEstablishmentTasks = async (bookingId: string): Promise<Establ
   return (data || []) as EstablishmentTask[];
 };
 
+export const fetchEstablishmentTasksByProject = async (largeProjectId: string): Promise<EstablishmentTask[]> => {
+  const { data, error } = await supabase
+    .from('establishment_tasks')
+    .select('id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id')
+    .eq('large_project_id', largeProjectId)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as EstablishmentTask[];
+};
+
 export const createEstablishmentTask = async (task: {
-  booking_id: string;
+  booking_id?: string | null;
+  large_project_id?: string | null;
   title: string;
   category: string;
   start_date: string;
@@ -41,7 +54,8 @@ export const createEstablishmentTask = async (task: {
   const { data, error } = await supabase
     .from('establishment_tasks')
     .insert({
-      booking_id: task.booking_id,
+      booking_id: task.booking_id ?? null,
+      large_project_id: task.large_project_id ?? null,
       title: task.title,
       category: task.category,
       start_date: task.start_date,
@@ -102,6 +116,42 @@ export const generateDefaultTasks = async (
 
   const rows = defaults.map(d => ({
     booking_id: bookingId,
+    source: 'default',
+    ...d,
+  }));
+
+  const { data, error } = await supabase
+    .from('establishment_tasks')
+    .insert(rows)
+    .select();
+
+  if (error) throw error;
+  return (data || []) as EstablishmentTask[];
+};
+
+export const generateDefaultTasksForProject = async (
+  largeProjectId: string,
+  startDate: string,
+  endDate: string
+): Promise<EstablishmentTask[]> => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+
+  const defaults = [
+    { title: 'Lastning på lager', category: 'material', start_date: fmt(subDays(start, 1)), end_date: fmt(subDays(start, 1)), sort_order: 0 },
+    { title: 'Transport till plats', category: 'transport', start_date: fmt(start), end_date: fmt(start), sort_order: 1 },
+    { title: 'Personal anländer', category: 'personal', start_date: fmt(start), end_date: fmt(start), sort_order: 2 },
+    { title: 'Lossning & uppställning', category: 'installation', start_date: fmt(start), end_date: fmt(start), sort_order: 3 },
+    { title: 'Montering dag 1', category: 'installation', start_date: fmt(start), end_date: fmt(start), sort_order: 4 },
+    { title: 'Montering dag 2', category: 'installation', start_date: fmt(addDays(start, 1)), end_date: fmt(addDays(start, 1)), sort_order: 5 },
+    { title: 'Slutkontroll & städning', category: 'kontroll', start_date: fmt(subDays(end, 1)), end_date: fmt(subDays(end, 1)), sort_order: 6 },
+    { title: 'Överlämning till kund', category: 'kontroll', start_date: fmt(end), end_date: fmt(end), sort_order: 7 },
+  ];
+
+  const rows = defaults.map(d => ({
+    large_project_id: largeProjectId,
     source: 'default',
     ...d,
   }));
