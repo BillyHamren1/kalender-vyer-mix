@@ -19,6 +19,7 @@ export interface EstablishmentTask {
   assigned_to: string | null;
   source: string;
   source_product_id: string | null;
+  source_product_ids: string[] | null;
   status: TaskStatus;
   readiness: TaskReadiness;
   priority: TaskPriority;
@@ -28,7 +29,7 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
+const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
@@ -62,6 +63,7 @@ export const createEstablishmentTask = async (task: {
   sort_order?: number;
   source?: string;
   source_product_id?: string;
+  source_product_ids?: string[];
   notes?: string;
   assigned_to?: string | null;
   status?: TaskStatus;
@@ -84,6 +86,7 @@ export const createEstablishmentTask = async (task: {
       sort_order: task.sort_order ?? 0,
       source: task.source ?? 'manual',
       source_product_id: task.source_product_id ?? null,
+      source_product_ids: task.source_product_ids ?? null,
       notes: task.notes ?? null,
       assigned_to: task.assigned_to ?? null,
       status: task.status ?? 'not_started',

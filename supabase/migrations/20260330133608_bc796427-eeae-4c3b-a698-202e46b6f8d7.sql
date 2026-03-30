@@ -1,0 +1,1 @@
+ALTER TABLE public.establishment_tasks ADD COLUMN IF NOT EXISTS source_product_ids text[] DEFAULT NULL;

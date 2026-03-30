@@ -29,7 +29,7 @@ interface ActivityPlannerSheetProps {
   onTaskCreated: () => void;
   projectBookings?: ProjectBookingInfo[];
   staffPool?: Array<{ id: string; name: string }>;
-  existingTasks?: Array<{ source_product_id: string | null; title?: string }>;
+  existingTasks?: Array<{ source_product_id: string | null; source_product_ids: string[] | null; title?: string }>;
 }
 
 // Categories are now handled by CategoryCombobox
@@ -128,26 +128,21 @@ const ActivityPlannerSheet = ({
     ? (selectedBookingData?.products || [])
     : products;
 
-  // Build planned set from existing tasks — match by source_product_id AND by product name in title
+  // Build planned set from existing tasks — match by source_product_ids, source_product_id, and title fallback
   useEffect(() => {
     const planned = new Set<string>();
     existingTasks.forEach(t => {
-      if (t.source_product_id) planned.add(t.source_product_id);
+      // Primary: use the array of all product IDs
+      if (t.source_product_ids && t.source_product_ids.length > 0) {
+        t.source_product_ids.forEach(id => planned.add(id));
+      }
+      // Fallback: legacy single product ID
+      else if (t.source_product_id) {
+        planned.add(t.source_product_id);
+      }
     });
-    // Also match products whose name appears in any existing task title
-    if (activeProducts.length > 0) {
-      existingTasks.forEach(t => {
-        if (t.title) {
-          activeProducts.forEach(p => {
-            if (t.title!.includes(p.name)) {
-              planned.add(p.id);
-            }
-          });
-        }
-      });
-    }
     setPlannedProductIds(planned);
-  }, [existingTasks, activeProducts]);
+  }, [existingTasks]);
 
   useEffect(() => {
     if (!open) {
@@ -197,7 +192,9 @@ const ActivityPlannerSheet = ({
         .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
         .join(', ');
 
-      // Create ONE task with the combined title
+      const allProductIds = selectedProducts.map(p => p.id);
+
+      // Create ONE task with the combined title, storing ALL product IDs
       await createEstablishmentTask({
         booking_id: effectiveBookingId,
         large_project_id: largeProjectId || null,
@@ -206,7 +203,8 @@ const ActivityPlannerSheet = ({
         start_date: format(startDate, 'yyyy-MM-dd'),
         end_date: format(endDate, 'yyyy-MM-dd'),
         source: 'product',
-        source_product_id: selectedProducts[0]?.id || null,
+        source_product_id: allProductIds[0] || null,
+        source_product_ids: allProductIds,
         assigned_to: assignedTo,
         priority,
       });
