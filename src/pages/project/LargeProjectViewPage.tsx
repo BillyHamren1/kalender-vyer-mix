@@ -10,6 +10,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
+import LargeProjectPackingOverview from "@/components/project/LargeProjectPackingOverview";
 import { ProjectTask } from "@/types/project";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
