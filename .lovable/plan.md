@@ -1,31 +1,37 @@
 
 
-## Fix: Visa bokningsnamn istället för UUID:er i bokningsväljaren
+## Fix: Personalval i etableringsuppgifter
 
-### Problem
-Bokningsväljaren i "Lägg till aktivitet"-dialogen visar bara råa UUID:er. Det beror på att mappningen i `LargeEstablishmentPage.tsx` försöker läsa `b.client` direkt, men klientnamnet ligger på `b.booking.client`.
+### Vad som är fel
+1. **Fallback-logik**: `hasStaffPool` kollar `staffPool.length > 0`, vilket betyder att en tom array (`[]`) triggar en fetch av ALL aktiv personal — helt fel beteende för stora projekt.
+2. **Dropdownen borde redan synas** i koden (rad 250-268), men det kan finnas en stale preview. Inga kodändringar behövs för renderingen — den är redan ovillkorlig.
 
-### Lösning
-Uppdatera mappningen på **två ställen** i `LargeEstablishmentPage.tsx` (rad 89-93 och 114-118) så att `client` hämtas från `b.booking?.client` och `display_name` fallbackar till `b.booking?.booking_number` eller klientnamn:
+### Ändring i `EstablishmentTaskDetailSheet.tsx`
+
+**Rad 86-101** — Ändra logiken:
 
 ```typescript
-// Ändra från:
-(project.bookings || []).map(b => ({
-  booking_id: b.booking_id,
-  display_name: b.display_name,
-  client: (b as any).client,
-}))
+// FRÅN:
+const hasStaffPool = staffPool && staffPool.length > 0;
+const { data: allStaffMembers = [] } = useQuery({
+  ...
+  enabled: !hasStaffPool,
+});
+const effectiveStaff: StaffMember[] = hasStaffPool ? staffPool : allStaffMembers;
 
-// Till:
-(project.bookings || []).map(b => ({
-  booking_id: b.booking_id,
-  display_name: b.display_name || b.booking?.client || b.booking?.booking_number || b.booking_id,
-  client: b.booking?.client || null,
-}))
+// TILL:
+const shouldFetchAll = staffPool === undefined;
+const { data: allStaffMembers = [] } = useQuery({
+  ...
+  enabled: shouldFetchAll,
+});
+const effectiveStaff: StaffMember[] = staffPool !== undefined ? staffPool : allStaffMembers;
 ```
 
-### Filer att ändra
-- **`src/pages/project/LargeEstablishmentPage.tsx`** — Fixa mappningen på rad 89-93 och rad 114-118
+Detta gör att:
+- **Medelstora projekt** (`staffPool` = `undefined`): hämtar all aktiv personal som förut
+- **Stora projekt** (`staffPool` = `[]` eller `[...]`): använder exakt den pool som skickas in, ingen fallback — om poolen är tom visas bara "Ingen tilldelad"
 
-En enkel fix som gör att bokningsväljaren visar klientnamn/bokningsnummer istället för UUID:er.
+### Fil att ändra
+- `src/components/project/EstablishmentTaskDetailSheet.tsx` — rad 87-101
 
