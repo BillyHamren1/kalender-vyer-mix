@@ -127,6 +127,18 @@ export const updateEstablishmentTask = async (
   if (error) throw error;
 };
 
+export const bulkUpdateEstablishmentTasks = async (
+  ids: string[],
+  updates: Partial<Pick<EstablishmentTask, 'assigned_to' | 'start_date' | 'end_date' | 'status' | 'priority'>>
+): Promise<void> => {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from('establishment_tasks')
+    .update(updates)
+    .in('id', ids);
+  if (error) throw error;
+};
+
 export const deleteEstablishmentTask = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('establishment_tasks')
