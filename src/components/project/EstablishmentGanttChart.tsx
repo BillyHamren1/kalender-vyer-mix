@@ -44,6 +44,27 @@ const CATEGORY_COLORS: Record<string, string> = {
   kontroll: 'bg-cyan-500',
 };
 
+const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  not_started: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Ej startad' },
+  in_progress: { bg: 'bg-primary/15', text: 'text-primary', label: 'Pågår' },
+  blocked: { bg: 'bg-destructive/15', text: 'text-destructive', label: 'Blockerad' },
+  done: { bg: 'bg-emerald-500/15', text: 'text-emerald-600', label: 'Klar' },
+  cancelled: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Avbruten' },
+};
+
+const READINESS_LABELS: Record<string, string> = {
+  ready: 'Redo',
+  missing_information: 'Saknar info',
+  waiting_for_decision: 'Väntar beslut',
+  waiting_for_external: 'Väntar extern',
+};
+
+const PRIORITY_CONFIG: Record<string, { icon: typeof ArrowUp; className: string; label: string }> = {
+  high: { icon: ArrowUp, className: 'text-destructive', label: 'Hög' },
+  medium: { icon: ArrowRight, className: 'text-amber-500', label: 'Medium' },
+  low: { icon: ArrowDown, className: 'text-muted-foreground', label: 'Låg' },
+};
+
 const CATEGORY_ICONS: Record<string, typeof Truck> = {
   transport: Truck,
   material: Package,
@@ -58,6 +79,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   personal: 'Personal',
   installation: 'Installation',
   kontroll: 'Kontroll',
+};
+
+const STATUS_ICON_MAP: Record<string, typeof Circle> = {
+  not_started: Circle,
+  in_progress: Play,
+  blocked: Ban,
+  done: CheckCircle2,
+  cancelled: XCircle,
 };
 
 const EstablishmentGanttChart = ({
