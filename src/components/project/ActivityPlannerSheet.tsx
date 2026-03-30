@@ -115,6 +115,7 @@ const ActivityPlannerSheet = ({
 
   // Manual task
   const [manualTitle, setManualTitle] = useState("");
+  const [customTitle, setCustomTitle] = useState("");
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
@@ -150,6 +151,7 @@ const ActivityPlannerSheet = ({
       setSelectedBookingId("none");
       setPriority("medium");
       setManualTitle("");
+      setCustomTitle("");
     }
   }, [open]);
 
@@ -187,8 +189,8 @@ const ActivityPlannerSheet = ({
 
       const selectedProducts = activeProducts.filter(p => selectedIds.has(p.id));
 
-      // Build a combined title from all selected products
-      const combinedTitle = selectedProducts
+      // Use custom title if provided, otherwise build from product names
+      const combinedTitle = customTitle.trim() || selectedProducts
         .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
         .join(', ');
 
@@ -458,6 +460,16 @@ const ActivityPlannerSheet = ({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs">Aktivitetsnamn (valfritt)</Label>
+                <Input
+                  value={customTitle}
+                  onChange={e => setCustomTitle(e.target.value)}
+                  placeholder="Lämna tomt för automatiskt namn"
+                  className="h-8 text-sm"
+                />
               </div>
 
               <p className="text-[10px] text-muted-foreground">
