@@ -1,39 +1,27 @@
 
 
-## Visa etableringsuppgifter (to-dos) i tidappen
+## Lägg till personalval i "Lägg till aktivitet"-dialogen
 
-### Vad som ska byggas
-Personalen ska se sina tilldelade etableringsuppgifter som en **checklista** direkt i **Info-fliken** på jobb-detaljsidan i mobilappen. Bara uppgifter tilldelade den inloggade personen visas. De kan bocka av uppgifter direkt.
+### Problem
+Dialogen `AddEstablishmentTaskDialog` saknar ett fält för att tilldela personal (`assigned_to`) vid skapande av aktiviteter. Fältet finns i databasen men exponeras aldrig i UI:t.
 
 ### Ändringar
 
-**1. Edge function: `mobile-app-api/index.ts`**
-I `handleGetBookingDetails` (rad ~1399), lägg till en fetch av `establishment_tasks` filtrerat på `booking_id` OCH `assigned_to = staffId`:
+**1. `src/components/project/AddEstablishmentTaskDialog.tsx`**
+- Lägg till prop `staffPool: Array<{id: string, name: string}>` (samma typ som redan skickas till EstablishmentTaskDetailSheet)
+- Lägg till state `assignedTo` (string | null)
+- Lägg till en **Select-dropdown** "Tilldela personal" mellan Kategori och Startdatum i manuella formuläret
+- Skicka `assigned_to` i båda `createEstablishmentTask`-anropen (quick-add + manuell)
 
-```sql
-SELECT id, title, category, start_date, end_date, completed, notes
-FROM establishment_tasks
-WHERE booking_id = $booking_id AND assigned_to = $staffId
-ORDER BY start_date, sort_order
-```
+**2. `src/services/establishmentTaskService.ts`**
+- Lägg till `assigned_to?: string | null` i `createEstablishmentTask`-parametern
+- Inkludera `assigned_to` i insert-objektet
 
-Inkludera resultatet i responsen som `establishment_tasks`.
-
-Lägg även till en ny action `toggle_establishment_task` som tar `task_id` och togglar `completed`-status (med verifiering att uppgiften är tilldelad till den inloggade personalen).
-
-**2. Frontend: `JobInfoTab.tsx`**
-Lägg till en ny sektion **"Mina uppgifter"** mellan "Interna anteckningar" och "Kommentarer" (~rad 299). Visa en checklista med:
-- Kategori-ikon + titel
-- Datum (start → slut)  
-- Checkbox för att bocka av
-
-Vid klick på checkbox: anropa `mobileApi` med `toggle_establishment_task`.
-
-**3. Service: `mobileApiService.ts`**
-Lägg till metod `toggleEstablishmentTask(taskId: string)` som anropar edge function med action `toggle_establishment_task`.
+**3. Föräldrakomponenter som renderar dialogen**
+- Skicka `staffPool`-propen från `EstablishmentGanttChart` / `DeestablishmentGanttChart` (eller deras förälder `EstablishmentPage`) där poolen redan hämtas
 
 ### Filer att ändra
-- `supabase/functions/mobile-app-api/index.ts` — Hämta establishment_tasks + ny toggle-action
-- `src/components/mobile-app/job-tabs/JobInfoTab.tsx` — Ny checklista-sektion
-- `src/services/mobileApiService.ts` — Ny API-metod
+- `src/components/project/AddEstablishmentTaskDialog.tsx` — ny prop + UI-dropdown + skicka assigned_to
+- `src/services/establishmentTaskService.ts` — acceptera assigned_to i create-funktionen
+- Föräldrakomponent(er) som renderar dialogen — skicka staffPool-prop
 
