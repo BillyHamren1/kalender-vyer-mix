@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays, addDays, format } from "date-fns";
 
+export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
+export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
 export interface EstablishmentTask {
   id: string;
   booking_id: string | null;
@@ -15,12 +19,21 @@ export interface EstablishmentTask {
   assigned_to: string | null;
   source: string;
   source_product_id: string | null;
+  status: TaskStatus;
+  readiness: TaskReadiness;
+  priority: TaskPriority;
+  description: string | null;
+  blockers: string | null;
+  blocker_responsible: string | null;
+  decision_needed: boolean;
 }
+
+const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
     .from('establishment_tasks')
-    .select('id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id')
+    .select(TASK_SELECT)
     .eq('booking_id', bookingId)
     .order('sort_order', { ascending: true });
 
@@ -31,7 +44,7 @@ export const fetchEstablishmentTasks = async (bookingId: string): Promise<Establ
 export const fetchEstablishmentTasksByProject = async (largeProjectId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
     .from('establishment_tasks')
-    .select('id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id')
+    .select(TASK_SELECT)
     .eq('large_project_id', largeProjectId)
     .order('sort_order', { ascending: true });
 
@@ -51,6 +64,13 @@ export const createEstablishmentTask = async (task: {
   source_product_id?: string;
   notes?: string;
   assigned_to?: string | null;
+  status?: TaskStatus;
+  readiness?: TaskReadiness;
+  priority?: TaskPriority;
+  description?: string | null;
+  blockers?: string | null;
+  blocker_responsible?: string | null;
+  decision_needed?: boolean;
 }): Promise<EstablishmentTask> => {
   const { data, error } = await supabase
     .from('establishment_tasks')
@@ -66,6 +86,13 @@ export const createEstablishmentTask = async (task: {
       source_product_id: task.source_product_id ?? null,
       notes: task.notes ?? null,
       assigned_to: task.assigned_to ?? null,
+      status: task.status ?? 'not_started',
+      readiness: task.readiness ?? 'missing_information',
+      priority: task.priority ?? 'medium',
+      description: task.description ?? null,
+      blockers: task.blockers ?? null,
+      blocker_responsible: task.blocker_responsible ?? null,
+      decision_needed: task.decision_needed ?? false,
     })
     .select()
     .single();
@@ -76,8 +103,19 @@ export const createEstablishmentTask = async (task: {
 
 export const updateEstablishmentTask = async (
   id: string,
-  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to'>>
+  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed'>>
 ): Promise<void> => {
+  // Sync completed with status
+  if (updates.status === 'done' && updates.completed === undefined) {
+    updates.completed = true;
+  }
+  if (updates.completed === true && !updates.status) {
+    updates.status = 'done';
+  }
+  if (updates.completed === false && !updates.status) {
+    updates.status = 'not_started';
+  }
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
@@ -119,6 +157,9 @@ export const generateDefaultTasks = async (
   const rows = defaults.map(d => ({
     booking_id: bookingId,
     source: 'default',
+    status: 'not_started' as TaskStatus,
+    readiness: 'missing_information' as TaskReadiness,
+    priority: 'medium' as TaskPriority,
     ...d,
   }));
 
@@ -155,6 +196,9 @@ export const generateDefaultTasksForProject = async (
   const rows = defaults.map(d => ({
     large_project_id: largeProjectId,
     source: 'default',
+    status: 'not_started' as TaskStatus,
+    readiness: 'missing_information' as TaskReadiness,
+    priority: 'medium' as TaskPriority,
     ...d,
   }));
 
