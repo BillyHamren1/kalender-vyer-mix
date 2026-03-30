@@ -1,65 +1,48 @@
 
 
-## Etableringsschema (Gantt) for Stora Projekt + Personalassignment
+## Bokningskopplade aktiviteter i stora projektets Gantt-schema
 
 ### Problem
-Large projects currently show only a booking list overview on the Establishment tab. They lack the real Gantt chart that medium projects have, and there's no way to assign staff to individual tasks/activities.
+I det stora projektets Gantt-schema kan man bara skapa generella aktiviteter. Man kan inte:
+1. Se vilka bokningar som finns i projektet och skapa bygg/riv-aktiviteter per bokning
+2. Snabblägga produkter från en specifik bokning som todos
+3. Länka en aktivitet till rätt bokning
 
-### Solution
+### Lösning
 
-#### 1. Database: Add `large_project_id` to `establishment_tasks`
-Add an optional `large_project_id` column to `establishment_tasks` so tasks can belong directly to a large project (not just a booking). Make `booking_id` nullable since large project tasks won't have a specific booking.
+#### 1. Utöka `AddEstablishmentTaskDialog` med bokningsväljare (stor projektvy)
+- Hämta alla bokningar i projektet via `project.bookings`
+- Visa en **bokningsväljare** (dropdown/lista) överst i dialogen när `largeProjectId` finns
+- När en bokning väljs:
+  - Hämta bokningens produkter via `fetchEstablishmentBookingData(bookingId)`
+  - Visa snabbval-knappar för varje produkt (samma som för medelstora projekt)
+  - Skapade tasks får både `large_project_id` OCH `booking_id` satt
+- Manuellt skapade tasks kan valfritt kopplas till en bokning
 
-```sql
-ALTER TABLE establishment_tasks 
-  ADD COLUMN large_project_id uuid REFERENCES large_projects(id) ON DELETE CASCADE,
-  ALTER COLUMN booking_id DROP NOT NULL;
+#### 2. Visa bokningskoppling i Gantt-schemat
+- I task-label-kolumnen, visa en liten badge/text med bokningens klientnamn om tasken har `booking_id`
+- Gruppera eller markera tasks visuellt per bokning
 
--- Add constraint: must have either booking_id or large_project_id
-ALTER TABLE establishment_tasks 
-  ADD CONSTRAINT establishment_tasks_parent_check 
-  CHECK (booking_id IS NOT NULL OR large_project_id IS NOT NULL);
-```
+#### 3. Skicka bokningsdata till dialogen
+- `LargeEstablishmentPage` skickar `project.bookings` till `EstablishmentGanttChart`
+- `EstablishmentGanttChart` skickar vidare till `AddEstablishmentTaskDialog`
 
-#### 2. Service layer: Extend `establishmentTaskService.ts`
-- Add `fetchEstablishmentTasksByProject(largeProjectId)` to fetch tasks by `large_project_id`
-- Add `generateDefaultTasksForProject(largeProjectId, startDate, endDate)` for auto-generating defaults
-- Update `createEstablishmentTask` to accept optional `large_project_id` instead of `booking_id`
+#### 4. Task detail sheet — visa kopplad bokning
+- I `EstablishmentTaskDetailSheet`, visa vilken bokning en task tillhör (om någon)
 
-#### 3. Replace `LargeEstablishmentPage.tsx` with real Gantt
-Replace the current booking list view with a layout matching medium projects:
-- **Tabs**: Etablering / Avetablering (same as medium)
-- **Gantt chart**: Reuse or adapt `EstablishmentGanttChart` to accept `largeProjectId` as an alternative to `bookingId`
-- **Task detail sheet**: Same `EstablishmentTaskDetailSheet` with staff assignment
-- Keep the booking overview summary cards at the top for context
+### Filer att ändra
+- **`src/components/project/AddEstablishmentTaskDialog.tsx`** — Lägg till bokningsväljare, hämta produkter per vald bokning, sätt `booking_id` på skapade tasks
+- **`src/components/project/EstablishmentGanttChart.tsx`** — Ta emot `bookings` prop i projektläge, skicka vidare till dialog, visa bokningsnamn i task-labels
+- **`src/pages/project/LargeEstablishmentPage.tsx`** — Skicka `project.bookings` till Gantt-komponenten
+- **`src/components/project/EstablishmentTaskDetailSheet.tsx`** — Visa kopplad bokning
+- **`src/services/establishmentTaskService.ts`** — Säkerställ att `booking_id` stöds i kombination med `large_project_id`
 
-#### 4. Staff assignment on tasks
-- Update `EstablishmentTaskDetailSheet` to accept an optional `staffPool` prop
-- For large projects, fetch staff assigned to the project's bookings via `booking_staff_assignments` joined through `large_project_bookings`
-- The staff dropdown in the detail sheet shows only project-assigned staff (not all staff)
-- Both the main task and subtasks can be assigned to staff from this pool
-
-#### 5. Adapt `EstablishmentGanttChart` for dual use
-Add optional `largeProjectId` prop alongside existing `bookingId`:
-- When `largeProjectId` is provided, fetch tasks by project instead of booking
-- Dates derived from project's `start_date`/`end_date` or from earliest/latest booking dates
-- `AddEstablishmentTaskDialog` updated to work with `largeProjectId`
-
-### Files to edit
-- **Migration**: Add `large_project_id` column, make `booking_id` nullable
-- `src/services/establishmentTaskService.ts` — project-level fetch/create functions
-- `src/components/project/EstablishmentGanttChart.tsx` — accept `largeProjectId` prop
-- `src/components/project/AddEstablishmentTaskDialog.tsx` — support `largeProjectId`
-- `src/components/project/EstablishmentTaskDetailSheet.tsx` — accept `staffPool` prop for filtered staff list
-- `src/pages/project/LargeEstablishmentPage.tsx` — replace with Gantt-based UI with tabs
-- `src/components/project/DeestablishmentGanttChart.tsx` — accept `largeProjectId` prop
-
-### Staff assignment flow
+### Flöde
 ```text
-Large project has N bookings
-  → Each booking has staff via booking_staff_assignments
-  → Fetch unique staff across all bookings
-  → Show these staff in task/subtask assignment dropdowns
-  → assigned_to on establishment_tasks references staff_members(id)
+Användare klickar "Lägg till aktivitet" i Gantt
+  → Väljer bokning ur dropdown (visar alla projektets bokningar)
+  → Ser produkter från den bokningen som snabbval
+  → Klickar på en produkt → task skapas med large_project_id + booking_id
+  → I Gantt-schemat visas tasken med bokningens namn som badge
 ```
 
