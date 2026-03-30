@@ -327,8 +327,8 @@ const EstablishmentTaskDetailSheet = ({
         sort_order: subtasks.length,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
       setNewSubtaskTitle("");
       toast.success("Delsteg tillagt");
     },
@@ -338,16 +338,16 @@ const EstablishmentTaskDetailSheet = ({
     mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof updateSubtask>[1] }) =>
       updateSubtask(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteSubtask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
       toast.success("Delsteg borttaget");
     },
   });
