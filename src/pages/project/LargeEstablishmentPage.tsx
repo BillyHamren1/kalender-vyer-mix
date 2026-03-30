@@ -35,28 +35,27 @@ const LargeEstablishmentPage = () => {
 
   // Fetch staff pool: unique staff assigned to any booking in this project
   const { data: staffPool = [] } = useQuery({
-    queryKey: ['large-project-staff-pool', project?.id],
+    queryKey: ['large-project-staff-pool', project?.id, bookingIds],
     queryFn: async () => {
-      if (bookingIds.length === 0) return [];
-      const { data } = await supabase
-        .from('booking_staff_assignments')
-        .select('staff_id')
-        .in('booking_id', bookingIds);
+      let staffIds: string[] = [];
 
-      if (!data || data.length === 0) return [];
+      if (bookingIds.length > 0) {
+        const { data } = await supabase
+          .from('booking_staff_assignments')
+          .select('staff_id')
+          .in('booking_id', bookingIds);
+        staffIds = [...new Set((data || []).map(d => d.staff_id))];
+      }
 
-      const uniqueStaffIds = [...new Set(data.map(d => d.staff_id))];
-
-      const { data: staffData } = await supabase
-        .from('staff_members')
-        .select('id, name')
-        .in('id', uniqueStaffIds)
-        .eq('is_active', true)
-        .order('name');
-
+      // Fallback: fetch all active staff if none assigned to bookings
+      const query = supabase.from('staff_members').select('id, name').eq('is_active', true).order('name');
+      if (staffIds.length > 0) {
+        query.in('id', staffIds);
+      }
+      const { data: staffData } = await query;
       return staffData || [];
     },
-    enabled: !!project?.id && bookingIds.length > 0,
+    enabled: !!project?.id,
   });
 
   if (!project) return null;
