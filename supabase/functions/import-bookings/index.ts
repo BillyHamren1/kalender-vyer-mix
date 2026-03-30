@@ -870,7 +870,9 @@ async function reconcileCalendarEvents(
         desired.event_type,
         desired.date,
         bookingData.id,
-        bookingData.organization_id || organizationId
+        bookingData.organization_id || organizationId,
+        desired.start_time,
+        desired.end_time
       );
 
       if (results.team_distribution[assignedTeam] !== undefined) {
@@ -1011,7 +1013,9 @@ const getNextTeamAssignment = async (
   eventType: string,
   eventDate: string,
   bookingId: string,
-  organizationId: string
+  organizationId: string,
+  startTime?: string,
+  endTime?: string
 ): Promise<string> => {
   // EVENT type events always go to team-11 (Live column)
   if (eventType === 'event') {
@@ -1020,46 +1024,62 @@ const getNextTeamAssignment = async (
   }
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
-  
+
   try {
-    // Check existing events for this date in the SAME organization
+    // Fetch all events on same date for these teams
     const { data: existingEvents } = await supabase
       .from('calendar_events')
-      .select('resource_id')
+      .select('resource_id, start_time, end_time')
       .eq('organization_id', organizationId)
-      .eq('event_type', eventType)
+      .in('resource_id', teams)
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
 
-    // Count events per team for this date and event type
-    const teamCounts = new Map<string, number>();
-    teams.forEach(team => teamCounts.set(team, 0));
-    
-    existingEvents?.forEach(event => {
-      if (teams.includes(event.resource_id)) {
-        teamCounts.set(event.resource_id, (teamCounts.get(event.resource_id) || 0) + 1);
+    // Build overlap counts per team
+    const overlapCounts = new Map<string, number>(teams.map(t => [t, 0]));
+    const newStart = startTime ? new Date(startTime) : null;
+    const newEnd = endTime ? new Date(endTime) : null;
+
+    existingEvents?.forEach((ev: any) => {
+      if (!teams.includes(ev.resource_id)) return;
+      if (!newStart || !newEnd) {
+        // No time info — count all events (fall back to date-only logic)
+        overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
+      } else {
+        const evStart = new Date(ev.start_time);
+        const evEnd = new Date(ev.end_time);
+        // Check time overlap: newStart < evEnd && newEnd > evStart
+        if (newStart < evEnd && newEnd > evStart) {
+          overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
+        }
       }
     });
 
-    // Find the team with the least events
-    let selectedTeam = teams[0];
-    let minCount = teamCounts.get(selectedTeam) || 0;
-    
+    console.log(`Team overlap distribution for ${eventDate} (${eventType}):`, Object.fromEntries(overlapCounts));
+
+    // Pick first team with zero overlaps
     for (const team of teams) {
-      const count = teamCounts.get(team) || 0;
-      if (count < minCount) {
-        minCount = count;
-        selectedTeam = team;
+      if (overlapCounts.get(team) === 0) {
+        console.log(`Assigning booking ${bookingId} to ${team} (no time overlap)`);
+        return team;
       }
     }
 
-    console.log(`Team distribution for ${eventDate} ${eventType}:`, Object.fromEntries(teamCounts));
-    console.log(`Assigning booking ${bookingId} to ${selectedTeam} (has ${minCount} events)`);
-    
-    return selectedTeam;
+    // All have overlaps — pick team with fewest
+    let minTeam = teams[0];
+    let minCount = overlapCounts.get(teams[0])!;
+    for (const team of teams) {
+      const count = overlapCounts.get(team)!;
+      if (count < minCount) {
+        minCount = count;
+        minTeam = team;
+      }
+    }
+
+    console.log(`Assigning booking ${bookingId} to ${minTeam} (fewest overlaps: ${minCount})`);
+    return minTeam;
   } catch (error) {
     console.error('Error calculating team assignment, falling back to round-robin:', error);
-    // Fallback to simple round-robin based on booking position
     const bookingNumber = parseInt(bookingId.replace(/\D/g, ''), 10) || 0;
     const selectedTeam = teams[bookingNumber % teams.length];
     console.log(`Fallback assignment: booking ${bookingId} to ${selectedTeam}`);
