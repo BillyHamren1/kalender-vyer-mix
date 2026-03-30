@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, Package, ChevronRight } from "lucide-react";
+import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
 import type { TaskPriority } from "@/services/establishmentTaskService";
@@ -31,13 +32,7 @@ interface ActivityPlannerSheetProps {
   existingTasks?: Array<{ source_product_id: string | null }>;
 }
 
-const CATEGORIES = [
-  { value: 'transport', label: 'Transport' },
-  { value: 'material', label: 'Material' },
-  { value: 'personal', label: 'Personal' },
-  { value: 'installation', label: 'Installation' },
-  { value: 'kontroll', label: 'Kontroll' },
-];
+// Categories are now handled by CategoryCombobox
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'high', label: 'Hög' },
@@ -103,7 +98,7 @@ const ActivityPlannerSheet = ({
   existingTasks = [],
 }: ActivityPlannerSheetProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [category, setCategory] = useState("installation");
+  const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState<Date | undefined>(
@@ -423,16 +418,7 @@ const ActivityPlannerSheet = ({
 
               <div>
                 <Label className="text-xs">Kategori</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(c => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CategoryCombobox value={category} onValueChange={setCategory} />
               </div>
 
               <div>

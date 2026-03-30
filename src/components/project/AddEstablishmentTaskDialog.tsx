@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
@@ -34,13 +35,7 @@ interface AddEstablishmentTaskDialogProps {
   staffPool?: Array<{ id: string; name: string }>;
 }
 
-const CATEGORIES = [
-  { value: 'transport', label: 'Transport' },
-  { value: 'material', label: 'Material' },
-  { value: 'personal', label: 'Personal' },
-  { value: 'installation', label: 'Installation' },
-  { value: 'kontroll', label: 'Kontroll' },
-];
+// Categories are now handled by CategoryCombobox
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'high', label: 'Hög' },
@@ -60,7 +55,7 @@ const AddEstablishmentTaskDialog = ({
   staffPool = [],
 }: AddEstablishmentTaskDialogProps) => {
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("installation");
+  const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState<Date | undefined>(
@@ -230,16 +225,7 @@ const AddEstablishmentTaskDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Kategori</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryCombobox value={category} onValueChange={setCategory} className="h-10 text-base md:text-sm" />
             </div>
             <div>
               <Label>Prioritet</Label>

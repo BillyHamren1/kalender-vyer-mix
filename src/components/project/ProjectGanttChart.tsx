@@ -22,16 +22,24 @@ interface ProjectGanttChartProps {
   onTaskClick?: (task: ProjectTask) => void;
 }
 
-type TaskCategory = 'transport' | 'material' | 'personal' | 'installation' | 'kontroll' | 'admin';
+type TaskCategory = string;
 
-const CATEGORY_CONFIG: Record<TaskCategory, { label: string; color: string; bgClass: string }> = {
+const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgClass: string }> = {
   transport:    { label: 'Transport',    color: 'hsl(217, 91%, 60%)', bgClass: 'bg-blue-500' },
   material:     { label: 'Material',     color: 'hsl(25, 95%, 53%)',  bgClass: 'bg-orange-500' },
   personal:     { label: 'Personal',     color: 'hsl(142, 71%, 45%)', bgClass: 'bg-green-500' },
   installation: { label: 'Installation', color: 'hsl(271, 91%, 65%)', bgClass: 'bg-purple-500' },
   kontroll:     { label: 'Kontroll',     color: 'hsl(184, 60%, 38%)', bgClass: 'bg-teal-500' },
   admin:        { label: 'Admin',        color: 'hsl(215, 14%, 60%)', bgClass: 'bg-slate-400' },
+  montering:    { label: 'Montering',    color: 'hsl(271, 91%, 65%)', bgClass: 'bg-purple-500' },
+  demontering:  { label: 'Demontering',  color: 'hsl(340, 82%, 52%)', bgClass: 'bg-rose-500' },
 };
+
+const FALLBACK_CATEGORY_CONFIG = { label: 'Övrigt', color: 'hsl(215, 14%, 60%)', bgClass: 'bg-slate-400' };
+
+function getCategoryConfig(cat: string) {
+  return CATEGORY_CONFIG[cat.toLowerCase()] || FALLBACK_CATEGORY_CONFIG;
+}
 
 function categorizeTask(title: string): TaskCategory {
   const t = title.toLowerCase();
@@ -164,7 +172,7 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
                 >
                   <div
                     className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: CATEGORY_CONFIG[task.category].color }}
+                    style={{ backgroundColor: getCategoryConfig(task.category).color }}
                   />
                   {task.isInfoOnly ? (
                     <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -234,7 +242,7 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
               {ganttData.tasks.map((task) => {
                 const startOffset = differenceInDays(task.startDate, ganttData.minDate);
                 const duration = differenceInDays(task.endDate, task.startDate) + 1;
-                const categoryColor = CATEGORY_CONFIG[task.category].color;
+                const categoryColor = getCategoryConfig(task.category).color;
 
                 return (
                   <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
@@ -298,8 +306,8 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
         </div>
         {usedCategories.map(cat => (
           <div key={cat} className="flex items-center gap-1.5">
-            <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: CATEGORY_CONFIG[cat].color }} />
-            <span>{CATEGORY_CONFIG[cat].label}</span>
+            <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: getCategoryConfig(cat).color }} />
+            <span>{getCategoryConfig(cat).label}</span>
           </div>
         ))}
         <div className="flex items-center gap-1">
