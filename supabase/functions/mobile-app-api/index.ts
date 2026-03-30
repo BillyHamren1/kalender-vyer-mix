@@ -1836,7 +1836,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
   )
 }
 
-async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { recipient_id, content } = data
 
   if (!recipient_id || !content?.trim()) {
@@ -1856,7 +1856,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
 
   const senderName = staffMember?.name || 'Okänd'
 
-  // Get recipient name
+  // Get recipient name — check staff_members first, then profiles (for planners using auth user id)
   let recipientName = 'Planerare'
   const { data: recipientStaff } = await supabase
     .from('staff_members')
@@ -1900,14 +1900,40 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
   }
 
   // ── Trigger push notification to recipient ──
+  // Search device_tokens for BOTH recipient_id directly AND via staff_members.user_id mapping
   try {
     console.log(`[DM Push] message created id=${message.id}, sender=${staffId}, recipient=${recipient_id}`)
     
-    // Fetch recipient device tokens
+    // Build list of IDs to search device_tokens for
+    const recipientSearchIds = [recipient_id]
+    // Check if recipient is a planner (auth user) — find their staff_members.id
+    const { data: recipientStaffByUserId } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('user_id', recipient_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (recipientStaffByUserId && recipientStaffByUserId.id !== recipient_id) {
+      recipientSearchIds.push(recipientStaffByUserId.id)
+    }
+    // Also check reverse: if recipient_id is a staff_members.id, get their user_id
+    const { data: recipientStaffRecord } = await supabase
+      .from('staff_members')
+      .select('user_id')
+      .eq('id', recipient_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (recipientStaffRecord?.user_id && recipientStaffRecord.user_id !== recipient_id) {
+      recipientSearchIds.push(recipientStaffRecord.user_id)
+    }
+
+    const uniqueRecipientIds = [...new Set(recipientSearchIds)]
+    
+    // Fetch device tokens for all recipient identities
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
       .select('token, staff_id, platform')
-      .eq('staff_id', recipient_id)
+      .in('staff_id', uniqueRecipientIds)
       .eq('organization_id', organizationId)
     
     console.log(`[DM Push] recipient=${recipient_id} device_tokens_found=${tokens?.length ?? 0}${tokenErr ? ' tokenError=' + tokenErr.message : ''}`)
