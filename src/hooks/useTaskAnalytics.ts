@@ -143,6 +143,17 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       } catch { return false; }
     });
 
+    // Next upcoming fallback (first future task after tomorrow)
+    const allFuture = activeTasks
+      .filter(t => t.status !== 'done' && t.start_date)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .find(t => {
+        try {
+          const start = startOfDay(new Date(t.start_date));
+          return isBefore(addDays(tomorrow, 1), start) || isWithinInterval(start, { start: addDays(tomorrow, 1), end: addDays(today, 30) });
+        } catch { return false; }
+      });
+    const nextUpcoming = (upcomingToday.length === 0 && upcomingTomorrow.length === 0) ? (allFuture || null) : null;
     // Critical issues — ordered by severity
     const criticalIssues: CriticalIssue[] = [
       ...blocked.map(t => ({
