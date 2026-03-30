@@ -7,7 +7,7 @@ import { formatDistanceToNow, format, isToday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { sendAdminMessage } from '@/services/staffDashboardService';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { OpsTimelineStaff } from '@/services/opsControlService';
 
 interface Props {
