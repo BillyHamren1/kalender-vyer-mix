@@ -33,12 +33,12 @@ const LargeEstablishmentPage = () => {
   const { project } = detail;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [collaborationCollapsed, setCollaborationCollapsed] = useState(false);
+  const [collaborationCollapsed, setCollaborationCollapsed] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
 
   const tabTriggerClass =
-    "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
+    "relative px-4 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
   const bookingIds = useMemo(() => {
     return (project?.bookings || [])
@@ -75,7 +75,7 @@ const LargeEstablishmentPage = () => {
   }, [analytics.tasks, filters]);
 
   const visibleTaskIds = useMemo(() => {
-    if (!hasActiveFilters(filters)) return null; // null = show all
+    if (!hasActiveFilters(filters)) return null;
     return new Set(filteredTasks.map(t => t.id));
   }, [filteredTasks, filters]);
 
@@ -108,21 +108,20 @@ const LargeEstablishmentPage = () => {
   }));
 
   return (
-    <div className="space-y-4">
-      {/* TOP: Project Control Panel */}
+    <div className="space-y-3">
+      {/* LEVEL 1: Daily briefing — answers "what needs my attention?" */}
       <ProjectControlPanel
         analytics={analytics}
         staffPool={staffPool}
         onTaskClick={handleControlPanelTaskClick}
       />
 
-      {/* CENTER + RIGHT: Main workspace */}
-      <div className="flex gap-4 items-start">
-        {/* CENTER: Planning workspace */}
-        <div className="flex-1 min-w-0 space-y-4">
+      {/* LEVEL 2: Workspace — answers "what's the full picture?" */}
+      <div className="flex gap-3 items-start">
+        <div className="flex-1 min-w-0">
           <Card className="border-border/50 shadow-sm overflow-hidden">
             <Tabs defaultValue="establishment">
-              <div className="border-b border-border/40 px-4 flex items-center justify-between">
+              <div className="border-b border-border/40 px-3 flex items-center justify-between">
                 <TabsList className="h-auto p-0 bg-transparent gap-0">
                   <TabsTrigger value="establishment" className={tabTriggerClass}>
                     Etablering
@@ -132,7 +131,6 @@ const LargeEstablishmentPage = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* View mode toggle */}
                 <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
                   <Button
                     variant={viewMode === "gantt" ? "default" : "ghost"}
@@ -164,7 +162,7 @@ const LargeEstablishmentPage = () => {
                 </div>
               </div>
 
-              <TabsContent value="establishment" className="mt-0 p-4 space-y-3">
+              <TabsContent value="establishment" className="mt-0 p-3 space-y-2">
                 <PlanningFilterBar
                   tasks={analytics.tasks}
                   filters={filters}
@@ -198,7 +196,7 @@ const LargeEstablishmentPage = () => {
                 )}
               </TabsContent>
 
-              <TabsContent value="deestablishment" className="mt-0 p-4">
+              <TabsContent value="deestablishment" className="mt-0 p-3">
                 <DeestablishmentGanttChart
                   eventDate={project.end_date}
                   rigdownDate={project.end_date}
@@ -210,7 +208,7 @@ const LargeEstablishmentPage = () => {
           </Card>
         </div>
 
-        {/* RIGHT: Collaboration panel */}
+        {/* Collaboration — collapsed by default, non-intrusive */}
         <CollaborationPanel
           collapsed={collaborationCollapsed}
           onToggle={() => setCollaborationCollapsed(prev => !prev)}
