@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
-import { updateBookingDates } from '@/services/bookingService';
+import { updateBookingDates, updateBookingDateWithTimes } from '@/services/bookingService';
 
 export const useBookingDates = (
   id: string | undefined,
