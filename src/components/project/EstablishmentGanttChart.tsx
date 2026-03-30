@@ -273,7 +273,7 @@ const EstablishmentGanttChart = ({
   }
 
   const dayWidth = 60;
-  const rowHeight = 52;
+  const rowHeight = 56;
   const headerHeight = 60;
   const taskLabelWidth = 360;
   const timelineWidth = ganttData.totalDays * dayWidth;
