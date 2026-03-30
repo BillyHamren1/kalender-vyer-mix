@@ -750,7 +750,7 @@ const EstablishmentTaskDetailSheet = ({
             ))}
           </div>
 
-          {bookingId && (
+          {(effectiveBookingId || bookingId) && (
             <div className="flex gap-2">
               <Input
                 placeholder="Nytt delsteg..."
