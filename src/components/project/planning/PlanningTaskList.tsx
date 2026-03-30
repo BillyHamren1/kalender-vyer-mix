@@ -295,7 +295,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                         )}
                       </div>
                       {/* Warnings row */}
-                      {(noDates || noOwner) && (
+                      {(noDates || noOwner || (task.readiness === 'missing_information' && task.status !== 'done') || (task.readiness === 'waiting_for_external' && task.status !== 'done')) && (
                         <div className="flex items-center gap-2 mt-0.5">
                           {noOwner && (
                             <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
@@ -305,6 +305,16 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                           {noDates && (
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <CalendarDays className="h-2.5 w-2.5" /> Saknar datum
+                            </span>
+                          )}
+                          {task.readiness === 'missing_information' && task.status !== 'done' && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Saknar info
+                            </span>
+                          )}
+                          {task.readiness === 'waiting_for_external' && task.status !== 'done' && (
+                            <span className="text-[10px] text-orange-600 dark:text-orange-400 flex items-center gap-0.5">
+                              <Clock className="h-2.5 w-2.5" /> Väntar extern
                             </span>
                           )}
                         </div>
