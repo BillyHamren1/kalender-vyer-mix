@@ -295,10 +295,13 @@ const EstablishmentTaskDetailSheet = ({
     }
   };
 
-  const handleTaskAssignmentChange = async (val: string) => {
-    const assignedTo = val === "none" ? null : val;
-    setTaskAssignedTo(assignedTo);
-    await handleFieldUpdate({ assigned_to: assignedTo });
+  const handleToggleStaffAssignment = async (staffId: string) => {
+    const newIds = taskAssignedToIds.includes(staffId)
+      ? taskAssignedToIds.filter(id => id !== staffId)
+      : [...taskAssignedToIds, staffId];
+    setTaskAssignedToIds(newIds);
+    const primaryAssignee = newIds.length > 0 ? newIds[0] : null;
+    await handleFieldUpdate({ assigned_to: primaryAssignee, assigned_to_ids: newIds } as any);
   };
 
   const handleStatusChange = async (val: string) => {
