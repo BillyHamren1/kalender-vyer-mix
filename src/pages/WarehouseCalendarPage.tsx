@@ -136,6 +136,7 @@ const WarehouseCalendarPage = () => {
   // Real-time calendar events (standard booking events)
   const {
     events: calendarEvents,
+    setEvents,
     isLoading,
     isMounted,
     currentDate: hookCurrentDate,
