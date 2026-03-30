@@ -22,16 +22,24 @@ interface ProjectGanttChartProps {
   onTaskClick?: (task: ProjectTask) => void;
 }
 
-type TaskCategory = 'transport' | 'material' | 'personal' | 'installation' | 'kontroll' | 'admin';
+type TaskCategory = string;
 
-const CATEGORY_CONFIG: Record<TaskCategory, { label: string; color: string; bgClass: string }> = {
+const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgClass: string }> = {
   transport:    { label: 'Transport',    color: 'hsl(217, 91%, 60%)', bgClass: 'bg-blue-500' },
   material:     { label: 'Material',     color: 'hsl(25, 95%, 53%)',  bgClass: 'bg-orange-500' },
   personal:     { label: 'Personal',     color: 'hsl(142, 71%, 45%)', bgClass: 'bg-green-500' },
   installation: { label: 'Installation', color: 'hsl(271, 91%, 65%)', bgClass: 'bg-purple-500' },
   kontroll:     { label: 'Kontroll',     color: 'hsl(184, 60%, 38%)', bgClass: 'bg-teal-500' },
   admin:        { label: 'Admin',        color: 'hsl(215, 14%, 60%)', bgClass: 'bg-slate-400' },
+  montering:    { label: 'Montering',    color: 'hsl(271, 91%, 65%)', bgClass: 'bg-purple-500' },
+  demontering:  { label: 'Demontering',  color: 'hsl(340, 82%, 52%)', bgClass: 'bg-rose-500' },
 };
+
+const FALLBACK_CATEGORY_CONFIG = { label: 'Övrigt', color: 'hsl(215, 14%, 60%)', bgClass: 'bg-slate-400' };
+
+function getCategoryConfig(cat: string) {
+  return CATEGORY_CONFIG[cat.toLowerCase()] || FALLBACK_CATEGORY_CONFIG;
+}
 
 function categorizeTask(title: string): TaskCategory {
   const t = title.toLowerCase();

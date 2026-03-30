@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
@@ -224,16 +225,7 @@ const AddEstablishmentTaskDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Kategori</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryCombobox value={category} onValueChange={setCategory} className="h-10 text-base md:text-sm" />
             </div>
             <div>
               <Label>Prioritet</Label>
