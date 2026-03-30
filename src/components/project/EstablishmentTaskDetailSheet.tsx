@@ -210,11 +210,6 @@ const EstablishmentTaskDetailSheet = ({
     }
   }, [taskDbData]);
 
-  const { data: subtasks = [], isLoading } = useQuery({
-    queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id],
-    queryFn: () => fetchSubtasks(bookingId!, task!.id),
-    enabled: !!bookingId && !!task?.id && open,
-  });
 
   useEffect(() => {
     if (!open) {
