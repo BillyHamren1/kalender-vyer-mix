@@ -3,17 +3,19 @@ import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { GanttChart, List } from "lucide-react";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
+import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 
-const tabTriggerClass =
-  "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
+type ViewMode = "gantt" | "list";
 
 interface SelectedTask {
   id: string;
