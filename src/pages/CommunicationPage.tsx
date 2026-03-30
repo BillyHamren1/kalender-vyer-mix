@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useStaffDashboard } from '@/hooks/useStaffDashboard';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDMInboxGrouped, GroupedConversation } from '@/services/directMessageService';
 import { StaffMessage, sendAdminMessage, markAllMessagesAsRead, JobActivityItem } from '@/services/staffDashboardService';
