@@ -1,47 +1,21 @@
 
 
-## Plan: Fullskärms aktivitetsplanerare
+## Plan: En aktivitet per urval (inte per produkt)
 
-### Vad byggs
+### Problem
+Nu skapas en separat aktivitet per vald produkt. Användaren vill att alla valda produkter slås ihop till **en enda aktivitet**.
 
-Ersätter den lilla `AddEstablishmentTaskDialog` med en fullskärms-dialog ("sheet") som ger komplett översikt och stegvis arbetsflöde:
+### Ändring
 
-1. **Vänster panel** — Produktlista med parent/child-hierarki (tillbehör grupperade under sin förälder). Checkboxar för flerval. Redan planerade produkter visas överstrukna.
-2. **Höger panel** — Inställningar: datum, tid, personal, kategori, prioritet. Gäller alla valda produkter.
-3. **"Skapa aktiviteter"**-knapp skapar en task per vald produkt, markerar dem som planerade, och listan uppdateras med överstrykning.
+**Fil: `src/components/project/ActivityPlannerSheet.tsx`** — Ändra `handleBatchCreate` (rad 178-216):
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│  Planera aktiviteter                              [Stäng]│
-├─────────────────────────────┬────────────────────────────┤
-│  Produktlista               │  Inställningar             │
-│                             │                            │
-│  ☐ Tält 10x20        x1    │  Startdatum  [2026-04-01]  │
-│    ☐ Vägg 10m        x4    │  Slutdatum   [2026-04-01]  │
-│    ☐ Golv 10x20      x1    │  Starttid    [08:00]       │
-│  ☑̶ ̶P̶o̶d̶i̶u̶m̶ ̶2̶x̶3̶  (planerad)│  Sluttid     [16:00]       │
-│  ☐ Belysningspaket   x1    │  Kategori    [Installation]│
-│    ☐ Spotlight       x10   │  Prioritet   [Medium]      │
-│                             │  Personal    [Välj...]     │
-│                             │                            │
-│                             │  [Skapa 2 aktiviteter]     │
-├─────────────────────────────┴────────────────────────────┤
-│  + Lägg till manuell aktivitet (fritext)                 │
-└──────────────────────────────────────────────────────────┘
-```
+- Istället för att loopa och skapa en task per produkt, skapa **en enda task** med en sammanfattad titel av alla valda produkter (t.ex. "K 3x3, K Ben x4, K Takduk 3x3, ...").
+- Alla valda produkters ID:n sparas som `source_product_id` — men eftersom fältet bara tar ett värde, lagra det första produktens ID och sätt alla som "planerade" i UI:t.
+- Alternativt: titeln blir en kommaseparerad lista, och varje vald produkts ID markeras som planerad lokalt.
 
-### Tekniska ändringar
-
-**Fil: `src/components/project/AddEstablishmentTaskDialog.tsx`** — Komplett omskrivning:
-
-- Byt `Dialog` mot `Sheet` (side="bottom" eller custom fullscreen dialog) med `max-w-5xl w-full h-[90vh]`.
-- Hämta redan skapade tasks (via `source_product_id`) för att avgöra vilka produkter som redan planerats (överstrukna).
-- Produktlistan renderas hierarkiskt: huvudprodukter med sina `isPackageComponent`/`parentPackageId`-barn indenterade under. Checkbox per rad.
-- State: `selectedProductIds: Set<string>`, gemensamma datum/tid/personal/kategori/prioritet.
-- Vid "Skapa": loopa igenom valda produkter, anropa `createEstablishmentTask` per produkt, uppdatera "planerade"-listan.
-- Behåll manuell fritext-sektion längst ned.
-
-**Fil: `src/components/project/EstablishmentGanttChart.tsx`** — Inga strukturella ändringar, propsen är redan korrekta.
-
-**Ingen databasändring krävs** — `establishment_tasks` har redan `source_product_id` för att spåra planerade produkter.
+**Konkret:**
+- Samla alla valda produktnamn till en titel-sträng.
+- Anropa `createEstablishmentTask` **en gång**.
+- Markera alla valda produkter som planerade efteråt.
+- Uppdatera knapp-texten: "Skapa aktivitet" (singular, utan antal).
 
