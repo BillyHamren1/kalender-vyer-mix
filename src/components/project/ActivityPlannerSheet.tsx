@@ -298,7 +298,7 @@ const ActivityPlannerSheet = ({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[90vh] max-h-[90vh] p-0 flex flex-col [&>button]:hidden"
+        className="h-[85vh] max-h-[85vh] p-0 flex flex-col [&>button]:hidden inset-x-4 bottom-4 rounded-2xl border border-border"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
