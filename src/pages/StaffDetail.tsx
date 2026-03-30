@@ -310,6 +310,44 @@ const StaffDetail: React.FC = () => {
                             if (error) throw error;
                             await refetchStaff();
                             toast.success(`Tagg "${tag}" ${isActive ? 'borttagen' : 'tillagd'}`);
+
+                            // Auto-create account if adding Montage or Lager tag
+                            if (!isActive && (tag === 'Montage' || tag === 'Lager')) {
+                              const { data: existingAccount } = await supabase
+                                .from('staff_accounts')
+                                .select('id')
+                                .eq('staff_id', staffMember.id)
+                                .maybeSingle();
+
+                              if (!existingAccount) {
+                                const username = staffMember.name
+                                  .toLowerCase()
+                                  .normalize('NFD')
+                                  .replace(/[\u0300-\u036f]/g, '')
+                                  .replace(/\s+/g, '.')
+                                  .replace(/[^a-z.]/g, '');
+                                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+                                const password = Array.from({ length: 8 }, () =>
+                                  chars[Math.floor(Math.random() * chars.length)]
+                                ).join('');
+                                const passwordHash = btoa(password);
+
+                                const { error: accountError } = await supabase
+                                  .from('staff_accounts')
+                                  .insert({
+                                    staff_id: staffMember.id,
+                                    username,
+                                    password_hash: passwordHash
+                                  });
+
+                                if (!accountError) {
+                                  setAutoCredentials({ username, password });
+                                  setShowAutoCredentials(true);
+                                  queryClient.invalidateQueries({ queryKey: ['staffAccount', staffMember.id] });
+                                  toast.success('Inloggningskonto skapades automatiskt');
+                                }
+                              }
+                            }
                           } catch (err) {
                             console.error('Error updating tags:', err);
                             toast.error('Kunde inte uppdatera taggar');
