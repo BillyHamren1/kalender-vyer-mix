@@ -1,27 +1,24 @@
 
 
-## Lägg till personalval i "Lägg till aktivitet"-dialogen
+## Fix: Skicka staffPool till EstablishmentGanttChart i stora projekt
 
 ### Problem
-Dialogen `AddEstablishmentTaskDialog` saknar ett fält för att tilldela personal (`assigned_to`) vid skapande av aktiviteter. Fältet finns i databasen men exponeras aldrig i UI:t.
+`LargeEstablishmentPage.tsx` hämtar `staffPool` korrekt (rad 37-60), men skickar den **inte** till `EstablishmentGanttChart` (rad 84-94). Därför saknas personalvalet i "Lägg till aktivitet"-dialogen för stora projekt.
 
-### Ändringar
+### Åtgärd
 
-**1. `src/components/project/AddEstablishmentTaskDialog.tsx`**
-- Lägg till prop `staffPool: Array<{id: string, name: string}>` (samma typ som redan skickas till EstablishmentTaskDetailSheet)
-- Lägg till state `assignedTo` (string | null)
-- Lägg till en **Select-dropdown** "Tilldela personal" mellan Kategori och Startdatum i manuella formuläret
-- Skicka `assigned_to` i båda `createEstablishmentTask`-anropen (quick-add + manuell)
+**`src/pages/project/LargeEstablishmentPage.tsx`** — Lägg till `staffPool={staffPool}` på rad 88 i `EstablishmentGanttChart`:
 
-**2. `src/services/establishmentTaskService.ts`**
-- Lägg till `assigned_to?: string | null` i `createEstablishmentTask`-parametern
-- Inkludera `assigned_to` i insert-objektet
+```tsx
+<EstablishmentGanttChart
+  largeProjectId={project.id}
+  startDate={project.start_date}
+  endDate={project.end_date}
+  onTaskClick={handleTaskClick}
+  staffPool={staffPool}              // <-- LÄGG TILL
+  projectBookings={...}
+/>
+```
 
-**3. Föräldrakomponenter som renderar dialogen**
-- Skicka `staffPool`-propen från `EstablishmentGanttChart` / `DeestablishmentGanttChart` (eller deras förälder `EstablishmentPage`) där poolen redan hämtas
-
-### Filer att ändra
-- `src/components/project/AddEstablishmentTaskDialog.tsx` — ny prop + UI-dropdown + skicka assigned_to
-- `src/services/establishmentTaskService.ts` — acceptera assigned_to i create-funktionen
-- Föräldrakomponent(er) som renderar dialogen — skicka staffPool-prop
+En enda rad. Allt annat är redan på plats.
 
