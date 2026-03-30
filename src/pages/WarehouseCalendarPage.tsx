@@ -446,6 +446,7 @@ const WarehouseCalendarPage = () => {
               ) : (
                 <CustomCalendar
                   events={dayEvents}
+                  setEvents={setEvents}
                   resources={resourcesWithWarehouse}
                   isLoading={isLoading || warehouseLoading}
                   isMounted={isMounted}
