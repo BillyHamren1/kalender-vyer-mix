@@ -127,7 +127,7 @@ export const useRealTimeCalendarEvents = () => {
             continue;
           }
           
-          const sourceDate = event.extendedProps?.sourceDate || event.start?.split('T')[0] || '';
+          const sourceDate = (event.extendedProps as any)?.sourceDate || event.start?.split('T')[0] || '';
           const groupKey = `${lpId}-${event.eventType}-${sourceDate}`;
           
           if (!lpGroupMap.has(groupKey)) {
