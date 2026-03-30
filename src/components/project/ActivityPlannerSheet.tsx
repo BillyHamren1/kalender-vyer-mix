@@ -189,8 +189,8 @@ const ActivityPlannerSheet = ({
 
       const selectedProducts = activeProducts.filter(p => selectedIds.has(p.id));
 
-      // Build a combined title from all selected products
-      const combinedTitle = selectedProducts
+      // Use custom title if provided, otherwise build from product names
+      const combinedTitle = customTitle.trim() || selectedProducts
         .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
         .join(', ');
 
