@@ -107,6 +107,7 @@ const EstablishmentGanttChart = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [todayPosition, setTodayPosition] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [expandedGaps, setExpandedGaps] = useState<Set<number>>(new Set());
   const queryClient = useQueryClient();
 
   const isProjectMode = !!largeProjectId;
