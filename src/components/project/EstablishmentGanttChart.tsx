@@ -1,6 +1,6 @@
-import { useMemo, useRef, useEffect, useState } from "react";
+import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, differenceInDays, addDays, subDays, startOfDay, min, max, isBefore } from "date-fns";
+import { format, differenceInDays, addDays, subDays, startOfDay, min, max, isBefore, isEqual } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,7 @@ const EstablishmentGanttChart = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [todayPosition, setTodayPosition] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [expandedGaps, setExpandedGaps] = useState<Set<number>>(new Set());
   const queryClient = useQueryClient();
 
   const isProjectMode = !!largeProjectId;
@@ -166,6 +167,7 @@ const EstablishmentGanttChart = ({
   const allTasks = dbTasks || [];
   const tasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
 
+  // ── Adaptive timeline: detect active days & gaps ──────────────
   const ganttData = useMemo(() => {
     if (tasks.length === 0) return null;
 
@@ -176,8 +178,8 @@ const EstablishmentGanttChart = ({
     }));
 
     const allDates = taskDates.flatMap(t => [t.startDate, t.endDate]);
-    const minDate = subDays(min(allDates), 2);
-    const maxDate = addDays(max(allDates), 2);
+    const minDate = subDays(min(allDates), 1);
+    const maxDate = addDays(max(allDates), 1);
     const totalDays = differenceInDays(maxDate, minDate) + 1;
 
     const days: Date[] = [];
@@ -185,18 +187,93 @@ const EstablishmentGanttChart = ({
       days.push(addDays(minDate, i));
     }
 
-    return { taskDates, minDate, maxDate, totalDays, days };
+    // Mark which day indices have task activity
+    const activeDayIndices = new Set<number>();
+    for (const t of taskDates) {
+      const s = differenceInDays(t.startDate, minDate);
+      const e = differenceInDays(t.endDate, minDate);
+      for (let i = Math.max(0, s - 1); i <= Math.min(totalDays - 1, e + 1); i++) {
+        activeDayIndices.add(i);
+      }
+    }
+
+    // Build segments: runs of active days separated by gaps
+    type Segment = { type: 'days'; dayIndices: number[] } | { type: 'gap'; dayIndices: number[]; gapId: number };
+    const segments: Segment[] = [];
+    let gapCounter = 0;
+    let i = 0;
+    while (i < totalDays) {
+      if (activeDayIndices.has(i)) {
+        const run: number[] = [];
+        while (i < totalDays && activeDayIndices.has(i)) {
+          run.push(i);
+          i++;
+        }
+        segments.push({ type: 'days', dayIndices: run });
+      } else {
+        const run: number[] = [];
+        while (i < totalDays && !activeDayIndices.has(i)) {
+          run.push(i);
+          i++;
+        }
+        // Only collapse gaps of 2+ days
+        if (run.length >= 2) {
+          segments.push({ type: 'gap', dayIndices: run, gapId: gapCounter++ });
+        } else {
+          // Treat single empty days as regular days
+          segments.push({ type: 'days', dayIndices: run });
+        }
+      }
+    }
+
+    return { taskDates, minDate, maxDate, totalDays, days, segments, activeDayIndices };
   }, [tasks]);
+
+  const toggleGap = useCallback((gapId: number) => {
+    setExpandedGaps(prev => {
+      const next = new Set(prev);
+      if (next.has(gapId)) next.delete(gapId);
+      else next.add(gapId);
+      return next;
+    });
+  }, []);
+
+  // Build visible columns from segments
+  const visibleColumns = useMemo(() => {
+    if (!ganttData) return [];
+    type Col = { type: 'day'; dayIndex: number; date: Date } | { type: 'gap'; gapId: number; count: number; dayIndices: number[] };
+    const cols: Col[] = [];
+    for (const seg of ganttData.segments) {
+      if (seg.type === 'days') {
+        for (const di of seg.dayIndices) {
+          cols.push({ type: 'day', dayIndex: di, date: ganttData.days[di] });
+        }
+      } else {
+        if (expandedGaps.has(seg.gapId)) {
+          for (const di of seg.dayIndices) {
+            cols.push({ type: 'day', dayIndex: di, date: ganttData.days[di] });
+          }
+        } else {
+          cols.push({ type: 'gap', gapId: seg.gapId, count: seg.dayIndices.length, dayIndices: seg.dayIndices });
+        }
+      }
+    }
+    return cols;
+  }, [ganttData, expandedGaps]);
 
   useEffect(() => {
     if (ganttData && scrollRef.current) {
       const today = startOfDay(new Date());
       const daysSinceStart = differenceInDays(today, ganttData.minDate);
-      const dayWidth = 60;
-      scrollRef.current.scrollLeft = Math.max(0, daysSinceStart * dayWidth - 100);
+      // Find column position of today
+      let pos = 0;
+      for (const col of visibleColumns) {
+        if (col.type === 'day' && col.dayIndex === daysSinceStart) break;
+        pos++;
+      }
       setTodayPosition(daysSinceStart);
     }
-  }, [ganttData]);
+  }, [ganttData, visibleColumns]);
 
   const handleToggleCompleted = async (task: EstablishmentTask) => {
     try {
@@ -275,12 +352,38 @@ const EstablishmentGanttChart = ({
     );
   }
 
-  const dayWidth = 60;
+  const DAY_WIDTH = 80;
+  const GAP_WIDTH = 40;
   const rowHeight = 56;
   const headerHeight = 60;
   const taskLabelWidth = 360;
-  const timelineWidth = ganttData.totalDays * dayWidth;
+
+  // Compute column widths
+  const columnWidths = useMemo(() => {
+    return visibleColumns.map(col => col.type === 'day' ? DAY_WIDTH : GAP_WIDTH);
+  }, [visibleColumns]);
+  const timelineWidth = columnWidths.reduce((a, b) => a + b, 0);
   const today = startOfDay(new Date());
+
+  // Build a lookup: dayIndex -> x offset in the visible timeline
+  const dayIndexToX = useMemo(() => {
+    const map = new Map<number, { x: number; width: number }>();
+    let x = 0;
+    for (let i = 0; i < visibleColumns.length; i++) {
+      const col = visibleColumns[i];
+      const w = columnWidths[i];
+      if (col.type === 'day') {
+        map.set(col.dayIndex, { x, width: w });
+      } else {
+        // Map gap days to collapsed position
+        for (const di of col.dayIndices) {
+          map.set(di, { x, width: 0 }); // collapsed
+        }
+      }
+      x += w;
+    }
+    return map;
+  }, [visibleColumns, columnWidths]);
 
   return (
     <>
@@ -431,23 +534,40 @@ const EstablishmentGanttChart = ({
               </div>
             </div>
 
-            {/* Scrollable timeline */}
+            {/* Scrollable adaptive timeline */}
             <div className="flex-1 overflow-x-auto" ref={scrollRef}>
               <div style={{ width: timelineWidth, minWidth: '100%' }}>
                 {/* Date headers */}
                 <div className="flex border-b bg-muted/50 sticky top-0 z-10" style={{ height: headerHeight }}>
-                  {ganttData.days.map((day, index) => {
+                  {visibleColumns.map((col, ci) => {
+                    if (col.type === 'gap') {
+                      return (
+                        <div
+                          key={`gap-${col.gapId}`}
+                          className="flex-shrink-0 flex flex-col items-center justify-center border-r cursor-pointer hover:bg-accent/50 transition-colors bg-muted/30 group"
+                          style={{ width: columnWidths[ci] }}
+                          onClick={() => toggleGap(col.gapId)}
+                          title={`${col.count} dagar dölda — klicka för att visa`}
+                        >
+                          <span className="text-[10px] font-bold text-muted-foreground">···</span>
+                          <span className="text-[9px] text-muted-foreground/70 group-hover:text-foreground transition-colors">{col.count}d</span>
+                        </div>
+                      );
+                    }
+                    const day = col.date;
                     const isToday = differenceInDays(day, today) === 0;
                     const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    const isActive = ganttData.activeDayIndices.has(col.dayIndex);
                     return (
                       <div
-                        key={index}
+                        key={ci}
                         className={cn(
                           "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r text-xs relative",
                           isWeekend && "bg-muted/70",
-                          isToday && "bg-primary/15 font-bold"
+                          isToday && "bg-primary/15 font-bold",
+                          !isActive && "bg-muted/20"
                         )}
-                        style={{ width: dayWidth }}
+                        style={{ width: columnWidths[ci] }}
                       >
                         {isToday && (
                           <span className="absolute top-1 text-[9px] font-bold text-primary uppercase tracking-wider">Idag</span>
@@ -461,8 +581,8 @@ const EstablishmentGanttChart = ({
 
                 {/* Task bars */}
                 {ganttData.taskDates.map((task) => {
-                  const startOffset = differenceInDays(task.startDate, ganttData.minDate);
-                  const duration = differenceInDays(task.endDate, task.startDate) + 1;
+                  const startDayIndex = differenceInDays(task.startDate, ganttData.minDate);
+                  const endDayIndex = differenceInDays(task.endDate, ganttData.minDate);
                   const dbTask = tasks.find(t => t.id === task.id);
                   const taskStatus = (dbTask as any)?.status || 'not_started';
                   const assignedTo = (dbTask as any)?.assigned_to || null;
@@ -471,16 +591,21 @@ const EstablishmentGanttChart = ({
                   const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
                   const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
                   const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
-                  const barWidth = Math.max(duration * dayWidth - 8, 32);
 
-                  // Overlap detection: same person, overlapping dates
+                  // Compute bar position from adaptive column layout
+                  const startPos = dayIndexToX.get(startDayIndex);
+                  const endPos = dayIndexToX.get(endDayIndex);
+                  const barLeft = startPos ? startPos.x + 4 : 0;
+                  const barRight = endPos ? endPos.x + endPos.width : barLeft + DAY_WIDTH;
+                  const barWidth = Math.max(barRight - barLeft - 4, 32);
+
+                  // Overlap detection
                   const hasPersonOverlap = assignedTo && ganttData.taskDates.some(other =>
                     other.id !== task.id &&
                     (tasks.find(t => t.id === other.id) as any)?.assigned_to === assignedTo &&
                     other.startDate <= task.endDate && other.endDate >= task.startDate
                   );
 
-                  // Bar color based on status
                   const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
                     : taskStatus === 'cancelled' ? 'bg-muted-foreground'
@@ -488,7 +613,6 @@ const EstablishmentGanttChart = ({
                     : taskStatus === 'in_progress' ? 'bg-primary'
                     : CATEGORY_COLORS[task.category] || 'bg-primary';
 
-                  // Border style for warnings
                   const borderStyle = taskStatus === 'blocked' ? 'ring-2 ring-destructive/50 ring-offset-1 ring-offset-background'
                     : isOverdue ? 'ring-2 ring-destructive/40 ring-offset-1 ring-offset-background'
                     : noOwner ? 'ring-2 ring-amber-400/50 ring-offset-1 ring-offset-background'
@@ -497,30 +621,49 @@ const EstablishmentGanttChart = ({
 
                   return (
                     <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
-                      {/* Day grid cells */}
+                      {/* Grid cells — adaptive columns */}
                       <div className="absolute inset-0 flex">
-                        {ganttData.days.map((day, dayIndex) => {
-                          const isDayToday = differenceInDays(day, today) === 0;
-                          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        {visibleColumns.map((col, ci) => {
+                          if (col.type === 'gap') {
+                            return (
+                              <div
+                                key={`gap-${col.gapId}`}
+                                className="flex-shrink-0 border-r bg-muted/10 cursor-pointer hover:bg-accent/30 transition-colors"
+                                style={{ width: columnWidths[ci] }}
+                                onClick={() => toggleGap(col.gapId)}
+                              >
+                                <div className="h-full w-full flex items-center justify-center">
+                                  <div className="w-px h-3/4 border-l border-dashed border-border/50" />
+                                </div>
+                              </div>
+                            );
+                          }
+                          const isDayToday = differenceInDays(col.date, today) === 0;
+                          const isWeekend = col.date.getDay() === 0 || col.date.getDay() === 6;
                           return (
                             <div
-                              key={dayIndex}
+                              key={ci}
                               className={cn("flex-shrink-0 border-r", isWeekend && "bg-muted/30", isDayToday && "bg-primary/5")}
-                              style={{ width: dayWidth }}
+                              style={{ width: columnWidths[ci] }}
                             />
                           );
                         })}
                       </div>
 
-                      {/* Strong today line */}
-                      {todayPosition >= 0 && todayPosition < ganttData.totalDays && (
-                        <div
-                          className="absolute top-0 bottom-0 z-20 pointer-events-none"
-                          style={{ left: todayPosition * dayWidth + dayWidth / 2 - 1 }}
-                        >
-                          <div className="w-0.5 h-full bg-primary" />
-                        </div>
-                      )}
+                      {/* Today line */}
+                      {(() => {
+                        const todayIdx = differenceInDays(today, ganttData.minDate);
+                        const todayPos = dayIndexToX.get(todayIdx);
+                        if (!todayPos || todayPos.width === 0) return null;
+                        return (
+                          <div
+                            className="absolute top-0 bottom-0 z-20 pointer-events-none"
+                            style={{ left: todayPos.x + todayPos.width / 2 - 1 }}
+                          >
+                            <div className="w-0.5 h-full bg-primary" />
+                          </div>
+                        );
+                      })()}
 
                       {/* Task bar */}
                       <div
@@ -531,7 +674,7 @@ const EstablishmentGanttChart = ({
                           barColor,
                           borderStyle,
                         )}
-                        style={{ left: startOffset * dayWidth + 4, width: barWidth }}
+                        style={{ left: barLeft, width: barWidth }}
                         onClick={() =>
                           onTaskClick?.({
                             id: task.id,
@@ -543,7 +686,6 @@ const EstablishmentGanttChart = ({
                           })
                         }
                       >
-                        {/* Task name + assigned user */}
                         <div className="px-2 flex items-center gap-1 min-w-0">
                           {taskStatus === 'blocked' && <Ban className="h-3 w-3 text-white/90 flex-shrink-0" />}
                           {isOverdue && taskStatus !== 'blocked' && <AlertTriangle className="h-3 w-3 text-white/90 flex-shrink-0" />}
@@ -558,7 +700,6 @@ const EstablishmentGanttChart = ({
                             </span>
                           )}
                         </div>
-                        {/* Second row: assigned name + status */}
                         <div className="px-2 flex items-center gap-1.5 min-w-0">
                           {assignedName ? (
                             <span className="text-[10px] text-white/80 truncate leading-tight">
@@ -586,7 +727,6 @@ const EstablishmentGanttChart = ({
                           )}
                         </div>
 
-                        {/* Subtask progress bar */}
                         {subtasksByTask[task.id] && subtasksByTask[task.id].total > 0 && (
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 rounded-b-md overflow-hidden">
                             <div
