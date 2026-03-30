@@ -29,7 +29,7 @@ interface ActivityPlannerSheetProps {
   onTaskCreated: () => void;
   projectBookings?: ProjectBookingInfo[];
   staffPool?: Array<{ id: string; name: string }>;
-  existingTasks?: Array<{ source_product_id: string | null }>;
+  existingTasks?: Array<{ source_product_id: string | null; title?: string }>;
 }
 
 // Categories are now handled by CategoryCombobox
@@ -128,14 +128,26 @@ const ActivityPlannerSheet = ({
     ? (selectedBookingData?.products || [])
     : products;
 
-  // Build planned set from existing tasks
+  // Build planned set from existing tasks — match by source_product_id AND by product name in title
   useEffect(() => {
     const planned = new Set<string>();
     existingTasks.forEach(t => {
       if (t.source_product_id) planned.add(t.source_product_id);
     });
+    // Also match products whose name appears in any existing task title
+    if (activeProducts.length > 0) {
+      existingTasks.forEach(t => {
+        if (t.title) {
+          activeProducts.forEach(p => {
+            if (t.title!.includes(p.name)) {
+              planned.add(p.id);
+            }
+          });
+        }
+      });
+    }
     setPlannedProductIds(planned);
-  }, [existingTasks]);
+  }, [existingTasks, activeProducts]);
 
   useEffect(() => {
     if (!open) {
