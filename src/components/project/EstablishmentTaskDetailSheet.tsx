@@ -252,6 +252,8 @@ const EstablishmentTaskDetailSheet = ({
       setTitleDraft(taskDbData.title || task?.title || "");
       setStartDateDraft(taskDbData.start_date || "");
       setEndDateDraft(taskDbData.end_date || "");
+      setStartTimeDraft((taskDbData as any).start_time || "");
+      setEndTimeDraft((taskDbData as any).end_time || "");
     }
   }, [taskDbData]);
 
