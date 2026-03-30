@@ -163,7 +163,8 @@ const EstablishmentGanttChart = ({
     return map;
   }, [allSubtasks]);
 
-  const tasks = dbTasks || [];
+  const allTasks = dbTasks || [];
+  const tasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
 
   const ganttData = useMemo(() => {
     if (tasks.length === 0) return null;
