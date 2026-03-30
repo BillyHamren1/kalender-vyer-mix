@@ -1,52 +1,46 @@
 
 
-## Fix: Instant UI Update When Moving Events via Right-Click Dialog
+## Show Large Project Name & Consolidate Events in Calendar
 
 ### Problem
-When moving an event using the right-click → MoveEventDateDialog flow, the UI only updates after `refreshEvents()` completes a full database re-fetch. This causes a visible delay.
+When multiple bookings are linked to a large project (stort projekt), each booking creates separate calendar events showing individual booking titles. The user wants:
+1. Show the **project name** instead of individual booking names
+2. Show only **one event per large project** (not one per booking)
 
 ### Solution
-Pass `setEvents` down from the page level so `MoveEventDateDialog` can optimistically update the local events array immediately, before the DB write finishes.
+Modify `useRealTimeCalendarEvents` to detect bookings belonging to the same large project and consolidate their calendar events.
 
 ### Changes
 
-**1. `src/hooks/useRealTimeCalendarEvents.tsx`**
-- Expose `setEvents` in the return value
+**1. `src/hooks/useRealTimeCalendarEvents.tsx` — batch-fetch large project names & consolidate events**
 
-**2. `src/pages/CustomCalendarPage.tsx` + `src/pages/WarehouseCalendarPage.tsx`**
-- Destructure `setEvents` from `useRealTimeCalendarEvents()`
-- Pass it as a new `setEvents` prop to `CustomCalendar`
+In the `loadEvents` function, after fetching bookings:
+- Add `large_project_id` to the booking select query
+- Collect all unique `large_project_id` values and batch-fetch large project names from `large_projects` table
+- After enhancing events, add a consolidation step:
+  - Group events by `large_project_id + event_type + source_date`
+  - For events sharing the same large project, keep only one representative event per group
+  - Override its `title` with the large project name
+  - Store original booking IDs in `extendedProps` for reference
+  - Tag with `extendedProps.isLargeProject = true` and `extendedProps.largeProjectId`
 
-**3. `src/components/Calendar/CustomCalendar.tsx`**
-- Add `setEvents` to props interface
-- Pass it through to `TimeGrid` → `EventBlock` → `CustomEvent`
+**2. `src/components/Calendar/CustomEvent.tsx` — display project name**
 
-**4. `src/components/Calendar/TimeGrid.tsx`**
-- Thread `setEvents` prop through to `EventBlock` → `CustomEvent`
+- When `event.extendedProps?.isLargeProject` is true, show a "PROJEKT" badge or indicator
+- The title already comes from the consolidated event, so `event.title` will show the project name automatically
 
-**5. `src/components/Calendar/CustomEvent.tsx`**
-- Accept `setEvents` prop
-- Pass it to `MoveEventDateDialog` as a new `onOptimisticUpdate` callback
-
-**6. `src/components/Calendar/MoveEventDateDialog.tsx`**
-- Accept optional `setEvents` prop
-- In `handleMove`, **before** the `await updateCalendarEvent()` call, optimistically update the event in local state:
-```typescript
-if (setEvents) {
-  setEvents(prev => prev.map(ev =>
-    ev.id === event.id
-      ? { ...ev, start: newStartISO, end: newEndISO, resourceId: selectedResourceId || ev.resourceId }
-      : ev
-  ));
-}
-```
-- Keep the existing `onUpdate` (refreshEvents) call as a background sync/error fallback
-
-### Flow After Fix
+### Consolidation Logic (pseudo-code)
 ```text
-User clicks "Flytta" → setEvents() updates UI instantly
-                      → async DB write runs in background
-                      → refreshEvents() confirms final state
-                      → on error: refreshEvents() reverts
+For each enhanced event:
+  → look up booking's large_project_id
+  → if null → keep as-is
+  → if set → group by (large_project_id, event_type, source_date)
+     → keep first event in group, discard rest
+     → set title = large project name
+     → set extendedProps.isLargeProject = true
 ```
+
+### Files to modify
+- `src/hooks/useRealTimeCalendarEvents.tsx` (main logic)
+- `src/components/Calendar/CustomEvent.tsx` (optional visual indicator)
 
