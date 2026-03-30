@@ -17,6 +17,7 @@ interface CustomEventProps {
   style?: React.CSSProperties;
   onEventResize?: () => Promise<void>;
   readOnly?: boolean;
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
 const CustomEvent: React.FC<CustomEventProps> = React.memo(({
@@ -24,7 +25,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   resource,
   style,
   onEventResize,
-  readOnly = false
+  readOnly = false,
+  setEvents
 }) => {
   
   const eventRef = useRef<HTMLDivElement>(null);
@@ -233,6 +235,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         resources={availableResources}
         onUpdate={onEventResize}
         exactTimeNeeded={event.extendedProps?.exactTimeNeeded === true}
+        setEvents={setEvents}
       />
     </>
   );
