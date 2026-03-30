@@ -244,7 +244,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
               const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
               const PriorityIcon = priorityCfg.icon;
               const readinessCfg = READINESS_CONFIG[task.readiness] || READINESS_CONFIG.missing_information;
-              const assignedName = getStaffName(task.assigned_to, staffPool);
+              const assignedNames = getStaffNames(task, staffPool);
 
               return (
                 <div
