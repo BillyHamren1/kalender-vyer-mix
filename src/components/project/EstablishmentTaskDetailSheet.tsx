@@ -726,10 +726,10 @@ const EstablishmentTaskDetailSheet = ({
               </label>
               <Input
                 type="time"
+                step={600}
                 value={endTimeDraft}
                 onChange={(e) => handleEndTimeChange(e.target.value)}
                 className="h-9 text-sm"
-                placeholder="HH:mm"
               />
             </div>
           </div>
