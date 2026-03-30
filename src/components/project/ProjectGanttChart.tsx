@@ -172,7 +172,7 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
                 >
                   <div
                     className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: CATEGORY_CONFIG[task.category].color }}
+                    style={{ backgroundColor: getCategoryConfig(task.category).color }}
                   />
                   {task.isInfoOnly ? (
                     <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -242,7 +242,7 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
               {ganttData.tasks.map((task) => {
                 const startOffset = differenceInDays(task.startDate, ganttData.minDate);
                 const duration = differenceInDays(task.endDate, task.startDate) + 1;
-                const categoryColor = CATEGORY_CONFIG[task.category].color;
+                const categoryColor = getCategoryConfig(task.category).color;
 
                 return (
                   <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
@@ -306,8 +306,8 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
         </div>
         {usedCategories.map(cat => (
           <div key={cat} className="flex items-center gap-1.5">
-            <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: CATEGORY_CONFIG[cat].color }} />
-            <span>{CATEGORY_CONFIG[cat].label}</span>
+            <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: getCategoryConfig(cat).color }} />
+            <span>{getCategoryConfig(cat).label}</span>
           </div>
         ))}
         <div className="flex items-center gap-1">
