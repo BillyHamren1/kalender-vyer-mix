@@ -144,6 +144,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       variant,
       isEventReadOnly,
       onEventClick,
+      setEvents,
       fullWidth,
       availableStaff: getAvailableStaffForDay(date),
       ...(isCenter ? {

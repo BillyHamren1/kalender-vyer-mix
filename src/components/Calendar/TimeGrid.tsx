@@ -45,6 +45,7 @@ interface TimeGridProps {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
   };
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
 // Overlap layout utility — assigns column indices to overlapping events
@@ -119,7 +120,8 @@ const EventWrapper: React.FC<{
   onEventClick: (event: CalendarEvent) => void;
   onEventResize?: () => Promise<void>;
   readOnly?: boolean;
-}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
