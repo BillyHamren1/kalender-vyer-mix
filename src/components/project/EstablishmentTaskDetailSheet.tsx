@@ -221,8 +221,11 @@ const EstablishmentTaskDetailSheet = ({
       subtasks.forEach(st => {
         if (st.completed && st.title) {
           const matchingProduct = linkedProducts.find(p => {
-            const label = p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name;
-            return st.title === label || st.title === p.name || st.title.startsWith(p.name);
+            const raw = p.name;
+            const cleaned = cleanName(raw);
+            const labelRaw = p.quantity > 1 ? `${raw} x${p.quantity}` : raw;
+            const labelClean = p.quantity > 1 ? `${cleaned} x${p.quantity}` : cleaned;
+            return st.title === labelRaw || st.title === labelClean || st.title === raw || st.title === cleaned || st.title.startsWith(cleaned);
           });
           if (matchingProduct) checked.add(matchingProduct.id);
         }
