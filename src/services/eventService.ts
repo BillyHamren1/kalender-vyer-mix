@@ -47,9 +47,20 @@ export interface CalendarEventUpdate {
 // ─── READ OPERATIONS ───────────────────────────────────────
 
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
-  console.log('📅 Fetching calendar events from database...');
+  const t0 = performance.now();
+  console.log('📅 [fetchCalendarEvents] Starting fetch...');
   
-  const { data, error } = await supabase
+  // Check auth state first
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.error('❌ [fetchCalendarEvents] Auth session error:', sessionError.message);
+  } else if (!sessionData?.session) {
+    console.warn('⚠️ [fetchCalendarEvents] No active session — user may not be logged in');
+  } else {
+    console.log('🔑 [fetchCalendarEvents] Session OK, user:', sessionData.session.user.id.slice(0, 8) + '...');
+  }
+
+  const { data, error, status, statusText } = await supabase
     .from('calendar_events')
     .select(`
       id,
@@ -65,12 +76,19 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     `)
     .order('start_time', { ascending: true });
 
+  const elapsed = Math.round(performance.now() - t0);
+
   if (error) {
-    console.error('❌ Error fetching calendar events:', error);
+    console.error(`❌ [fetchCalendarEvents] Failed in ${elapsed}ms — HTTP ${status} ${statusText}`, {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
     throw error;
   }
 
-  console.log(`✅ Fetched ${data?.length || 0} calendar events`);
+  console.log(`✅ [fetchCalendarEvents] Fetched ${data?.length || 0} events in ${elapsed}ms (HTTP ${status})`);
 
   const events: CalendarEvent[] = (data || []).map(event => ({
     id: event.id,

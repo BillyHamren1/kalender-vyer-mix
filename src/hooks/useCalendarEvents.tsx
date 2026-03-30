@@ -33,16 +33,22 @@ export const useCalendarEvents = () => {
     }
     
     try {
-      console.log('Fetching calendar events...');
+      console.log(`📅 [useCalendarEvents] loadEvents(force=${force}) starting...`);
       setIsLoading(true);
       const data = await fetchCalendarEvents();
       if (activeRef.current) {
-        console.log('Calendar events loaded successfully:', data.length, 'events');
+        console.log(`📅 [useCalendarEvents] Loaded ${data.length} events successfully`);
         setEvents(data);
         lastUpdateRef.current = new Date();
       }
-    } catch (error) {
-      console.error('Error loading calendar events:', error);
+    } catch (error: any) {
+      console.error('❌ [useCalendarEvents] Failed to load events:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
+      });
       if (activeRef.current) {
         toast.error('Could not load calendar events');
       }
