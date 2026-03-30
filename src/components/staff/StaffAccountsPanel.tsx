@@ -280,51 +280,9 @@ const StaffAccountsPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Bulk create button */}
-          {staffWithoutAccounts.length > 0 && (
-            <Button
-              onClick={handleCreateAllAccounts}
-              disabled={isCreatingBulk}
-              className="w-full"
-              variant="default"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              {isCreatingBulk 
-                ? 'Skapar konton...' 
-                : `Skapa konton för alla (${staffWithoutAccounts.length})`}
-            </Button>
-          )}
-
-          {/* Staff without accounts */}
-          {staffWithoutAccounts.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">Saknar konto:</h4>
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-2">
-                  {staffWithoutAccounts.map(staff => (
-                    <div 
-                      key={staff.id} 
-                      className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
-                    >
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{staff.name}</span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => createAccountMutation.mutate(staff)}
-                        disabled={createAccountMutation.isPending}
-                      >
-                        <UserPlus className="h-3 w-3 mr-1" />
-                        Skapa
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Konton skapas automatiskt när personal taggas som Montage eller Lager.
+          </p>
 
           {/* Staff with accounts */}
           {staffWithAccounts.length > 0 && (
