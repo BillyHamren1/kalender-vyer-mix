@@ -36,6 +36,7 @@ interface CustomCalendarProps {
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
   events,
+  setEvents,
   resources,
   isLoading,
   currentDate,
