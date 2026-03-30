@@ -218,6 +218,8 @@ const issueConfig: Record<CriticalIssue["type"], { icon: typeof AlertTriangle; l
   blocked: { icon: ShieldAlert, label: "Blockerad", className: "text-destructive bg-destructive/10" },
   overdue: { icon: Clock, label: "Försenad", className: "text-amber-600 dark:text-amber-400 bg-amber-500/10" },
   decision_needed: { icon: HelpCircle, label: "Beslut krävs", className: "text-violet-600 dark:text-violet-400 bg-violet-500/10" },
+  missing_setup: { icon: AlertTriangle, label: "Saknar information", className: "text-amber-600 dark:text-amber-400 bg-amber-500/10" },
+  waiting_for_external: { icon: Clock, label: "Väntar extern", className: "text-orange-600 dark:text-orange-400 bg-orange-500/10" },
   no_owner: { icon: UserX, label: "Saknar ägare", className: "text-orange-600 dark:text-orange-400 bg-orange-500/10" },
   no_dates: { icon: CalendarDays, label: "Saknar datum", className: "text-muted-foreground bg-muted/50" },
 };

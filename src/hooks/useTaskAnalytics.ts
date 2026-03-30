@@ -148,7 +148,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
         taskId: t.id, taskTitle: t.title, type: "blocked" as const,
         assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
         blockerReason: t.blockers, blockerResponsible: t.blocker_responsible,
-        blockedSince: t.updated_at || t.start_date,
+        blockedSince: t.start_date,
       })),
       ...overdueTasks.filter(t => t.status !== 'blocked').map(t => ({
         taskId: t.id, taskTitle: t.title, type: "overdue" as const,
