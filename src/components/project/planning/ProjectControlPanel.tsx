@@ -5,7 +5,8 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
   CheckCircle2, ListTodo, CalendarDays, UserX, AlertTriangle, Clock,
-  Users, ArrowUpRight, AlertCircle, CalendarClock, ShieldAlert, User
+  Users, ArrowUpRight, AlertCircle, CalendarClock, ShieldAlert, User,
+  HelpCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TaskAnalytics, TeamMemberWorkload, CriticalIssue } from "@/hooks/useTaskAnalytics";
@@ -216,6 +217,7 @@ const UpcomingSection = ({ analytics, staffPool, onTaskClick }: {
 const issueConfig: Record<CriticalIssue["type"], { icon: typeof AlertTriangle; label: string; className: string }> = {
   blocked: { icon: ShieldAlert, label: "Blockerad", className: "text-destructive bg-destructive/10" },
   overdue: { icon: Clock, label: "Försenad", className: "text-amber-600 dark:text-amber-400 bg-amber-500/10" },
+  decision_needed: { icon: HelpCircle, label: "Beslut krävs", className: "text-violet-600 dark:text-violet-400 bg-violet-500/10" },
   no_owner: { icon: UserX, label: "Saknar ägare", className: "text-orange-600 dark:text-orange-400 bg-orange-500/10" },
   no_dates: { icon: CalendarDays, label: "Saknar datum", className: "text-muted-foreground bg-muted/50" },
 };
