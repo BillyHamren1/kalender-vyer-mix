@@ -465,6 +465,8 @@ const EstablishmentGanttChart = ({
                   const assignedTo = (dbTask as any)?.assigned_to || null;
                   const assignedName = assignedTo ? staffPool.find(s => s.id === assignedTo)?.name : null;
                   const noOwner = !assignedTo && taskStatus !== 'done' && taskStatus !== 'cancelled';
+                  const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
+                  const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
                   const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
                   const barWidth = Math.max(duration * dayWidth - 8, 32);
 
@@ -542,7 +544,8 @@ const EstablishmentGanttChart = ({
                         <div className="px-2 flex items-center gap-1 min-w-0">
                           {taskStatus === 'blocked' && <Ban className="h-3 w-3 text-white/90 flex-shrink-0" />}
                           {isOverdue && taskStatus !== 'blocked' && <AlertTriangle className="h-3 w-3 text-white/90 flex-shrink-0" />}
-                          {noOwner && <User className="h-3 w-3 text-white/70 flex-shrink-0" />}
+                          {noOwner && !taskDecisionNeeded && <User className="h-3 w-3 text-white/70 flex-shrink-0" />}
+                          {taskDecisionNeeded && <HelpCircle className="h-3 w-3 text-white/90 flex-shrink-0" />}
                           <span className="text-xs text-white font-semibold truncate leading-tight">
                             {task.title}
                           </span>
@@ -566,6 +569,16 @@ const EstablishmentGanttChart = ({
                           {hasPersonOverlap && (
                             <span className="text-[9px] text-white/70 bg-white/15 rounded px-0.5 flex-shrink-0">
                               ⚠ Överlapp
+                            </span>
+                          )}
+                          {taskDecisionNeeded && (
+                            <span className="text-[9px] text-white/80 bg-white/15 rounded px-0.5 flex-shrink-0">
+                              Beslut
+                            </span>
+                          )}
+                          {taskReadiness === 'missing_information' && taskStatus !== 'done' && !taskDecisionNeeded && (
+                            <span className="text-[9px] text-white/70 bg-white/10 rounded px-0.5 flex-shrink-0">
+                              Saknar info
                             </span>
                           )}
                         </div>
