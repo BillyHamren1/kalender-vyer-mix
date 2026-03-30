@@ -671,18 +671,27 @@ const EstablishmentTaskDetailSheet = ({
         )}
 
         <div className="py-3 space-y-2">
-          <Label className="text-xs text-muted-foreground">Tilldelad personal</Label>
-          <Select value={taskAssignedTo || "none"} onValueChange={handleTaskAssignmentChange}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Välj personal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Ingen tilldelad</SelectItem>
-              {effectiveStaff.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs text-muted-foreground">Tilldelad personal ({taskAssignedToIds.length})</Label>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {effectiveStaff.map((s) => (
+              <label
+                key={s.id}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted transition-colors text-sm",
+                  taskAssignedToIds.includes(s.id) && "bg-primary/10"
+                )}
+              >
+                <Checkbox
+                  checked={taskAssignedToIds.includes(s.id)}
+                  onCheckedChange={() => handleToggleStaffAssignment(s.id)}
+                />
+                <span>{s.name}</span>
+              </label>
+            ))}
+            {effectiveStaff.length === 0 && (
+              <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal tillgänglig</p>
+            )}
+          </div>
         </div>
 
         <Separator />
