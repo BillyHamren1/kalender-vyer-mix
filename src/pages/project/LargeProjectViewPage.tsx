@@ -80,9 +80,6 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="packing" className={tabTriggerClass}>
-              Packning
-            </TabsTrigger>
             <TabsTrigger value="activity" className={tabTriggerClass}>
               Historik
             </TabsTrigger>
