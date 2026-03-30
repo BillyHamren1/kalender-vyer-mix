@@ -479,6 +479,53 @@ const StaffDetail: React.FC = () => {
         staffName={staffMember.name}
       />
     )}
+
+    {/* Auto-created credentials dialog */}
+    <Dialog open={showAutoCredentials} onOpenChange={setShowAutoCredentials}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Inloggningskonto skapat
+          </DialogTitle>
+          <DialogDescription className="text-destructive font-medium">
+            ⚠️ Spara dessa uppgifter nu — lösenordet kan inte visas igen!
+          </DialogDescription>
+        </DialogHeader>
+
+        {autoCredentials && (
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <div>
+                <span className="text-sm text-muted-foreground">Användarnamn:</span>
+                <p className="font-mono font-medium">{autoCredentials.username}</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Lösenord:</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAutoPassword(!showAutoPassword)}>
+                    {showAutoPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <p className="font-mono font-medium">
+                  {showAutoPassword ? autoCredentials.password : '••••••••'}
+                </p>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => {
+                navigator.clipboard.writeText(`Användarnamn: ${autoCredentials.username}\nLösenord: ${autoCredentials.password}`);
+                toast.success('Kopierat till urklipp');
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Kopiera uppgifter
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
     </>
   );
 };
