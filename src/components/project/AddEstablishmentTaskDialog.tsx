@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
@@ -41,6 +42,12 @@ const CATEGORIES = [
   { value: 'kontroll', label: 'Kontroll' },
 ];
 
+const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: 'high', label: 'Hög' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Låg' },
+];
+
 const AddEstablishmentTaskDialog = ({
   open,
   onOpenChange,
@@ -55,6 +62,7 @@ const AddEstablishmentTaskDialog = ({
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("installation");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
   );
@@ -66,24 +74,22 @@ const AddEstablishmentTaskDialog = ({
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
-  // Fetch products for selected booking in project mode
   const { data: selectedBookingData } = useQuery({
     queryKey: ['establishment-booking-data', selectedBookingId],
     queryFn: () => fetchEstablishmentBookingData(selectedBookingId),
     enabled: isProjectMode && selectedBookingId !== "none",
   });
 
-  // Use booking-specific products in project mode, otherwise use passed products
   const activeProducts = isProjectMode
     ? (selectedBookingData?.products || [])
     : products;
 
   const mainProducts = activeProducts.filter(p => !p.isPackageComponent);
 
-  // Reset selected booking when dialog closes
   useEffect(() => {
     if (!open) {
       setSelectedBookingId("none");
+      setPriority("medium");
     }
   }, [open]);
 
@@ -105,6 +111,8 @@ const AddEstablishmentTaskDialog = ({
         source: 'product',
         source_product_id: product.id,
         assigned_to: assignedTo,
+        priority,
+        // Defaults: status=not_started, readiness=missing_information
       });
       toast.success(`Aktivitet skapad: ${product.name}`);
       onTaskCreated();
@@ -132,6 +140,8 @@ const AddEstablishmentTaskDialog = ({
         end_date: format(endDate, 'yyyy-MM-dd'),
         source: 'manual',
         assigned_to: assignedTo,
+        priority,
+        // Defaults: status=not_started, readiness=missing_information
       });
       toast.success("Aktivitet skapad");
       setTitle("");
@@ -217,33 +227,48 @@ const AddEstablishmentTaskDialog = ({
             />
           </div>
 
-          <div>
-            <Label>Kategori</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Kategori</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Prioritet</Label>
+              <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div>
             <Label>Tilldela personal</Label>
-              <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Ingen tilldelad" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ingen tilldelad</SelectItem>
-                  {staffPool.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Ingen tilldelad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ingen tilldelad</SelectItem>
+                {staffPool.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -286,6 +311,10 @@ const AddEstablishmentTaskDialog = ({
               </Popover>
             </div>
           </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            Nya aktiviteter skapas som "Ej startad" med beredskap "Saknar information"
+          </p>
 
           <Button
             onClick={handleManualSubmit}

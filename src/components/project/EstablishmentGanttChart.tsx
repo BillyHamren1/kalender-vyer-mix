@@ -457,7 +457,12 @@ const EstablishmentGanttChart = ({
                 {ganttData.taskDates.map((task) => {
                   const startOffset = differenceInDays(task.startDate, ganttData.minDate);
                   const duration = differenceInDays(task.endDate, task.startDate) + 1;
-                  const colorClass = CATEGORY_COLORS[task.category] || 'bg-primary';
+                  const dbTask = tasks.find(t => t.id === task.id);
+                  const taskStatus = (dbTask as any)?.status || 'not_started';
+                  const colorClass = taskStatus === 'blocked' ? 'bg-destructive'
+                    : taskStatus === 'done' ? 'bg-emerald-500'
+                    : taskStatus === 'cancelled' ? 'bg-muted-foreground'
+                    : CATEGORY_COLORS[task.category] || 'bg-primary';
 
                   return (
                     <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>

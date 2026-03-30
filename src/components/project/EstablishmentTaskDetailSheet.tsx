@@ -8,10 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { updateEstablishmentTask } from "@/services/establishmentTaskService";
+import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import {
   fetchSubtasks,
   createSubtask,
@@ -69,6 +72,27 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   demontering: PackageX,
 };
 
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: "not_started", label: "Ej startad" },
+  { value: "in_progress", label: "Pågår" },
+  { value: "blocked", label: "Blockerad" },
+  { value: "done", label: "Klar" },
+  { value: "cancelled", label: "Avbruten" },
+];
+
+const READINESS_OPTIONS: { value: TaskReadiness; label: string }[] = [
+  { value: "ready", label: "Redo" },
+  { value: "missing_information", label: "Saknar information" },
+  { value: "waiting_for_decision", label: "Väntar på beslut" },
+  { value: "waiting_for_external", label: "Väntar på extern" },
+];
+
+const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: "high", label: "Hög" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Låg" },
+];
+
 const EstablishmentTaskDetailSheet = ({
   open,
   onOpenChange,
@@ -82,17 +106,22 @@ const EstablishmentTaskDetailSheet = ({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [taskNotes, setTaskNotes] = useState("");
   const [taskAssignedTo, setTaskAssignedTo] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>("not_started");
+  const [taskReadiness, setTaskReadiness] = useState<TaskReadiness>("missing_information");
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("medium");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskBlockers, setTaskBlockers] = useState("");
+  const [taskBlockerResponsible, setTaskBlockerResponsible] = useState<string | null>(null);
+  const [taskDecisionNeeded, setTaskDecisionNeeded] = useState(false);
 
-  // Staff pool is always provided by the parent page
   const effectiveStaff: StaffMember[] = staffPool || [];
 
-  // Fetch the task's current assigned_to and booking_id from DB
   const { data: taskDbData } = useQuery({
     queryKey: ["establishment-task-detail", task?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id")
+        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed")
         .eq("id", task!.id)
         .single();
       return data;
@@ -104,10 +133,16 @@ const EstablishmentTaskDetailSheet = ({
     if (taskDbData) {
       setTaskAssignedTo(taskDbData.assigned_to);
       setTaskNotes(taskDbData.notes || "");
+      setTaskStatus((taskDbData.status as TaskStatus) || "not_started");
+      setTaskReadiness((taskDbData.readiness as TaskReadiness) || "missing_information");
+      setTaskPriority((taskDbData.priority as TaskPriority) || "medium");
+      setTaskDescription(taskDbData.description || "");
+      setTaskBlockers(taskDbData.blockers || "");
+      setTaskBlockerResponsible(taskDbData.blocker_responsible || null);
+      setTaskDecisionNeeded(taskDbData.decision_needed || false);
     }
   }, [taskDbData]);
 
-  // Fetch subtasks for this task
   const { data: subtasks = [], isLoading } = useQuery({
     queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id],
     queryFn: () => fetchSubtasks(bookingId!, task!.id),
@@ -119,6 +154,10 @@ const EstablishmentTaskDetailSheet = ({
       setTaskNotes("");
       setNewSubtaskTitle("");
       setTaskAssignedTo(null);
+      setTaskDescription("");
+      setTaskBlockers("");
+      setTaskBlockerResponsible(null);
+      setTaskDecisionNeeded(false);
     }
   }, [open, task?.id]);
 
@@ -126,29 +165,75 @@ const EstablishmentTaskDetailSheet = ({
     ? ['establishment-tasks', 'project', largeProjectId]
     : ['establishment-tasks', bookingId];
 
+  const analyticsQueryKey = ["establishment-tasks-analytics", largeProjectId];
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: taskQueryKey });
+    queryClient.invalidateQueries({ queryKey: analyticsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task?.id] });
+  };
+
+  const handleFieldUpdate = async (updates: Parameters<typeof updateEstablishmentTask>[1]) => {
+    if (!task) return;
+    try {
+      await updateEstablishmentTask(task.id, updates);
+      invalidateAll();
+    } catch {
+      toast.error("Kunde inte uppdatera");
+    }
+  };
+
   const handleTaskAssignmentChange = async (val: string) => {
     const assignedTo = val === "none" ? null : val;
     setTaskAssignedTo(assignedTo);
-    if (task) {
-      try {
-        await updateEstablishmentTask(task.id, { assigned_to: assignedTo });
-        queryClient.invalidateQueries({ queryKey: taskQueryKey });
-        toast.success("Tilldelning uppdaterad");
-      } catch {
-        toast.error("Kunde inte uppdatera tilldelning");
-      }
-    }
+    await handleFieldUpdate({ assigned_to: assignedTo });
+  };
+
+  const handleStatusChange = async (val: string) => {
+    const status = val as TaskStatus;
+    setTaskStatus(status);
+    await handleFieldUpdate({ status });
+  };
+
+  const handleReadinessChange = async (val: string) => {
+    const readiness = val as TaskReadiness;
+    setTaskReadiness(readiness);
+    await handleFieldUpdate({ readiness });
+  };
+
+  const handlePriorityChange = async (val: string) => {
+    const priority = val as TaskPriority;
+    setTaskPriority(priority);
+    await handleFieldUpdate({ priority });
+  };
+
+  const handleDecisionNeededChange = async (checked: boolean) => {
+    setTaskDecisionNeeded(checked);
+    await handleFieldUpdate({ decision_needed: checked });
   };
 
   const handleNotesBlur = async () => {
     if (task && taskDbData && taskNotes !== (taskDbData.notes || "")) {
-      try {
-        await updateEstablishmentTask(task.id, { notes: taskNotes || null });
-        queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task.id] });
-      } catch {
-        toast.error("Kunde inte spara anteckningar");
-      }
+      await handleFieldUpdate({ notes: taskNotes || null });
     }
+  };
+
+  const handleDescriptionBlur = async () => {
+    if (task && taskDbData && taskDescription !== (taskDbData.description || "")) {
+      await handleFieldUpdate({ description: taskDescription || null });
+    }
+  };
+
+  const handleBlockersBlur = async () => {
+    if (task && taskDbData && taskBlockers !== (taskDbData.blockers || "")) {
+      await handleFieldUpdate({ blockers: taskBlockers || null });
+    }
+  };
+
+  const handleBlockerResponsibleChange = async (val: string) => {
+    const responsible = val === "none" ? null : val;
+    setTaskBlockerResponsible(responsible);
+    await handleFieldUpdate({ blocker_responsible: responsible });
   };
 
   const addMutation = useMutation({
@@ -199,31 +284,85 @@ const EstablishmentTaskDetailSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[440px] sm:max-w-[440px] overflow-y-auto">
+      <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
         <SheetHeader className="pb-4">
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-md text-white", colorClass)}>
               <IconComponent className="h-5 w-5" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <SheetTitle className="text-left">{task.title}</SheetTitle>
-              <Badge variant="outline" className="mt-1 text-xs capitalize">
-                {task.category}
-              </Badge>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Badge variant="outline" className="text-xs capitalize">
+                  {task.category}
+                </Badge>
+              </div>
             </div>
           </div>
         </SheetHeader>
 
         <Separator />
 
-        {/* Linked booking info - only in project mode */}
+        {/* Status, Readiness, Priority — always visible */}
+        <div className="py-4 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Select value={taskStatus} onValueChange={handleStatusChange}>
+                <SelectTrigger className="h-8 text-xs mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Beredskap</Label>
+              <Select value={taskReadiness} onValueChange={handleReadinessChange}>
+                <SelectTrigger className="h-8 text-xs mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {READINESS_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Prioritet</Label>
+              <Select value={taskPriority} onValueChange={handlePriorityChange}>
+                <SelectTrigger className="h-8 text-xs mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Beslut krävs</Label>
+            <Switch checked={taskDecisionNeeded} onCheckedChange={handleDecisionNeededChange} />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Linked booking info */}
         {largeProjectId && taskDbData?.booking_id && (() => {
           const linked = projectBookings.find(b => b.booking_id === taskDbData.booking_id);
           return linked ? (
             <>
               <div className="py-3">
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Kopplad bokning</h4>
-                <Badge variant="secondary" className="text-xs">
+                <Label className="text-xs text-muted-foreground">Kopplad bokning</Label>
+                <Badge variant="secondary" className="text-xs mt-1 block w-fit">
                   {linked.display_name || linked.client || linked.booking_id}
                 </Badge>
               </div>
@@ -232,22 +371,17 @@ const EstablishmentTaskDetailSheet = ({
           ) : null;
         })()}
 
-        {/* Task-level assignment */}
-        <div className="py-4 space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Tilldelad personal</h4>
-          <Select
-            value={taskAssignedTo || "none"}
-            onValueChange={handleTaskAssignmentChange}
-          >
+        {/* Assignment */}
+        <div className="py-3 space-y-2">
+          <Label className="text-xs text-muted-foreground">Tilldelad personal</Label>
+          <Select value={taskAssignedTo || "none"} onValueChange={handleTaskAssignmentChange}>
             <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder="Välj personal" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Ingen tilldelad</SelectItem>
               {effectiveStaff.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -256,11 +390,11 @@ const EstablishmentTaskDetailSheet = ({
         <Separator />
 
         {/* Time section */}
-        <div className="py-4 space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Tidsperiod</h4>
+        <div className="py-3 space-y-2">
+          <Label className="text-xs text-muted-foreground">Tidsperiod</Label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-muted-foreground">Start</label>
+              <label className="text-[11px] text-muted-foreground">Start</label>
               <Input
                 type="date"
                 defaultValue={task.startDate.toISOString().split("T")[0]}
@@ -269,7 +403,7 @@ const EstablishmentTaskDetailSheet = ({
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Slut</label>
+              <label className="text-[11px] text-muted-foreground">Slut</label>
               <Input
                 type="date"
                 defaultValue={task.endDate.toISOString().split("T")[0]}
@@ -282,15 +416,59 @@ const EstablishmentTaskDetailSheet = ({
 
         <Separator />
 
+        {/* Description */}
+        <div className="py-3 space-y-2">
+          <Label className="text-xs text-muted-foreground">Beskrivning</Label>
+          <Textarea
+            placeholder="Beskriv aktiviteten..."
+            value={taskDescription}
+            onChange={(e) => setTaskDescription(e.target.value)}
+            onBlur={handleDescriptionBlur}
+            className="min-h-[60px] text-sm resize-none"
+          />
+        </div>
+
+        <Separator />
+
+        {/* Blockers */}
+        <div className="py-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+            <Label className="text-xs text-muted-foreground">Blockeringar</Label>
+          </div>
+          <Textarea
+            placeholder="Beskriv vad som blockerar..."
+            value={taskBlockers}
+            onChange={(e) => setTaskBlockers(e.target.value)}
+            onBlur={handleBlockersBlur}
+            className="min-h-[50px] text-sm resize-none"
+          />
+          <div>
+            <label className="text-[11px] text-muted-foreground">Ansvarig för blockering</label>
+            <Select value={taskBlockerResponsible || "none"} onValueChange={handleBlockerResponsibleChange}>
+              <SelectTrigger className="h-8 text-xs mt-1">
+                <SelectValue placeholder="Välj ansvarig" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ingen vald</SelectItem>
+                {effectiveStaff.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Subtasks section */}
-        <div className="py-4 space-y-3">
+        <div className="py-3 space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-muted-foreground">
+            <Label className="text-xs text-muted-foreground">
               Delsteg {subtasks.length > 0 && `(${completedCount}/${subtasks.length})`}
-            </h4>
+            </Label>
           </div>
 
-          {/* Progress bar */}
           {subtasks.length > 0 && (
             <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <div
@@ -300,40 +478,23 @@ const EstablishmentTaskDetailSheet = ({
             </div>
           )}
 
-          {/* Subtask list */}
           <div className="space-y-1">
             {subtasks.map((subtask) => (
-              <div
-                key={subtask.id}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 group"
-              >
+              <div key={subtask.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 group">
                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
                 <Checkbox
                   checked={subtask.completed}
                   onCheckedChange={(checked) =>
-                    updateMutation.mutate({
-                      id: subtask.id,
-                      updates: { completed: !!checked },
-                    })
+                    updateMutation.mutate({ id: subtask.id, updates: { completed: !!checked } })
                   }
                 />
-                <span
-                  className={cn(
-                    "text-sm flex-1 min-w-0 truncate",
-                    subtask.completed && "line-through text-muted-foreground"
-                  )}
-                >
+                <span className={cn("text-sm flex-1 min-w-0 truncate", subtask.completed && "line-through text-muted-foreground")}>
                   {subtask.title}
                 </span>
-
-                {/* Staff assignment */}
                 <Select
                   value={subtask.assigned_to || "none"}
                   onValueChange={(val) =>
-                    updateMutation.mutate({
-                      id: subtask.id,
-                      updates: { assigned_to: val === "none" ? null : val },
-                    })
+                    updateMutation.mutate({ id: subtask.id, updates: { assigned_to: val === "none" ? null : val } })
                   }
                 >
                   <SelectTrigger className="h-7 w-24 text-xs flex-shrink-0">
@@ -342,13 +503,10 @@ const EstablishmentTaskDetailSheet = ({
                   <SelectContent>
                     <SelectItem value="none">Ingen</SelectItem>
                     {effectiveStaff.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-
                 <Button
                   variant="ghost"
                   size="icon"
@@ -361,7 +519,6 @@ const EstablishmentTaskDetailSheet = ({
             ))}
           </div>
 
-          {/* Add subtask */}
           {bookingId && (
             <div className="flex gap-2">
               <Input
@@ -388,8 +545,8 @@ const EstablishmentTaskDetailSheet = ({
         <Separator />
 
         {/* Notes */}
-        <div className="py-4 space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Anteckningar</h4>
+        <div className="py-3 space-y-2">
+          <Label className="text-xs text-muted-foreground">Anteckningar</Label>
           <Textarea
             placeholder="Instruktioner, noteringar..."
             value={taskNotes}
