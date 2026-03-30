@@ -11,6 +11,9 @@ interface DatesSectionProps {
   autoSync: boolean;
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onEditDate?: (oldDate: string, newDate: string, startTime: string, endTime: string, eventType: 'rig' | 'event' | 'rigDown') => void;
+  startTime?: string;
+  endTime?: string;
 }
 
 export const DatesSection = ({ 
@@ -19,9 +22,11 @@ export const DatesSection = ({
   eventType,
   autoSync,
   onAddDate,
-  onRemoveDate
+  onRemoveDate,
+  onEditDate,
+  startTime,
+  endTime
 }: DatesSectionProps) => {
-  // Check if there's only one date of this type
   const isOnlyOneDate = dates.length === 1;
   
   return (
@@ -43,8 +48,11 @@ export const DatesSection = ({
               date={date} 
               eventType={eventType}
               onRemoveDate={onRemoveDate}
+              onEditDate={onEditDate}
               autoSync={autoSync}
               isOnlyDate={isOnlyOneDate}
+              startTime={startTime}
+              endTime={endTime}
             />
           ))}
         </div>
