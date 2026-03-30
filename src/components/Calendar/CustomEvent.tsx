@@ -197,9 +197,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // If read-only, just render the card with double-click for details
   if (readOnly) {
     return (
-      <div onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
+      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
         {eventCardContent}
-      </div>
+      </EventHoverCard>
     );
   }
 
@@ -214,9 +214,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <div onDoubleClick={handleViewDetails} onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
-        {eventCardContent}
-      </div>
+      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+          {eventCardContent}
+        </div>
+      </EventHoverCard>
       
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
