@@ -321,7 +321,7 @@ const EstablishmentTaskDetailSheet = ({
   const addMutation = useMutation({
     mutationFn: (title: string) =>
       createSubtask({
-        booking_id: bookingId!,
+        booking_id: (effectiveBookingId || bookingId)!,
         parent_task_id: task!.id,
         title,
         sort_order: subtasks.length,
