@@ -87,7 +87,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const cancelled = tasks.filter(t => t.status === 'cancelled');
     const withDates = activeTasks.filter(t => hasValidDates(t));
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
-    const withoutOwner = activeTasks.filter(t => !t.assigned_to && t.status !== 'done');
+    const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && t.status !== 'done');
     const overdueTasks = activeTasks.filter(t => isOverdue(t, today));
     const waitingForDecision = activeTasks.filter(t => t.decision_needed && t.status !== 'done');
     const missingSetup = activeTasks.filter(t => t.readiness === 'missing_information' && t.status !== 'done');
@@ -96,12 +96,13 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     // Team workload
     const staffMap = new Map<string, { tasks: EstablishmentTask[] }>();
     activeTasks.forEach(t => {
-      if (t.assigned_to) {
-        if (!staffMap.has(t.assigned_to)) {
-          staffMap.set(t.assigned_to, { tasks: [] });
+      const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
+      ids.forEach(staffId => {
+        if (!staffMap.has(staffId)) {
+          staffMap.set(staffId, { tasks: [] });
         }
-        staffMap.get(t.assigned_to)!.tasks.push(t);
-      }
+        staffMap.get(staffId)!.tasks.push(t);
+      });
     });
 
     const teamWorkload: TeamMemberWorkload[] = Array.from(staffMap.entries()).map(([staffId, { tasks: staffTasks }]) => {

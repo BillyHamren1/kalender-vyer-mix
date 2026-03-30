@@ -1030,6 +1030,7 @@ export type Database = {
       establishment_tasks: {
         Row: {
           assigned_to: string | null
+          assigned_to_ids: string[] | null
           blocker_responsible: string | null
           blockers: string | null
           booking_id: string | null
@@ -1058,6 +1059,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          assigned_to_ids?: string[] | null
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null
@@ -1086,6 +1088,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          assigned_to_ids?: string[] | null
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null

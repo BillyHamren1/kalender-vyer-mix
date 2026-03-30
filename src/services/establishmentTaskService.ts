@@ -17,6 +17,7 @@ export interface EstablishmentTask {
   sort_order: number;
   notes: string | null;
   assigned_to: string | null;
+  assigned_to_ids: string[];
   source: string;
   source_product_id: string | null;
   source_product_ids: string[] | null;
@@ -29,7 +30,7 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
+const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
@@ -106,7 +107,7 @@ export const createEstablishmentTask = async (task: {
 
 export const updateEstablishmentTask = async (
   id: string,
-  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed'>>
+  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'assigned_to_ids' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed'>>
 ): Promise<void> => {
   // Sync completed with status
   if (updates.status === 'done' && updates.completed === undefined) {

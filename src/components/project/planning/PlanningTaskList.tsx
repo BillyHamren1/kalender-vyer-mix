@@ -65,6 +65,11 @@ const getStaffName = (staffId: string | null, staffPool: Array<{ id: string; nam
   return staffPool.find(s => s.id === staffId)?.name || null;
 };
 
+const getStaffNames = (task: EstablishmentTask, staffPool: Array<{ id: string; name: string }>) => {
+  const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+  return ids.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean) as string[];
+};
+
 const isOverdue = (task: EstablishmentTask) => {
   if (task.status === "done" || task.status === "cancelled") return false;
   if (!task.end_date) return false;
@@ -72,7 +77,7 @@ const isOverdue = (task: EstablishmentTask) => {
 };
 
 const hasNoDates = (task: EstablishmentTask) => !task.start_date || !task.end_date;
-const hasNoOwner = (task: EstablishmentTask) => !task.assigned_to && task.status !== "done" && task.status !== "cancelled";
+const hasNoOwner = (task: EstablishmentTask) => (!task.assigned_to_ids || task.assigned_to_ids.length === 0) && !task.assigned_to && task.status !== "done" && task.status !== "cancelled";
 
 const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, bookingId }: PlanningTaskListProps) => {
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
@@ -106,7 +111,9 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
   const handleQuickAssign = async (taskId: string, staffId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      await updateEstablishmentTask(taskId, { assigned_to: staffId === "none" ? null : staffId });
+      const assignedTo = staffId === "none" ? null : staffId;
+      const assignedToIds = assignedTo ? [assignedTo] : [];
+      await updateEstablishmentTask(taskId, { assigned_to: assignedTo, assigned_to_ids: assignedToIds } as any);
       invalidateAll();
     } catch { toast.error("Kunde inte tilldela"); }
   };
@@ -141,12 +148,14 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
         }
       }
     } else if (groupBy === "person") {
-      const unassigned = tasks.filter(t => !t.assigned_to);
+      const unassigned = tasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to);
       const byPerson = new Map<string, EstablishmentTask[]>();
-      tasks.filter(t => t.assigned_to).forEach(t => {
-        const key = t.assigned_to!;
-        if (!byPerson.has(key)) byPerson.set(key, []);
-        byPerson.get(key)!.push(t);
+      tasks.forEach(t => {
+        const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
+        ids.forEach(id => {
+          if (!byPerson.has(id)) byPerson.set(id, []);
+          byPerson.get(id)!.push(t);
+        });
       });
       if (unassigned.length > 0) groups.push({ key: "unassigned", label: "Ej tilldelad", tasks: unassigned });
       byPerson.forEach((tasks, staffId) => {
@@ -237,7 +246,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
               const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
               const PriorityIcon = priorityCfg.icon;
               const readinessCfg = READINESS_CONFIG[task.readiness] || READINESS_CONFIG.missing_information;
-              const assignedName = getStaffName(task.assigned_to, staffPool);
+              const assignedNames = getStaffNames(task, staffPool);
 
               return (
                 <div
@@ -334,7 +343,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                       )}>
                         <div className="flex items-center gap-1 truncate">
                           <User className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{assignedName || "Tilldela"}</span>
+                          <span className="truncate">{assignedNames.length > 0 ? assignedNames.join(", ") : "Tilldela"}</span>
                         </div>
                       </SelectTrigger>
                       <SelectContent>

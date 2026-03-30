@@ -1471,7 +1471,9 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
     )
   }
 
-  if (task.assigned_to !== staffId) {
+  const assignedIds = (task as any).assigned_to_ids as string[] | null;
+  const isAssigned = (assignedIds && assignedIds.includes(staffId)) || task.assigned_to === staffId;
+  if (!isAssigned) {
     return new Response(
       JSON.stringify({ error: 'You are not assigned to this task' }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

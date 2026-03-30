@@ -394,9 +394,10 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
   onTaskClick?: (taskId: string) => void;
   highlight?: "today";
 }) => {
-  const staffName = task.assigned_to
-    ? staffPool.find(s => s.id === task.assigned_to)?.name
-    : null;
+  const staffNames = (() => {
+    const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+    return ids.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean) as string[];
+  })();
 
   return (
     <button
@@ -408,8 +409,8 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     >
       {highlight === "today" && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
       <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{task.title}</span>
-      {staffName ? (
-        <span className="text-[10px] text-muted-foreground shrink-0">{staffName}</span>
+      {staffNames.length > 0 ? (
+        <span className="text-[10px] text-muted-foreground shrink-0">{staffNames.join(", ")}</span>
       ) : (
         <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Utan ägare</span>
       )}
