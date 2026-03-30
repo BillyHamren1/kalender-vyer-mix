@@ -17,6 +17,7 @@ export interface EstablishmentTask {
   sort_order: number;
   notes: string | null;
   assigned_to: string | null;
+  assigned_to_ids: string[];
   source: string;
   source_product_id: string | null;
   source_product_ids: string[] | null;
