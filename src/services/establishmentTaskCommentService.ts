@@ -30,7 +30,7 @@ export const createEstablishmentTaskComment = async (comment: {
 }): Promise<EstablishmentTaskComment> => {
   const { data, error } = await supabase
     .from('establishment_task_comments')
-    .insert(comment)
+    .insert([comment as any])
     .select()
     .single();
 
