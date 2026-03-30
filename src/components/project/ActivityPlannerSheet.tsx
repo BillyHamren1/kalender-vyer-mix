@@ -185,22 +185,26 @@ const ActivityPlannerSheet = ({
 
       const selectedProducts = activeProducts.filter(p => selectedIds.has(p.id));
 
-      for (const product of selectedProducts) {
-        await createEstablishmentTask({
-          booking_id: effectiveBookingId,
-          large_project_id: largeProjectId || null,
-          title: `${product.name}${product.quantity > 1 ? ` x${product.quantity}` : ''}`,
-          category,
-          start_date: format(startDate, 'yyyy-MM-dd'),
-          end_date: format(endDate, 'yyyy-MM-dd'),
-          source: 'product',
-          source_product_id: product.id,
-          assigned_to: assignedTo,
-          priority,
-        });
-      }
+      // Build a combined title from all selected products
+      const combinedTitle = selectedProducts
+        .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
+        .join(', ');
 
-      toast.success(`${selectedProducts.length} aktivitet(er) skapade`);
+      // Create ONE task with the combined title
+      await createEstablishmentTask({
+        booking_id: effectiveBookingId,
+        large_project_id: largeProjectId || null,
+        title: combinedTitle,
+        category,
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd'),
+        source: 'product',
+        source_product_id: selectedProducts[0]?.id || null,
+        assigned_to: assignedTo,
+        priority,
+      });
+
+      toast.success("Aktivitet skapad");
       setPlannedProductIds(prev => {
         const next = new Set(prev);
         selectedProducts.forEach(p => next.add(p.id));
@@ -209,7 +213,7 @@ const ActivityPlannerSheet = ({
       setSelectedIds(new Set());
       onTaskCreated();
     } catch (e) {
-      toast.error("Kunde inte skapa aktiviteter");
+      toast.error("Kunde inte skapa aktivitet");
     } finally {
       setIsSubmitting(false);
     }
@@ -470,7 +474,7 @@ const ActivityPlannerSheet = ({
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Skapa {selectableCount > 0 ? `${selectableCount} aktivitet(er)` : 'aktiviteter'}
+                Skapa aktivitet{selectableCount > 0 ? ` (${selectableCount} produkter)` : ''}
               </Button>
             </div>
 
