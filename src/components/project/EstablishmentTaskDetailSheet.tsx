@@ -705,6 +705,34 @@ const EstablishmentTaskDetailSheet = ({
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Starttid
+              </label>
+              <Input
+                type="time"
+                value={startTimeDraft}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
+                className="h-9 text-sm"
+                placeholder="HH:mm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Sluttid
+              </label>
+              <Input
+                type="time"
+                value={endTimeDraft}
+                onChange={(e) => handleEndTimeChange(e.target.value)}
+                className="h-9 text-sm"
+                placeholder="HH:mm"
+              />
+            </div>
+          </div>
         </div>
 
         <Separator />
