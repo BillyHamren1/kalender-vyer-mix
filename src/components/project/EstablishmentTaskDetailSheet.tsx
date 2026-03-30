@@ -144,23 +144,59 @@ const EstablishmentTaskDetailSheet = ({
     queryKey: ["linked-booking-products", task?.id, sourceProductIds],
     queryFn: async () => {
       if (!sourceProductIds || sourceProductIds.length === 0) return [];
-      const { data } = await supabase
+      // Query 1: Fetch explicitly selected products
+      const { data: selected } = await supabase
         .from("booking_products")
         .select("id, name, quantity, sku, parent_product_id, is_package_component")
         .in("id", sourceProductIds);
-      return data || [];
+      const selectedProducts = selected || [];
+      
+      // Query 2: Fetch all children whose parent_product_id points to any selected product
+      const parentIds = selectedProducts
+        .filter(p => !p.parent_product_id)
+        .map(p => p.id);
+      
+      let childProducts: typeof selectedProducts = [];
+      if (parentIds.length > 0) {
+        const { data: children } = await supabase
+          .from("booking_products")
+          .select("id, name, quantity, sku, parent_product_id, is_package_component")
+          .in("parent_product_id", parentIds);
+        childProducts = children || [];
+      }
+      
+      // Merge and deduplicate
+      const allMap = new Map(selectedProducts.map(p => [p.id, p]));
+      childProducts.forEach(p => { if (!allMap.has(p.id)) allMap.set(p.id, p); });
+      return [...allMap.values()];
     },
     enabled: !!sourceProductIds && sourceProductIds.length > 0 && open,
   });
+
+  // Clean product name: strip hierarchy prefix characters
+  const cleanName = (name: string): string => {
+    return name
+      .replace(/^[└↳⦿]\s*,?\s*/, '')
+      .replace(/^L,\s*/, '')
+      .replace(/^--\s*[A-Za-z],?\s*/, '')
+      .replace(/^[-–—]\s*/, '')
+      .replace(/^\s+/, '')
+      .trim();
+  };
 
   // Build hierarchical product structure: parents with their accessories
   const productHierarchy = useMemo(() => {
     if (linkedProducts.length === 0) return [];
     
-    // Find parent products (no parent_product_id or parent not in our set)
     const productIds = new Set(linkedProducts.map(p => p.id));
-    const parents = linkedProducts.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
-    const children = linkedProducts.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
+    
+    // Filter out internal package components (is_package_component: true)
+    const visible = linkedProducts.filter(p => !p.is_package_component);
+    
+    // Parents: no parent_product_id, or parent not in our set
+    const parents = visible.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
+    // Children/accessories: have parent_product_id pointing to a product in our set
+    const children = visible.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
     
     return parents.map(parent => ({
       ...parent,
@@ -185,8 +221,11 @@ const EstablishmentTaskDetailSheet = ({
       subtasks.forEach(st => {
         if (st.completed && st.title) {
           const matchingProduct = linkedProducts.find(p => {
-            const label = p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name;
-            return st.title === label || st.title === p.name || st.title.startsWith(p.name);
+            const raw = p.name;
+            const cleaned = cleanName(raw);
+            const labelRaw = p.quantity > 1 ? `${raw} x${p.quantity}` : raw;
+            const labelClean = p.quantity > 1 ? `${cleaned} x${p.quantity}` : cleaned;
+            return st.title === labelRaw || st.title === labelClean || st.title === raw || st.title === cleaned || st.title.startsWith(cleaned);
           });
           if (matchingProduct) checked.add(matchingProduct.id);
         }
@@ -372,7 +411,8 @@ const EstablishmentTaskDetailSheet = ({
   const handleProductCheck = async (productId: string, productName: string, quantity: number, checked: boolean) => {
     if (!effectiveBookingId || !task) return;
     
-    const label = quantity > 1 ? `${productName} x${quantity}` : productName;
+    const cleaned = cleanName(productName);
+    const label = quantity > 1 ? `${cleaned} x${quantity}` : cleaned;
     
     // Find existing subtask for this product
     const existingSubtask = subtasks.find(st => st.title === label || st.title === productName);
@@ -520,18 +560,22 @@ const EstablishmentTaskDetailSheet = ({
               <div className="flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5 text-muted-foreground" />
                 <Label className="text-xs text-muted-foreground">
-                  Produkter ({linkedProducts.filter(p => checkedProducts.has(p.id)).length}/{linkedProducts.length})
+                  Produkter ({productHierarchy.reduce((sum, p) => sum + (checkedProducts.has(p.id) ? 1 : 0) + p.accessories.filter(a => checkedProducts.has(a.id)).length, 0)}/{productHierarchy.reduce((sum, p) => sum + 1 + p.accessories.length, 0)})
                 </Label>
               </div>
 
-              {linkedProducts.length > 0 && (
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all rounded-full"
-                    style={{ width: `${(linkedProducts.filter(p => checkedProducts.has(p.id)).length / linkedProducts.length) * 100}%` }}
-                  />
-                </div>
-              )}
+              {(() => {
+                const visibleTotal = productHierarchy.reduce((sum, p) => sum + 1 + p.accessories.length, 0);
+                const visibleChecked = productHierarchy.reduce((sum, p) => sum + (checkedProducts.has(p.id) ? 1 : 0) + p.accessories.filter(a => checkedProducts.has(a.id)).length, 0);
+                return visibleTotal > 0 ? (
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all rounded-full"
+                      style={{ width: `${(visibleChecked / visibleTotal) * 100}%` }}
+                    />
+                  </div>
+                ) : null;
+              })()}
 
               <div className="space-y-0.5">
                 {productHierarchy.map((parent) => (
@@ -555,7 +599,7 @@ const EstablishmentTaskDetailSheet = ({
                         "text-sm flex-1 min-w-0",
                         checkedProducts.has(parent.id) && "line-through text-muted-foreground"
                       )}>
-                        {parent.name}
+                        {cleanName(parent.name)}
                       </span>
                       {parent.quantity > 1 && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
@@ -588,7 +632,7 @@ const EstablishmentTaskDetailSheet = ({
                               "text-xs flex-1 min-w-0 text-muted-foreground",
                               checkedProducts.has(acc.id) && "line-through"
                             )}>
-                              • {acc.name}
+                              • {cleanName(acc.name)}
                             </span>
                             {acc.quantity > 1 && (
                               <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 flex-shrink-0">
