@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { startOfDay, addDays, isBefore, isToday, isTomorrow, isWithinInterval } from "date-fns";
+import { startOfDay, addDays, isBefore, isToday, isTomorrow, isWithinInterval, format } from "date-fns";
 import { fetchEstablishmentTasksByProject } from "@/services/establishmentTaskService";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 
@@ -23,6 +23,7 @@ export interface TaskAnalytics {
   upcomingToday: EstablishmentTask[];
   upcomingTomorrow: EstablishmentTask[];
   upcomingWeek: EstablishmentTask[];
+  upcomingNext10: EstablishmentTask[];
   nextUpcoming: EstablishmentTask | null;
   criticalIssues: CriticalIssue[];
 }
@@ -143,17 +144,14 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       } catch { return false; }
     });
 
-    // Next upcoming fallback (first future task after tomorrow)
-    const allFuture = activeTasks
-      .filter(t => t.status !== 'done' && t.start_date)
+    // Next 10 upcoming tasks (start_date >= today, not done)
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const upcomingNext10 = activeTasks
+      .filter(t => t.status !== 'done' && t.start_date && t.start_date >= todayStr)
       .sort((a, b) => a.start_date.localeCompare(b.start_date))
-      .find(t => {
-        try {
-          const start = startOfDay(new Date(t.start_date));
-          return isBefore(addDays(tomorrow, 1), start) || isWithinInterval(start, { start: addDays(tomorrow, 1), end: addDays(today, 30) });
-        } catch { return false; }
-      });
-    const nextUpcoming = (upcomingToday.length === 0 && upcomingTomorrow.length === 0) ? (allFuture || null) : null;
+      .slice(0, 10);
+
+    const nextUpcoming = null; // kept for interface compat
     // Critical issues — ordered by severity
     const criticalIssues: CriticalIssue[] = [
       ...blocked.map(t => ({
@@ -207,6 +205,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       upcomingToday,
       upcomingTomorrow,
       upcomingWeek,
+      upcomingNext10,
       nextUpcoming,
       criticalIssues,
     };

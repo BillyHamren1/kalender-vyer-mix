@@ -236,32 +236,60 @@ const TodayFocus = ({ analytics, staffPool, onTaskClick }: {
   staffPool: Array<{ id: string; name: string }>;
   onTaskClick?: (taskId: string) => void;
 }) => {
-  const todayTasks = analytics.upcomingToday;
-  const tomorrowTasks = analytics.upcomingTomorrow;
+  const tasks = analytics.upcomingNext10;
+  if (tasks.length === 0) return null;
 
-  if (todayTasks.length === 0 && tomorrowTasks.length === 0) return null;
+  // Group by date
+  const grouped = useMemo(() => {
+    const map = new Map<string, EstablishmentTask[]>();
+    tasks.forEach(t => {
+      const key = t.start_date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    });
+    return Array.from(map.entries());
+  }, [tasks]);
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const tomorrow = format(new Date(Date.now() + 86400000), "yyyy-MM-dd");
+
+  const dateLabel = (dateStr: string) => {
+    if (dateStr === today) return "Idag";
+    if (dateStr === tomorrow) return "Imorgon";
+    try {
+      return format(new Date(dateStr), "EEE d MMM", { locale: sv });
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
         <CalendarClock className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold text-foreground">Pågår & kommande</h3>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{tasks.length}</Badge>
       </div>
       <div className="space-y-1">
-        {todayTasks.map(t => (
-          <TaskRow key={t.id} task={t} staffPool={staffPool} onTaskClick={onTaskClick} highlight="today" />
-        ))}
-        {tomorrowTasks.length > 0 && (
-          <>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pt-1.5 pb-0.5 px-1">Imorgon</p>
-            {tomorrowTasks.slice(0, 3).map(t => (
-              <TaskRow key={t.id} task={t} staffPool={staffPool} onTaskClick={onTaskClick} />
+        {grouped.map(([dateStr, dateTasks], idx) => (
+          <div key={dateStr}>
+            <p className={cn(
+              "text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-0.5",
+              idx > 0 && "pt-1.5"
+            )}>
+              {dateLabel(dateStr)}
+            </p>
+            {dateTasks.map(t => (
+              <TaskRow
+                key={t.id}
+                task={t}
+                staffPool={staffPool}
+                onTaskClick={onTaskClick}
+                highlight={dateStr === today ? "today" : undefined}
+              />
             ))}
-            {tomorrowTasks.length > 3 && (
-              <p className="text-[10px] text-muted-foreground px-1">+{tomorrowTasks.length - 3} fler</p>
-            )}
-          </>
-        )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -394,7 +422,7 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
 
 const ProjectControlPanel = ({ analytics, staffPool, onTaskClick }: ProjectControlPanelProps) => {
   const hasIssues = analytics.criticalIssues.length > 0;
-  const hasToday = analytics.upcomingToday.length > 0 || analytics.upcomingTomorrow.length > 0 || !!analytics.nextUpcoming;
+  const hasToday = analytics.upcomingNext10.length > 0;
 
   // Dynamic layout: if only one panel has content, let it take full width
   const showBothColumns = hasIssues && hasToday;
