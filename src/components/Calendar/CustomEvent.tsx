@@ -194,15 +194,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     </div>
   );
 
-  // If read-only, just render the card with double-click for details
-  if (readOnly) {
-    return (
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-        {eventCardContent}
-      </EventHoverCard>
-    );
-  }
-
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -211,6 +202,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       setShowDateDialog(true);
     }
   }, [moveDateHandlers, event.id, event.title]);
+
+  // If read-only, just render the card with double-click for details
+  if (readOnly) {
+    return (
+      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+        {eventCardContent}
+      </EventHoverCard>
+    );
+  }
 
   return (
     <>
