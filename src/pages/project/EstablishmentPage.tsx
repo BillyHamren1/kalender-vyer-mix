@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
+import { supabase } from "@/integrations/supabase/client";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
 const tabTriggerClass =
@@ -24,6 +26,29 @@ const EstablishmentPage = () => {
   const booking = project?.booking;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Fetch staff pool: unique staff assigned to this booking
+  const { data: staffPool = [] } = useQuery({
+    queryKey: ['booking-staff-pool', booking?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("booking_staff_assignments")
+        .select("staff_id")
+        .eq("booking_id", booking!.id);
+
+      const uniqueIds = [...new Set((data || []).map(r => r.staff_id))];
+      if (uniqueIds.length === 0) return [];
+
+      const { data: staffData } = await supabase
+        .from("staff_members")
+        .select("id, name")
+        .in("id", uniqueIds)
+        .order("name");
+
+      return staffData || [];
+    },
+    enabled: !!booking?.id,
+  });
 
   if (!project) return null;
 
@@ -73,6 +98,7 @@ const EstablishmentPage = () => {
         onOpenChange={setSheetOpen}
         task={selectedTask}
         bookingId={booking?.id ?? null}
+        staffPool={staffPool}
       />
     </div>
   );
