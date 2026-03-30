@@ -115,8 +115,10 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   const token = getToken();
   const controller = new AbortController();
   // Login / me can take longer due to edge-function cold starts
-  const timeoutMs = (action === 'login' || action === 'me') ? 25000 : 12000;
+  const timeoutMs = (action === 'login' || action === 'me') ? 30000 : 15000;
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms)`);
 
   try {
     const res = await fetch(FUNCTION_URL, {
@@ -125,6 +127,8 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
       body: JSON.stringify({ action, token, data }),
       signal: controller.signal,
     });
+
+    console.log(`[mobileApi] ← ${action} status=${res.status}`);
 
     if (res.status === 401) {
       clearAuth();
@@ -144,11 +148,13 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     return json as T;
   } catch (error: any) {
+    console.error(`[mobileApi] ✗ ${action}:`, error?.name, error?.message);
     if (error?.name === 'AbortError') {
       throw new Error('Anropet tog för lång tid – kontrollera din anslutning och försök igen.');
     }
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw new Error('Kunde inte nå servern – kontrollera din internetanslutning.');
+    // Catch all network-level errors (TypeError in browsers, other errors in WebView)
+    if (error instanceof TypeError) {
+      throw new Error(`Kunde inte nå servern: ${error.message}`);
     }
     throw error;
   } finally {
