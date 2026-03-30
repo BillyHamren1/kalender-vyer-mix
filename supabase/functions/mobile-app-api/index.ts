@@ -179,6 +179,8 @@ Deno.serve(async (req) => {
         return await handleUpdateTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
+      case 'toggle_establishment_task':
+        return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -1406,6 +1408,15 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .eq('staff_id', staffId)
     .order('report_date', { ascending: false })
 
+  // Fetch establishment tasks assigned to this staff member for this booking
+  const { data: establishmentTasks } = await supabase
+    .from('establishment_tasks')
+    .select('id, title, category, start_date, end_date, completed, notes, sort_order')
+    .eq('booking_id', booking_id)
+    .eq('assigned_to', staffId)
+    .order('start_date', { ascending: true })
+    .order('sort_order', { ascending: true })
+
   // Construct comprehensive response
   const response = {
     booking: {
@@ -1424,13 +1435,65 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       files: projectFiles,
       purchases: projectPurchases
     } : null,
-    my_time_reports: myTimeReports || []
+    my_time_reports: myTimeReports || [],
+    establishment_tasks: establishmentTasks || []
   }
 
   console.log(`Booking details fetched: ${booking_id} for staff ${staffId}`)
 
   return new Response(
     JSON.stringify(response),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleToggleEstablishmentTask(supabase: any, staffId: string, data: { task_id: string }, organizationId: string) {
+  const { task_id } = data
+  if (!task_id) {
+    return new Response(
+      JSON.stringify({ error: 'task_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Fetch and verify the task belongs to this staff member
+  const { data: task, error: fetchError } = await supabase
+    .from('establishment_tasks')
+    .select('id, completed, assigned_to')
+    .eq('id', task_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchError || !task) {
+    return new Response(
+      JSON.stringify({ error: 'Task not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (task.assigned_to !== staffId) {
+    return new Response(
+      JSON.stringify({ error: 'You are not assigned to this task' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const newCompleted = !task.completed
+  const { error: updateError } = await supabase
+    .from('establishment_tasks')
+    .update({ completed: newCompleted, updated_at: new Date().toISOString() })
+    .eq('id', task_id)
+
+  if (updateError) {
+    console.error('Toggle task error:', updateError)
+    return new Response(
+      JSON.stringify({ error: 'Failed to update task' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, completed: newCompleted }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
