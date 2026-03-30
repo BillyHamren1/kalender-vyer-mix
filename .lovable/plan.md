@@ -1,42 +1,65 @@
 
 
-## Ge Lager-personal automatisk åtkomst till Scanner-appen
+## Etableringsschema (Gantt) for Stora Projekt + Personalassignment
 
 ### Problem
-Personal taggad som "Lager" har konton (staff_accounts) men det saknas en tydlig koppling och automatik som säkerställer att de kan logga in i scanner-appen. Det finns ingen teknisk blockering i koden — samma login-API (`mobile-app-api`) och samma `staff_accounts`-tabell används för båda apparna. Problemet verkar vara att Lager-personal inte alltid har konton skapade, eller att det inte är tydligt vilka appar som är tillgängliga.
+Large projects currently show only a booking list overview on the Establishment tab. They lack the real Gantt chart that medium projects have, and there's no way to assign staff to individual tasks/activities.
 
-### Analys
-- Login-API:t (`mobile-app-api`) kontrollerar **inte** taggar — alla med ett `staff_account` kan logga in
-- Scanner-API:t (`scanner-api`) kontrollerar **inte** taggar — alla autentiserade kan använda det
-- Kontoskapning i `StaffAccountsPanel` nämner bara "tidrapporteringsappen"
-- Det finns ingen automatik som skapar konton när en person taggas som Lager
+### Solution
 
-### Lösning
-Automatiskt skapa ett `staff_account` när en person taggas som "Lager" (eller "Montage") på personalkortet, om de inte redan har ett. Uppdatera UI:t så det tydligt visar vilka appar kontot ger tillgång till.
+#### 1. Database: Add `large_project_id` to `establishment_tasks`
+Add an optional `large_project_id` column to `establishment_tasks` so tasks can belong directly to a large project (not just a booking). Make `booking_id` nullable since large project tasks won't have a specific booking.
 
-### Ändringar
+```sql
+ALTER TABLE establishment_tasks 
+  ADD COLUMN large_project_id uuid REFERENCES large_projects(id) ON DELETE CASCADE,
+  ALTER COLUMN booking_id DROP NOT NULL;
 
-**1. `src/pages/StaffDetail.tsx` — Auto-skapa konto vid Lager-taggning**
-- När en person taggas som "Lager" (eller "Montage") och saknar `staff_account`:
-  - Skapa automatiskt ett konto med genererat användarnamn/lösenord
-  - Visa en dialog med inloggningsuppgifterna
-  - Visa en tydlig indikation om vilka appar personen nu har tillgång till
+-- Add constraint: must have either booking_id or large_project_id
+ALTER TABLE establishment_tasks 
+  ADD CONSTRAINT establishment_tasks_parent_check 
+  CHECK (booking_id IS NOT NULL OR large_project_id IS NOT NULL);
+```
 
-**2. `src/components/staff/StaffAccountCard.tsx` — Visa app-tillgång**
-- Hämta personalens taggar och visa vilka appar kontot ger tillgång till:
-  - "Montage" → Tidrapporteringsappen
-  - "Lager" → Scanner-appen
-- Uppdatera kortets beskrivning från "tidrapporteringsappen" till att lista alla appar personen har tillgång till
+#### 2. Service layer: Extend `establishmentTaskService.ts`
+- Add `fetchEstablishmentTasksByProject(largeProjectId)` to fetch tasks by `large_project_id`
+- Add `generateDefaultTasksForProject(largeProjectId, startDate, endDate)` for auto-generating defaults
+- Update `createEstablishmentTask` to accept optional `large_project_id` instead of `booking_id`
 
-**3. `src/components/staff/StaffAccountsPanel.tsx` — Uppdatera beskrivning**
-- Ändra beskrivningen från "Hantera inloggningsuppgifter för tidrapporteringsappen" till "Hantera inloggningsuppgifter för mobilapparna (Tid & Scanner)"
+#### 3. Replace `LargeEstablishmentPage.tsx` with real Gantt
+Replace the current booking list view with a layout matching medium projects:
+- **Tabs**: Etablering / Avetablering (same as medium)
+- **Gantt chart**: Reuse or adapt `EstablishmentGanttChart` to accept `largeProjectId` as an alternative to `bookingId`
+- **Task detail sheet**: Same `EstablishmentTaskDetailSheet` with staff assignment
+- Keep the booking overview summary cards at the top for context
 
-### Flöde efter ändring
+#### 4. Staff assignment on tasks
+- Update `EstablishmentTaskDetailSheet` to accept an optional `staffPool` prop
+- For large projects, fetch staff assigned to the project's bookings via `booking_staff_assignments` joined through `large_project_bookings`
+- The staff dropdown in the detail sheet shows only project-assigned staff (not all staff)
+- Both the main task and subtasks can be assigned to staff from this pool
+
+#### 5. Adapt `EstablishmentGanttChart` for dual use
+Add optional `largeProjectId` prop alongside existing `bookingId`:
+- When `largeProjectId` is provided, fetch tasks by project instead of booking
+- Dates derived from project's `start_date`/`end_date` or from earliest/latest booking dates
+- `AddEstablishmentTaskDialog` updated to work with `largeProjectId`
+
+### Files to edit
+- **Migration**: Add `large_project_id` column, make `booking_id` nullable
+- `src/services/establishmentTaskService.ts` — project-level fetch/create functions
+- `src/components/project/EstablishmentGanttChart.tsx` — accept `largeProjectId` prop
+- `src/components/project/AddEstablishmentTaskDialog.tsx` — support `largeProjectId`
+- `src/components/project/EstablishmentTaskDetailSheet.tsx` — accept `staffPool` prop for filtered staff list
+- `src/pages/project/LargeEstablishmentPage.tsx` — replace with Gantt-based UI with tabs
+- `src/components/project/DeestablishmentGanttChart.tsx` — accept `largeProjectId` prop
+
+### Staff assignment flow
 ```text
-Admin taggar personal som "Lager"
-  → System kontrollerar om staff_account finns
-  → Om nej: skapar automatiskt konto
-  → Visar dialog med användarnamn + lösenord
-  → StaffAccountCard visar "Scanner-appen ✓"
+Large project has N bookings
+  → Each booking has staff via booking_staff_assignments
+  → Fetch unique staff across all bookings
+  → Show these staff in task/subtask assignment dropdowns
+  → assigned_to on establishment_tasks references staff_members(id)
 ```
 
