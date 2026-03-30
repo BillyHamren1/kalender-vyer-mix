@@ -40,9 +40,9 @@ const CommunicationPage = () => {
 
   // Fetch DM inbox
   const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0,
     refetchInterval: 15000,
   });
 

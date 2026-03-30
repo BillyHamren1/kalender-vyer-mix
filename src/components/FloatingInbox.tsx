@@ -39,7 +39,7 @@ const FloatingInbox = () => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [plannerId, queryClient]);
+  }, [allIds, queryClient]);
 
   // Load staff for new message
   useEffect(() => {

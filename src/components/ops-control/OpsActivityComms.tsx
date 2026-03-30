@@ -46,17 +46,14 @@ const OpsActivityComms = ({ activity, isLoadingActivity, messages, isLoadingMess
   const [showNewMsg, setShowNewMsg] = useState(false);
   const [staffSearch, setStaffSearch] = useState('');
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { allIds } = useMyIdentity();
   const feedRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Get planner ID for DM inbox
-  const plannerId = user?.id || '';
-
   const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0,
     refetchInterval: 15000,
   });
 
