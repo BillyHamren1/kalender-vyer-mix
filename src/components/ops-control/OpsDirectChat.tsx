@@ -51,8 +51,8 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
 
   // Mark as read on open and invalidate inbox cache so badge updates
   useEffect(() => {
-    if (myId && staffId) {
-      markDirectMessagesRead(myId, staffId).then(() => {
+    if (allIds.length > 0 && staffId) {
+      markDirectMessagesRead(allIds, staffId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
         queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
       });
