@@ -78,6 +78,14 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const queryClient = useQueryClient();
 
+  const taskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+
+  const { data: commentCounts = {} } = useQuery({
+    queryKey: ["establishment-task-comment-counts", taskIds],
+    queryFn: () => fetchEstablishmentTaskCommentCounts(taskIds),
+    enabled: taskIds.length > 0,
+  });
+
   const queryKey = largeProjectId
     ? ["establishment-tasks", "project", largeProjectId]
     : ["establishment-tasks", bookingId];
