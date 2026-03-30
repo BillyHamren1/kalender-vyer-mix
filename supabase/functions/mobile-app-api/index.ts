@@ -2004,7 +2004,7 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   const firstError = results.find(r => r.error)?.error
 
   if (firstError) {
-    console.error('Mark DM read error:', error)
+    console.error('Mark DM read error:', firstError)
     return new Response(
       JSON.stringify({ error: 'Failed to mark messages as read' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
