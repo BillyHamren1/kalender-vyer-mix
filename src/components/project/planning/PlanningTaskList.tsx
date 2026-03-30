@@ -287,6 +287,12 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                             Försenad
                           </Badge>
                         )}
+                        {(commentCounts[task.id] || 0) > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground flex-shrink-0">
+                            <MessageSquare className="h-3 w-3" />
+                            {commentCounts[task.id]}
+                          </span>
+                        )}
                       </div>
                       {/* Warnings row */}
                       {(noDates || noOwner) && (
