@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock supabase client
-const mockSelect = vi.fn();
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-const mockEq = vi.fn();
-const mockOrder = vi.fn();
-const mockSingle = vi.fn();
-
 const createChain = () => {
   const chain: any = {
     select: vi.fn(() => chain),
@@ -22,16 +13,13 @@ const createChain = () => {
   return chain;
 };
 
-let mockChain: ReturnType<typeof createChain>;
+let mockChain = createChain();
 
-vi.mock("@/integrations/supabase/client", () => {
-  mockChain = createChain();
-  return {
-    supabase: {
-      from: vi.fn(() => mockChain),
-    },
-  };
-});
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: vi.fn(() => mockChain),
+  },
+}));
 
 import {
   fetchEstablishmentTasks,
