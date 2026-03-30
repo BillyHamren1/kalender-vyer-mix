@@ -3,6 +3,7 @@ import React from 'react';
 import { CalendarIcon } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { DatesSection } from './DatesSection';
+import { Booking } from '@/types/booking';
 
 interface ScheduleCardProps {
   bookingId: string;
@@ -11,6 +12,8 @@ interface ScheduleCardProps {
   rigDownDates: string[];
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onEditDate: (oldDate: string, newDate: string, startTime: string, endTime: string, eventType: 'rig' | 'event' | 'rigDown') => void;
+  booking: Booking;
 }
 
 export const ScheduleCard = ({
@@ -19,9 +22,10 @@ export const ScheduleCard = ({
   eventDates,
   rigDownDates,
   onAddDate,
-  onRemoveDate
+  onRemoveDate,
+  onEditDate,
+  booking
 }: ScheduleCardProps) => {
-  // Always auto-sync - no toggle needed
   const autoSync = true;
 
   return (
@@ -40,6 +44,9 @@ export const ScheduleCard = ({
           autoSync={autoSync}
           onAddDate={onAddDate}
           onRemoveDate={onRemoveDate}
+          onEditDate={onEditDate}
+          startTime={booking.rigStartTime || ''}
+          endTime={booking.rigEndTime || ''}
         />
         
         <DatesSection 
@@ -49,6 +56,9 @@ export const ScheduleCard = ({
           autoSync={autoSync}
           onAddDate={onAddDate}
           onRemoveDate={onRemoveDate}
+          onEditDate={onEditDate}
+          startTime={booking.eventStartTime || ''}
+          endTime={booking.eventEndTime || ''}
         />
         
         <DatesSection 
@@ -58,6 +68,9 @@ export const ScheduleCard = ({
           autoSync={autoSync}
           onAddDate={onAddDate}
           onRemoveDate={onRemoveDate}
+          onEditDate={onEditDate}
+          startTime={booking.rigDownStartTime || ''}
+          endTime={booking.rigDownEndTime || ''}
         />
       </CardContent>
     </Card>
