@@ -122,14 +122,7 @@ const ProjectManagement = () => {
           </ToggleGroup>
         </div>
 
-        {/* Show search results directly when searching */}
-        {globalSearch.trim() ? (
-          <UnifiedProjectList
-            search={globalSearch}
-            statusFilter={globalStatusFilter}
-            typeFilter={typeFilter}
-          />
-        ) : (
+        {!globalSearch.trim() && (
           <>
             <div className="mb-6">
               <IncomingBookingsList 
@@ -141,14 +134,14 @@ const ProjectManagement = () => {
             <div className="mb-6">
               <ProjectDashboardWidgets />
             </div>
-
-            <UnifiedProjectList
-              search={globalSearch}
-              statusFilter={globalStatusFilter}
-              typeFilter={typeFilter}
-            />
           </>
         )}
+
+        <UnifiedProjectList
+          search={globalSearch}
+          statusFilter={globalStatusFilter}
+          typeFilter={typeFilter}
+        />
 
 
         <CreateProjectWizard 
