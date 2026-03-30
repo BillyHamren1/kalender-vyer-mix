@@ -29,11 +29,13 @@ const MODES = {
     appId: 'se.eventflow.time',
     appName: 'EventFlow Time',
     configFile: 'capacitor.time.config.ts',
+    buildScript: 'build:time',
   },
   scanner: {
     appId: 'se.eventflow.scanner',
     appName: 'EventFlow Scanner',
     configFile: 'capacitor.scanner.config.ts',
+    buildScript: 'build:scanner',
   },
 };
 
