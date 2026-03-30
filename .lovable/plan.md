@@ -1,87 +1,49 @@
 
 
-## Solid kommunikation + Enhetlig användaridentitet
+## Packning for stora projekt -- separata packlistor, samlad vy
 
-### Problemet
+### Nuläge
+- `packing_projects` har `booking_id` (TEXT) -- en packlista per bokning
+- Bokningar som tillhör ett stort projekt får automatiskt egna packlistor via DB-triggern `sync_packing_on_booking_change`
+- Stora projektets detaljvy (`LargeProjectViewPage`) har ingen koppling till packning
 
-Systemet har **tre olika identiteter** för samma person:
+### Vad behöver göras
+Eftersom varje bokning redan har sin egen packlista (och det ska fortsätta vara så), behöver vi bara **visa packstatus samlat** i stora projekt-vyn.
 
-1. **`auth.users.id`** — Supabase Auth UUID, används av webbappen (OpsDirectChat) som `sender_id`
-2. **`staff_members.id`** — personal-UUID, används av mobilappen som `sender_id`
-3. **`staff_accounts.id`** — inloggningskonto för mobilappen
+### Plan
 
-När en planerare skickar ett DM från webben lagras `auth.user.id` som sender. Mobilappen söker på `staff_members.id`. Resultatet: meddelanden försvinner eller syns bara i ena riktningen.
+**1. Ny flik "Packning" i LargeProjectViewPage**
+- Lägg till en ny tab "Packning" med Package-ikon i tab-navigeringen
+- Tabben visar alla bokningars packlistor samlat
 
-`handleGetInboxAll` hanterar redan dual-identity, men `handleGetDirectMessages`, `handleMarkDMRead`, och **hela webb-sidan** gör det inte.
+**2. Ny komponent `LargeProjectPackingOverview`**
+- Hämtar alla `packing_projects` för projektets bokningar (via `large_project_bookings` -> `booking_id`)
+- Visar en lista/kort per bokning med:
+  - Bokningsnamn (klient + bokningsnummer)
+  - Packstatus-badge (Ej påbörjad / Pågår / Packad / Levererad)
+  - Framstegsindikator (scannade/totala artiklar via `packing_list_items`)
+  - Knapp "Öppna packlista" som navigerar till `/warehouse/packing/{packing_id}`
+- Sammanfattning högst upp: totalt antal artiklar, totalt packade, övergripande framsteg
 
-### Lösning: Normalisera identitet
+**3. Ingen databasändring krävs**
+- Befintlig `packing_projects.booking_id` + `large_project_bookings` räcker för att joina datan
+- Bokningar som skapas/ändras i projektet synkas redan automatiskt till packlistor via triggern
 
-**Princip**: Alla meddelanden ska konsekvent använda `staff_members.id` som identitet. Webbappen ska slå upp den inloggade användarens `staff_members.id` via e-post och använda det vid send/read/fetch.
+### Teknisk detalj
 
----
-
-### Steg 1: Webb — Använd staff_members.id konsekvent
-
-**`OpsDirectChat.tsx`**:
-- Byt `myId` från `user?.id` till att använda `useCurrentStaffId()` (som redan finns och slår upp staff_members via e-post)
-- Fallback till `user?.id` om staff-koppling saknas (för rena admin-användare utan staff-post)
-- Uppdatera `myName` att hämtas från staff_members-posten
-
-**`directMessageService.ts`**:
-- `fetchDirectMessages` och `fetchDMInboxGrouped`: Utöka filtret att söka på BÅDA id:n (staff_id + user_id) om en mappning finns, liknande hur `handleGetInboxAll` redan gör
-- `markDirectMessagesRead`: Samma dual-id-hantering
-
-**Ny hook `useMyIdentity.ts`**:
-- Returnerar `{ staffId, userId, displayName, allIds }` — en central punkt för identitetsupplösning
-- Används av OpsDirectChat, DM-inbox, och alla kommunikationskomponenter
-
-### Steg 2: Mobil API — Dual-identity överallt
-
-**`handleGetDirectMessages`** (rad 1779):
-- Hämta `user_id` från `staff_members` (redan tillgängligt via `staffOrg`)
-- Skicka med `user_id` till funktionen och filtrera DMs på båda IDs, precis som `handleGetInboxAll` redan gör
-
-**`handleMarkDMRead`** (rad 1944):
-- Utöka `recipient_id`-filtret att matcha både `staffId` och `userId`
-
-**`handleSendDirectMessage`** (rad 1830):
-- Push-notiser: Sök device_tokens på ALLA kopplade identiteter (staff_id + user_id) för mottagaren
-
-### Steg 3: Säkerställ user_id-koppling vid kontoskapande
-
-**Auto-account-creation** (redan existerande logik):
-- Verifiera att när staff_accounts skapas, `staff_members.user_id` också sätts om personen har ett Supabase Auth-konto
-- Lägg till en hjälpfunktion i edge-funktionen som matchar `staff_members.email` mot `auth.users.email` och skriver `user_id` automatiskt
-
-### Steg 4: Realtime-synk för webb
-
-**`useRealtimeInvalidation`**:
-- Säkerställ att DM-kanalen prenumererar på rätt filter som inkluderar BÅDA identiteter
-
----
-
-### Teknisk sammanfattning
-
-```text
-Före:
-  Webb → sender_id = auth.user.id (UUID A)
-  Mobil → sender_id = staff_members.id (UUID B)
-  → Meddelanden syns inte korrekt på båda sidor
-
-Efter:
-  Webb → sender_id = staff_members.id (om koppling finns)
-  Mobil → sender_id = staff_members.id
-  Alla queries → söker på BÅDA ids som fallback
-  → Samma konversation synlig överallt
+Query-strategi i den nya komponenten:
+```sql
+SELECT pp.*, 
+  b.client, b.booking_number,
+  (SELECT count(*) FROM packing_list_items WHERE packing_id = pp.id) as total_items,
+  (SELECT sum(quantity_packed) FROM packing_list_items WHERE packing_id = pp.id) as packed_items
+FROM packing_projects pp
+JOIN large_project_bookings lpb ON lpb.booking_id = pp.booking_id
+JOIN bookings b ON b.id = pp.booking_id
+WHERE lpb.large_project_id = :projectId
 ```
 
-### Filer som ändras
-
-| Fil | Ändring |
-|-----|---------|
-| `src/hooks/useMyIdentity.ts` | Ny hook — central identitetsupplösning |
-| `src/components/ops-control/OpsDirectChat.tsx` | Använd `useMyIdentity` istället för `user?.id` |
-| `src/services/directMessageService.ts` | Dual-id-filter i fetch/mark-read |
-| `supabase/functions/mobile-app-api/index.ts` | `handleGetDirectMessages` + `handleMarkDMRead` — dual identity |
-| `src/hooks/useDirectMessages.ts` | Acceptera `allIds` för bredare matchning |
+Filer som ändras:
+- `src/pages/project/LargeProjectViewPage.tsx` -- lägg till Packning-tab
+- `src/components/project/LargeProjectPackingOverview.tsx` -- ny komponent
 
