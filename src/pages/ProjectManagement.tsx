@@ -89,30 +89,19 @@ const ProjectManagement = () => {
           </Button>
         </PageHeader>
 
-        <div className="mb-6">
-          <IncomingBookingsList 
-            onCreateProject={handleCreateProject}
-            onCreateLargeProject={handleCreateLargeProject}
-          />
-        </div>
-
-        <div className="mb-6">
-          <ProjectDashboardWidgets />
-        </div>
-
-        {/* Search, Status Filter & Type Filter */}
-        <div className="flex flex-wrap gap-3 mb-4 items-center">
+        {/* Search, Status Filter & Type Filter - moved to top */}
+        <div className="flex flex-wrap gap-3 mb-6 items-center">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
             <Input
               placeholder="Sök i alla projekt..."
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
-              className="pl-9 h-9 rounded-lg"
+              className="pl-9 h-9 rounded-lg bg-card"
             />
           </div>
           <Select value={globalStatusFilter} onValueChange={(v) => setGlobalStatusFilter(v as GlobalStatusFilter)}>
-            <SelectTrigger className="h-9 w-[160px] rounded-lg">
+            <SelectTrigger className="h-9 w-[160px] rounded-lg bg-card">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -133,11 +122,34 @@ const ProjectManagement = () => {
           </ToggleGroup>
         </div>
 
-        <UnifiedProjectList
-          search={globalSearch}
-          statusFilter={globalStatusFilter}
-          typeFilter={typeFilter}
-        />
+        {/* Show search results directly when searching */}
+        {globalSearch.trim() ? (
+          <UnifiedProjectList
+            search={globalSearch}
+            statusFilter={globalStatusFilter}
+            typeFilter={typeFilter}
+          />
+        ) : (
+          <>
+            <div className="mb-6">
+              <IncomingBookingsList 
+                onCreateProject={handleCreateProject}
+                onCreateLargeProject={handleCreateLargeProject}
+              />
+            </div>
+
+            <div className="mb-6">
+              <ProjectDashboardWidgets />
+            </div>
+
+            <UnifiedProjectList
+              search={globalSearch}
+              statusFilter={globalStatusFilter}
+              typeFilter={typeFilter}
+            />
+          </>
+        )}
+
 
         <CreateProjectWizard 
           open={isCreateOpen} 
