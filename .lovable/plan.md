@@ -1,56 +1,85 @@
 
 
-## Problem
+## Team Assignment: Time-Overlap-First Distribution
 
-When two jobs land on the same team, same day, same time, they get identical absolute positions (`top` and `height` in pixels). One event renders directly on top of the other — completely hidden. There is no collision detection or layout adjustment.
+### Current Behavior
+`getNextTeamAssignment()` counts events per team on the same date and picks the team with the fewest. It ignores whether the events actually overlap in time — so two jobs at 08:00 and 18:00 both "compete" unnecessarily.
 
-## Current Rendering Logic
+### New Logic
 
-In `TimeGrid.tsx`, `getEventPosition()` returns `{ top, height }` based purely on the event's start/end time. Events are then rendered with `position: absolute` at that exact pixel offset. No width or left-offset adjustment is made for overlapping events.
+1. Query all existing `rig`/`rigDown` events on the same date for teams 1-5
+2. Filter to only events that **overlap** with the new event's time range
+3. Find the first team (team-1 → team-5) with **no time overlap**
+4. If all teams have overlaps, fall back to the team with the **fewest overlapping events**
 
-## What Should Happen
+### Implementation
 
-Overlapping events on the same team column should be displayed **side-by-side**, each taking a fraction of the column width. This is the standard calendar pattern (Google Calendar, Outlook, FullCalendar all do this).
+**File: `supabase/functions/import-bookings/index.ts`** — replace `getNextTeamAssignment` function (~lines 1009-1068)
 
-```text
-Before (broken):          After (fixed):
-┌──────────┐              ┌─────┬─────┐
-│ Event A  │              │  A  │  B  │
-│ (hides B)│              │     │     │
-└──────────┘              └─────┴─────┘
+```typescript
+const getNextTeamAssignment = async (
+  supabase, eventType, eventDate, bookingId, organizationId,
+  startTime?: string, endTime?: string
+): Promise<string> => {
+  if (eventType === 'event') return 'team-11';
+
+  const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+
+  // Fetch all events on same date for these teams
+  const { data: existingEvents } = await supabase
+    .from('calendar_events')
+    .select('resource_id, start_time, end_time')
+    .eq('organization_id', organizationId)
+    .in('resource_id', teams)
+    .gte('start_time', `${eventDate}T00:00:00`)
+    .lt('start_time', `${eventDate}T23:59:59`);
+
+  // Build overlap counts per team
+  const overlapCounts = new Map(teams.map(t => [t, 0]));
+  const newStart = startTime ? new Date(startTime) : null;
+  const newEnd = endTime ? new Date(endTime) : null;
+
+  existingEvents?.forEach(ev => {
+    if (!newStart || !newEnd) {
+      // No time info — count all events (fall back to current logic)
+      overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
+    } else {
+      const evStart = new Date(ev.start_time);
+      const evEnd = new Date(ev.end_time);
+      if (newStart < evEnd && newEnd > evStart) {
+        overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
+      }
+    }
+  });
+
+  // Pick first team with zero overlaps
+  for (const team of teams) {
+    if (overlapCounts.get(team) === 0) return team;
+  }
+
+  // All have overlaps — pick team with fewest
+  let minTeam = teams[0], minCount = overlapCounts.get(teams[0])!;
+  for (const team of teams) {
+    if (overlapCounts.get(team)! < minCount) {
+      minCount = overlapCounts.get(team)!;
+      minTeam = team;
+    }
+  }
+  return minTeam;
+};
 ```
 
-## Plan
+Also update the **call site** (~line 868) to pass start/end times from the desired event:
+```typescript
+const assignedTeam = await getNextTeamAssignment(
+  supabase, desired.event_type, desired.date,
+  bookingData.id, bookingData.organization_id || organizationId,
+  desired.start_time, desired.end_time  // ← new args
+);
+```
 
-### Step 1: Add overlap detection utility
-
-Create a function `computeOverlapLayout(events)` that:
-- Groups events by time overlap (if event A's time range intersects event B's, they're in the same group)
-- For each overlap group, assigns a `column` index (0, 1, 2...) and `totalColumns` count
-- Returns a map of `eventId → { column, totalColumns }`
-
-Algorithm: sort by start time, then greedily assign columns using a sweep-line approach.
-
-### Step 2: Apply layout in TimeGrid.tsx
-
-In the rendering section (lines 528-543), use the overlap layout to set:
-- `width`: `100% / totalColumns` (e.g., 50% if 2 events overlap)
-- `left`: `column * (100% / totalColumns)`
-
-Non-overlapping events continue to use `width: 100%`.
-
-### Step 3: Adjust EventWrapper styling
-
-Update the `EventWrapper` component to accept and apply `left` and `width` style props from the overlap calculation, replacing the current fixed full-width positioning.
-
-### Technical Details
-
-**File: `src/components/Calendar/TimeGrid.tsx`**
-
-1. Add `computeOverlapLayout` function (~30 lines) that takes an array of events and their positions, returns a Map of layout info per event ID
-2. Call it per resource in the render loop (line 502), after `getEventsForDayAndResource`
-3. Pass `overlapLayout` data to each `EventWrapper`
-4. In `EventWrapper`, apply `left` and `width` styles from the layout data
-
-**No other files need changes** — this is purely a rendering concern within TimeGrid.
+### Result
+- Jobs at different times on the same day will spread across teams without "competing"
+- Jobs at the same time will be placed on different teams (side-by-side in the calendar)
+- Only when all 5 teams have time collisions does the system fall back to least-overlapping
 
