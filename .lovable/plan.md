@@ -1,21 +1,27 @@
 
 
-## Plan: En aktivitet per urval (inte per produkt)
+## Plan: Editable category field with custom categories
 
 ### Problem
-Nu skapas en separat aktivitet per vald produkt. Användaren vill att alla valda produkter slås ihop till **en enda aktivitet**.
+The category dropdown is hardcoded with fixed values. User wants to type custom categories and have them saved, with new defaults: **Montering**, **Demontering**, **Transport**.
 
-### Ändring
+### Changes
 
-**Fil: `src/components/project/ActivityPlannerSheet.tsx`** — Ändra `handleBatchCreate` (rad 178-216):
+**1. `src/components/project/ActivityPlannerSheet.tsx`**
+- Replace the `CATEGORIES` constant with new defaults: `montering`, `demontering`, `transport`
+- Replace the `<Select>` for category with a combo-box pattern: an `<Input>` with a datalist or a custom dropdown that shows existing categories + allows free text input
+- Use a simple approach: `<Input>` with autocomplete suggestions from a combined list of defaults + previously used categories fetched from the DB
+- Add a query to fetch distinct categories from `establishment_tasks` table to populate suggestions
 
-- Istället för att loopa och skapa en task per produkt, skapa **en enda task** med en sammanfattad titel av alla valda produkter (t.ex. "K 3x3, K Ben x4, K Takduk 3x3, ...").
-- Alla valda produkters ID:n sparas som `source_product_id` — men eftersom fältet bara tar ett värde, lagra det första produktens ID och sätt alla som "planerade" i UI:t.
-- Alternativt: titeln blir en kommaseparerad lista, och varje vald produkts ID markeras som planerad lokalt.
+**2. `src/components/project/AddEstablishmentTaskDialog.tsx`**
+- Same change: update default categories to montering/demontering/transport and switch to free-text input with suggestions
 
-**Konkret:**
-- Samla alla valda produktnamn till en titel-sträng.
-- Anropa `createEstablishmentTask` **en gång**.
-- Markera alla valda produkter som planerade efteråt.
-- Uppdatera knapp-texten: "Skapa aktivitet" (singular, utan antal).
+**3. `src/components/project/ProjectGanttChart.tsx`**
+- Update `CATEGORY_CONFIG` to handle unknown/custom categories gracefully with a fallback color instead of crashing on missing keys
+
+### Implementation detail
+- Use a `<Popover>` + `<Input>` + filtered list pattern (combobox) so the user can either pick a suggestion or type freely
+- Fetch `SELECT DISTINCT category FROM establishment_tasks` to show previously saved custom categories as suggestions
+- Merge DB categories with the 3 defaults for the suggestion list
+- The category value is stored as-is (free text) in the `category` column
 
