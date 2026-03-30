@@ -240,7 +240,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Fixed column widths
   const timeColumnWidth = 50;
   const availableColumnWidth = 70; // Staff column
-  const teamColumnWidth = 73;
+  const teamColumnWidth = 110;
 
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
