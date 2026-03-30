@@ -62,6 +62,7 @@ const LargeEstablishmentPage = () => {
 
   if (!project) return null;
 
+
   const handleTaskClick = (task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
