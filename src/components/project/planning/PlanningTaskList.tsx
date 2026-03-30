@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import type { EstablishmentTask, TaskStatus, TaskPriority } from "@/services/establishmentTaskService";
 import { updateEstablishmentTask } from "@/services/establishmentTaskService";
-import { useQueryClient } from "@tanstack/react-query";
+import { fetchEstablishmentTaskCommentCounts } from "@/services/establishmentTaskCommentService";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 type GroupBy = "none" | "status" | "person" | "date";
