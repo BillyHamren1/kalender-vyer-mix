@@ -321,11 +321,35 @@ const EstablishmentTaskDetailSheet = ({
               <IconComponent className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-left">{task.title}</SheetTitle>
+              {editingTitle ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
+                    className="h-8 text-base font-semibold"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleTitleSave}>
+                    <Check className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <SheetTitle className="text-left cursor-pointer group flex items-center gap-1.5" onClick={() => { setTitleDraft(taskDbData?.title || task.title); setEditingTitle(true); }}>
+                  {taskDbData?.title || task.title}
+                  <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </SheetTitle>
+              )}
               <div className="flex items-center gap-1.5 mt-1">
                 <Badge variant="outline" className="text-xs capitalize">
                   {task.category}
                 </Badge>
+                {taskDbData?.updated_at && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <Clock className="h-2.5 w-2.5" />
+                    {format(new Date(taskDbData.updated_at), "d MMM HH:mm", { locale: sv })}
+                  </span>
+                )}
               </div>
             </div>
           </div>
