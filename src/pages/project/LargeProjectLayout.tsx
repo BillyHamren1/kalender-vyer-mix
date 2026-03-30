@@ -29,6 +29,14 @@ const LargeProjectLayout = () => {
   const location = useLocation();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
+  const toggleBookingExpanded = useCallback((bookingId: string) => {
+    setExpandedBookingIds(prev => {
+      const next = new Set(prev);
+      if (next.has(bookingId)) next.delete(bookingId); else next.add(bookingId);
+      return next;
+    });
+  }, []);
 
   const detail = useLargeProjectDetail(id || "");
   const { project, isLoading } = detail;
