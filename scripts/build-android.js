@@ -97,7 +97,7 @@ try {
 // ── Step 2: Build frontend ─────────────────────────────────────
 if (!skipBuild && !syncOnly) {
   console.log('\n2️⃣  Building frontend...');
-  run(`VITE_APP_MODE=${mode} npm run build`);
+  run(`npm run ${config.buildScript}`);
   console.log('  ✅ Frontend built');
 } else {
   console.log('\n2️⃣  Skipping frontend build');
