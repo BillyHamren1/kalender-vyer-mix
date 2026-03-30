@@ -3,17 +3,19 @@ import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { GanttChart, List } from "lucide-react";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import CollaborationPanel from "@/components/project/planning/CollaborationPanel";
+import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 
-const tabTriggerClass =
-  "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
+type ViewMode = "gantt" | "list";
 
 interface SelectedTask {
   id: string;
@@ -30,6 +32,10 @@ const LargeEstablishmentPage = () => {
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [collaborationCollapsed, setCollaborationCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("gantt");
+
+  const tabTriggerClass =
+    "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
   const bookingIds = useMemo(() => {
     return (project?.bookings || [])
@@ -103,7 +109,7 @@ const LargeEstablishmentPage = () => {
         <div className="flex-1 min-w-0 space-y-4">
           <Card className="border-border/50 shadow-sm overflow-hidden">
             <Tabs defaultValue="establishment">
-              <div className="border-b border-border/40 px-4">
+              <div className="border-b border-border/40 px-4 flex items-center justify-between">
                 <TabsList className="h-auto p-0 bg-transparent gap-0">
                   <TabsTrigger value="establishment" className={tabTriggerClass}>
                     Etablering
@@ -112,17 +118,48 @@ const LargeEstablishmentPage = () => {
                     Avetablering
                   </TabsTrigger>
                 </TabsList>
+
+                {/* View mode toggle */}
+                <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+                  <Button
+                    variant={viewMode === "gantt" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1"
+                    onClick={() => setViewMode("gantt")}
+                  >
+                    <GanttChart className="h-3.5 w-3.5" />
+                    Gantt
+                  </Button>
+                  <Button
+                    variant={viewMode === "list" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1"
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="h-3.5 w-3.5" />
+                    Lista
+                  </Button>
+                </div>
               </div>
 
               <TabsContent value="establishment" className="mt-0 p-4">
-                <EstablishmentGanttChart
-                  largeProjectId={project.id}
-                  startDate={project.start_date}
-                  endDate={project.end_date}
-                  onTaskClick={handleTaskClick}
-                  staffPool={staffPool}
-                  projectBookings={projectBookings}
-                />
+                {viewMode === "gantt" ? (
+                  <EstablishmentGanttChart
+                    largeProjectId={project.id}
+                    startDate={project.start_date}
+                    endDate={project.end_date}
+                    onTaskClick={handleTaskClick}
+                    staffPool={staffPool}
+                    projectBookings={projectBookings}
+                  />
+                ) : (
+                  <PlanningTaskList
+                    tasks={analytics.tasks}
+                    staffPool={staffPool}
+                    onTaskClick={handleTaskClick}
+                    largeProjectId={project.id}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="deestablishment" className="mt-0 p-4">
