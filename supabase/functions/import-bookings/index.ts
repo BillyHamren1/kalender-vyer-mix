@@ -1010,8 +1010,13 @@ async function reconcileCalendarEvents(
 }
 
 /**
- * Smart team assignment that distributes bookings evenly across teams
- * Only assigns teams for NEW events, never overrides existing assignments
+ * Smart team assignment with round-robin distribution and sequential scheduling.
+ * 
+ * Rules:
+ * 1. EVENT type → always team-11 (Live)
+ * 2. Explicit start time → find first team without overlap at that time; if all busy → first team (overlap ok)
+ * 3. No explicit start time → round-robin (team with fewest events, lowest number breaks ties);
+ *    start time adjusted to after last event on that team for sequential stacking
  */
 const getNextTeamAssignment = async (
   supabase: any,
@@ -1020,7 +1025,8 @@ const getNextTeamAssignment = async (
   bookingId: string,
   organizationId: string,
   startTime?: string,
-  endTime?: string
+  endTime?: string,
+  isExplicitStart: boolean = false
 ): Promise<string> => {
   // EVENT type events always go to team-11 (Live column)
   if (eventType === 'event') {
@@ -1040,55 +1046,70 @@ const getNextTeamAssignment = async (
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
 
-    // Build overlap counts per team
-    const overlapCounts = new Map<string, number>(teams.map(t => [t, 0]));
-    const newStart = startTime ? new Date(startTime) : null;
-    const newEnd = endTime ? new Date(endTime) : null;
+    // Build per-team data: event count and latest end time
+    const teamEventCounts = new Map<string, number>(teams.map(t => [t, 0]));
+    const teamLatestEnd = new Map<string, Date>();
 
     existingEvents?.forEach((ev: any) => {
       if (!teams.includes(ev.resource_id)) return;
-      if (!newStart || !newEnd) {
-        // No time info — count all events (fall back to date-only logic)
-        overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
-      } else {
-        const evStart = new Date(ev.start_time);
-        const evEnd = new Date(ev.end_time);
-        // Check time overlap: newStart < evEnd && newEnd > evStart
-        if (newStart < evEnd && newEnd > evStart) {
-          overlapCounts.set(ev.resource_id, (overlapCounts.get(ev.resource_id) || 0) + 1);
-        }
+      teamEventCounts.set(ev.resource_id, (teamEventCounts.get(ev.resource_id) || 0) + 1);
+      
+      const evEnd = new Date(ev.end_time);
+      const currentLatest = teamLatestEnd.get(ev.resource_id);
+      if (!currentLatest || evEnd > currentLatest) {
+        teamLatestEnd.set(ev.resource_id, evEnd);
       }
     });
 
-    console.log(`Team overlap distribution for ${eventDate} (${eventType}):`, Object.fromEntries(overlapCounts));
+    if (isExplicitStart && startTime && endTime) {
+      // === EXPLICIT START TIME: find team with no overlap at this specific time ===
+      const newStart = new Date(startTime);
+      const newEnd = new Date(endTime);
 
-    // Pick first team with zero overlaps
-    for (const team of teams) {
-      if (overlapCounts.get(team) === 0) {
-        console.log(`Assigning booking ${bookingId} to ${team} (no time overlap)`);
-        return team;
+      for (const team of teams) {
+        let hasOverlap = false;
+        existingEvents?.forEach((ev: any) => {
+          if (ev.resource_id !== team) return;
+          const evStart = new Date(ev.start_time);
+          const evEnd = new Date(ev.end_time);
+          if (newStart < evEnd && newEnd > evStart) {
+            hasOverlap = true;
+          }
+        });
+        if (!hasOverlap) {
+          console.log(`[Team Assignment] Explicit time: booking ${bookingId} → ${team} (no overlap at ${startTime})`);
+          return team;
+        }
       }
-    }
 
-    // All have overlaps — pick team with fewest
-    let minTeam = teams[0];
-    let minCount = overlapCounts.get(teams[0])!;
-    for (const team of teams) {
-      const count = overlapCounts.get(team)!;
-      if (count < minCount) {
-        minCount = count;
-        minTeam = team;
+      // All teams have overlap at this time — use first team (overlap allowed)
+      console.log(`[Team Assignment] Explicit time: all teams busy at ${startTime}, booking ${bookingId} → team-1 (overlap allowed)`);
+      return 'team-1';
+
+    } else {
+      // === NO EXPLICIT START: round-robin by event count, sequential stacking ===
+      // Find minimum event count
+      let minCount = Number.MAX_SAFE_INTEGER;
+      for (const team of teams) {
+        const count = teamEventCounts.get(team) || 0;
+        if (count < minCount) minCount = count;
       }
-    }
 
-    console.log(`Assigning booking ${bookingId} to ${minTeam} (fewest overlaps: ${minCount})`);
-    return minTeam;
+      // Pick first team (lowest number) with minimum count
+      let selectedTeam = teams[0];
+      for (const team of teams) {
+        if ((teamEventCounts.get(team) || 0) === minCount) {
+          selectedTeam = team;
+          break;
+        }
+      }
+
+      console.log(`[Team Assignment] Round-robin: booking ${bookingId} → ${selectedTeam} (${minCount} existing events). Counts: ${JSON.stringify(Object.fromEntries(teamEventCounts))}`);
+      return selectedTeam;
+    }
   } catch (error) {
-    console.error('Error calculating team assignment, falling back to round-robin:', error);
-    const bookingNumber = parseInt(bookingId.replace(/\D/g, ''), 10) || 0;
-    const selectedTeam = teams[bookingNumber % teams.length];
-    console.log(`Fallback assignment: booking ${bookingId} to ${selectedTeam}`);
-    return selectedTeam;
+    console.error('Error calculating team assignment, falling back to team-1:', error);
+    return 'team-1';
   }
 };
 
