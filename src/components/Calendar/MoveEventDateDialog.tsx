@@ -139,6 +139,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     } catch (error) {
       console.error('Error moving event:', error);
       toast.error('Kunde inte flytta händelsen');
+      // Revert optimistic update on error
+      if (onUpdate) await onUpdate();
     } finally {
       setIsSubmitting(false);
     }
