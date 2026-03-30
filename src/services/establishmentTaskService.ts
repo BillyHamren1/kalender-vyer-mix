@@ -30,7 +30,7 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
+const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
