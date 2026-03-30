@@ -120,6 +120,8 @@ const EstablishmentTaskDetailSheet = ({
   const [titleDraft, setTitleDraft] = useState("");
   const [startDateDraft, setStartDateDraft] = useState("");
   const [endDateDraft, setEndDateDraft] = useState("");
+  const [startTimeDraft, setStartTimeDraft] = useState("");
+  const [endTimeDraft, setEndTimeDraft] = useState("");
 
   const effectiveStaff: StaffMember[] = staffPool || [];
 
