@@ -10,7 +10,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
-import LargeProjectPackingOverview from "@/components/project/LargeProjectPackingOverview";
+
 import { ProjectTask } from "@/types/project";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -80,9 +80,6 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="packing" className={tabTriggerClass}>
-              Packning
-            </TabsTrigger>
             <TabsTrigger value="activity" className={tabTriggerClass}>
               Historik
             </TabsTrigger>
@@ -134,9 +131,6 @@ const LargeProjectViewPage = () => {
           <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
 
-        <TabsContent value="packing">
-          <LargeProjectPackingOverview largeProjectId={project.id} />
-        </TabsContent>
 
         <TabsContent value="activity">
           <ProjectActivityLog activities={[]} />
