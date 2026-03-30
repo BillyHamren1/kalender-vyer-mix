@@ -134,6 +134,10 @@ const LargeProjectViewPage = () => {
           <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
 
+        <TabsContent value="packing">
+          <LargeProjectPackingOverview largeProjectId={project.id} />
+        </TabsContent>
+
         <TabsContent value="activity">
           <ProjectActivityLog activities={[]} />
         </TabsContent>
