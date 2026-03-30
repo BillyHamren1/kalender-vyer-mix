@@ -47,15 +47,79 @@ interface TimeGridProps {
   };
 }
 
+// Overlap layout utility — assigns column indices to overlapping events
+interface OverlapInfo { column: number; totalColumns: number; }
+
+function computeOverlapLayout(
+  events: CalendarEvent[],
+  getPos: (e: CalendarEvent) => { top: number; height: number }
+): Map<string, OverlapInfo> {
+  const result = new Map<string, OverlapInfo>();
+  if (events.length === 0) return result;
+
+  const items = events.map(e => ({ id: e.id, ...getPos(e) }));
+  items.sort((a, b) => a.top - b.top || b.height - a.height);
+
+  // Build overlap groups using a sweep-line
+  const groups: typeof items[] = [];
+  const eventGroup = new Map<string, number>();
+
+  for (const item of items) {
+    let placed = false;
+    for (let gi = 0; gi < groups.length; gi++) {
+      const group = groups[gi];
+      const overlaps = group.some(g => item.top < g.top + g.height && item.top + item.height > g.top);
+      if (overlaps) {
+        group.push(item);
+        eventGroup.set(item.id, gi);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      eventGroup.set(item.id, groups.length);
+      groups.push([item]);
+    }
+  }
+
+  // Merge groups that share transitive overlaps
+  for (const group of groups) {
+    const cols: typeof items[] = [];
+    for (const item of group) {
+      let assigned = false;
+      for (let ci = 0; ci < cols.length; ci++) {
+        const canFit = cols[ci].every(c => item.top >= c.top + c.height || item.top + item.height <= c.top);
+        if (canFit) {
+          cols[ci].push(item);
+          result.set(item.id, { column: ci, totalColumns: 0 });
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        cols.push([item]);
+        result.set(item.id, { column: cols.length - 1, totalColumns: 0 });
+      }
+    }
+    for (const item of group) {
+      const info = result.get(item.id)!;
+      info.totalColumns = cols.length;
+    }
+  }
+
+  return result;
+}
+
 // Event Wrapper Component — outer draggable shell sits above Radix popovers
 const EventWrapper: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
+  overlapLayout?: OverlapInfo;
   teamColumnWidth: number;
   onEventClick: (event: CalendarEvent) => void;
   onEventResize?: () => Promise<void>;
   readOnly?: boolean;
-}> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
+}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
@@ -82,8 +146,12 @@ const EventWrapper: React.FC<{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
-        left: '4px',
-        right: '4px',
+        left: overlapLayout && overlapLayout.totalColumns > 1
+          ? `calc(${(overlapLayout.column * 100) / overlapLayout.totalColumns}% + 2px)`
+          : '4px',
+        width: overlapLayout && overlapLayout.totalColumns > 1
+          ? `calc(${100 / overlapLayout.totalColumns}% - 4px)`
+          : 'calc(100% - 8px)',
         zIndex: 25,
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
@@ -525,22 +593,26 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   ))}
                 </div>
                 
-                {/* Events positioned absolutely with enhanced precision */}
-                {resourceEvents.map((event) => {
-                  const position = getEventPosition(event);
-                  const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
-                  return (
-                    <EventWrapper
-                      key={`event-wrapper-${event.id}`}
-                      event={event}
-                      position={position}
-                      teamColumnWidth={teamColumnWidth}
-                      onEventClick={handleBookingEventClick}
-                      onEventResize={onEventResize}
-                      readOnly={readOnly}
-                    />
-                  );
-                })}
+                {/* Events positioned absolutely with overlap detection */}
+                {(() => {
+                  const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
+                  return resourceEvents.map((event) => {
+                    const position = getEventPosition(event);
+                    const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
+                    return (
+                      <EventWrapper
+                        key={`event-wrapper-${event.id}`}
+                        event={event}
+                        position={position}
+                        overlapLayout={overlapMap.get(event.id)}
+                        teamColumnWidth={teamColumnWidth}
+                        onEventClick={handleBookingEventClick}
+                        onEventResize={onEventResize}
+                        readOnly={readOnly}
+                      />
+                    );
+                  });
+                })()}
               </div>
             </SimpleTimeSlot>
           );
