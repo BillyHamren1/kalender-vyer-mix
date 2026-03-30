@@ -628,7 +628,7 @@ const EstablishmentTaskDetailSheet = ({
                               "text-xs flex-1 min-w-0 text-muted-foreground",
                               checkedProducts.has(acc.id) && "line-through"
                             )}>
-                              • {acc.name}
+                              • {cleanName(acc.name)}
                             </span>
                             {acc.quantity > 1 && (
                               <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 flex-shrink-0">
