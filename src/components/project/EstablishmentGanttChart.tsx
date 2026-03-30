@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Plus, Truck, Package, Users, Wrench, ClipboardCheck, Trash2, Loader2, AlertTriangle, Circle, Play, Ban, XCircle, ArrowUp, ArrowRight, ArrowDown, User } from "lucide-react";
+import { CheckCircle2, Plus, Truck, Package, Users, Wrench, ClipboardCheck, Trash2, Loader2, AlertTriangle, Circle, Play, Ban, XCircle, ArrowUp, ArrowRight, ArrowDown, User, HelpCircle } from "lucide-react";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { fetchAllSubtasksForBooking } from "@/services/establishmentSubtaskService";
 import {
