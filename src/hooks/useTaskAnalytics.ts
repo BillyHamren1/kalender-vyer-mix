@@ -87,7 +87,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const cancelled = tasks.filter(t => t.status === 'cancelled');
     const withDates = activeTasks.filter(t => hasValidDates(t));
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
-    const withoutOwner = activeTasks.filter(t => !t.assigned_to && t.status !== 'done');
+    const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && t.status !== 'done');
     const overdueTasks = activeTasks.filter(t => isOverdue(t, today));
     const waitingForDecision = activeTasks.filter(t => t.decision_needed && t.status !== 'done');
     const missingSetup = activeTasks.filter(t => t.readiness === 'missing_information' && t.status !== 'done');
