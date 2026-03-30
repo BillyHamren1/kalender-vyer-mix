@@ -260,7 +260,7 @@ const StaffAccountsPanel: React.FC = () => {
             Personalkonton
           </CardTitle>
           <CardDescription>
-            Hantera inloggningsuppgifter för tidrapporteringsappen
+            Hantera inloggningsuppgifter för mobilapparna (Tid & Scanner)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

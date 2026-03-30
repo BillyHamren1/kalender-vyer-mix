@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 interface StaffAccountCardProps {
   staffId: string;
   staffName: string;
+  tags?: string[];
 }
 
 interface StaffAccount {
@@ -40,7 +41,7 @@ const generatePassword = (): string => {
   ).join('');
 };
 
-const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName }) => {
+const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName, tags = [] }) => {
   const queryClient = useQueryClient();
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
@@ -248,6 +249,27 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
                 </div>
               </div>
 
+              {/* App access indicators */}
+              <div className="flex flex-wrap gap-2">
+                {tags.includes('Montage') && (
+                  <Badge variant="secondary" className="text-xs gap-1">
+                    <Check className="h-3 w-3" />
+                    Tidrapporteringsappen
+                  </Badge>
+                )}
+                {tags.includes('Lager') && (
+                  <Badge variant="secondary" className="text-xs gap-1">
+                    <Check className="h-3 w-3" />
+                    Scanner-appen
+                  </Badge>
+                )}
+                {!tags.includes('Montage') && !tags.includes('Lager') && (
+                  <p className="text-xs text-muted-foreground">
+                    Tagga som Montage eller Lager för att ge tillgång till mobilappar
+                  </p>
+                )}
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -287,7 +309,7 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
                 <div>
                   <p className="font-medium">Inget konto</p>
                   <p className="text-sm text-muted-foreground">
-                    Denna person har inte tillgång till tidrapporteringsappen
+                    Denna person har inte tillgång till mobilapparna
                   </p>
                 </div>
               </div>

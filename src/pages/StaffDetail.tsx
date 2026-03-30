@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck, Key, Copy, Eye, EyeOff } from 'lucide-react';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import StaffAvailabilityDialog from '@/components/staff/StaffAvailabilityDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,8 +21,12 @@ import { getContrastTextColor } from '@/utils/staffColors';
 const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
+  const [autoCredentials, setAutoCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [showAutoCredentials, setShowAutoCredentials] = useState(false);
+  const [showAutoPassword, setShowAutoPassword] = useState(false);
 
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
     queryKey: ['staff-member', staffId],
@@ -305,6 +310,44 @@ const StaffDetail: React.FC = () => {
                             if (error) throw error;
                             await refetchStaff();
                             toast.success(`Tagg "${tag}" ${isActive ? 'borttagen' : 'tillagd'}`);
+
+                            // Auto-create account if adding Montage or Lager tag
+                            if (!isActive && (tag === 'Montage' || tag === 'Lager')) {
+                              const { data: existingAccount } = await supabase
+                                .from('staff_accounts')
+                                .select('id')
+                                .eq('staff_id', staffMember.id)
+                                .maybeSingle();
+
+                              if (!existingAccount) {
+                                const username = staffMember.name
+                                  .toLowerCase()
+                                  .normalize('NFD')
+                                  .replace(/[\u0300-\u036f]/g, '')
+                                  .replace(/\s+/g, '.')
+                                  .replace(/[^a-z.]/g, '');
+                                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+                                const password = Array.from({ length: 8 }, () =>
+                                  chars[Math.floor(Math.random() * chars.length)]
+                                ).join('');
+                                const passwordHash = btoa(password);
+
+                                const { error: accountError } = await supabase
+                                  .from('staff_accounts')
+                                  .insert({
+                                    staff_id: staffMember.id,
+                                    username,
+                                    password_hash: passwordHash
+                                  });
+
+                                if (!accountError) {
+                                  setAutoCredentials({ username, password });
+                                  setShowAutoCredentials(true);
+                                  queryClient.invalidateQueries({ queryKey: ['staffAccount', staffMember.id] });
+                                  toast.success('Inloggningskonto skapades automatiskt');
+                                }
+                              }
+                            }
                           } catch (err) {
                             console.error('Error updating tags:', err);
                             toast.error('Kunde inte uppdatera taggar');
@@ -398,7 +441,7 @@ const StaffDetail: React.FC = () => {
         </Card>
 
         {/* Konto */}
-        <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} />
+        <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} tags={(staffMember as any).tags || []} />
         </TabsContent>
 
         <TabsContent value="timereports" className="flex-1 overflow-y-auto p-6 space-y-6 mt-0">
@@ -436,6 +479,53 @@ const StaffDetail: React.FC = () => {
         staffName={staffMember.name}
       />
     )}
+
+    {/* Auto-created credentials dialog */}
+    <Dialog open={showAutoCredentials} onOpenChange={setShowAutoCredentials}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Inloggningskonto skapat
+          </DialogTitle>
+          <DialogDescription className="text-destructive font-medium">
+            ⚠️ Spara dessa uppgifter nu — lösenordet kan inte visas igen!
+          </DialogDescription>
+        </DialogHeader>
+
+        {autoCredentials && (
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <div>
+                <span className="text-sm text-muted-foreground">Användarnamn:</span>
+                <p className="font-mono font-medium">{autoCredentials.username}</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Lösenord:</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAutoPassword(!showAutoPassword)}>
+                    {showAutoPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <p className="font-mono font-medium">
+                  {showAutoPassword ? autoCredentials.password : '••••••••'}
+                </p>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => {
+                navigator.clipboard.writeText(`Användarnamn: ${autoCredentials.username}\nLösenord: ${autoCredentials.password}`);
+                toast.success('Kopierat till urklipp');
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Kopiera uppgifter
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
     </>
   );
 };
