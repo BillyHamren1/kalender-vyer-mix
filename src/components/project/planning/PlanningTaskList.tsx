@@ -146,12 +146,14 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
         }
       }
     } else if (groupBy === "person") {
-      const unassigned = tasks.filter(t => !t.assigned_to);
+      const unassigned = tasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to);
       const byPerson = new Map<string, EstablishmentTask[]>();
-      tasks.filter(t => t.assigned_to).forEach(t => {
-        const key = t.assigned_to!;
-        if (!byPerson.has(key)) byPerson.set(key, []);
-        byPerson.get(key)!.push(t);
+      tasks.forEach(t => {
+        const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
+        ids.forEach(id => {
+          if (!byPerson.has(id)) byPerson.set(id, []);
+          byPerson.get(id)!.push(t);
+        });
       });
       if (unassigned.length > 0) groups.push({ key: "unassigned", label: "Ej tilldelad", tasks: unassigned });
       byPerson.forEach((tasks, staffId) => {
