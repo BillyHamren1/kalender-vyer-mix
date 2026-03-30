@@ -50,6 +50,7 @@ export const createEstablishmentTask = async (task: {
   source?: string;
   source_product_id?: string;
   notes?: string;
+  assigned_to?: string | null;
 }): Promise<EstablishmentTask> => {
   const { data, error } = await supabase
     .from('establishment_tasks')
@@ -64,6 +65,7 @@ export const createEstablishmentTask = async (task: {
       source: task.source ?? 'manual',
       source_product_id: task.source_product_id ?? null,
       notes: task.notes ?? null,
+      assigned_to: task.assigned_to ?? null,
     })
     .select()
     .single();

@@ -31,6 +31,7 @@ interface EstablishmentGanttChartProps {
   client?: string;
   address?: string | null;
   projectBookings?: ProjectBookingInfo[];
+  staffPool?: Array<{ id: string; name: string }>;
   onTaskClick?: (task: { id: string; title: string; category: string; startDate: Date; endDate: Date; completed: boolean }) => void;
 }
 
@@ -470,6 +471,7 @@ const EstablishmentGanttChart = ({
         defaultDate={effectiveStartDate || null}
         onTaskCreated={invalidateTasks}
         projectBookings={projectBookings}
+        staffPool={staffPool}
       />
     </>
   );
