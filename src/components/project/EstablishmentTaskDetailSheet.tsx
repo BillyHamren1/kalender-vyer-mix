@@ -35,6 +35,12 @@ interface StaffMember {
   name: string;
 }
 
+interface BookingInfo {
+  booking_id: string;
+  display_name: string | null;
+  client?: string;
+}
+
 interface EstablishmentTaskDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -42,6 +48,7 @@ interface EstablishmentTaskDetailSheetProps {
   bookingId: string | null;
   largeProjectId?: string | null;
   staffPool?: StaffMember[];
+  projectBookings?: BookingInfo[];
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -69,6 +76,7 @@ const EstablishmentTaskDetailSheet = ({
   bookingId,
   largeProjectId,
   staffPool,
+  projectBookings = [],
 }: EstablishmentTaskDetailSheetProps) => {
   const queryClient = useQueryClient();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
@@ -91,13 +99,13 @@ const EstablishmentTaskDetailSheet = ({
 
   const effectiveStaff: StaffMember[] = staffPool || allStaffMembers;
 
-  // Fetch the task's current assigned_to from DB
+  // Fetch the task's current assigned_to and booking_id from DB
   const { data: taskDbData } = useQuery({
     queryKey: ["establishment-task-detail", task?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes")
+        .select("assigned_to, notes, booking_id")
         .eq("id", task!.id)
         .single();
       return data;
@@ -220,6 +228,22 @@ const EstablishmentTaskDetailSheet = ({
         </SheetHeader>
 
         <Separator />
+
+        {/* Linked booking info - only in project mode */}
+        {largeProjectId && taskDbData?.booking_id && (() => {
+          const linked = projectBookings.find(b => b.booking_id === taskDbData.booking_id);
+          return linked ? (
+            <>
+              <div className="py-3">
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Kopplad bokning</h4>
+                <Badge variant="secondary" className="text-xs">
+                  {linked.display_name || linked.client || linked.booking_id}
+                </Badge>
+              </div>
+              <Separator />
+            </>
+          ) : null;
+        })()}
 
         {/* Task-level assignment */}
         <div className="py-4 space-y-2">

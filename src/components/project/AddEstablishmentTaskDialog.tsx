@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
+
+export interface ProjectBookingInfo {
+  booking_id: string;
+  display_name: string | null;
+  client?: string;
+}
 
 interface AddEstablishmentTaskDialogProps {
   open: boolean;
@@ -21,6 +29,7 @@ interface AddEstablishmentTaskDialogProps {
   products: BookingProduct[];
   defaultDate: string | null;
   onTaskCreated: () => void;
+  projectBookings?: ProjectBookingInfo[];
 }
 
 const CATEGORIES = [
@@ -39,6 +48,7 @@ const AddEstablishmentTaskDialog = ({
   products,
   defaultDate,
   onTaskCreated,
+  projectBookings = [],
 }: AddEstablishmentTaskDialogProps) => {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("installation");
@@ -49,15 +59,41 @@ const AddEstablishmentTaskDialog = ({
     defaultDate ? new Date(defaultDate) : undefined
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
 
-  const mainProducts = products.filter(p => !p.isPackageComponent);
+  const isProjectMode = !!largeProjectId && projectBookings.length > 0;
+
+  // Fetch products for selected booking in project mode
+  const { data: selectedBookingData } = useQuery({
+    queryKey: ['establishment-booking-data', selectedBookingId],
+    queryFn: () => fetchEstablishmentBookingData(selectedBookingId),
+    enabled: isProjectMode && selectedBookingId !== "none",
+  });
+
+  // Use booking-specific products in project mode, otherwise use passed products
+  const activeProducts = isProjectMode
+    ? (selectedBookingData?.products || [])
+    : products;
+
+  const mainProducts = activeProducts.filter(p => !p.isPackageComponent);
+
+  // Reset selected booking when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedBookingId("none");
+    }
+  }, [open]);
 
   const handleQuickAdd = async (product: BookingProduct) => {
     setIsSubmitting(true);
     try {
       const date = defaultDate || format(new Date(), 'yyyy-MM-dd');
+      const effectiveBookingId = isProjectMode
+        ? (selectedBookingId !== "none" ? selectedBookingId : null)
+        : (bookingId || null);
+
       await createEstablishmentTask({
-        booking_id: bookingId || null,
+        booking_id: effectiveBookingId,
         large_project_id: largeProjectId || null,
         title: `${product.name}${product.quantity > 1 ? ` x${product.quantity}` : ''}`,
         category: 'installation',
@@ -79,8 +115,12 @@ const AddEstablishmentTaskDialog = ({
     if (!title.trim() || !startDate || !endDate) return;
     setIsSubmitting(true);
     try {
+      const effectiveBookingId = isProjectMode
+        ? (selectedBookingId !== "none" ? selectedBookingId : null)
+        : (bookingId || null);
+
       await createEstablishmentTask({
-        booking_id: bookingId || null,
+        booking_id: effectiveBookingId,
         large_project_id: largeProjectId || null,
         title: title.trim(),
         category,
@@ -105,10 +145,32 @@ const AddEstablishmentTaskDialog = ({
           <DialogTitle>Lägg till aktivitet</DialogTitle>
         </DialogHeader>
 
-        {/* Quick add from products - only in booking mode */}
+        {/* Booking selector - only in large project mode */}
+        {isProjectMode && (
+          <div className="space-y-2">
+            <Label>Koppla till bokning</Label>
+            <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj bokning (valfritt)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ingen specifik bokning</SelectItem>
+                {projectBookings.map((b) => (
+                  <SelectItem key={b.booking_id} value={b.booking_id}>
+                    {b.display_name || b.client || b.booking_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Quick add from products */}
         {mainProducts.length > 0 && (
           <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs uppercase tracking-wide">Snabbval från bokning</Label>
+            <Label className="text-muted-foreground text-xs uppercase tracking-wide">
+              {isProjectMode ? `Produkter från bokning` : 'Snabbval från bokning'}
+            </Label>
             <div className="grid gap-1.5 max-h-40 overflow-y-auto">
               {mainProducts.map((product) => (
                 <button
