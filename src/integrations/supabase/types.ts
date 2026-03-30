@@ -1048,6 +1048,7 @@ export type Database = {
           sort_order: number | null
           source: string | null
           source_product_id: string | null
+          source_product_ids: string[] | null
           start_date: string
           status: string
           title: string
@@ -1073,6 +1074,7 @@ export type Database = {
           sort_order?: number | null
           source?: string | null
           source_product_id?: string | null
+          source_product_ids?: string[] | null
           start_date: string
           status?: string
           title: string
@@ -1098,6 +1100,7 @@ export type Database = {
           sort_order?: number | null
           source?: string | null
           source_product_id?: string | null
+          source_product_ids?: string[] | null
           start_date?: string
           status?: string
           title?: string
