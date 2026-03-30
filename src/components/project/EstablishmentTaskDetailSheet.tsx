@@ -556,18 +556,22 @@ const EstablishmentTaskDetailSheet = ({
               <div className="flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5 text-muted-foreground" />
                 <Label className="text-xs text-muted-foreground">
-                  Produkter ({linkedProducts.filter(p => checkedProducts.has(p.id)).length}/{linkedProducts.length})
+                  Produkter ({productHierarchy.reduce((sum, p) => sum + (checkedProducts.has(p.id) ? 1 : 0) + p.accessories.filter(a => checkedProducts.has(a.id)).length, 0)}/{productHierarchy.reduce((sum, p) => sum + 1 + p.accessories.length, 0)})
                 </Label>
               </div>
 
-              {linkedProducts.length > 0 && (
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all rounded-full"
-                    style={{ width: `${(linkedProducts.filter(p => checkedProducts.has(p.id)).length / linkedProducts.length) * 100}%` }}
-                  />
-                </div>
-              )}
+              {(() => {
+                const visibleTotal = productHierarchy.reduce((sum, p) => sum + 1 + p.accessories.length, 0);
+                const visibleChecked = productHierarchy.reduce((sum, p) => sum + (checkedProducts.has(p.id) ? 1 : 0) + p.accessories.filter(a => checkedProducts.has(a.id)).length, 0);
+                return visibleTotal > 0 ? (
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all rounded-full"
+                      style={{ width: `${(visibleChecked / visibleTotal) * 100}%` }}
+                    />
+                  </div>
+                ) : null;
+              })()}
 
               <div className="space-y-0.5">
                 {productHierarchy.map((parent) => (
