@@ -240,7 +240,8 @@ const EstablishmentTaskDetailSheet = ({
 
   useEffect(() => {
     if (taskDbData) {
-      setTaskAssignedTo(taskDbData.assigned_to);
+      const ids = (taskDbData as any).assigned_to_ids as string[] | null;
+      setTaskAssignedToIds(ids && ids.length > 0 ? ids : (taskDbData.assigned_to ? [taskDbData.assigned_to] : []));
       setTaskNotes(taskDbData.notes || "");
       setTaskStatus((taskDbData.status as TaskStatus) || "not_started");
       setTaskReadiness((taskDbData.readiness as TaskReadiness) || "missing_information");
