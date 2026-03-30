@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, differenceInDays, addDays, subDays, startOfDay, min, max } from "date-fns";
+import { format, differenceInDays, addDays, subDays, startOfDay, min, max, isBefore } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -273,7 +273,7 @@ const EstablishmentGanttChart = ({
   }
 
   const dayWidth = 60;
-  const rowHeight = 52;
+  const rowHeight = 56;
   const headerHeight = 60;
   const taskLabelWidth = 360;
   const timelineWidth = ganttData.totalDays * dayWidth;
@@ -440,14 +440,17 @@ const EstablishmentGanttChart = ({
                       <div
                         key={index}
                         className={cn(
-                          "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r text-xs",
+                          "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r text-xs relative",
                           isWeekend && "bg-muted/70",
-                          isToday && "bg-primary/10"
+                          isToday && "bg-primary/15 font-bold"
                         )}
                         style={{ width: dayWidth }}
                       >
-                        <span className={cn("font-medium text-base", isToday && "text-primary")}>{format(day, 'd')}</span>
-                        <span className="text-muted-foreground">{format(day, 'EEE', { locale: sv })}</span>
+                        {isToday && (
+                          <span className="absolute top-1 text-[9px] font-bold text-primary uppercase tracking-wider">Idag</span>
+                        )}
+                        <span className={cn("font-medium text-base", isToday && "text-primary font-bold")}>{format(day, 'd')}</span>
+                        <span className={cn("text-muted-foreground", isToday && "text-primary/70")}>{format(day, 'EEE', { locale: sv })}</span>
                       </div>
                     );
                   })}
@@ -459,41 +462,71 @@ const EstablishmentGanttChart = ({
                   const duration = differenceInDays(task.endDate, task.startDate) + 1;
                   const dbTask = tasks.find(t => t.id === task.id);
                   const taskStatus = (dbTask as any)?.status || 'not_started';
-                  const colorClass = taskStatus === 'blocked' ? 'bg-destructive'
+                  const assignedTo = (dbTask as any)?.assigned_to || null;
+                  const assignedName = assignedTo ? staffPool.find(s => s.id === assignedTo)?.name : null;
+                  const noOwner = !assignedTo && taskStatus !== 'done' && taskStatus !== 'cancelled';
+                  const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
+                  const barWidth = Math.max(duration * dayWidth - 8, 32);
+
+                  // Overlap detection: same person, overlapping dates
+                  const hasPersonOverlap = assignedTo && ganttData.taskDates.some(other =>
+                    other.id !== task.id &&
+                    (tasks.find(t => t.id === other.id) as any)?.assigned_to === assignedTo &&
+                    other.startDate <= task.endDate && other.endDate >= task.startDate
+                  );
+
+                  // Bar color based on status
+                  const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
                     : taskStatus === 'cancelled' ? 'bg-muted-foreground'
+                    : isOverdue ? 'bg-destructive'
+                    : taskStatus === 'in_progress' ? 'bg-primary'
                     : CATEGORY_COLORS[task.category] || 'bg-primary';
+
+                  // Border style for warnings
+                  const borderStyle = taskStatus === 'blocked' ? 'ring-2 ring-destructive/50 ring-offset-1 ring-offset-background'
+                    : isOverdue ? 'ring-2 ring-destructive/40 ring-offset-1 ring-offset-background'
+                    : noOwner ? 'ring-2 ring-amber-400/50 ring-offset-1 ring-offset-background'
+                    : hasPersonOverlap ? 'ring-2 ring-orange-400/50 ring-offset-1 ring-offset-background'
+                    : '';
 
                   return (
                     <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
+                      {/* Day grid cells */}
                       <div className="absolute inset-0 flex">
                         {ganttData.days.map((day, dayIndex) => {
-                          const isToday = differenceInDays(day, today) === 0;
+                          const isDayToday = differenceInDays(day, today) === 0;
                           const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                           return (
                             <div
                               key={dayIndex}
-                              className={cn("flex-shrink-0 border-r", isWeekend && "bg-muted/30", isToday && "bg-primary/5")}
+                              className={cn("flex-shrink-0 border-r", isWeekend && "bg-muted/30", isDayToday && "bg-primary/5")}
                               style={{ width: dayWidth }}
                             />
                           );
                         })}
                       </div>
 
+                      {/* Strong today line */}
                       {todayPosition >= 0 && todayPosition < ganttData.totalDays && (
                         <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-primary z-10"
-                          style={{ left: todayPosition * dayWidth + dayWidth / 2 }}
-                        />
+                          className="absolute top-0 bottom-0 z-20 pointer-events-none"
+                          style={{ left: todayPosition * dayWidth + dayWidth / 2 - 1 }}
+                        >
+                          <div className="w-0.5 h-full bg-primary" />
+                        </div>
                       )}
 
+                      {/* Task bar */}
                       <div
                         className={cn(
-                          "absolute top-2 bottom-2 rounded-md cursor-pointer transition-all hover:opacity-80 shadow-sm",
-                          task.completed ? "opacity-60" : "",
-                          colorClass
+                          "absolute top-1.5 bottom-1.5 rounded-md cursor-pointer transition-all hover:brightness-110 shadow-sm flex flex-col justify-center overflow-hidden",
+                          taskStatus === 'done' && "opacity-50",
+                          taskStatus === 'cancelled' && "opacity-30",
+                          barColor,
+                          borderStyle,
                         )}
-                        style={{ left: startOffset * dayWidth + 4, width: Math.max(duration * dayWidth - 8, 24) }}
+                        style={{ left: startOffset * dayWidth + 4, width: barWidth }}
                         onClick={() =>
                           onTaskClick?.({
                             id: task.id,
@@ -504,16 +537,40 @@ const EstablishmentGanttChart = ({
                             completed: task.completed,
                           })
                         }
-                        title={`${task.title}\n${format(task.startDate, 'd MMM', { locale: sv })}`}
                       >
-                        <span className="absolute inset-0 flex items-center px-2 text-xs text-white font-medium truncate">
-                          {task.title}
+                        {/* Task name + assigned user */}
+                        <div className="px-2 flex items-center gap-1 min-w-0">
+                          {taskStatus === 'blocked' && <Ban className="h-3 w-3 text-white/90 flex-shrink-0" />}
+                          {isOverdue && taskStatus !== 'blocked' && <AlertTriangle className="h-3 w-3 text-white/90 flex-shrink-0" />}
+                          {noOwner && <User className="h-3 w-3 text-white/70 flex-shrink-0" />}
+                          <span className="text-xs text-white font-semibold truncate leading-tight">
+                            {task.title}
+                          </span>
                           {subtasksByTask[task.id] && (
-                            <span className="ml-1 opacity-80">
+                            <span className="text-[10px] text-white/70 flex-shrink-0">
                               ({subtasksByTask[task.id].completed}/{subtasksByTask[task.id].total})
                             </span>
                           )}
-                        </span>
+                        </div>
+                        {/* Second row: assigned name + status */}
+                        <div className="px-2 flex items-center gap-1.5 min-w-0">
+                          {assignedName ? (
+                            <span className="text-[10px] text-white/80 truncate leading-tight">
+                              {assignedName}
+                            </span>
+                          ) : noOwner ? (
+                            <span className="text-[10px] text-white/60 italic leading-tight">
+                              Ej tilldelad
+                            </span>
+                          ) : null}
+                          {hasPersonOverlap && (
+                            <span className="text-[9px] text-white/70 bg-white/15 rounded px-0.5 flex-shrink-0">
+                              ⚠ Överlapp
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Subtask progress bar */}
                         {subtasksByTask[task.id] && subtasksByTask[task.id].total > 0 && (
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 rounded-b-md overflow-hidden">
                             <div
@@ -542,6 +599,22 @@ const EstablishmentGanttChart = ({
                 <span>{label}</span>
               </div>
             ))}
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded bg-destructive" />
+              <span>Blockerad / Försenad</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded bg-emerald-500" />
+              <span>Klar</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded ring-2 ring-amber-400/50 ring-offset-1 bg-muted" />
+              <span>Saknar ägare</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded ring-2 ring-orange-400/50 ring-offset-1 bg-muted" />
+              <span>Överlapp</span>
+            </div>
           </div>
         </CardContent>
       </Card>
