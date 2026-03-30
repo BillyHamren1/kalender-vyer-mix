@@ -83,22 +83,8 @@ const EstablishmentTaskDetailSheet = ({
   const [taskNotes, setTaskNotes] = useState("");
   const [taskAssignedTo, setTaskAssignedTo] = useState<string | null>(null);
 
-  // Fetch staff members - only when staffPool is not provided (medium projects)
-  const shouldFetchAll = staffPool === undefined;
-  const { data: allStaffMembers = [] } = useQuery({
-    queryKey: ["staff-members"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("staff_members")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-    enabled: shouldFetchAll,
-  });
-
-  const effectiveStaff: StaffMember[] = staffPool !== undefined ? staffPool : allStaffMembers;
+  // Staff pool is always provided by the parent page
+  const effectiveStaff: StaffMember[] = staffPool || [];
 
   // Fetch the task's current assigned_to and booking_id from DB
   const { data: taskDbData } = useQuery({
