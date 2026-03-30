@@ -88,8 +88,8 @@ const LargeEstablishmentPage = () => {
             onTaskClick={handleTaskClick}
             projectBookings={(project.bookings || []).map(b => ({
               booking_id: b.booking_id,
-              display_name: b.display_name,
-              client: (b as any).client,
+              display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
+              client: (b as any).booking?.client || null,
             }))}
           />
         </TabsContent>
@@ -113,8 +113,8 @@ const LargeEstablishmentPage = () => {
         staffPool={staffPool}
         projectBookings={(project.bookings || []).map(b => ({
           booking_id: b.booking_id,
-          display_name: b.display_name,
-          client: (b as any).client,
+          display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
+          client: (b as any).booking?.client || null,
         }))}
       />
     </div>
