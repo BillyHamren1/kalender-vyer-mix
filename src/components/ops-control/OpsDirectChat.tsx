@@ -176,7 +176,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
           </div>
         ) : (
           messages.map((m, idx) => {
-            const isOwn = m.sender_id === myId;
+            const isOwn = allIds.includes(m.sender_id);
             const prevMsg = idx > 0 ? messages[idx - 1] : null;
             const showSender = !prevMsg || prevMsg.sender_id !== m.sender_id;
 
