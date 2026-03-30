@@ -149,8 +149,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             AVBOKAD
           </div>
         )}
+        {/* Large project badge */}
+        {!isCancelled && event.extendedProps?.isLargeProject && (
+          <div 
+            className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
+          >
+            PROJEKT
+          </div>
+        )}
         {/* Changed badge for warehouse events */}
-        {hasSourceChanges && !isCancelled && (
+        {hasSourceChanges && !isCancelled && !event.extendedProps?.isLargeProject && (
           <div 
             className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
           >

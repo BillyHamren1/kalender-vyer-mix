@@ -108,14 +108,57 @@ export const useRealTimeCalendarEvents = () => {
                 bookingStatus: booking.status,
                 assignedProjectId: booking.assigned_project_id,
                 assignedProjectName: booking.assigned_project_name,
-                assignedToProject: booking.assigned_to_project
+                assignedToProject: booking.assigned_to_project,
+                largeProjectId: booking.large_project_id
               }
             };
           }
           return event;
         });
 
-        setEvents(enhancedEvents);
+        // Consolidate large project events: group by (large_project_id, event_type, source_date)
+        const consolidatedEvents: CalendarEvent[] = [];
+        const lpGroupMap = new Map<string, CalendarEvent>();
+        
+        for (const event of enhancedEvents) {
+          const lpId = event.extendedProps?.largeProjectId;
+          if (!lpId) {
+            consolidatedEvents.push(event);
+            continue;
+          }
+          
+          const sourceDate = event.extendedProps?.sourceDate || event.start?.split('T')[0] || '';
+          const groupKey = `${lpId}-${event.eventType}-${sourceDate}`;
+          
+          if (!lpGroupMap.has(groupKey)) {
+            const projectName = largeProjectMap.get(lpId) || event.title;
+            const consolidated: CalendarEvent = {
+              ...event,
+              title: projectName,
+              extendedProps: {
+                ...event.extendedProps,
+                isLargeProject: true,
+                largeProjectId: lpId,
+                largeProjectName: projectName,
+                consolidatedBookingIds: [event.bookingId]
+              }
+            };
+            lpGroupMap.set(groupKey, consolidated);
+            consolidatedEvents.push(consolidated);
+          } else {
+            // Merge this event's booking into the existing consolidated event
+            const existing = lpGroupMap.get(groupKey)!;
+            const ids = existing.extendedProps?.consolidatedBookingIds || [];
+            if (event.bookingId && !ids.includes(event.bookingId)) {
+              ids.push(event.bookingId);
+            }
+            // Use earliest start and latest end
+            if (event.start < existing.start) existing.start = event.start;
+            if (event.end > existing.end) existing.end = event.end;
+          }
+        }
+
+        setEvents(consolidatedEvents);
         
         
         // Check if we need to fix any titles (only run once per session)
