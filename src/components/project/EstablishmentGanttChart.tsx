@@ -596,6 +596,22 @@ const EstablishmentGanttChart = ({
                 <span>{label}</span>
               </div>
             ))}
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded bg-destructive" />
+              <span>Blockerad / Försenad</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded bg-emerald-500" />
+              <span>Klar</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded ring-2 ring-amber-400/50 ring-offset-1 bg-muted" />
+              <span>Saknar ägare</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 rounded ring-2 ring-orange-400/50 ring-offset-1 bg-muted" />
+              <span>Överlapp</span>
+            </div>
           </div>
         </CardContent>
       </Card>
