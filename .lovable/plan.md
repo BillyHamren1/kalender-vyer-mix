@@ -1,38 +1,52 @@
 
 
-## Problem
+## Fix: Instant UI Update When Moving Events via Right-Click Dialog
 
-`EventHoverCard` is imported on line 9 of `CustomEvent.tsx` but never actually used in the JSX. The event content is rendered as a plain `<div>` — no hover popup is ever triggered.
+### Problem
+When moving an event using the right-click → MoveEventDateDialog flow, the UI only updates after `refreshEvents()` completes a full database re-fetch. This causes a visible delay.
 
-## Fix
+### Solution
+Pass `setEvents` down from the page level so `MoveEventDateDialog` can optimistically update the local events array immediately, before the DB write finishes.
 
-Wrap the event card content with `<EventHoverCard>` in both render paths (read-only and normal).
+### Changes
 
-### Changes in `src/components/Calendar/CustomEvent.tsx`
+**1. `src/hooks/useRealTimeCalendarEvents.tsx`**
+- Expose `setEvents` in the return value
 
-**Read-only path (line 199-203):** Wrap in `EventHoverCard`
-```tsx
-return (
-  <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-    {eventCardContent}
-  </EventHoverCard>
-);
+**2. `src/pages/CustomCalendarPage.tsx` + `src/pages/WarehouseCalendarPage.tsx`**
+- Destructure `setEvents` from `useRealTimeCalendarEvents()`
+- Pass it as a new `setEvents` prop to `CustomCalendar`
+
+**3. `src/components/Calendar/CustomCalendar.tsx`**
+- Add `setEvents` to props interface
+- Pass it through to `TimeGrid` → `EventBlock` → `CustomEvent`
+
+**4. `src/components/Calendar/TimeGrid.tsx`**
+- Thread `setEvents` prop through to `EventBlock` → `CustomEvent`
+
+**5. `src/components/Calendar/CustomEvent.tsx`**
+- Accept `setEvents` prop
+- Pass it to `MoveEventDateDialog` as a new `onOptimisticUpdate` callback
+
+**6. `src/components/Calendar/MoveEventDateDialog.tsx`**
+- Accept optional `setEvents` prop
+- In `handleMove`, **before** the `await updateCalendarEvent()` call, optimistically update the event in local state:
+```typescript
+if (setEvents) {
+  setEvents(prev => prev.map(ev =>
+    ev.id === event.id
+      ? { ...ev, start: newStartISO, end: newEndISO, resourceId: selectedResourceId || ev.resourceId }
+      : ev
+  ));
+}
 ```
+- Keep the existing `onUpdate` (refreshEvents) call as a background sync/error fallback
 
-**Normal path (line 217):** Wrap in `EventHoverCard`
-```tsx
-<EventHoverCard event={event} onDoubleClick={handleViewDetails} onClick={undefined}>
-  <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
-    {eventCardContent}
-  </div>
-</EventHoverCard>
+### Flow After Fix
+```text
+User clicks "Flytta" → setEvents() updates UI instantly
+                      → async DB write runs in background
+                      → refreshEvents() confirms final state
+                      → on error: refreshEvents() reverts
 ```
-
-### Also update `EventHoverCard.tsx`
-
-Change `openDelay` from `300` to `1500` (line 39) per the user's 1.5-second requirement.
-
-### Files to edit
-- `src/components/Calendar/CustomEvent.tsx` — wrap content in `EventHoverCard`
-- `src/components/Calendar/EventHoverCard.tsx` — set `openDelay={1500}`
 
