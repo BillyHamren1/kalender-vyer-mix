@@ -109,7 +109,7 @@ const LargeEstablishmentPage = () => {
         <div className="flex-1 min-w-0 space-y-4">
           <Card className="border-border/50 shadow-sm overflow-hidden">
             <Tabs defaultValue="establishment">
-              <div className="border-b border-border/40 px-4">
+              <div className="border-b border-border/40 px-4 flex items-center justify-between">
                 <TabsList className="h-auto p-0 bg-transparent gap-0">
                   <TabsTrigger value="establishment" className={tabTriggerClass}>
                     Etablering
@@ -118,17 +118,48 @@ const LargeEstablishmentPage = () => {
                     Avetablering
                   </TabsTrigger>
                 </TabsList>
+
+                {/* View mode toggle */}
+                <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+                  <Button
+                    variant={viewMode === "gantt" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1"
+                    onClick={() => setViewMode("gantt")}
+                  >
+                    <GanttChart className="h-3.5 w-3.5" />
+                    Gantt
+                  </Button>
+                  <Button
+                    variant={viewMode === "list" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1"
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="h-3.5 w-3.5" />
+                    Lista
+                  </Button>
+                </div>
               </div>
 
               <TabsContent value="establishment" className="mt-0 p-4">
-                <EstablishmentGanttChart
-                  largeProjectId={project.id}
-                  startDate={project.start_date}
-                  endDate={project.end_date}
-                  onTaskClick={handleTaskClick}
-                  staffPool={staffPool}
-                  projectBookings={projectBookings}
-                />
+                {viewMode === "gantt" ? (
+                  <EstablishmentGanttChart
+                    largeProjectId={project.id}
+                    startDate={project.start_date}
+                    endDate={project.end_date}
+                    onTaskClick={handleTaskClick}
+                    staffPool={staffPool}
+                    projectBookings={projectBookings}
+                  />
+                ) : (
+                  <PlanningTaskList
+                    tasks={analytics.tasks}
+                    staffPool={staffPool}
+                    onTaskClick={handleTaskClick}
+                    largeProjectId={project.id}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="deestablishment" className="mt-0 p-4">
