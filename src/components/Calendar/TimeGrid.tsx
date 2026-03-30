@@ -169,6 +169,7 @@ const EventWrapper: React.FC<{
         }}
         onEventResize={onEventResize}
         readOnly={readOnly}
+        setEvents={setEvents}
       />
     </div>
   );
