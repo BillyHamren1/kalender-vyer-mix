@@ -69,6 +69,7 @@ const EstablishmentGanttChart = ({
   client = 'Okänd kund',
   address,
   projectBookings = [],
+  staffPool = [],
   onTaskClick,
 }: EstablishmentGanttChartProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);

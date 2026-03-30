@@ -50,9 +50,11 @@ const AddEstablishmentTaskDialog = ({
   defaultDate,
   onTaskCreated,
   projectBookings = [],
+  staffPool = [],
 }: AddEstablishmentTaskDialogProps) => {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("installation");
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
   );
