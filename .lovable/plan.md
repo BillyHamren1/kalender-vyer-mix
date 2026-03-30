@@ -1,37 +1,39 @@
 
 
-## Fix: Personalval i etableringsuppgifter
+## Visa etableringsuppgifter (to-dos) i tidappen
 
-### Vad som är fel
-1. **Fallback-logik**: `hasStaffPool` kollar `staffPool.length > 0`, vilket betyder att en tom array (`[]`) triggar en fetch av ALL aktiv personal — helt fel beteende för stora projekt.
-2. **Dropdownen borde redan synas** i koden (rad 250-268), men det kan finnas en stale preview. Inga kodändringar behövs för renderingen — den är redan ovillkorlig.
+### Vad som ska byggas
+Personalen ska se sina tilldelade etableringsuppgifter som en **checklista** direkt i **Info-fliken** på jobb-detaljsidan i mobilappen. Bara uppgifter tilldelade den inloggade personen visas. De kan bocka av uppgifter direkt.
 
-### Ändring i `EstablishmentTaskDetailSheet.tsx`
+### Ändringar
 
-**Rad 86-101** — Ändra logiken:
+**1. Edge function: `mobile-app-api/index.ts`**
+I `handleGetBookingDetails` (rad ~1399), lägg till en fetch av `establishment_tasks` filtrerat på `booking_id` OCH `assigned_to = staffId`:
 
-```typescript
-// FRÅN:
-const hasStaffPool = staffPool && staffPool.length > 0;
-const { data: allStaffMembers = [] } = useQuery({
-  ...
-  enabled: !hasStaffPool,
-});
-const effectiveStaff: StaffMember[] = hasStaffPool ? staffPool : allStaffMembers;
-
-// TILL:
-const shouldFetchAll = staffPool === undefined;
-const { data: allStaffMembers = [] } = useQuery({
-  ...
-  enabled: shouldFetchAll,
-});
-const effectiveStaff: StaffMember[] = staffPool !== undefined ? staffPool : allStaffMembers;
+```sql
+SELECT id, title, category, start_date, end_date, completed, notes
+FROM establishment_tasks
+WHERE booking_id = $booking_id AND assigned_to = $staffId
+ORDER BY start_date, sort_order
 ```
 
-Detta gör att:
-- **Medelstora projekt** (`staffPool` = `undefined`): hämtar all aktiv personal som förut
-- **Stora projekt** (`staffPool` = `[]` eller `[...]`): använder exakt den pool som skickas in, ingen fallback — om poolen är tom visas bara "Ingen tilldelad"
+Inkludera resultatet i responsen som `establishment_tasks`.
 
-### Fil att ändra
-- `src/components/project/EstablishmentTaskDetailSheet.tsx` — rad 87-101
+Lägg även till en ny action `toggle_establishment_task` som tar `task_id` och togglar `completed`-status (med verifiering att uppgiften är tilldelad till den inloggade personalen).
+
+**2. Frontend: `JobInfoTab.tsx`**
+Lägg till en ny sektion **"Mina uppgifter"** mellan "Interna anteckningar" och "Kommentarer" (~rad 299). Visa en checklista med:
+- Kategori-ikon + titel
+- Datum (start → slut)  
+- Checkbox för att bocka av
+
+Vid klick på checkbox: anropa `mobileApi` med `toggle_establishment_task`.
+
+**3. Service: `mobileApiService.ts`**
+Lägg till metod `toggleEstablishmentTask(taskId: string)` som anropar edge function med action `toggle_establishment_task`.
+
+### Filer att ändra
+- `supabase/functions/mobile-app-api/index.ts` — Hämta establishment_tasks + ny toggle-action
+- `src/components/mobile-app/job-tabs/JobInfoTab.tsx` — Ny checklista-sektion
+- `src/services/mobileApiService.ts` — Ny API-metod
 
