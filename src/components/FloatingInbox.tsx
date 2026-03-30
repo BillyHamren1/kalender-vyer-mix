@@ -21,9 +21,9 @@ const FloatingInbox = () => {
   const isMobile = useIsMobile();
 
   const { data: conversations = [] } = useQuery({
-    queryKey: ['dm-inbox-grouped', plannerId],
-    queryFn: () => fetchDMInboxGrouped(plannerId),
-    enabled: !!plannerId && isOpen,
+    queryKey: ['dm-inbox-grouped', ...allIds],
+    queryFn: () => fetchDMInboxGrouped(allIds),
+    enabled: allIds.length > 0 && isOpen,
     refetchInterval: 10000,
   });
 
