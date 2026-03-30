@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -128,13 +128,74 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
+        .select("assigned_to, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
         .eq("id", task!.id)
         .single();
       return data;
     },
     enabled: !!task?.id && open,
   });
+
+  // Fetch linked booking products when source_product_ids exist
+  const sourceProductIds = taskDbData?.source_product_ids as string[] | null;
+  const effectiveBookingId = taskDbData?.booking_id || bookingId;
+
+  const { data: linkedProducts = [] } = useQuery({
+    queryKey: ["linked-booking-products", task?.id, sourceProductIds],
+    queryFn: async () => {
+      if (!sourceProductIds || sourceProductIds.length === 0) return [];
+      const { data } = await supabase
+        .from("booking_products")
+        .select("id, name, quantity, sku, parent_product_id, is_package_component")
+        .in("id", sourceProductIds);
+      return data || [];
+    },
+    enabled: !!sourceProductIds && sourceProductIds.length > 0 && open,
+  });
+
+  // Build hierarchical product structure: parents with their accessories
+  const productHierarchy = useMemo(() => {
+    if (linkedProducts.length === 0) return [];
+    
+    // Find parent products (no parent_product_id or parent not in our set)
+    const productIds = new Set(linkedProducts.map(p => p.id));
+    const parents = linkedProducts.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
+    const children = linkedProducts.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
+    
+    return parents.map(parent => ({
+      ...parent,
+      accessories: children.filter(c => c.parent_product_id === parent.id),
+    }));
+  }, [linkedProducts]);
+
+  // Track checked product IDs locally, persisted via subtasks
+  const [checkedProducts, setCheckedProducts] = useState<Set<string>>(new Set());
+
+  // Auto-create subtasks from products if task has source_product_ids but no subtasks yet
+  const { data: subtasks = [], isLoading } = useQuery({
+    queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id],
+    queryFn: () => fetchSubtasks(effectiveBookingId!, task!.id),
+    enabled: !!effectiveBookingId && !!task?.id && open,
+  });
+
+  // Sync checked state from subtask titles matching product IDs
+  useEffect(() => {
+    if (subtasks.length > 0 && linkedProducts.length > 0) {
+      const checked = new Set<string>();
+      subtasks.forEach(st => {
+        if (st.completed && st.title) {
+          const matchingProduct = linkedProducts.find(p => {
+            const label = p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name;
+            return st.title === label || st.title === p.name || st.title.startsWith(p.name);
+          });
+          if (matchingProduct) checked.add(matchingProduct.id);
+        }
+      });
+      setCheckedProducts(checked);
+    } else if (subtasks.length === 0) {
+      setCheckedProducts(new Set());
+    }
+  }, [subtasks, linkedProducts]);
 
   useEffect(() => {
     if (taskDbData) {
@@ -153,11 +214,6 @@ const EstablishmentTaskDetailSheet = ({
     }
   }, [taskDbData]);
 
-  const { data: subtasks = [], isLoading } = useQuery({
-    queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id],
-    queryFn: () => fetchSubtasks(bookingId!, task!.id),
-    enabled: !!bookingId && !!task?.id && open,
-  });
 
   useEffect(() => {
     if (!open) {
@@ -269,14 +325,14 @@ const EstablishmentTaskDetailSheet = ({
   const addMutation = useMutation({
     mutationFn: (title: string) =>
       createSubtask({
-        booking_id: bookingId!,
+        booking_id: (effectiveBookingId || bookingId)!,
         parent_task_id: task!.id,
         title,
         sort_order: subtasks.length,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
       setNewSubtaskTitle("");
       toast.success("Delsteg tillagt");
     },
@@ -286,16 +342,16 @@ const EstablishmentTaskDetailSheet = ({
     mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof updateSubtask>[1] }) =>
       updateSubtask(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteSubtask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", bookingId || largeProjectId, task?.id] });
-      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task?.id] });
+      queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
       toast.success("Delsteg borttaget");
     },
   });
@@ -308,8 +364,40 @@ const EstablishmentTaskDetailSheet = ({
 
   const handleAddSubtask = () => {
     const title = newSubtaskTitle.trim();
-    if (!title || !bookingId) return;
+    if (!title || !effectiveBookingId) return;
     addMutation.mutate(title);
+  };
+
+  // Handle checking/unchecking a product in the checklist
+  const handleProductCheck = async (productId: string, productName: string, quantity: number, checked: boolean) => {
+    if (!effectiveBookingId || !task) return;
+    
+    const label = quantity > 1 ? `${productName} x${quantity}` : productName;
+    
+    // Find existing subtask for this product
+    const existingSubtask = subtasks.find(st => st.title === label || st.title === productName);
+    
+    if (existingSubtask) {
+      // Update existing subtask
+      updateMutation.mutate({ id: existingSubtask.id, updates: { completed: checked } });
+    } else {
+      // Create a new subtask and mark it
+      try {
+        const created = await createSubtask({
+          booking_id: effectiveBookingId,
+          parent_task_id: task.id,
+          title: label,
+          sort_order: subtasks.length,
+        });
+        if (checked) {
+          await updateSubtask(created.id, { completed: true });
+        }
+        queryClient.invalidateQueries({ queryKey: ["establishment-subtasks", effectiveBookingId || largeProjectId, task.id] });
+        queryClient.invalidateQueries({ queryKey: ["establishment-all-subtasks", effectiveBookingId] });
+      } catch {
+        toast.error("Kunde inte uppdatera checklista");
+      }
+    }
   };
 
   return (
@@ -425,7 +513,100 @@ const EstablishmentTaskDetailSheet = ({
           ) : null;
         })()}
 
-        {/* Assignment */}
+        {/* Product checklist from source_product_ids */}
+        {productHierarchy.length > 0 && (
+          <>
+            <div className="py-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label className="text-xs text-muted-foreground">
+                  Produkter ({linkedProducts.filter(p => checkedProducts.has(p.id)).length}/{linkedProducts.length})
+                </Label>
+              </div>
+
+              {linkedProducts.length > 0 && (
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all rounded-full"
+                    style={{ width: `${(linkedProducts.filter(p => checkedProducts.has(p.id)).length / linkedProducts.length) * 100}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-0.5">
+                {productHierarchy.map((parent) => (
+                  <div key={parent.id}>
+                    {/* Parent product */}
+                    <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 group">
+                      <Checkbox
+                        checked={checkedProducts.has(parent.id)}
+                        onCheckedChange={(checked) => {
+                          setCheckedProducts(prev => {
+                            const next = new Set(prev);
+                            if (checked) next.add(parent.id);
+                            else next.delete(parent.id);
+                            return next;
+                          });
+                          // Persist via subtask
+                          handleProductCheck(parent.id, parent.name, parent.quantity, !!checked);
+                        }}
+                      />
+                      <span className={cn(
+                        "text-sm flex-1 min-w-0",
+                        checkedProducts.has(parent.id) && "line-through text-muted-foreground"
+                      )}>
+                        {parent.name}
+                      </span>
+                      {parent.quantity > 1 && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+                          x{parent.quantity}
+                        </Badge>
+                      )}
+                      {parent.sku && (
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">{parent.sku}</span>
+                      )}
+                    </div>
+
+                    {/* Accessories (children) */}
+                    {parent.accessories.length > 0 && (
+                      <div className="ml-6 border-l border-border/40 pl-2 space-y-0.5">
+                        {parent.accessories.map((acc) => (
+                          <div key={acc.id} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 group">
+                            <Checkbox
+                              checked={checkedProducts.has(acc.id)}
+                              onCheckedChange={(checked) => {
+                                setCheckedProducts(prev => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(acc.id);
+                                  else next.delete(acc.id);
+                                  return next;
+                                });
+                                handleProductCheck(acc.id, acc.name, acc.quantity, !!checked);
+                              }}
+                            />
+                            <span className={cn(
+                              "text-xs flex-1 min-w-0 text-muted-foreground",
+                              checkedProducts.has(acc.id) && "line-through"
+                            )}>
+                              • {acc.name}
+                            </span>
+                            {acc.quantity > 1 && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 flex-shrink-0">
+                                x{acc.quantity}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Separator />
+          </>
+        )}
+
         <div className="py-3 space-y-2">
           <Label className="text-xs text-muted-foreground">Tilldelad personal</Label>
           <Select value={taskAssignedTo || "none"} onValueChange={handleTaskAssignmentChange}>
@@ -573,7 +754,7 @@ const EstablishmentTaskDetailSheet = ({
             ))}
           </div>
 
-          {bookingId && (
+          {(effectiveBookingId || bookingId) && (
             <div className="flex gap-2">
               <Input
                 placeholder="Nytt delsteg..."
