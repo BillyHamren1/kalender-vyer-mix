@@ -144,23 +144,59 @@ const EstablishmentTaskDetailSheet = ({
     queryKey: ["linked-booking-products", task?.id, sourceProductIds],
     queryFn: async () => {
       if (!sourceProductIds || sourceProductIds.length === 0) return [];
-      const { data } = await supabase
+      // Query 1: Fetch explicitly selected products
+      const { data: selected } = await supabase
         .from("booking_products")
         .select("id, name, quantity, sku, parent_product_id, is_package_component")
         .in("id", sourceProductIds);
-      return data || [];
+      const selectedProducts = selected || [];
+      
+      // Query 2: Fetch all children whose parent_product_id points to any selected product
+      const parentIds = selectedProducts
+        .filter(p => !p.parent_product_id)
+        .map(p => p.id);
+      
+      let childProducts: typeof selectedProducts = [];
+      if (parentIds.length > 0) {
+        const { data: children } = await supabase
+          .from("booking_products")
+          .select("id, name, quantity, sku, parent_product_id, is_package_component")
+          .in("parent_product_id", parentIds);
+        childProducts = children || [];
+      }
+      
+      // Merge and deduplicate
+      const allMap = new Map(selectedProducts.map(p => [p.id, p]));
+      childProducts.forEach(p => { if (!allMap.has(p.id)) allMap.set(p.id, p); });
+      return [...allMap.values()];
     },
     enabled: !!sourceProductIds && sourceProductIds.length > 0 && open,
   });
+
+  // Clean product name: strip hierarchy prefix characters
+  const cleanName = (name: string): string => {
+    return name
+      .replace(/^[└↳⦿]\s*,?\s*/, '')
+      .replace(/^L,\s*/, '')
+      .replace(/^--\s*[A-Za-z],?\s*/, '')
+      .replace(/^[-–—]\s*/, '')
+      .replace(/^\s+/, '')
+      .trim();
+  };
 
   // Build hierarchical product structure: parents with their accessories
   const productHierarchy = useMemo(() => {
     if (linkedProducts.length === 0) return [];
     
-    // Find parent products (no parent_product_id or parent not in our set)
     const productIds = new Set(linkedProducts.map(p => p.id));
-    const parents = linkedProducts.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
-    const children = linkedProducts.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
+    
+    // Filter out internal package components (is_package_component: true)
+    const visible = linkedProducts.filter(p => !p.is_package_component);
+    
+    // Parents: no parent_product_id, or parent not in our set
+    const parents = visible.filter(p => !p.parent_product_id || !productIds.has(p.parent_product_id));
+    // Children/accessories: have parent_product_id pointing to a product in our set
+    const children = visible.filter(p => p.parent_product_id && productIds.has(p.parent_product_id));
     
     return parents.map(parent => ({
       ...parent,
