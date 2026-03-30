@@ -96,12 +96,13 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     // Team workload
     const staffMap = new Map<string, { tasks: EstablishmentTask[] }>();
     activeTasks.forEach(t => {
-      if (t.assigned_to) {
-        if (!staffMap.has(t.assigned_to)) {
-          staffMap.set(t.assigned_to, { tasks: [] });
+      const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
+      ids.forEach(staffId => {
+        if (!staffMap.has(staffId)) {
+          staffMap.set(staffId, { tasks: [] });
         }
-        staffMap.get(t.assigned_to)!.tasks.push(t);
-      }
+        staffMap.get(staffId)!.tasks.push(t);
+      });
     });
 
     const teamWorkload: TeamMemberWorkload[] = Array.from(staffMap.entries()).map(([staffId, { tasks: staffTasks }]) => {
