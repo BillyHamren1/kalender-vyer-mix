@@ -1,46 +1,42 @@
 
 
-## Show Large Project Name & Consolidate Events in Calendar
+## Ge Lager-personal automatisk åtkomst till Scanner-appen
 
 ### Problem
-When multiple bookings are linked to a large project (stort projekt), each booking creates separate calendar events showing individual booking titles. The user wants:
-1. Show the **project name** instead of individual booking names
-2. Show only **one event per large project** (not one per booking)
+Personal taggad som "Lager" har konton (staff_accounts) men det saknas en tydlig koppling och automatik som säkerställer att de kan logga in i scanner-appen. Det finns ingen teknisk blockering i koden — samma login-API (`mobile-app-api`) och samma `staff_accounts`-tabell används för båda apparna. Problemet verkar vara att Lager-personal inte alltid har konton skapade, eller att det inte är tydligt vilka appar som är tillgängliga.
 
-### Solution
-Modify `useRealTimeCalendarEvents` to detect bookings belonging to the same large project and consolidate their calendar events.
+### Analys
+- Login-API:t (`mobile-app-api`) kontrollerar **inte** taggar — alla med ett `staff_account` kan logga in
+- Scanner-API:t (`scanner-api`) kontrollerar **inte** taggar — alla autentiserade kan använda det
+- Kontoskapning i `StaffAccountsPanel` nämner bara "tidrapporteringsappen"
+- Det finns ingen automatik som skapar konton när en person taggas som Lager
 
-### Changes
+### Lösning
+Automatiskt skapa ett `staff_account` när en person taggas som "Lager" (eller "Montage") på personalkortet, om de inte redan har ett. Uppdatera UI:t så det tydligt visar vilka appar kontot ger tillgång till.
 
-**1. `src/hooks/useRealTimeCalendarEvents.tsx` — batch-fetch large project names & consolidate events**
+### Ändringar
 
-In the `loadEvents` function, after fetching bookings:
-- Add `large_project_id` to the booking select query
-- Collect all unique `large_project_id` values and batch-fetch large project names from `large_projects` table
-- After enhancing events, add a consolidation step:
-  - Group events by `large_project_id + event_type + source_date`
-  - For events sharing the same large project, keep only one representative event per group
-  - Override its `title` with the large project name
-  - Store original booking IDs in `extendedProps` for reference
-  - Tag with `extendedProps.isLargeProject = true` and `extendedProps.largeProjectId`
+**1. `src/pages/StaffDetail.tsx` — Auto-skapa konto vid Lager-taggning**
+- När en person taggas som "Lager" (eller "Montage") och saknar `staff_account`:
+  - Skapa automatiskt ett konto med genererat användarnamn/lösenord
+  - Visa en dialog med inloggningsuppgifterna
+  - Visa en tydlig indikation om vilka appar personen nu har tillgång till
 
-**2. `src/components/Calendar/CustomEvent.tsx` — display project name**
+**2. `src/components/staff/StaffAccountCard.tsx` — Visa app-tillgång**
+- Hämta personalens taggar och visa vilka appar kontot ger tillgång till:
+  - "Montage" → Tidrapporteringsappen
+  - "Lager" → Scanner-appen
+- Uppdatera kortets beskrivning från "tidrapporteringsappen" till att lista alla appar personen har tillgång till
 
-- When `event.extendedProps?.isLargeProject` is true, show a "PROJEKT" badge or indicator
-- The title already comes from the consolidated event, so `event.title` will show the project name automatically
+**3. `src/components/staff/StaffAccountsPanel.tsx` — Uppdatera beskrivning**
+- Ändra beskrivningen från "Hantera inloggningsuppgifter för tidrapporteringsappen" till "Hantera inloggningsuppgifter för mobilapparna (Tid & Scanner)"
 
-### Consolidation Logic (pseudo-code)
+### Flöde efter ändring
 ```text
-For each enhanced event:
-  → look up booking's large_project_id
-  → if null → keep as-is
-  → if set → group by (large_project_id, event_type, source_date)
-     → keep first event in group, discard rest
-     → set title = large project name
-     → set extendedProps.isLargeProject = true
+Admin taggar personal som "Lager"
+  → System kontrollerar om staff_account finns
+  → Om nej: skapar automatiskt konto
+  → Visar dialog med användarnamn + lösenord
+  → StaffAccountCard visar "Scanner-appen ✓"
 ```
-
-### Files to modify
-- `src/hooks/useRealTimeCalendarEvents.tsx` (main logic)
-- `src/components/Calendar/CustomEvent.tsx` (optional visual indicator)
 
