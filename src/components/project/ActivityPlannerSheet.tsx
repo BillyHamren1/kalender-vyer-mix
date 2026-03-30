@@ -115,6 +115,7 @@ const ActivityPlannerSheet = ({
 
   // Manual task
   const [manualTitle, setManualTitle] = useState("");
+  const [customTitle, setCustomTitle] = useState("");
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
