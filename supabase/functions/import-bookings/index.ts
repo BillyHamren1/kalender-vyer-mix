@@ -764,6 +764,7 @@ async function reconcileCalendarEvents(
     booking_number: string | null;
     delivery_address: string | null;
     date: string;
+    isExplicitStart: boolean;
   }> = [];
 
   const rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0
@@ -784,7 +785,8 @@ async function reconcileCalendarEvents(
     desiredEvents.push({
       event_type: 'rig', start_time: start.dateTime, end_time: end.dateTime,
       title: desiredTitle, booking_number: bookingData.booking_number || null,
-      delivery_address: bookingData.deliveryaddress || null, date
+      delivery_address: bookingData.deliveryaddress || null, date,
+      isExplicitStart: start.isExplicit
     });
   }
 
@@ -797,7 +799,8 @@ async function reconcileCalendarEvents(
     desiredEvents.push({
       event_type: 'event', start_time: start.dateTime, end_time: end.dateTime,
       title: desiredTitle, booking_number: bookingData.booking_number || null,
-      delivery_address: bookingData.deliveryaddress || null, date
+      delivery_address: bookingData.deliveryaddress || null, date,
+      isExplicitStart: start.isExplicit
     });
   }
 
@@ -810,7 +813,8 @@ async function reconcileCalendarEvents(
     desiredEvents.push({
       event_type: 'rigDown', start_time: start.dateTime, end_time: end.dateTime,
       title: desiredTitle, booking_number: bookingData.booking_number || null,
-      delivery_address: bookingData.deliveryaddress || null, date
+      delivery_address: bookingData.deliveryaddress || null, date,
+      isExplicitStart: start.isExplicit
     });
   }
 
@@ -872,7 +876,8 @@ async function reconcileCalendarEvents(
         bookingData.id,
         bookingData.organization_id || organizationId,
         desired.start_time,
-        desired.end_time
+        desired.end_time,
+        desired.isExplicitStart
       );
 
       if (results.team_distribution[assignedTeam] !== undefined) {
