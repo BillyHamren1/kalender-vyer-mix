@@ -440,14 +440,17 @@ const EstablishmentGanttChart = ({
                       <div
                         key={index}
                         className={cn(
-                          "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r text-xs",
+                          "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r text-xs relative",
                           isWeekend && "bg-muted/70",
-                          isToday && "bg-primary/10"
+                          isToday && "bg-primary/15 font-bold"
                         )}
                         style={{ width: dayWidth }}
                       >
-                        <span className={cn("font-medium text-base", isToday && "text-primary")}>{format(day, 'd')}</span>
-                        <span className="text-muted-foreground">{format(day, 'EEE', { locale: sv })}</span>
+                        {isToday && (
+                          <span className="absolute top-1 text-[9px] font-bold text-primary uppercase tracking-wider">Idag</span>
+                        )}
+                        <span className={cn("font-medium text-base", isToday && "text-primary font-bold")}>{format(day, 'd')}</span>
+                        <span className={cn("text-muted-foreground", isToday && "text-primary/70")}>{format(day, 'EEE', { locale: sv })}</span>
                       </div>
                     );
                   })}
