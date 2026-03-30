@@ -273,9 +273,9 @@ const EstablishmentGanttChart = ({
   }
 
   const dayWidth = 60;
-  const rowHeight = 40;
+  const rowHeight = 52;
   const headerHeight = 60;
-  const taskLabelWidth = 260;
+  const taskLabelWidth = 360;
   const timelineWidth = ganttData.totalDays * dayWidth;
   const today = startOfDay(new Date());
 
@@ -325,12 +325,24 @@ const EstablishmentGanttChart = ({
                 {ganttData.taskDates.map((task) => {
                   const dbTask = tasks.find(t => t.id === task.id);
                   const IconComponent = CATEGORY_ICONS[task.category] || Wrench;
+                  const status = (dbTask as any)?.status || 'not_started';
+                  const readiness = (dbTask as any)?.readiness || 'missing_information';
+                  const priority = (dbTask as any)?.priority || 'medium';
+                  const hasBlockers = !!(dbTask as any)?.blockers;
+                  const StatusIcon = STATUS_ICON_MAP[status] || Circle;
+                  const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.not_started;
+                  const PriorityIcon = PRIORITY_CONFIG[priority]?.icon || ArrowRight;
+                  const assignedName = (dbTask as any)?.assigned_to
+                    ? staffPool.find(s => s.id === (dbTask as any).assigned_to)?.name
+                    : null;
+
                   return (
                     <div
                       key={task.id}
                       className={cn(
                         "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors group",
-                        task.completed && "opacity-60"
+                        status === 'done' && "opacity-60",
+                        status === 'cancelled' && "opacity-40"
                       )}
                       style={{ height: rowHeight }}
                       onClick={() =>
@@ -344,30 +356,63 @@ const EstablishmentGanttChart = ({
                         })
                       }
                     >
+                      {/* Status icon */}
                       <button
                         onClick={(e) => { e.stopPropagation(); if (dbTask) handleToggleCompleted(dbTask); }}
                         className="flex-shrink-0"
+                        title={statusConfig.label}
                       >
-                        {task.completed ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 hover:border-primary transition-colors" />
-                        )}
+                        <StatusIcon className={cn("h-4 w-4", statusConfig.text)} />
                       </button>
+
+                      {/* Priority indicator */}
+                      <PriorityIcon className={cn("h-3 w-3 flex-shrink-0", PRIORITY_CONFIG[priority]?.className)} title={PRIORITY_CONFIG[priority]?.label} />
+
+                      {/* Category icon */}
                       <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                      <div className={cn("flex flex-col min-w-0 flex-1", task.completed && "opacity-60")}>
-                        <span className={cn("text-sm truncate", task.completed && "line-through text-muted-foreground")}>
-                          {task.title}
-                        </span>
-                        {isProjectMode && (task as any).booking_id && (() => {
-                          const linkedBooking = projectBookings.find(b => b.booking_id === (task as any).booking_id);
-                          return linkedBooking ? (
-                            <span className="text-[10px] text-muted-foreground truncate">
-                              {linkedBooking.display_name || linkedBooking.client || linkedBooking.booking_id}
+
+                      {/* Title + metadata */}
+                      <div className={cn("flex flex-col min-w-0 flex-1", status === 'done' && "opacity-60")}>
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn("text-sm truncate", status === 'done' && "line-through text-muted-foreground")}>
+                            {task.title}
+                          </span>
+                          {hasBlockers && (
+                            <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" title="Har blockeringar" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          {/* Readiness badge */}
+                          <span className={cn(
+                            "px-1 py-0 rounded text-[9px] font-medium",
+                            readiness === 'ready' ? 'bg-emerald-500/10 text-emerald-600' :
+                            readiness === 'waiting_for_decision' ? 'bg-violet-500/10 text-violet-600' :
+                            readiness === 'waiting_for_external' ? 'bg-amber-500/10 text-amber-600' :
+                            'bg-muted text-muted-foreground'
+                          )}>
+                            {READINESS_LABELS[readiness] || readiness}
+                          </span>
+
+                          {/* Assigned person */}
+                          {assignedName && (
+                            <span className="text-muted-foreground truncate flex items-center gap-0.5">
+                              <User className="h-2.5 w-2.5" />
+                              {assignedName}
                             </span>
-                          ) : null;
-                        })()}
+                          )}
+
+                          {/* Linked booking in project mode */}
+                          {isProjectMode && (task as any).booking_id && (() => {
+                            const linkedBooking = projectBookings.find(b => b.booking_id === (task as any).booking_id);
+                            return linkedBooking ? (
+                              <span className="text-muted-foreground truncate">
+                                • {linkedBooking.display_name || linkedBooking.client || linkedBooking.booking_id}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
+
                       <button
                         onClick={(e) => handleDeleteTask(task.id, e)}
                         className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-destructive/10 transition-all"
