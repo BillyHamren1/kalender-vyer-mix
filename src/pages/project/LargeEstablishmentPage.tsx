@@ -164,7 +164,14 @@ const LargeEstablishmentPage = () => {
                 </div>
               </div>
 
-              <TabsContent value="establishment" className="mt-0 p-4">
+              <TabsContent value="establishment" className="mt-0 p-4 space-y-3">
+                <PlanningFilterBar
+                  tasks={analytics.tasks}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  staffPool={staffPool}
+                  filteredCount={filteredTasks.length}
+                />
                 {viewMode === "gantt" ? (
                   <EstablishmentGanttChart
                     largeProjectId={project.id}
@@ -173,10 +180,11 @@ const LargeEstablishmentPage = () => {
                     onTaskClick={handleTaskClick}
                     staffPool={staffPool}
                     projectBookings={projectBookings}
+                    visibleTaskIds={visibleTaskIds}
                   />
                 ) : viewMode === "list" ? (
                   <PlanningTaskList
-                    tasks={analytics.tasks}
+                    tasks={filteredTasks}
                     staffPool={staffPool}
                     onTaskClick={handleTaskClick}
                     largeProjectId={project.id}
