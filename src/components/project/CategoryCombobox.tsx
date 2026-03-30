@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { Plus, Check } from "lucide-react";
 
 const DEFAULT_CATEGORIES = ["Montering", "Demontering", "Transport"];
 
@@ -25,8 +26,10 @@ interface CategoryComboboxProps {
 
 const CategoryCombobox = ({ value, onValueChange, className }: CategoryComboboxProps) => {
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [adding, setAdding] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const newInputRef = useRef<HTMLInputElement>(null);
 
   const { data: dbCategories = [] } = useQuery({
     queryKey: ["distinct-establishment-categories"],
@@ -38,78 +41,106 @@ const CategoryCombobox = ({ value, onValueChange, className }: CategoryComboboxP
     new Set([...DEFAULT_CATEGORIES, ...dbCategories].map((c) => c.trim()).filter(Boolean))
   );
 
-  const filtered = allSuggestions.filter((c) =>
-    c.toLowerCase().includes(inputValue.toLowerCase())
-  );
+  useEffect(() => {
+    if (adding && newInputRef.current) {
+      newInputRef.current.focus();
+    }
+  }, [adding]);
 
   useEffect(() => {
-    setInputValue(value);
-  }, [value]);
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setAdding(false);
+        setNewCategory("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleSelect = (cat: string) => {
-    setInputValue(cat);
     onValueChange(cat);
     setOpen(false);
+    setAdding(false);
   };
 
-  const handleBlur = () => {
-    setTimeout(() => {
-      if (inputValue.trim()) {
-        onValueChange(inputValue.trim());
-      }
+  const handleAddNew = () => {
+    if (newCategory.trim()) {
+      onValueChange(newCategory.trim());
+      setNewCategory("");
+      setAdding(false);
       setOpen(false);
-    }, 150);
+    }
   };
 
   return (
-    <div className="relative">
-      <Input
-        ref={inputRef}
-        value={inputValue}
-        onChange={(e) => {
-          setInputValue(e.target.value);
-          if (!open) setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={handleBlur}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            if (inputValue.trim()) {
-              onValueChange(inputValue.trim());
-            }
-            setOpen(false);
-          }
-        }}
-        placeholder="Skriv eller välj kategori"
-        className={cn("h-8 text-sm", className)}
-      />
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setAdding(false); }}
+        className={cn(
+          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          !value && "text-muted-foreground",
+          className
+        )}
+      >
+        <span className="truncate">{value || "Välj kategori"}</span>
+      </button>
+
       {open && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md p-1">
-          {filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground p-2">
-              Tryck Enter för att använda "{inputValue}"
-            </p>
-          ) : (
-            <div className="max-h-40 overflow-y-auto">
-              {filtered.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleSelect(cat);
+          <div className="max-h-48 overflow-y-auto">
+            {allSuggestions.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(cat); }}
+                className={cn(
+                  "w-full flex items-center gap-2 text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
+                  cat === value && "bg-accent font-medium"
+                )}
+              >
+                {cat === value && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                <span className={cat !== value ? "pl-[22px]" : ""}>{cat}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="border-t border-border mt-1 pt-1">
+            {!adding ? (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); setAdding(true); }}
+                className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors text-muted-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Lägg till kategori
+              </button>
+            ) : (
+              <div className="flex gap-1 p-1">
+                <Input
+                  ref={newInputRef}
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); handleAddNew(); }
+                    if (e.key === "Escape") { setAdding(false); setNewCategory(""); }
                   }}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
-                    cat.toLowerCase() === value.toLowerCase() && "bg-accent font-medium"
-                  )}
+                  placeholder="Ny kategori..."
+                  className="h-7 text-sm"
+                />
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleAddNew(); }}
+                  disabled={!newCategory.trim()}
+                  className="px-2 h-7 rounded-sm bg-primary text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {cat}
+                  OK
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
