@@ -12,6 +12,7 @@ import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   resources: Resource[];
   isLoading: boolean;
   isMounted: boolean;
