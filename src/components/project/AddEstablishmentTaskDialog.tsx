@@ -30,6 +30,7 @@ interface AddEstablishmentTaskDialogProps {
   defaultDate: string | null;
   onTaskCreated: () => void;
   projectBookings?: ProjectBookingInfo[];
+  staffPool?: Array<{ id: string; name: string }>;
 }
 
 const CATEGORIES = [
@@ -49,9 +50,11 @@ const AddEstablishmentTaskDialog = ({
   defaultDate,
   onTaskCreated,
   projectBookings = [],
+  staffPool = [],
 }: AddEstablishmentTaskDialogProps) => {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("installation");
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
   );
@@ -101,6 +104,7 @@ const AddEstablishmentTaskDialog = ({
         end_date: date,
         source: 'product',
         source_product_id: product.id,
+        assigned_to: assignedTo,
       });
       toast.success(`Aktivitet skapad: ${product.name}`);
       onTaskCreated();
@@ -127,6 +131,7 @@ const AddEstablishmentTaskDialog = ({
         start_date: format(startDate, 'yyyy-MM-dd'),
         end_date: format(endDate, 'yyyy-MM-dd'),
         source: 'manual',
+        assigned_to: assignedTo,
       });
       toast.success("Aktivitet skapad");
       setTitle("");
@@ -225,6 +230,23 @@ const AddEstablishmentTaskDialog = ({
               </SelectContent>
             </Select>
           </div>
+
+          {staffPool.length > 0 && (
+            <div>
+              <Label>Tilldela personal</Label>
+              <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ingen tilldelad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen tilldelad</SelectItem>
+                  {staffPool.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

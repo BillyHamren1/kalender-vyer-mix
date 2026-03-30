@@ -79,6 +79,7 @@ const EstablishmentPage = () => {
             bookingId={booking?.id}
             client={booking?.client}
             address={booking?.deliveryaddress}
+            staffPool={staffPool}
             onTaskClick={handleTaskClick}
           />
         </TabsContent>
