@@ -1,46 +1,47 @@
 
 
-## Plan: Eventdagar — alltid team-11 (Live), 3h, sekventiell stacking
+## Plan: Fullskärms aktivitetsplanerare
 
-### Vad ändras
+### Vad byggs
 
-Eventdagar ska:
-- **Alltid** placeras på team-11 (Live) — detta fungerar redan
-- **Alltid vara 3 timmar** (ändras från nuvarande 2.5h)
-- **Stackas sekventiellt** samma dag: första 08:00–11:00, andra 11:00–14:00, tredje 14:00–17:00 osv.
-- **INTE** följa round-robin-logiken för team 1–5
+Ersätter den lilla `AddEstablishmentTaskDialog` med en fullskärms-dialog ("sheet") som ger komplett översikt och stegvis arbetsflöde:
 
-### Ändringar
-
-**Fil: `supabase/functions/import-bookings/index.ts`**
-
-1. **`getEndTimeForEventType`** (rad 711–712): Ändra `event` duration från `2.5` till `3` timmar.
-
-2. **`getNextTeamAssignment`** (rad 1031–1034): Utöka team-11-grenen så att den:
-   - Hämtar befintliga events på team-11 för samma dag
-   - Hittar senaste sluttiden
-   - Returnerar team-11 **samt justerar starttid** för det nya eventet så att det börjar efter sista befintliga eventet
-   - Returnera en struct med `{ teamId, adjustedStart, adjustedEnd }` istället för bara teamId
-
-   Alternativt (enklare): Justera start/sluttider för event-typen **innan** `getNextTeamAssignment` anropas — direkt i reconcile-loopen (rad 793–804) genom att kolla befintliga team-11 events för samma dag och stacka.
-
-3. **Reconcile-loopen** (rad 793–804): För `event`-typen, innan push till `desiredEvents`:
-   - Hämta befintliga team-11 events för samma datum (inklusive redan pushade desired events)
-   - Räkna ut hur många event som redan finns den dagen
-   - Sätt starttid = 08:00 + (antal × 3h), sluttid = starttid + 3h
-   - Ignorera bokningens egna event_start_time/event_end_time (alltid 3h-block)
-
-### Teknisk detalj
+1. **Vänster panel** — Produktlista med parent/child-hierarki (tillbehör grupperade under sin förälder). Checkboxar för flerval. Redan planerade produkter visas överstrukna.
+2. **Höger panel** — Inställningar: datum, tid, personal, kategori, prioritet. Gäller alla valda produkter.
+3. **"Skapa aktiviteter"**-knapp skapar en task per vald produkt, markerar dem som planerade, och listan uppdateras med överstrykning.
 
 ```text
-Team-11 (Live), samma dag:
-  Event A: 08:00–11:00
-  Event B: 11:00–14:00
-  Event C: 14:00–17:00
-  ...
+┌──────────────────────────────────────────────────────────┐
+│  Planera aktiviteter                              [Stäng]│
+├─────────────────────────────┬────────────────────────────┤
+│  Produktlista               │  Inställningar             │
+│                             │                            │
+│  ☐ Tält 10x20        x1    │  Startdatum  [2026-04-01]  │
+│    ☐ Vägg 10m        x4    │  Slutdatum   [2026-04-01]  │
+│    ☐ Golv 10x20      x1    │  Starttid    [08:00]       │
+│  ☑̶ ̶P̶o̶d̶i̶u̶m̶ ̶2̶x̶3̶  (planerad)│  Sluttid     [16:00]       │
+│  ☐ Belysningspaket   x1    │  Kategori    [Installation]│
+│    ☐ Spotlight       x10   │  Prioritet   [Medium]      │
+│                             │  Personal    [Välj...]     │
+│                             │                            │
+│                             │  [Skapa 2 aktiviteter]     │
+├─────────────────────────────┴────────────────────────────┤
+│  + Lägg till manuell aktivitet (fritext)                 │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Två filer berörs:
-- `supabase/functions/import-bookings/index.ts` — edge function
-- `src/utils/teamAvailability.ts` — klientsidans `findAvailableTeam` (behåll team-11 exkludering, ingen ändring behövs)
+### Tekniska ändringar
+
+**Fil: `src/components/project/AddEstablishmentTaskDialog.tsx`** — Komplett omskrivning:
+
+- Byt `Dialog` mot `Sheet` (side="bottom" eller custom fullscreen dialog) med `max-w-5xl w-full h-[90vh]`.
+- Hämta redan skapade tasks (via `source_product_id`) för att avgöra vilka produkter som redan planerats (överstrukna).
+- Produktlistan renderas hierarkiskt: huvudprodukter med sina `isPackageComponent`/`parentPackageId`-barn indenterade under. Checkbox per rad.
+- State: `selectedProductIds: Set<string>`, gemensamma datum/tid/personal/kategori/prioritet.
+- Vid "Skapa": loopa igenom valda produkter, anropa `createEstablishmentTask` per produkt, uppdatera "planerade"-listan.
+- Behåll manuell fritext-sektion längst ned.
+
+**Fil: `src/components/project/EstablishmentGanttChart.tsx`** — Inga strukturella ändringar, propsen är redan korrekta.
+
+**Ingen databasändring krävs** — `establishment_tasks` har redan `source_product_id` för att spåra planerade produkter.
 
