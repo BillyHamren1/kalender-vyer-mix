@@ -111,7 +111,9 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
   const handleQuickAssign = async (taskId: string, staffId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      await updateEstablishmentTask(taskId, { assigned_to: staffId === "none" ? null : staffId });
+      const assignedTo = staffId === "none" ? null : staffId;
+      const assignedToIds = assignedTo ? [assignedTo] : [];
+      await updateEstablishmentTask(taskId, { assigned_to: assignedTo, assigned_to_ids: assignedToIds } as any);
       invalidateAll();
     } catch { toast.error("Kunde inte tilldela"); }
   };
