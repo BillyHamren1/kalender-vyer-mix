@@ -1976,7 +1976,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
   )
 }
 
-async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { sender_id } = data
 
   if (!sender_id) {
@@ -1986,13 +1986,22 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
     )
   }
 
-  const { error } = await supabase
-    .from('direct_messages')
-    .update({ is_read: true })
-    .eq('recipient_id', staffId)
-    .eq('sender_id', sender_id)
-    .eq('organization_id', organizationId)
-    .eq('is_read', false)
+  // Mark read for both identities (staffId and userId)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  const markPromises = ids.map(myId =>
+    supabase
+      .from('direct_messages')
+      .update({ is_read: true })
+      .eq('recipient_id', myId)
+      .eq('sender_id', sender_id)
+      .eq('organization_id', organizationId)
+      .eq('is_read', false)
+  )
+
+  const results = await Promise.all(markPromises)
+  const firstError = results.find(r => r.error)?.error
 
   if (error) {
     console.error('Mark DM read error:', error)
