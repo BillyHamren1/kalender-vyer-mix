@@ -21,8 +21,12 @@ import { getContrastTextColor } from '@/utils/staffColors';
 const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
+  const [autoCredentials, setAutoCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [showAutoCredentials, setShowAutoCredentials] = useState(false);
+  const [showAutoPassword, setShowAutoPassword] = useState(false);
 
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
     queryKey: ['staff-member', staffId],
