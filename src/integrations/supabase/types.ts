@@ -1039,6 +1039,7 @@ export type Database = {
           decision_needed: boolean
           description: string | null
           end_date: string
+          end_time: string | null
           id: string
           large_project_id: string | null
           notes: string | null
@@ -1050,6 +1051,7 @@ export type Database = {
           source_product_id: string | null
           source_product_ids: string[] | null
           start_date: string
+          start_time: string | null
           status: string
           title: string
           updated_at: string | null
@@ -1065,6 +1067,7 @@ export type Database = {
           decision_needed?: boolean
           description?: string | null
           end_date: string
+          end_time?: string | null
           id?: string
           large_project_id?: string | null
           notes?: string | null
@@ -1076,6 +1079,7 @@ export type Database = {
           source_product_id?: string | null
           source_product_ids?: string[] | null
           start_date: string
+          start_time?: string | null
           status?: string
           title: string
           updated_at?: string | null
@@ -1091,6 +1095,7 @@ export type Database = {
           decision_needed?: boolean
           description?: string | null
           end_date?: string
+          end_time?: string | null
           id?: string
           large_project_id?: string | null
           notes?: string | null
@@ -1102,6 +1107,7 @@ export type Database = {
           source_product_id?: string | null
           source_product_ids?: string[] | null
           start_date?: string
+          start_time?: string | null
           status?: string
           title?: string
           updated_at?: string | null

@@ -120,6 +120,8 @@ const EstablishmentTaskDetailSheet = ({
   const [titleDraft, setTitleDraft] = useState("");
   const [startDateDraft, setStartDateDraft] = useState("");
   const [endDateDraft, setEndDateDraft] = useState("");
+  const [startTimeDraft, setStartTimeDraft] = useState("");
+  const [endTimeDraft, setEndTimeDraft] = useState("");
 
   const effectiveStaff: StaffMember[] = staffPool || [];
 
@@ -128,7 +130,7 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, updated_at")
+        .select("assigned_to, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, start_time, end_time, updated_at")
         .eq("id", task!.id)
         .single();
       return data;
@@ -250,6 +252,8 @@ const EstablishmentTaskDetailSheet = ({
       setTitleDraft(taskDbData.title || task?.title || "");
       setStartDateDraft(taskDbData.start_date || "");
       setEndDateDraft(taskDbData.end_date || "");
+      setStartTimeDraft((taskDbData as any).start_time || "");
+      setEndTimeDraft((taskDbData as any).end_time || "");
     }
   }, [taskDbData]);
 
@@ -347,6 +351,16 @@ const EstablishmentTaskDetailSheet = ({
   const handleEndDateChange = async (val: string) => {
     setEndDateDraft(val);
     if (val) await handleFieldUpdate({ end_date: val });
+  };
+
+  const handleStartTimeChange = async (val: string) => {
+    setStartTimeDraft(val);
+    await handleFieldUpdate({ start_time: val || null } as any);
+  };
+
+  const handleEndTimeChange = async (val: string) => {
+    setEndTimeDraft(val);
+    await handleFieldUpdate({ end_time: val || null } as any);
   };
 
   const handleBlockersBlur = async () => {
@@ -688,6 +702,34 @@ const EstablishmentTaskDetailSheet = ({
                 value={endDateDraft}
                 onChange={(e) => handleEndDateChange(e.target.value)}
                 className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Starttid
+              </label>
+              <Input
+                type="time"
+                value={startTimeDraft}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
+                className="h-9 text-sm"
+                placeholder="HH:mm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Sluttid
+              </label>
+              <Input
+                type="time"
+                value={endTimeDraft}
+                onChange={(e) => handleEndTimeChange(e.target.value)}
+                className="h-9 text-sm"
+                placeholder="HH:mm"
               />
             </div>
           </div>
