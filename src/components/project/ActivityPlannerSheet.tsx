@@ -248,7 +248,8 @@ const ActivityPlannerSheet = ({
         start_time: startTime || null,
         end_time: endTime || null,
         source: 'manual',
-        assigned_to: assignedTo,
+        assigned_to: assignedToIds[0] || null,
+        assigned_to_ids: assignedToIds,
         priority,
       });
       toast.success("Aktivitet skapad");
