@@ -421,6 +421,11 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
         </div>
       )}
 
+      {/* MY TASKS — primary operational content, shown first */}
+      {establishmentTasks && establishmentTasks.length > 0 && (
+        <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
+      )}
+
       {/* Project info */}
       {booking.assigned_project_name && (
         <div className="rounded-xl border bg-card p-3">
@@ -439,11 +444,6 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
             </div>
           </div>
         </div>
-      )}
-
-      {/* Establishment tasks */}
-      {establishmentTasks && establishmentTasks.length > 0 && (
-        <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
       )}
 
       {/* Comments */}
