@@ -62,8 +62,20 @@ export default function PackingCalendarView({ packings }: Props) {
       .map(p => {
         const start = p.start_date ? parseISO(p.start_date) : null;
         const end = p.end_date ? parseISO(p.end_date) : null;
-        const label = p.booking?.client || p.name;
-        return { ...p, startDate: start, endDate: end, label };
+        const bookingNum = p.booking?.booking_number || "";
+        const client = p.booking?.client || p.name;
+        // Format address: street + city only
+        const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
+        const addrParts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
+        // Take first part (street+number) and last part (city), skip postal code
+        const street = addrParts[0] || "";
+        const city = p.delivery_address ? "" : ""; // fallback
+        // Try to find city from booking
+        const shortAddr = street ? street : "";
+        
+        const label = [bookingNum, client].filter(Boolean).join(" – ");
+        const tooltip = [bookingNum, client, shortAddr].filter(Boolean).join(" • ");
+        return { ...p, startDate: start, endDate: end, label, shortAddr, tooltip, bookingNum };
       });
   }, [packings]);
 
