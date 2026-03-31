@@ -71,6 +71,15 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess, pre
     }
   }, [open]);
 
+  // Auto-select preselected booking when bookings are loaded
+  useEffect(() => {
+    if (open && preselectedBookingId && bookings.length > 0 && !selectedBookingId) {
+      // The preselected booking might not be in the "available" list since we filter out used ones,
+      // so we call handleBookingChange which will look it up
+      handleBookingChange(preselectedBookingId);
+    }
+  }, [open, preselectedBookingId, bookings]);
+
   const handleBookingChange = (bookingId: string) => {
     setSelectedBookingId(bookingId);
     if (bookingId && bookingId !== "none") {
