@@ -49,9 +49,14 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
     enabled: open && !!bookingId,
   });
 
-  // Filter to BSA team if available
-  const availableStaff = bsaTeamIds.length > 0
+  // project_tasks are internal coordination tasks.
+  // They are loosely connected to the project team (BSA),
+  // but may be assigned outside the team when needed.
+  const teamStaff = bsaTeamIds.length > 0
     ? staffMembers.filter(s => bsaTeamIds.includes(s.id))
+    : [];
+  const otherStaff = bsaTeamIds.length > 0
+    ? staffMembers.filter(s => !bsaTeamIds.includes(s.id))
     : staffMembers;
 
   const handleSubmit = (e: React.FormEvent) => {
