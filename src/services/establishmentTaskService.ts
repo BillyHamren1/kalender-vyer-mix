@@ -67,6 +67,7 @@ export const createEstablishmentTask = async (task: {
   source_product_ids?: string[];
   notes?: string;
   assigned_to?: string | null;
+  assigned_to_ids?: string[];
   status?: TaskStatus;
   readiness?: TaskReadiness;
   priority?: TaskPriority;
