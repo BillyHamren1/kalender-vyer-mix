@@ -99,7 +99,7 @@ const ActivityPlannerSheet = ({
 }: ActivityPlannerSheetProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [category, setCategory] = useState("Montering");
-  const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [assignedToIds, setAssignedToIds] = useState<string[]>([]);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
