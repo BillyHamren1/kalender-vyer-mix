@@ -62,8 +62,17 @@ export default function PackingCalendarView({ packings }: Props) {
       .map(p => {
         const start = p.start_date ? parseISO(p.start_date) : null;
         const end = p.end_date ? parseISO(p.end_date) : null;
-        const label = p.booking?.client || p.name;
-        return { ...p, startDate: start, endDate: end, label };
+        const bookingNum = p.booking?.booking_number || "";
+        const client = p.booking?.client || p.name;
+        // Address: street name+number, city (skip postal code)
+        const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
+        const parts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
+        // street is first part, skip middle parts that look like postal codes
+        const street = parts[0] || "";
+        const shortAddr = street;
+        
+        const label = [bookingNum, client].filter(Boolean).join(" – ");
+        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum };
       });
   }, [packings]);
 
@@ -212,9 +221,9 @@ export default function PackingCalendarView({ packings }: Props) {
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
                         }}
-                        title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]}`}
+                        title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                       >
-                        {e.label}
+                        {e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
                       </div>
                     );
                   })
@@ -228,10 +237,11 @@ export default function PackingCalendarView({ packings }: Props) {
                         "text-xs text-white px-2 py-1.5 rounded cursor-pointer transition-colors",
                         STATUS_COLORS[e.status] || "bg-muted"
                       )}
-                      title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]}`}
+                      title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
                       <div className="font-medium truncate">{e.label}</div>
                       <div className="text-[10px] opacity-80 mt-0.5">
+                        {e.shortAddr && <span>{e.shortAddr} • </span>}
                         {PACKING_STATUS_LABELS[e.status]}
                         {e.project_leader && ` • ${e.project_leader}`}
                       </div>
