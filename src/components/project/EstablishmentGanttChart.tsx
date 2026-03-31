@@ -601,8 +601,17 @@ const EstablishmentGanttChart = ({
                     const hasSharedPerson = taskAssignedIds.some(id => otherIds.includes(id));
                     return hasSharedPerson && other.startDate <= task.endDate && other.endDate >= task.startDate;
                   });
+                  const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
+                  const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
+                  const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
 
-                  const barColor = taskStatus === 'blocked' ? 'bg-destructive'
+                  // Compute bar position from adaptive column layout
+                  const startPos = dayIndexToX.get(startDayIndex);
+                  const endPos = dayIndexToX.get(endDayIndex);
+                  const barLeft = startPos ? startPos.x + 4 : 0;
+                  const barRight = endPos ? endPos.x + endPos.width : barLeft + DAY_WIDTH;
+                  const barWidth = Math.max(barRight - barLeft - 4, 32);
+
                     : taskStatus === 'done' ? 'bg-emerald-500'
                     : taskStatus === 'cancelled' ? 'bg-muted-foreground'
                     : isOverdue ? 'bg-destructive'
