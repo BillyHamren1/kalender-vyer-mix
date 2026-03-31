@@ -163,9 +163,18 @@ export const updateEstablishmentTask = async (
 
 export const bulkUpdateEstablishmentTasks = async (
   ids: string[],
-  updates: Partial<Pick<EstablishmentTask, 'assigned_to' | 'start_date' | 'end_date' | 'status' | 'priority'>>
+  updates: Partial<Pick<EstablishmentTask, 'assigned_to' | 'assigned_to_ids' | 'start_date' | 'end_date' | 'status' | 'priority'>>
 ): Promise<void> => {
   if (ids.length === 0) return;
+
+  // Sync assigned_to and assigned_to_ids
+  if (updates.assigned_to_ids && updates.assigned_to === undefined) {
+    updates.assigned_to = updates.assigned_to_ids[0] || null;
+  }
+  if (updates.assigned_to && !updates.assigned_to_ids) {
+    updates.assigned_to_ids = [updates.assigned_to];
+  }
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
