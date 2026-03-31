@@ -242,6 +242,21 @@ export const updateEstablishmentTask = async (
     updates.assigned_to = updates.assigned_to_ids[0] || null;
   }
 
+  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
+    const { data: taskInfo } = await supabase
+      .from('establishment_tasks')
+      .select('booking_id')
+      .eq('id', id)
+      .single();
+    if (taskInfo?.booking_id) {
+      const invalidIds = await validateStaffAgainstBSA(taskInfo.booking_id, updates.assigned_to_ids);
+      if (invalidIds.length > 0) {
+        console.warn('[BSA validation] Staff not in project team on update:', invalidIds, '— allowing with fallback sync');
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
