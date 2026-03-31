@@ -11,6 +11,8 @@ export interface ActiveTimer {
   client: string;
   startTime: string; // ISO
   isAutoStarted: boolean;
+  establishmentTaskId?: string;
+  establishmentTaskTitle?: string;
 }
 
 export interface GeofenceEvent {
@@ -192,7 +194,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     setNearbyBookings(nearby);
   }, [userPosition, bookings, activeTimers]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false) => {
+  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string) => {
     setActiveTimers(prev => {
       const next = new Map(prev);
       next.set(bookingId, {
@@ -200,6 +202,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         client,
         startTime: new Date().toISOString(),
         isAutoStarted: isAuto,
+        establishmentTaskId: taskId,
+        establishmentTaskTitle: taskTitle,
       });
       return next;
     });

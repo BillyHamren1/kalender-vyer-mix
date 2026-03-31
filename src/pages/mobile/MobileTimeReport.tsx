@@ -122,7 +122,8 @@ const MobileTimeReport = () => {
                       end_time: format(stopTime, 'HH:mm'),
                       hours_worked: hoursWorked,
                       break_time: breakDeduction,
-                      description: `Timer: ${timer.client}`,
+                      description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
+                      establishment_task_id: timer.establishmentTaskId,
                     });
                     toast.success(`Tidrapport sparad: ${hoursWorked}h`);
                   } catch (err: any) {

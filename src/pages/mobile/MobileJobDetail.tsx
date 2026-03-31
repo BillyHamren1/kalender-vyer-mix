@@ -6,7 +6,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2, ChevronDown } from 'lucide-react';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,11 @@ import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 const tabs = ['Info', 'Team', 'Bilder', 'Kostnader', 'Tid'] as const;
 type TabKey = typeof tabs[number];
 
+interface TaskOption {
+  id: string;
+  title: string;
+}
+
 const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -29,11 +34,34 @@ const MobileJobDetail = () => {
   const booking = bookingData?.booking ?? null;
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [timerElapsed, setTimerElapsed] = useState(0);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
   const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
+
+  // Get user's assigned pending tasks for the task picker
+  const myPendingTasks: TaskOption[] = useMemo(() => {
+    const tasks = bookingData?.establishment_tasks;
+    if (!tasks || !staff?.id) return [];
+    return tasks
+      .filter((t: any) => {
+        if (t.completed) return false;
+        const assignedIds = t.assigned_to_ids || [];
+        const legacyAssigned = t.assigned_to;
+        return assignedIds.includes(staff.id) || legacyAssigned === staff.id;
+      })
+      .map((t: any) => ({ id: t.id, title: t.title }));
+  }, [bookingData?.establishment_tasks, staff?.id]);
+
+  // Auto-select if only one task
+  useEffect(() => {
+    if (myPendingTasks.length === 1 && !selectedTaskId) {
+      setSelectedTaskId(myPendingTasks[0].id);
+    }
+  }, [myPendingTasks, selectedTaskId]);
 
   useEffect(() => {
     if (!currentTimer) { setTimerElapsed(0); return; }
@@ -50,16 +78,20 @@ const MobileJobDetail = () => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const selectedTaskTitle = myPendingTasks.find(t => t.id === selectedTaskId)?.title;
+
   const handleTimerToggle = async () => {
     if (!id || !booking) return;
     if (currentTimer) {
       const stopTime = new Date();
       const startTimeDate = parseISO(currentTimer.startTime);
       let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-      // Handle overnight timers
       if (totalHours < 0) totalHours += 24;
       const breakDeduction = totalHours > 5 ? 0.5 : 0;
       const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
+      const taskId = currentTimer.establishmentTaskId;
+      const taskTitle = currentTimer.establishmentTaskTitle;
 
       stopTimer(id);
 
@@ -71,7 +103,8 @@ const MobileJobDetail = () => {
           end_time: format(stopTime, 'HH:mm'),
           hours_worked: hoursWorked,
           break_time: breakDeduction,
-          description: `Timer: ${booking.client}${breakDeduction > 0 ? ' (30 min rast avdragen)' : ''}`,
+          description: `Timer: ${booking.client}${taskTitle ? ` — ${taskTitle}` : ''}${breakDeduction > 0 ? ' (30 min rast avdragen)' : ''}`,
+          establishment_task_id: taskId,
         });
         invalidateTimeReports();
         toast.success(`Tidrapport sparad: ${hoursWorked}h`);
@@ -79,8 +112,15 @@ const MobileJobDetail = () => {
         toast.error(err.message || 'Kunde inte spara tidrapport');
       }
     } else {
-      startTimer(id, booking.client, false);
-      toast.success('Timer startad');
+      // Start timer with selected task
+      startTimer(
+        id,
+        booking.client,
+        false,
+        selectedTaskId || undefined,
+        selectedTaskTitle || undefined
+      );
+      toast.success(selectedTaskTitle ? `Timer startad — ${selectedTaskTitle}` : 'Timer startad');
     }
   };
 
@@ -131,11 +171,59 @@ const MobileJobDetail = () => {
           </button>
         }
       />
+
+      {/* Timer info bar */}
       {currentTimer && (
         <div className="text-center py-1.5 bg-primary/5">
           <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
             <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
           </span>
+          {currentTimer.establishmentTaskTitle && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">{currentTimer.establishmentTaskTitle}</p>
+          )}
+        </div>
+      )}
+
+      {/* Task picker — only shown when timer is NOT running and there are tasks */}
+      {!currentTimer && myPendingTasks.length > 0 && (
+        <div className="mx-4 mt-2">
+          <button
+            onClick={() => setShowTaskPicker(!showTaskPicker)}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl border border-border bg-muted/30 text-left"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Aktivitet för timer</p>
+              <p className="text-sm font-medium text-foreground truncate">
+                {selectedTaskId ? selectedTaskTitle : 'Ingen vald (valfritt)'}
+              </p>
+            </div>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showTaskPicker && "rotate-180")} />
+          </button>
+          {showTaskPicker && (
+            <div className="mt-1 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              <button
+                onClick={() => { setSelectedTaskId(null); setShowTaskPicker(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 text-sm border-b border-border/50",
+                  !selectedTaskId ? "bg-primary/5 text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                Ingen specifik aktivitet
+              </button>
+              {myPendingTasks.map(task => (
+                <button
+                  key={task.id}
+                  onClick={() => { setSelectedTaskId(task.id); setShowTaskPicker(false); }}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 text-sm border-b border-border/50 last:border-b-0",
+                    selectedTaskId === task.id ? "bg-primary/5 text-primary font-semibold" : "text-foreground"
+                  )}
+                >
+                  {task.title}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
