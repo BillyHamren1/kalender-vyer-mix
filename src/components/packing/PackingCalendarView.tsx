@@ -64,18 +64,15 @@ export default function PackingCalendarView({ packings }: Props) {
         const end = p.end_date ? parseISO(p.end_date) : null;
         const bookingNum = p.booking?.booking_number || "";
         const client = p.booking?.client || p.name;
-        // Format address: street + city only
+        // Address: street name+number, city (skip postal code)
         const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
-        const addrParts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
-        // Take first part (street+number) and last part (city), skip postal code
-        const street = addrParts[0] || "";
-        const city = p.delivery_address ? "" : ""; // fallback
-        // Try to find city from booking
-        const shortAddr = street ? street : "";
+        const parts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
+        // street is first part, skip middle parts that look like postal codes
+        const street = parts[0] || "";
+        const shortAddr = street;
         
         const label = [bookingNum, client].filter(Boolean).join(" – ");
-        const tooltip = [bookingNum, client, shortAddr].filter(Boolean).join(" • ");
-        return { ...p, startDate: start, endDate: end, label, shortAddr, tooltip, bookingNum };
+        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum };
       });
   }, [packings]);
 
