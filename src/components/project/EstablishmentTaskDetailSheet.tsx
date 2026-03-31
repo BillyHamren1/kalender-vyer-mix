@@ -671,7 +671,10 @@ const EstablishmentTaskDetailSheet = ({
         )}
 
         <div className="py-3 space-y-2">
-          <Label className="text-xs text-muted-foreground">Tilldelad personal ({taskAssignedToIds.length})</Label>
+          <Label className="text-xs text-muted-foreground">Projektteam ({taskAssignedToIds.length} tilldelade)</Label>
+          {effectiveStaff.length > 0 && (
+            <p className="text-[10px] text-muted-foreground -mt-1">Bemannade via kalender/planering</p>
+          )}
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {effectiveStaff.map((s) => (
               <label
@@ -689,7 +692,7 @@ const EstablishmentTaskDetailSheet = ({
               </label>
             ))}
             {effectiveStaff.length === 0 && (
-              <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal tillgänglig</p>
+              <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal bemannad på detta projekt. Bemanna via kalendern först.</p>
             )}
           </div>
         </div>

@@ -30,16 +30,20 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-// ─── VISIBILITY RULE (HARD RULE) ─────────────────────────────────────
-// booking_staff_assignments is the SINGLE source of truth for mobile
-// job visibility. The database trigger `trg_sync_task_to_bsa` on
-// establishment_tasks is the PRIMARY mechanism: it auto-creates BSA
-// rows with team_id='activity' whenever assigned_to_ids changes.
+// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
+// booking_staff_assignments (BSA) is the SINGLE source of truth for:
+//   1. Who belongs to a project/booking team
+//   2. Mobile job visibility
 //
-// The client-side ensureBookingStaffAssignments below is a SECONDARY
-// safety net only — it runs fire-and-forget as belt-and-suspenders.
-// If it fails, the trigger will have already handled it.
-// ─────────────────────────────────────────────────────────────────────
+// CALENDAR/SCHEDULING defines the team → BSA is populated.
+// TASK ASSIGNMENT distributes work WITHIN that team.
+//
+// The DB trigger `trg_sync_task_to_bsa` is a FALLBACK safety net that
+// creates BSA rows with team_id='activity' if assignment happens before
+// calendar scheduling. It is NOT the primary team-creation mechanism.
+//
+// Validation: assigned_to_ids are validated against BSA before writes.
+// ──────────────────────────────────────────────────────────────────────
 
 /**
  * SECONDARY safety net: upserts booking_staff_assignments from JS.
@@ -78,6 +82,26 @@ const ensureBookingStaffAssignments = async (
   } catch (err) {
     console.error('[BSA safety-net] error:', err);
   }
+};
+
+/**
+ * Validates that all staffIds exist in booking_staff_assignments for the given booking.
+ * Returns list of invalid IDs, or empty array if all valid.
+ * Skips validation if no bookingId (large project without booking).
+ */
+const validateStaffAgainstBSA = async (
+  bookingId: string | null,
+  staffIds: string[]
+): Promise<string[]> => {
+  if (!bookingId || staffIds.length === 0) return [];
+
+  const { data } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id')
+    .eq('booking_id', bookingId);
+
+  const bsaStaffIds = new Set((data || []).map(r => r.staff_id));
+  return staffIds.filter(id => !bsaStaffIds.has(id));
 };
 
 const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
@@ -136,6 +160,15 @@ export const createEstablishmentTask = async (task: {
       ? [assignedTo]
       : [];
 
+  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  if (assignedToIds.length > 0) {
+    const invalidIds = await validateStaffAgainstBSA(task.booking_id ?? null, assignedToIds);
+    if (invalidIds.length > 0) {
+      console.warn('[BSA validation] Staff not in project team:', invalidIds, '— allowing with fallback sync');
+      // We warn but don't block — the DB trigger will create BSA rows as fallback.
+      // This ensures legacy flows and edge cases don't break.
+    }
+  }
   const { data, error } = await supabase
     .from('establishment_tasks')
     .insert({
@@ -207,6 +240,21 @@ export const updateEstablishmentTask = async (
   // SAFEGUARD: If assigned_to_ids is being set, keep assigned_to in sync (first entry)
   if (updates.assigned_to_ids && updates.assigned_to === undefined) {
     updates.assigned_to = updates.assigned_to_ids[0] || null;
+  }
+
+  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
+    const { data: taskInfo } = await supabase
+      .from('establishment_tasks')
+      .select('booking_id')
+      .eq('id', id)
+      .single();
+    if (taskInfo?.booking_id) {
+      const invalidIds = await validateStaffAgainstBSA(taskInfo.booking_id, updates.assigned_to_ids);
+      if (invalidIds.length > 0) {
+        console.warn('[BSA validation] Staff not in project team on update:', invalidIds, '— allowing with fallback sync');
+      }
+    }
   }
 
   const { error } = await supabase
