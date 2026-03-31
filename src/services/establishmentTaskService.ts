@@ -61,6 +61,8 @@ export const createEstablishmentTask = async (task: {
   category: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   sort_order?: number;
   source?: string;
   source_product_id?: string;
@@ -93,6 +95,8 @@ export const createEstablishmentTask = async (task: {
       category: task.category,
       start_date: task.start_date,
       end_date: task.end_date,
+      start_time: task.start_time ?? null,
+      end_time: task.end_time ?? null,
       sort_order: task.sort_order ?? 0,
       source: task.source ?? 'manual',
       source_product_id: task.source_product_id ?? null,
