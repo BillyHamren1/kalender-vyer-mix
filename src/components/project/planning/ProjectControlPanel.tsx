@@ -209,8 +209,8 @@ const BulkAssignButton = ({ taskIds, staffPool }: {
       queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
       const name = staffPool.find(s => s.id === staffId)?.name || "person";
       toast.success(`${taskIds.length} uppgifter tilldelade till ${name}`);
-    } catch {
-      toast.error("Kunde inte tilldela");
+    } catch (e) {
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern" : "Kunde inte tilldela");
     }
   };
 

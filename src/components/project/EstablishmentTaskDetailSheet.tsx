@@ -291,7 +291,7 @@ const EstablishmentTaskDetailSheet = ({
       invalidateAll();
     } catch (err) {
       console.error("handleFieldUpdate failed:", err, "updates:", updates, "taskId:", task.id);
-      toast.error("Kunde inte uppdatera");
+      toast.error(err instanceof BSAValidationError ? "Personen måste först bemannas via kalendern innan den kan tilldelas aktiviteten" : "Kunde inte uppdatera");
     }
   };
 
