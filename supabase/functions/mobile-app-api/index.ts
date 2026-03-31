@@ -369,6 +369,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // Get future/current booking assignments for this staff member
   const today = new Date().toISOString().split('T')[0];
 
+  // 1. Standard path: booking_staff_assignments
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
@@ -384,14 +385,28 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  if (!assignments || assignments.length === 0) {
+  // 2. Also find bookings where staff is assigned to establishment_tasks but may lack booking_staff_assignment
+  const { data: taskAssignedBookings } = await supabase
+    .from('establishment_tasks')
+    .select('booking_id')
+    .eq('organization_id', organizationId)
+    .not('booking_id', 'is', null)
+    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
+
+  // Merge booking IDs from both sources
+  const assignmentBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
+  const taskOnlyBookingIds = (taskAssignedBookings || [])
+    .map((t: any) => t.booking_id)
+    .filter((bid: string) => !assignmentBookingIds.has(bid))
+
+  const allBookingIds = [...assignmentBookingIds, ...taskOnlyBookingIds]
+
+  if (allBookingIds.length === 0) {
     return new Response(
       JSON.stringify({ bookings: [] }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-
-  const bookingIds = [...new Set(assignments.map((a: any) => a.booking_id))]
 
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
@@ -418,7 +433,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       assigned_project_id,
       assigned_project_name
     `)
-    .in('id', bookingIds)
+    .in('id', allBookingIds)
     .eq('status', 'CONFIRMED')
     .order('rigdaydate', { ascending: true })
 
@@ -430,9 +445,9 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // Add assignment dates to bookings
+  // Add assignment dates to bookings (task-only bookings get empty assignment_dates)
   const bookingsWithAssignments = bookings?.map((booking: any) => {
-    const bookingAssignments = assignments.filter((a: any) => a.booking_id === booking.id)
+    const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
     return {
       ...booking,
       assignment_dates: bookingAssignments.map((a: any) => a.assignment_date)
