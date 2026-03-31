@@ -366,10 +366,15 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
 }
 
 async function handleGetBookings(supabase: any, staffId: string, organizationId: string) {
-  // Get future/current booking assignments for this staff member
+  // ─── VISIBILITY RULE ───────────────────────────────────────────────
+  // booking_staff_assignments is the SINGLE source of truth for mobile
+  // job visibility. Rows are created via:
+  //   1. Team scheduling (staff_assignments + calendar_events trigger)
+  //   2. Activity assignment (auto-synced with team_id='activity')
+  // One table, one query, no fallbacks.
+  // ──────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. Standard path: booking_staff_assignments
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
@@ -385,23 +390,9 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // 2. Also find bookings where staff is assigned to establishment_tasks but may lack booking_staff_assignment
-  const { data: taskAssignedBookings } = await supabase
-    .from('establishment_tasks')
-    .select('booking_id')
-    .eq('organization_id', organizationId)
-    .not('booking_id', 'is', null)
-    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
+  const bookingIds = [...new Set((assignments || []).map((a: any) => a.booking_id))]
 
-  // Merge booking IDs from both sources
-  const assignmentBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
-  const taskOnlyBookingIds = (taskAssignedBookings || [])
-    .map((t: any) => t.booking_id)
-    .filter((bid: string) => !assignmentBookingIds.has(bid))
-
-  const allBookingIds = [...assignmentBookingIds, ...taskOnlyBookingIds]
-
-  if (allBookingIds.length === 0) {
+  if (bookingIds.length === 0) {
     return new Response(
       JSON.stringify({ bookings: [] }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -433,7 +424,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       assigned_project_id,
       assigned_project_name
     `)
-    .in('id', allBookingIds)
+    .in('id', bookingIds)
     .eq('status', 'CONFIRMED')
     .order('rigdaydate', { ascending: true })
 
@@ -445,7 +436,6 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // Add assignment dates to bookings (task-only bookings get empty assignment_dates)
   const bookingsWithAssignments = bookings?.map((booking: any) => {
     const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
     return {
@@ -828,7 +818,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Verify staff is assigned to this booking (via booking_staff_assignments OR establishment_tasks)
+  // Verify staff is assigned to this booking via booking_staff_assignments (single source of truth)
   const { data: assignment } = await supabase
     .from('booking_staff_assignments')
     .select('id')
@@ -837,21 +827,10 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     .limit(1)
 
   if (!assignment || assignment.length === 0) {
-    // Fallback: check if assigned via establishment_tasks
-    const { data: taskAssignment } = await supabase
-      .from('establishment_tasks')
-      .select('id')
-      .eq('booking_id', booking_id)
-      .eq('organization_id', organizationId)
-      .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
-      .limit(1)
-
-    if (!taskAssignment || taskAssignment.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'You are not assigned to this booking' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    return new Response(
+      JSON.stringify({ error: 'You are not assigned to this booking' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   // Create time report — booking_id is always the primary link, establishment_task_id is optional traceability
