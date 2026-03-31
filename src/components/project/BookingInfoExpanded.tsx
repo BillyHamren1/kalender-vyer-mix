@@ -88,10 +88,18 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
         </div>
 
         {/* Schedule timeline */}
-        <ProjectScheduleTimeline
+        <ProjectScheduleEditable
+          bookingId={booking.id}
           rigDate={booking.rigdaydate}
           eventDate={booking.eventdate}
           rigdownDate={booking.rigdowndate}
+          rigStartTime={booking.rig_start_time}
+          rigEndTime={booking.rig_end_time}
+          eventStartTime={booking.event_start_time}
+          eventEndTime={booking.event_end_time}
+          rigdownStartTime={booking.rigdown_start_time}
+          rigdownEndTime={booking.rigdown_end_time}
+          onUpdated={onBookingUpdated}
         />
       </div>
 
