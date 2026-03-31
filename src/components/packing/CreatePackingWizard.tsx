@@ -30,7 +30,7 @@ interface StaffMember {
   name: string;
 }
 
-export default function CreatePackingWizard({ open, onOpenChange, onSuccess }: CreatePackingWizardProps) {
+export default function CreatePackingWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreatePackingWizardProps) {
   const [name, setName] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
