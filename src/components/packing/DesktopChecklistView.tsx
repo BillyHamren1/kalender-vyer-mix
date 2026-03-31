@@ -8,15 +8,15 @@ import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  fetchPackingListItems, 
-  togglePackingItemManually,
-  decrementPackingItem,
-  createParcel,
-  assignItemToParcel,
-  getItemParcels,
-  fetchPackingForScanner,
-  signPacking
-} from '@/services/scannerService';
+  fetchPackingListItemsForDesktop as fetchPackingListItems, 
+  togglePackingItemDesktop as togglePackingItemManually,
+  decrementPackingItemDesktop as decrementPackingItem,
+  createParcelDesktop as createParcel,
+  assignItemToParcelDesktop as assignItemToParcel,
+  getItemParcelsDesktop as getItemParcels,
+  fetchPackingForDesktop as fetchPackingForScanner,
+  signPackingDesktop as signPacking
+} from '@/services/desktopPackingService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
 
