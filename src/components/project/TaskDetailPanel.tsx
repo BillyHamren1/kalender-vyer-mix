@@ -68,6 +68,7 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     if (isEditingDescription) descRef.current?.focus();
   }, [isEditingDescription]);
 
+  // Get booking_id from URL context or task — we need to resolve it for BSA filtering
   const { data: staffMembers = [] } = useQuery({
     queryKey: ["staff-members-list"],
     queryFn: async () => {
@@ -79,6 +80,40 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
       return data || [];
     },
   });
+
+  // Try to get project team from BSA for the current project
+  const projectId = (task as any).project_id;
+  const { data: projectBookingId } = useQuery({
+    queryKey: ["project-booking-id", projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      const { data } = await supabase
+        .from("projects")
+        .select("booking_id")
+        .eq("id", projectId)
+        .single();
+      return data?.booking_id || null;
+    },
+    enabled: !!projectId,
+  });
+
+  const { data: bsaTeam = [] } = useQuery({
+    queryKey: ["project-team-ids", projectBookingId],
+    queryFn: async () => {
+      if (!projectBookingId) return [];
+      const { data } = await supabase
+        .from("booking_staff_assignments")
+        .select("staff_id")
+        .eq("booking_id", projectBookingId);
+      return [...new Set((data || []).map(r => r.staff_id))];
+    },
+    enabled: !!projectBookingId,
+  });
+
+  // Filter staff to project team if BSA data exists, otherwise show all
+  const availableStaff = bsaTeam.length > 0
+    ? staffMembers.filter(s => bsaTeam.includes(s.id))
+    : staffMembers;
 
   const { data: comments = [] } = useQuery({
     queryKey: ["task-comments", task.id],
