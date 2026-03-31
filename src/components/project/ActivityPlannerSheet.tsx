@@ -152,6 +152,7 @@ const ActivityPlannerSheet = ({
       setPriority("medium");
       setManualTitle("");
       setCustomTitle("");
+      setAssignedToIds([]);
     }
   }, [open]);
 
