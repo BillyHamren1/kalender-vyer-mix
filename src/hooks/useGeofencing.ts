@@ -11,6 +11,8 @@ export interface ActiveTimer {
   client: string;
   startTime: string; // ISO
   isAutoStarted: boolean;
+  establishmentTaskId?: string;
+  establishmentTaskTitle?: string;
 }
 
 export interface GeofenceEvent {
