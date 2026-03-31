@@ -168,10 +168,17 @@ const PackingManagement = () => {
 
           <CreatePackingWizard 
             open={isCreateOpen} 
-            onOpenChange={setIsCreateOpen}
+            onOpenChange={(open) => {
+              setIsCreateOpen(open);
+              if (!open) setPreselectedBookingId(undefined);
+            }}
+            preselectedBookingId={preselectedBookingId}
             onSuccess={() => {
               setIsCreateOpen(false);
+              setPreselectedBookingId(undefined);
               queryClient.invalidateQueries({ queryKey: ['packings'] });
+              queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
+            }}
             }}
           />
         </div>
