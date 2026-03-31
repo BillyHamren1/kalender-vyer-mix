@@ -16,6 +16,7 @@ import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/Ware
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
+import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import { toast } from "sonner";
 
 interface WeekPacking {
@@ -377,6 +378,11 @@ const WarehouseDashboard = () => {
               Uppdatera
             </Button>
           </PageHeader>
+
+          {/* Incoming projects without packing */}
+          <div className="mb-6">
+            <IncomingPackingList />
+          </div>
 
           {/* Week Planning - Packings View */}
           <div className="mb-6">
