@@ -12,9 +12,11 @@ interface AddTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => void;
+  /** If provided, filters assignee list to BSA team for this booking */
+  bookingId?: string | null;
 }
 
-const AddTaskDialog = ({ open, onOpenChange, onSubmit }: AddTaskDialogProps) => {
+const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialogProps) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
@@ -33,6 +35,25 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit }: AddTaskDialogProps) => 
     enabled: open
   });
 
+  // Fetch BSA team IDs if bookingId is provided
+  const { data: bsaTeamIds = [] } = useQuery({
+    queryKey: ['project-team-ids', bookingId],
+    queryFn: async () => {
+      if (!bookingId) return [];
+      const { data } = await supabase
+        .from('booking_staff_assignments')
+        .select('staff_id')
+        .eq('booking_id', bookingId);
+      return [...new Set((data || []).map(r => r.staff_id))];
+    },
+    enabled: open && !!bookingId,
+  });
+
+  // Filter to BSA team if available
+  const availableStaff = bsaTeamIds.length > 0
+    ? staffMembers.filter(s => bsaTeamIds.includes(s.id))
+    : staffMembers;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -44,7 +65,6 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit }: AddTaskDialogProps) => 
       deadline: deadline || null
     });
 
-    // Reset form
     setTitle("");
     setDescription("");
     setAssignedTo("");
@@ -82,18 +102,24 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit }: AddTaskDialogProps) => 
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Ansvarig</Label>
+              <Label>{bsaTeamIds.length > 0 ? 'Tilldela från projektteam' : 'Ansvarig'}</Label>
               <Select value={assignedTo} onValueChange={setAssignedTo}>
                 <SelectTrigger>
                   <SelectValue placeholder="Välj person" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Ingen</SelectItem>
-                  {staffMembers.map(staff => (
-                    <SelectItem key={staff.id} value={staff.id}>
-                      {staff.name}
-                    </SelectItem>
-                  ))}
+                  {availableStaff.length === 0 && bsaTeamIds.length > 0 ? (
+                    <div className="px-2 py-2 text-xs text-muted-foreground italic">
+                      Lägg till personer i projektteamet först
+                    </div>
+                  ) : (
+                    availableStaff.map(staff => (
+                      <SelectItem key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

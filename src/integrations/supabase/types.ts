@@ -256,6 +256,7 @@ export type Database = {
           created_at: string
           id: string
           organization_id: string
+          role: string
           staff_id: string
           team_id: string
           updated_at: string
@@ -266,6 +267,7 @@ export type Database = {
           created_at?: string
           id?: string
           organization_id?: string
+          role?: string
           staff_id: string
           team_id: string
           updated_at?: string
@@ -276,6 +278,7 @@ export type Database = {
           created_at?: string
           id?: string
           organization_id?: string
+          role?: string
           staff_id?: string
           team_id?: string
           updated_at?: string

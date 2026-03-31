@@ -92,6 +92,7 @@ const LargeProjectViewPage = () => {
             onAddTask={detail.addTask}
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
+            bookingId={bookingId}
           />
         </TabsContent>
 
