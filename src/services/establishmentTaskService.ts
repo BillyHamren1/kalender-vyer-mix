@@ -30,17 +30,20 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-// VISIBILITY RULE: booking_staff_assignments is the SINGLE source of truth for
-// mobile job visibility. When staff are assigned to tasks, we auto-create
-// booking_staff_assignments rows with team_id='activity' to ensure the job
-// appears in their mobile app. This sentinel team_id distinguishes activity-based
-// assignments from team-scheduled ones.
-const ACTIVITY_TEAM_ID = 'activity';
+// ─── VISIBILITY RULE (HARD RULE) ─────────────────────────────────────
+// booking_staff_assignments is the SINGLE source of truth for mobile
+// job visibility. The database trigger `trg_sync_task_to_bsa` on
+// establishment_tasks is the PRIMARY mechanism: it auto-creates BSA
+// rows with team_id='activity' whenever assigned_to_ids changes.
+//
+// The client-side ensureBookingStaffAssignments below is a SECONDARY
+// safety net only — it runs fire-and-forget as belt-and-suspenders.
+// If it fails, the trigger will have already handled it.
+// ─────────────────────────────────────────────────────────────────────
 
 /**
- * Ensures booking_staff_assignments rows exist for all staff assigned to a task.
- * This is the mechanism that makes jobs visible in the mobile app when staff
- * are assigned to activities/tasks rather than through team scheduling.
+ * SECONDARY safety net: upserts booking_staff_assignments from JS.
+ * The DB trigger trg_sync_task_to_bsa is the primary mechanism.
  */
 const ensureBookingStaffAssignments = async (
   bookingId: string | null,
@@ -60,21 +63,20 @@ const ensureBookingStaffAssignments = async (
       dates.map(date => ({
         booking_id: bookingId,
         staff_id: staffId,
-        team_id: ACTIVITY_TEAM_ID,
+        team_id: 'activity',
         assignment_date: date,
       }))
     );
 
-    // upsert with onConflict to avoid duplicates
     const { error } = await supabase
       .from('booking_staff_assignments')
       .upsert(rows, { onConflict: 'booking_id,staff_id,assignment_date', ignoreDuplicates: true });
 
     if (error) {
-      console.error('Failed to sync booking_staff_assignments from task:', error);
+      console.error('[BSA safety-net] upsert failed (trigger is primary):', error);
     }
   } catch (err) {
-    console.error('Error in ensureBookingStaffAssignments:', err);
+    console.error('[BSA safety-net] error:', err);
   }
 };
 
