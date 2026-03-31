@@ -819,7 +819,7 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 }
 
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description } = data
+  const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id } = data
 
   if (!booking_id || !report_date || hours_worked === undefined) {
     return new Response(
@@ -828,22 +828,33 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Verify staff is assigned to this booking
-  const { data: assignment, error: assignmentError } = await supabase
+  // Verify staff is assigned to this booking (via booking_staff_assignments OR establishment_tasks)
+  const { data: assignment } = await supabase
     .from('booking_staff_assignments')
     .select('id')
     .eq('staff_id', staffId)
     .eq('booking_id', booking_id)
     .limit(1)
 
-  if (assignmentError || !assignment || assignment.length === 0) {
-    return new Response(
-      JSON.stringify({ error: 'You are not assigned to this booking' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  if (!assignment || assignment.length === 0) {
+    // Fallback: check if assigned via establishment_tasks
+    const { data: taskAssignment } = await supabase
+      .from('establishment_tasks')
+      .select('id')
+      .eq('booking_id', booking_id)
+      .eq('organization_id', organizationId)
+      .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
+      .limit(1)
+
+    if (!taskAssignment || taskAssignment.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'You are not assigned to this booking' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
   }
 
-  // Create time report
+  // Create time report — booking_id is always the primary link, establishment_task_id is optional traceability
   const { data: report, error } = await supabase
     .from('time_reports')
     .insert({
@@ -856,6 +867,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       overtime_hours: overtime_hours ? parseFloat(overtime_hours) : 0,
       break_time: break_time ? parseFloat(break_time) : 0,
       description: description || null,
+      establishment_task_id: establishment_task_id || null,
       organization_id: organizationId
     })
     .select()
@@ -869,7 +881,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  console.log(`Time report created: ${report.id} by staff ${staffId}`)
+  console.log(`Time report created: ${report.id} by staff ${staffId}${establishment_task_id ? ` (task: ${establishment_task_id})` : ''}`)
 
   return new Response(
     JSON.stringify({ success: true, time_report: report }),
