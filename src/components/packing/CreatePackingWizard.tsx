@@ -15,6 +15,7 @@ interface CreatePackingWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  preselectedBookingId?: string;
 }
 
 interface BookingOption {
