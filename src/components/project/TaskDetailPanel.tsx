@@ -257,32 +257,36 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
             <PopoverTrigger asChild>
               <button className={cn(
                 "inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border font-medium transition-colors",
-                assignedStaff
+                assignedStaffNames.length > 0
                   ? "border-border bg-muted/50 text-foreground hover:bg-muted"
                   : "border-dashed border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
               )}>
                 <User className="h-3 w-3" />
-                {assignedStaff ? assignedStaff.name : "Ansvarig"}
+                {assignedStaffNames.length > 0 ? assignedStaffNames.join(", ") : "Ansvarig"}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-44 p-1 bg-card" align="start">
+            <PopoverContent className="w-48 p-1.5 bg-card" align="start">
               <button
                 className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
-                onClick={() => handleAssigneeChange("none")}
+                onClick={handleClearAssignees}
               >
-                Ingen
+                Rensa alla
               </button>
               {staffMembers.map((s) => (
-                <button
+                <label
                   key={s.id}
                   className={cn(
-                    "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors",
-                    task.assigned_to === s.id && "bg-primary/10 text-primary font-semibold"
+                    "flex items-center gap-2 w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors cursor-pointer",
+                    currentAssignedIds.includes(s.id) && "bg-primary/10 text-primary font-semibold"
                   )}
-                  onClick={() => handleAssigneeChange(s.id)}
                 >
+                  <Checkbox
+                    checked={currentAssignedIds.includes(s.id)}
+                    onCheckedChange={() => handleAssigneeToggle(s.id)}
+                    className="h-3.5 w-3.5"
+                  />
                   {s.name}
-                </button>
+                </label>
               ))}
             </PopoverContent>
           </Popover>
