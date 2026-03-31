@@ -204,9 +204,7 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Ta bort "${p.name}"?`)) {
-                          onDelete(p.id);
-                        }
+                        setDeleteTarget({ id: p.id, name: p.name });
                       }}
                       className="shrink-0 p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
                     >
