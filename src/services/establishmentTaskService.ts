@@ -164,6 +164,12 @@ export const createEstablishmentTask = async (task: {
     .single();
 
   if (error) throw error;
+
+  // VISIBILITY SYNC: Ensure assigned staff can see this job in mobile
+  if (assignedToIds.length > 0 && task.booking_id) {
+    ensureBookingStaffAssignments(task.booking_id, assignedToIds, task.start_date, task.end_date);
+  }
+
   return data as EstablishmentTask;
 };
 
