@@ -4235,6 +4235,7 @@ export type Database = {
           created_at: string
           description: string | null
           end_time: string | null
+          establishment_task_id: string | null
           hours_worked: number
           id: string
           organization_id: string
@@ -4253,6 +4254,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time?: string | null
+          establishment_task_id?: string | null
           hours_worked?: number
           id?: string
           organization_id?: string
@@ -4271,6 +4273,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time?: string | null
+          establishment_task_id?: string | null
           hours_worked?: number
           id?: string
           organization_id?: string
@@ -4293,6 +4296,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_reports_establishment_task_id_fkey"
+            columns: ["establishment_task_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_tasks"
             referencedColumns: ["id"]
           },
           {
