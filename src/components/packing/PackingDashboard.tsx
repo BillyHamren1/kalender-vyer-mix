@@ -217,6 +217,24 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmationDialog
+        title="Ta bort packning"
+        description={`Är du säker på att du vill ta bort "${deleteTarget?.name}"?`}
+        confirmLabel="Ta bort"
+        cancelLabel="Avbryt"
+        onConfirm={() => {
+          if (deleteTarget && onDelete) {
+            onDelete(deleteTarget.id);
+          }
+          setDeleteTarget(null);
+        }}
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+      >
+        <span />
+      </ConfirmationDialog>
     </div>
   );
 };
