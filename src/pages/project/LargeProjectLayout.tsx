@@ -28,7 +28,6 @@ const LargeProjectLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const location = useLocation();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
