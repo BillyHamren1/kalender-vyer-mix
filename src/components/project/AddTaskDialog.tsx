@@ -120,18 +120,29 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
                 <SelectTrigger>
                   <SelectValue placeholder="Välj person" />
                 </SelectTrigger>
-                <SelectContent>
+              <SelectContent>
                   <SelectItem value="none">Ingen</SelectItem>
-                  {availableStaff.length === 0 && bsaTeamIds.length > 0 ? (
-                    <div className="px-2 py-2 text-xs text-muted-foreground italic">
-                      Lägg till personer i projektteamet först
-                    </div>
-                  ) : (
-                    availableStaff.map(staff => (
-                      <SelectItem key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </SelectItem>
-                    ))
+                  {teamStaff.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Projektteam</SelectLabel>
+                      {teamStaff.map(staff => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {otherStaff.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {bsaTeamIds.length > 0 ? 'Övriga användare' : 'Personal'}
+                      </SelectLabel>
+                      {otherStaff.map(staff => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   )}
                 </SelectContent>
               </Select>
