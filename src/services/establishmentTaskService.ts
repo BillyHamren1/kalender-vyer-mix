@@ -134,6 +134,25 @@ export const updateEstablishmentTask = async (
     updates.status = 'not_started';
   }
 
+  // SAFEGUARD: If assigned_to is being set but assigned_to_ids is not, sync them
+  if (updates.assigned_to && !updates.assigned_to_ids) {
+    // Fetch current assigned_to_ids to merge
+    const { data: current } = await supabase
+      .from('establishment_tasks')
+      .select('assigned_to_ids')
+      .eq('id', id)
+      .single();
+    const currentIds: string[] = (current?.assigned_to_ids as string[]) || [];
+    if (!currentIds.includes(updates.assigned_to)) {
+      updates.assigned_to_ids = [...currentIds, updates.assigned_to];
+    }
+  }
+
+  // SAFEGUARD: If assigned_to_ids is being set, keep assigned_to in sync (first entry)
+  if (updates.assigned_to_ids && updates.assigned_to === undefined) {
+    updates.assigned_to = updates.assigned_to_ids[0] || null;
+  }
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
