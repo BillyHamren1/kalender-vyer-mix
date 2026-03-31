@@ -16,6 +16,10 @@ interface EstablishmentTask {
   end_date: string;
   completed: boolean;
   notes: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  sort_order: number;
+  assigned_to_ids: string[] | null;
 }
 
 interface JobInfoTabProps {
