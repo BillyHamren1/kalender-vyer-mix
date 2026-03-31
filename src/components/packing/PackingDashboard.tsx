@@ -15,6 +15,7 @@ interface PackingDashboardProps {
 
 const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
   const navigate = useNavigate();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const stats = useMemo(() => {
     const planning = packings.filter(p => p.status === 'planning').length;
