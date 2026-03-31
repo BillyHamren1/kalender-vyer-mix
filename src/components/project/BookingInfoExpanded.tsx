@@ -3,7 +3,7 @@ import {
   AlertTriangle, StickyNote, Truck, Hammer, Clock, Package
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import ProjectScheduleTimeline from "./ProjectScheduleTimeline";
+import ProjectScheduleEditable from "./ProjectScheduleEditable";
 import ProjectProductsList from "./ProjectProductsList";
 
 interface BookingAttachment {
@@ -33,12 +33,19 @@ interface BookingData {
   exact_time_needed?: boolean | null;
   exact_time_info?: string | null;
   internalnotes?: string | null;
+  rig_start_time?: string | null;
+  rig_end_time?: string | null;
+  event_start_time?: string | null;
+  event_end_time?: string | null;
+  rigdown_start_time?: string | null;
+  rigdown_end_time?: string | null;
 }
 
 interface BookingInfoExpandedProps {
   booking: BookingData;
   projectLeader?: string | null;
   bookingAttachments?: BookingAttachment[];
+  onBookingUpdated?: () => void;
 }
 
 const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }: BookingInfoExpandedProps) => {
