@@ -112,7 +112,7 @@ const AddEstablishmentTaskDialog = ({
       toast.success(`Aktivitet skapad: ${product.name}`);
       onTaskCreated();
     } catch (e) {
-      toast.error("Kunde inte skapa aktivitet");
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern innan den kan tilldelas aktiviteten" : "Kunde inte skapa aktivitet");
     } finally {
       setIsSubmitting(false);
     }
