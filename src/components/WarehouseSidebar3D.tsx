@@ -11,6 +11,7 @@ import { type LucideIcon,
    ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIncomingPackingCount } from "@/hooks/useIncomingPackingCount";
 
 interface NavItem {
   title: string;
