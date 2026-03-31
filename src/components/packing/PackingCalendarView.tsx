@@ -221,9 +221,9 @@ export default function PackingCalendarView({ packings }: Props) {
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
                         }}
-                        title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]}`}
+                        title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                       >
-                        {e.label}
+                        {e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
                       </div>
                     );
                   })
