@@ -16,6 +16,10 @@ interface EstablishmentTask {
   end_date: string;
   completed: boolean;
   notes: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  sort_order: number;
+  assigned_to_ids: string[] | null;
 }
 
 interface JobInfoTabProps {
@@ -291,50 +295,99 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
 
   if (localTasks.length === 0) return null;
 
-  const completedCount = localTasks.filter(t => t.completed).length;
+  const pendingTasks = localTasks.filter(t => !t.completed);
+  const completedTasks = localTasks.filter(t => t.completed);
+
+  const renderTask = (task: EstablishmentTask) => {
+    const Icon = categoryIcon(task.category);
+    const isToggling = togglingIds.has(task.id);
+    const hasTime = task.start_time || task.end_time;
+    const isMultiDay = task.start_date !== task.end_date;
+
+    return (
+      <button
+        key={task.id}
+        type="button"
+        onClick={() => !isToggling && handleToggle(task.id)}
+        disabled={isToggling}
+        className="w-full flex items-start gap-2.5 py-2.5 px-2 rounded-xl hover:bg-muted/50 active:bg-muted/70 transition-colors text-left"
+      >
+        <div className="pt-0.5">
+          <Checkbox
+            checked={task.completed}
+            disabled={isToggling}
+            className="pointer-events-none"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <p className={`text-sm font-semibold truncate ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+              {task.title}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-[10px] text-muted-foreground">
+              {format(parseISO(task.start_date), 'd MMM', { locale: sv })}
+              {isMultiDay && ` → ${format(parseISO(task.end_date), 'd MMM', { locale: sv })}`}
+            </span>
+            {hasTime && (
+              <span className="text-[10px] text-primary font-medium flex items-center gap-0.5">
+                <Clock className="w-2.5 h-2.5" />
+                {task.start_time?.slice(0, 5) || '—'}–{task.end_time?.slice(0, 5) || '—'}
+              </span>
+            )}
+            {task.assigned_to_ids && task.assigned_to_ids.length > 1 && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <Users className="w-2.5 h-2.5" />
+                {task.assigned_to_ids.length} pers
+              </span>
+            )}
+          </div>
+          {task.notes && !task.completed && (
+            <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-tight">{task.notes}</p>
+          )}
+        </div>
+        {isToggling && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0 mt-1" />}
+      </button>
+    );
+  };
 
   return (
-    <div className="rounded-xl border bg-card p-3 space-y-2">
+    <div className="rounded-xl border-2 border-primary/30 bg-card p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-primary" />
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mina uppgifter</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">Mina aktiviteter</p>
         </div>
-        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-          {completedCount}/{localTasks.length}
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          pendingTasks.length === 0
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+            : 'bg-primary/10 text-primary'
+        }`}>
+          {localTasks.length - pendingTasks.length}/{localTasks.length} klara
         </span>
       </div>
-      <div className="space-y-1">
-        {localTasks.map(task => {
-          const Icon = categoryIcon(task.category);
-          const isToggling = togglingIds.has(task.id);
-          return (
-            <button
-              key={task.id}
-              type="button"
-              onClick={() => !isToggling && handleToggle(task.id)}
-              disabled={isToggling}
-              className="w-full flex items-center gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/50 active:bg-muted/70 transition-colors text-left"
-            >
-              <Checkbox
-                checked={task.completed}
-                disabled={isToggling}
-                className="pointer-events-none"
-              />
-              <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                  {task.title}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {format(parseISO(task.start_date), 'd MMM', { locale: sv })} → {format(parseISO(task.end_date), 'd MMM', { locale: sv })}
-                </p>
-              </div>
-              {isToggling && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
-            </button>
-          );
-        })}
-      </div>
+
+      {/* Pending tasks first — these are what matters */}
+      {pendingTasks.length > 0 && (
+        <div className="space-y-0.5">
+          {pendingTasks.map(renderTask)}
+        </div>
+      )}
+
+      {/* Completed tasks collapsed */}
+      {completedTasks.length > 0 && (
+        <details className="group">
+          <summary className="text-[10px] text-muted-foreground cursor-pointer py-1 select-none list-none flex items-center gap-1">
+            <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
+            {completedTasks.length} avklarad{completedTasks.length > 1 ? 'e' : ''}
+          </summary>
+          <div className="space-y-0.5 mt-1 opacity-60">
+            {completedTasks.map(renderTask)}
+          </div>
+        </details>
+      )}
     </div>
   );
 };
@@ -368,6 +421,11 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
         </div>
       )}
 
+      {/* MY TASKS — primary operational content, shown first */}
+      {establishmentTasks && establishmentTasks.length > 0 && (
+        <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
+      )}
+
       {/* Project info */}
       {booking.assigned_project_name && (
         <div className="rounded-xl border bg-card p-3">
@@ -386,11 +444,6 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
             </div>
           </div>
         </div>
-      )}
-
-      {/* Establishment tasks */}
-      {establishmentTasks && establishmentTasks.length > 0 && (
-        <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
       )}
 
       {/* Comments */}
