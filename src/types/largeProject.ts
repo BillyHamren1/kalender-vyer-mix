@@ -39,6 +39,15 @@ export interface LargeProjectBooking {
     rigdown_start_time: string | null;
     rigdown_end_time: string | null;
     status: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    delivery_city?: string | null;
+    delivery_postal_code?: string | null;
+    carry_more_than_10m?: boolean | null;
+    ground_nails_allowed?: boolean | null;
+    exact_time_needed?: boolean | null;
+    exact_time_info?: string | null;
+    internalnotes?: string | null;
   };
 }
 
