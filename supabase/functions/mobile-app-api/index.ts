@@ -1483,9 +1483,10 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
   }
 
   const newCompleted = !task.completed
+  const newStatus = newCompleted ? 'done' : 'not_started'
   const { error: updateError } = await supabase
     .from('establishment_tasks')
-    .update({ completed: newCompleted, updated_at: new Date().toISOString() })
+    .update({ completed: newCompleted, status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', task_id)
 
   if (updateError) {
