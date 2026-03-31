@@ -587,26 +587,20 @@ const EstablishmentGanttChart = ({
                   const endDayIndex = differenceInDays(task.endDate, ganttData.minDate);
                   const dbTask = tasks.find(t => t.id === task.id);
                   const taskStatus = (dbTask as any)?.status || 'not_started';
-                  const assignedTo = (dbTask as any)?.assigned_to || null;
-                  const assignedName = assignedTo ? staffPool.find(s => s.id === assignedTo)?.name : null;
-                  const noOwner = !assignedTo && taskStatus !== 'done' && taskStatus !== 'cancelled';
-                  const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
-                  const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
-                  const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
+                  const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
+                  const assignedName = taskAssignedIds.length > 0
+                    ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
+                    : null;
+                  const noOwner = taskAssignedIds.length === 0 && taskStatus !== 'done' && taskStatus !== 'cancelled';
 
-                  // Compute bar position from adaptive column layout
-                  const startPos = dayIndexToX.get(startDayIndex);
-                  const endPos = dayIndexToX.get(endDayIndex);
-                  const barLeft = startPos ? startPos.x + 4 : 0;
-                  const barRight = endPos ? endPos.x + endPos.width : barLeft + DAY_WIDTH;
-                  const barWidth = Math.max(barRight - barLeft - 4, 32);
-
-                  // Overlap detection
-                  const hasPersonOverlap = assignedTo && ganttData.taskDates.some(other =>
-                    other.id !== task.id &&
-                    (tasks.find(t => t.id === other.id) as any)?.assigned_to === assignedTo &&
-                    other.startDate <= task.endDate && other.endDate >= task.startDate
-                  );
+                  // Overlap detection: any shared assigned person across overlapping tasks
+                  const hasPersonOverlap = taskAssignedIds.length > 0 && ganttData.taskDates.some(other => {
+                    if (other.id === task.id) return false;
+                    const otherDb = tasks.find(t => t.id === other.id);
+                    const otherIds: string[] = (otherDb as any)?.assigned_to_ids?.length ? (otherDb as any).assigned_to_ids : ((otherDb as any)?.assigned_to ? [(otherDb as any).assigned_to] : []);
+                    const hasSharedPerson = taskAssignedIds.some(id => otherIds.includes(id));
+                    return hasSharedPerson && other.startDate <= task.endDate && other.endDate >= task.startDate;
+                  });
 
                   const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
