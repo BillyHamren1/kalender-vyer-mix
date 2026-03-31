@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -105,7 +106,10 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
   });
 
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
-  const assignedStaff = staffMembers.find((s) => s.id === task.assigned_to);
+  const currentAssignedIds: string[] = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+  const assignedStaffNames = currentAssignedIds
+    .map(id => staffMembers.find(s => s.id === id)?.name)
+    .filter(Boolean) as string[];
 
   const handleTitleSave = () => {
     const trimmed = editedTitle.trim();
@@ -128,8 +132,15 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     setDatePickerOpen(false);
   };
 
-  const handleAssigneeChange = (staffId: string) => {
-    onUpdateTask({ id: task.id, updates: { assigned_to: staffId === "none" ? null : staffId } });
+  const handleAssigneeToggle = (staffId: string) => {
+    const newIds = currentAssignedIds.includes(staffId)
+      ? currentAssignedIds.filter(id => id !== staffId)
+      : [...currentAssignedIds, staffId];
+    onUpdateTask({ id: task.id, updates: { assigned_to_ids: newIds, assigned_to: newIds[0] || null } as any });
+  };
+
+  const handleClearAssignees = () => {
+    onUpdateTask({ id: task.id, updates: { assigned_to_ids: [], assigned_to: null } as any });
     setAssigneeOpen(false);
   };
 
@@ -247,32 +258,36 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
             <PopoverTrigger asChild>
               <button className={cn(
                 "inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border font-medium transition-colors",
-                assignedStaff
+                assignedStaffNames.length > 0
                   ? "border-border bg-muted/50 text-foreground hover:bg-muted"
                   : "border-dashed border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
               )}>
                 <User className="h-3 w-3" />
-                {assignedStaff ? assignedStaff.name : "Ansvarig"}
+                {assignedStaffNames.length > 0 ? assignedStaffNames.join(", ") : "Ansvarig"}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-44 p-1 bg-card" align="start">
+            <PopoverContent className="w-48 p-1.5 bg-card" align="start">
               <button
                 className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
-                onClick={() => handleAssigneeChange("none")}
+                onClick={handleClearAssignees}
               >
-                Ingen
+                Rensa alla
               </button>
               {staffMembers.map((s) => (
-                <button
+                <label
                   key={s.id}
                   className={cn(
-                    "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors",
-                    task.assigned_to === s.id && "bg-primary/10 text-primary font-semibold"
+                    "flex items-center gap-2 w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors cursor-pointer",
+                    currentAssignedIds.includes(s.id) && "bg-primary/10 text-primary font-semibold"
                   )}
-                  onClick={() => handleAssigneeChange(s.id)}
                 >
+                  <Checkbox
+                    checked={currentAssignedIds.includes(s.id)}
+                    onCheckedChange={() => handleAssigneeToggle(s.id)}
+                    className="h-3.5 w-3.5"
+                  />
                   {s.name}
-                </button>
+                </label>
               ))}
             </PopoverContent>
           </Popover>
