@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format, differenceInDays, isPast, isToday } from "date-fns";
 import { sv } from "date-fns/locale";
-import { Truck, PartyPopper, ArrowDownToLine, Pencil } from "lucide-react";
+import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react";
 import { EditDateDialog } from "@/components/booking/EditDateDialog";
 import { updateBookingDateWithTimes } from "@/services/bookingService";
 import { toast } from "sonner";
@@ -153,7 +153,10 @@ const ProjectScheduleEditable = ({
                     </p>
                   </>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Ej schemalagd — klicka för att sätta</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Plus className="h-3.5 w-3.5 text-primary" />
+                    <p className="text-xs text-primary font-medium">Lägg till datum</p>
+                  </div>
                 )}
               </div>
               {index < dates.length - 1 && (
