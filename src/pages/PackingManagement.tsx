@@ -60,6 +60,11 @@ const PackingManagement = () => {
     deleteMutation.mutate(packingId);
   };
 
+  const handleCreateFromIncoming = (bookingId: string) => {
+    setPreselectedBookingId(bookingId);
+    setIsCreateOpen(true);
+  };
+
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
       <div className="relative">
