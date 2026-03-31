@@ -120,6 +120,11 @@ const PackingManagement = () => {
             <IncomingPackingList />
           </div>
 
+          {/* Packing Calendar */}
+          <div className="mb-6">
+            <PackingCalendarView packings={packings} />
+          </div>
+
           {/* Dashboard */}
           <PackingDashboard packings={packings} onDelete={handleDelete} />
 
