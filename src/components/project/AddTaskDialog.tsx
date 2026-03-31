@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AddTaskDialogProps {
   open: boolean;
@@ -49,19 +50,31 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
     enabled: open && !!bookingId,
   });
 
-  // Filter to BSA team if available
-  const availableStaff = bsaTeamIds.length > 0
+  // project_tasks are internal coordination tasks.
+  // They are loosely connected to the project team (BSA),
+  // but may be assigned outside the team when needed.
+  const teamStaff = bsaTeamIds.length > 0
     ? staffMembers.filter(s => bsaTeamIds.includes(s.id))
+    : [];
+  const otherStaff = bsaTeamIds.length > 0
+    ? staffMembers.filter(s => !bsaTeamIds.includes(s.id))
     : staffMembers;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    const selectedId = assignedTo && assignedTo !== "none" ? assignedTo : null;
+
+    // Soft validation: warn if assigning outside BSA team
+    if (selectedId && bsaTeamIds.length > 0 && !bsaTeamIds.includes(selectedId)) {
+      toast.warning("Personen är inte tillagd i projektteamet (kalenderbemanning)");
+    }
+
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
-      assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
+      assigned_to: selectedId,
       deadline: deadline || null
     });
 
@@ -107,18 +120,29 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
                 <SelectTrigger>
                   <SelectValue placeholder="Välj person" />
                 </SelectTrigger>
-                <SelectContent>
+              <SelectContent>
                   <SelectItem value="none">Ingen</SelectItem>
-                  {availableStaff.length === 0 && bsaTeamIds.length > 0 ? (
-                    <div className="px-2 py-2 text-xs text-muted-foreground italic">
-                      Lägg till personer i projektteamet först
-                    </div>
-                  ) : (
-                    availableStaff.map(staff => (
-                      <SelectItem key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </SelectItem>
-                    ))
+                  {teamStaff.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Projektteam</SelectLabel>
+                      {teamStaff.map(staff => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {otherStaff.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {bsaTeamIds.length > 0 ? 'Övriga användare' : 'Personal'}
+                      </SelectLabel>
+                      {otherStaff.map(staff => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   )}
                 </SelectContent>
               </Select>

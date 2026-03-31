@@ -110,9 +110,14 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     enabled: !!projectBookingId,
   });
 
-  // Filter staff to project team if BSA data exists, otherwise show all
-  const availableStaff = bsaTeam.length > 0
+  // project_tasks are internal coordination tasks.
+  // They are loosely connected to the project team (BSA),
+  // but may be assigned outside the team when needed.
+  const teamStaff = bsaTeam.length > 0
     ? staffMembers.filter(s => bsaTeam.includes(s.id))
+    : [];
+  const otherStaff = bsaTeam.length > 0
+    ? staffMembers.filter(s => !bsaTeam.includes(s.id))
     : staffMembers;
 
   const { data: comments = [] } = useQuery({
@@ -171,6 +176,12 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     const newIds = currentAssignedIds.includes(staffId)
       ? currentAssignedIds.filter(id => id !== staffId)
       : [...currentAssignedIds, staffId];
+
+    // Soft validation: warn if assigning outside BSA team
+    if (!currentAssignedIds.includes(staffId) && bsaTeam.length > 0 && !bsaTeam.includes(staffId)) {
+      toast.warning("Personen är inte tillagd i projektteamet (kalenderbemanning)");
+    }
+
     onUpdateTask({ id: task.id, updates: { assigned_to_ids: newIds, assigned_to: newIds[0] || null } as any });
   };
 
@@ -308,32 +319,52 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
               >
                 Rensa alla
               </button>
-              {bsaTeam.length > 0 && (
-                <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                  Projektteam
-                </div>
+              {teamStaff.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                    Projektteam
+                  </div>
+                  {teamStaff.map((s) => (
+                    <label
+                      key={s.id}
+                      className={cn(
+                        "flex items-center gap-2 w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors cursor-pointer",
+                        currentAssignedIds.includes(s.id) && "bg-primary/10 text-primary font-semibold"
+                      )}
+                    >
+                      <Checkbox
+                        checked={currentAssignedIds.includes(s.id)}
+                        onCheckedChange={() => handleAssigneeToggle(s.id)}
+                        className="h-3.5 w-3.5"
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </>
               )}
-              {availableStaff.length === 0 && (
-                <div className="px-2 py-2 text-xs text-muted-foreground italic">
-                  Lägg till personer i projektteamet först
-                </div>
+              {otherStaff.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                    {bsaTeam.length > 0 ? 'Övriga användare' : 'Personal'}
+                  </div>
+                  {otherStaff.map((s) => (
+                    <label
+                      key={s.id}
+                      className={cn(
+                        "flex items-center gap-2 w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors cursor-pointer",
+                        currentAssignedIds.includes(s.id) && "bg-primary/10 text-primary font-semibold"
+                      )}
+                    >
+                      <Checkbox
+                        checked={currentAssignedIds.includes(s.id)}
+                        onCheckedChange={() => handleAssigneeToggle(s.id)}
+                        className="h-3.5 w-3.5"
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </>
               )}
-              {availableStaff.map((s) => (
-                <label
-                  key={s.id}
-                  className={cn(
-                    "flex items-center gap-2 w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors cursor-pointer",
-                    currentAssignedIds.includes(s.id) && "bg-primary/10 text-primary font-semibold"
-                  )}
-                >
-                  <Checkbox
-                    checked={currentAssignedIds.includes(s.id)}
-                    onCheckedChange={() => handleAssigneeToggle(s.id)}
-                    className="h-3.5 w-3.5"
-                  />
-                  {s.name}
-                </label>
-              ))}
             </PopoverContent>
           </Popover>
 
