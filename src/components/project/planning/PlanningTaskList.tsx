@@ -14,7 +14,7 @@ import {
   User, ChevronRight, CalendarIcon, Layers, Clock,
 } from "lucide-react";
 import type { EstablishmentTask, TaskStatus, TaskPriority } from "@/services/establishmentTaskService";
-import { updateEstablishmentTask } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import { fetchEstablishmentTaskCommentCounts } from "@/services/establishmentTaskCommentService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
