@@ -1,34 +1,30 @@
 
 
-## Problem
+## Inkommande projekt som behöver packning
 
-`DesktopChecklistView.tsx` (webbens packlistevy) importerar funktioner från `scannerService.ts`, som routar allt genom `scanner-api` edge function med en scanner-inloggningstoken. När scannern inte är inloggad, eller dess token löper ut, kraschar hela webbvyn -- trots att användaren är inloggad i webbappen.
+### Koncept
+Samma mönster som `IncomingBookingsList` på projektsidan -- en "inkorg" som visar projekt/bokningar som har skapats men ännu inte har en packlista. Listan visas högst upp på PackingManagement-sidan.
 
-## Lösning
+### Plan
 
-Skapa en ny service-fil `src/services/desktopPackingService.ts` som gör samma saker som scannerService men via **direkta Supabase-queries** (precis som `usePackingList.tsx` redan gör). Sedan uppdatera `DesktopChecklistView.tsx` att importera därifrån istället.
+**1. Ny komponent: `src/components/packing/IncomingPackingList.tsx`**
+- Hämtar alla bokningar som har ett aktivt projekt (via `projects` eller `jobs` eller `large_project_bookings`) MEN som saknar en `packing_projects`-rad (dvs `booking_id` inte finns i `packing_projects`)
+- Filtrerar bort avslutade/avbokade projekt
+- Visar varje rad med klient, datum, adress -- samma stil som `IncomingBookingsList` (amber inkorg-header, badge med antal)
+- Varje rad har en knapp "Skapa packning" som triggar `CreatePackingWizard` med den bokningen förvald
 
-### Filer
+**2. Uppdatera `CreatePackingWizard.tsx`**
+- Acceptera ny prop `preselectedBookingId?: string`
+- Om satt: förvälj den bokningen i dropdown och autogenerera namn (som redan görs i `handleBookingChange`)
 
-**1. Ny: `src/services/desktopPackingService.ts`**
+**3. Uppdatera `PackingManagement.tsx`**
+- Importera och rendera `IncomingPackingList` ovanför dashboard/grid
+- Koppla `onCreatePacking(bookingId)` till att öppna wizarden med förvald bokning
+- Lägg till realtime-invalidation för `packing_projects` och `bookings`
 
-Implementerar med direkta Supabase-anrop:
-- `fetchPackingForDesktop(id)` -- hämta packing + booking via supabase
-- `fetchPackingListItemsForDesktop(packingId)` -- hämta items med booking_products join
-- `togglePackingItemDesktop(itemId, currentlyPacked, quantityToPack, verifiedBy)` -- uppdatera quantity_packed +1/-1
-- `decrementPackingItemDesktop(itemId)` -- minska quantity_packed med 1
-- `createParcelDesktop(packingId, createdBy)` -- insert i packing_parcels
-- `assignItemToParcelDesktop(itemId, parcelId)` -- uppdatera packing_list_items.parcel_id
-- `getItemParcelsDesktop(packingId)` -- hämta parcel-mapping
-- `signPackingDesktop(packingId, signedBy)` -- uppdatera signed_by/signed_at
-
-Alla queries använder `supabase` klienten med RLS (autentiserad webb-session).
-
-**2. Ändra: `src/components/packing/DesktopChecklistView.tsx`**
-
-Byt import från `@/services/scannerService` till `@/services/desktopPackingService`.
-
-### Teknisk detalj
-
-Sorterings-logiken för items (parent/child-ordning) kopieras från `scannerService.sortPackingItems` in i den nya filen, alternativt extraheras till en delad utility.
+### Ingen databasändring krävs
+Relationen `packing_projects.booking_id` → `bookings.id` finns redan. Vi behöver bara querien:
+```
+Alla bokningar med aktivt projekt MINUS de som redan har en packing_projects-rad
+```
 
