@@ -3,7 +3,7 @@ import {
   AlertTriangle, StickyNote, Truck, Hammer, Clock, Package
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import ProjectScheduleTimeline from "./ProjectScheduleTimeline";
+import ProjectScheduleEditable from "./ProjectScheduleEditable";
 import ProjectProductsList from "./ProjectProductsList";
 
 interface BookingAttachment {
@@ -33,15 +33,22 @@ interface BookingData {
   exact_time_needed?: boolean | null;
   exact_time_info?: string | null;
   internalnotes?: string | null;
+  rig_start_time?: string | null;
+  rig_end_time?: string | null;
+  event_start_time?: string | null;
+  event_end_time?: string | null;
+  rigdown_start_time?: string | null;
+  rigdown_end_time?: string | null;
 }
 
 interface BookingInfoExpandedProps {
   booking: BookingData;
   projectLeader?: string | null;
   bookingAttachments?: BookingAttachment[];
+  onBookingUpdated?: () => void;
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], onBookingUpdated }: BookingInfoExpandedProps) => {
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
 
@@ -81,10 +88,18 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }
         </div>
 
         {/* Schedule timeline */}
-        <ProjectScheduleTimeline
+        <ProjectScheduleEditable
+          bookingId={booking.id}
           rigDate={booking.rigdaydate}
           eventDate={booking.eventdate}
           rigdownDate={booking.rigdowndate}
+          rigStartTime={booking.rig_start_time}
+          rigEndTime={booking.rig_end_time}
+          eventStartTime={booking.event_start_time}
+          eventEndTime={booking.event_end_time}
+          rigdownStartTime={booking.rigdown_start_time}
+          rigdownEndTime={booking.rigdown_end_time}
+          onUpdated={onBookingUpdated}
         />
       </div>
 

@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ const LargeProjectLayout = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
@@ -236,6 +237,7 @@ const LargeProjectLayout = () => {
                             <BookingInfoExpanded
                               booking={b}
                               projectLeader={detail.project?.project_leader}
+                              onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project', id] })}
                             />
                           </div>
                         )}
