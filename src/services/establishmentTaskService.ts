@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { subDays, addDays, format } from "date-fns";
+import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns";
 
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
