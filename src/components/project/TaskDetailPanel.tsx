@@ -110,9 +110,14 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     enabled: !!projectBookingId,
   });
 
-  // Filter staff to project team if BSA data exists, otherwise show all
-  const availableStaff = bsaTeam.length > 0
+  // project_tasks are internal coordination tasks.
+  // They are loosely connected to the project team (BSA),
+  // but may be assigned outside the team when needed.
+  const teamStaff = bsaTeam.length > 0
     ? staffMembers.filter(s => bsaTeam.includes(s.id))
+    : [];
+  const otherStaff = bsaTeam.length > 0
+    ? staffMembers.filter(s => !bsaTeam.includes(s.id))
     : staffMembers;
 
   const { data: comments = [] } = useQuery({
