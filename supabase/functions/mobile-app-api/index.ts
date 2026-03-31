@@ -818,7 +818,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Verify staff is assigned to this booking (via booking_staff_assignments OR establishment_tasks)
+  // Verify staff is assigned to this booking via booking_staff_assignments (single source of truth)
   const { data: assignment } = await supabase
     .from('booking_staff_assignments')
     .select('id')
@@ -827,21 +827,10 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     .limit(1)
 
   if (!assignment || assignment.length === 0) {
-    // Fallback: check if assigned via establishment_tasks
-    const { data: taskAssignment } = await supabase
-      .from('establishment_tasks')
-      .select('id')
-      .eq('booking_id', booking_id)
-      .eq('organization_id', organizationId)
-      .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
-      .limit(1)
-
-    if (!taskAssignment || taskAssignment.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'You are not assigned to this booking' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    return new Response(
+      JSON.stringify({ error: 'You are not assigned to this booking' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   // Create time report — booking_id is always the primary link, establishment_task_id is optional traceability
