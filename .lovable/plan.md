@@ -2,47 +2,26 @@
 
 ## Problem
 
-Just nu visar `IncomingPackingList` varje bokning individuellt -- även de som tillhör ett stort projekt. Det betyder att ett stort projekt med 15 bokningar dyker upp som 15 separata rader, och användaren måste klicka "Skapa packning" 15 gånger. Det är opraktiskt.
+Inkorgen "Projekt utan packning" (`IncomingPackingList`) visas BARA pa sidan `/warehouse/packing`. Warehouse Dashboard (`/warehouse`) och Warehouse Calendar (`/warehouse/calendar`) har ingen indikation pa att nya projekt väntar. Användaren ser ingenting efter att ett projekt skapats.
 
-## Lösning: Gruppera stora projekt i inkorgen
+## Lösning: Visa inkorgen pa fler ställen + notifikation i sidomenyn
 
-### Ändring i `IncomingPackingList.tsx`
+### 1. Lägg till `IncomingPackingList` pa Warehouse Dashboard
+- Importera och rendera komponenten högst upp i `WarehouseDashboard.tsx`, precis som den redan visas i `PackingManagement.tsx`
+- Samma komponent, ingen duplicering av logik
 
-**Queryn utökas** så att bokningar från `large_project_bookings` hämtas med `large_project_id` och projektnamn:
+### 2. Notifikations-badge i sidomenyn
+- Uppdatera `WarehouseSidebar3D.tsx` 
+- Lägg till en query som räknar antal bokningar utan packning (samma logik som IncomingPackingList, men bara `count`)
+- Visa en liten röd/amber badge med antalet bredvid "Planera packning" i navigeringen
+- Sa ser användaren direkt oavsett vilken warehouse-sida de är pa att det finns projekt att hantera
 
-```text
-┌─────────────────────────────────────────────────┐
-│ 🔶 Projekt utan packning              3 nya     │
-├─────────────────────────────────────────────────┤
-│ ▌ Festivalen 2026 (stort projekt)               │
-│   5 bokningar utan packlista                    │
-│                        [Skapa alla packningar]  │
-├─────────────────────────────────────────────────┤
-│ ▌ Kund AB - 15 april 2026                      │
-│   📅 15 apr 2026  📍 Storgatan 1               │
-│                        [Skapa packning]         │
-├─────────────────────────────────────────────────┤
-│ ▌ Företag XY - 20 april 2026                   │
-│   📅 20 apr 2026  📍 Industrivägen 5           │
-│                        [Skapa packning]         │
-└─────────────────────────────────────────────────┘
-```
+### 3. Valfritt: Snabb-banner pa kalendersidan
+- Lägg till en enkel informationsbanner högst upp pa `WarehouseCalendarPage.tsx` om det finns väntande projekt, typ: "3 projekt väntar pa packning" med en länk till `/warehouse/packing`
+- Enklare än att rendera hela inkorgen, passar kalenderns UI bättre
 
-**Logik:**
-
-1. Hämta `large_project_bookings` med `booking_id` OCH `large_project_id`
-2. Joina `large_projects` för att hämta projektnamn
-3. Gruppera bokningar utan packning per `large_project_id`
-4. Visa grupperade stora projekt som EN rad med badge "X bokningar" och knappen "Skapa alla packningar"
-5. Enskilda bokningar (från `jobs`/`projects`) visas som idag
-
-**"Skapa alla packningar"-knappen:**
-- Loopar igenom alla bokningar i det stora projektet som saknar packlista
-- Skapar en `packing_projects`-rad per bokning (varje bokning = en packningslista, som redan är designen)
-- Kör `syncBookingToPacking` för varje
-- Navigerar till packningsdashboarden (inte en enskild packlista, eftersom det är flera)
-
-### Fil att ändra
-
-**`src/components/packing/IncomingPackingList.tsx`** -- enda filen. Utöka queryn, gruppera data, rendera grupperade rader för stora projekt och individuella rader för övriga.
+### Filer att ändra
+- `src/pages/WarehouseDashboard.tsx` -- importera och rendera `IncomingPackingList`
+- `src/components/WarehouseSidebar3D.tsx` -- lägga till count-query och badge
+- `src/pages/WarehouseCalendarPage.tsx` -- liten notifikationsbanner
 
