@@ -86,10 +86,12 @@ export function applyFilters(
           if (!overlaps) return false;
           break;
         }
-        case "unassigned":
-          if (task.assigned_to) return false;
+        case "unassigned": {
+          const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+          if (ids.length > 0) return false;
           if (task.status === "done" || task.status === "cancelled") return false;
           break;
+        }
         case "completed":
           if (task.status !== "done") return false;
           break;
