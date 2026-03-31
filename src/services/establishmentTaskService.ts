@@ -160,6 +160,15 @@ export const createEstablishmentTask = async (task: {
       ? [assignedTo]
       : [];
 
+  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  if (assignedToIds.length > 0) {
+    const invalidIds = await validateStaffAgainstBSA(task.booking_id ?? null, assignedToIds);
+    if (invalidIds.length > 0) {
+      console.warn('[BSA validation] Staff not in project team:', invalidIds, '— allowing with fallback sync');
+      // We warn but don't block — the DB trigger will create BSA rows as fallback.
+      // This ensures legacy flows and edge cases don't break.
+    }
+  }
   const { data, error } = await supabase
     .from('establishment_tasks')
     .insert({
