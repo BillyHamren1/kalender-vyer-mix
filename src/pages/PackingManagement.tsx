@@ -116,7 +116,7 @@ const PackingManagement = () => {
 
           {/* Incoming bookings without packing */}
           <div className="mb-6">
-            <IncomingPackingList onCreatePacking={handleCreateFromIncoming} />
+            <IncomingPackingList />
           </div>
 
           {/* Dashboard */}
