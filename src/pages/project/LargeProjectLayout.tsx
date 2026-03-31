@@ -237,6 +237,7 @@ const LargeProjectLayout = () => {
                             <BookingInfoExpanded
                               booking={b}
                               projectLeader={detail.project?.project_leader}
+                              onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project', id] })}
                             />
                           </div>
                         )}
