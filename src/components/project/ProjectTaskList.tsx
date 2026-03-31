@@ -20,9 +20,11 @@ interface ProjectTaskListProps {
   onDeleteTask: (id: string) => void;
   onTaskAction?: (task: ProjectTask) => boolean;
   getTaskAction?: (task: ProjectTask) => (() => void) | undefined;
+  /** Pass bookingId to filter task assignment to BSA team */
+  bookingId?: string | null;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId }: ProjectTaskListProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
