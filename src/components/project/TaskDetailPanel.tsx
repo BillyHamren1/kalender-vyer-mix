@@ -131,8 +131,15 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
     setDatePickerOpen(false);
   };
 
-  const handleAssigneeChange = (staffId: string) => {
-    onUpdateTask({ id: task.id, updates: { assigned_to: staffId === "none" ? null : staffId } });
+  const handleAssigneeToggle = (staffId: string) => {
+    const newIds = currentAssignedIds.includes(staffId)
+      ? currentAssignedIds.filter(id => id !== staffId)
+      : [...currentAssignedIds, staffId];
+    onUpdateTask({ id: task.id, updates: { assigned_to_ids: newIds, assigned_to: newIds[0] || null } as any });
+  };
+
+  const handleClearAssignees = () => {
+    onUpdateTask({ id: task.id, updates: { assigned_to_ids: [], assigned_to: null } as any });
     setAssigneeOpen(false);
   };
 
