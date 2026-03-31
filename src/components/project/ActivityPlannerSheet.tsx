@@ -210,7 +210,8 @@ const ActivityPlannerSheet = ({
         source: 'product',
         source_product_id: allProductIds[0] || null,
         source_product_ids: allProductIds,
-        assigned_to: assignedTo,
+        assigned_to: assignedToIds[0] || null,
+        assigned_to_ids: assignedToIds,
         priority,
       });
 
