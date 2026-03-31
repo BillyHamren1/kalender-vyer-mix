@@ -117,6 +117,11 @@ const PackingManagement = () => {
             </Button>
           </div>
 
+          {/* Incoming bookings without packing */}
+          <div className="mb-6">
+            <IncomingPackingList onCreatePacking={handleCreateFromIncoming} />
+          </div>
+
           {/* Dashboard */}
           <PackingDashboard packings={packings} onDelete={handleDelete} />
 
