@@ -41,6 +41,7 @@ export function WarehouseSidebar3D() {
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const incomingPackingCount = useIncomingPackingCount();
 
   // Auto-expand parent if a child route is active
   useEffect(() => {
