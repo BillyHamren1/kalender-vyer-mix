@@ -14,7 +14,7 @@ import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
 import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
-import ProjectAssistants from "@/components/project/ProjectAssistants";
+import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
