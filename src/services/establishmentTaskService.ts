@@ -75,6 +75,14 @@ export const createEstablishmentTask = async (task: {
   blocker_responsible?: string | null;
   decision_needed?: boolean;
 }): Promise<EstablishmentTask> => {
+  // Ensure assigned_to_ids is always the primary source of truth
+  const assignedTo = task.assigned_to ?? null;
+  const assignedToIds = task.assigned_to_ids
+    ? task.assigned_to_ids
+    : assignedTo
+      ? [assignedTo]
+      : [];
+
   const { data, error } = await supabase
     .from('establishment_tasks')
     .insert({
@@ -89,7 +97,8 @@ export const createEstablishmentTask = async (task: {
       source_product_id: task.source_product_id ?? null,
       source_product_ids: task.source_product_ids ?? null,
       notes: task.notes ?? null,
-      assigned_to: task.assigned_to ?? null,
+      assigned_to: assignedTo,
+      assigned_to_ids: assignedToIds,
       status: task.status ?? 'not_started',
       readiness: task.readiness ?? 'missing_information',
       priority: task.priority ?? 'medium',
