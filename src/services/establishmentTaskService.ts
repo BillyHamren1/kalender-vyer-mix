@@ -30,6 +30,54 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
+// VISIBILITY RULE: booking_staff_assignments is the SINGLE source of truth for
+// mobile job visibility. When staff are assigned to tasks, we auto-create
+// booking_staff_assignments rows with team_id='activity' to ensure the job
+// appears in their mobile app. This sentinel team_id distinguishes activity-based
+// assignments from team-scheduled ones.
+const ACTIVITY_TEAM_ID = 'activity';
+
+/**
+ * Ensures booking_staff_assignments rows exist for all staff assigned to a task.
+ * This is the mechanism that makes jobs visible in the mobile app when staff
+ * are assigned to activities/tasks rather than through team scheduling.
+ */
+const ensureBookingStaffAssignments = async (
+  bookingId: string | null,
+  staffIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<void> => {
+  if (!bookingId || staffIds.length === 0) return;
+
+  try {
+    const dates = eachDayOfInterval({
+      start: parseISO(startDate),
+      end: parseISO(endDate),
+    }).map(d => format(d, 'yyyy-MM-dd'));
+
+    const rows = staffIds.flatMap(staffId =>
+      dates.map(date => ({
+        booking_id: bookingId,
+        staff_id: staffId,
+        team_id: ACTIVITY_TEAM_ID,
+        assignment_date: date,
+      }))
+    );
+
+    // upsert with onConflict to avoid duplicates
+    const { error } = await supabase
+      .from('booking_staff_assignments')
+      .upsert(rows, { onConflict: 'booking_id,staff_id,assignment_date', ignoreDuplicates: true });
+
+    if (error) {
+      console.error('Failed to sync booking_staff_assignments from task:', error);
+    }
+  } catch (err) {
+    console.error('Error in ensureBookingStaffAssignments:', err);
+  }
+};
+
 const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
