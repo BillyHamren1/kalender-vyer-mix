@@ -162,6 +162,7 @@ const ProjectViewPage = () => {
             onAddTask={detail.addTask}
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
+            bookingId={bookingId}
             getTaskAction={(task) => {
               if (task.title === 'Transportbokning' && bookingId) {
                 return () => setTransportBookingOpen(true);
