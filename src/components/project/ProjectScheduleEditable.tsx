@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format, differenceInDays, isPast, isToday } from "date-fns";
 import { sv } from "date-fns/locale";
-import { Truck, PartyPopper, ArrowDownToLine, Pencil } from "lucide-react";
+import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react";
 import { EditDateDialog } from "@/components/booking/EditDateDialog";
 import { updateBookingDateWithTimes } from "@/services/bookingService";
 import { toast } from "sonner";
