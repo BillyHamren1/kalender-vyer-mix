@@ -1,12 +1,14 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, Package, ChevronRight } from 'lucide-react';
+import { Inbox, Calendar, MapPin, Package, ChevronRight, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { syncBookingToPacking } from '@/services/booking/bookingPackingSyncService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface IncomingBooking {
   id: string;
@@ -14,19 +16,17 @@ interface IncomingBooking {
   booking_number: string | null;
   eventdate: string | null;
   deliveryaddress: string | null;
+  organization_id: string;
 }
 
-interface IncomingPackingListProps {
-  onCreatePacking: (bookingId: string) => void;
-}
-
-export const IncomingPackingList: React.FC<IncomingPackingListProps> = ({ onCreatePacking }) => {
+export const IncomingPackingList: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [creatingId, setCreatingId] = useState<string | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-packing'],
     queryFn: async () => {
-      // Get bookings that have an active project but no packing_projects row
       const [{ data: jobBookingIds }, { data: projectBookingIds }, { data: largeLinks }] = await Promise.all([
         supabase.from('jobs').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
         supabase.from('projects').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
@@ -43,7 +43,6 @@ export const IncomingPackingList: React.FC<IncomingPackingListProps> = ({ onCrea
 
       const ids = Array.from(allProjectBookingIds);
 
-      // Get existing packing booking_ids
       const { data: existingPackings } = await supabase
         .from('packing_projects')
         .select('booking_id')
@@ -56,7 +55,7 @@ export const IncomingPackingList: React.FC<IncomingPackingListProps> = ({ onCrea
 
       const { data: bookings, error } = await supabase
         .from('bookings')
-        .select('id, client, booking_number, eventdate, deliveryaddress')
+        .select('id, client, booking_number, eventdate, deliveryaddress, organization_id')
         .in('id', missingIds)
         .neq('status', 'CANCELLED')
         .order('eventdate', { ascending: true });
@@ -70,6 +69,50 @@ export const IncomingPackingList: React.FC<IncomingPackingListProps> = ({ onCrea
     },
     placeholderData: [],
   });
+
+  const handleCreatePacking = async (booking: IncomingBooking) => {
+    setCreatingId(booking.id);
+    try {
+      // Build packing name from booking
+      const dateStr = booking.eventdate
+        ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
+        : '';
+      const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
+
+      // Create packing project directly (edge function only creates for CONFIRMED bookings)
+      const { data: newPacking, error: createError } = await supabase
+        .from('packing_projects')
+        .insert({
+          name: packingName,
+          booking_id: booking.id,
+          client_name: booking.client,
+          delivery_address: booking.deliveryaddress,
+          status: 'planning',
+          organization_id: booking.organization_id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+
+      // Sync items + tasks via edge function (idempotent, will update existing packing)
+      syncBookingToPacking(booking.id, booking.organization_id);
+
+      await queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
+      await queryClient.invalidateQueries({ queryKey: ['packings'] });
+
+      toast.success(`Packning skapad för ${booking.client}`);
+
+      if (newPacking) {
+        navigate(`/warehouse/packing/${newPacking.id}`);
+      }
+    } catch (err) {
+      console.error('Error creating packing:', err);
+      toast.error('Kunde inte skapa packning');
+    } finally {
+      setCreatingId(null);
+    }
+  };
 
   if (isLoading || bookings.length === 0) return null;
 
@@ -134,10 +177,15 @@ export const IncomingPackingList: React.FC<IncomingPackingListProps> = ({ onCrea
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onCreatePacking(booking.id)}
+                onClick={() => handleCreatePacking(booking)}
+                disabled={creatingId === booking.id}
                 className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
               >
-                <Package className="w-3.5 h-3.5" />
+                {creatingId === booking.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Package className="w-3.5 h-3.5" />
+                )}
                 <span>Skapa packning</span>
               </Button>
               <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />

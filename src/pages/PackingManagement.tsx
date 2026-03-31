@@ -60,10 +60,7 @@ const PackingManagement = () => {
     deleteMutation.mutate(packingId);
   };
 
-  const handleCreateFromIncoming = (bookingId: string) => {
-    setPreselectedBookingId(bookingId);
-    setIsCreateOpen(true);
-  };
+  // IncomingPackingList now handles creation internally
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
@@ -119,7 +116,7 @@ const PackingManagement = () => {
 
           {/* Incoming bookings without packing */}
           <div className="mb-6">
-            <IncomingPackingList onCreatePacking={handleCreateFromIncoming} />
+            <IncomingPackingList />
           </div>
 
           {/* Dashboard */}
