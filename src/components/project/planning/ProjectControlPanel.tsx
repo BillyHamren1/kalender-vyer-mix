@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { updateEstablishmentTask, bulkUpdateEstablishmentTasks } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, bulkUpdateEstablishmentTasks, BSAValidationError } from "@/services/establishmentTaskService";
 import { toast } from "sonner";
 import type { TaskAnalytics, CriticalIssue } from "@/hooks/useTaskAnalytics";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
