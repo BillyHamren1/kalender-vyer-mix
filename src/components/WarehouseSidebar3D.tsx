@@ -202,6 +202,21 @@ export function WarehouseSidebar3D() {
                       {!isCollapsed && (
                         <span style={labelStyle}>{item.title}</span>
                       )}
+                      {item.url === '/warehouse/packing' && incomingPackingCount > 0 && (
+                        <span
+                          className="flex items-center justify-center rounded-full text-white font-bold shrink-0"
+                          style={{
+                            background: ACCENT,
+                            fontSize: 10,
+                            minWidth: 18,
+                            height: 18,
+                            padding: '0 5px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          {incomingPackingCount}
+                        </span>
+                      )}
                     </NavLink>
                   )}
 

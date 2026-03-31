@@ -379,6 +379,11 @@ const WarehouseDashboard = () => {
             </Button>
           </PageHeader>
 
+          {/* Incoming projects without packing */}
+          <div className="mb-6">
+            <IncomingPackingList />
+          </div>
+
           {/* Week Planning - Packings View */}
           <div className="mb-6">
             <WeekPackingsView 
