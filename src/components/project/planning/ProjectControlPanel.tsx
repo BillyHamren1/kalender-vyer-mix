@@ -205,7 +205,7 @@ const BulkAssignButton = ({ taskIds, staffPool }: {
 
   const handleBulkAssign = async (staffId: string) => {
     try {
-      await bulkUpdateEstablishmentTasks(taskIds, { assigned_to: staffId });
+      await bulkUpdateEstablishmentTasks(taskIds, { assigned_to: staffId, assigned_to_ids: [staffId] } as any);
       queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
       const name = staffPool.find(s => s.id === staffId)?.name || "person";
       toast.success(`${taskIds.length} uppgifter tilldelade till ${name}`);
