@@ -105,7 +105,10 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
   });
 
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
-  const assignedStaff = staffMembers.find((s) => s.id === task.assigned_to);
+  const currentAssignedIds: string[] = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+  const assignedStaffNames = currentAssignedIds
+    .map(id => staffMembers.find(s => s.id === id)?.name)
+    .filter(Boolean) as string[];
 
   const handleTitleSave = () => {
     const trimmed = editedTitle.trim();
