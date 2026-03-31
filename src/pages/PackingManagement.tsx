@@ -23,6 +23,13 @@ const PackingManagement = () => {
   const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [preselectedBookingId, setPreselectedBookingId] = useState<string | undefined>();
+
+  useRealtimeInvalidation({
+    channelName: 'packing-management',
+    tables: ['packing_projects', 'bookings', 'projects', 'jobs'],
+    queryKeys: [['packings'], ['bookings-without-packing']],
+  });
 
   const { data: packings = [], isLoading } = useQuery({
     queryKey: ['packings'],
