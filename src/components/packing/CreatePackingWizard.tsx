@@ -15,6 +15,7 @@ interface CreatePackingWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  preselectedBookingId?: string;
 }
 
 interface BookingOption {
@@ -29,7 +30,7 @@ interface StaffMember {
   name: string;
 }
 
-export default function CreatePackingWizard({ open, onOpenChange, onSuccess }: CreatePackingWizardProps) {
+export default function CreatePackingWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreatePackingWizardProps) {
   const [name, setName] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
@@ -37,7 +38,7 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess }: C
   const [newItem, setNewItem] = useState("");
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ['available-bookings-packing-wizard'],
+    queryKey: ['available-bookings-packing-wizard', preselectedBookingId],
     queryFn: async () => {
       const bookingsRes = await supabase
         .from('bookings')
@@ -46,7 +47,8 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess }: C
       const packingsRes = await supabase.from('packing_projects').select('booking_id');
       const allBookings: BookingOption[] = (bookingsRes.data || []) as BookingOption[];
       const usedBookingIds = new Set((packingsRes.data || []).map((p: { booking_id: string }) => p.booking_id));
-      return allBookings.filter(b => !usedBookingIds.has(b.id));
+      // Keep preselected booking even if it's "used", plus all unused ones
+      return allBookings.filter(b => !usedBookingIds.has(b.id) || b.id === preselectedBookingId);
     },
     enabled: open
   });
@@ -69,6 +71,15 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess }: C
       setNewItem("");
     }
   }, [open]);
+
+  // Auto-select preselected booking when bookings are loaded
+  useEffect(() => {
+    if (open && preselectedBookingId && bookings.length > 0 && !selectedBookingId) {
+      // The preselected booking might not be in the "available" list since we filter out used ones,
+      // so we call handleBookingChange which will look it up
+      handleBookingChange(preselectedBookingId);
+    }
+  }, [open, preselectedBookingId, bookings]);
 
   const handleBookingChange = (bookingId: string) => {
     setSelectedBookingId(bookingId);

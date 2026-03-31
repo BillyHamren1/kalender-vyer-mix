@@ -9,8 +9,10 @@ import PackingCard from "@/components/packing/PackingCard";
 import PackingDashboard from "@/components/packing/PackingDashboard";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
+import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -21,6 +23,13 @@ const PackingManagement = () => {
   const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [preselectedBookingId, setPreselectedBookingId] = useState<string | undefined>();
+
+  useRealtimeInvalidation({
+    channelName: 'packing-management',
+    tables: ['packing_projects', 'bookings', 'projects', 'jobs'],
+    queryKeys: [['packings'], ['bookings-without-packing']],
+  });
 
   const { data: packings = [], isLoading } = useQuery({
     queryKey: ['packings'],
@@ -49,6 +58,11 @@ const PackingManagement = () => {
 
   const handleDelete = (packingId: string) => {
     deleteMutation.mutate(packingId);
+  };
+
+  const handleCreateFromIncoming = (bookingId: string) => {
+    setPreselectedBookingId(bookingId);
+    setIsCreateOpen(true);
   };
 
   return (
@@ -103,6 +117,11 @@ const PackingManagement = () => {
             </Button>
           </div>
 
+          {/* Incoming bookings without packing */}
+          <div className="mb-6">
+            <IncomingPackingList onCreatePacking={handleCreateFromIncoming} />
+          </div>
+
           {/* Dashboard */}
           <PackingDashboard packings={packings} onDelete={handleDelete} />
 
@@ -149,10 +168,16 @@ const PackingManagement = () => {
 
           <CreatePackingWizard 
             open={isCreateOpen} 
-            onOpenChange={setIsCreateOpen}
+            onOpenChange={(open) => {
+              setIsCreateOpen(open);
+              if (!open) setPreselectedBookingId(undefined);
+            }}
+            preselectedBookingId={preselectedBookingId}
             onSuccess={() => {
               setIsCreateOpen(false);
+              setPreselectedBookingId(undefined);
               queryClient.invalidateQueries({ queryKey: ['packings'] });
+              queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
             }}
           />
         </div>
