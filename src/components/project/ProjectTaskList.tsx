@@ -190,6 +190,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
         <AddTaskDialog
           open={isAddOpen}
           onOpenChange={setIsAddOpen}
+          bookingId={bookingId}
           onSubmit={(task) => {
             onAddTask(task);
             setIsAddOpen(false);
