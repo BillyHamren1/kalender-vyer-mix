@@ -16,7 +16,7 @@ import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, 
 import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { updateEstablishmentTask, deleteEstablishmentTask } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, deleteEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import {
   fetchSubtasks,
