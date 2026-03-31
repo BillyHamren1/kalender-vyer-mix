@@ -213,6 +213,19 @@ export const updateEstablishmentTask = async (
     .eq('id', id);
 
   if (error) throw error;
+
+  // VISIBILITY SYNC: If assigned_to_ids changed, ensure booking_staff_assignments exist
+  if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
+    // Fetch the task's booking_id and dates to create BSA rows
+    const { data: taskData } = await supabase
+      .from('establishment_tasks')
+      .select('booking_id, start_date, end_date')
+      .eq('id', id)
+      .single();
+    if (taskData?.booking_id) {
+      ensureBookingStaffAssignments(taskData.booking_id, updates.assigned_to_ids, taskData.start_date, taskData.end_date);
+    }
+  }
 };
 
 export const bulkUpdateEstablishmentTasks = async (
