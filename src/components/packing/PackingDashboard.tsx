@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Clock, CheckCircle2, AlertTriangle, User, Calendar, ArrowRight, Trash2 } from 'lucide-react';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from '@/types/packing';
