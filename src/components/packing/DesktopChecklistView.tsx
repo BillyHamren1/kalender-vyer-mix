@@ -205,7 +205,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
 
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
     if (isParent) return;
-    const result = await decrementPackingItem(itemId, verifierName);
+    const result = await decrementPackingItem(itemId);
     if (result.success) {
       setItems(prev => {
         const updated = prev.map(i =>
