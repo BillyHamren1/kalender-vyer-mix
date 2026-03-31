@@ -439,8 +439,9 @@ const EstablishmentGanttChart = ({
                   const StatusIcon = STATUS_ICON_MAP[status] || Circle;
                   const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.not_started;
                   const PriorityIcon = PRIORITY_CONFIG[priority]?.icon || ArrowRight;
-                  const assignedName = (dbTask as any)?.assigned_to
-                    ? staffPool.find(s => s.id === (dbTask as any).assigned_to)?.name
+                  const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
+                  const assignedName = taskAssignedIds.length > 0
+                    ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
                     : null;
 
                   return (
