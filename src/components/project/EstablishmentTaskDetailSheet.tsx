@@ -692,7 +692,7 @@ const EstablishmentTaskDetailSheet = ({
               </label>
             ))}
             {effectiveStaff.length === 0 && (
-              <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal tillgänglig</p>
+              <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal bemannad på detta projekt. Bemanna via kalendern först.</p>
             )}
           </div>
         </div>

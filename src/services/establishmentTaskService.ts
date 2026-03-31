@@ -30,16 +30,20 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-// ─── VISIBILITY RULE (HARD RULE) ─────────────────────────────────────
-// booking_staff_assignments is the SINGLE source of truth for mobile
-// job visibility. The database trigger `trg_sync_task_to_bsa` on
-// establishment_tasks is the PRIMARY mechanism: it auto-creates BSA
-// rows with team_id='activity' whenever assigned_to_ids changes.
+// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
+// booking_staff_assignments (BSA) is the SINGLE source of truth for:
+//   1. Who belongs to a project/booking team
+//   2. Mobile job visibility
 //
-// The client-side ensureBookingStaffAssignments below is a SECONDARY
-// safety net only — it runs fire-and-forget as belt-and-suspenders.
-// If it fails, the trigger will have already handled it.
-// ─────────────────────────────────────────────────────────────────────
+// CALENDAR/SCHEDULING defines the team → BSA is populated.
+// TASK ASSIGNMENT distributes work WITHIN that team.
+//
+// The DB trigger `trg_sync_task_to_bsa` is a FALLBACK safety net that
+// creates BSA rows with team_id='activity' if assignment happens before
+// calendar scheduling. It is NOT the primary team-creation mechanism.
+//
+// Validation: assigned_to_ids are validated against BSA before writes.
+// ──────────────────────────────────────────────────────────────────────
 
 /**
  * SECONDARY safety net: upserts booking_staff_assignments from JS.

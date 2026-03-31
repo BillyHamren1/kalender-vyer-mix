@@ -243,16 +243,18 @@ const AddEstablishmentTaskDialog = ({
           </div>
 
           <div>
-            <Label>Tilldela personal</Label>
+            <Label>Tilldela från projektteam</Label>
             <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Ingen tilldelad" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Ingen tilldelad</SelectItem>
-                {staffPool.map((s) => (
+                {staffPool.length > 0 ? staffPool.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
+                )) : (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Bemanna via kalendern först</div>
+                )}
               </SelectContent>
             </Select>
           </div>
