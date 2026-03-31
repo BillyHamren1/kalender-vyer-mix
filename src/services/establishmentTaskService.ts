@@ -84,6 +84,26 @@ const ensureBookingStaffAssignments = async (
   }
 };
 
+/**
+ * Validates that all staffIds exist in booking_staff_assignments for the given booking.
+ * Returns list of invalid IDs, or empty array if all valid.
+ * Skips validation if no bookingId (large project without booking).
+ */
+const validateStaffAgainstBSA = async (
+  bookingId: string | null,
+  staffIds: string[]
+): Promise<string[]> => {
+  if (!bookingId || staffIds.length === 0) return [];
+
+  const { data } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id')
+    .eq('booking_id', bookingId);
+
+  const bsaStaffIds = new Set((data || []).map(r => r.staff_id));
+  return staffIds.filter(id => !bsaStaffIds.has(id));
+};
+
 const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
