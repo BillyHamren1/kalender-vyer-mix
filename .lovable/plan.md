@@ -1,30 +1,48 @@
 
 
-## Inkommande projekt som behöver packning
+## Problem
 
-### Koncept
-Samma mönster som `IncomingBookingsList` på projektsidan -- en "inkorg" som visar projekt/bokningar som har skapats men ännu inte har en packlista. Listan visas högst upp på PackingManagement-sidan.
+Just nu visar `IncomingPackingList` varje bokning individuellt -- även de som tillhör ett stort projekt. Det betyder att ett stort projekt med 15 bokningar dyker upp som 15 separata rader, och användaren måste klicka "Skapa packning" 15 gånger. Det är opraktiskt.
 
-### Plan
+## Lösning: Gruppera stora projekt i inkorgen
 
-**1. Ny komponent: `src/components/packing/IncomingPackingList.tsx`**
-- Hämtar alla bokningar som har ett aktivt projekt (via `projects` eller `jobs` eller `large_project_bookings`) MEN som saknar en `packing_projects`-rad (dvs `booking_id` inte finns i `packing_projects`)
-- Filtrerar bort avslutade/avbokade projekt
-- Visar varje rad med klient, datum, adress -- samma stil som `IncomingBookingsList` (amber inkorg-header, badge med antal)
-- Varje rad har en knapp "Skapa packning" som triggar `CreatePackingWizard` med den bokningen förvald
+### Ändring i `IncomingPackingList.tsx`
 
-**2. Uppdatera `CreatePackingWizard.tsx`**
-- Acceptera ny prop `preselectedBookingId?: string`
-- Om satt: förvälj den bokningen i dropdown och autogenerera namn (som redan görs i `handleBookingChange`)
+**Queryn utökas** så att bokningar från `large_project_bookings` hämtas med `large_project_id` och projektnamn:
 
-**3. Uppdatera `PackingManagement.tsx`**
-- Importera och rendera `IncomingPackingList` ovanför dashboard/grid
-- Koppla `onCreatePacking(bookingId)` till att öppna wizarden med förvald bokning
-- Lägg till realtime-invalidation för `packing_projects` och `bookings`
-
-### Ingen databasändring krävs
-Relationen `packing_projects.booking_id` → `bookings.id` finns redan. Vi behöver bara querien:
+```text
+┌─────────────────────────────────────────────────┐
+│ 🔶 Projekt utan packning              3 nya     │
+├─────────────────────────────────────────────────┤
+│ ▌ Festivalen 2026 (stort projekt)               │
+│   5 bokningar utan packlista                    │
+│                        [Skapa alla packningar]  │
+├─────────────────────────────────────────────────┤
+│ ▌ Kund AB - 15 april 2026                      │
+│   📅 15 apr 2026  📍 Storgatan 1               │
+│                        [Skapa packning]         │
+├─────────────────────────────────────────────────┤
+│ ▌ Företag XY - 20 april 2026                   │
+│   📅 20 apr 2026  📍 Industrivägen 5           │
+│                        [Skapa packning]         │
+└─────────────────────────────────────────────────┘
 ```
-Alla bokningar med aktivt projekt MINUS de som redan har en packing_projects-rad
-```
+
+**Logik:**
+
+1. Hämta `large_project_bookings` med `booking_id` OCH `large_project_id`
+2. Joina `large_projects` för att hämta projektnamn
+3. Gruppera bokningar utan packning per `large_project_id`
+4. Visa grupperade stora projekt som EN rad med badge "X bokningar" och knappen "Skapa alla packningar"
+5. Enskilda bokningar (från `jobs`/`projects`) visas som idag
+
+**"Skapa alla packningar"-knappen:**
+- Loopar igenom alla bokningar i det stora projektet som saknar packlista
+- Skapar en `packing_projects`-rad per bokning (varje bokning = en packningslista, som redan är designen)
+- Kör `syncBookingToPacking` för varje
+- Navigerar till packningsdashboarden (inte en enskild packlista, eftersom det är flera)
+
+### Fil att ändra
+
+**`src/components/packing/IncomingPackingList.tsx`** -- enda filen. Utöka queryn, gruppera data, rendera grupperade rader för stora projekt och individuella rader för övriga.
 
