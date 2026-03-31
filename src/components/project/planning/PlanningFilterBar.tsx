@@ -57,9 +57,11 @@ export function applyFilters(
     // Quick filters
     if (filters.quickFilter) {
       switch (filters.quickFilter) {
-        case "my_tasks":
-          if (!currentUserId || task.assigned_to !== currentUserId) return false;
+        case "my_tasks": {
+          const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+          if (!currentUserId || !ids.includes(currentUserId)) return false;
           break;
+        }
         case "overdue":
           if (task.status === "done" || task.status === "cancelled") return false;
           if (!task.end_date || !isBefore(startOfDay(new Date(task.end_date)), today)) return false;
