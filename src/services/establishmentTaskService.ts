@@ -300,6 +300,22 @@ export const bulkUpdateEstablishmentTasks = async (
     updates.assigned_to_ids = [updates.assigned_to];
   }
 
+  // ENFORCEMENT: Validate assigned staff against BSA for all affected tasks
+  if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
+    // Get booking_ids for all tasks being updated
+    const { data: taskInfos } = await supabase
+      .from('establishment_tasks')
+      .select('booking_id')
+      .in('id', ids);
+    const bookingIds = [...new Set((taskInfos || []).map(t => t.booking_id).filter(Boolean))] as string[];
+    for (const bookingId of bookingIds) {
+      const invalidIds = await validateStaffAgainstBSA(bookingId, updates.assigned_to_ids);
+      if (invalidIds.length > 0) {
+        throw new BSAValidationError(invalidIds);
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
