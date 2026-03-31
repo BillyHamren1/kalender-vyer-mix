@@ -1409,11 +1409,13 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .order('report_date', { ascending: false })
 
   // Fetch establishment tasks assigned to this staff member for this booking
+  // Primary: assigned_to_ids (array contains staffId)
+  // Fallback: legacy assigned_to (single field)
   const { data: establishmentTasks } = await supabase
     .from('establishment_tasks')
-    .select('id, title, category, start_date, end_date, completed, notes, sort_order')
+    .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time')
     .eq('booking_id', booking_id)
-    .eq('assigned_to', staffId)
+    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
     .order('start_date', { ascending: true })
     .order('sort_order', { ascending: true })
 
