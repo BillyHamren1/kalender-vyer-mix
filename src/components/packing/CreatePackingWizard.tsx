@@ -38,7 +38,7 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess, pre
   const [newItem, setNewItem] = useState("");
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ['available-bookings-packing-wizard'],
+    queryKey: ['available-bookings-packing-wizard', preselectedBookingId],
     queryFn: async () => {
       const bookingsRes = await supabase
         .from('bookings')
@@ -47,7 +47,8 @@ export default function CreatePackingWizard({ open, onOpenChange, onSuccess, pre
       const packingsRes = await supabase.from('packing_projects').select('booking_id');
       const allBookings: BookingOption[] = (bookingsRes.data || []) as BookingOption[];
       const usedBookingIds = new Set((packingsRes.data || []).map((p: { booking_id: string }) => p.booking_id));
-      return allBookings.filter(b => !usedBookingIds.has(b.id));
+      // Keep preselected booking even if it's "used", plus all unused ones
+      return allBookings.filter(b => !usedBookingIds.has(b.id) || b.id === preselectedBookingId);
     },
     enabled: open
   });
