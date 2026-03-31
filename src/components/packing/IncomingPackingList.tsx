@@ -73,15 +73,30 @@ export const IncomingPackingList: React.FC = () => {
   const handleCreatePacking = async (booking: IncomingBooking) => {
     setCreatingId(booking.id);
     try {
-      // Call the edge function which creates packing project + syncs items + creates tasks
-      await syncBookingToPacking(booking.id, booking.organization_id);
+      // Build packing name from booking
+      const dateStr = booking.eventdate
+        ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
+        : '';
+      const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
 
-      // Fetch the newly created packing project
-      const { data: newPacking } = await supabase
+      // Create packing project directly (edge function only creates for CONFIRMED bookings)
+      const { data: newPacking, error: createError } = await supabase
         .from('packing_projects')
+        .insert({
+          name: packingName,
+          booking_id: booking.id,
+          client_name: booking.client,
+          delivery_address: booking.deliveryaddress,
+          status: 'planning',
+          organization_id: booking.organization_id,
+        })
         .select('id')
-        .eq('booking_id', booking.id)
         .single();
+
+      if (createError) throw createError;
+
+      // Sync items + tasks via edge function (idempotent, will update existing packing)
+      syncBookingToPacking(booking.id, booking.organization_id);
 
       await queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
       await queryClient.invalidateQueries({ queryKey: ['packings'] });
