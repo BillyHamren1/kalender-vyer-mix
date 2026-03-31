@@ -48,7 +48,7 @@ interface BookingInfoExpandedProps {
   onBookingUpdated?: () => void;
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], onBookingUpdated }: BookingInfoExpandedProps) => {
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
 
