@@ -1458,10 +1458,10 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
     )
   }
 
-  // Fetch and verify the task belongs to this staff member
+  // Fetch and verify the task — include assigned_to_ids for multi-assign check
   const { data: task, error: fetchError } = await supabase
     .from('establishment_tasks')
-    .select('id, completed, assigned_to')
+    .select('id, completed, assigned_to, assigned_to_ids, status')
     .eq('id', task_id)
     .eq('organization_id', organizationId)
     .single()
