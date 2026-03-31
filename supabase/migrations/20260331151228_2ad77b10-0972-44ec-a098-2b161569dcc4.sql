@@ -1,0 +1,1 @@
+ALTER TABLE public.time_reports ADD COLUMN IF NOT EXISTS establishment_task_id uuid REFERENCES public.establishment_tasks(id) ON DELETE SET NULL DEFAULT NULL;

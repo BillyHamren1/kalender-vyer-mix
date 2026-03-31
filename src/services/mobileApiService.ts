@@ -189,6 +189,7 @@ export const mobileApi = {
     overtime_hours?: number;
     break_time?: number;
     description?: string;
+    establishment_task_id?: string;
   }) => callApi<{ success: boolean; time_report: any }>('create_time_report', data),
 
   updateTimeReport: (data: {
