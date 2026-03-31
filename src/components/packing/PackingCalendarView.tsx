@@ -237,10 +237,11 @@ export default function PackingCalendarView({ packings }: Props) {
                         "text-xs text-white px-2 py-1.5 rounded cursor-pointer transition-colors",
                         STATUS_COLORS[e.status] || "bg-muted"
                       )}
-                      title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]}`}
+                      title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
                       <div className="font-medium truncate">{e.label}</div>
                       <div className="text-[10px] opacity-80 mt-0.5">
+                        {e.shortAddr && <span>{e.shortAddr} • </span>}
                         {PACKING_STATUS_LABELS[e.status]}
                         {e.project_leader && ` • ${e.project_leader}`}
                       </div>
