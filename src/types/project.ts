@@ -37,6 +37,7 @@ export interface ProjectTask {
   title: string;
   description: string | null;
   assigned_to: string | null;
+  assigned_to_ids?: string[];
   deadline: string | null;
   completed: boolean;
   sort_order: number;
