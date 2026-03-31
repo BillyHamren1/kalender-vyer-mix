@@ -179,7 +179,6 @@ const PackingManagement = () => {
               queryClient.invalidateQueries({ queryKey: ['packings'] });
               queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
             }}
-            }}
           />
         </div>
       </div>
