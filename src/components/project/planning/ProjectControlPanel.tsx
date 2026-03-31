@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { updateEstablishmentTask, bulkUpdateEstablishmentTasks } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, bulkUpdateEstablishmentTasks, BSAValidationError } from "@/services/establishmentTaskService";
 import { toast } from "sonner";
 import type { TaskAnalytics, CriticalIssue } from "@/hooks/useTaskAnalytics";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
@@ -133,8 +133,8 @@ const InlineStaffAssign = ({ taskId, staffPool, largeProjectId }: {
       queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
       const name = staffPool.find(s => s.id === staffId)?.name || "person";
       toast.success(`Tilldelad till ${name}`);
-    } catch {
-      toast.error("Kunde inte tilldela");
+    } catch (e) {
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern" : "Kunde inte tilldela");
     }
   };
 
@@ -209,8 +209,8 @@ const BulkAssignButton = ({ taskIds, staffPool }: {
       queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
       const name = staffPool.find(s => s.id === staffId)?.name || "person";
       toast.success(`${taskIds.length} uppgifter tilldelade till ${name}`);
-    } catch {
-      toast.error("Kunde inte tilldela");
+    } catch (e) {
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern" : "Kunde inte tilldela");
     }
   };
 

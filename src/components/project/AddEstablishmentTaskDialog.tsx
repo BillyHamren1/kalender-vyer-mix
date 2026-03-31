@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
-import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
@@ -112,7 +112,7 @@ const AddEstablishmentTaskDialog = ({
       toast.success(`Aktivitet skapad: ${product.name}`);
       onTaskCreated();
     } catch (e) {
-      toast.error("Kunde inte skapa aktivitet");
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern innan den kan tilldelas aktiviteten" : "Kunde inte skapa aktivitet");
     } finally {
       setIsSubmitting(false);
     }
@@ -142,7 +142,7 @@ const AddEstablishmentTaskDialog = ({
       setTitle("");
       onTaskCreated();
     } catch (e) {
-      toast.error("Kunde inte skapa aktivitet");
+      toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern innan den kan tilldelas aktiviteten" : "Kunde inte skapa aktivitet");
     } finally {
       setIsSubmitting(false);
     }

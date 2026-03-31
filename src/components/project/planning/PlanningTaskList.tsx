@@ -14,7 +14,7 @@ import {
   User, ChevronRight, CalendarIcon, Layers, Clock,
 } from "lucide-react";
 import type { EstablishmentTask, TaskStatus, TaskPriority } from "@/services/establishmentTaskService";
-import { updateEstablishmentTask } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import { fetchEstablishmentTaskCommentCounts } from "@/services/establishmentTaskCommentService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -115,7 +115,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
       const assignedToIds = assignedTo ? [assignedTo] : [];
       await updateEstablishmentTask(taskId, { assigned_to: assignedTo, assigned_to_ids: assignedToIds } as any);
       invalidateAll();
-    } catch { toast.error("Kunde inte tilldela"); }
+    } catch (e) { toast.error(e instanceof BSAValidationError ? "Personen måste först bemannas via kalendern" : "Kunde inte tilldela"); }
   };
 
   const handleQuickDateChange = async (taskId: string, field: "start_date" | "end_date", date: Date | undefined) => {

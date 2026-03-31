@@ -30,20 +30,30 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
-// booking_staff_assignments (BSA) is the SINGLE source of truth for:
-//   1. Who belongs to a project/booking team
-//   2. Mobile job visibility
+// IMPORTANT:
+// booking_staff_assignments (BSA) is the single source of truth for project team.
+// Tasks may ONLY be assigned to users present in BSA.
+// This is enforced on write (create/update), but not on read for legacy compatibility.
 //
+// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
 // CALENDAR/SCHEDULING defines the team → BSA is populated.
 // TASK ASSIGNMENT distributes work WITHIN that team.
 //
-// The DB trigger `trg_sync_task_to_bsa` is a FALLBACK safety net that
-// creates BSA rows with team_id='activity' if assignment happens before
-// calendar scheduling. It is NOT the primary team-creation mechanism.
+// The DB trigger `trg_sync_task_to_bsa` is a LEGACY FALLBACK safety net.
+// It is NOT the primary team-creation mechanism and may be removed in future.
 //
-// Validation: assigned_to_ids are validated against BSA before writes.
+// Validation: assigned_to_ids are ENFORCED against BSA on all writes.
 // ──────────────────────────────────────────────────────────────────────
+
+/** Custom error class for BSA validation failures — UI can detect this. */
+export class BSAValidationError extends Error {
+  public invalidIds: string[];
+  constructor(invalidIds: string[]) {
+    super('Personen är inte bemannad på projektet. Bemanna via kalendern först.');
+    this.name = 'BSAValidationError';
+    this.invalidIds = invalidIds;
+  }
+}
 
 /**
  * SECONDARY safety net: upserts booking_staff_assignments from JS.
@@ -160,13 +170,11 @@ export const createEstablishmentTask = async (task: {
       ? [assignedTo]
       : [];
 
-  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  // ENFORCEMENT: All assigned staff MUST belong to the project team (BSA)
   if (assignedToIds.length > 0) {
     const invalidIds = await validateStaffAgainstBSA(task.booking_id ?? null, assignedToIds);
     if (invalidIds.length > 0) {
-      console.warn('[BSA validation] Staff not in project team:', invalidIds, '— allowing with fallback sync');
-      // We warn but don't block — the DB trigger will create BSA rows as fallback.
-      // This ensures legacy flows and edge cases don't break.
+      throw new BSAValidationError(invalidIds);
     }
   }
   const { data, error } = await supabase
@@ -242,7 +250,7 @@ export const updateEstablishmentTask = async (
     updates.assigned_to = updates.assigned_to_ids[0] || null;
   }
 
-  // VALIDATION: Check that all assigned staff belong to the project team (BSA)
+  // ENFORCEMENT: All assigned staff MUST belong to the project team (BSA)
   if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
     const { data: taskInfo } = await supabase
       .from('establishment_tasks')
@@ -252,7 +260,7 @@ export const updateEstablishmentTask = async (
     if (taskInfo?.booking_id) {
       const invalidIds = await validateStaffAgainstBSA(taskInfo.booking_id, updates.assigned_to_ids);
       if (invalidIds.length > 0) {
-        console.warn('[BSA validation] Staff not in project team on update:', invalidIds, '— allowing with fallback sync');
+        throw new BSAValidationError(invalidIds);
       }
     }
   }
@@ -290,6 +298,22 @@ export const bulkUpdateEstablishmentTasks = async (
   }
   if (updates.assigned_to && !updates.assigned_to_ids) {
     updates.assigned_to_ids = [updates.assigned_to];
+  }
+
+  // ENFORCEMENT: Validate assigned staff against BSA for all affected tasks
+  if (updates.assigned_to_ids && updates.assigned_to_ids.length > 0) {
+    // Get booking_ids for all tasks being updated
+    const { data: taskInfos } = await supabase
+      .from('establishment_tasks')
+      .select('booking_id')
+      .in('id', ids);
+    const bookingIds = [...new Set((taskInfos || []).map(t => t.booking_id).filter(Boolean))] as string[];
+    for (const bookingId of bookingIds) {
+      const invalidIds = await validateStaffAgainstBSA(bookingId, updates.assigned_to_ids);
+      if (invalidIds.length > 0) {
+        throw new BSAValidationError(invalidIds);
+      }
+    }
   }
 
   const { error } = await supabase
