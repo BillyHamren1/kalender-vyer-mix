@@ -1409,11 +1409,13 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .order('report_date', { ascending: false })
 
   // Fetch establishment tasks assigned to this staff member for this booking
+  // Primary: assigned_to_ids (array contains staffId)
+  // Fallback: legacy assigned_to (single field)
   const { data: establishmentTasks } = await supabase
     .from('establishment_tasks')
-    .select('id, title, category, start_date, end_date, completed, notes, sort_order')
+    .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time')
     .eq('booking_id', booking_id)
-    .eq('assigned_to', staffId)
+    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
     .order('start_date', { ascending: true })
     .order('sort_order', { ascending: true })
 
@@ -1456,10 +1458,10 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
     )
   }
 
-  // Fetch and verify the task belongs to this staff member
+  // Fetch and verify the task — include assigned_to_ids for multi-assign check
   const { data: task, error: fetchError } = await supabase
     .from('establishment_tasks')
-    .select('id, completed, assigned_to')
+    .select('id, completed, assigned_to, assigned_to_ids, status')
     .eq('id', task_id)
     .eq('organization_id', organizationId)
     .single()
@@ -1481,9 +1483,10 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
   }
 
   const newCompleted = !task.completed
+  const newStatus = newCompleted ? 'done' : 'not_started'
   const { error: updateError } = await supabase
     .from('establishment_tasks')
-    .update({ completed: newCompleted, updated_at: new Date().toISOString() })
+    .update({ completed: newCompleted, status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', task_id)
 
   if (updateError) {
