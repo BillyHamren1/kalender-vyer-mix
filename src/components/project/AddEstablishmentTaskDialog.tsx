@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
-import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
