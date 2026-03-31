@@ -129,7 +129,7 @@ const InlineStaffAssign = ({ taskId, staffPool, largeProjectId }: {
 
   const handleAssign = async (staffId: string) => {
     try {
-      await updateEstablishmentTask(taskId, { assigned_to: staffId });
+      await updateEstablishmentTask(taskId, { assigned_to_ids: [staffId], assigned_to: staffId });
       queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
       const name = staffPool.find(s => s.id === staffId)?.name || "person";
       toast.success(`Tilldelad till ${name}`);
