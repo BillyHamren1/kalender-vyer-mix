@@ -153,7 +153,10 @@ const ProjectScheduleEditable = ({
                     </p>
                   </>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Ej schemalagd — klicka för att sätta</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Plus className="h-3.5 w-3.5 text-primary" />
+                    <p className="text-xs text-primary font-medium">Lägg till datum</p>
+                  </div>
                 )}
               </div>
               {index < dates.length - 1 && (
