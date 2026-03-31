@@ -30,20 +30,30 @@ export interface EstablishmentTask {
   decision_needed: boolean;
 }
 
-// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
-// booking_staff_assignments (BSA) is the SINGLE source of truth for:
-//   1. Who belongs to a project/booking team
-//   2. Mobile job visibility
+// IMPORTANT:
+// booking_staff_assignments (BSA) is the single source of truth for project team.
+// Tasks may ONLY be assigned to users present in BSA.
+// This is enforced on write (create/update), but not on read for legacy compatibility.
 //
+// ─── TEAM RULE (HARD RULE) ────────────────────────────────────────────
 // CALENDAR/SCHEDULING defines the team → BSA is populated.
 // TASK ASSIGNMENT distributes work WITHIN that team.
 //
-// The DB trigger `trg_sync_task_to_bsa` is a FALLBACK safety net that
-// creates BSA rows with team_id='activity' if assignment happens before
-// calendar scheduling. It is NOT the primary team-creation mechanism.
+// The DB trigger `trg_sync_task_to_bsa` is a LEGACY FALLBACK safety net.
+// It is NOT the primary team-creation mechanism and may be removed in future.
 //
-// Validation: assigned_to_ids are validated against BSA before writes.
+// Validation: assigned_to_ids are ENFORCED against BSA on all writes.
 // ──────────────────────────────────────────────────────────────────────
+
+/** Custom error class for BSA validation failures — UI can detect this. */
+export class BSAValidationError extends Error {
+  public invalidIds: string[];
+  constructor(invalidIds: string[]) {
+    super('Personen är inte bemannad på projektet. Bemanna via kalendern först.');
+    this.name = 'BSAValidationError';
+    this.invalidIds = invalidIds;
+  }
+}
 
 /**
  * SECONDARY safety net: upserts booking_staff_assignments from JS.
