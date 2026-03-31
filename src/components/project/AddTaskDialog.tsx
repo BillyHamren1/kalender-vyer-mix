@@ -64,10 +64,17 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
     e.preventDefault();
     if (!title.trim()) return;
 
+    const selectedId = assignedTo && assignedTo !== "none" ? assignedTo : null;
+
+    // Soft validation: warn if assigning outside BSA team
+    if (selectedId && bsaTeamIds.length > 0 && !bsaTeamIds.includes(selectedId)) {
+      toast.warning("Personen är inte tillagd i projektteamet (kalenderbemanning)");
+    }
+
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
-      assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
+      assigned_to: selectedId,
       deadline: deadline || null
     });
 
