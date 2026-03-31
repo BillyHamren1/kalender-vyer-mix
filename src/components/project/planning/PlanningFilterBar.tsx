@@ -103,10 +103,11 @@ export function applyFilters(
 
     // Dropdown filters
     if (filters.assignedTo) {
+      const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
       if (filters.assignedTo === "__unassigned__") {
-        if (task.assigned_to) return false;
+        if (ids.length > 0) return false;
       } else {
-        if (task.assigned_to !== filters.assignedTo) return false;
+        if (!ids.includes(filters.assignedTo)) return false;
       }
     }
 
