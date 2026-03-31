@@ -456,17 +456,28 @@ const ActivityPlannerSheet = ({
 
               <div>
                 <Label className="text-xs">Tilldela personal</Label>
-                <Select value={assignedTo || "none"} onValueChange={v => setAssignedTo(v === "none" ? null : v)}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Ingen tilldelad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ingen tilldelad</SelectItem>
-                    {staffPool.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1 max-h-32 overflow-y-auto rounded-md border border-border p-1.5 space-y-0.5">
+                  {staffPool.length === 0 ? (
+                    <p className="text-xs text-muted-foreground px-2 py-1">Ingen personal tillgänglig</p>
+                  ) : (
+                    staffPool.map(s => (
+                      <label key={s.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/50 cursor-pointer text-sm">
+                        <Checkbox
+                          checked={assignedToIds.includes(s.id)}
+                          onCheckedChange={(checked) => {
+                            setAssignedToIds(prev =>
+                              checked ? [...prev, s.id] : prev.filter(id => id !== s.id)
+                            );
+                          }}
+                        />
+                        <span className="truncate">{s.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {assignedToIds.length > 0 && (
+                  <p className="text-[10px] text-primary mt-1">{assignedToIds.length} person(er) valda</p>
+                )}
               </div>
 
               <div>
