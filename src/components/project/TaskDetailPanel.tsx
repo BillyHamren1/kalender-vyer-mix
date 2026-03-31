@@ -308,7 +308,17 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
               >
                 Rensa alla
               </button>
-              {staffMembers.map((s) => (
+              {bsaTeam.length > 0 && (
+                <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                  Projektteam
+                </div>
+              )}
+              {availableStaff.length === 0 && (
+                <div className="px-2 py-2 text-xs text-muted-foreground italic">
+                  Lägg till personer i projektteamet först
+                </div>
+              )}
+              {availableStaff.map((s) => (
                 <label
                   key={s.id}
                   className={cn(

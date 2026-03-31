@@ -125,11 +125,12 @@ const ProjectViewPage = () => {
 
         {/* Right: Team + Internal notes */}
         <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
-          <ProjectAssistants
-            projectId={project.id}
-            projectType="medium"
+          <ProjectTeamPanel
+            bookingId={bookingId}
             projectLeader={project.project_leader}
             onChangeLeader={(name) => detail.updateProject({ project_leader: name })}
+            projectStartDate={project.rigdaydate || project.eventdate}
+            projectEndDate={project.rigdowndate || project.eventdate}
           />
           <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
           <ProjectInternalNotes
