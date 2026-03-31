@@ -612,6 +612,7 @@ const EstablishmentGanttChart = ({
                   const barRight = endPos ? endPos.x + endPos.width : barLeft + DAY_WIDTH;
                   const barWidth = Math.max(barRight - barLeft - 4, 32);
 
+                  const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
                     : taskStatus === 'cancelled' ? 'bg-muted-foreground'
                     : isOverdue ? 'bg-destructive'
