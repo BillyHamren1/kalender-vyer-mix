@@ -243,6 +243,8 @@ const ActivityPlannerSheet = ({
         category,
         start_date: format(startDate, 'yyyy-MM-dd'),
         end_date: format(endDate, 'yyyy-MM-dd'),
+        start_time: startTime || null,
+        end_time: endTime || null,
         source: 'manual',
         assigned_to: assignedTo,
         priority,
