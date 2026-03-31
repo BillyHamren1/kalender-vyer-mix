@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Clock, CheckCircle2, AlertTriangle, User, Calendar, ArrowRight, Trash2 } from 'lucide-react';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from '@/types/packing';
@@ -14,6 +15,7 @@ interface PackingDashboardProps {
 
 const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
   const navigate = useNavigate();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const stats = useMemo(() => {
     const planning = packings.filter(p => p.status === 'planning').length;
@@ -202,9 +204,7 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Ta bort "${p.name}"?`)) {
-                          onDelete(p.id);
-                        }
+                        setDeleteTarget({ id: p.id, name: p.name });
                       }}
                       className="shrink-0 p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
                     >
@@ -217,6 +217,24 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmationDialog
+        title="Ta bort packning"
+        description={`Är du säker på att du vill ta bort "${deleteTarget?.name}"?`}
+        confirmLabel="Ta bort"
+        cancelLabel="Avbryt"
+        onConfirm={() => {
+          if (deleteTarget && onDelete) {
+            onDelete(deleteTarget.id);
+          }
+          setDeleteTarget(null);
+        }}
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+      >
+        <span />
+      </ConfirmationDialog>
     </div>
   );
 };

@@ -48,9 +48,7 @@ const PackingManagement = () => {
   };
 
   const handleDelete = (packingId: string) => {
-    if (confirm('Är du säker på att du vill ta bort denna packning?')) {
-      deleteMutation.mutate(packingId);
-    }
+    deleteMutation.mutate(packingId);
   };
 
   return (
