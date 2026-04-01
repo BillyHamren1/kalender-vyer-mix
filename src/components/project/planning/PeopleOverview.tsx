@@ -209,22 +209,34 @@ const PersonCard = ({ person, onTaskClick }: { person: PersonData; onTaskClick: 
 };
 
 const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewProps) => {
-  const { people, unassignedTasks } = useMemo(() => {
+  const { people, internalUserTasks, unassignedTasks } = useMemo(() => {
     const today = startOfDay(new Date());
     const byPerson = new Map<string, EstablishmentTask[]>();
+    const byUser = new Map<string, EstablishmentTask[]>();
 
     const unassigned: EstablishmentTask[] = [];
 
     for (const task of analytics.tasks) {
-      // All tasks are active in the new lifecycle
-      const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
-      if (ids.length === 0) {
+      const staffIds = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
+      const hasStaff = staffIds.length > 0;
+      const hasUser = !!task.assigned_user_id;
+
+      if (!hasStaff && !hasUser) {
         if (task.status !== "done") unassigned.push(task);
         continue;
       }
-      for (const staffId of ids) {
+
+      // Staff assignments
+      for (const staffId of staffIds) {
         if (!byPerson.has(staffId)) byPerson.set(staffId, []);
         byPerson.get(staffId)!.push(task);
+      }
+
+      // Internal user assignments (separate from staff)
+      if (hasUser && !hasStaff) {
+        const uid = task.assigned_user_id!;
+        if (!byUser.has(uid)) byUser.set(uid, []);
+        byUser.get(uid)!.push(task);
       }
     }
 
@@ -262,6 +274,38 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
       });
     }
 
+    // Internal users as PersonData entries
+    const internalUsers: PersonData[] = [];
+    for (const [userId, tasks] of byUser) {
+      const active = tasks.filter(t => t.status !== "done");
+      const overdueTasks = tasks.filter(t => isOverdue(t));
+      const blocked = tasks.filter(t => t.status === "blocked");
+      const completed = tasks.filter(t => t.status === "done");
+      const todayTasks = active.filter(t => t.start_date && isToday(new Date(t.start_date)) && !isOverdue(t));
+      const upcomingTasks = active.filter(t => {
+        if (!t.start_date || isOverdue(t)) return false;
+        const d = startOfDay(new Date(t.start_date));
+        return !isToday(d);
+      });
+      const level: "low" | "normal" | "high" = active.length <= 2 ? "low" : active.length <= 5 ? "normal" : "high";
+
+      internalUsers.push({
+        staffId: userId,
+        name: userId.slice(0, 8) + " (kontor)",
+        tasks,
+        active: active.length,
+        overdue: overdueTasks.length,
+        blocked: blocked.length,
+        completed: completed.length,
+        total: tasks.length,
+        level,
+        overdueTasks,
+        todayTasks,
+        upcomingTasks,
+        doneTasks: completed,
+      });
+    }
+
     // Sort: most critical first (overdue > blocked > high workload)
     people.sort((a, b) => {
       if (a.overdue !== b.overdue) return b.overdue - a.overdue;
@@ -269,7 +313,7 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
       return b.active - a.active;
     });
 
-    return { people, unassignedTasks: unassigned };
+    return { people, internalUserTasks: internalUsers, unassignedTasks: unassigned };
   }, [analytics.tasks, staffPool]);
 
   return (
