@@ -263,6 +263,13 @@ const ActivityPlannerSheet = ({
     setRows(prev => {
       const idx = prev.findIndex(r => r.id === rowId);
       if (idx === -1) return prev;
+      const clone: ActivityRow = { ...prev[idx], id: makeRowId(), productIds: [...prev[idx].productIds], assignedToIds: [...prev[idx].assignedToIds], productQuantities: { ...prev[idx].productQuantities } };
+      const next = [...prev];
+      next.splice(idx + 1, 0, clone);
+      return next;
+    });
+  }, []);
+      if (idx === -1) return prev;
       const clone: ActivityRow = { ...prev[idx], id: makeRowId(), productIds: [...prev[idx].productIds], assignedToIds: [...prev[idx].assignedToIds] };
       const next = [...prev];
       next.splice(idx + 1, 0, clone);
