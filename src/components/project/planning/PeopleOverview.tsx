@@ -1,15 +1,17 @@
 import { useState, useMemo } from "react";
-import { format, startOfDay, isBefore, isToday, isTomorrow } from "date-fns";
+import { format, startOfDay, isBefore, isToday } from "date-fns";
 import { sv } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   User, Users, ChevronDown, ChevronRight, AlertTriangle, Clock,
-  Ban, CheckCircle2, Circle, Play, XCircle, UserX, ArrowUp, ArrowRight, ArrowDown,
+  Ban, CheckCircle2, Circle, Play, UserX, ArrowUp, ArrowRight, ArrowDown,
+  UserCog,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 import type { TaskAnalytics } from "@/hooks/useTaskAnalytics";
 
@@ -22,6 +24,7 @@ interface PeopleOverviewProps {
 interface PersonData {
   staffId: string;
   name: string;
+  isInternalUser: boolean;
   tasks: EstablishmentTask[];
   active: number;
   overdue: number;
@@ -136,6 +139,7 @@ const TaskGroup = ({
 const PersonCard = ({ person, onTaskClick }: { person: PersonData; onTaskClick: (taskId: string) => void }) => {
   const [expanded, setExpanded] = useState(false);
   const levelCfg = LEVEL_CONFIG[person.level];
+  const AvatarIcon = person.isInternalUser ? UserCog : User;
 
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
@@ -148,8 +152,11 @@ const PersonCard = ({ person, onTaskClick }: { person: PersonData; onTaskClick: 
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center gap-3 px-4 py-3">
             {/* Avatar */}
-            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <User className="h-4 w-4 text-primary" />
+            <div className={cn(
+              "h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0",
+              person.isInternalUser ? "bg-muted" : "bg-primary/10"
+            )}>
+              <AvatarIcon className={cn("h-4 w-4", person.isInternalUser ? "text-muted-foreground" : "text-primary")} />
             </div>
 
             {/* Name + workload */}
@@ -159,6 +166,11 @@ const PersonCard = ({ person, onTaskClick }: { person: PersonData; onTaskClick: 
                 <Badge variant="outline" className={cn("text-[10px] h-4 px-1.5 border", levelCfg.className)}>
                   {levelCfg.label}
                 </Badge>
+                {person.isInternalUser && (
+                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-muted-foreground/30 text-muted-foreground">
+                    Kontor
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
                 <span>{person.total} totalt</span>
@@ -209,11 +221,36 @@ const PersonCard = ({ person, onTaskClick }: { person: PersonData; onTaskClick: 
 };
 
 const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewProps) => {
-  const { people, internalUserTasks, unassignedTasks } = useMemo(() => {
-    const today = startOfDay(new Date());
+  // Collect internal user IDs to resolve names
+  const internalUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const task of analytics.tasks) {
+      if (task.assigned_user_id) ids.add(task.assigned_user_id);
+    }
+    return Array.from(ids);
+  }, [analytics.tasks]);
+
+  // Fetch internal user names from profiles
+  const { data: userMap = {} } = useQuery({
+    queryKey: ["people-overview-users", internalUserIds.join(",")],
+    queryFn: async () => {
+      if (internalUserIds.length === 0) return {};
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", internalUserIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u) => {
+        map[u.user_id] = u.full_name || u.email || "Okänd användare";
+      });
+      return map;
+    },
+    enabled: internalUserIds.length > 0,
+  });
+
+  const { people, internalUserEntries, unassignedTasks } = useMemo(() => {
     const byPerson = new Map<string, EstablishmentTask[]>();
     const byUser = new Map<string, EstablishmentTask[]>();
-
     const unassigned: EstablishmentTask[] = [];
 
     for (const task of analytics.tasks) {
@@ -240,81 +277,57 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
       }
     }
 
-    const people: PersonData[] = [];
+    const buildPersonData = (id: string, name: string, tasks: EstablishmentTask[], isInternal: boolean): PersonData => {
+      const active = tasks.filter(t => t.status !== "done");
+      const overdueTasks = tasks.filter(t => isOverdue(t));
+      const blocked = tasks.filter(t => t.status === "blocked");
+      const completed = tasks.filter(t => t.status === "done");
+      const todayTasks = active.filter(t => t.start_date && isToday(new Date(t.start_date)) && !isOverdue(t));
+      const upcomingTasks = active.filter(t => {
+        if (!t.start_date || isOverdue(t)) return false;
+        return !isToday(startOfDay(new Date(t.start_date)));
+      });
+      const level: "low" | "normal" | "high" = active.length <= 2 ? "low" : active.length <= 5 ? "normal" : "high";
 
+      return {
+        staffId: id,
+        name,
+        isInternalUser: isInternal,
+        tasks,
+        active: active.length,
+        overdue: overdueTasks.length,
+        blocked: blocked.length,
+        completed: completed.length,
+        total: tasks.length,
+        level,
+        overdueTasks,
+        todayTasks,
+        upcomingTasks,
+        doneTasks: completed,
+      };
+    };
+
+    const people: PersonData[] = [];
     for (const [staffId, tasks] of byPerson) {
       const staff = staffPool.find(s => s.id === staffId);
-      const active = tasks.filter(t => t.status !== "done");
-      const overdueTasks = tasks.filter(t => isOverdue(t));
-      const blocked = tasks.filter(t => t.status === "blocked");
-      const completed = tasks.filter(t => t.status === "done");
-      const todayTasks = active.filter(t => t.start_date && isToday(new Date(t.start_date)) && !isOverdue(t));
-      const upcomingTasks = active.filter(t => {
-        if (!t.start_date || isOverdue(t)) return false;
-        const d = startOfDay(new Date(t.start_date));
-        return !isToday(d);
-      });
-
-      const level: "low" | "normal" | "high" = active.length <= 2 ? "low" : active.length <= 5 ? "normal" : "high";
-
-      people.push({
-        staffId,
-        name: staff?.name || staffId,
-        tasks,
-        active: active.length,
-        overdue: overdueTasks.length,
-        blocked: blocked.length,
-        completed: completed.length,
-        total: tasks.length,
-        level,
-        overdueTasks,
-        todayTasks,
-        upcomingTasks,
-        doneTasks: completed,
-      });
+      people.push(buildPersonData(staffId, staff?.name || staffId, tasks, false));
     }
 
-    // Internal users as PersonData entries
     const internalUsers: PersonData[] = [];
     for (const [userId, tasks] of byUser) {
-      const active = tasks.filter(t => t.status !== "done");
-      const overdueTasks = tasks.filter(t => isOverdue(t));
-      const blocked = tasks.filter(t => t.status === "blocked");
-      const completed = tasks.filter(t => t.status === "done");
-      const todayTasks = active.filter(t => t.start_date && isToday(new Date(t.start_date)) && !isOverdue(t));
-      const upcomingTasks = active.filter(t => {
-        if (!t.start_date || isOverdue(t)) return false;
-        const d = startOfDay(new Date(t.start_date));
-        return !isToday(d);
-      });
-      const level: "low" | "normal" | "high" = active.length <= 2 ? "low" : active.length <= 5 ? "normal" : "high";
-
-      internalUsers.push({
-        staffId: userId,
-        name: userId.slice(0, 8) + " (kontor)",
-        tasks,
-        active: active.length,
-        overdue: overdueTasks.length,
-        blocked: blocked.length,
-        completed: completed.length,
-        total: tasks.length,
-        level,
-        overdueTasks,
-        todayTasks,
-        upcomingTasks,
-        doneTasks: completed,
-      });
+      const resolvedName = userMap[userId] || "Okänd användare";
+      internalUsers.push(buildPersonData(userId, resolvedName, tasks, true));
     }
 
-    // Sort: most critical first (overdue > blocked > high workload)
+    // Sort: most critical first
     people.sort((a, b) => {
       if (a.overdue !== b.overdue) return b.overdue - a.overdue;
       if (a.blocked !== b.blocked) return b.blocked - a.blocked;
       return b.active - a.active;
     });
 
-    return { people, internalUserTasks: internalUsers, unassignedTasks: unassigned };
-  }, [analytics.tasks, staffPool]);
+    return { people, internalUserEntries: internalUsers, unassignedTasks: unassigned };
+  }, [analytics.tasks, staffPool, userMap]);
 
   return (
     <div className="space-y-4">
@@ -323,7 +336,9 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Personalöversikt</h3>
-          <span className="text-xs text-muted-foreground">({people.length} personer)</span>
+          <span className="text-xs text-muted-foreground">
+            ({people.length + internalUserEntries.length} personer)
+          </span>
         </div>
       </div>
 
@@ -363,7 +378,7 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
         </Card>
       )}
 
-      {/* People cards */}
+      {/* Field staff cards */}
       <div className="space-y-2">
         {people.map(person => (
           <PersonCard key={person.staffId} person={person} onTaskClick={onTaskClick} />
@@ -371,19 +386,20 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
       </div>
 
       {/* Internal users section */}
-      {internalUserTasks.length > 0 && (
+      {internalUserEntries.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 mt-4">
-            <UserX className="h-4 w-4 text-muted-foreground" />
+            <UserCog className="h-4 w-4 text-muted-foreground" />
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Interna användare</h4>
+            <span className="text-[10px] text-muted-foreground">({internalUserEntries.length})</span>
           </div>
-          {internalUserTasks.map(person => (
+          {internalUserEntries.map(person => (
             <PersonCard key={person.staffId} person={person} onTaskClick={onTaskClick} />
           ))}
         </div>
       )}
 
-      {people.length === 0 && internalUserTasks.length === 0 && unassignedTasks.length === 0 && (
+      {people.length === 0 && internalUserEntries.length === 0 && unassignedTasks.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
           <Users className="h-10 w-10 mx-auto mb-2 opacity-20" />
           <p className="text-sm">Inga aktiviteter ännu</p>
