@@ -161,8 +161,18 @@ export const useLargeProjectDetail = (projectId: string) => {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) =>
-      updateLargeProjectTask(id, updates),
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) => {
+      await updateLargeProjectTask(id, updates);
+      // BRIDGE SYNC: propagate key changes to linked execution task
+      const task = tasks.find(t => t.id === id);
+      if (task?.execution_task_id) {
+        syncProjectTaskToExecution(task.execution_task_id, {
+          title: updates.title,
+          deadline: updates.deadline,
+          completed: updates.completed,
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
     },
