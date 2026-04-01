@@ -146,28 +146,6 @@ const LargeProjectLayout = () => {
     ? "economy"
     : "overview";
 
-  const bookings = project.bookings || [];
-
-  // Derive times from linked bookings (earliest start, latest end)
-  const derivedTimes = useMemo(() => {
-    const bs = bookings.map(b => b.booking).filter(Boolean);
-    const earliest = (vals: (string | null | undefined)[]) => {
-      const valid = vals.filter(Boolean).map(v => v!.includes('T') ? v!.substring(11, 16) : v!.substring(0, 5)).sort();
-      return valid[0] || null;
-    };
-    const latest = (vals: (string | null | undefined)[]) => {
-      const valid = vals.filter(Boolean).map(v => v!.includes('T') ? v!.substring(11, 16) : v!.substring(0, 5)).sort();
-      return valid[valid.length - 1] || null;
-    };
-    return {
-      startStart: earliest(bs.map(b => b!.rig_start_time)),
-      startEnd: latest(bs.map(b => b!.rig_end_time)),
-      eventStart: earliest(bs.map(b => b!.event_start_time)),
-      eventEnd: latest(bs.map(b => b!.event_end_time)),
-      endStart: earliest(bs.map(b => b!.rigdown_start_time)),
-      endEnd: latest(bs.map(b => b!.rigdown_end_time)),
-    };
-  }, [bookings]);
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
