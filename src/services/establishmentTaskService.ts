@@ -380,7 +380,7 @@ export const generateDefaultTasks = async (
   const rows = defaults.map(d => ({
     booking_id: bookingId,
     source: 'default',
-    status: 'not_started' as TaskStatus,
+    status: 'todo' as TaskStatus,
     readiness: 'missing_information' as TaskReadiness,
     priority: 'medium' as TaskPriority,
     ...d,
