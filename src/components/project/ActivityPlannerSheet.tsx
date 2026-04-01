@@ -269,13 +269,6 @@ const ActivityPlannerSheet = ({
       return next;
     });
   }, []);
-      if (idx === -1) return prev;
-      const clone: ActivityRow = { ...prev[idx], id: makeRowId(), productIds: [...prev[idx].productIds], assignedToIds: [...prev[idx].assignedToIds] };
-      const next = [...prev];
-      next.splice(idx + 1, 0, clone);
-      return next;
-    });
-  }, []);
 
   // --- Product attachment ---
   const toggleProduct = (id: string) => {
