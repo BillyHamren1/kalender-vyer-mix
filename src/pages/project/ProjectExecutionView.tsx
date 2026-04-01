@@ -187,13 +187,12 @@ const ProjectExecutionView = () => {
     return tasks.filter((t) => {
       if (filterType !== "all" && t.task_type !== filterType) return false;
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
-      if (filterPerson !== "all") {
-        const ids = t.assigned_to_ids || [];
-        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson && t.assigned_user_id !== filterPerson) return false;
-      }
       if (filterPerson === "__unassigned__") {
         const ids = t.assigned_to_ids || [];
         if (ids.length > 0 || t.assigned_to || t.assigned_user_id) return false;
+      } else if (filterPerson !== "all") {
+        const ids = t.assigned_to_ids || [];
+        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson && t.assigned_user_id !== filterPerson) return false;
       }
       if (filterDateGroup !== "all") {
         const group = getDateGroup(t);
