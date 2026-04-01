@@ -17,9 +17,9 @@ interface LargeProjectScheduleEditableProps {
 type DateType = 'start' | 'event' | 'end';
 
 const dateConfig = {
-  start: { label: 'RIGG / START', icon: Truck, dialogTitle: 'Startdatum' },
+  start: { label: 'RIGG', icon: Truck, dialogTitle: 'Riggdatum' },
   event: { label: 'EVENT', icon: PartyPopper, dialogTitle: 'Eventdatum' },
-  end: { label: 'NEDRIVNING / SLUT', icon: ArrowDownToLine, dialogTitle: 'Slutdatum' },
+  end: { label: 'NEDRIVNING', icon: ArrowDownToLine, dialogTitle: 'Nedrivningsdatum' },
 };
 
 const LargeProjectScheduleEditable = ({
