@@ -65,7 +65,7 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
   const confirmedSuppliers = suppliers.filter(s => s.status !== "cancelled");
 
   return (
-    <div className="space-y-4">
+    <div ref={sectionRef} className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
           <MessageSquare className="h-4 w-4 text-primary" />
