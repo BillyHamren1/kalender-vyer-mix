@@ -89,9 +89,21 @@ export async function syncProjectTaskToExecution(
       patch.due_date = updates.deadline;
       patch.end_date = updates.deadline || format(new Date(), 'yyyy-MM-dd');
     }
-    if (updates.completed !== undefined) {
-      patch.status = updates.completed ? 'done' : 'todo';
-      patch.completed = updates.completed;
+    if (updates.completed === true) {
+      patch.status = 'done';
+      patch.completed = true;
+    } else if (updates.completed === false) {
+      // Only revert to 'todo' if execution task is still in initial state
+      // Don't regress from in_progress or blocked
+      const { data: current } = await supabase
+        .from('establishment_tasks')
+        .select('status')
+        .eq('id', executionTaskId)
+        .maybeSingle();
+      if (current?.status === 'done' || current?.status === 'todo') {
+        patch.status = 'todo';
+        patch.completed = false;
+      }
     }
 
     if (Object.keys(patch).length === 0) return;
