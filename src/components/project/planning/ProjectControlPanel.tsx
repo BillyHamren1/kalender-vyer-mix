@@ -619,12 +619,16 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick, onFilterChange
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <OverdueSection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
         <TodaySection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <UnassignedSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <PersonSection analytics={analytics} staffPool={staffPool} userMap={userMap} onFilterChange={onFilterChange} />
       </div>
 
-      {/* Other issues */}
-      <ActionRequired issues={analytics.criticalIssues} staffPool={staffPool} onTaskClick={onTaskClick} />
+      {/* Unassigned + Issues side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <UnassignedSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
+        <ActionRequired issues={analytics.criticalIssues} staffPool={staffPool} onTaskClick={onTaskClick} />
+      </div>
+
+      {/* Person overview */}
+      <PersonSection analytics={analytics} staffPool={staffPool} userMap={userMap} onFilterChange={onFilterChange} />
     </div>
   );
 };
