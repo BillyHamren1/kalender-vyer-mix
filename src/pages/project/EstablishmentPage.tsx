@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
@@ -27,6 +27,34 @@ const EstablishmentPage = () => {
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Auto-open task from calendar navigation
+  useEffect(() => {
+    const tid = (location.state as any)?.highlightTaskId;
+    if (tid) {
+      window.history.replaceState({}, document.title);
+      // Fetch the task to populate the detail sheet
+      supabase
+        .from("establishment_tasks")
+        .select("id, title, category, start_date, end_date, completed")
+        .eq("id", tid)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedTask({
+              id: data.id,
+              title: data.title,
+              category: data.category,
+              startDate: new Date(data.start_date),
+              endDate: new Date(data.end_date),
+              completed: data.completed ?? false,
+            });
+            setSheetOpen(true);
+          }
+        });
+    }
+  }, [location.state]);
 
   const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
     setSheetOpen(false);

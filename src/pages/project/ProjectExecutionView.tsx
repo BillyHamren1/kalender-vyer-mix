@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useOutletContext, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, isBefore, startOfDay, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -83,7 +83,29 @@ function getIndicatorColor(group: string, status: TaskStatus) {
 const ProjectExecutionView = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const { project } = detail;
+  const location = useLocation();
   const bookingId = project?.booking_id || project?.booking?.id || null;
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  // Pick up task highlight from navigation state (e.g. from calendar)
+  useEffect(() => {
+    const tid = (location.state as any)?.highlightTaskId;
+    if (tid) {
+      setHighlightedTaskId(tid);
+      window.history.replaceState({}, document.title);
+      // Clear highlight after a few seconds
+      const timer = setTimeout(() => setHighlightedTaskId(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
+
+  // Scroll highlighted task into view once rendered
+  useEffect(() => {
+    if (highlightedTaskId && highlightRef.current) {
+      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+    }
+  }, [highlightedTaskId]);
 
   // Filters
   const [filterPerson, setFilterPerson] = useState<string>("all");
@@ -337,9 +359,11 @@ const ProjectExecutionView = () => {
                 return (
                   <div
                     key={task.id}
+                    ref={task.id === highlightedTaskId ? highlightRef : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl border bg-card p-3 border-l-4 transition-colors hover:bg-accent/30",
-                      getIndicatorColor(group, task.status as TaskStatus)
+                      "flex items-center gap-3 rounded-xl border bg-card p-3 border-l-4 transition-all hover:bg-accent/30",
+                      getIndicatorColor(group, task.status as TaskStatus),
+                      task.id === highlightedTaskId && "ring-2 ring-primary ring-offset-2 bg-primary/5"
                     )}
                   >
                     {/* Done toggle */}
