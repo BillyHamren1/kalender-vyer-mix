@@ -44,7 +44,7 @@ const formatCurrency = (v: number) =>
 
 const signalDot = (level: SignalLevel) => {
   const colors: Record<SignalLevel, string> = {
-    ok: 'bg-green-500',
+    ok: 'bg-teal-500',
     warning: 'bg-amber-500',
     danger: 'bg-red-500',
     neutral: 'bg-muted-foreground/30',
