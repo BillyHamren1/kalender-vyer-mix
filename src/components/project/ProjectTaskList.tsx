@@ -106,7 +106,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 className="flex items-center gap-2 px-4 py-2.5 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
               >
                 <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                <span>Hantera operativa uppgifter i Utförande-vyn</span>
+                <span>Hantera operativa uppgifter i Utförande-vyn →</span>
               </button>
             )}
 

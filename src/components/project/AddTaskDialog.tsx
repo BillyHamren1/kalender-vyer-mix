@@ -90,7 +90,7 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
         <DialogHeader>
           <DialogTitle>Lägg till koordineringsuppgift</DialogTitle>
           <p className="text-xs text-muted-foreground leading-snug mt-1">
-            Enkel samordning inom projektet. Operativa fältuppgifter hanteras i Execution.
+            Enkel samordning inom projektet. Operativa fältuppgifter hanteras under <strong>Utförande</strong>.
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
