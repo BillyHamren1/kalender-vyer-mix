@@ -12,12 +12,6 @@ export interface LargeProject {
   start_date: string | null;
   event_date: string | null;
   end_date: string | null;
-  start_start_time: string | null;
-  start_end_time: string | null;
-  event_start_time: string | null;
-  event_end_time: string | null;
-  end_start_time: string | null;
-  end_end_time: string | null;
   created_at: string;
   updated_at: string;
 }
