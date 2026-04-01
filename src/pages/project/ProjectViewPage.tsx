@@ -19,7 +19,7 @@ import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, History, RefreshCw } from "lucide-react";
+import { FileText, MessageSquare, History, RefreshCw, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
@@ -174,6 +174,7 @@ const ProjectViewPage = () => {
               }
               return undefined;
             }}
+            executionHref="execution"
           />
         </div>
 

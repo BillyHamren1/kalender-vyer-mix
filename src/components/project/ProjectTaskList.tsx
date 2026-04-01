@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -22,9 +23,12 @@ interface ProjectTaskListProps {
   getTaskAction?: (task: ProjectTask) => (() => void) | undefined;
   /** Pass bookingId to filter task assignment to BSA team */
   bookingId?: string | null;
+  /** Relative path to execution view (e.g. "execution" or "establishment") */
+  executionHref?: string;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref }: ProjectTaskListProps) => {
+  const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
@@ -95,10 +99,21 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
           {/* LEFT: Task list */}
           <div className={syncedSelectedTask ? "flex flex-col w-1/2 min-w-0 border-r border-border/30 overflow-hidden" : "flex flex-col flex-1 overflow-hidden"}>
+            {/* Execution CTA banner */}
+            {executionHref && (
+              <button
+                onClick={() => navigate(executionHref)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
+              >
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                <span>Hantera uppgifter i Utförande-vyn</span>
+              </button>
+            )}
+
             {/* Header */}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-2 pb-1.5 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-sm font-semibold text-foreground tracking-tight">Uppgifter</span>
+                <span className="text-sm font-semibold text-muted-foreground tracking-tight">Uppgifter</span>
                 {totalRegular > 0 && (
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {doneCount}/{totalRegular}
