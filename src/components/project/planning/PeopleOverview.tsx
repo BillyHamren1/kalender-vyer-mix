@@ -36,7 +36,7 @@ interface PersonData {
 }
 
 const isOverdue = (task: EstablishmentTask) => {
-  if (task.status === "done" || task.status === "cancelled") return false;
+  if (task.status === "done") return false;
   if (!task.end_date) return false;
   return isBefore(startOfDay(new Date(task.end_date)), startOfDay(new Date()));
 };
