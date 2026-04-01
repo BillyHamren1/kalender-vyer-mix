@@ -304,8 +304,8 @@ const CustomCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
                   onEventClick={handleEventClick}
+                  isEventReadOnly={isEventReadOnly}
                 />
-              )
             ) : viewMode === 'weekly' ? (
               // Weekly View - 7 days side by side with horizontal scroll
               isMobile ? (
