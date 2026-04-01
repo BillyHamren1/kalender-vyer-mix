@@ -89,7 +89,7 @@ export function applyFilters(
         case "unassigned": {
           const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
           if (ids.length > 0) return false;
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           break;
         }
         case "completed":
