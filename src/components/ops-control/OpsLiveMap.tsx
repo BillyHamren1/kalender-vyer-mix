@@ -634,7 +634,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           )}
         </div>
       </div>
-      </div>
 
       {/* Selected job panel */}
       {selectedJob && (
