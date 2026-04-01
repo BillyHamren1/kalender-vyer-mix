@@ -66,6 +66,8 @@ const AddEstablishmentTaskDialog = ({
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [assignedUserId, setAssignedUserId] = useState<string | null>(null);
+  const [assigneeType, setAssigneeType] = useState<"staff" | "user">("staff");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [taskType, setTaskType] = useState<TaskType>("crew");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
@@ -77,6 +79,22 @@ const AddEstablishmentTaskDialog = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
+
+  // Fetch system users (profiles) for non-staff assignment
+  const { data: systemUsers = [] } = useQuery({
+    queryKey: ["system-users-profiles"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .order("full_name");
+      return (data || []).filter(u => u.full_name || u.email).map(u => ({
+        id: u.user_id,
+        name: u.full_name || u.email || "Okänd",
+      }));
+    },
+    staleTime: 60_000,
+  });
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
