@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, ListChecks } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
@@ -14,8 +14,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
-  { key: "execution", label: "Utförande", icon: ListChecks, path: "/execution", emphasis: true },
-  { key: "establishment", label: "Etableringsschema", icon: HardHat, path: "/establishment" },
+  { key: "execution", label: "Utförande", icon: HardHat, path: "/execution", emphasis: true },
   { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
 ];
 
