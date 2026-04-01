@@ -14,7 +14,7 @@ interface LargeProjectScheduleEditableProps {
   eventEndTime?: string | null;
   endStartTime?: string | null;
   endEndTime?: string | null;
-  onUpdateDates: (updates: Record<string, string | null>) => void;
+  onUpdateSchedule: (dateType: DateType, date: string, startTime: string, endTime: string) => void;
 }
 
 type DateType = 'rig' | 'event' | 'rigDown';
