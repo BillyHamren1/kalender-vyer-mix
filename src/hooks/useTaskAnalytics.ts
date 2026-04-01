@@ -155,33 +155,33 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const criticalIssues: CriticalIssue[] = [
       ...blocked.map(t => ({
         taskId: t.id, taskTitle: t.title, type: "blocked" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
         blockerReason: t.blockers, blockerResponsible: t.blocker_responsible,
         blockedSince: t.start_date,
       })),
       ...overdueTasks.filter(t => t.status !== 'blocked').map(t => ({
         taskId: t.id, taskTitle: t.title, type: "overdue" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
       })),
       ...waitingForDecision.filter(t => t.status !== 'blocked' && !isOverdue(t, today)).map(t => ({
         taskId: t.id, taskTitle: t.title, type: "decision_needed" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
       })),
       ...missingSetup.filter(t => t.status !== 'blocked' && !t.decision_needed && !isOverdue(t, today)).map(t => ({
         taskId: t.id, taskTitle: t.title, type: "missing_setup" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
       })),
       ...waitingForExternal.filter(t => t.status !== 'blocked' && t.readiness !== 'missing_information' && !isOverdue(t, today)).map(t => ({
         taskId: t.id, taskTitle: t.title, type: "waiting_for_external" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
       })),
       ...withoutOwner.filter(t => t.status !== 'blocked' && !isOverdue(t, today) && !t.decision_needed).map(t => ({
         taskId: t.id, taskTitle: t.title, type: "no_owner" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: null, startDate: t.start_date, endDate: t.end_date,
       })),
       ...withoutDates.filter(t => t.status !== 'done' && t.status !== 'blocked').map(t => ({
         taskId: t.id, taskTitle: t.title, type: "no_dates" as const,
-        assignedTo: t.assigned_to, startDate: t.start_date, endDate: t.end_date,
+        assignedTo: t.assigned_to_ids?.[0] || t.assigned_to || t.assigned_user_id || null, startDate: t.start_date, endDate: t.end_date,
       })),
     ];
 
