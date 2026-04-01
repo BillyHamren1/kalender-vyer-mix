@@ -166,8 +166,9 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSuccess: () => {
       if (hasBooking) {
         queryClient.invalidateQueries({ queryKey: ['project-budget', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-budget', projectId] });
       }
-      queryClient.invalidateQueries({ queryKey: ['local-project-budget', projectId] });
       toast.success('Budget sparad');
     },
     onError: () => toast.error('Kunde inte spara budget'),
