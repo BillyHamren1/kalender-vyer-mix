@@ -431,12 +431,12 @@ const EstablishmentGanttChart = ({
                 {ganttData.taskDates.map((task) => {
                   const dbTask = tasks.find(t => t.id === task.id);
                   const IconComponent = CATEGORY_ICONS[task.category] || Wrench;
-                  const status = (dbTask as any)?.status || 'not_started';
+                  const status = (dbTask as any)?.status || 'todo';
                   const readiness = (dbTask as any)?.readiness || 'missing_information';
                   const priority = (dbTask as any)?.priority || 'medium';
                   const hasBlockers = !!(dbTask as any)?.blockers;
                   const StatusIcon = STATUS_ICON_MAP[status] || Circle;
-                  const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.not_started;
+                  const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.todo;
                   const PriorityIcon = PRIORITY_CONFIG[priority]?.icon || ArrowRight;
                   const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
                   const assignedName = taskAssignedIds.length > 0
