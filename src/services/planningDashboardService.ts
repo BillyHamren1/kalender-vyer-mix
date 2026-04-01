@@ -343,12 +343,12 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   const assignedStaffIds = (assignments || []).map(a => a.staff_id);
   const assignedSet = new Set(assignedStaffIds);
 
-  // Also get ALL recent GPS positions (last 10 min) to find unassigned staff
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // Get ALL GPS positions (no time filter — show everyone, mark offline if stale)
   const { data: allGpsData } = await supabase
     .from('staff_locations')
-    .select('staff_id, latitude, longitude, updated_at')
-    .gte('updated_at', tenMinAgo);
+    .select('staff_id, latitude, longitude, updated_at, location_since');
+
+  const tenMinAgo = Date.now() - 10 * 60 * 1000;
 
   const gpsMap = new Map(allGpsData?.map(g => [g.staff_id, g]) || []);
 
