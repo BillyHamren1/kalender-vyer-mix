@@ -55,7 +55,7 @@ function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming"
   if (!ref) return "no_date";
   const d = startOfDay(parseISO(ref));
   const now = startOfDay(new Date());
-  if (task.status === "done" || task.status === "cancelled") return "upcoming";
+  if (task.status === "done") return "upcoming";
   if (isBefore(d, now)) return "overdue";
   if (isToday(d)) return "today";
   return "upcoming";
