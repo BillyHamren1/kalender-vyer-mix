@@ -1,0 +1,178 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  fetchLargeProjectBudget,
+  upsertLargeProjectBudget,
+  fetchLargeProjectPurchases,
+  createLargeProjectPurchase,
+  updateLargeProjectPurchase,
+  deleteLargeProjectPurchase,
+} from '@/services/largeProjectService';
+import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
+import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
+
+interface AggregatedBookingEconomy {
+  totalRevenue: number;
+  totalCost: number;
+  totalStaffCost: number;
+  totalPurchases: number;
+  totalQuotes: number;
+  totalInvoices: number;
+  totalSupplierInvoices: number;
+  bookingCount: number;
+}
+
+export const useLargeProjectEconomy = (
+  largeProjectId: string | undefined,
+  bookingIds: string[]
+) => {
+  const queryClient = useQueryClient();
+
+  // Budget
+  const { data: budget, isLoading: budgetLoading } = useQuery({
+    queryKey: ['large-project-budget', largeProjectId],
+    queryFn: () => fetchLargeProjectBudget(largeProjectId!),
+    enabled: !!largeProjectId,
+  });
+
+  // Purchases
+  const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
+    queryKey: ['large-project-purchases', largeProjectId],
+    queryFn: () => fetchLargeProjectPurchases(largeProjectId!),
+    enabled: !!largeProjectId,
+  });
+
+  // Aggregated booking economy data (from linked bookings via planning-api)
+  const { data: bookingEconomyData, isLoading: bookingEconomyLoading } = useQuery({
+    queryKey: ['large-project-booking-economy', largeProjectId, bookingIds],
+    queryFn: () => fetchAllEconomyDataMulti(bookingIds),
+    enabled: bookingIds.length > 0,
+  });
+
+  // Compute aggregated summary from booking economy
+  const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
+    if (!bookingEconomyData) {
+      return {
+        totalRevenue: 0, totalCost: 0, totalStaffCost: 0,
+        totalPurchases: 0, totalQuotes: 0, totalInvoices: 0,
+        totalSupplierInvoices: 0, bookingCount: 0,
+      };
+    }
+    let totalRevenue = 0, totalCost = 0, totalStaffCost = 0;
+    let totalPurchases = 0, totalQuotes = 0, totalInvoices = 0, totalSupplierInvoices = 0;
+    let bookingCount = 0;
+
+    Object.values(bookingEconomyData).forEach((bd) => {
+      bookingCount++;
+      // Product costs (revenue from booking)
+      const pc = bd.product_costs;
+      if (pc?.summary) {
+        totalRevenue += pc.summary.revenue || 0;
+        totalCost += pc.summary.costs || 0;
+      }
+      // Staff/time
+      const tr = bd.time_reports;
+      if (Array.isArray(tr)) {
+        tr.forEach((r: any) => { totalStaffCost += r.total_cost || 0; });
+      }
+      // Purchases
+      const pu = bd.purchases;
+      if (Array.isArray(pu)) {
+        pu.forEach((p: any) => { totalPurchases += p.amount || 0; });
+      }
+      // Quotes
+      const qu = bd.quotes;
+      if (Array.isArray(qu)) {
+        qu.forEach((q: any) => { totalQuotes += q.quoted_amount || 0; });
+      }
+      // Invoices
+      const inv = bd.invoices;
+      if (Array.isArray(inv)) {
+        inv.forEach((i: any) => { totalInvoices += i.invoiced_amount || 0; });
+      }
+      // Supplier invoices
+      const si = bd.supplier_invoices;
+      if (Array.isArray(si)) {
+        si.forEach((s: any) => { totalSupplierInvoices += Number(s.invoice_data?.Total) || 0; });
+      }
+    });
+
+    return {
+      totalRevenue, totalCost, totalStaffCost,
+      totalPurchases, totalQuotes, totalInvoices,
+      totalSupplierInvoices, bookingCount,
+    };
+  })();
+
+  // Local purchases total
+  const localPurchasesTotal = purchases.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Budget cost
+  const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
+
+  // Combined summary
+  const summary = {
+    // Budget
+    budgetedHours: budget?.budgeted_hours || 0,
+    hourlyRate: budget?.hourly_rate || 0,
+    budgetedCost,
+    // Local purchases
+    localPurchasesTotal,
+    // Aggregated from bookings
+    ...aggregatedBookingEconomy,
+    // Grand totals
+    grandTotalCost: localPurchasesTotal + aggregatedBookingEconomy.totalCost + aggregatedBookingEconomy.totalStaffCost + aggregatedBookingEconomy.totalPurchases,
+    grandTotalRevenue: aggregatedBookingEconomy.totalRevenue,
+  };
+
+  // Mutations
+  const saveBudgetMutation = useMutation({
+    mutationFn: (data: { budgeted_hours: number; hourly_rate: number; description?: string }) =>
+      upsertLargeProjectBudget({ large_project_id: largeProjectId!, ...data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project-budget', largeProjectId] });
+      toast.success('Budget sparad');
+    },
+    onError: () => toast.error('Kunde inte spara budget'),
+  });
+
+  const addPurchaseMutation = useMutation({
+    mutationFn: (data: { description: string; amount: number; category?: string; supplier?: string; purchase_date?: string; receipt_url?: string }) =>
+      createLargeProjectPurchase({ large_project_id: largeProjectId!, ...data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project-purchases', largeProjectId] });
+      toast.success('Inköp tillagt');
+    },
+    onError: () => toast.error('Kunde inte lägga till inköp'),
+  });
+
+  const updatePurchaseMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<LargeProjectPurchase> }) =>
+      updateLargeProjectPurchase(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project-purchases', largeProjectId] });
+      toast.success('Inköp uppdaterat');
+    },
+    onError: () => toast.error('Kunde inte uppdatera inköp'),
+  });
+
+  const removePurchaseMutation = useMutation({
+    mutationFn: deleteLargeProjectPurchase,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project-purchases', largeProjectId] });
+      toast.success('Inköp borttaget');
+    },
+    onError: () => toast.error('Kunde inte ta bort inköp'),
+  });
+
+  return {
+    budget,
+    purchases,
+    summary,
+    isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
+    saveBudget: saveBudgetMutation.mutate,
+    addPurchase: addPurchaseMutation.mutate,
+    updatePurchase: updatePurchaseMutation.mutate,
+    removePurchase: removePurchaseMutation.mutate,
+  };
+};
