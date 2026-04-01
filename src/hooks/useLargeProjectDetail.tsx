@@ -140,8 +140,19 @@ export const useLargeProjectDetail = (projectId: string) => {
 
   // Task mutations
   const addTaskMutation = useMutation({
-    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) =>
-      createLargeProjectTask({ ...task, large_project_id: projectId }),
+    mutationFn: async (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => {
+      const created = await createLargeProjectTask({ ...task, large_project_id: projectId });
+      // BRIDGE: mirror to execution layer (fire-and-forget)
+      bridgeProjectTaskToExecution(
+        created.id,
+        { title: task.title, description: task.description, assigned_to: task.assigned_to, deadline: task.deadline },
+        { largeProjectId: projectId },
+        'large_project_tasks'
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
+      });
+      return created;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
       toast.success('Uppgift tillagd');
