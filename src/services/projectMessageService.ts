@@ -26,6 +26,7 @@ export const sendProjectMessage = async (msg: {
   message: string;
   sender_name: string;
   project_supplier_link_id?: string | null;
+  linked_task_id?: string | null;
 }): Promise<ProjectMessage> => {
   const { data, error } = await supabase
     .from('project_messages')
@@ -35,12 +36,23 @@ export const sendProjectMessage = async (msg: {
       message: msg.message,
       sender_name: msg.sender_name,
       project_supplier_link_id: msg.project_supplier_link_id || null,
+      linked_task_id: msg.linked_task_id || null,
     }] as any)
     .select()
     .single();
 
   if (error) throw error;
   return data as ProjectMessage;
+};
+
+export const fetchMessagesForTask = async (taskId: string): Promise<ProjectMessage[]> => {
+  const { data, error } = await supabase
+    .from('project_messages')
+    .select('*')
+    .eq('linked_task_id', taskId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []) as ProjectMessage[];
 };
 
 export const deleteProjectMessage = async (id: string) => {

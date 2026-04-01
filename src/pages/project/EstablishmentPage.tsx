@@ -100,6 +100,7 @@ const EstablishmentPage = () => {
         task={selectedTask}
         bookingId={booking?.id ?? null}
         staffPool={staffPool}
+        projectId={project?.id}
       />
     </div>
   );

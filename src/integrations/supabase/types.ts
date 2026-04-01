@@ -3136,6 +3136,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          linked_task_id: string | null
           message: string
           organization_id: string
           project_id: string
@@ -3146,6 +3147,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          linked_task_id?: string | null
           message: string
           organization_id: string
           project_id: string
@@ -3156,6 +3158,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          linked_task_id?: string | null
           message?: string
           organization_id?: string
           project_id?: string
@@ -3164,6 +3167,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_messages_linked_task_id_fkey"
+            columns: ["linked_task_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_messages_project_id_fkey"
             columns: ["project_id"]

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
@@ -39,6 +39,11 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
+  const [chatTaskRef, setChatTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    setChatTaskRef({ taskId, taskTitle });
+  }, []);
 
   const { project, tasks, files, comments, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
@@ -202,6 +207,8 @@ const ProjectViewPage = () => {
         projectId={project.id}
         senderName={project.project_leader || 'Projektledare'}
         suppliers={suppliers}
+        linkedTaskRef={chatTaskRef}
+        onClearTaskRef={() => setChatTaskRef(null)}
       />
 
       {/* Kommentarer */}

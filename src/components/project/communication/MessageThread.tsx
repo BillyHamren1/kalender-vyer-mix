@@ -80,6 +80,13 @@ const MessageThread = ({
                       {format(new Date(msg.created_at), "d MMM HH:mm", { locale: sv })}
                     </span>
                   </div>
+                  {msg.linked_task_id && (
+                    <div className="flex items-center gap-1 mt-1 mb-0.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                        📋 Uppgiftsreferens
+                      </span>
+                    </div>
+                  )}
                   <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed mt-0.5">
                     {msg.message}
                   </p>

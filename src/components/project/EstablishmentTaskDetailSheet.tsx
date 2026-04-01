@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle, Pencil, Check, Clock } from "lucide-react";
+import { Plus, Trash2, Truck, Package, Users, Wrench, ClipboardCheck, PackageX, GripVertical, AlertTriangle, Pencil, Check, Clock, MessageSquare, ExternalLink } from "lucide-react";
 import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +55,8 @@ interface EstablishmentTaskDetailSheetProps {
   largeProjectId?: string | null;
   staffPool?: StaffMember[];
   projectBookings?: BookingInfo[];
+  projectId?: string | null;
+  onOpenInChat?: (taskId: string, taskTitle: string) => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -104,6 +106,8 @@ const EstablishmentTaskDetailSheet = ({
   largeProjectId,
   staffPool,
   projectBookings = [],
+  projectId,
+  onOpenInChat,
 }: EstablishmentTaskDetailSheetProps) => {
   const queryClient = useQueryClient();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
@@ -886,6 +890,25 @@ const EstablishmentTaskDetailSheet = ({
         <div className="py-3">
           <TaskCommentThread taskId={task.id} staffPool={effectiveStaff} />
         </div>
+
+        {/* Open in project chat */}
+        {onOpenInChat && (
+          <div className="pb-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 text-xs"
+              onClick={() => {
+                onOpenInChat(task.id, task.title);
+                onOpenChange(false);
+              }}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Öppna i projektchatt
+              <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+            </Button>
+          </div>
+        )}
 
         <Separator />
 
