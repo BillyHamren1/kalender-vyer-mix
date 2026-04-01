@@ -66,8 +66,17 @@ const SimpleStaffCurtainWrapper: React.FC<{
 
 const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   // Default to 'weekly' - the full 7-day view with all teams
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // Task overlay toggle (persisted in localStorage)
+  const [showTasks, setShowTasks] = useState(() => {
+    return localStorage.getItem('calendar-show-tasks') === 'true';
+  });
+  useEffect(() => {
+    localStorage.setItem('calendar-show-tasks', String(showTasks));
+  }, [showTasks]);
 
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
@@ -85,9 +94,28 @@ const CustomCalendarPage = () => {
     handleDatesSet,
     refreshEvents
   } = useRealTimeCalendarEvents();
-  
+
+  // Task overlay events (only fetched when toggle is on)
+  const { taskEvents } = useTaskCalendarEvents(showTasks);
+
+  // Merge calendar events + task overlay
+  const mergedEvents = useMemo(() => {
+    if (!showTasks || taskEvents.length === 0) return events;
+    return [...events, ...taskEvents];
+  }, [events, taskEvents, showTasks]);
+
+  // Handle task overlay click → navigate to project
+  const handleEventClick = (event: any) => {
+    const props = event.extendedProps;
+    if (props?.isTaskOverlay && props?.bookingId) {
+      // Navigate to the project's execution view
+      // First find the project by booking_id
+      navigate(`/projects?highlight=${props.bookingId}`);
+    }
+  };
+
   const { teamResources } = useTeamResources();
-  
+
   // Week navigation state (for desktop) and month state (for mobile)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
