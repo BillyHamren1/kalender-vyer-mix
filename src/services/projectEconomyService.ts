@@ -277,9 +277,30 @@ export const calculateEconomySummary = (
     return sum;
   }, 0);
 
-  const supplierInvoicesTotal = (supplierInvoices || []).reduce(
-    (sum: number, si: any) => sum + (Number(si.invoice_data?.Total) || 0), 0
+  // Supplier invoices: only count those NOT already linked to an invoice/purchase
+  // to prevent double counting in totalActual.
+  const linkedInvoiceIds = new Set<string>();
+  const allSupplierInvoices = supplierInvoices || [];
+
+  const supplierInvoicesTotal = allSupplierInvoices.reduce(
+    (sum: number, si: any) => {
+      const amount = Number(si.invoice_data?.Total) || 0;
+      if (si.is_final_link && si.linked_cost_id) {
+        // This supplier invoice is linked — its cost is already reflected
+        // in the linked entity (invoice or purchase). Skip to avoid double counting.
+        console.warn(
+          `[Economy] Skipping linked supplier invoice ${si.id} (${amount} kr) — already linked to ${si.linked_cost_type}:${si.linked_cost_id}`
+        );
+        linkedInvoiceIds.add(si.id);
+        return sum;
+      }
+      return sum + amount;
+    }, 0
   );
+
+  if (linkedInvoiceIds.size > 0) {
+    console.log(`[Economy] ${linkedInvoiceIds.size} supplier invoice(s) excluded from total to prevent double counting`);
+  }
 
   const productCostBudget = productCosts?.summary?.costs || 0;
   // Revenue: use summary.revenue if available, otherwise compute from products array
