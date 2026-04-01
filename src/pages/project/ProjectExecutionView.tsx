@@ -191,9 +191,17 @@ const ProjectExecutionView = () => {
         const ids = t.assigned_to_ids || [];
         if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson && t.assigned_user_id !== filterPerson) return false;
       }
+      if (filterPerson === "__unassigned__") {
+        const ids = t.assigned_to_ids || [];
+        if (ids.length > 0 || t.assigned_to || t.assigned_user_id) return false;
+      }
+      if (filterDateGroup !== "all") {
+        const group = getDateGroup(t);
+        if (filterDateGroup !== group) return false;
+      }
       return true;
     });
-  }, [tasks, filterPerson, filterType, filterStatus]);
+  }, [tasks, filterPerson, filterType, filterStatus, filterDateGroup]);
 
   // Group by date bucket
   const groups = useMemo(() => {
