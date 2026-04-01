@@ -24,7 +24,7 @@ import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import { TimeApprovalSummary } from './TimeApprovalSummary';
 import { ProjectClosureDialog } from './ProjectClosureDialog';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
-import { ProjectClosureGate } from '@/components/economy/ProjectClosureGate';
+
 import BillingStatusBadge from '@/components/economy/billing/BillingStatusBadge';
 import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
 import { useProjectBillingList, useCreateProjectBilling, useAdvanceBillingStatus } from '@/hooks/useProjectBilling';
