@@ -49,6 +49,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const jobMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const cameraMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupsRef = useRef<mapboxgl.Popup[]>([]);
+  const orgLocMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OpsMapJob | null>(null);
   const [staffPanel, setStaffPanel] = useState<StaffLocation | null>(null);
@@ -57,6 +58,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showCameras, setShowCameras] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
+  const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
+  const [showOrgLocations, setShowOrgLocations] = useState(true);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
