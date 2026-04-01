@@ -94,6 +94,8 @@ const AddEstablishmentTaskDialog = ({
     if (!open) {
       setSelectedBookingId("none");
       setPriority("medium");
+      setTaskType("crew");
+      setDueDate(undefined);
     }
   }, [open]);
 
