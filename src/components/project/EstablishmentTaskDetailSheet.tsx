@@ -111,6 +111,7 @@ const EstablishmentTaskDetailSheet = ({
   onOpenInChat,
 }: EstablishmentTaskDetailSheetProps) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [taskNotes, setTaskNotes] = useState("");
   const [taskAssignedToIds, setTaskAssignedToIds] = useState<string[]>([]);
@@ -127,6 +128,8 @@ const EstablishmentTaskDetailSheet = ({
   const [endDateDraft, setEndDateDraft] = useState("");
   const [startTimeDraft, setStartTimeDraft] = useState("");
   const [endTimeDraft, setEndTimeDraft] = useState("");
+  const [linkedEntityType, setLinkedEntityType] = useState<LinkedEntityType>("none");
+  const [linkedEntityId, setLinkedEntityId] = useState<string>("");
 
   const effectiveStaff: StaffMember[] = staffPool || [];
 
