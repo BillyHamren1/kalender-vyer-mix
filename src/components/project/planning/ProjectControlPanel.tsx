@@ -282,8 +282,8 @@ const PersonSection = ({ analytics, staffPool, userMap, onFilterChange }: {
               onClick={() => onFilterChange?.({ person: p.staffId })}
               className="w-full flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
             >
-              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{p.staffName}</span>
+              {p.isUser ? <UserCog className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{p.staffName}{p.isUser ? " (kontor)" : ""}</span>
               <div className="flex items-center gap-2 shrink-0">
                 {p.overdue > 0 && (
                   <span className="text-[10px] font-semibold text-destructive">{p.overdue} sena</span>
