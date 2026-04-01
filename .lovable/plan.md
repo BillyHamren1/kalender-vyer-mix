@@ -1,17 +1,34 @@
 
 
-## Add "Markera alla" (Select All) to product list
+# Ta bort redundanta tidskolumner och härleda tider från bokningar
 
-### Change
+## Bakgrund
+När tider ändras i kalendern sparas de till **både** `calendar_events` och `bookings`-tabellen (fält som `rig_start_time`, `rig_end_time` etc.). Tiderna finns alltså redan på bokningarna. De 6 nya kolumnerna på `large_projects` är överflödiga och skapar risk för datakonflikt.
 
-In `ActivityPlannerSheet.tsx`, add a "Markera alla" checkbox/button in the product list header (lines 817-826) that toggles selection of all visible products. When clicked, it adds all product IDs from `productTree` to `selectedIds`. Clicking again deselects all.
+## Plan
 
-### Details
+### 1. Härleda tider från bokningar i LargeProjectLayout
+I `src/pages/project/LargeProjectLayout.tsx`: beräkna tiderna via `useMemo` från de länkade bokningarnas tidsfält:
+- RIGG: tidigaste `rig_start_time`, senaste `rig_end_time`
+- EVENT: tidigaste `event_start_time`, senaste `event_end_time`  
+- NEDRIVNING: tidigaste `rigdown_start_time`, senaste `rigdown_end_time`
 
-- Add a `selectAllProducts` function that collects all product IDs from `productTree` (root-level only, since package components are already filtered out) and sets them into `selectedIds`
-- If all are already selected, clear the selection instead (toggle behavior)
-- Place the checkbox+label "Markera alla" next to the header text, visible only when `attachingToRowId` is set (i.e. when the user is in "attaching" mode)
-- Uses the existing `Checkbox` component for consistency
+Skicka dessa beräknade tider till `LargeProjectScheduleEditable`.
 
-**File**: `src/components/project/ActivityPlannerSheet.tsx` — ~10 lines added
+### 2. Uppdatera LargeProjectScheduleEditable
+- Visa härledda tider (read-only, kommer från bokningarna)
+- Behåll datumredigering (start_date/event_date/end_date på projektnivå)
+- Ta bort tidsinmatning från EditDateDialog för stora projekt (tiderna styrs via kalendern eller bokningarna)
+
+### 3. Ta bort de 6 tidskolumnerna från databasen
+Migration som droppar: `start_start_time`, `start_end_time`, `event_start_time`, `event_end_time`, `end_start_time`, `end_end_time` från `large_projects`.
+
+### 4. Uppdatera typer
+Ta bort de 6 tidsfälten från `LargeProject`-interfacet i `src/types/largeProject.ts`.
+
+## Filer som ändras
+- `src/pages/project/LargeProjectLayout.tsx` — beräkna och skicka härledda tider
+- `src/components/project/LargeProjectScheduleEditable.tsx` — visa härledda tider, ta bort tidsinmatning
+- `src/types/largeProject.ts` — rensa bort tidsfält
+- Ny migration — droppa 6 kolumner
 
