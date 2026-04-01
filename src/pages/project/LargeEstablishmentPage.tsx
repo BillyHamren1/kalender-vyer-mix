@@ -160,6 +160,15 @@ const LargeEstablishmentPage = () => {
     client: (b as any).booking?.client || null,
   }));
 
+  // Derive fallback dates from bookings when project has no explicit dates
+  const bookingDates = (project.bookings || [])
+    .map(b => b.booking)
+    .filter(Boolean)
+    .flatMap(bk => [bk!.rigdaydate, bk!.eventdate, bk!.rigdowndate].filter(Boolean) as string[]);
+  const sortedBookingDates = bookingDates.sort();
+  const fallbackStart = project.start_date || (sortedBookingDates.length > 0 ? sortedBookingDates[0] : null);
+  const fallbackEnd = project.end_date || (sortedBookingDates.length > 0 ? sortedBookingDates[sortedBookingDates.length - 1] : null);
+
   return (
     <div className="space-y-3">
       {/* LEVEL 1: Project overview */}
@@ -225,8 +234,8 @@ const LargeEstablishmentPage = () => {
             {viewMode === "gantt" ? (
               <EstablishmentGanttChart
                 largeProjectId={project.id}
-                startDate={project.start_date}
-                endDate={project.end_date}
+                startDate={fallbackStart}
+                endDate={fallbackEnd}
                 onTaskClick={handleTaskClick}
                 staffPool={staffPool}
                 projectBookings={projectBookings}
