@@ -113,19 +113,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     popupsRef.current = [];
   }, []);
 
-  const clearOrgLocMarkers = useCallback(() => {
-    orgLocMarkersRef.current.forEach(m => m.remove());
-    orgLocMarkersRef.current = [];
-    // Remove geofence circles
-    if (map.current) {
-      orgLocations.forEach((_, i) => {
-        const layerId = `org-loc-circle-${i}`;
-        const sourceId = `org-loc-source-${i}`;
-        if (map.current!.getLayer(layerId)) map.current!.removeLayer(layerId);
-        if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
-      });
-    }
-  }, [orgLocations]);
 
   const clearCameraMarkers = useCallback(() => {
     cameraMarkersRef.current.forEach(m => m.remove());
@@ -183,9 +170,24 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   // Render organization location markers
   useEffect(() => {
     if (!mapReady || !map.current) return;
-    clearOrgLocMarkers();
+
+    // Clear old markers
+    orgLocMarkersRef.current.forEach(m => m.remove());
+    orgLocMarkersRef.current = [];
+
+    // Clean up geofence layers/sources (try removing up to 20)
+    for (let k = 0; k < 20; k++) {
+      const lid = `org-loc-circle-${k}`;
+      const sid = `org-loc-source-${k}`;
+      try {
+        if (map.current.getLayer(lid)) map.current.removeLayer(lid);
+        if (map.current.getSource(sid)) map.current.removeSource(sid);
+      } catch { /* ignore */ }
+    }
 
     if (!showOrgLocations || orgLocations.length === 0) return;
+
+    console.log('[OpsLiveMap] Rendering org locations:', orgLocations.length, orgLocations);
 
     orgLocations.forEach((loc, i) => {
       if (!loc.latitude || !loc.longitude) return;
@@ -220,8 +222,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       const sourceId = `org-loc-source-${i}`;
       const layerId = `org-loc-circle-${i}`;
 
-      if (!map.current!.getSource(sourceId)) {
-        // Create a GeoJSON circle (approximation with 64 points)
+      try {
         const center = [loc.longitude, loc.latitude];
         const radiusKm = loc.radius_meters / 1000;
         const points = 64;
@@ -234,7 +235,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           const lng = center[0] + (dx / (111.32 * Math.cos(center[1] * Math.PI / 180)));
           coords.push([lng, lat]);
         }
-        coords.push(coords[0]); // close ring
+        coords.push(coords[0]);
 
         map.current!.addSource(sourceId, {
           type: 'geojson',
@@ -254,11 +255,11 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             'fill-opacity': 0.08,
           },
         });
+      } catch (e) {
+        console.warn('[OpsLiveMap] Geofence layer error:', e);
       }
     });
-
-    return () => clearOrgLocMarkers();
-  }, [mapReady, showOrgLocations, orgLocations, clearOrgLocMarkers]);
+  }, [mapReady, showOrgLocations, orgLocations]);
 
   // Render markers
   useEffect(() => {
