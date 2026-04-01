@@ -157,9 +157,9 @@ const ActivityPlannerSheet = ({
       if (t.source_product_ids?.length) t.source_product_ids.forEach(id => planned.add(id));
       else if (t.source_product_id) planned.add(t.source_product_id);
     });
-    rows.forEach(r => r.productIds.forEach(id => planned.add(id)));
+    // Don't include queue rows – allow same product on multiple activities
     setPlannedProductIds(planned);
-  }, [existingTasks, rows]);
+  }, [existingTasks]);
 
   useEffect(() => {
     if (!open) {
