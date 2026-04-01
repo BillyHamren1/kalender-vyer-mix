@@ -231,6 +231,7 @@ const EstablishmentPage = () => {
                 tasks={filteredTasks}
                 staffPool={staffPool}
                 onTaskClick={handleTaskClick}
+                bookingId={bookingId}
               />
             ) : (
               <PeopleOverview
