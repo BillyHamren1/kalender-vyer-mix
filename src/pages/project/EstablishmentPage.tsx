@@ -27,6 +27,12 @@ const EstablishmentPage = () => {
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const navigate = useNavigate();
+
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    setSheetOpen(false);
+    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  }, [navigate]);
+
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
     queryKey: ['booking-staff-pool', booking?.id],
@@ -56,12 +62,6 @@ const EstablishmentPage = () => {
     setSelectedTask(task);
     setSheetOpen(true);
   };
-
-  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    setSheetOpen(false);
-    // Navigate to the project overview page which hosts ProjectCommunication, passing task ref
-    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
-  }, [navigate]);
 
   return (
     <div className="space-y-6">
