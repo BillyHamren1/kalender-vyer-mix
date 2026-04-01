@@ -43,6 +43,22 @@ const LargeProjectLayout = () => {
   const detail = useLargeProjectDetail(id || "");
   const { project, isLoading } = detail;
 
+  // Resolve project_leader UUID to name
+  const rawLeader = project?.project_leader || null;
+  const isLeaderUuid = rawLeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawLeader);
+  const { data: resolvedLeaderName } = useQuery({
+    queryKey: ['resolve-leader-name', rawLeader],
+    queryFn: async () => {
+      const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('user_id', rawLeader!).maybeSingle();
+      if (profile?.full_name) return profile.full_name;
+      if (profile?.email) return profile.email.split('@')[0];
+      const { data: staff } = await supabase.from('staff_members').select('name').eq('id', rawLeader!).maybeSingle();
+      return staff?.name || rawLeader;
+    },
+    enabled: !!isLeaderUuid,
+    staleTime: Infinity,
+  });
+  const projectLeaderDisplay = isLeaderUuid ? (resolvedLeaderName || null) : rawLeader;
   const { data: availableBookings = [] } = useQuery({
     queryKey: ["available-bookings-for-large-project"],
     queryFn: fetchAvailableBookingsForLargeProject,
