@@ -1918,6 +1918,107 @@ export type Database = {
           },
         ]
       }
+      location_time_entries: {
+        Row: {
+          created_at: string | null
+          entered_at: string
+          entry_date: string
+          exited_at: string | null
+          id: string
+          location_id: string
+          organization_id: string
+          source: string
+          staff_id: string
+          total_minutes: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          entered_at: string
+          entry_date: string
+          exited_at?: string | null
+          id?: string
+          location_id: string
+          organization_id: string
+          source?: string
+          staff_id: string
+          total_minutes?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          entered_at?: string
+          entry_date?: string
+          exited_at?: string | null
+          id?: string
+          location_id?: string
+          organization_id?: string
+          source?: string
+          staff_id?: string
+          total_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_time_entries_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "organization_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_time_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_locations: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean
+          latitude: number
+          longitude: number
+          name: string
+          organization_id: string
+          radius_meters: number
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          latitude: number
+          longitude: number
+          name: string
+          organization_id: string
+          radius_meters?: number
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          latitude?: number
+          longitude?: number
+          name?: string
+          organization_id?: string
+          radius_meters?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
