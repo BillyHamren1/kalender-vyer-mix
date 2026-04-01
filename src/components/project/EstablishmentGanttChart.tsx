@@ -163,6 +163,21 @@ const EstablishmentGanttChart = ({
   }, [allSubtasks]);
 
   const allTasks = dbTasks || [];
+
+  // Derive effective dates from tasks/bookings when project-level dates are missing
+  const { effectiveStartDate, effectiveEndDate } = useMemo(() => {
+    if (propsStartDate && propsEndDate) return { effectiveStartDate: propsStartDate, effectiveEndDate: propsEndDate };
+    if (allTasks.length === 0) return { effectiveStartDate: propsStartDate, effectiveEndDate: propsEndDate };
+    const taskStartDates = allTasks.map(t => t.start_date).filter(Boolean);
+    const taskEndDates = allTasks.map(t => t.end_date).filter(Boolean);
+    const derivedStart = taskStartDates.length > 0 ? taskStartDates.sort()[0] : null;
+    const derivedEnd = taskEndDates.length > 0 ? taskEndDates.sort().reverse()[0] : null;
+    return {
+      effectiveStartDate: propsStartDate || derivedStart,
+      effectiveEndDate: propsEndDate || derivedEnd,
+    };
+  }, [propsStartDate, propsEndDate, allTasks]);
+
   const filteredTasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
 
   // Sort tasks: group by booking_id so same-booking tasks are adjacent
