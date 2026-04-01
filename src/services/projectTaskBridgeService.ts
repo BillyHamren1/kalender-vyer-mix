@@ -30,6 +30,17 @@ export async function bridgeProjectTaskToExecution(
   tableName: 'project_tasks' | 'large_project_tasks'
 ): Promise<string | null> {
   try {
+    // Guard: check if this project task already has a linked execution task
+    const { data: existing } = await supabase
+      .from(tableName)
+      .select('execution_task_id')
+      .eq('id', projectTaskId)
+      .maybeSingle();
+
+    if ((existing as any)?.execution_task_id) {
+      return (existing as any).execution_task_id;
+    }
+
     const today = format(new Date(), 'yyyy-MM-dd');
     const dueDate = task.deadline || null;
 
