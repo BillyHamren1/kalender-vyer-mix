@@ -88,12 +88,21 @@ export const useLargeProjectEconomy = (
       // Invoices
       const inv = bd.invoices;
       if (Array.isArray(inv)) {
-        inv.forEach((i: any) => { totalInvoices += i.invoiced_amount || 0; });
+        inv.forEach((i: any) => { totalInvoices += Number(i.invoiced_amount) || 0; });
       }
-      // Supplier invoices
+      // Supplier invoices — skip linked ones to avoid double counting (matches normal project logic)
       const si = bd.supplier_invoices;
       if (Array.isArray(si)) {
-        si.forEach((s: any) => { totalSupplierInvoices += Number(s.invoice_data?.Total) || 0; });
+        si.forEach((s: any) => {
+          const amount = Number(s.invoice_data?.Total) || 0;
+          if (s.is_final_link && s.linked_cost_id) {
+            console.warn(
+              `[LargeProjectEcon] Skipping linked supplier invoice ${s.id} (${amount} kr) — already in ${s.linked_cost_type}:${s.linked_cost_id}`
+            );
+            return;
+          }
+          totalSupplierInvoices += amount;
+        });
       }
     });
 
@@ -111,6 +120,16 @@ export const useLargeProjectEconomy = (
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
   // Combined summary
+  // grandTotalCost includes ALL cost types: product costs + staff + purchases + invoices + supplier invoices + local purchases
+  const agg = aggregatedBookingEconomy;
+  const grandTotalCost =
+    localPurchasesTotal +
+    agg.totalCost +
+    agg.totalStaffCost +
+    agg.totalPurchases +
+    agg.totalInvoices +
+    agg.totalSupplierInvoices;
+
   const summary = {
     // Budget
     budgetedHours: budget?.budgeted_hours || 0,
@@ -121,8 +140,8 @@ export const useLargeProjectEconomy = (
     // Aggregated from bookings
     ...aggregatedBookingEconomy,
     // Grand totals
-    grandTotalCost: localPurchasesTotal + aggregatedBookingEconomy.totalCost + aggregatedBookingEconomy.totalStaffCost + aggregatedBookingEconomy.totalPurchases,
-    grandTotalRevenue: aggregatedBookingEconomy.totalRevenue,
+    grandTotalCost,
+    grandTotalRevenue: agg.totalRevenue,
   };
 
   // Mutations
