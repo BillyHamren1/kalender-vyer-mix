@@ -1,10 +1,9 @@
 import { useOutletContext, useLocation } from "react-router-dom";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Send, FileText, Bell, ListChecks } from "lucide-react";
+import { MessageSquare, Send, ListChecks } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
