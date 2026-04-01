@@ -402,13 +402,14 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onError: () => toast.error('Kunde inte återställa kostnad'),
   });
 
-  const isLoading = (hasBooking ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading) : false) || localBudgetLoading || localPurchasesLoading;
+  const isLoading = hasBooking
+    ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading)
+    : (localBudgetLoading || localPurchasesLoading);
 
   return {
     budget,
     timeReports,
     purchases,
-    localPurchases,
     quotes,
     invoices,
     productCosts: mergedProductCosts,
