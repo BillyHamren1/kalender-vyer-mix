@@ -144,7 +144,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
     key: "overdue", label: "Försenade", icon: Clock,
     countFn: (tasks) => {
       const today = startOfDay(new Date());
-      return tasks.filter(t => t.status !== "done" && t.status !== "cancelled" && t.end_date && isBefore(startOfDay(new Date(t.end_date)), today)).length;
+      return tasks.filter(t => t.status !== "done" && t.end_date && isBefore(startOfDay(new Date(t.end_date)), today)).length;
     },
   },
   {
