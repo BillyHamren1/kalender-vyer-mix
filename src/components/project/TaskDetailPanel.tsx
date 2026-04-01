@@ -33,6 +33,7 @@ interface TaskDetailPanelProps {
   onUpdateTask: (data: { id: string; updates: Partial<ProjectTask> }) => void;
   onDeleteTask: (id: string) => void;
   onAction?: () => void;
+  onOpenInExecution?: () => void;
 }
 
 const initials = (name: string) =>
