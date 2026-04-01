@@ -108,6 +108,15 @@ const ProjectExecutionView = () => {
     return Array.from(ids);
   }, [tasks]);
 
+  // Fetch user IDs (system users / PL)
+  const userIds = useMemo(() => {
+    const ids = new Set<string>();
+    tasks.forEach((t) => {
+      if (t.assigned_user_id) ids.add(t.assigned_user_id);
+    });
+    return Array.from(ids);
+  }, [tasks]);
+
   const { data: staffMap = {} } = useQuery({
     queryKey: ["staff-names", staffIds.join(",")],
     queryFn: async () => {
@@ -121,6 +130,21 @@ const ProjectExecutionView = () => {
       return map;
     },
     enabled: staffIds.length > 0,
+  });
+
+  const { data: userMap = {} } = useQuery({
+    queryKey: ["user-names", userIds.join(",")],
+    queryFn: async () => {
+      if (userIds.length === 0) return {};
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", userIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u) => (map[u.user_id] = u.full_name || u.email || "Okänd"));
+      return map;
+    },
+    enabled: userIds.length > 0,
   });
 
   // Apply filters
