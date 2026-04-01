@@ -130,8 +130,8 @@ const EstablishmentGanttChart = ({
     queryFn: async () => {
       if (isProjectMode) {
         const tasks = await fetchEstablishmentTasksByProject(largeProjectId!);
-        if (tasks.length === 0 && effectiveStartDate && effectiveEndDate) {
-          return await generateDefaultTasksForProject(largeProjectId!, effectiveStartDate, effectiveEndDate);
+        if (tasks.length === 0 && propsStartDate && propsEndDate) {
+          return await generateDefaultTasksForProject(largeProjectId!, propsStartDate, propsEndDate);
         }
         return tasks;
       } else {
