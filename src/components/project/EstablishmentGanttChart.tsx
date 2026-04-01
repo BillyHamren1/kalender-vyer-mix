@@ -163,7 +163,37 @@ const EstablishmentGanttChart = ({
   }, [allSubtasks]);
 
   const allTasks = dbTasks || [];
-  const tasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
+  const filteredTasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
+
+  // Sort tasks: group by booking_id so same-booking tasks are adjacent
+  const tasks = useMemo(() => {
+    const sorted = [...filteredTasks].sort((a, b) => {
+      const aKey = a.booking_id || '';
+      const bKey = b.booking_id || '';
+      if (aKey !== bKey) return aKey.localeCompare(bKey);
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+    return sorted;
+  }, [filteredTasks]);
+
+  // Build booking group info for separator rows
+  const bookingGroups = useMemo(() => {
+    if (!isProjectMode || tasks.length === 0) return new Map<string, { label: string; count: number; firstTaskId: string }>();
+    const groups = new Map<string, { label: string; count: number; firstTaskId: string }>();
+    for (const t of tasks) {
+      const key = t.booking_id || '__none__';
+      if (!groups.has(key)) {
+        let label = 'Utan bokning';
+        if (t.booking_id) {
+          const pb = projectBookings.find(b => b.booking_id === t.booking_id);
+          label = pb ? (pb.display_name || pb.client || t.booking_id) : t.booking_id;
+        }
+        groups.set(key, { label, count: 0, firstTaskId: t.id });
+      }
+      groups.get(key)!.count++;
+    }
+    return groups;
+  }, [tasks, isProjectMode, projectBookings]);
 
   // ── Adaptive timeline: detect active days & gaps ──────────────
   const ganttData = useMemo(() => {
