@@ -374,6 +374,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           isLoading={isLoading}
           onRefresh={refetchProductCosts}
           supplierInvoices={supplierInvoices}
+          costOverrides={costOverrides}
+          onUpdateProductCost={updateProductCost}
+          onResetProductCost={resetProductCost}
         />
       )}
 
