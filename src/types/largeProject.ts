@@ -10,6 +10,7 @@ export interface LargeProject {
   project_leader: string | null;
   location: string | null;
   start_date: string | null;
+  event_date: string | null;
   end_date: string | null;
   created_at: string;
   updated_at: string;

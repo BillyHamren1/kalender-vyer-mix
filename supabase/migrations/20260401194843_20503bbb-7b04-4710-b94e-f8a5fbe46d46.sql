@@ -1,0 +1,1 @@
+ALTER TABLE public.large_projects ADD COLUMN event_date text;
