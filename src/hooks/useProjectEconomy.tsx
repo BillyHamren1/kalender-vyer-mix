@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,43 +46,43 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // ===== Remote data (via planning-api-proxy, needs bookingId) =====
 
-  const { data: remoteBudget, isLoading: remoteBudgetLoading } = useQuery({
+  const { data: remoteBudget, isLoading: remoteBudgetLoading, error: remoteBudgetError } = useQuery({
     queryKey: ['project-budget', bookingId],
     queryFn: () => fetchBudget(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: timeReports = [], isLoading: timeReportsLoading } = useQuery({
+  const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
     queryKey: ['project-time-reports', bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: remotePurchases = [], isLoading: remotePurchasesLoading } = useQuery({
+  const { data: remotePurchases = [], isLoading: remotePurchasesLoading, error: remotePurchasesError } = useQuery({
     queryKey: ['project-purchases', bookingId],
     queryFn: () => fetchPurchases(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: quotes = [], isLoading: quotesLoading } = useQuery({
+  const { data: quotes = [], isLoading: quotesLoading, error: quotesError } = useQuery({
     queryKey: ['project-quotes', bookingId],
     queryFn: () => fetchQuotes(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
+  const { data: invoices = [], isLoading: invoicesLoading, error: invoicesError } = useQuery({
     queryKey: ['project-invoices', bookingId],
     queryFn: () => fetchInvoices(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts } = useQuery({
+  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts, error: productCostsError } = useQuery({
     queryKey: ['product-costs', bookingId],
     queryFn: () => fetchProductCostsRemote(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices } = useQuery({
+  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices, error: supplierInvoicesError } = useQuery({
     queryKey: ['supplier-invoices', bookingId],
     queryFn: () => fetchSupplierInvoices(bookingId!),
     enabled: hasBooking,
@@ -155,6 +155,56 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   }, [productCosts, costOverrides]);
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
+
+  // ===== Diagnostics: log fetch failures and data anomalies =====
+  useEffect(() => {
+    const tag = `[Economy:${projectId?.slice(0, 8)}]`;
+
+    // Log remote fetch errors
+    if (remoteBudgetError) console.error(`${tag} Budget fetch failed:`, remoteBudgetError);
+    if (timeReportsError) console.error(`${tag} Time reports fetch failed:`, timeReportsError);
+    if (remotePurchasesError) console.error(`${tag} Purchases fetch failed:`, remotePurchasesError);
+    if (quotesError) console.error(`${tag} Quotes fetch failed:`, quotesError);
+    if (invoicesError) console.error(`${tag} Invoices fetch failed:`, invoicesError);
+    if (productCostsError) console.error(`${tag} Product costs fetch failed:`, productCostsError);
+    if (supplierInvoicesError) console.error(`${tag} Supplier invoices fetch failed:`, supplierInvoicesError);
+
+    // Log missing remote data when booking exists
+    if (hasBooking && !remoteBudgetLoading && !remoteBudget) {
+      console.warn(`${tag} Booking ${bookingId} has no budget data`);
+    }
+    if (hasBooking && !productCostsLoading && !productCosts) {
+      console.warn(`${tag} Booking ${bookingId} has no product cost data`);
+    }
+    if (hasBooking && !timeReportsLoading && timeReports.length === 0) {
+      console.warn(`${tag} Booking ${bookingId} has no time reports`);
+    }
+
+    // Check for duplicate purchase IDs
+    const purchaseIds = purchases.map(p => p.id);
+    const dupPurchases = purchaseIds.filter((id, i) => purchaseIds.indexOf(id) !== i);
+    if (dupPurchases.length > 0) {
+      console.error(`${tag} Duplicate purchase IDs detected:`, dupPurchases);
+    }
+
+    // Verify totalActual = sum of components
+    const expectedActual = summary.staffActual + summary.purchasesTotal + summary.invoicesTotal + summary.supplierInvoicesTotal;
+    if (Math.abs(summary.totalActual - expectedActual) > 0.01) {
+      console.error(`${tag} totalActual mismatch: stored=${summary.totalActual}, expected=${expectedActual}`);
+    }
+
+    // Verify totalBudget = sum of components
+    const expectedBudget = summary.staffBudget + summary.quotesTotal + summary.productCostBudget;
+    if (Math.abs(summary.totalBudget - expectedBudget) > 0.01) {
+      console.error(`${tag} totalBudget mismatch: stored=${summary.totalBudget}, expected=${expectedBudget}`);
+    }
+  }, [
+    projectId, bookingId, hasBooking, summary, purchases, timeReports,
+    remoteBudget, productCosts,
+    remoteBudgetError, timeReportsError, remotePurchasesError,
+    quotesError, invoicesError, productCostsError, supplierInvoicesError,
+    remoteBudgetLoading, productCostsLoading, timeReportsLoading,
+  ]);
 
   // ===== Budget mutation (routes to correct backend) =====
   const saveBudgetMutation = useMutation({
