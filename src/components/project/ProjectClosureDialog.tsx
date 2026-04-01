@@ -51,10 +51,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="py-2">
-          <ProjectClosureGate gates={gates} />
-        </div>
-
         {canClose && (
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
