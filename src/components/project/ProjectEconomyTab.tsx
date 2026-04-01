@@ -355,16 +355,22 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       <TimeApprovalSummary timeReports={timeReports} />
 
 
-      {/* ─── F. Offertunderlag från bokning ─── */}
-      {bookingEconomics && (
-        <BookingEconomicsCard
-          economics={bookingEconomics}
-          label="Ordervärde (från bokning)"
-        />
-      )}
-
-      {/* ─── G. Projektresultat - Utfall ─── */}
+      {/* ─── F. Projektresultat - Utfall (AUTHORITATIVE) ─── */}
       <EconomySummaryCard summary={summary} />
+
+      {/* ─── G. Ordervärde från bokning (REFERENCE ONLY) ─── */}
+      {bookingEconomics && (
+        <div className="opacity-80">
+          <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+            Referensvärde — ingår inte i projektresultatet ovan
+          </p>
+          <BookingEconomicsCard
+            economics={bookingEconomics}
+            label="Ordervärde (från bokning)"
+          />
+        </div>
+      )}
 
       {/* ─── H. Product Costs ─── */}
       {productCosts && (
