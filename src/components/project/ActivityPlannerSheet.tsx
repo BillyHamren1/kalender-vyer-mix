@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Package, ChevronRight } from "lucide-react";
+import { CalendarIcon, Plus, Package, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
@@ -31,8 +31,6 @@ interface ActivityPlannerSheetProps {
   staffPool?: Array<{ id: string; name: string }>;
   existingTasks?: Array<{ source_product_id: string | null; source_product_ids: string[] | null; title?: string }>;
 }
-
-// Categories are now handled by CategoryCombobox
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'high', label: 'Hög' },
@@ -63,7 +61,6 @@ function buildProductTree(products: BookingProduct[]): ProductNode[] {
     }
   });
 
-  // Attach children
   const attachChildren = (nodes: ProductNode[]) => {
     nodes.forEach(n => {
       n.children = childrenMap.get(n.product.id) || [];
@@ -72,7 +69,6 @@ function buildProductTree(products: BookingProduct[]): ProductNode[] {
   };
   attachChildren(roots);
 
-  // Also add orphan package components as roots
   products.forEach(p => {
     if (p.isPackageComponent && (!p.parentProductId || !byId.has(p.parentProductId))) {
       const existing = roots.find(r => r.product.id === p.id);
@@ -84,6 +80,24 @@ function buildProductTree(products: BookingProduct[]): ProductNode[] {
 
   return roots;
 }
+
+/** A queued activity row ready for batch creation */
+interface QueuedActivity {
+  id: string; // local unique key
+  title: string;
+  productIds: string[];
+  productNames: string[];
+  category: string;
+  priority: TaskPriority;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  assignedToIds: string[];
+  source: 'product' | 'manual';
+}
+
+let _queueId = 0;
 
 const ActivityPlannerSheet = ({
   open,
@@ -97,6 +111,10 @@ const ActivityPlannerSheet = ({
   staffPool = [],
   existingTasks = [],
 }: ActivityPlannerSheetProps) => {
+  // --- Booking selector ---
+  const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
+
+  // --- Current draft state (for the activity being configured) ---
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [category, setCategory] = useState("Montering");
   const [assignedToIds, setAssignedToIds] = useState<string[]>([]);
@@ -109,13 +127,14 @@ const ActivityPlannerSheet = ({
   );
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("16:00");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
-  const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
-
-  // Manual task
-  const [manualTitle, setManualTitle] = useState("");
   const [customTitle, setCustomTitle] = useState("");
+  const [manualTitle, setManualTitle] = useState("");
+
+  // --- Queue ---
+  const [queue, setQueue] = useState<QueuedActivity[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
@@ -129,21 +148,20 @@ const ActivityPlannerSheet = ({
     ? (selectedBookingData?.products || [])
     : products;
 
-  // Build planned set from existing tasks — match by source_product_ids, source_product_id, and title fallback
+  // Build planned set from existing tasks + queued activities
   useEffect(() => {
     const planned = new Set<string>();
     existingTasks.forEach(t => {
-      // Primary: use the array of all product IDs
       if (t.source_product_ids && t.source_product_ids.length > 0) {
         t.source_product_ids.forEach(id => planned.add(id));
-      }
-      // Fallback: legacy single product ID
-      else if (t.source_product_id) {
+      } else if (t.source_product_id) {
         planned.add(t.source_product_id);
       }
     });
+    // Also mark products already in the queue as planned
+    queue.forEach(q => q.productIds.forEach(id => planned.add(id)));
     setPlannedProductIds(planned);
-  }, [existingTasks]);
+  }, [existingTasks, queue]);
 
   useEffect(() => {
     if (!open) {
@@ -153,6 +171,8 @@ const ActivityPlannerSheet = ({
       setManualTitle("");
       setCustomTitle("");
       setAssignedToIds([]);
+      setQueue([]);
+      setQueueCollapsed(false);
     }
   }, [open]);
 
@@ -180,7 +200,122 @@ const ActivityPlannerSheet = ({
     });
   };
 
-  const handleBatchCreate = async () => {
+  const resetDraft = useCallback(() => {
+    setSelectedIds(new Set());
+    setCustomTitle("");
+    setManualTitle("");
+    setAssignedToIds([]);
+    setCategory("Montering");
+    setPriority("medium");
+  }, []);
+
+  /** Add the current product-based draft to the queue */
+  const handleAddToQueue = useCallback(() => {
+    if (selectedIds.size === 0 || !startDate || !endDate) return;
+
+    const selectedProducts = activeProducts.filter(p => selectedIds.has(p.id));
+    const title = customTitle.trim() || selectedProducts
+      .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
+      .join(', ');
+
+    const entry: QueuedActivity = {
+      id: `q-${++_queueId}`,
+      title,
+      productIds: selectedProducts.map(p => p.id),
+      productNames: selectedProducts.map(p => p.name),
+      category,
+      priority,
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(endDate, 'yyyy-MM-dd'),
+      startTime,
+      endTime,
+      assignedToIds: [...assignedToIds],
+      source: 'product',
+    };
+
+    setQueue(prev => [...prev, entry]);
+    resetDraft();
+    toast.success("Aktivitet tillagd i kö");
+  }, [selectedIds, startDate, endDate, customTitle, activeProducts, category, priority, startTime, endTime, assignedToIds, resetDraft]);
+
+  /** Add a manual activity to the queue */
+  const handleAddManualToQueue = useCallback(() => {
+    if (!manualTitle.trim() || !startDate || !endDate) return;
+
+    const entry: QueuedActivity = {
+      id: `q-${++_queueId}`,
+      title: manualTitle.trim(),
+      productIds: [],
+      productNames: [],
+      category,
+      priority,
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(endDate, 'yyyy-MM-dd'),
+      startTime,
+      endTime,
+      assignedToIds: [...assignedToIds],
+      source: 'manual',
+    };
+
+    setQueue(prev => [...prev, entry]);
+    setManualTitle("");
+    toast.success("Manuell aktivitet tillagd i kö");
+  }, [manualTitle, startDate, endDate, category, priority, startTime, endTime, assignedToIds]);
+
+  const removeFromQueue = useCallback((id: string) => {
+    setQueue(prev => prev.filter(q => q.id !== id));
+  }, []);
+
+  /** Save all queued activities at once */
+  const handleSaveAll = useCallback(async () => {
+    if (queue.length === 0) return;
+    setIsSubmitting(true);
+
+    const effectiveBookingId = isProjectMode
+      ? (selectedBookingId !== "none" ? selectedBookingId : null)
+      : (bookingId || null);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const item of queue) {
+      try {
+        await createEstablishmentTask({
+          booking_id: effectiveBookingId,
+          large_project_id: largeProjectId || null,
+          title: item.title,
+          category: item.category,
+          start_date: item.startDate,
+          end_date: item.endDate,
+          start_time: item.startTime || null,
+          end_time: item.endTime || null,
+          source: item.source,
+          source_product_id: item.productIds[0] || null,
+          source_product_ids: item.productIds.length > 0 ? item.productIds : undefined,
+          assigned_to: item.assignedToIds[0] || null,
+          assigned_to_ids: item.assignedToIds,
+          priority: item.priority,
+        });
+        successCount++;
+      } catch (e) {
+        console.error('[ActivityPlanner] Failed to create task:', item.title, e);
+        errorCount++;
+      }
+    }
+
+    if (errorCount === 0) {
+      toast.success(`${successCount} aktivitet(er) skapade`);
+    } else {
+      toast.warning(`${successCount} skapade, ${errorCount} misslyckades`);
+    }
+
+    setQueue([]);
+    onTaskCreated();
+    setIsSubmitting(false);
+  }, [queue, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated]);
+
+  /** Direct create (single activity, no queue) – for quick one-off use */
+  const handleDirectCreate = useCallback(async () => {
     if (selectedIds.size === 0 || !startDate || !endDate) return;
     setIsSubmitting(true);
     try {
@@ -189,15 +324,10 @@ const ActivityPlannerSheet = ({
         : (bookingId || null);
 
       const selectedProducts = activeProducts.filter(p => selectedIds.has(p.id));
-
-      // Use custom title if provided, otherwise build from product names
       const combinedTitle = customTitle.trim() || selectedProducts
         .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`)
         .join(', ');
 
-      const allProductIds = selectedProducts.map(p => p.id);
-
-      // Create ONE task with the combined title, storing ALL product IDs
       await createEstablishmentTask({
         booking_id: effectiveBookingId,
         large_project_id: largeProjectId || null,
@@ -208,8 +338,8 @@ const ActivityPlannerSheet = ({
         start_time: startTime || null,
         end_time: endTime || null,
         source: 'product',
-        source_product_id: allProductIds[0] || null,
-        source_product_ids: allProductIds,
+        source_product_id: selectedProducts[0]?.id || null,
+        source_product_ids: selectedProducts.map(p => p.id),
         assigned_to: assignedToIds[0] || null,
         assigned_to_ids: assignedToIds,
         priority,
@@ -221,16 +351,16 @@ const ActivityPlannerSheet = ({
         selectedProducts.forEach(p => next.add(p.id));
         return next;
       });
-      setSelectedIds(new Set());
+      resetDraft();
       onTaskCreated();
     } catch (e) {
       toast.error("Kunde inte skapa aktivitet");
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [selectedIds, startDate, endDate, customTitle, activeProducts, isProjectMode, selectedBookingId, bookingId, largeProjectId, category, startTime, endTime, assignedToIds, priority, resetDraft, onTaskCreated]);
 
-  const handleManualSubmit = async () => {
+  const handleDirectManualCreate = useCallback(async () => {
     if (!manualTitle.trim() || !startDate || !endDate) return;
     setIsSubmitting(true);
     try {
@@ -260,7 +390,7 @@ const ActivityPlannerSheet = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [manualTitle, startDate, endDate, isProjectMode, selectedBookingId, bookingId, largeProjectId, category, startTime, endTime, assignedToIds, priority, onTaskCreated]);
 
   const renderProductNode = (node: ProductNode, depth: number = 0) => {
     const isPlanned = plannedProductIds.has(node.product.id);
@@ -321,9 +451,16 @@ const ActivityPlannerSheet = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <SheetTitle className="text-lg font-semibold">Planera aktiviteter</SheetTitle>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            Stäng
-          </Button>
+          <div className="flex items-center gap-2">
+            {queue.length > 0 && (
+              <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full font-medium">
+                {queue.length} i kö
+              </span>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              Stäng
+            </Button>
+          </div>
         </div>
 
         {/* Booking selector for project mode */}
@@ -348,7 +485,7 @@ const ActivityPlannerSheet = ({
           </div>
         )}
 
-        {/* Main content: two panels */}
+        {/* Main content */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-5 overflow-hidden">
           {/* Left: Product list */}
           <div className="md:col-span-3 border-r border-border flex flex-col overflow-hidden">
@@ -375,7 +512,7 @@ const ActivityPlannerSheet = ({
             </div>
           </div>
 
-          {/* Right: Settings */}
+          {/* Right: Settings + Queue */}
           <div className="md:col-span-2 flex flex-col overflow-y-auto">
             <div className="px-4 py-3 border-b border-border bg-muted/20">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
@@ -494,14 +631,28 @@ const ActivityPlannerSheet = ({
                 Nya aktiviteter skapas som "Ej startad" med beredskap "Saknar information"
               </p>
 
-              <Button
-                onClick={handleBatchCreate}
-                disabled={selectableCount === 0 || !startDate || !endDate || isSubmitting}
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Skapa aktivitet{selectableCount > 0 ? ` (${selectableCount} produkter)` : ''}
-              </Button>
+              {/* Action buttons: Add to queue OR create directly */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAddToQueue}
+                  disabled={selectableCount === 0 || !startDate || !endDate || isSubmitting}
+                  variant="outline"
+                  className="flex-1"
+                  size="sm"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Lägg i kö
+                </Button>
+                <Button
+                  onClick={handleDirectCreate}
+                  disabled={selectableCount === 0 || !startDate || !endDate || isSubmitting}
+                  className="flex-1"
+                  size="sm"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Skapa direkt
+                </Button>
+              </div>
             </div>
 
             {/* Manual section */}
@@ -515,17 +666,85 @@ const ActivityPlannerSheet = ({
                 placeholder="Ex: Montering tält"
                 className="h-8 text-sm"
               />
-              <Button
-                onClick={handleManualSubmit}
-                disabled={!manualTitle.trim() || !startDate || !endDate || isSubmitting}
-                variant="outline"
-                size="sm"
-                className="w-full"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Skapa manuell aktivitet
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAddManualToQueue}
+                  disabled={!manualTitle.trim() || !startDate || !endDate || isSubmitting}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Lägg i kö
+                </Button>
+                <Button
+                  onClick={handleDirectManualCreate}
+                  disabled={!manualTitle.trim() || !startDate || !endDate || isSubmitting}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Skapa direkt
+                </Button>
+              </div>
             </div>
+
+            {/* Queue section */}
+            {queue.length > 0 && (
+              <div className="border-t-2 border-primary/30 bg-primary/5">
+                <button
+                  onClick={() => setQueueCollapsed(prev => !prev)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-primary/10 transition-colors"
+                >
+                  <h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+                    Aktivitetskö
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
+                      {queue.length}
+                    </span>
+                  </h4>
+                  {queueCollapsed ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronUp className="h-4 w-4 text-primary" />}
+                </button>
+
+                {!queueCollapsed && (
+                  <div className="px-4 pb-3 space-y-2">
+                    {queue.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-2 bg-background rounded-md border border-border p-2"
+                      >
+                        <span className="text-[10px] text-muted-foreground font-mono mt-0.5">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{item.title}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {item.category} • {item.startDate} → {item.endDate}
+                            {item.assignedToIds.length > 0 && ` • ${item.assignedToIds.length} person(er)`}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          onClick={() => removeFromQueue(item.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <Button
+                      onClick={handleSaveAll}
+                      disabled={isSubmitting}
+                      className="w-full mt-2"
+                    >
+                      {isSubmitting
+                        ? "Skapar..."
+                        : `Skapa alla ${queue.length} aktivitet(er)`}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </SheetContent>
