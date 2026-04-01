@@ -17,7 +17,7 @@ export interface CalendarEvent extends EventInput {
   bookingNumber?: string;
   booking_number?: string;
   bookingStatus?: string;
-  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking';
+  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'task_crew' | 'task_pm' | 'task_logistics' | 'task_admin';
   deliveryAddress?: string;
   viewed?: boolean;
   extendedProps?: {
@@ -53,6 +53,15 @@ export const getEventColor = (eventType: string | undefined): string => {
       return '#A5F3FC'; // Cyan
     case 'unpacking':
       return '#F1F5F9'; // Slate gray
+    // --- Task overlay colors ---
+    case 'task_crew':
+      return '#DBEAFE'; // Blue-100
+    case 'task_pm':
+      return '#E9D5FF'; // Purple-100
+    case 'task_logistics':
+      return '#FEF3C7'; // Amber-100
+    case 'task_admin':
+      return '#F1F5F9'; // Slate-100
     default:
       return '#6b7280'; // gray-500
   }
@@ -69,6 +78,10 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'return': return 'bg-violet-500';
     case 'inventory': return 'bg-cyan-500';
     case 'unpacking': return 'bg-slate-400';
+    case 'task_crew': return 'bg-blue-500';
+    case 'task_pm': return 'bg-purple-500';
+    case 'task_logistics': return 'bg-amber-500';
+    case 'task_admin': return 'bg-slate-400';
     default: return 'bg-gray-500';
   }
 };
@@ -84,6 +97,10 @@ export const getEventBgClass = (eventType?: string): string => {
     case 'return': return 'bg-violet-100';
     case 'inventory': return 'bg-cyan-100';
     case 'unpacking': return 'bg-slate-100';
+    case 'task_crew': return 'bg-blue-50';
+    case 'task_pm': return 'bg-purple-50';
+    case 'task_logistics': return 'bg-amber-50';
+    case 'task_admin': return 'bg-slate-50';
     default: return 'bg-gray-100';
   }
 };
@@ -100,6 +117,10 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'return': return 'bg-violet-500/20 border-violet-500';
     case 'inventory': return 'bg-cyan-500/20 border-cyan-500';
     case 'unpacking': return 'bg-slate-400/20 border-slate-400';
+    case 'task_crew': return 'bg-blue-500/20 border-blue-500';
+    case 'task_pm': return 'bg-purple-500/20 border-purple-500';
+    case 'task_logistics': return 'bg-amber-500/20 border-amber-500';
+    case 'task_admin': return 'bg-slate-400/20 border-slate-400';
     default: return 'bg-primary/20 border-primary';
   }
 };

@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,9 +16,11 @@ import MobileEventsList from '@/components/mobile/MobileEventsList';
 import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar } from 'lucide-react';
+import { Calendar, ListChecks } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -62,8 +66,17 @@ const SimpleStaffCurtainWrapper: React.FC<{
 
 const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   // Default to 'weekly' - the full 7-day view with all teams
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // Task overlay toggle (persisted in localStorage)
+  const [showTasks, setShowTasks] = useState(() => {
+    return localStorage.getItem('calendar-show-tasks') === 'true';
+  });
+  useEffect(() => {
+    localStorage.setItem('calendar-show-tasks', String(showTasks));
+  }, [showTasks]);
 
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
@@ -81,9 +94,28 @@ const CustomCalendarPage = () => {
     handleDatesSet,
     refreshEvents
   } = useRealTimeCalendarEvents();
-  
+
+  // Task overlay events (only fetched when toggle is on)
+  const { taskEvents } = useTaskCalendarEvents(showTasks);
+
+  // Merge calendar events + task overlay
+  const mergedEvents = useMemo(() => {
+    if (!showTasks || taskEvents.length === 0) return events;
+    return [...events, ...taskEvents];
+  }, [events, taskEvents, showTasks]);
+
+  // Handle task overlay click → navigate to project
+  const handleEventClick = (event: any) => {
+    const props = event.extendedProps;
+    if (props?.isTaskOverlay && props?.bookingId) {
+      // Navigate to the project's execution view
+      // First find the project by booking_id
+      navigate(`/projects?highlight=${props.bookingId}`);
+    }
+  };
+
   const { teamResources } = useTeamResources();
-  
+
   // Week navigation state (for desktop) and month state (for mobile)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
@@ -208,6 +240,8 @@ const CustomCalendarPage = () => {
     // Also update currentWeekStart to first week of new month
     setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
+  // Task overlay events are read-only (no drag/drop)
+  const isEventReadOnly = (event: any) => !!event.extendedProps?.isTaskOverlay;
 
   return (
     <TooltipProvider>
@@ -221,25 +255,40 @@ const CustomCalendarPage = () => {
             />
           </div>
 
-          {/* Navigation with view toggle */}
-          <WeekNavigation
-            currentWeekStart={currentWeekStart}
-            setCurrentWeekStart={setCurrentWeekStart}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            currentMonth={monthlyDate}
-            onMonthChange={handleMonthChange}
-          />
+          {/* Task overlay toggle + Navigation */}
+          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="flex-1">
+              <WeekNavigation
+                currentWeekStart={currentWeekStart}
+                setCurrentWeekStart={setCurrentWeekStart}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                currentMonth={monthlyDate}
+                onMonthChange={handleMonthChange}
+              />
+            </div>
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              <ListChecks className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="show-tasks" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                Visa uppgifter
+              </Label>
+              <Switch
+                id="show-tasks"
+                checked={showTasks}
+                onCheckedChange={setShowTasks}
+              />
+            </div>
+          </div>
 
           {/* Content - flex-1 to fill remaining space */}
           <div className="flex-1 min-h-0 p-4 overflow-hidden bg-card rounded-2xl mx-2 mb-2 shadow-sm">
             {viewMode === 'day' ? (
               // Day View - 3D Carousel with single focused day and side cards
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <MobileCalendarView events={mergedEvents} />
               ) : (
                 <CustomCalendar
-                  events={events}
+                  events={mergedEvents}
                   setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -254,15 +303,17 @@ const CustomCalendarPage = () => {
                   getVisibleTeamsForDay={getVisibleTeamsForDay}
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
+                  onEventClick={handleEventClick}
+                  isEventReadOnly={isEventReadOnly}
                 />
               )
             ) : viewMode === 'weekly' ? (
               // Weekly View - 7 days side by side with horizontal scroll
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <MobileCalendarView events={mergedEvents} />
               ) : (
                 <CustomCalendar
-                  events={events}
+                  events={mergedEvents}
                   setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -277,13 +328,15 @@ const CustomCalendarPage = () => {
                   getVisibleTeamsForDay={getVisibleTeamsForDay}
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
+                  onEventClick={handleEventClick}
+                  isEventReadOnly={isEventReadOnly}
                 />
               )
             ) : viewMode === 'monthly' ? (
               // Monthly View - same day-grid style as warehouse calendar
               isMobile ? (
                 <MobileCalendarView
-                  events={events}
+                  events={mergedEvents}
                   currentMonth={monthlyDate}
                   selectedWeekStart={currentWeekStart}
                   onMonthChange={handleMonthChange}
@@ -292,7 +345,7 @@ const CustomCalendarPage = () => {
               ) : (
                 <>
                   <CustomCalendar
-                    events={events}
+                    events={mergedEvents}
                     setEvents={setEvents}
                     resources={teamResources}
                     isLoading={isLoading}
@@ -307,6 +360,8 @@ const CustomCalendarPage = () => {
                     getVisibleTeamsForDay={getVisibleTeamsForDay}
                     onToggleTeamForDay={handleToggleTeamForDay}
                     allTeams={teamResources}
+                    onEventClick={handleEventClick}
+                    isEventReadOnly={isEventReadOnly}
                   />
                   <WeekTabsNavigation
                     currentMonth={monthlyDate}
@@ -318,7 +373,7 @@ const CustomCalendarPage = () => {
             ) : (
               // List View
               <StaffBookingsList
-                events={events}
+                events={mergedEvents}
                 resources={teamResources}
                 currentDate={currentWeekStart}
                 weeklyStaffOperations={staffOps}
