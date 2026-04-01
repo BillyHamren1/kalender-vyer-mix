@@ -167,7 +167,9 @@ export const deleteProjectInvoice = async (id: string): Promise<void> => {
 };
 
 // Time reports - fetched via booking_id
+// Rate priority: completion_staff snapshot > staff_members current rate
 export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffTimeReport[]> => {
+  // Fetch time reports with current staff rates
   const { data, error } = await supabase
     .from('time_reports')
     .select(`
@@ -185,6 +187,26 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
     .order('report_date', { ascending: true });
   
   if (error) throw error;
+
+  // Fetch historical rate snapshots from completion_staff (if any exist for this booking)
+  const { data: completionStaff } = await supabase
+    .from('completion_staff')
+    .select('staff_id, hourly_rate, work_date')
+    .eq('completion_id', bookingId);
+
+  // Build a map of staff_id → snapshot hourly_rate (use the latest entry per staff)
+  const snapshotRates = new Map<string, number>();
+  if (completionStaff && completionStaff.length > 0) {
+    // Sort by work_date descending so the latest snapshot wins
+    const sorted = [...completionStaff].sort((a, b) =>
+      (b.work_date || '').localeCompare(a.work_date || '')
+    );
+    for (const cs of sorted) {
+      if (cs.hourly_rate != null && !snapshotRates.has(cs.staff_id)) {
+        snapshotRates.set(cs.staff_id, Number(cs.hourly_rate));
+      }
+    }
+  }
   
   // Aggregate by staff member, keeping detailed reports
   const staffMap = new Map<string, StaffTimeReport>();
@@ -194,8 +216,19 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
     const existing = staffMap.get(staffId);
     
     const staffData = report.staff_members;
-    const hourlyRate = Number(staffData?.hourly_rate) || 0;
-    const overtimeRate = Number(staffData?.overtime_rate) || hourlyRate * 1.5;
+    const currentRate = Number(staffData?.hourly_rate) || 0;
+    const snapshotRate = snapshotRates.get(staffId);
+
+    // Use snapshot rate if available; otherwise fall back to current staff rate
+    const hourlyRate = snapshotRate ?? currentRate;
+    if (snapshotRate != null && snapshotRate !== currentRate) {
+      console.log(
+        `[TimeReports] Using snapshot rate ${snapshotRate} instead of current ${currentRate} for staff ${staffId}`
+      );
+    }
+
+    const currentOvertimeRate = Number(staffData?.overtime_rate) || 0;
+    const overtimeRate = currentOvertimeRate > 0 ? currentOvertimeRate : hourlyRate * 1.5;
     const hoursWorked = Number(report.hours_worked) || 0;
     const overtimeHours = Number(report.overtime_hours) || 0;
     
