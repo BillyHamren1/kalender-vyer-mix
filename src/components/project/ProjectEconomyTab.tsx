@@ -88,6 +88,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     refetchProductCosts,
     refetchSupplierInvoices,
     linkSupplierInvoice,
+    costOverrides,
+    updateProductCost,
+    resetProductCost,
   } = useProjectEconomy(projectId, bookingId);
 
   const { data: attestations = [] } = useSupplierInvoiceAttestations(bookingId);
