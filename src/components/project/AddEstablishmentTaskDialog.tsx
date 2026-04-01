@@ -346,6 +346,7 @@ const AddEstablishmentTaskDialog = ({
             </Popover>
           </div>
 
+          <p className="text-[11px] text-muted-foreground">
             Nya aktiviteter skapas som "Ej startad" med beredskap "Saknar information"
           </p>
 
