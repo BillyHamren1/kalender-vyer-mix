@@ -143,7 +143,8 @@ const OpsControlCenter = () => {
           </div>
 
           {/* Right: Activity & Comms */}
-          <div className="overflow-y-auto p-3">
+          <div className="overflow-y-auto p-3 space-y-4">
+            <OrganizationLocationsManager />
             <OpsActivityComms
               activity={activity}
               isLoadingActivity={isLoadingActivity}
