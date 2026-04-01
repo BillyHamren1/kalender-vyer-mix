@@ -301,9 +301,10 @@ const ProjectExecutionView = () => {
       {/* Summary metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
-          onClick={() => { setFilterStatus("all"); }}
+          onClick={() => { setFilterStatus("all"); setFilterPerson("all"); setFilterType("all"); setFilterDateGroup("overdue"); }}
           className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
-            overdueCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50"
+            overdueCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50",
+            filterDateGroup === "overdue" && "ring-2 ring-destructive/50"
           )}
         >
           <AlertTriangle className={cn("h-5 w-5", overdueCount > 0 ? "text-destructive" : "text-muted-foreground")} />
@@ -313,9 +314,10 @@ const ProjectExecutionView = () => {
           </div>
         </button>
         <button
-          onClick={() => { setFilterStatus("all"); }}
+          onClick={() => { setFilterStatus("all"); setFilterPerson("all"); setFilterType("all"); setFilterDateGroup("today"); }}
           className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
-            todayCount > 0 ? "border-yellow-500/30 bg-yellow-500/5" : "border-border/50"
+            todayCount > 0 ? "border-yellow-500/30 bg-yellow-500/5" : "border-border/50",
+            filterDateGroup === "today" && "ring-2 ring-yellow-500/50"
           )}
         >
           <Clock className={cn("h-5 w-5", todayCount > 0 ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground")} />
@@ -325,9 +327,10 @@ const ProjectExecutionView = () => {
           </div>
         </button>
         <button
-          onClick={() => setFilterStatus("blocked")}
+          onClick={() => { setFilterStatus("blocked"); setFilterPerson("all"); setFilterType("all"); setFilterDateGroup("all"); }}
           className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
-            blockedCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50"
+            blockedCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50",
+            filterStatus === "blocked" && "ring-2 ring-destructive/50"
           )}
         >
           <Ban className={cn("h-5 w-5", blockedCount > 0 ? "text-destructive" : "text-muted-foreground")} />
@@ -337,9 +340,10 @@ const ProjectExecutionView = () => {
           </div>
         </button>
         <button
-          onClick={() => setFilterPerson("all")}
+          onClick={() => { setFilterStatus("all"); setFilterPerson("__unassigned__"); setFilterType("all"); setFilterDateGroup("all"); }}
           className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
-            unassignedCount > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50"
+            unassignedCount > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50",
+            filterPerson === "__unassigned__" && "ring-2 ring-amber-500/50"
           )}
         >
           <User className={cn("h-5 w-5", unassignedCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} />
