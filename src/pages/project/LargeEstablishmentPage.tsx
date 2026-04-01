@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChar
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
+import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
@@ -36,6 +37,7 @@ const LargeEstablishmentPage = () => {
   
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   const tabTriggerClass =
     "relative px-4 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
@@ -101,6 +103,22 @@ const LargeEstablishmentPage = () => {
     }
   }, [analytics.tasks]);
 
+  const handleOverviewFilter = useCallback((filter: OverviewFilter) => {
+    // Map overview filter to PlanningFilters
+    const newFilters: PlanningFilters = { ...EMPTY_FILTERS };
+    if (filter.section === "overdue") newFilters.quickFilter = "overdue";
+    else if (filter.section === "today") newFilters.quickFilter = "today";
+    else if (filter.section === "unassigned") newFilters.quickFilter = "unassigned";
+    else if (filter.status === "done") newFilters.quickFilter = "completed";
+    else if (filter.status) newFilters.status = filter.status as any;
+    if (filter.person) newFilters.assignedTo = filter.person;
+
+    setFilters(newFilters);
+    setViewMode("list");
+    // Scroll to workspace
+    setTimeout(() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  }, []);
+
   if (!project) return null;
 
   const projectBookings = (project.bookings || []).map(b => ({
@@ -111,15 +129,16 @@ const LargeEstablishmentPage = () => {
 
   return (
     <div className="space-y-3">
-      {/* LEVEL 1: Daily briefing — answers "what needs my attention?" */}
+      {/* LEVEL 1: Project overview */}
       <ProjectControlPanel
         analytics={analytics}
         staffPool={staffPool}
         onTaskClick={handleControlPanelTaskClick}
+        onFilterChange={handleOverviewFilter}
       />
 
       {/* LEVEL 2: Workspace — answers "what's the full picture?" */}
-      <Card className="border-border/50 shadow-sm overflow-hidden">
+      <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
         <Tabs defaultValue="establishment">
           <div className="border-b border-border/40 px-3 flex items-center justify-between">
             <TabsList className="h-auto p-0 bg-transparent gap-0">
