@@ -430,10 +430,16 @@ const EstablishmentGanttChart = ({
               <Wrench className="h-5 w-5 text-primary" />
               Etablering - Gantt-schema
             </CardTitle>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
-              <Plus className="h-4 w-4" />
-              Lägg till aktivitet
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
+                <Package className="h-4 w-4" />
+                Skapa aktiviteter från bokning
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4" />
+                Lägg till aktivitet
+              </Button>
+            </div>
           </div>
 
           {/* Compact booking summary - only in booking mode */}
