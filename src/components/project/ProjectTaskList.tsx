@@ -103,17 +103,17 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
             {executionHref && (
               <button
                 onClick={() => navigate(executionHref)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
+                className="flex items-center gap-2 px-4 py-2.5 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
               >
                 <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                <span>Hantera uppgifter i Utförande-vyn</span>
+                <span>Hantera operativa uppgifter i Utförande-vyn</span>
               </button>
             )}
 
             {/* Header */}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-2 pb-1.5 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-sm font-semibold text-muted-foreground tracking-tight">Uppgifter</span>
+                <span className="text-sm font-semibold text-muted-foreground tracking-tight">Koordinering</span>
                 {totalRegular > 0 && (
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {doneCount}/{totalRegular}
@@ -124,6 +124,11 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 <Plus className="h-4 w-4" />
               </Button>
             </CardHeader>
+
+            {/* Explanatory subtitle */}
+            <p className="px-4 pb-2 text-[11px] text-muted-foreground leading-snug">
+              Enklare samordningsuppgifter. Full operativ planering hanteras i Execution.
+            </p>
 
             {/* Progress bar */}
             {totalRegular > 0 && (
