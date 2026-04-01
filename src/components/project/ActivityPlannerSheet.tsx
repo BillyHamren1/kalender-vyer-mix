@@ -24,6 +24,7 @@ interface ActivityPlannerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bookingId?: string;
+  bookingName?: string;
   largeProjectId?: string;
   products: BookingProduct[];
   defaultDate: string | null;
