@@ -163,7 +163,37 @@ const EstablishmentGanttChart = ({
   }, [allSubtasks]);
 
   const allTasks = dbTasks || [];
-  const tasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
+  const filteredTasks = visibleTaskIds ? allTasks.filter(t => visibleTaskIds.has(t.id)) : allTasks;
+
+  // Sort tasks: group by booking_id so same-booking tasks are adjacent
+  const tasks = useMemo(() => {
+    const sorted = [...filteredTasks].sort((a, b) => {
+      const aKey = a.booking_id || '';
+      const bKey = b.booking_id || '';
+      if (aKey !== bKey) return aKey.localeCompare(bKey);
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+    return sorted;
+  }, [filteredTasks]);
+
+  // Build booking group info for separator rows
+  const bookingGroups = useMemo(() => {
+    if (!isProjectMode || tasks.length === 0) return new Map<string, { label: string; count: number; firstTaskId: string }>();
+    const groups = new Map<string, { label: string; count: number; firstTaskId: string }>();
+    for (const t of tasks) {
+      const key = t.booking_id || '__none__';
+      if (!groups.has(key)) {
+        let label = 'Utan bokning';
+        if (t.booking_id) {
+          const pb = projectBookings.find(b => b.booking_id === t.booking_id);
+          label = pb ? (pb.display_name || pb.client || t.booking_id) : t.booking_id;
+        }
+        groups.set(key, { label, count: 0, firstTaskId: t.id });
+      }
+      groups.get(key)!.count++;
+    }
+    return groups;
+  }, [tasks, isProjectMode, projectBookings]);
 
   // ── Adaptive timeline: detect active days & gaps ──────────────
   const ganttData = useMemo(() => {
@@ -379,6 +409,7 @@ const EstablishmentGanttChart = ({
   }
 
   const rowHeight = 56;
+  const groupHeaderHeight = 28;
   const headerHeight = 60;
   const taskLabelWidth = 360;
   const timelineWidth = columnWidths.reduce((a, b) => a + b, 0);
@@ -442,92 +473,103 @@ const EstablishmentGanttChart = ({
                     ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
                     : null;
 
+                  // Booking group header (project mode only)
+                  const bookingKey = (task as any).booking_id || '__none__';
+                  const groupInfo = bookingGroups.get(bookingKey);
+                  const showGroupHeader = isProjectMode && groupInfo && groupInfo.firstTaskId === task.id;
+
                   return (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors group",
-                        status === 'done' && "opacity-60",
-                        status === 'blocked' && "border-destructive/30"
+                    <div key={task.id}>
+                      {showGroupHeader && (
+                        <div
+                          className="flex items-center gap-2 px-3 bg-muted/60 border-b border-border"
+                          style={{ height: groupHeaderHeight }}
+                        >
+                          <Package className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span className="text-[11px] font-semibold text-muted-foreground truncate">
+                            {groupInfo.label}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/70">
+                            ({groupInfo.count} {groupInfo.count === 1 ? 'aktivitet' : 'aktiviteter'})
+                          </span>
+                        </div>
                       )}
-                      style={{ height: rowHeight }}
-                      onClick={() =>
-                        onTaskClick?.({
-                          id: task.id,
-                          title: task.title,
-                          category: task.category,
-                          startDate: task.startDate,
-                          endDate: task.endDate,
-                          completed: task.completed,
-                        })
-                      }
-                    >
-                      {/* Status icon */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); if (dbTask) handleToggleCompleted(dbTask); }}
-                        className="flex-shrink-0"
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors group",
+                          status === 'done' && "opacity-60",
+                          status === 'blocked' && "border-destructive/30",
+                          isProjectMode && "pl-5"
+                        )}
+                        style={{ height: rowHeight }}
+                        onClick={() =>
+                          onTaskClick?.({
+                            id: task.id,
+                            title: task.title,
+                            category: task.category,
+                            startDate: task.startDate,
+                            endDate: task.endDate,
+                            completed: task.completed,
+                          })
+                        }
                       >
-                        <StatusIcon className={cn("h-4 w-4", statusConfig.text)} />
-                      </button>
+                        {/* Status icon */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (dbTask) handleToggleCompleted(dbTask); }}
+                          className="flex-shrink-0"
+                        >
+                          <StatusIcon className={cn("h-4 w-4", statusConfig.text)} />
+                        </button>
 
-                      {/* Priority indicator */}
-                      <span className="flex-shrink-0">
-                        <PriorityIcon className={cn("h-3 w-3", PRIORITY_CONFIG[priority]?.className)} />
-                      </span>
+                        {/* Priority indicator */}
+                        <span className="flex-shrink-0">
+                          <PriorityIcon className={cn("h-3 w-3", PRIORITY_CONFIG[priority]?.className)} />
+                        </span>
 
-                      {/* Category icon */}
-                      <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                        {/* Category icon */}
+                        <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
 
-                      {/* Title + metadata */}
-                      <div className={cn("flex flex-col min-w-0 flex-1", status === 'done' && "opacity-60")}>
-                        <div className="flex items-center gap-1.5">
-                          <span className={cn("text-sm truncate", status === 'done' && "line-through text-muted-foreground")}>
-                            {task.title}
-                          </span>
-                          {hasBlockers && (
-                            <span className="flex-shrink-0">
-                              <AlertTriangle className="h-3 w-3 text-destructive" />
+                        {/* Title + metadata */}
+                        <div className={cn("flex flex-col min-w-0 flex-1", status === 'done' && "opacity-60")}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("text-sm truncate", status === 'done' && "line-through text-muted-foreground")}>
+                              {task.title}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          {/* Readiness badge */}
-                          <span className={cn(
-                            "px-1 py-0 rounded text-[9px] font-medium",
-                            readiness === 'ready' ? 'bg-emerald-500/10 text-emerald-600' :
-                            readiness === 'waiting_for_decision' ? 'bg-violet-500/10 text-violet-600' :
-                            readiness === 'waiting_for_external' ? 'bg-amber-500/10 text-amber-600' :
-                            'bg-muted text-muted-foreground'
-                          )}>
-                            {READINESS_LABELS[readiness] || readiness}
-                          </span>
-
-                          {/* Assigned person */}
-                          {assignedName && (
-                            <span className="text-muted-foreground truncate flex items-center gap-0.5">
-                              <User className="h-2.5 w-2.5" />
-                              {assignedName}
-                            </span>
-                          )}
-
-                          {/* Linked booking in project mode */}
-                          {isProjectMode && (task as any).booking_id && (() => {
-                            const linkedBooking = projectBookings.find(b => b.booking_id === (task as any).booking_id);
-                            return linkedBooking ? (
-                              <span className="text-muted-foreground truncate">
-                                • {linkedBooking.display_name || linkedBooking.client || linkedBooking.booking_id}
+                            {hasBlockers && (
+                              <span className="flex-shrink-0">
+                                <AlertTriangle className="h-3 w-3 text-destructive" />
                               </span>
-                            ) : null;
-                          })()}
-                        </div>
-                      </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            {/* Readiness badge */}
+                            <span className={cn(
+                              "px-1 py-0 rounded text-[9px] font-medium",
+                              readiness === 'ready' ? 'bg-emerald-500/10 text-emerald-600' :
+                              readiness === 'waiting_for_decision' ? 'bg-violet-500/10 text-violet-600' :
+                              readiness === 'waiting_for_external' ? 'bg-amber-500/10 text-amber-600' :
+                              'bg-muted text-muted-foreground'
+                            )}>
+                              {READINESS_LABELS[readiness] || readiness}
+                            </span>
 
-                      <button
-                        onClick={(e) => handleDeleteTask(task.id, e)}
-                        className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-destructive/10 transition-all"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </button>
+                            {/* Assigned person */}
+                            {assignedName && (
+                              <span className="text-muted-foreground truncate flex items-center gap-0.5">
+                                <User className="h-2.5 w-2.5" />
+                                {assignedName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={(e) => handleDeleteTask(task.id, e)}
+                          className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-destructive/10 transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -622,8 +664,17 @@ const EstablishmentGanttChart = ({
                     : hasPersonOverlap ? 'ring-2 ring-orange-400/50 ring-offset-1 ring-offset-background'
                     : '';
 
+                  // Booking group header spacer (must match left column)
+                  const bookingKey = (task as any).booking_id || '__none__';
+                  const groupInfo = bookingGroups.get(bookingKey);
+                  const showGroupHeader = isProjectMode && groupInfo && groupInfo.firstTaskId === task.id;
+
                   return (
-                    <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
+                    <div key={task.id}>
+                      {showGroupHeader && (
+                        <div className="border-b bg-muted/60" style={{ height: groupHeaderHeight }} />
+                      )}
+                      <div className="relative border-b" style={{ height: rowHeight }}>
                       {/* Grid cells — adaptive columns */}
                       <div className="absolute inset-0 flex">
                         {visibleColumns.map((col, ci) => {
@@ -738,6 +789,7 @@ const EstablishmentGanttChart = ({
                           </div>
                         )}
                       </div>
+                    </div>
                     </div>
                   );
                 })}
