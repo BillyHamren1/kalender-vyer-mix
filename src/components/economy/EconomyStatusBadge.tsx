@@ -11,7 +11,7 @@ const STATUS_CONFIG: Record<EconomyStatus, { label: string; className: string }>
   'event-completed': { label: 'Event klart', className: 'border-primary/30 text-primary bg-primary/5' },
   'ready-for-invoicing': { label: 'Redo fakturera', className: 'border-teal-300 text-teal-700 bg-teal-50' },
   'partially-invoiced': { label: 'Delvis fakturerad', className: 'border-amber-300 text-amber-700 bg-amber-50' },
-  'fully-invoiced': { label: 'Fullt fakturerad', className: 'border-green-300 text-green-700 bg-green-50' },
+  'fully-invoiced': { label: 'Fullt fakturerad', className: 'border-teal-300 text-teal-700 bg-teal-50' },
   'economy-closed': { label: 'Stängd', className: 'bg-muted text-muted-foreground border-border' },
   'risk': { label: 'Risk', className: 'border-destructive/40 text-destructive bg-destructive/5' },
   'missing-data': { label: 'Saknar data', className: 'border-amber-300 text-amber-700 bg-amber-50' },

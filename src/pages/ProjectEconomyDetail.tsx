@@ -143,7 +143,7 @@ const ProjectEconomyDetail: React.FC = () => {
             <Badge variant="outline" className={
               isClosed
                 ? "border-red-200 text-red-600 bg-red-50 text-[11px] px-2 py-0.5 font-medium"
-                : "border-emerald-200 text-emerald-600 bg-emerald-50 text-[11px] px-2 py-0.5 font-medium"
+                : "border-teal-200 text-teal-600 bg-teal-50 text-[11px] px-2 py-0.5 font-medium"
             }>
               {isClosed ? 'STÄNGD' : 'ÖPPEN'}
             </Badge>

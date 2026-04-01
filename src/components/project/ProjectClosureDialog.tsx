@@ -71,7 +71,7 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
             <AlertDialogAction
               onClick={() => onClose(notes || undefined)}
               disabled={isClosing}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-teal-600 hover:bg-teal-700"
             >
               {isClosing ? 'Stänger...' : 'Stäng projekt'}
             </AlertDialogAction>
