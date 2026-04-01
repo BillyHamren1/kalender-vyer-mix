@@ -196,7 +196,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       overdue: overdueTasks.length,
       blocked: blocked.length,
       inProgress: inProgress.length,
-      cancelled: cancelled.length,
+      cancelled: 0,
       notStarted: notStarted.length,
       waitingForDecision: waitingForDecision.length,
       missingSetup: missingSetup.length,
