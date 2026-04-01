@@ -255,7 +255,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
             </div>
             <p className={cn(
               'text-xl font-bold',
-              signals.margin.level === 'ok' ? 'text-teal-600' :
+              signals.margin.level === 'ok' ? 'text-primary' :
               signals.margin.level === 'warning' ? 'text-amber-600' :
               signals.margin.level === 'danger' ? 'text-red-600' : 'text-foreground'
             )}>
