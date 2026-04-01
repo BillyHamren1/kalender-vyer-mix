@@ -1,10 +1,10 @@
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Send, FileText, Bell } from "lucide-react";
+import { MessageSquare, Send, FileText, Bell, ListChecks } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -124,7 +124,19 @@ const ChatMessages = ({
 
 const LargeCollaborationPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const { comments, addComment } = detail;
+  const { comments, addComment, project } = detail;
+  const location = useLocation();
+
+  const [linkedTaskRef, setLinkedTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+
+  // Pick up linkedTaskRef from navigation state (e.g. from LargeEstablishmentPage)
+  useEffect(() => {
+    const navRef = (location.state as any)?.linkedTaskRef;
+    if (navRef?.taskId) {
+      setLinkedTaskRef(navRef);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -151,6 +163,15 @@ const LargeCollaborationPage = () => {
           </TabsList>
 
           <TabsContent value="chat" className="mt-4">
+            {linkedTaskRef && (
+              <div className="flex items-center gap-2 px-4 py-2 mb-2 rounded-lg bg-primary/5 border border-border/40">
+                <ListChecks className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-xs text-foreground/80 truncate">
+                  Refererar till: <span className="font-medium">{linkedTaskRef.taskTitle}</span>
+                </span>
+                <button onClick={() => setLinkedTaskRef(null)} className="text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">✕</button>
+              </div>
+            )}
             <ChatMessages comments={comments || []} onAddComment={addComment} />
           </TabsContent>
 

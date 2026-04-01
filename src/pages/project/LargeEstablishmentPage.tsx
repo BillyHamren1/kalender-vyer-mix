@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -34,7 +34,7 @@ const LargeEstablishmentPage = () => {
   const { project } = detail;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -89,10 +89,10 @@ const LargeEstablishmentPage = () => {
   }, []);
 
   const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    // Navigate to the collaboration tab with task reference
-    // The LargeCollaborationPage handles ProjectCommunication
     setSheetOpen(false);
-  }, []);
+    // Navigate to the collaboration page which hosts chat, passing task ref
+    navigate("collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  }, [navigate]);
 
   const handleControlPanelTaskClick = useCallback((taskId: string) => {
     const task = analytics.tasks.find(t => t.id === taskId);

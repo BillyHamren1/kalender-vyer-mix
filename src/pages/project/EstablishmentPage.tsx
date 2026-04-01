@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
@@ -26,7 +26,12 @@ const EstablishmentPage = () => {
   const booking = project?.booking;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [linkedTaskRef, setLinkedTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+  const navigate = useNavigate();
+
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    setSheetOpen(false);
+    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  }, [navigate]);
 
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
@@ -57,13 +62,6 @@ const EstablishmentPage = () => {
     setSelectedTask(task);
     setSheetOpen(true);
   };
-
-  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    setLinkedTaskRef({ taskId, taskTitle });
-    setSheetOpen(false);
-    // Chat is on the project view page — navigate there
-    // For now, store the ref so parent can pick it up if communication is on this page
-  }, []);
 
   return (
     <div className="space-y-6">
