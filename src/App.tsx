@@ -211,7 +211,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/projects/closing" element={<ProtectedRoute><MainSystemLayout><ProjectClosing /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<ProjectViewPage />} />
-              <Route path="execution" element={<ProjectExecutionView />} />
+              <Route path="execution" element={<EstablishmentPage />} />
               <Route path="establishment" element={<EstablishmentPage />} />
               <Route path="economy" element={<ProjectEconomyPage />} />
             </Route>
