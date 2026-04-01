@@ -79,11 +79,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "not_started", label: "Ej startad" },
+  { value: "todo", label: "Att göra" },
   { value: "in_progress", label: "Pågår" },
   { value: "blocked", label: "Blockerad" },
   { value: "done", label: "Klar" },
-  { value: "cancelled", label: "Avbruten" },
 ];
 
 const READINESS_OPTIONS: { value: TaskReadiness; label: string }[] = [
