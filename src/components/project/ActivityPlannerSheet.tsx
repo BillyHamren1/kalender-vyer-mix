@@ -679,6 +679,32 @@ const ActivityPlannerSheet = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Template chooser */}
+              {showTemplates && rows.length <= 1 && !rows[0]?.title && (
+                <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
+                  <p className="text-xs font-medium text-muted-foreground">Starta från en mall:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ACTIVITY_TEMPLATES.map(t => (
+                      <Button
+                        key={t.label}
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => applyTemplate(t)}
+                      >
+                        {t.label} ({t.rows.length})
+                      </Button>
+                    ))}
+                  </div>
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                    onClick={() => setShowTemplates(false)}
+                  >
+                    Börja med tom rad istället
+                  </button>
+                </div>
+              )}
+
               {rows.map((row, idx) => renderActivityRow(row, idx))}
 
               <Button variant="outline" size="sm" className="w-full h-9 text-xs border-dashed border-2" onClick={addRow}>
