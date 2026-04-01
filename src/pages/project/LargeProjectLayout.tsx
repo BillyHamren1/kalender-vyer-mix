@@ -224,7 +224,35 @@ const LargeProjectLayout = () => {
               eventEndTime={derivedTimes.eventEnd}
               endStartTime={derivedTimes.endStart}
               endEndTime={derivedTimes.endEnd}
-              onUpdateDates={(updates) => detail.updateProject(updates)}
+              onUpdateSchedule={async (dateType, date, startTime, endTime) => {
+                // 1. Update project-level date
+                const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
+                await detail.updateProject({ [dateFieldMap[dateType]]: date });
+
+                // 2. Propagate times to all linked bookings
+                const bookingIds = bookings.map(b => b.booking_id);
+                try {
+                  await Promise.all(
+                    bookingIds.map(bid => updateBookingDateWithTimes(bid, dateType, date, startTime, endTime))
+                  );
+
+                  // 3. Trigger calendar sync per booking
+                  await Promise.all(
+                    bookingIds.map(bid =>
+                      supabase.functions.invoke('import-bookings', {
+                        body: { bookingId: bid, syncMode: 'single' },
+                      })
+                    )
+                  );
+
+                  // 4. Refresh data
+                  queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+                  toast.success('Schema uppdaterat för alla bokningar');
+                } catch (err) {
+                  console.error('Error propagating schedule:', err);
+                  toast.error('Kunde inte uppdatera alla bokningar');
+                }
+              }}
             />
 
             <div className="flex items-center justify-between">
