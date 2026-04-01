@@ -13,12 +13,27 @@ export interface ActiveTimer {
   isAutoStarted: boolean;
   establishmentTaskId?: string;
   establishmentTaskTitle?: string;
+  locationId?: string;       // if this is a fixed-location timer
+  locationName?: string;
 }
 
 export interface GeofenceEvent {
   type: 'enter' | 'exit';
-  booking: MobileBooking;
+  booking?: MobileBooking;
   distance: number;
+  locationType?: 'booking' | 'fixed';
+  locationId?: string;
+  locationName?: string;
+  locationAddress?: string;
+}
+
+export interface OrganizationLocationMobile {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
 }
 
 interface GpsSettings {
@@ -82,6 +97,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const [isTracking, setIsTracking] = useState(false);
   const [geofenceEvent, setGeofenceEvent] = useState<GeofenceEvent | null>(null);
   const [nearbyBookings, setNearbyBookings] = useState<(MobileBooking & { distance: number })[]>([]);
+  const [orgLocations, setOrgLocations] = useState<OrganizationLocationMobile[]>([]);
 
   const watchIdRef = useRef<number | null>(null);
   const triggeredEnterRef = useRef<Set<string>>(new Set());
@@ -98,6 +114,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   useEffect(() => {
     saveTimers(activeTimers);
   }, [activeTimers]);
+
+  // Fetch organization locations once
+  useEffect(() => {
+    if (!staffId) return;
+    mobileApi.getOrganizationLocations()
+      .then(res => setOrgLocations(res.locations || []))
+      .catch(err => console.warn('Failed to fetch org locations:', err));
+  }, [staffId]);
 
   // Single consolidated GPS watcher
   useEffect(() => {
@@ -151,7 +175,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     };
   }, []); // Single watcher, refs used for current values
 
-  // Geofence checks
+  // Geofence checks for bookings AND fixed locations
   useEffect(() => {
     if (!userPosition) return;
 
@@ -161,6 +185,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     const nearby: (MobileBooking & { distance: number })[] = [];
 
+    // Check bookings
     for (const booking of bookings) {
       if (!booking.delivery_latitude || !booking.delivery_longitude) continue;
 
@@ -179,39 +204,81 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
         triggeredEnterRef.current.add(booking.id);
         triggeredExitRef.current.delete(booking.id);
-        setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist) });
+        setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking' });
       }
 
       // EXIT geofence
       if (dist > exitRadius && hasTimer && activeTimers.get(booking.id)?.isAutoStarted && !triggeredExitRef.current.has(booking.id)) {
         triggeredExitRef.current.add(booking.id);
         triggeredEnterRef.current.delete(booking.id);
-        setGeofenceEvent({ type: 'exit', booking, distance: Math.round(dist) });
+        setGeofenceEvent({ type: 'exit', booking, distance: Math.round(dist), locationType: 'booking' });
+      }
+    }
+
+    // Check fixed locations
+    for (const loc of orgLocations) {
+      const dist = haversineDistance(userPosition.lat, userPosition.lng, loc.latitude, loc.longitude);
+      const locKey = `location-${loc.id}`;
+      const hasTimer = activeTimers.has(locKey);
+
+      if (dist <= loc.radius_meters && !hasTimer && !triggeredEnterRef.current.has(locKey)) {
+        triggeredEnterRef.current.add(locKey);
+        triggeredExitRef.current.delete(locKey);
+        setGeofenceEvent({
+          type: 'enter',
+          distance: Math.round(dist),
+          locationType: 'fixed',
+          locationId: loc.id,
+          locationName: loc.name,
+          locationAddress: loc.address || undefined,
+        });
+      }
+
+      if (dist > (loc.radius_meters + 50) && hasTimer && activeTimers.get(locKey)?.isAutoStarted && !triggeredExitRef.current.has(locKey)) {
+        triggeredExitRef.current.add(locKey);
+        triggeredEnterRef.current.delete(locKey);
+        setGeofenceEvent({
+          type: 'exit',
+          distance: Math.round(dist),
+          locationType: 'fixed',
+          locationId: loc.id,
+          locationName: loc.name,
+          locationAddress: loc.address || undefined,
+        });
       }
     }
 
     nearby.sort((a, b) => a.distance - b.distance);
     setNearbyBookings(nearby);
-  }, [userPosition, bookings, activeTimers]);
+  }, [userPosition, bookings, activeTimers, orgLocations]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string) => {
+  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string) => {
+    const key = locationId ? `location-${locationId}` : bookingId;
     setActiveTimers(prev => {
       const next = new Map(prev);
-      next.set(bookingId, {
-        bookingId,
+      next.set(key, {
+        bookingId: key,
         client,
         startTime: new Date().toISOString(),
         isAutoStarted: isAuto,
         establishmentTaskId: taskId,
         establishmentTaskTitle: taskTitle,
+        locationId,
+        locationName,
       });
       return next;
     });
-    triggeredEnterRef.current.add(bookingId);
+    triggeredEnterRef.current.add(key);
+
+    // If it's a fixed location manual start, call the API
+    if (locationId) {
+      mobileApi.startLocationTimer(locationId).catch(err => {
+        console.warn('Failed to start location timer on server:', err);
+      });
+    }
   }, []);
 
   const stopTimer = useCallback((bookingId: string): ActiveTimer | null => {
-    // Read from ref for synchronous return value
     const stopped = activeTimersRef.current.get(bookingId) || null;
     setActiveTimers(prev => {
       const next = new Map(prev);
@@ -220,6 +287,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     });
     triggeredExitRef.current.add(bookingId);
     triggeredEnterRef.current.delete(bookingId);
+
+    // If it's a fixed location, stop on server
+    if (stopped?.locationId) {
+      mobileApi.stopLocationTimer({ location_id: stopped.locationId }).catch(err => {
+        console.warn('Failed to stop location timer on server:', err);
+      });
+    }
+
     return stopped;
   }, []);
 
@@ -233,6 +308,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     isTracking,
     geofenceEvent,
     nearbyBookings,
+    orgLocations,
     startTimer,
     stopTimer,
     dismissGeofenceEvent,
