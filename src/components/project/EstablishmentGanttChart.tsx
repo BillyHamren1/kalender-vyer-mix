@@ -409,6 +409,7 @@ const EstablishmentGanttChart = ({
   }
 
   const rowHeight = 56;
+  const groupHeaderHeight = 28;
   const headerHeight = 60;
   const taskLabelWidth = 360;
   const timelineWidth = columnWidths.reduce((a, b) => a + b, 0);
