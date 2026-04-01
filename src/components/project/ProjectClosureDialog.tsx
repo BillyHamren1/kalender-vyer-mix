@@ -31,8 +31,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
   onClose,
 }) => {
   const [notes, setNotes] = useState('');
-  const blockers = gates.filter(g => g.blocking && !g.passed);
-  const warnings = gates.filter(g => !g.blocking && !g.passed);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
