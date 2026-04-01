@@ -50,11 +50,10 @@ const READINESS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "not_started", label: "Ej startad" },
+  { value: "todo", label: "Att göra" },
   { value: "in_progress", label: "Pågår" },
   { value: "blocked", label: "Blockerad" },
   { value: "done", label: "Klar" },
-  { value: "cancelled", label: "Avbruten" },
 ];
 
 const STATUS_GROUP_ORDER: TaskStatus[] = ["blocked", "in_progress", "not_started", "done", "cancelled"];
