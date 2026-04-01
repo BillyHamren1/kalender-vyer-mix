@@ -44,7 +44,7 @@ const formatCurrency = (v: number) =>
 
 const signalDot = (level: SignalLevel) => {
   const colors: Record<SignalLevel, string> = {
-    ok: 'bg-green-500',
+    ok: 'bg-teal-500',
     warning: 'bg-amber-500',
     danger: 'bg-red-500',
     neutral: 'bg-muted-foreground/30',
@@ -255,7 +255,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
             </div>
             <p className={cn(
               'text-xl font-bold',
-              signals.margin.level === 'ok' ? 'text-green-600' :
+              signals.margin.level === 'ok' ? 'text-teal-600' :
               signals.margin.level === 'warning' ? 'text-amber-600' :
               signals.margin.level === 'danger' ? 'text-red-600' : 'text-foreground'
             )}>
@@ -319,7 +319,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         <Button
           variant={signals.closure.canClose ? 'default' : 'outline'}
           size="sm"
-          className={cn('gap-1.5', signals.closure.canClose && 'bg-green-600 hover:bg-green-700')}
+          className={cn('gap-1.5', signals.closure.canClose && 'bg-teal-600 hover:bg-teal-700')}
           onClick={() => setClosureDialogOpen(true)}
         >
           {signals.closure.canClose ? (

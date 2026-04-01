@@ -38,7 +38,7 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             {canClose ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CheckCircle2 className="h-5 w-5 text-teal-600" />
             ) : (
               <Lock className="h-5 w-5 text-red-600" />
             )}
@@ -71,7 +71,7 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
             <AlertDialogAction
               onClick={() => onClose(notes || undefined)}
               disabled={isClosing}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-teal-600 hover:bg-teal-700"
             >
               {isClosing ? 'Stänger...' : 'Stäng projekt'}
             </AlertDialogAction>
