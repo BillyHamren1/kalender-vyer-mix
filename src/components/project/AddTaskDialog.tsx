@@ -88,7 +88,10 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Lägg till uppgift</DialogTitle>
+          <DialogTitle>Lägg till koordineringsuppgift</DialogTitle>
+          <p className="text-xs text-muted-foreground leading-snug mt-1">
+            Enkel samordning inom projektet. Operativa fältuppgifter hanteras i Execution.
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
