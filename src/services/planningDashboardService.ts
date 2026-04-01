@@ -15,6 +15,8 @@ export interface StaffLocation {
   isWorking: boolean;
   lastReportTime: string | null;
   isGps: boolean; // true = live GPS, false = fallback to booking address
+  locationSince: string | null; // when staff arrived at current position
+  isOffline: boolean; // true if GPS hasn't been updated in >10 min
 }
 
 // Available staff for booking
