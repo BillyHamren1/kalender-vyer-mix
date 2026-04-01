@@ -100,18 +100,18 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: hasBooking,
   });
 
-  // ===== Local data (via Supabase, always available) =====
+  // ===== Local data (only for projects WITHOUT a booking) =====
 
   const { data: localBudget, isLoading: localBudgetLoading } = useQuery({
     queryKey: ['local-project-budget', projectId],
     queryFn: () => fetchLocalProjectBudget(projectId!),
-    enabled: !!projectId,
+    enabled: !!projectId && !hasBooking,
   });
 
   const { data: localPurchases = [], isLoading: localPurchasesLoading } = useQuery({
     queryKey: ['local-project-purchases', projectId],
     queryFn: () => fetchLocalProjectPurchases(projectId!),
-    enabled: !!projectId,
+    enabled: !!projectId && !hasBooking,
   });
 
   // ===== Product cost overrides (local Supabase) =====
@@ -121,13 +121,9 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!projectId,
   });
 
-  // ===== Merged data: prefer remote if available, fall back to local =====
+  // ===== Data source: ONE source per project type =====
   const budget = hasBooking ? remoteBudget : localBudget;
-  
-  // Combine remote + local purchases
-  const purchases = hasBooking
-    ? [...remotePurchases, ...localPurchases]
-    : localPurchases;
+  const purchases = hasBooking ? remotePurchases : localPurchases;
 
   // Merge product cost overrides into productCosts
   const mergedProductCosts: ProductCostSummary | undefined = useMemo(() => {
@@ -170,8 +166,9 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSuccess: () => {
       if (hasBooking) {
         queryClient.invalidateQueries({ queryKey: ['project-budget', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-budget', projectId] });
       }
-      queryClient.invalidateQueries({ queryKey: ['local-project-budget', projectId] });
       toast.success('Budget sparad');
     },
     onError: () => toast.error('Kunde inte spara budget'),
@@ -202,26 +199,30 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSuccess: () => {
       if (hasBooking) {
         queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
       }
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
       toast.success('Inköp tillagt');
     },
     onError: () => toast.error('Kunde inte lägga till inköp'),
   });
 
-  // Update local purchase
+  // Update purchase (routes to correct backend)
   const updatePurchaseMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) =>
       updateLocalProjectPurchase(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
-      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      }
       toast.success('Inköp uppdaterat');
     },
     onError: () => toast.error('Kunde inte uppdatera inköp'),
   });
 
-  // Remove purchase
+  // Remove purchase (single source — no fallback chain)
   const removePurchaseOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
     queryKey: hasBooking ? ['project-purchases', bookingId] : ['local-project-purchases', projectId],
@@ -232,16 +233,18 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const removePurchaseMutation = useMutation({
     mutationFn: (id: string) => {
-      // Try local first, if it fails try remote
       if (hasBooking) {
-        return deletePurchase(id).catch(() => deleteLocalProjectPurchase(id));
+        return deletePurchase(id);
       }
       return deleteLocalProjectPurchase(id);
     },
     ...removePurchaseOptimistic,
     onSuccess: () => {
-      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      }
       toast.success('Inköp borttaget');
     },
     onError: removePurchaseOptimistic.onError,
@@ -399,13 +402,14 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onError: () => toast.error('Kunde inte återställa kostnad'),
   });
 
-  const isLoading = (hasBooking ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading) : false) || localBudgetLoading || localPurchasesLoading;
+  const isLoading = hasBooking
+    ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading)
+    : (localBudgetLoading || localPurchasesLoading);
 
   return {
     budget,
     timeReports,
     purchases,
-    localPurchases,
     quotes,
     invoices,
     productCosts: mergedProductCosts,
