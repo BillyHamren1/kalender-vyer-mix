@@ -287,6 +287,7 @@ const ProjectExecutionView = () => {
                 const assignedNames = (task.assigned_to_ids || [])
                   .map((id) => staffMap[id])
                   .filter(Boolean);
+                const assignedUserName = task.assigned_user_id ? userMap[task.assigned_user_id] : null;
 
                 return (
                   <div
