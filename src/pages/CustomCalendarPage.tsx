@@ -306,6 +306,7 @@ const CustomCalendarPage = () => {
                   onEventClick={handleEventClick}
                   isEventReadOnly={isEventReadOnly}
                 />
+              )
             ) : viewMode === 'weekly' ? (
               // Weekly View - 7 days side by side with horizontal scroll
               isMobile ? (
