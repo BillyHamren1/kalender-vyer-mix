@@ -53,6 +53,15 @@ export const getEventColor = (eventType: string | undefined): string => {
       return '#A5F3FC'; // Cyan
     case 'unpacking':
       return '#F1F5F9'; // Slate gray
+    // --- Task overlay colors ---
+    case 'task_crew':
+      return '#DBEAFE'; // Blue-100
+    case 'task_pm':
+      return '#E9D5FF'; // Purple-100
+    case 'task_logistics':
+      return '#FEF3C7'; // Amber-100
+    case 'task_admin':
+      return '#F1F5F9'; // Slate-100
     default:
       return '#6b7280'; // gray-500
   }
