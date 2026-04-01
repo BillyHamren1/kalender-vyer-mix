@@ -424,9 +424,10 @@ const SectionCard = ({ icon: Icon, title, count, variant, children, onHeaderClic
   );
 };
 
-const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
+const TaskRow = ({ task, staffPool, userMap, onTaskClick, highlight }: {
   task: EstablishmentTask;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onTaskClick?: (taskId: string) => void;
   highlight?: "today";
 }) => {
@@ -434,6 +435,10 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
     return ids.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean) as string[];
   })();
+
+  // Check internal user assignment
+  const userName = task.assigned_user_id && userMap ? userMap[task.assigned_user_id] : null;
+  const hasOwner = staffNames.length > 0 || !!userName;
 
   return (
     <button
@@ -445,8 +450,11 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     >
       {highlight === "today" && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
       <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{task.title}</span>
-      {staffNames.length > 0 ? (
-        <span className="text-[10px] text-muted-foreground shrink-0">{staffNames.join(", ")}</span>
+      {hasOwner ? (
+        <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
+          {staffNames.length > 0 && <><User className="h-2.5 w-2.5 inline" />{staffNames.join(", ")}</>}
+          {userName && !staffNames.length && <><UserCog className="h-2.5 w-2.5 inline" />{userName}</>}
+        </span>
       ) : (
         <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Utan ägare</span>
       )}
