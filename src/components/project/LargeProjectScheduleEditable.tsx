@@ -2,39 +2,53 @@ import { useState } from "react";
 import { format, differenceInDays, isPast, isToday } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+import { EditDateDialog } from "@/components/booking/EditDateDialog";
 
 interface LargeProjectScheduleEditableProps {
   startDate?: string | null;
   eventDate?: string | null;
   endDate?: string | null;
-  onUpdateDates: (updates: { start_date?: string | null; event_date?: string | null; end_date?: string | null }) => void;
+  startStartTime?: string | null;
+  startEndTime?: string | null;
+  eventStartTime?: string | null;
+  eventEndTime?: string | null;
+  endStartTime?: string | null;
+  endEndTime?: string | null;
+  onUpdateDates: (updates: Record<string, string | null>) => void;
 }
 
-type DateType = 'start' | 'event' | 'end';
+type DateType = 'rig' | 'event' | 'rigDown';
+type InternalKey = 'start' | 'event' | 'end';
 
-const dateConfig = {
-  start: { label: 'RIGG', icon: Truck, dialogTitle: 'Riggdatum' },
-  event: { label: 'EVENT', icon: PartyPopper, dialogTitle: 'Eventdatum' },
-  end: { label: 'NEDRIVNING', icon: ArrowDownToLine, dialogTitle: 'Nedrivningsdatum' },
+interface DateItem {
+  key: InternalKey;
+  editKey: DateType;
+  label: string;
+  date: string | null | undefined;
+  startTime: string | null | undefined;
+  endTime: string | null | undefined;
+  icon: typeof Truck;
+}
+
+const formatTimeFromISO = (time: string | null | undefined): string => {
+  if (!time) return '';
+  if (time.includes('T')) return time.substring(11, 16);
+  return time.substring(0, 5);
 };
 
 const LargeProjectScheduleEditable = ({
-  startDate,
-  eventDate,
-  endDate,
+  startDate, eventDate, endDate,
+  startStartTime, startEndTime,
+  eventStartTime, eventEndTime,
+  endStartTime, endEndTime,
   onUpdateDates,
 }: LargeProjectScheduleEditableProps) => {
-  const [editingType, setEditingType] = useState<DateType | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [editingItem, setEditingItem] = useState<DateItem | null>(null);
 
-  const dates: { key: DateType; label: string; date: string | null | undefined; icon: typeof Truck }[] = [
-    { key: 'start', label: dateConfig.start.label, date: startDate, icon: dateConfig.start.icon },
-    { key: 'event', label: dateConfig.event.label, date: eventDate, icon: dateConfig.event.icon },
-    { key: 'end', label: dateConfig.end.label, date: endDate, icon: dateConfig.end.icon },
+  const dates: DateItem[] = [
+    { key: 'start', editKey: 'rig', label: 'RIGG', date: startDate, startTime: startStartTime, endTime: startEndTime, icon: Truck },
+    { key: 'event', editKey: 'event', label: 'EVENT', date: eventDate, startTime: eventStartTime, endTime: eventEndTime, icon: PartyPopper },
+    { key: 'end', editKey: 'rigDown', label: 'NEDRIVNING', date: endDate, startTime: endStartTime, endTime: endEndTime, icon: ArrowDownToLine },
   ];
 
   const getCountdownText = (dateStr: string) => {
@@ -49,26 +63,25 @@ const LargeProjectScheduleEditable = ({
     return `Om ${days} dagar`;
   };
 
-  const openEdit = (key: DateType, currentDate: string | null | undefined) => {
-    setEditingType(key);
-    setSelectedDate(currentDate ? new Date(currentDate + 'T00:00:00') : undefined);
-  };
+  const handleSave = (
+    _oldDate: string,
+    newDate: string,
+    startTime: string,
+    endTime: string,
+    _eventType: DateType
+  ) => {
+    if (!editingItem) return;
+    const k = editingItem.key;
+    const dateField = k === 'start' ? 'start_date' : k === 'event' ? 'event_date' : 'end_date';
+    const startTimeField = `${k}_start_time`;
+    const endTimeField = `${k}_end_time`;
 
-  const handleSave = () => {
-    if (!editingType || !selectedDate) return;
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-
-    if (editingType === 'start') {
-      onUpdateDates({ start_date: dateStr });
-    } else if (editingType === 'event') {
-      onUpdateDates({ event_date: dateStr });
-    } else {
-      onUpdateDates({ end_date: dateStr });
-    }
-    setEditingType(null);
+    onUpdateDates({
+      [dateField]: newDate,
+      [startTimeField]: startTime || null,
+      [endTimeField]: endTime || null,
+    });
+    setEditingItem(null);
   };
 
   return (
@@ -80,6 +93,9 @@ const LargeProjectScheduleEditable = ({
           const past = date ? isPast(date) && !isToday(date) : false;
           const today = date ? isToday(date) : false;
           const Icon = item.icon;
+          const startDisplay = formatTimeFromISO(item.startTime);
+          const endDisplay = formatTimeFromISO(item.endTime);
+          const hasTime = startDisplay || endDisplay;
 
           return (
             <div key={item.key} className="flex items-center flex-1">
@@ -93,7 +109,7 @@ const LargeProjectScheduleEditable = ({
                         ? 'border-border/40 bg-card'
                         : 'border-dashed border-border/40 bg-muted/30'
                 }`}
-                onClick={() => openEdit(item.key, item.date)}
+                onClick={() => setEditingItem(item)}
                 title="Klicka för att redigera"
               >
                 <div className="flex items-center justify-between mb-1">
@@ -119,6 +135,11 @@ const LargeProjectScheduleEditable = ({
                     <p className="font-semibold text-sm text-foreground tracking-tight">
                       {format(date!, 'd MMM yyyy', { locale: sv })}
                     </p>
+                    {hasTime && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {startDisplay}–{endDisplay}
+                      </p>
+                    )}
                     <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
                       {getCountdownText(item.date!)}
                     </p>
@@ -138,32 +159,17 @@ const LargeProjectScheduleEditable = ({
         })}
       </div>
 
-      <Dialog open={!!editingType} onOpenChange={(open) => { if (!open) setEditingType(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingType ? dateConfig[editingType].dialogTitle : ''}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center py-2">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              initialFocus
-              className={cn("rounded-md border pointer-events-auto")}
-            />
-          </div>
-          <DialogFooter className="flex-row gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => setEditingType(null)}>
-              Avbryt
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={!selectedDate}>
-              Spara
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editingItem && (
+        <EditDateDialog
+          open={!!editingItem}
+          onOpenChange={(open) => { if (!open) setEditingItem(null); }}
+          date={editingItem.date || ''}
+          startTime={formatTimeFromISO(editingItem.startTime)}
+          endTime={formatTimeFromISO(editingItem.endTime)}
+          eventType={editingItem.editKey}
+          onSave={handleSave}
+        />
+      )}
     </>
   );
 };
