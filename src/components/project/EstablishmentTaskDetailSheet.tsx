@@ -891,6 +891,25 @@ const EstablishmentTaskDetailSheet = ({
           <TaskCommentThread taskId={task.id} staffPool={effectiveStaff} />
         </div>
 
+        {/* Open in project chat */}
+        {onOpenInChat && (
+          <div className="pb-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 text-xs"
+              onClick={() => {
+                onOpenInChat(task.id, task.title);
+                onOpenChange(false);
+              }}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Öppna i projektchatt
+              <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+            </Button>
+          </div>
+        )}
+
         <Separator />
 
         {/* Notes */}

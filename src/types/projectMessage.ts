@@ -4,6 +4,7 @@ export interface ProjectMessage {
   id: string;
   project_id: string;
   project_supplier_link_id: string | null;
+  linked_task_id: string | null;
   type: ProjectMessageType;
   message: string;
   sender_name: string;
