@@ -576,6 +576,32 @@ const BulkAssignButton = ({ taskIds, staffPool }: {
 // ─── Main Control Panel ─────────────────────────────────────────────────────
 
 const ProjectControlPanel = ({ analytics, staffPool, onTaskClick, onFilterChange }: ProjectControlPanelProps) => {
+  // Resolve internal user names for display in task rows
+  const internalUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of analytics.tasks) {
+      if (t.assigned_user_id) ids.add(t.assigned_user_id);
+    }
+    return Array.from(ids);
+  }, [analytics.tasks]);
+
+  const { data: userMap = {} } = useQuery({
+    queryKey: ["control-panel-users", internalUserIds.join(",")],
+    queryFn: async () => {
+      if (internalUserIds.length === 0) return {};
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", internalUserIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u) => {
+        map[u.user_id] = u.full_name || u.email || "Okänd";
+      });
+      return map;
+    },
+    enabled: internalUserIds.length > 0,
+  });
+
   return (
     <div className="space-y-3">
       {/* Metrics overview */}
@@ -587,10 +613,10 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick, onFilterChange
 
       {/* Sections grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <OverdueSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <TodaySection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
+        <OverdueSection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
+        <TodaySection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
         <UnassignedSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <PersonSection analytics={analytics} staffPool={staffPool} onFilterChange={onFilterChange} />
+        <PersonSection analytics={analytics} staffPool={staffPool} userMap={userMap} onFilterChange={onFilterChange} />
       </div>
 
       {/* Other issues */}
