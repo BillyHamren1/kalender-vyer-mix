@@ -195,6 +195,12 @@ const LargeProjectLayout = () => {
               startDate={project.start_date}
               eventDate={(project as any).event_date}
               endDate={project.end_date}
+              startStartTime={(project as any).start_start_time}
+              startEndTime={(project as any).start_end_time}
+              eventStartTime={(project as any).event_start_time}
+              eventEndTime={(project as any).event_end_time}
+              endStartTime={(project as any).end_start_time}
+              endEndTime={(project as any).end_end_time}
               onUpdateDates={(updates) => detail.updateProject(updates)}
             />
 
