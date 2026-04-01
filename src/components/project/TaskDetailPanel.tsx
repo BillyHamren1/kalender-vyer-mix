@@ -35,6 +35,8 @@ interface TaskDetailPanelProps {
   onDeleteTask: (id: string) => void;
   onAction?: () => void;
   onOpenInExecution?: () => void;
+  /** Opens chat with this task as context reference */
+  onOpenInChat?: () => void;
 }
 
 const initials = (name: string) =>
