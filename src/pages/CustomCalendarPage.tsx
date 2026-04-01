@@ -104,13 +104,25 @@ const CustomCalendarPage = () => {
     return [...events, ...taskEvents];
   }, [events, taskEvents, showTasks]);
 
-  // Handle task overlay click → navigate to project
-  const handleEventClick = (event: any) => {
+  // Handle task overlay click → navigate to project execution context
+  const handleEventClick = async (event: any) => {
     const props = event.extendedProps;
     if (props?.isTaskOverlay && props?.bookingId) {
-      // Navigate to the project's execution view
-      // First find the project by booking_id
-      navigate(`/projects?highlight=${props.bookingId}`);
+      // Find the project linked to this booking and navigate to its execution view
+      const { data } = await supabase
+        .from("bookings")
+        .select("assigned_project_id, large_project_id")
+        .eq("id", props.bookingId)
+        .single();
+
+      if (data?.large_project_id) {
+        navigate(`/large-project/${data.large_project_id}/establishment`);
+      } else if (data?.assigned_project_id) {
+        navigate(`/project/${data.assigned_project_id}/execution`);
+      } else {
+        // Fallback: go to the booking directly
+        navigate(`/booking/${props.bookingId}`);
+      }
     }
   };
 

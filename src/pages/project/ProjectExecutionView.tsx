@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, isBefore, startOfDay, addDays, parseISO } from "date-fns";
+import { format, isToday, isBefore, startOfDay, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
   CheckCircle2,
@@ -12,6 +12,8 @@ import {
   User,
   UserCog,
   CalendarIcon,
+  Play,
+  Ban,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,14 +50,21 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   done: "Klar",
 };
 
+const STATUS_ICONS: Record<TaskStatus, typeof Circle> = {
+  todo: Circle,
+  in_progress: Play,
+  blocked: Ban,
+  done: CheckCircle2,
+};
+
 // ── helpers ────────────────────────────────────────────────────────────
 
-function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming" | "no_date" {
+function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming" | "done" | "no_date" {
+  if (task.status === "done") return "done";
   const ref = task.due_date ?? task.end_date;
   if (!ref) return "no_date";
   const d = startOfDay(parseISO(ref));
   const now = startOfDay(new Date());
-  if (task.status === "done") return "upcoming";
   if (isBefore(d, now)) return "overdue";
   if (isToday(d)) return "today";
   return "upcoming";
@@ -63,6 +72,7 @@ function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming"
 
 function getIndicatorColor(group: string, status: TaskStatus) {
   if (status === "done") return "border-l-green-500";
+  if (status === "blocked") return "border-l-destructive";
   if (group === "overdue") return "border-l-red-500";
   if (group === "today") return "border-l-yellow-500";
   return "border-l-border";
@@ -166,6 +176,7 @@ const ProjectExecutionView = () => {
       overdue: [],
       today: [],
       upcoming: [],
+      done: [],
       no_date: [],
     };
     filtered.forEach((t) => {
@@ -188,10 +199,23 @@ const ProjectExecutionView = () => {
     }
   };
 
+  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      await updateEstablishmentTask(taskId, {
+        status: newStatus,
+        completed: newStatus === "done",
+      });
+      refetch();
+      toast.success(`Status ändrad till ${STATUS_LABELS[newStatus]}`);
+    } catch {
+      toast.error("Kunde inte uppdatera");
+    }
+  };
+
   const handleChangeDate = async (taskId: string, date: Date) => {
     try {
       await updateEstablishmentTask(taskId, {
-        due_date: date.toISOString(),
+        due_date: format(date, "yyyy-MM-dd"),
       } as any);
       refetch();
       toast.success("Deadline uppdaterad");
@@ -200,13 +224,33 @@ const ProjectExecutionView = () => {
     }
   };
 
+  const handleReassign = async (taskId: string, staffId: string) => {
+    try {
+      await updateEstablishmentTask(taskId, {
+        assigned_to: staffId,
+        assigned_to_ids: [staffId],
+      });
+      refetch();
+      const name = staffMap[staffId] || userMap[staffId] || "person";
+      toast.success(`Tilldelad till ${name}`);
+    } catch {
+      toast.error("Kunde inte tilldela");
+    }
+  };
+
   if (!project) return null;
+
+  const allAssignees = [
+    ...staffIds.map(id => ({ id, name: staffMap[id] || id.slice(0, 8), type: "staff" as const })),
+    ...userIds.map(id => ({ id, name: userMap[id] || id.slice(0, 8), type: "user" as const })),
+  ];
 
   const groupOrder: { key: string; label: string; icon: React.ReactNode }[] = [
     { key: "overdue", label: "Försenade", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> },
     { key: "today", label: "Idag", icon: <Clock className="h-4 w-4 text-yellow-500" /> },
     { key: "upcoming", label: "Kommande", icon: <CalendarIcon className="h-4 w-4 text-muted-foreground" /> },
     { key: "no_date", label: "Utan datum", icon: <Circle className="h-4 w-4 text-muted-foreground" /> },
+    { key: "done", label: "Klara", icon: <CheckCircle2 className="h-4 w-4 text-green-500" /> },
   ];
 
   return (
@@ -237,7 +281,7 @@ const ProjectExecutionView = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Alla status</SelectItem>
-            <SelectItem value="not_started">Ej startad</SelectItem>
+            <SelectItem value="todo">Att göra</SelectItem>
             <SelectItem value="in_progress">Pågår</SelectItem>
             <SelectItem value="blocked">Blockerad</SelectItem>
             <SelectItem value="done">Klar</SelectItem>
@@ -288,6 +332,7 @@ const ProjectExecutionView = () => {
                   .map((id) => staffMap[id])
                   .filter(Boolean);
                 const assignedUserName = task.assigned_user_id ? userMap[task.assigned_user_id] : null;
+                const StatusIcon = STATUS_ICONS[task.status as TaskStatus] || Circle;
 
                 return (
                   <div
@@ -351,26 +396,64 @@ const ProjectExecutionView = () => {
                             {format(parseISO(task.due_date || task.end_date), "d MMM", { locale: sv })}
                           </span>
                         )}
-                        <span>{STATUS_LABELS[task.status as TaskStatus] || task.status}</span>
+                        <span className="flex items-center gap-1">
+                          <StatusIcon className="h-3 w-3" />
+                          {STATUS_LABELS[task.status as TaskStatus] || task.status}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Quick date change */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                          <CalendarIcon className="h-3.5 w-3.5" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                          mode="single"
-                          selected={task.due_date ? parseISO(task.due_date) : undefined}
-                          onSelect={(d) => d && handleChangeDate(task.id, d)}
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    {/* Quick actions */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Status change */}
+                      <Select
+                        value={task.status}
+                        onValueChange={(v) => handleStatusChange(task.id, v as TaskStatus)}
+                      >
+                        <SelectTrigger className="h-7 w-[90px] text-[10px] border-dashed">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todo">Att göra</SelectItem>
+                          <SelectItem value="in_progress">Pågår</SelectItem>
+                          <SelectItem value="blocked">Blockerad</SelectItem>
+                          <SelectItem value="done">Klar</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Reassign */}
+                      {allAssignees.length > 0 && (
+                        <Select onValueChange={(v) => handleReassign(task.id, v)}>
+                          <SelectTrigger className="h-7 w-[90px] text-[10px] border-dashed">
+                            <SelectValue placeholder="Tilldela" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allAssignees.map((a) => (
+                              <SelectItem key={a.id} value={a.id} className="text-xs">
+                                {a.name}{a.type === "user" ? " (PL)" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {/* Quick date change */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                            <CalendarIcon className="h-3.5 w-3.5" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                          <Calendar
+                            mode="single"
+                            selected={task.due_date ? parseISO(task.due_date) : undefined}
+                            onSelect={(d) => d && handleChangeDate(task.id, d)}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 );
               })}
