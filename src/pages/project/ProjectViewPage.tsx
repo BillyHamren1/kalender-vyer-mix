@@ -248,7 +248,7 @@ const ProjectViewPage = () => {
       {/* Kommunikation */}
       <ProjectCommunication
         projectId={project.id}
-        senderName={project.project_leader || 'Projektledare'}
+        senderName={projectLeaderDisplay || 'Projektledare'}
         suppliers={suppliers}
         linkedTaskRef={chatTaskRef}
         onClearTaskRef={() => setChatTaskRef(null)}
