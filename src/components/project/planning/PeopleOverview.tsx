@@ -48,11 +48,10 @@ const LEVEL_CONFIG = {
 };
 
 const STATUS_ICONS: Record<string, typeof Circle> = {
-  not_started: Circle,
+  todo: Circle,
   in_progress: Play,
   blocked: Ban,
   done: CheckCircle2,
-  cancelled: XCircle,
 };
 
 const PRIORITY_ICONS: Record<string, { icon: typeof ArrowUp; className: string }> = {

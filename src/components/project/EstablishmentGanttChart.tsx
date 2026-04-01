@@ -82,11 +82,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_ICON_MAP: Record<string, typeof Circle> = {
-  not_started: Circle,
+  todo: Circle,
   in_progress: Play,
   blocked: Ban,
   done: CheckCircle2,
-  cancelled: XCircle,
 };
 
 const EstablishmentGanttChart = ({
@@ -449,7 +448,7 @@ const EstablishmentGanttChart = ({
                       className={cn(
                         "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors group",
                         status === 'done' && "opacity-60",
-                        status === 'cancelled' && "opacity-40"
+                        status === 'blocked' && "border-destructive/30"
                       )}
                       style={{ height: rowHeight }}
                       onClick={() =>
@@ -585,7 +584,7 @@ const EstablishmentGanttChart = ({
                   const startDayIndex = differenceInDays(task.startDate, ganttData.minDate);
                   const endDayIndex = differenceInDays(task.endDate, ganttData.minDate);
                   const dbTask = tasks.find(t => t.id === task.id);
-                  const taskStatus = (dbTask as any)?.status || 'not_started';
+                  const taskStatus = (dbTask as any)?.status || 'todo';
                   const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
                   const assignedName = taskAssignedIds.length > 0
                     ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
