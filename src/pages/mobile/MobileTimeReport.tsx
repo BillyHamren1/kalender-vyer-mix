@@ -4,7 +4,7 @@ import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
+import { Clock, Square, Loader2, Check, Send, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,7 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, stopTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, stopTimer, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
 
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
@@ -100,38 +100,85 @@ const MobileTimeReport = () => {
         {activeTimers.size > 0 && (
           <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
-            {Array.from(activeTimers.entries()).map(([bookingId, timer]) => (
+            {Array.from(activeTimers.entries()).map(([key, timer]) => (
               <ActiveTimerCard
-                key={bookingId}
+                key={key}
                 timer={timer}
+                isLocation={!!timer.locationId}
                 onStop={async () => {
-                  const stopTime = new Date();
-                  const startTimeDate = parseISO(timer.startTime);
-                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-                  if (totalHours < 0) totalHours += 24;
-                  const breakDeduction = totalHours > 5 ? 0.5 : 0;
-                  const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+                  if (timer.locationId) {
+                    // Location timer — just stop, server handles time entry
+                    stopTimer(key);
+                    toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
+                  } else {
+                    // Booking timer — create time report
+                    const stopTime = new Date();
+                    const startTimeDate = parseISO(timer.startTime);
+                    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                    if (totalHours < 0) totalHours += 24;
+                    const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                    const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
 
-                  stopTimer(bookingId);
+                    stopTimer(key);
 
-                  try {
-                    await mobileApi.createTimeReport({
-                      booking_id: bookingId,
-                      report_date: format(new Date(), 'yyyy-MM-dd'),
-                      start_time: format(startTimeDate, 'HH:mm'),
-                      end_time: format(stopTime, 'HH:mm'),
-                      hours_worked: hoursWorked,
-                      break_time: breakDeduction,
-                      description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
-                      establishment_task_id: timer.establishmentTaskId,
-                    });
-                    toast.success(`Tidrapport sparad: ${hoursWorked}h`);
-                  } catch (err: any) {
-                    toast.error(err.message || 'Kunde inte spara tidrapport');
+                    try {
+                      await mobileApi.createTimeReport({
+                        booking_id: key,
+                        report_date: format(new Date(), 'yyyy-MM-dd'),
+                        start_time: format(startTimeDate, 'HH:mm'),
+                        end_time: format(stopTime, 'HH:mm'),
+                        hours_worked: hoursWorked,
+                        break_time: breakDeduction,
+                        description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
+                        establishment_task_id: timer.establishmentTaskId,
+                      });
+                      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                    } catch (err: any) {
+                      toast.error(err.message || 'Kunde inte spara tidrapport');
+                    }
                   }
                 }}
               />
             ))}
+          </div>
+        )}
+
+        {/* Fixed location quick-start buttons */}
+        {orgLocations.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Fasta platser</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {orgLocations.map(loc => {
+                const locKey = `location-${loc.id}`;
+                const isActive = activeTimers.has(locKey);
+                return (
+                  <button
+                    key={loc.id}
+                    onClick={() => {
+                      if (isActive) {
+                        stopTimer(locKey);
+                        toast.success(`Tid på ${loc.name} stoppad`);
+                      } else {
+                        startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
+                        toast.success(`Timer startad: ${loc.name}`);
+                      }
+                    }}
+                    className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
+                      isActive
+                        ? 'border-primary/30 bg-primary/5'
+                        : 'border-border/60 bg-muted/30 hover:bg-muted/50'
+                    }`}
+                  >
+                    <Building2 className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{loc.name}</p>
+                      {isActive && <p className="text-[10px] text-primary">● Aktiv</p>}
+                    </div>
+                    {isActive && <Square className="w-3.5 h-3.5 text-destructive" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -241,7 +288,7 @@ const MobileTimeReport = () => {
   );
 };
 
-const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => void }) => {
+const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; onStop: () => void; isLocation?: boolean }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -256,15 +303,18 @@ const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => 
   const s = elapsed % 60;
 
   return (
-    <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-primary/20 bg-primary/5">
+    <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isLocation ? 'border-amber-500/20 bg-amber-500/5' : 'border-primary/20 bg-primary/5'}`}>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate text-foreground">{timer.client}</p>
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+          {isLocation && <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+          {timer.locationName || timer.client}
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           Startad {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
-      <div className="font-mono font-extrabold text-primary text-base tabular-nums">
+      <div className={`font-mono font-extrabold text-base tabular-nums ${isLocation ? 'text-amber-600' : 'text-primary'}`}>
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
       <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop}>

@@ -33,14 +33,26 @@ const MobileJobs = () => {
 
   const handleGeofenceConfirm = () => {
     if (!geofenceEvent) return;
-    if (geofenceEvent.type === 'enter') {
-      startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
-      toast.success(`Timer startad för ${geofenceEvent.booking.client}`);
-    } else {
-      const stopped = stopTimer(geofenceEvent.booking.id);
-      if (stopped) {
-        toast.success('Timer stoppad – skapa tidrapport');
-        navigate('/m/report');
+
+    if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
+      const locKey = `location-${geofenceEvent.locationId}`;
+      if (geofenceEvent.type === 'enter') {
+        startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
+        toast.success(`Timer startad: ${geofenceEvent.locationName}`);
+      } else {
+        stopTimer(locKey);
+        toast.success(`Timer stoppad: ${geofenceEvent.locationName}`);
+      }
+    } else if (geofenceEvent.booking) {
+      if (geofenceEvent.type === 'enter') {
+        startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
+        toast.success(`Timer startad för ${geofenceEvent.booking.client}`);
+      } else {
+        const stopped = stopTimer(geofenceEvent.booking.id);
+        if (stopped) {
+          toast.success('Timer stoppad – skapa tidrapport');
+          navigate('/m/report');
+        }
       }
     }
     dismissGeofenceEvent();

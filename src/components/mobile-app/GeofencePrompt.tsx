@@ -1,4 +1,4 @@
-import { MapPin, Play, Square, X } from 'lucide-react';
+import { MapPin, Play, Square, X, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GeofenceEvent } from '@/hooks/useGeofencing';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,9 @@ interface GeofencePromptProps {
 
 const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) => {
   const isEnter = event.type === 'enter';
+  const isLocation = event.locationType === 'fixed';
+  const Icon = isLocation ? Building2 : MapPin;
+  const label = isLocation ? event.locationName || 'Plats' : event.booking?.client || '';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -23,14 +26,16 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
             : "bg-gradient-to-r from-amber-500 to-amber-500/80"
         )}>
           <div className="p-2 rounded-full bg-white/20">
-            <MapPin className="w-5 h-5 text-white" />
+            <Icon className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1">
             <p className="text-white font-semibold text-sm">
-              {isEnter ? 'Du är på plats!' : 'Du lämnar arbetsplatsen'}
+              {isEnter
+                ? (isLocation ? 'Du är på plats!' : 'Du är på plats!')
+                : (isLocation ? 'Du lämnar platsen' : 'Du lämnar arbetsplatsen')}
             </p>
             <p className="text-white/80 text-xs">
-              {event.distance}m från {event.booking.client}
+              {event.distance}m från {label}
             </p>
           </div>
           <button onClick={onDismiss} className="p-1 rounded-full hover:bg-white/20 transition-colors">
@@ -41,19 +46,22 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
         {/* Body */}
         <div className="p-5 space-y-4">
           <div>
-            <h3 className="font-bold text-foreground">{event.booking.client}</h3>
-            {event.booking.booking_number && (
+            <h3 className="font-bold text-foreground">{label}</h3>
+            {!isLocation && event.booking?.booking_number && (
               <p className="text-xs text-muted-foreground font-mono">#{event.booking.booking_number}</p>
             )}
-            {event.booking.deliveryaddress && (
+            {!isLocation && event.booking?.deliveryaddress && (
               <p className="text-sm text-muted-foreground mt-1">{event.booking.deliveryaddress}</p>
+            )}
+            {isLocation && event.locationAddress && (
+              <p className="text-sm text-muted-foreground mt-1">{event.locationAddress}</p>
             )}
           </div>
 
           <p className="text-sm text-muted-foreground">
             {isEnter
-              ? 'Vill du starta tidrapporten för detta jobb?'
-              : 'Vill du avsluta tidrapporten?'}
+              ? (isLocation ? 'Vill du starta tidregistrering för denna plats?' : 'Vill du starta tidrapporten för detta jobb?')
+              : (isLocation ? 'Vill du avsluta tidregistreringen?' : 'Vill du avsluta tidrapporten?')}
           </p>
 
           <div className="flex gap-2">

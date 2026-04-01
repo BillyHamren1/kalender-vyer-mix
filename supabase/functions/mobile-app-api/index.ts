@@ -181,6 +181,14 @@ Deno.serve(async (req) => {
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
+      case 'get_organization_locations':
+        return await handleGetOrganizationLocations(supabase, organizationId)
+      case 'start_location_timer':
+        return await handleStartLocationTimer(supabase, staffId, data, organizationId)
+      case 'stop_location_timer':
+        return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'get_location_time_entries':
+        return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -2260,7 +2268,6 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   let locationSince: string | undefined
   if (existing && existing.latitude != null && existing.longitude != null) {
     const dist = haversineMeters(existing.latitude, existing.longitude, latitude, longitude)
-    // If moved more than 100m, reset location_since
     locationSince = dist > 100 ? new Date().toISOString() : (existing.location_since || new Date().toISOString())
   } else {
     locationSince = new Date().toISOString()
@@ -2287,15 +2294,206 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // ── GEOFENCE CHECK for organization_locations ──
+  let atLocation: { id: string; name: string } | null = null
+  try {
+    const { data: orgLocations } = await supabase
+      .from('organization_locations')
+      .select('id, name, latitude, longitude, radius_meters')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+
+    for (const loc of (orgLocations || [])) {
+      const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
+      const isInside = dist <= loc.radius_meters
+
+      // Check for open GPS entry at this location
+      const { data: openEntry } = await supabase
+        .from('location_time_entries')
+        .select('id')
+        .eq('staff_id', staffId)
+        .eq('location_id', loc.id)
+        .eq('source', 'gps')
+        .is('exited_at', null)
+        .limit(1)
+        .maybeSingle()
+
+      if (isInside && !openEntry) {
+        // Arrived — create GPS entry
+        await supabase.from('location_time_entries').insert({
+          organization_id: organizationId,
+          staff_id: staffId,
+          location_id: loc.id,
+          entry_date: new Date().toISOString().split('T')[0],
+          entered_at: new Date().toISOString(),
+          source: 'gps',
+        })
+        atLocation = { id: loc.id, name: loc.name }
+        console.log(`[geofence] Staff ${staffId} entered ${loc.name}`)
+      } else if (!isInside && openEntry) {
+        // Left — close GPS entry
+        await supabase
+          .from('location_time_entries')
+          .update({ exited_at: new Date().toISOString() })
+          .eq('id', openEntry.id)
+        console.log(`[geofence] Staff ${staffId} exited ${loc.name}`)
+      } else if (isInside && openEntry) {
+        atLocation = { id: loc.id, name: loc.name }
+      }
+    }
+  } catch (geoErr) {
+    console.warn('[geofence] Error during location check:', geoErr)
+  }
+
   return new Response(
-    JSON.stringify({ success: true }),
+    JSON.stringify({ success: true, at_location: atLocation }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
-// ==================== TRAVEL LOG HANDLERS ====================
+// ── ORGANIZATION LOCATIONS HANDLERS ──
 
-async function handleCreateTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleGetOrganizationLocations(supabase: any, organizationId: string) {
+  const { data, error } = await supabase
+    .from('organization_locations')
+    .select('id, name, address, latitude, longitude, radius_meters')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('name')
+
+  if (error) {
+    console.error('Get org locations error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch locations' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ locations: data || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id } = data || {}
+  if (!location_id) {
+    return new Response(
+      JSON.stringify({ error: 'location_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Check no open entry already exists for this location
+  const { data: existing } = await supabase
+    .from('location_time_entries')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('location_id', location_id)
+    .is('exited_at', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    return new Response(
+      JSON.stringify({ error: 'Timer redan aktiv för denna plats' }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: entry, error } = await supabase
+    .from('location_time_entries')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      location_id: location_id,
+      entry_date: new Date().toISOString().split('T')[0],
+      entered_at: new Date().toISOString(),
+      source: 'manual',
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Start location timer error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to start location timer' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, entry }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id, entry_id } = data || {}
+
+  let query = supabase
+    .from('location_time_entries')
+    .update({ exited_at: new Date().toISOString() })
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+
+  if (entry_id) {
+    query = query.eq('id', entry_id)
+  } else if (location_id) {
+    query = query.eq('location_id', location_id)
+  } else {
+    return new Response(
+      JSON.stringify({ error: 'location_id or entry_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: updated, error } = await query.select().single()
+
+  if (error) {
+    console.error('Stop location timer error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to stop location timer' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, entry: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetLocationTimeEntries(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { date_from, date_to, limit: queryLimit } = data || {}
+
+  let query = supabase
+    .from('location_time_entries')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .order('entered_at', { ascending: false })
+    .limit(queryLimit || 100)
+
+  if (date_from) query = query.gte('entry_date', date_from)
+  if (date_to) query = query.lte('entry_date', date_to)
+
+  const { data: entries, error } = await query
+
+  if (error) {
+    console.error('Get location time entries error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch entries' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ entries: entries || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
   const { from_address, from_latitude, from_longitude, description, auto_detected } = data || {}
 
   const { data: log, error } = await supabase

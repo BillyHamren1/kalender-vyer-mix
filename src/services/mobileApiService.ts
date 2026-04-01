@@ -278,7 +278,20 @@ export const mobileApi = {
     longitude: number;
     accuracy?: number | null;
     speed?: number | null;
-  }) => callApi<{ success: boolean }>('report_location', data),
+  }) => callApi<{ success: boolean; at_location?: { id: string; name: string } | null }>('report_location', data),
+
+  // Organization locations (fixed places)
+  getOrganizationLocations: () =>
+    callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number }[] }>('get_organization_locations'),
+
+  startLocationTimer: (locationId: string) =>
+    callApi<{ success: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
+
+  stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
+    callApi<{ success: boolean; entry: any }>('stop_location_timer', data),
+
+  getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
+    callApi<{ entries: any[] }>('get_location_time_entries', data),
 
   // Travel logs
   createTravelLog: (data: {
