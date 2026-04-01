@@ -229,15 +229,6 @@ const SupplierDetailSheet = ({ supplier, open, onOpenChange, onStatusChange, onU
 
         <Separator className="my-4" />
 
-        {/* Communication placeholder */}
-        <div className="mb-5">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Kommunikation</h4>
-          <div className="rounded-lg border border-dashed border-border p-6 text-center">
-            <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Kommunikationshistorik kommer snart</p>
-          </div>
-        </div>
-
         <Separator className="my-4" />
 
         {/* Delete */}

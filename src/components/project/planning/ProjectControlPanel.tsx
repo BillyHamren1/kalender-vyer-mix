@@ -138,7 +138,7 @@ const OverdueSection = ({ analytics, staffPool, userMap, onTaskClick, onFilterCh
       {overdueTasks.slice(0, 5).map(issue => {
         const config = issueConfig[issue.type];
         const Icon = config.icon;
-        const staffName = issue.assignedTo ? staffPool.find(s => s.id === issue.assignedTo)?.name : null;
+        const staffName = issue.assignedTo ? staffPool.find(s => s.id === issue.assignedTo)?.name || userMap?.[issue.assignedTo] : null;
         return (
           <div
             key={`${issue.taskId}-${issue.type}`}
