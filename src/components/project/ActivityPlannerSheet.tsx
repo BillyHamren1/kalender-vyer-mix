@@ -113,6 +113,34 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
   };
 }
 
+/** Preset templates for common activity workflows */
+const ACTIVITY_TEMPLATES: { label: string; rows: Array<{ title: string; category: string; startTime: string; endTime: string }> }[] = [
+  {
+    label: 'Komplett rigg-flöde',
+    rows: [
+      { title: 'Lastning', category: 'transport', startTime: '07:00', endTime: '09:00' },
+      { title: 'Transport', category: 'transport', startTime: '09:00', endTime: '11:00' },
+      { title: 'Montering', category: 'installation', startTime: '11:00', endTime: '17:00' },
+      { title: 'Platsansvar', category: 'kontroll', startTime: '08:00', endTime: '17:00' },
+      { title: 'Rivning', category: 'installation', startTime: '08:00', endTime: '14:00' },
+    ],
+  },
+  {
+    label: 'Leverans & montering',
+    rows: [
+      { title: 'Transport', category: 'transport', startTime: '07:00', endTime: '10:00' },
+      { title: 'Montering', category: 'installation', startTime: '10:00', endTime: '17:00' },
+    ],
+  },
+  {
+    label: 'Montering & rivning',
+    rows: [
+      { title: 'Montering', category: 'installation', startTime: '08:00', endTime: '16:00' },
+      { title: 'Rivning', category: 'installation', startTime: '08:00', endTime: '14:00' },
+    ],
+  },
+];
+
 const ActivityPlannerSheet = ({
   open,
   onOpenChange,
@@ -129,6 +157,7 @@ const ActivityPlannerSheet = ({
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
+  const [showTemplates, setShowTemplates] = useState(true);
 
   // Product-selection state (for attaching products to a specific row)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
