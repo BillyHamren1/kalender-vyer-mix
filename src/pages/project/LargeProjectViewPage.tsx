@@ -5,13 +5,10 @@ import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
-import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
-import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
 
-import { ProjectTask } from "@/types/project";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 
@@ -20,7 +17,6 @@ const tabTriggerClass =
 
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -81,9 +77,6 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="activity" className={tabTriggerClass}>
-              Historik
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -136,21 +129,7 @@ const LargeProjectViewPage = () => {
         <TabsContent value="transport">
           <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
-
-
-        <TabsContent value="activity">
-          <ProjectActivityLog activities={[]} />
-        </TabsContent>
       </Tabs>
-
-      {/* Task detail sheet */}
-      <TaskDetailSheet
-        task={selectedTask}
-        open={!!selectedTask}
-        onOpenChange={(open) => !open && setSelectedTask(null)}
-        onUpdateTask={detail.updateTask}
-        onDeleteTask={detail.deleteTask}
-      />
     </div>
   );
 };
