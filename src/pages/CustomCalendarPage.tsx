@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,9 +16,11 @@ import MobileEventsList from '@/components/mobile/MobileEventsList';
 import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar } from 'lucide-react';
+import { Calendar, ListChecks } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
