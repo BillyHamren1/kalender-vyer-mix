@@ -20,9 +20,20 @@ interface ProjectCommunicationProps {
 const tabClass =
   "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
-const ProjectCommunication = ({ projectId, senderName, suppliers }: ProjectCommunicationProps) => {
+const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef, onClearTaskRef }: ProjectCommunicationProps) => {
   const [activeTab, setActiveTab] = useState<ProjectMessageType>("internal");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // When a task reference is set, switch to internal tab and scroll into view
+  useEffect(() => {
+    if (linkedTaskRef) {
+      setActiveTab("internal");
+      setTimeout(() => {
+        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [linkedTaskRef]);
 
   const supplierFilter = activeTab === "supplier" && selectedSupplierId !== "all"
     ? selectedSupplierId
@@ -43,7 +54,12 @@ const ProjectCommunication = ({ projectId, senderName, suppliers }: ProjectCommu
       project_supplier_link_id: activeTab === "supplier" && selectedSupplierId !== "all"
         ? selectedSupplierId
         : null,
+      linked_task_id: linkedTaskRef?.taskId || null,
     });
+    // Clear the task reference after sending
+    if (linkedTaskRef && onClearTaskRef) {
+      onClearTaskRef();
+    }
   };
 
   const confirmedSuppliers = suppliers.filter(s => s.status !== "cancelled");
