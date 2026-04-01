@@ -235,7 +235,20 @@ const AddEstablishmentTaskDialog = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Typ</Label>
+              <Select value={taskType} onValueChange={(v) => setTaskType(v as TaskType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Kategori</Label>
               <CategoryCombobox value={category} onValueChange={setCategory} className="h-10 text-base md:text-sm" />
