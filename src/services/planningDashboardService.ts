@@ -436,6 +436,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   for (const [staffId, details] of unassignedStaffDetails) {
     const gpsLoc = gpsMap.get(staffId);
     if (!gpsLoc) continue;
+    const isOffline = new Date(gpsLoc.updated_at).getTime() < tenMinAgo;
     results.push({
       id: staffId,
       name: details.name,
@@ -449,6 +450,8 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       isWorking: workingStaffIds.has(staffId),
       lastReportTime: staffReportMap.get(staffId)?.created_at || null,
       isGps: true,
+      locationSince: gpsLoc.location_since || null,
+      isOffline,
     });
   }
 
