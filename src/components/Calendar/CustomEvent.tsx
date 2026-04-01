@@ -149,12 +149,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             AVBOKAD
           </div>
         )}
-        {/* Large project badge */}
+        {/* Large project badge — inline, not overlapping */}
         {!isCancelled && event.extendedProps?.isLargeProject && (
           <div 
-            className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
+            className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
+            style={{
+              backgroundColor: 'hsl(var(--primary) / 0.15)',
+              color: 'hsl(var(--primary))',
+            }}
           >
-            PROJEKT
+            Projekt
           </div>
         )}
         {/* Changed badge for warehouse events */}
