@@ -572,7 +572,7 @@ const ActivityPlannerSheet = ({
               </h3>
               {attachingToRowId && (
                 <p className="text-xs text-primary mt-0.5">
-                  Välj produkter att koppla • {selectedIds.size} valda
+                  Kopplar till: <strong>#{rows.findIndex(r => r.id === attachingToRowId) + 1} {rows.find(r => r.id === attachingToRowId)?.title || '(namnlös)'}</strong> • {selectedIds.size} valda
                 </p>
               )}
             </div>
