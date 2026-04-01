@@ -275,6 +275,16 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
   return Array.from(staffMap.values());
 };
 
+// Safe numeric coercion — returns 0 for NaN/undefined/null
+const safeNum = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// Safe reduce over potentially undefined/null arrays
+const safeSum = <T>(arr: T[] | undefined | null, fn: (item: T) => number): number =>
+  (arr ?? []).reduce((sum, item) => sum + safeNum(fn(item)), 0);
+
 // Calculate economy summary
 export const calculateEconomySummary = (
   budget: ProjectBudget | null,
@@ -285,71 +295,81 @@ export const calculateEconomySummary = (
   productCosts?: ProductCostSummary | null,
   supplierInvoices?: any[]
 ): EconomySummary => {
-  const budgetedHours = budget?.budgeted_hours || 0;
-  const hourlyRate = budget?.hourly_rate || 350;
+  // ── Input guards ──
+  const safeTimeReports = timeReports ?? [];
+  const safePurchases = purchases ?? [];
+  const safeQuotes = quotes ?? [];
+  const safeInvoices = invoices ?? [];
+  const safeSupplierInvoices = supplierInvoices ?? [];
+
+  if (!Array.isArray(timeReports)) console.warn('[Economy] timeReports is not an array, defaulting to []');
+  if (!Array.isArray(purchases)) console.warn('[Economy] purchases is not an array, defaulting to []');
+  if (!Array.isArray(quotes)) console.warn('[Economy] quotes is not an array, defaulting to []');
+  if (!Array.isArray(invoices)) console.warn('[Economy] invoices is not an array, defaulting to []');
+
+  // ── Staff budget ──
+  const budgetedHours = safeNum(budget?.budgeted_hours);
+  const hourlyRate = safeNum(budget?.hourly_rate) || 350;
   const staffBudget = budgetedHours * hourlyRate;
-  
-  const actualHours = timeReports.reduce((sum, r) => sum + r.total_hours + r.overtime_hours, 0);
-  const staffActual = timeReports.reduce((sum, r) => sum + r.total_cost, 0);
+
+  // ── Staff actual ──
+  const actualHours = safeSum(safeTimeReports, r => r.total_hours + r.overtime_hours);
+  const staffActual = safeSum(safeTimeReports, r => r.total_cost);
   const staffDeviation = staffBudget - staffActual;
-  const staffDeviationPercent = staffBudget > 0 
-    ? ((staffBudget - staffActual) / staffBudget) * 100 
+  const staffDeviationPercent = staffBudget > 0
+    ? ((staffBudget - staffActual) / staffBudget) * 100
     : (staffActual > 0 ? -100 : 0);
-  
-  const purchasesTotal = purchases.reduce((sum, p) => sum + Number(p.amount), 0);
-  const quotesTotal = quotes.reduce((sum, q) => sum + Number(q.quoted_amount), 0);
-  const invoicesTotal = invoices.reduce((sum, i) => sum + Number(i.invoiced_amount), 0);
-  
-  const invoiceDeviation = invoices.reduce((sum, invoice) => {
+
+  // ── Purchases / Quotes / Invoices ──
+  const purchasesTotal = safeSum(safePurchases, p => p.amount);
+  const quotesTotal = safeSum(safeQuotes, q => q.quoted_amount);
+  const invoicesTotal = safeSum(safeInvoices, i => i.invoiced_amount);
+
+  const invoiceDeviation = safeInvoices.reduce((sum, invoice) => {
     if (invoice.quote_id) {
-      const quote = quotes.find(q => q.id === invoice.quote_id);
+      const quote = safeQuotes.find(q => q.id === invoice.quote_id);
       if (quote) {
-        return sum + (Number(invoice.invoiced_amount) - Number(quote.quoted_amount));
+        return sum + (safeNum(invoice.invoiced_amount) - safeNum(quote.quoted_amount));
       }
     }
     return sum;
   }, 0);
 
-  // Supplier invoices: only count those NOT already linked to an invoice/purchase
-  // to prevent double counting in totalActual.
-  const linkedInvoiceIds = new Set<string>();
-  const allSupplierInvoices = supplierInvoices || [];
-
-  const supplierInvoicesTotal = allSupplierInvoices.reduce(
+  // ── Supplier invoices: skip linked ones to prevent double counting ──
+  let linkedCount = 0;
+  const supplierInvoicesTotal = safeSupplierInvoices.reduce(
     (sum: number, si: any) => {
-      const amount = Number(si.invoice_data?.Total) || 0;
+      const amount = safeNum(si.invoice_data?.Total);
       if (si.is_final_link && si.linked_cost_id) {
-        // This supplier invoice is linked — its cost is already reflected
-        // in the linked entity (invoice or purchase). Skip to avoid double counting.
         console.warn(
           `[Economy] Skipping linked supplier invoice ${si.id} (${amount} kr) — already linked to ${si.linked_cost_type}:${si.linked_cost_id}`
         );
-        linkedInvoiceIds.add(si.id);
+        linkedCount++;
         return sum;
       }
       return sum + amount;
     }, 0
   );
 
-  if (linkedInvoiceIds.size > 0) {
-    console.log(`[Economy] ${linkedInvoiceIds.size} supplier invoice(s) excluded from total to prevent double counting`);
+  if (linkedCount > 0) {
+    console.log(`[Economy] ${linkedCount} supplier invoice(s) excluded from total to prevent double counting`);
   }
 
-  const productCostBudget = productCosts?.summary?.costs || 0;
-  // Revenue: use summary.revenue if available, otherwise compute from products array
-  const productRevenue = productCosts?.summary?.revenue
-    || (productCosts?.products || []).reduce(
-      (sum, p) => sum + (Number(p.total) || Number(p.unit_price) * Number(p.quantity) || 0), 0
-    );
-  
+  // ── Product costs ──
+  const productCostBudget = safeNum(productCosts?.summary?.costs);
+  const productRevenue = safeNum(productCosts?.summary?.revenue)
+    || safeSum(productCosts?.products, p => safeNum(p.total) || safeNum(p.unit_price) * safeNum(p.quantity));
+
+  // ── Totals ──
   const totalBudget = staffBudget + quotesTotal + productCostBudget;
   const totalActual = staffActual + purchasesTotal + invoicesTotal + supplierInvoicesTotal;
   const totalDeviation = totalBudget - totalActual;
-  const totalDeviationPercent = totalBudget > 0 
-    ? ((totalBudget - totalActual) / totalBudget) * 100 
+  const totalDeviationPercent = totalBudget > 0
+    ? ((totalBudget - totalActual) / totalBudget) * 100
     : (totalActual > 0 ? -100 : 0);
-  
-  return {
+
+  // ── Final NaN guard on output ──
+  const result = {
     budgetedHours,
     actualHours,
     hourlyRate,
@@ -367,6 +387,16 @@ export const calculateEconomySummary = (
     totalBudget,
     totalActual,
     totalDeviation,
-    totalDeviationPercent
+    totalDeviationPercent,
   };
+
+  // Verify no NaN leaked into the output
+  for (const [key, value] of Object.entries(result)) {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      console.error(`[Economy] NaN detected in summary.${key} — resetting to 0`);
+      (result as any)[key] = 0;
+    }
+  }
+
+  return result;
 };
