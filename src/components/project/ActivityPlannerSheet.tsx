@@ -198,9 +198,22 @@ const ActivityPlannerSheet = ({
       setSelectedBookingId("none");
       setSelectedIds(new Set());
       setAttachingToRowId(null);
+      setShowTemplates(true);
       setRows([createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj })]);
     }
   }, [open]);
+
+  const applyTemplate = useCallback((template: typeof ACTIVITY_TEMPLATES[number]) => {
+    const newRows = template.rows.map(t => ({
+      ...createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj }),
+      title: t.title,
+      category: t.category,
+      startTime: t.startTime,
+      endTime: t.endTime,
+    }));
+    setRows(newRows);
+    setShowTemplates(false);
+  }, [defaultDateObj]);
 
   const productTree = useMemo(() => buildProductTree(activeProducts), [activeProducts]);
 
