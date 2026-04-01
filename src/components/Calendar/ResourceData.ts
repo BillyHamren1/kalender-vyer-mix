@@ -117,6 +117,10 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'return': return 'bg-violet-500/20 border-violet-500';
     case 'inventory': return 'bg-cyan-500/20 border-cyan-500';
     case 'unpacking': return 'bg-slate-400/20 border-slate-400';
+    case 'task_crew': return 'bg-blue-500/20 border-blue-500';
+    case 'task_pm': return 'bg-purple-500/20 border-purple-500';
+    case 'task_logistics': return 'bg-amber-500/20 border-amber-500';
+    case 'task_admin': return 'bg-slate-400/20 border-slate-400';
     default: return 'bg-primary/20 border-primary';
   }
 };
