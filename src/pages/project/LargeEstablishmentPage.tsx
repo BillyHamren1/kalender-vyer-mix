@@ -88,6 +88,12 @@ const LargeEstablishmentPage = () => {
     setSheetOpen(true);
   }, []);
 
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    // Navigate to the collaboration tab with task reference
+    // The LargeCollaborationPage handles ProjectCommunication
+    setSheetOpen(false);
+  }, []);
+
   const handleControlPanelTaskClick = useCallback((taskId: string) => {
     const task = analytics.tasks.find(t => t.id === taskId);
     if (task) {
