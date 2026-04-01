@@ -163,6 +163,15 @@ const LargeCollaborationPage = () => {
           </TabsList>
 
           <TabsContent value="chat" className="mt-4">
+            {linkedTaskRef && (
+              <div className="flex items-center gap-2 px-4 py-2 mb-2 rounded-lg bg-primary/5 border border-border/40">
+                <ListChecks className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-xs text-foreground/80 truncate">
+                  Refererar till: <span className="font-medium">{linkedTaskRef.taskTitle}</span>
+                </span>
+                <button onClick={() => setLinkedTaskRef(null)} className="text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">✕</button>
+              </div>
+            )}
             <ChatMessages comments={comments || []} onAddComment={addComment} />
           </TabsContent>
 
