@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
