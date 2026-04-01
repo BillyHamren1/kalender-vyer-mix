@@ -4,7 +4,7 @@ import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
+import { Clock, Square, Loader2, Check, Send, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,7 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, stopTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, stopTimer, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
 
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
