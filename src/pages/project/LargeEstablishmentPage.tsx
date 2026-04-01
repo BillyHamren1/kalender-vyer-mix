@@ -234,8 +234,8 @@ const LargeEstablishmentPage = () => {
             {viewMode === "gantt" ? (
               <EstablishmentGanttChart
                 largeProjectId={project.id}
-                startDate={project.start_date}
-                endDate={project.end_date}
+                startDate={fallbackStart}
+                endDate={fallbackEnd}
                 onTaskClick={handleTaskClick}
                 staffPool={staffPool}
                 projectBookings={projectBookings}
