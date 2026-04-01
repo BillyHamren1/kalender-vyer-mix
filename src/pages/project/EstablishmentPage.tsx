@@ -26,8 +26,7 @@ const EstablishmentPage = () => {
   const booking = project?.booking;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [linkedTaskRef, setLinkedTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
-
+  const navigate = useNavigate();
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
     queryKey: ['booking-staff-pool', booking?.id],
