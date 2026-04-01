@@ -25,9 +25,11 @@ interface ProjectTaskListProps {
   bookingId?: string | null;
   /** Relative path to execution view (e.g. "execution" or "establishment") */
   executionHref?: string;
+  /** Called to open chat with task context */
+  onOpenInChat?: (taskId: string, taskTitle: string) => void;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref, onOpenInChat }: ProjectTaskListProps) => {
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
@@ -218,6 +220,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 onDeleteTask={onDeleteTask}
                 onAction={getTaskAction?.(syncedSelectedTask)}
                 onOpenInExecution={syncedSelectedTask.execution_task_id ? () => handleOpenInExecution(syncedSelectedTask) : undefined}
+                onOpenInChat={onOpenInChat ? () => onOpenInChat(syncedSelectedTask.id, syncedSelectedTask.title) : undefined}
               />
             </div>
           )}

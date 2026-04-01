@@ -35,12 +35,14 @@ interface TaskDetailPanelProps {
   onDeleteTask: (id: string) => void;
   onAction?: () => void;
   onOpenInExecution?: () => void;
+  /** Opens chat with this task as context reference */
+  onOpenInChat?: () => void;
 }
 
 const initials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, onOpenInExecution }: TaskDetailPanelProps) => {
+const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, onOpenInExecution, onOpenInChat }: TaskDetailPanelProps) => {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState("");
   const [authorName, setAuthorName] = useState(() => localStorage.getItem("task-comment-author") || "");
@@ -261,7 +263,7 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, 
         </button>
       </div>
 
-      {/* Execution hint banner */}
+      {/* Context navigation banners */}
       {task.execution_task_id && onOpenInExecution && (
         <button
           onClick={onOpenInExecution}
@@ -269,6 +271,15 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, 
         >
           <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
           <span>Hantera uppgiften i Utförande-vyn →</span>
+        </button>
+      )}
+      {onOpenInChat && (
+        <button
+          onClick={onOpenInChat}
+          className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border/30 text-xs text-muted-foreground font-medium hover:bg-muted hover:text-foreground transition-colors shrink-0 w-full text-left"
+        >
+          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+          <span>Diskutera i projektchatt →</span>
         </button>
       )}
 
