@@ -311,6 +311,7 @@ export const useProjectDetail = (projectId: string) => {
           description: updates.description,
           deadline: updates.deadline,
           completed: updates.completed,
+          assigned_to: updates.assigned_to,
         });
       }
     },
