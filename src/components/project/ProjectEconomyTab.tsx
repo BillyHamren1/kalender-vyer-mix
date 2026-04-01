@@ -124,7 +124,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   }), [summary, attestCounts, billingRecord, budget, timeReportCounts]);
 
   const signals = useMemo(() => computeProjectEconomySignals(economyInput), [economyInput]);
-  const closureGates = useMemo(() => buildGateItemsFromSignals(signals), [signals]);
+  
 
   const { revenue, totalCost } = signals;
   const margin = signals.margin.marginPercent;
