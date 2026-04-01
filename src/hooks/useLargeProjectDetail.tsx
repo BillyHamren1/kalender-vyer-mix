@@ -21,6 +21,7 @@ import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@
 import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
+import { bridgeProjectTaskToExecution, syncProjectTaskToExecution } from "@/services/projectTaskBridgeService";
 
 export const useLargeProjectDetail = (projectId: string) => {
   const queryClient = useQueryClient();
