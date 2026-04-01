@@ -91,13 +91,17 @@ const ProjectExecutionView = () => {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 
-  // Pick up task highlight from navigation state (e.g. from calendar)
+  // Pick up task highlight from navigation state (e.g. from calendar or coordination)
   useEffect(() => {
     const tid = (location.state as any)?.highlightTaskId;
     if (tid) {
       setHighlightedTaskId(tid);
+      // Clear all filters so highlighted task is always visible
+      setFilterPerson("all");
+      setFilterType("all");
+      setFilterStatus("all");
+      setFilterDateGroup("all");
       window.history.replaceState({}, document.title);
-      // Clear highlight after a few seconds
       const timer = setTimeout(() => setHighlightedTaskId(null), 4000);
       return () => clearTimeout(timer);
     }
