@@ -343,7 +343,9 @@ const EstablishmentGanttChart = ({
     setShowAddDialog(false);
   };
 
-  const hasDates = isProjectMode ? (!!startDate || !!endDate) : (!!rigDate && !!eventDate);
+  const hasDates = isProjectMode
+    ? (!!startDate || !!endDate || allTasks.length > 0)
+    : (!!rigDate && !!eventDate);
 
   const DAY_WIDTH = 80;
   const GAP_WIDTH = 40;
