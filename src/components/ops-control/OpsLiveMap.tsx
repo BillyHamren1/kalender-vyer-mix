@@ -206,6 +206,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       const style = statusStyles[status];
 
       const el = document.createElement('div');
+      const opacity = loc.isOffline ? '0.4' : '1';
       el.style.cssText = `
         width: 26px; height: 26px; border-radius: 50%;
         background: ${style.color}; border: 2.5px solid white;
@@ -213,7 +214,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         display: flex; align-items: center; justify-content: center;
         cursor: pointer; transition: box-shadow 0.15s;
         font-size: 10px; font-weight: 700; color: white;
-        position: relative;
+        position: relative; opacity: ${opacity};
       `;
       el.textContent = loc.name.charAt(0).toUpperCase();
 
