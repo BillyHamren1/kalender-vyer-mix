@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon, Plus, Package, Trash2, Copy, SplitSquareHorizontal, Minimize2 } from "lucide-react";
+import { CalendarIcon, Plus, Package, Trash2, Copy, SplitSquareHorizontal, Minimize2, ChevronRight, ChevronDown } from "lucide-react";
 import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
@@ -175,6 +175,8 @@ const ActivityPlannerSheet = ({
   const [attachingToRowId, setAttachingToRowId] = useState<string | null>(null);
   // Track which products are split into individual unit rows
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+  // Track which products have their accessories/children visible (collapsed by default)
+  const [showChildrenIds, setShowChildrenIds] = useState<Set<string>>(new Set());
 
   const defaultDateObj = defaultDate ? new Date(defaultDate) : undefined;
 
@@ -212,6 +214,7 @@ const ActivityPlannerSheet = ({
       setSelectedIds(new Set());
       setAttachingToRowId(null);
       setExpandedProductIds(new Set());
+      setShowChildrenIds(new Set());
       setShowTemplates(true);
       setRows([createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj })]);
     }
@@ -415,11 +418,20 @@ const ActivityPlannerSheet = ({
     });
   }, []);
 
+  const toggleShowChildren = useCallback((productId: string) => {
+    setShowChildrenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId); else next.add(productId);
+      return next;
+    });
+  }, []);
+
   const renderProductNode = (node: ProductNode, depth: number = 0) => {
     const isPlanned = plannedProductIds.has(node.product.id);
     const hasChildren = node.children.length > 0;
     const qty = node.product.quantity;
     const isExpanded = expandedProductIds.has(node.product.id);
+    const childrenVisible = showChildrenIds.has(node.product.id);
     const canSplit = qty > 1 && depth === 0;
 
     // If expanded, render individual unit rows instead
@@ -467,7 +479,16 @@ const ActivityPlannerSheet = ({
               </label>
             );
           })}
-          {node.children.map(child => renderProductNode(child, depth + 1))}
+          {hasChildren && (
+            <div
+              className="flex items-center gap-1 ml-6 px-3 py-1 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => toggleShowChildren(node.product.id)}
+            >
+              {childrenVisible ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span>{childrenVisible ? "Dölj" : "Visa"} tillbehör ({node.children.length})</span>
+            </div>
+          )}
+          {childrenVisible && node.children.map(child => renderProductNode(child, depth + 1))}
         </div>
       );
     }
@@ -512,7 +533,16 @@ const ActivityPlannerSheet = ({
             <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Planerad</span>
           )}
         </div>
-        {node.children.map(child => renderProductNode(child, depth + 1))}
+        {hasChildren && depth === 0 && (
+          <div
+            className="flex items-center gap-1 ml-6 px-3 py-1 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => toggleShowChildren(node.product.id)}
+          >
+            {childrenVisible ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <span>{childrenVisible ? "Dölj" : "Visa"} tillbehör ({node.children.length})</span>
+          </div>
+        )}
+        {childrenVisible && node.children.map(child => renderProductNode(child, depth + 1))}
       </div>
     );
   };
