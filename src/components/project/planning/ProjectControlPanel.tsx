@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { updateEstablishmentTask, bulkUpdateEstablishmentTasks, BSAValidationError } from "@/services/establishmentTaskService";
 import { toast } from "sonner";
 import type { TaskAnalytics, CriticalIssue } from "@/hooks/useTaskAnalytics";
@@ -112,9 +114,10 @@ const MetricsRow = ({ analytics, onFilterChange }: {
 
 // ─── Section: Overdue ───────────────────────────────────────────────────────
 
-const OverdueSection = ({ analytics, staffPool, onTaskClick, onFilterChange }: {
+const OverdueSection = ({ analytics, staffPool, userMap, onTaskClick, onFilterChange }: {
   analytics: TaskAnalytics;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onTaskClick?: (taskId: string) => void;
   onFilterChange?: (filter: OverviewFilter) => void;
 }) => {
@@ -163,9 +166,10 @@ const OverdueSection = ({ analytics, staffPool, onTaskClick, onFilterChange }: {
 
 // ─── Section: Today ─────────────────────────────────────────────────────────
 
-const TodaySection = ({ analytics, staffPool, onTaskClick, onFilterChange }: {
+const TodaySection = ({ analytics, staffPool, userMap, onTaskClick, onFilterChange }: {
   analytics: TaskAnalytics;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onTaskClick?: (taskId: string) => void;
   onFilterChange?: (filter: OverviewFilter) => void;
 }) => {
@@ -181,7 +185,7 @@ const TodaySection = ({ analytics, staffPool, onTaskClick, onFilterChange }: {
       onHeaderClick={() => onFilterChange?.({ section: "today" })}
     >
       {todayTasks.slice(0, 5).map(task => (
-        <TaskRow key={task.id} task={task} staffPool={staffPool} onTaskClick={onTaskClick} highlight="today" />
+        <TaskRow key={task.id} task={task} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} highlight="today" />
       ))}
       {todayTasks.length > 5 && (
         <button onClick={() => onFilterChange?.({ section: "today" })} className="text-[11px] text-primary px-2 py-1 hover:underline">
@@ -244,9 +248,10 @@ const UnassignedSection = ({ analytics, staffPool, onTaskClick, onFilterChange }
 
 // ─── Section: Tasks per person ──────────────────────────────────────────────
 
-const PersonSection = ({ analytics, staffPool, onFilterChange }: {
+const PersonSection = ({ analytics, staffPool, userMap, onFilterChange }: {
   analytics: TaskAnalytics;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onFilterChange?: (filter: OverviewFilter) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -256,10 +261,11 @@ const PersonSection = ({ analytics, staffPool, onFilterChange }: {
     return workload
       .map(w => ({
         ...w,
-        staffName: staffPool.find(s => s.id === w.staffId)?.name || w.staffId.slice(0, 8),
+        staffName: staffPool.find(s => s.id === w.staffId)?.name || userMap?.[w.staffId] || w.staffId.slice(0, 8),
+        isUser: !staffPool.find(s => s.id === w.staffId) && !!userMap?.[w.staffId],
       }))
       .sort((a, b) => b.totalTasks - a.totalTasks);
-  }, [workload, staffPool]);
+  }, [workload, staffPool, userMap]);
 
   if (workload.length === 0) return null;
 
@@ -276,8 +282,8 @@ const PersonSection = ({ analytics, staffPool, onFilterChange }: {
               onClick={() => onFilterChange?.({ person: p.staffId })}
               className="w-full flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors text-left group"
             >
-              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{p.staffName}</span>
+              {p.isUser ? <UserCog className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{p.staffName}{p.isUser ? " (kontor)" : ""}</span>
               <div className="flex items-center gap-2 shrink-0">
                 {p.overdue > 0 && (
                   <span className="text-[10px] font-semibold text-destructive">{p.overdue} sena</span>
@@ -422,9 +428,10 @@ const SectionCard = ({ icon: Icon, title, count, variant, children, onHeaderClic
   );
 };
 
-const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
+const TaskRow = ({ task, staffPool, userMap, onTaskClick, highlight }: {
   task: EstablishmentTask;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onTaskClick?: (taskId: string) => void;
   highlight?: "today";
 }) => {
@@ -432,6 +439,10 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
     return ids.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean) as string[];
   })();
+
+  // Check internal user assignment
+  const userName = task.assigned_user_id && userMap ? userMap[task.assigned_user_id] : null;
+  const hasOwner = staffNames.length > 0 || !!userName;
 
   return (
     <button
@@ -443,8 +454,11 @@ const TaskRow = ({ task, staffPool, onTaskClick, highlight }: {
     >
       {highlight === "today" && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
       <span className="text-sm truncate flex-1 group-hover:text-primary transition-colors">{task.title}</span>
-      {staffNames.length > 0 ? (
-        <span className="text-[10px] text-muted-foreground shrink-0">{staffNames.join(", ")}</span>
+      {hasOwner ? (
+        <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
+          {staffNames.length > 0 && <><User className="h-2.5 w-2.5 inline" />{staffNames.join(", ")}</>}
+          {userName && !staffNames.length && <><UserCog className="h-2.5 w-2.5 inline" />{userName}</>}
+        </span>
       ) : (
         <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Utan ägare</span>
       )}
@@ -566,6 +580,32 @@ const BulkAssignButton = ({ taskIds, staffPool }: {
 // ─── Main Control Panel ─────────────────────────────────────────────────────
 
 const ProjectControlPanel = ({ analytics, staffPool, onTaskClick, onFilterChange }: ProjectControlPanelProps) => {
+  // Resolve internal user names for display in task rows
+  const internalUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of analytics.tasks) {
+      if (t.assigned_user_id) ids.add(t.assigned_user_id);
+    }
+    return Array.from(ids);
+  }, [analytics.tasks]);
+
+  const { data: userMap = {} } = useQuery({
+    queryKey: ["control-panel-users", internalUserIds.join(",")],
+    queryFn: async () => {
+      if (internalUserIds.length === 0) return {};
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", internalUserIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u) => {
+        map[u.user_id] = u.full_name || u.email || "Okänd";
+      });
+      return map;
+    },
+    enabled: internalUserIds.length > 0,
+  });
+
   return (
     <div className="space-y-3">
       {/* Metrics overview */}
@@ -577,10 +617,10 @@ const ProjectControlPanel = ({ analytics, staffPool, onTaskClick, onFilterChange
 
       {/* Sections grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <OverdueSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <TodaySection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
+        <OverdueSection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
+        <TodaySection analytics={analytics} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
         <UnassignedSection analytics={analytics} staffPool={staffPool} onTaskClick={onTaskClick} onFilterChange={onFilterChange} />
-        <PersonSection analytics={analytics} staffPool={staffPool} onFilterChange={onFilterChange} />
+        <PersonSection analytics={analytics} staffPool={staffPool} userMap={userMap} onFilterChange={onFilterChange} />
       </div>
 
       {/* Other issues */}
