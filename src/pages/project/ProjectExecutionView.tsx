@@ -178,7 +178,7 @@ const ProjectExecutionView = () => {
   const handleMarkDone = async (task: EstablishmentTask) => {
     try {
       await updateEstablishmentTask(task.id, {
-        status: task.status === "done" ? "not_started" : "done",
+        status: task.status === "done" ? "todo" : "done",
         completed: task.status !== "done",
       });
       refetch();
