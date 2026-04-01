@@ -253,15 +253,30 @@ const CustomCalendarPage = () => {
             />
           </div>
 
-          {/* Navigation with view toggle */}
-          <WeekNavigation
-            currentWeekStart={currentWeekStart}
-            setCurrentWeekStart={setCurrentWeekStart}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            currentMonth={monthlyDate}
-            onMonthChange={handleMonthChange}
-          />
+          {/* Task overlay toggle + Navigation */}
+          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="flex-1">
+              <WeekNavigation
+                currentWeekStart={currentWeekStart}
+                setCurrentWeekStart={setCurrentWeekStart}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                currentMonth={monthlyDate}
+                onMonthChange={handleMonthChange}
+              />
+            </div>
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              <ListChecks className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="show-tasks" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                Visa uppgifter
+              </Label>
+              <Switch
+                id="show-tasks"
+                checked={showTasks}
+                onCheckedChange={setShowTasks}
+              />
+            </div>
+          </div>
 
           {/* Content - flex-1 to fill remaining space */}
           <div className="flex-1 min-h-0 p-4 overflow-hidden bg-card rounded-2xl mx-2 mb-2 shadow-sm">
