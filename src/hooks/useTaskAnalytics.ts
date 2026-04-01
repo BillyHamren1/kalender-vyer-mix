@@ -56,7 +56,7 @@ const hasValidDates = (task: EstablishmentTask) => {
 };
 
 const isOverdue = (task: EstablishmentTask, today: Date) => {
-  if (task.status === 'done' || task.status === 'cancelled') return false;
+  if (task.status === 'done') return false;
   if (!task.end_date) return false;
   try {
     const end = startOfDay(new Date(task.end_date));
