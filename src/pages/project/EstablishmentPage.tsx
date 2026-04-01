@@ -84,12 +84,12 @@ const EstablishmentPage = () => {
     enabled: !!booking?.id,
   });
 
-  if (!project) return null;
-
   const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
   }, []);
+
+  if (!project) return null;
 
   return (
     <div className="space-y-6">
