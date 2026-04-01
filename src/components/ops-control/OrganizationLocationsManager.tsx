@@ -111,11 +111,21 @@ const OrganizationLocationsManager = () => {
     }
   }, [form.address]);
 
+  const normalize = (v: string) => parseFloat(v.replace(',', '.'));
+
   const handleSave = () => {
-    const lat = parseFloat(form.latitude);
-    const lng = parseFloat(form.longitude);
+    const lat = normalize(form.latitude);
+    const lng = normalize(form.longitude);
     if (!form.name.trim() || isNaN(lat) || isNaN(lng)) {
       toast.error('Namn, latitud och longitud krävs');
+      return;
+    }
+    if (lat < -90 || lat > 90) {
+      toast.error('Latitud måste vara mellan -90 och 90');
+      return;
+    }
+    if (lng < -180 || lng > 180) {
+      toast.error('Longitud måste vara mellan -180 och 180');
       return;
     }
     const payload = {
@@ -123,7 +133,7 @@ const OrganizationLocationsManager = () => {
       address: form.address.trim() || undefined,
       latitude: lat,
       longitude: lng,
-      radius_meters: parseInt(form.radius_meters) || 100,
+      radius_meters: parseInt(form.radius_meters.replace(',', '.')) || 100,
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, updates: payload });
