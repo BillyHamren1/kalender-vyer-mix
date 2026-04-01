@@ -613,7 +613,6 @@ const EstablishmentGanttChart = ({
 
                   const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
-                    : taskStatus === 'cancelled' ? 'bg-muted-foreground'
                     : isOverdue ? 'bg-destructive'
                     : taskStatus === 'in_progress' ? 'bg-primary'
                     : CATEGORY_COLORS[task.category] || 'bg-primary';
