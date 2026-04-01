@@ -602,7 +602,7 @@ const EstablishmentGanttChart = ({
                   });
                   const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
                   const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
-                  const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
+                  const isOverdue = taskStatus !== 'done' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
 
                   // Compute bar position from adaptive column layout
                   const startPos = dayIndexToX.get(startDayIndex);
