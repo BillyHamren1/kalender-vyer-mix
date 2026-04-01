@@ -9,6 +9,7 @@ import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChar
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
+import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
