@@ -148,7 +148,8 @@ const AddEstablishmentTaskDialog = ({
         source: 'manual',
         assigned_to: assignedTo,
         priority,
-        // Defaults: status=not_started, readiness=missing_information
+        task_type: taskType,
+        due_date: dueDate ? dueDate.toISOString() : null,
       });
       toast.success("Aktivitet skapad");
       setTitle("");
