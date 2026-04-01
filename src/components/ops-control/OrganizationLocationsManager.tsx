@@ -230,7 +230,7 @@ const OrganizationLocationsManager = () => {
               </div>
               <div className="flex-1">
                 <Label className="text-xs">Longitud</Label>
-                <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
+                <Input type="text" inputMode="decimal" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
               </div>
             </div>
             <div>
