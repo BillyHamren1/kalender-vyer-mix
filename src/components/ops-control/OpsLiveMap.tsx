@@ -567,6 +567,17 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             <Camera className="w-3 h-3" />
             {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
           </button>
+          <button
+            onClick={() => setShowOrgLocations(v => !v)}
+            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+              showOrgLocations
+                ? 'bg-purple-600 text-white font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <Building2 className="w-3 h-3" />
+            {showOrgLocations ? `Platser (${orgLocations.length})` : 'Platser'}
+          </button>
         </div>
       </div>
 
