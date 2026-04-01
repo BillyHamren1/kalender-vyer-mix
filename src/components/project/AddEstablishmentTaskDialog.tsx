@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Package, Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarIcon, Package, Plus, HardHat, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority, TaskType, LinkedEntityType } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
 
