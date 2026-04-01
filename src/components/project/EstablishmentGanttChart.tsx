@@ -360,21 +360,49 @@ const EstablishmentGanttChart = ({
 
   if (!hasDates) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-primary" />
-            Etablering - Gantt-schema
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-center py-8">
-            {isProjectMode
-              ? 'Ange projektperiod (start- och slutdatum) för att visa Gantt-schemat.'
-              : 'Ingen rigg- eller eventdatum tillgängligt för denna bokning.'}
-          </p>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-primary" />
+                Etablering - Gantt-schema
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
+                  <Package className="h-4 w-4" />
+                  Skapa aktiviteter från bokning
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  Lägg till aktivitet
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-center py-8">
+              {isProjectMode
+                ? 'Ange projektperiod (start- och slutdatum) för att visa tidslinjen. Du kan redan börja skapa aktiviteter.'
+                : 'Ingen rigg- eller eventdatum tillgängligt för denna bokning.'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <ActivityPlannerSheet
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          bookingId={bookingId || undefined}
+          bookingName={undefined}
+          largeProjectId={largeProjectId || undefined}
+          products={[]}
+          defaultDate={effectiveStartDate || null}
+          onTaskCreated={invalidateTasks}
+          projectBookings={projectBookings}
+          staffPool={staffPool}
+          existingTasks={dbTasks || []}
+        />
+      </>
     );
   }
 
