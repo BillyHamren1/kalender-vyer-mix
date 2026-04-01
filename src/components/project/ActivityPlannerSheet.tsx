@@ -587,7 +587,7 @@ const ActivityPlannerSheet = ({
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
               {rows.map((row, idx) => renderActivityRow(row, idx))}
 
-              <Button variant="dashed" size="sm" className="w-full h-9 text-xs border-dashed border-2" onClick={addRow}>
+              <Button variant="outline" size="sm" className="w-full h-9 text-xs border-dashed border-2" onClick={addRow}>
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
                 Lägg till aktivitet
               </Button>
