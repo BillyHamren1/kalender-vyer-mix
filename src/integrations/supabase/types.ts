@@ -1802,6 +1802,7 @@ export type Database = {
           created_at: string
           deadline: string | null
           description: string | null
+          execution_task_id: string | null
           id: string
           is_info_only: boolean | null
           large_project_id: string
@@ -1816,6 +1817,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          execution_task_id?: string | null
           id?: string
           is_info_only?: boolean | null
           large_project_id: string
@@ -1830,6 +1832,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          execution_task_id?: string | null
           id?: string
           is_info_only?: boolean | null
           large_project_id?: string
@@ -1839,6 +1842,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "large_project_tasks_execution_task_id_fkey"
+            columns: ["execution_task_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "large_project_tasks_large_project_id_fkey"
             columns: ["large_project_id"]
@@ -3459,6 +3469,7 @@ export type Database = {
           dependency_task_id: string | null
           description: string | null
           end_date: string | null
+          execution_task_id: string | null
           id: string
           is_info_only: boolean | null
           organization_id: string
@@ -3477,6 +3488,7 @@ export type Database = {
           dependency_task_id?: string | null
           description?: string | null
           end_date?: string | null
+          execution_task_id?: string | null
           id?: string
           is_info_only?: boolean | null
           organization_id?: string
@@ -3495,6 +3507,7 @@ export type Database = {
           dependency_task_id?: string | null
           description?: string | null
           end_date?: string | null
+          execution_task_id?: string | null
           id?: string
           is_info_only?: boolean | null
           organization_id?: string
@@ -3518,6 +3531,13 @@ export type Database = {
             columns: ["dependency_task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_execution_task_id_fkey"
+            columns: ["execution_task_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_tasks"
             referencedColumns: ["id"]
           },
           {
