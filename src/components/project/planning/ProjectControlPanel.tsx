@@ -185,7 +185,7 @@ const TodaySection = ({ analytics, staffPool, userMap, onTaskClick, onFilterChan
       onHeaderClick={() => onFilterChange?.({ section: "today" })}
     >
       {todayTasks.slice(0, 5).map(task => (
-        <TaskRow key={task.id} task={task} staffPool={staffPool} onTaskClick={onTaskClick} highlight="today" />
+        <TaskRow key={task.id} task={task} staffPool={staffPool} userMap={userMap} onTaskClick={onTaskClick} highlight="today" />
       ))}
       {todayTasks.length > 5 && (
         <button onClick={() => onFilterChange?.({ section: "today" })} className="text-[11px] text-primary px-2 py-1 hover:underline">
