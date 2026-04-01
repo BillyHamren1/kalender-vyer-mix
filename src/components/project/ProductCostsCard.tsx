@@ -235,7 +235,14 @@ export const ProductCostsCard = ({
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unit_price)}</td>
-        <td className="py-1.5 px-2 text-right text-xs">{fmt(rev)}</td>
+        <td className="py-1.5 px-2 text-right text-xs">
+          <div className="flex flex-col items-end">
+            <span>{fmt(rev)}</span>
+            {product.discount > 0 && (
+              <span className="text-[10px] text-muted-foreground">(-{product.discount}%)</span>
+            )}
+          </div>
+        </td>
         {renderCostCells(product, 'text-xs')}
         <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
         <td className={`py-1.5 px-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
@@ -303,7 +310,14 @@ export const ProductCostsCard = ({
         </td>
         <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
         <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unit_price)}</td>
-        <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupRev)}</td>
+        <td className="py-2 px-2 text-right text-sm font-medium">
+          <div className="flex flex-col items-end">
+            <span>{fmt(groupRev)}</span>
+            {group.parent.discount > 0 && (
+              <span className="text-[10px] text-muted-foreground">(-{group.parent.discount}%)</span>
+            )}
+          </div>
+        </td>
         {renderCostCells(group.parent, 'text-sm')}
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
         <td className={`py-2 px-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
