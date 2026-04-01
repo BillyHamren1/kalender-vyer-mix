@@ -1,46 +1,68 @@
 
 
-## Packningskalender för "Planera packning"
+## Problem
 
-### Vad byggs
-En månads-/veckokalender som visar **packningsprojekt** baserat på deras `start_date` och `end_date` (synkade från bokningen). Ingen rigg/event/riv — bara packningsrelaterad data: klientnamn, status och packningsperiod.
+Product costs in `ProductCostsCard` are completely **read-only**. The cost columns (Montage/st, Lagerkostnad, Inköp/st) show data from the external Booking system and cannot be edited. When the external system has these as 0, there is no way to correct them.
 
-### Design
+Additionally, while purchases and budget have local CRUD via `localProjectEconomyService.ts`, the product cost editing is missing entirely.
 
-```text
-┌──────────────────────────────────────────────────┐
-│  [Månad] [Vecka]        ◀  April 2026  ▶        │
-├──────────────────────────────────────────────────┤
-│ Mån │ Tis │ Ons │ Tor │ Fre │ Lör │ Sön         │
-├─────┼─────┼─────┼─────┼─────┼─────┼─────────────┤
-│  6  │  7  │  8  │  9  │ 10  │     │              │
-│     │ ▌Kund AB ━━━━━━━━━━━▌  (Planering)        │
-│     │     │ ▌Festival ━━━━━━━▌   (Packad)        │
-│     │     │     │     │ ▌XY Corp▌ (Under arbete) │
-└──────────────────────────────────────────────────┘
+## Solution
+
+Make the product cost columns **inline-editable** by storing local cost overrides in a new Supabase table, and merging those overrides with the external data.
+
+## Plan
+
+### 1. Create `product_cost_overrides` table (migration)
+
+```sql
+CREATE TABLE public.product_cost_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL,
+  booking_id TEXT,
+  assembly_cost NUMERIC DEFAULT NULL,
+  handling_cost NUMERIC DEFAULT NULL,
+  purchase_cost NUMERIC DEFAULT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  organization_id UUID REFERENCES public.organizations(id),
+  UNIQUE(project_id, product_id)
+);
+
+ALTER TABLE public.product_cost_overrides ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on product_cost_overrides" ON public.product_cost_overrides FOR ALL USING (true) WITH CHECK (true);
 ```
 
-- Varje packning visas som en horisontell bar från `start_date` till `end_date`
-- Packningar utan datum visas i en "Ej schemalagda"-sektion under kalendern
-- Färgkodning baserat på **packningsstatus** (planning=blå, in_progress=gul, packed=teal, delivered=lila, completed=grön)
-- Klick → navigerar till `/warehouse/packing/{id}`
+### 2. Add override service functions
 
-### Teknisk plan
+New file `src/services/productCostOverrideService.ts`:
+- `fetchProductCostOverrides(projectId)` — returns all overrides for a project
+- `upsertProductCostOverride(projectId, productId, costs)` — upserts a single product's cost override
 
-**1. Skapa `src/components/packing/PackingCalendarView.tsx`**
-- Props: `packings: PackingWithBooking[]`
-- State: `viewMode` (month/week), `currentDate`
-- Månadsvy: 7-kolumns grid, packningar renderas som multi-day bars
-- Veckovy: samma grid men bara 7 dagar, mer vertikal plats
-- Navigation med pilar, "Idag"-knapp
-- Statusfärgkodade bars med klientnamn
-- Klick → `navigate(/warehouse/packing/{id})`
+### 3. Update `useProjectEconomy` hook
 
-**2. Uppdatera `src/pages/PackingManagement.tsx`**
-- Importera och rendera `PackingCalendarView` mellan IncomingPackingList och PackingDashboard
-- Skicka befintlig `packings`-data
+- Fetch `product_cost_overrides` for the project
+- Merge overrides into the product costs data: for each product, if an override exists, replace `assembly_cost`, `handling_cost`, `purchase_cost` with the override values
+- Expose a `updateProductCost` mutation
 
-### Filer
-- **Skapa**: `src/components/packing/PackingCalendarView.tsx`
-- **Ändra**: `src/pages/PackingManagement.tsx`
+### 4. Make `ProductCostsCard` inline-editable
+
+- The three cost columns (Montage/st, Lagerkostnad, Inköp/st) become **click-to-edit** fields
+- On click, show an input field; on blur/enter, save via `updateProductCost`
+- Changed values get a subtle visual indicator (e.g., slightly different background) to show they are local overrides
+- Add a "reset" option to clear an override
+
+### 5. Wire it all together
+
+- Pass `onUpdateProductCost` callback from `ProjectEconomyTab` to `ProductCostsCard`
+- Margin and totals recalculate automatically based on edited values
+
+## Files changed
+
+| File | Change |
+|---|---|
+| New migration | Create `product_cost_overrides` table |
+| `src/services/productCostOverrideService.ts` | New — CRUD for overrides |
+| `src/hooks/useProjectEconomy.tsx` | Fetch overrides, merge into product costs, expose mutation |
+| `src/components/project/ProductCostsCard.tsx` | Inline-editable cost cells |
+| `src/components/project/ProjectEconomyTab.tsx` | Pass edit handler to ProductCostsCard |
 
