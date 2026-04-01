@@ -4,6 +4,8 @@ import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns"
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
 export type TaskPriority = 'low' | 'medium' | 'high';
+export type TaskType = 'crew' | 'pm' | 'logistics' | 'admin';
+export type LinkedEntityType = 'booking' | 'supplier' | 'location' | 'none';
 
 export interface EstablishmentTask {
   id: string;
