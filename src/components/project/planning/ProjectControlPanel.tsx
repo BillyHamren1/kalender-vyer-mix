@@ -114,9 +114,10 @@ const MetricsRow = ({ analytics, onFilterChange }: {
 
 // ─── Section: Overdue ───────────────────────────────────────────────────────
 
-const OverdueSection = ({ analytics, staffPool, onTaskClick, onFilterChange }: {
+const OverdueSection = ({ analytics, staffPool, userMap, onTaskClick, onFilterChange }: {
   analytics: TaskAnalytics;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onTaskClick?: (taskId: string) => void;
   onFilterChange?: (filter: OverviewFilter) => void;
 }) => {
