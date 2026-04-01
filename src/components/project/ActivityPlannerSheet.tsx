@@ -117,6 +117,7 @@ const ActivityPlannerSheet = ({
   open,
   onOpenChange,
   bookingId,
+  bookingName,
   largeProjectId,
   products,
   defaultDate,
