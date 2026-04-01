@@ -117,9 +117,9 @@ const CustomCalendarPage = () => {
         .single();
 
       if (data?.large_project_id) {
-        navigate(`/large-project/${data.large_project_id}/establishment`);
+        navigate(`/large-project/${data.large_project_id}/establishment`, { state: { highlightTaskId: props.taskId } });
       } else if (data?.assigned_project_id) {
-        navigate(`/project/${data.assigned_project_id}/execution`);
+        navigate(`/project/${data.assigned_project_id}/execution`, { state: { highlightTaskId: props.taskId } });
       } else {
         // Fallback: go to the booking directly
         navigate(`/booking/${props.bookingId}`);

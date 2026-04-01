@@ -83,7 +83,22 @@ function getIndicatorColor(group: string, status: TaskStatus) {
 const ProjectExecutionView = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const { project } = detail;
+  const location = useLocation();
   const bookingId = project?.booking_id || project?.booking?.id || null;
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  // Pick up task highlight from navigation state (e.g. from calendar)
+  useEffect(() => {
+    const tid = (location.state as any)?.highlightTaskId;
+    if (tid) {
+      setHighlightedTaskId(tid);
+      window.history.replaceState({}, document.title);
+      // Clear highlight after a few seconds
+      const timer = setTimeout(() => setHighlightedTaskId(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   // Filters
   const [filterPerson, setFilterPerson] = useState<string>("all");
