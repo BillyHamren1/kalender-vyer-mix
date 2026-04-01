@@ -39,6 +39,11 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
+  const [chatTaskRef, setChatTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    setChatTaskRef({ taskId, taskTitle });
+  }, []);
 
   const { project, tasks, files, comments, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
