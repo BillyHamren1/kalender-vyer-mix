@@ -664,8 +664,17 @@ const EstablishmentGanttChart = ({
                     : hasPersonOverlap ? 'ring-2 ring-orange-400/50 ring-offset-1 ring-offset-background'
                     : '';
 
+                  // Booking group header spacer (must match left column)
+                  const bookingKey = (task as any).booking_id || '__none__';
+                  const groupInfo = bookingGroups.get(bookingKey);
+                  const showGroupHeader = isProjectMode && groupInfo && groupInfo.firstTaskId === task.id;
+
                   return (
-                    <div key={task.id} className="relative border-b" style={{ height: rowHeight }}>
+                    <div key={task.id}>
+                      {showGroupHeader && (
+                        <div className="border-b bg-muted/60" style={{ height: groupHeaderHeight }} />
+                      )}
+                      <div className="relative border-b" style={{ height: rowHeight }}>
                       {/* Grid cells — adaptive columns */}
                       <div className="absolute inset-0 flex">
                         {visibleColumns.map((col, ci) => {
