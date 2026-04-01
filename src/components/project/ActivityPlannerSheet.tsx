@@ -676,16 +676,27 @@ const ActivityPlannerSheet = ({
               {row.productIds.map(pid => {
                 const prod = activeProducts.find(p => p.id === pid);
                 if (!prod) return null;
+                const assignedQty = row.productQuantities[pid];
+                const isPartial = assignedQty && assignedQty < prod.quantity;
                 return (
                   <span
                     key={pid}
                     className="inline-flex items-center gap-1 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5"
                   >
-                    {prod.name}{prod.quantity > 1 ? ` x${prod.quantity}` : ''}
+                    {prod.name}
+                    {prod.quantity > 1 && (
+                      <span className={isPartial ? "font-medium text-primary" : ""}>
+                        {isPartial ? ` (${assignedQty} av ${prod.quantity})` : ` x${prod.quantity}`}
+                      </span>
+                    )}
                     <button
                       type="button"
                       className="ml-0.5 hover:text-destructive"
-                      onClick={() => updateRow(row.id, { productIds: row.productIds.filter(id => id !== pid) })}
+                      onClick={() => {
+                        const newQuantities = { ...row.productQuantities };
+                        delete newQuantities[pid];
+                        updateRow(row.id, { productIds: row.productIds.filter(id => id !== pid), productQuantities: newQuantities });
+                      }}
                     >
                       ×
                     </button>
