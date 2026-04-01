@@ -51,12 +51,14 @@ function buildProductTree(products: BookingProduct[]): ProductNode[] {
   const roots: ProductNode[] = [];
   const childrenMap = new Map<string, ProductNode[]>();
   products.forEach(p => {
+    // Skip package components entirely — only show accessories (children that are NOT package components)
+    if (p.isPackageComponent) return;
     const node: ProductNode = { product: p, children: [] };
     const parentId = p.parentProductId;
     if (parentId && byId.has(parentId)) {
       if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
       childrenMap.get(parentId)!.push(node);
-    } else if (!p.isPackageComponent) {
+    } else {
       roots.push(node);
     }
   });
@@ -67,13 +69,6 @@ function buildProductTree(products: BookingProduct[]): ProductNode[] {
     });
   };
   attachChildren(roots);
-  products.forEach(p => {
-    if (p.isPackageComponent && (!p.parentProductId || !byId.has(p.parentProductId))) {
-      if (!roots.find(r => r.product.id === p.id)) {
-        roots.push({ product: p, children: childrenMap.get(p.id) || [] });
-      }
-    }
-  });
   return roots;
 }
 
