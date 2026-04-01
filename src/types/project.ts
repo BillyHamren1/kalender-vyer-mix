@@ -46,6 +46,8 @@ export interface ProjectTask {
   end_date: string | null;
   phase: TaskPhase | null;
   dependency_task_id: string | null;
+  /** Link to the mirrored execution (establishment) task */
+  execution_task_id?: string | null;
   created_at: string;
   updated_at: string;
 }

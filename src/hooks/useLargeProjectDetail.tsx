@@ -21,6 +21,7 @@ import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@
 import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
+import { bridgeProjectTaskToExecution, syncProjectTaskToExecution } from "@/services/projectTaskBridgeService";
 
 export const useLargeProjectDetail = (projectId: string) => {
   const queryClient = useQueryClient();
@@ -70,6 +71,7 @@ export const useLargeProjectDetail = (projectId: string) => {
     end_date: null,
     phase: null,
     dependency_task_id: null,
+    execution_task_id: (t as any).execution_task_id ?? null,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }));
@@ -138,8 +140,19 @@ export const useLargeProjectDetail = (projectId: string) => {
 
   // Task mutations
   const addTaskMutation = useMutation({
-    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) =>
-      createLargeProjectTask({ ...task, large_project_id: projectId }),
+    mutationFn: async (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => {
+      const created = await createLargeProjectTask({ ...task, large_project_id: projectId });
+      // BRIDGE: mirror to execution layer (fire-and-forget)
+      bridgeProjectTaskToExecution(
+        created.id,
+        { title: task.title, description: task.description, assigned_to: task.assigned_to, deadline: task.deadline },
+        { largeProjectId: projectId },
+        'large_project_tasks'
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
+      });
+      return created;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
       toast.success('Uppgift tillagd');
@@ -148,8 +161,18 @@ export const useLargeProjectDetail = (projectId: string) => {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) =>
-      updateLargeProjectTask(id, updates),
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) => {
+      await updateLargeProjectTask(id, updates);
+      // BRIDGE SYNC: propagate key changes to linked execution task
+      const task = tasks.find(t => t.id === id);
+      if (task?.execution_task_id) {
+        syncProjectTaskToExecution(task.execution_task_id, {
+          title: updates.title,
+          deadline: updates.deadline,
+          completed: updates.completed,
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project-tasks', projectId] });
     },

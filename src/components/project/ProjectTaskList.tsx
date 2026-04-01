@@ -77,6 +77,11 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
     quickAddRef.current?.focus();
   };
 
+  const handleOpenInExecution = (task: ProjectTask) => {
+    if (!task.execution_task_id || !executionHref) return;
+    navigate(executionHref, { state: { highlightTaskId: task.execution_task_id } });
+  };
+
   const renderTaskItem = (task: ProjectTask, index: number, list: ProjectTask[]) => (
     <ProjectTaskItem
       key={task.id}
@@ -85,6 +90,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
       onClick={() => handleClick(task)}
       onDelete={() => setDeleteTarget(task)}
       onRenameTask={handleRenameTask}
+      onOpenInExecution={task.execution_task_id ? () => handleOpenInExecution(task) : undefined}
       isSelected={syncedSelectedTask?.id === task.id}
       isFirst={index === 0}
       isLast={index === list.length - 1}
@@ -202,6 +208,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
                 onAction={getTaskAction?.(syncedSelectedTask)}
+                onOpenInExecution={syncedSelectedTask.execution_task_id ? () => handleOpenInExecution(syncedSelectedTask) : undefined}
               />
             </div>
           )}

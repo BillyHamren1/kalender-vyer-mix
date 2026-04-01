@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   X,
   ExternalLink,
+  ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,12 +34,13 @@ interface TaskDetailPanelProps {
   onUpdateTask: (data: { id: string; updates: Partial<ProjectTask> }) => void;
   onDeleteTask: (id: string) => void;
   onAction?: () => void;
+  onOpenInExecution?: () => void;
 }
 
 const initials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }: TaskDetailPanelProps) => {
+const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, onOpenInExecution }: TaskDetailPanelProps) => {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState("");
   const [authorName, setAuthorName] = useState(() => localStorage.getItem("task-comment-author") || "");
@@ -258,6 +260,17 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Execution hint banner */}
+      {task.execution_task_id && onOpenInExecution && (
+        <button
+          onClick={onOpenInExecution}
+          className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+          <span>Hantera uppgiften i Utförande-vyn →</span>
+        </button>
+      )}
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Calendar, User, MessageSquare, Trash2, GripVertical } from "lucide-react";
+import { Calendar, User, MessageSquare, Trash2, GripVertical, ArrowUpRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProjectTaskItemProps {
   task: ProjectTask;
@@ -17,13 +19,14 @@ interface ProjectTaskItemProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onRenameTask?: (id: string, title: string) => void;
+  onOpenInExecution?: () => void;
   commentCount?: number;
   isFirst?: boolean;
   isLast?: boolean;
   isSelected?: boolean;
 }
 
-const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, commentCount = 0, isSelected }: ProjectTaskItemProps) => {
+const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOpenInExecution, commentCount = 0, isSelected }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
@@ -127,7 +130,19 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, comm
       )}
 
       {/* Inline metadata */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+        {task.execution_task_id && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 font-normal gap-0.5 cursor-default">
+                Synkad
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Uppgiften finns i Utförande-vyn
+            </TooltipContent>
+          </Tooltip>
+        )}
         {assignedStaff && (
           <div className="flex items-center gap-1 max-w-[100px]">
             <User className="h-3 w-3 shrink-0" />
@@ -147,6 +162,28 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, comm
           </div>
         )}
       </div>
+
+      {/* Open in execution */}
+      {task.execution_task_id && onOpenInExecution && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInExecution();
+              }}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Öppna i Utförande
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Delete button */}
       {onDelete && (

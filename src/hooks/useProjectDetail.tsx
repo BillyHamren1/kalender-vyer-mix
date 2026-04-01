@@ -18,6 +18,7 @@ import {
 } from "@/services/projectService";
 
 import { fetchProjectActivities, logProjectActivity } from "@/services/projectActivityService";
+import { bridgeProjectTaskToExecution, syncProjectTaskToExecution } from "@/services/projectTaskBridgeService";
 import { ProjectStatus, ProjectTask, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
 import { createOptimisticCallbacks } from "./useOptimisticMutation";
@@ -264,8 +265,20 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }) => 
-      createProjectTask({ ...task, project_id: projectId }),
+    mutationFn: async (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }) => {
+      const created = await createProjectTask({ ...task, project_id: projectId });
+      // BRIDGE: also create execution task (fire-and-forget, non-blocking)
+      const bId = bookingId;
+      bridgeProjectTaskToExecution(
+        created.id,
+        { title: task.title, description: task.description, assigned_to: task.assigned_to, deadline: task.deadline },
+        { bookingId: bId },
+        'project_tasks'
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
+      });
+      return created;
+    },
     ...addTaskOptimistic,
     onSuccess: (_data, variables) => {
       logActivity('task_added', `Uppgift tillagd: "${variables.title}"`);
@@ -288,8 +301,18 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) => 
-      updateProjectTask(id, updates),
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) => {
+      await updateProjectTask(id, updates);
+      // BRIDGE SYNC: propagate key changes to linked execution task
+      const task = tasksQuery.data?.find(t => t.id === id);
+      if (task?.execution_task_id) {
+        syncProjectTaskToExecution(task.execution_task_id, {
+          title: updates.title,
+          deadline: updates.deadline,
+          completed: updates.completed,
+        });
+      }
+    },
     ...updateTaskOptimistic,
     onSuccess: (_data, variables) => {
       if (variables.updates.completed !== undefined) {
