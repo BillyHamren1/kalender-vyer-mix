@@ -1034,6 +1034,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           assigned_to_ids: string[] | null
+          assigned_user_id: string | null
           blocker_responsible: string | null
           blockers: string | null
           booking_id: string | null
@@ -1042,10 +1043,13 @@ export type Database = {
           created_at: string | null
           decision_needed: boolean
           description: string | null
+          due_date: string | null
           end_date: string
           end_time: string | null
           id: string
           large_project_id: string | null
+          linked_entity_id: string | null
+          linked_entity_type: string
           notes: string | null
           organization_id: string
           priority: string
@@ -1055,14 +1059,17 @@ export type Database = {
           source_product_id: string | null
           source_product_ids: string[] | null
           start_date: string
+          start_date_ts: string | null
           start_time: string | null
           status: string
+          task_type: string
           title: string
           updated_at: string | null
         }
         Insert: {
           assigned_to?: string | null
           assigned_to_ids?: string[] | null
+          assigned_user_id?: string | null
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null
@@ -1071,10 +1078,13 @@ export type Database = {
           created_at?: string | null
           decision_needed?: boolean
           description?: string | null
+          due_date?: string | null
           end_date: string
           end_time?: string | null
           id?: string
           large_project_id?: string | null
+          linked_entity_id?: string | null
+          linked_entity_type?: string
           notes?: string | null
           organization_id?: string
           priority?: string
@@ -1084,14 +1094,17 @@ export type Database = {
           source_product_id?: string | null
           source_product_ids?: string[] | null
           start_date: string
+          start_date_ts?: string | null
           start_time?: string | null
           status?: string
+          task_type?: string
           title: string
           updated_at?: string | null
         }
         Update: {
           assigned_to?: string | null
           assigned_to_ids?: string[] | null
+          assigned_user_id?: string | null
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null
@@ -1100,10 +1113,13 @@ export type Database = {
           created_at?: string | null
           decision_needed?: boolean
           description?: string | null
+          due_date?: string | null
           end_date?: string
           end_time?: string | null
           id?: string
           large_project_id?: string | null
+          linked_entity_id?: string | null
+          linked_entity_type?: string
           notes?: string | null
           organization_id?: string
           priority?: string
@@ -1113,8 +1129,10 @@ export type Database = {
           source_product_id?: string | null
           source_product_ids?: string[] | null
           start_date?: string
+          start_date_ts?: string | null
           start_time?: string | null
           status?: string
+          task_type?: string
           title?: string
           updated_at?: string | null
         }
