@@ -80,6 +80,7 @@ export function useTaskCalendarEvents(enabled: boolean) {
             taskId: t.id,
             taskType,
             bookingId: t.booking_id,
+            largeProjectId: (t as any).large_project_id,
             status: t.status,
             priority: t.priority,
           },
