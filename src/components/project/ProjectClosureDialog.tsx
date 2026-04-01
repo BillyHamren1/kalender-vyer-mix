@@ -11,15 +11,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ProjectClosureGate, type GateItem } from '@/components/economy/ProjectClosureGate';
 import { Lock, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ProjectClosureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectName: string;
-  gates: GateItem[];
   canClose: boolean;
   isClosing: boolean;
   onClose: (notes?: string) => void;
@@ -29,14 +26,11 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
   open,
   onOpenChange,
   projectName,
-  gates,
   canClose,
   isClosing,
   onClose,
 }) => {
   const [notes, setNotes] = useState('');
-  const blockers = gates.filter(g => g.blocking && !g.passed);
-  const warnings = gates.filter(g => !g.blocking && !g.passed);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -57,10 +51,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="py-2">
-          <ProjectClosureGate gates={gates} />
-        </div>
-
         {canClose && (
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
@@ -73,12 +63,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
               className="min-h-[60px] text-sm resize-none"
             />
           </div>
-        )}
-
-        {warnings.length > 0 && canClose && (
-          <p className="text-xs text-amber-600">
-            {warnings.length} varning(ar) kvarstår men blockerar inte stängning.
-          </p>
         )}
 
         <AlertDialogFooter>

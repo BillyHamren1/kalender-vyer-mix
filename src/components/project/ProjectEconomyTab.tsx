@@ -24,13 +24,13 @@ import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import { TimeApprovalSummary } from './TimeApprovalSummary';
 import { ProjectClosureDialog } from './ProjectClosureDialog';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
-import { ProjectClosureGate } from '@/components/economy/ProjectClosureGate';
+
 import BillingStatusBadge from '@/components/economy/billing/BillingStatusBadge';
 import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/useSupplierInvoiceAttestation';
 import { useProjectBillingList, useCreateProjectBilling, useAdvanceBillingStatus } from '@/hooks/useProjectBilling';
 import {
   computeProjectEconomySignals,
-  buildGateItemsFromSignals,
+  
   type ProjectEconomyInput,
   type SignalLevel,
 } from '@/lib/economy/projectEconomyStatus';
@@ -124,7 +124,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   }), [summary, attestCounts, billingRecord, budget, timeReportCounts]);
 
   const signals = useMemo(() => computeProjectEconomySignals(economyInput), [economyInput]);
-  const closureGates = useMemo(() => buildGateItemsFromSignals(signals), [signals]);
+  
 
   const { revenue, totalCost } = signals;
   const margin = signals.margin.marginPercent;
@@ -353,8 +353,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       {/* ─── D. Time Approval Summary ─── */}
       <TimeApprovalSummary timeReports={timeReports} />
 
-      {/* ─── E. Closure Gate (always visible) ─── */}
-      <ProjectClosureGate gates={closureGates} />
 
       {/* ─── F. Offertunderlag från bokning ─── */}
       {bookingEconomics && (
@@ -463,7 +461,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         open={closureDialogOpen}
         onOpenChange={setClosureDialogOpen}
         projectName={projectName}
-        gates={closureGates}
+        
         canClose={signals.closure.canClose}
         isClosing={isClosing}
         onClose={handleCloseProject}
