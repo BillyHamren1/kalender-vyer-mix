@@ -82,11 +82,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_ICON_MAP: Record<string, typeof Circle> = {
-  not_started: Circle,
+  todo: Circle,
   in_progress: Play,
   blocked: Ban,
   done: CheckCircle2,
-  cancelled: XCircle,
 };
 
 const EstablishmentGanttChart = ({
