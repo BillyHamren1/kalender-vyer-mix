@@ -86,10 +86,10 @@ const EstablishmentPage = () => {
 
   if (!project) return null;
 
-  const handleTaskClick = (task: SelectedTask) => {
+  const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
-  };
+  }, []);
 
   return (
     <div className="space-y-6">
