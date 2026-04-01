@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,22 @@ const LargeProjectLayout = () => {
   const detail = useLargeProjectDetail(id || "");
   const { project, isLoading } = detail;
 
+  // Resolve project_leader UUID to name
+  const rawLeader = project?.project_leader || null;
+  const isLeaderUuid = rawLeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawLeader);
+  const { data: resolvedLeaderName } = useQuery({
+    queryKey: ['resolve-leader-name', rawLeader],
+    queryFn: async () => {
+      const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('user_id', rawLeader!).maybeSingle();
+      if (profile?.full_name) return profile.full_name;
+      if (profile?.email) return profile.email.split('@')[0];
+      const { data: staff } = await supabase.from('staff_members').select('name').eq('id', rawLeader!).maybeSingle();
+      return staff?.name || rawLeader;
+    },
+    enabled: !!isLeaderUuid,
+    staleTime: Infinity,
+  });
+  const projectLeaderDisplay = isLeaderUuid ? (resolvedLeaderName || null) : rawLeader;
   const { data: availableBookings = [] } = useQuery({
     queryKey: ["available-bookings-for-large-project"],
     queryFn: fetchAvailableBookingsForLargeProject,
@@ -236,7 +253,7 @@ const LargeProjectLayout = () => {
                           <div className="px-3 pb-3">
                             <BookingInfoExpanded
                               booking={b}
-                              projectLeader={detail.project?.project_leader}
+                              projectLeader={projectLeaderDisplay}
                               onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project', id] })}
                             />
                           </div>

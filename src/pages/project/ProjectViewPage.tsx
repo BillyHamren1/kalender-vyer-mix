@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useOutletContext, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
@@ -70,6 +72,44 @@ const ProjectViewPage = () => {
     }
   }, [transportAssignments.length, incompleteTransportTask?.id]);
 
+  // Resolve project_leader if it's stored as a UUID instead of a name
+  const rawLeader = project?.project_leader || null;
+  const isLeaderUuid = rawLeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawLeader);
+
+  const { data: resolvedLeaderName } = useQuery({
+    queryKey: ['resolve-leader-name', rawLeader],
+    queryFn: async () => {
+      // Try profiles first (user_id), then staff_members (id)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('user_id', rawLeader!)
+        .maybeSingle();
+      if (profile?.full_name) return profile.full_name;
+      if (profile?.email) return profile.email.split('@')[0];
+
+      const { data: staff } = await supabase
+        .from('staff_members')
+        .select('name')
+        .eq('id', rawLeader!)
+        .maybeSingle();
+      if (staff?.name) return staff.name;
+
+      return rawLeader;
+    },
+    enabled: !!isLeaderUuid,
+    staleTime: Infinity,
+  });
+
+  // Auto-heal: persist resolved name back to DB so UUID is replaced permanently
+  useEffect(() => {
+    if (isLeaderUuid && resolvedLeaderName && resolvedLeaderName !== rawLeader && project?.id) {
+      detail.updateProject({ project_leader: resolvedLeaderName });
+    }
+  }, [isLeaderUuid, resolvedLeaderName, rawLeader, project?.id]);
+
+  const projectLeaderDisplay = isLeaderUuid ? (resolvedLeaderName || null) : rawLeader;
+
   if (!project) return null;
 
   // Use booking data if available, otherwise construct from standalone project fields
@@ -131,7 +171,7 @@ const ProjectViewPage = () => {
             )}
             <BookingInfoExpanded
               booking={displayBooking}
-              projectLeader={project.project_leader}
+              projectLeader={projectLeaderDisplay}
               bookingAttachments={bookingAttachments}
             />
           </div>
@@ -141,7 +181,7 @@ const ProjectViewPage = () => {
         <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
           <ProjectTeamPanel
             bookingId={bookingId}
-            projectLeader={project.project_leader}
+            projectLeader={projectLeaderDisplay}
             onChangeLeader={(name) => detail.updateProject({ project_leader: name })}
             projectStartDate={project.rigdaydate || project.eventdate}
             projectEndDate={project.rigdowndate || project.eventdate}
@@ -215,7 +255,7 @@ const ProjectViewPage = () => {
       {/* Kommunikation */}
       <ProjectCommunication
         projectId={project.id}
-        senderName={project.project_leader || 'Projektledare'}
+        senderName={projectLeaderDisplay || 'Projektledare'}
         suppliers={suppliers}
         linkedTaskRef={chatTaskRef}
         onClearTaskRef={() => setChatTaskRef(null)}
