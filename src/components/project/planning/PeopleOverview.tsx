@@ -370,7 +370,20 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
         ))}
       </div>
 
-      {people.length === 0 && unassignedTasks.length === 0 && (
+      {/* Internal users section */}
+      {internalUserTasks.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mt-4">
+            <UserX className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Interna användare</h4>
+          </div>
+          {internalUserTasks.map(person => (
+            <PersonCard key={person.staffId} person={person} onTaskClick={onTaskClick} />
+          ))}
+        </div>
+      )}
+
+      {people.length === 0 && internalUserTasks.length === 0 && unassignedTasks.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
           <Users className="h-10 w-10 mx-auto mb-2 opacity-20" />
           <p className="text-sm">Inga aktiviteter ännu</p>

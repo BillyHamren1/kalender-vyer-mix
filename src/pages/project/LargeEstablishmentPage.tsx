@@ -240,6 +240,7 @@ const LargeEstablishmentPage = () => {
         largeProjectId={project.id}
         staffPool={staffPool}
         projectBookings={projectBookings}
+        onOpenInChat={handleOpenInChat}
       />
     </div>
   );
