@@ -229,8 +229,6 @@ const SupplierDetailSheet = ({ supplier, open, onOpenChange, onStatusChange, onU
 
         <Separator className="my-4" />
 
-        <Separator className="my-4" />
-
         {/* Delete */}
         <ConfirmationDialog
           title="Ta bort underleverantör"
