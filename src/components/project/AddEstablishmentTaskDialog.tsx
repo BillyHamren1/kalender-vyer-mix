@@ -65,6 +65,8 @@ const AddEstablishmentTaskDialog = ({
   const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [taskType, setTaskType] = useState<TaskType>("crew");
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
   );
