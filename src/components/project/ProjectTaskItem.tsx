@@ -134,12 +134,20 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOp
         {task.execution_task_id && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 font-normal gap-0.5 cursor-default">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 font-normal gap-0.5",
+                  onOpenInExecution ? "cursor-pointer hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors" : "cursor-default"
+                )}
+                onClick={onOpenInExecution ? (e) => { e.stopPropagation(); onOpenInExecution(); } : undefined}
+              >
                 Synkad
+                {onOpenInExecution && <ArrowUpRight className="h-2.5 w-2.5" />}
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              Uppgiften finns i Utförande-vyn
+              {onOpenInExecution ? "Öppna i Utförande" : "Uppgiften finns i Utförande-vyn"}
             </TooltipContent>
           </Tooltip>
         )}

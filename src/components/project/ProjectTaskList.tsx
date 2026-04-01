@@ -109,10 +109,19 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
             {executionHref && (
               <button
                 onClick={() => navigate(executionHref)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
+                className="flex items-center justify-between gap-2 px-4 py-3 border-b border-primary/20 shrink-0 w-full text-left transition-colors group"
+                style={{ background: "hsl(var(--primary) / 0.08)" }}
               >
-                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                <span>Hantera operativa uppgifter i Utförande-vyn →</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-md bg-primary/15">
+                    <ArrowRight className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-primary">Öppna Utförande</span>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Hantera alla operativa uppgifter</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-primary opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             )}
 
