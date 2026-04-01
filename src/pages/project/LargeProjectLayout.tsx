@@ -195,6 +195,7 @@ const LargeProjectLayout = () => {
               startDate={project.start_date}
               endDate={project.end_date}
               onUpdateDates={(updates) => detail.updateProject(updates)}
+            />
 
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
