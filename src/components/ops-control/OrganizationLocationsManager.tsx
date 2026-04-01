@@ -22,6 +22,7 @@ const OrganizationLocationsManager = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100' });
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery({
     queryKey: ['organization-locations'],
