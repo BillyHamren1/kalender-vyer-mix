@@ -319,7 +319,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         <Button
           variant={signals.closure.canClose ? 'default' : 'outline'}
           size="sm"
-          className={cn('gap-1.5', signals.closure.canClose && 'bg-teal-600 hover:bg-teal-700')}
+          className={cn('gap-1.5', signals.closure.canClose && 'bg-primary hover:bg-primary/90')}
           onClick={() => setClosureDialogOpen(true)}
         >
           {signals.closure.canClose ? (
