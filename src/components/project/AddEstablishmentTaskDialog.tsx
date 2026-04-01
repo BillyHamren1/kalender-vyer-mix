@@ -116,8 +116,22 @@ const AddEstablishmentTaskDialog = ({
       setPriority("medium");
       setTaskType("crew");
       setDueDate(undefined);
+      setAssignedTo(null);
+      setAssignedUserId(null);
+      setAssigneeType("staff");
     }
   }, [open]);
+
+  // Auto-switch to user mode for non-crew tasks
+  useEffect(() => {
+    if (taskType !== "crew") {
+      setAssigneeType("user");
+      setAssignedTo(null);
+    } else {
+      setAssigneeType("staff");
+      setAssignedUserId(null);
+    }
+  }, [taskType]);
 
   const handleQuickAdd = async (product: BookingProduct) => {
     setIsSubmitting(true);
