@@ -11,15 +11,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ProjectClosureGate, type GateItem } from '@/components/economy/ProjectClosureGate';
 import { Lock, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ProjectClosureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectName: string;
-  gates: GateItem[];
   canClose: boolean;
   isClosing: boolean;
   onClose: (notes?: string) => void;
