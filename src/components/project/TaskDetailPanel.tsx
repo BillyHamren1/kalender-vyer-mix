@@ -261,6 +261,17 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, 
         </button>
       </div>
 
+      {/* Execution hint banner */}
+      {task.execution_task_id && onOpenInExecution && (
+        <button
+          onClick={onOpenInExecution}
+          className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+          <span>Hantera uppgiften i Utförande-vyn →</span>
+        </button>
+      )}
+
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* Metadata chips */}
