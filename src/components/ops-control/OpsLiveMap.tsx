@@ -626,6 +626,11 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
               Kamera
             </span>
           )}
+          {showOrgLocations && orgLocations.length > 0 && (
+            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="w-2 h-2 rounded shrink-0" style={{ background: '#7c3aed' }} />
+              Plats
+            </span>
         </div>
       </div>
 
