@@ -43,6 +43,13 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'low', label: 'Låg' },
 ];
 
+const TASK_TYPE_OPTIONS: { value: TaskType; label: string }[] = [
+  { value: 'crew', label: 'Fältarbete' },
+  { value: 'pm', label: 'Projektledning' },
+  { value: 'logistics', label: 'Logistik' },
+  { value: 'admin', label: 'Admin' },
+];
+
 const AddEstablishmentTaskDialog = ({
   open,
   onOpenChange,
