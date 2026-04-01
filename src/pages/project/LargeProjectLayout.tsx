@@ -2,6 +2,8 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { updateBookingDateWithTimes } from "@/services/bookingService";
+import { toast } from "sonner";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
