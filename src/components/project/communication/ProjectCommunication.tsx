@@ -111,13 +111,24 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
 
           <div className="h-[400px]">
             <TabsContent value="internal" className="h-full m-0">
+              {linkedTaskRef && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/40">
+                  <ListChecks className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-xs text-foreground/80 truncate">
+                    Refererar till: <span className="font-medium">{linkedTaskRef.taskTitle}</span>
+                  </span>
+                  {onClearTaskRef && (
+                    <button onClick={onClearTaskRef} className="text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">✕</button>
+                  )}
+                </div>
+              )}
               <MessageThread
                 messages={messages}
                 isLoading={isLoading}
                 isSending={isSending}
                 onSend={handleSend}
                 emptyText="Inga interna meddelanden ännu. Skriv till ditt team."
-                placeholder="Skriv till teamet..."
+                placeholder={linkedTaskRef ? `Kommentera om "${linkedTaskRef.taskTitle}"...` : "Skriv till teamet..."}
               />
             </TabsContent>
             <TabsContent value="supplier" className="h-full m-0">
