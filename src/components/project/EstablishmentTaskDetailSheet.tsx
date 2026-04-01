@@ -106,6 +106,8 @@ const EstablishmentTaskDetailSheet = ({
   largeProjectId,
   staffPool,
   projectBookings = [],
+  projectId,
+  onOpenInChat,
 }: EstablishmentTaskDetailSheetProps) => {
   const queryClient = useQueryClient();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
