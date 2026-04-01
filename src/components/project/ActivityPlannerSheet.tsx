@@ -648,7 +648,7 @@ const ActivityPlannerSheet = ({
             {/* Save bar */}
             <div className="p-4 border-t border-border bg-muted/30 flex items-center gap-3">
               <p className="text-[10px] text-muted-foreground flex-1">
-                Varje rad skapas som en separat aktivitet kopplad till bokningen.
+                Varje rad skapas som en separat aktivitet i Gantt-vyn.
               </p>
               <Button
                 onClick={handleSaveAll}
@@ -656,8 +656,8 @@ const ActivityPlannerSheet = ({
                 className="min-w-[160px]"
               >
                 {isSubmitting
-                  ? "Skapar..."
-                  : `Skapa ${validRows.length} aktivitet(er)`}
+                  ? "Sparar..."
+                  : `Spara ${validRows.length} aktivitet(er)`}
               </Button>
             </div>
           </div>
