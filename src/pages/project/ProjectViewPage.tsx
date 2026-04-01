@@ -174,6 +174,7 @@ const ProjectViewPage = () => {
               }
               return undefined;
             }}
+            executionHref="execution"
           />
         </div>
 

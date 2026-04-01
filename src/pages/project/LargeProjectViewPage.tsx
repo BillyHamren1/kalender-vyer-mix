@@ -93,6 +93,7 @@ const LargeProjectViewPage = () => {
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
             bookingId={bookingId}
+            executionHref="establishment"
           />
         </TabsContent>
 
