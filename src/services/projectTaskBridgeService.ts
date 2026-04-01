@@ -38,6 +38,7 @@ export async function bridgeProjectTaskToExecution(
       .maybeSingle();
 
     if ((existing as any)?.execution_task_id) {
+      console.log('[Bridge] Skipped — execution task already exists:', (existing as any).execution_task_id);
       return (existing as any).execution_task_id;
     }
 
@@ -71,6 +72,7 @@ export async function bridgeProjectTaskToExecution(
       console.error('[Bridge] Failed to store execution_task_id:', error);
     }
 
+    console.log('[Bridge] Created execution task:', executionTask.id, 'for', tableName, projectTaskId);
     return executionTask.id;
   } catch (err) {
     // Bridge failures are non-critical — log but don't block
@@ -125,9 +127,11 @@ export async function syncProjectTaskToExecution(
       .eq('id', executionTaskId);
 
     if (error) {
-      console.error('[Bridge] Failed to sync to execution task:', error);
+      console.error('[Bridge] Sync failed for execution task:', executionTaskId, error);
+    } else {
+      console.log('[Bridge] Synced execution task:', executionTaskId, Object.keys(patch));
     }
   } catch (err) {
-    console.error('[Bridge] Sync error:', err);
+    console.error('[Bridge] Sync error for execution task:', executionTaskId, err);
   }
 }
