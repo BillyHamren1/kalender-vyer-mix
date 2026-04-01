@@ -234,7 +234,7 @@ export const ProductCostsCard = ({
           )}
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unit_price)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.quantity > 0 ? product.total / product.quantity : product.unit_price)}</td>
         <td className="py-1.5 px-2 text-right text-xs">
           <div className="flex flex-col items-end">
             <span>{fmt(rev)}</span>
@@ -309,7 +309,7 @@ export const ProductCostsCard = ({
           </span>
         </td>
         <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unit_price)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.quantity > 0 ? group.parent.total / group.parent.quantity : group.parent.unit_price)}</td>
         <td className="py-2 px-2 text-right text-sm font-medium">
           <div className="flex flex-col items-end">
             <span>{fmt(groupRev)}</span>
