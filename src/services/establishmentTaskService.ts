@@ -30,6 +30,13 @@ export interface EstablishmentTask {
   blockers: string | null;
   blocker_responsible: string | null;
   decision_needed: boolean;
+  // Unified execution model fields
+  task_type: TaskType;
+  assigned_user_id: string | null;
+  due_date: string | null;
+  start_date_ts: string | null;
+  linked_entity_type: LinkedEntityType;
+  linked_entity_id: string | null;
 }
 
 // IMPORTANT:
