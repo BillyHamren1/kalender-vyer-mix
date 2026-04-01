@@ -263,6 +263,8 @@ const EstablishmentTaskDetailSheet = ({
       setEndDateDraft(taskDbData.end_date || "");
       setStartTimeDraft((taskDbData as any).start_time || "");
       setEndTimeDraft((taskDbData as any).end_time || "");
+      setLinkedEntityType(((taskDbData as any).linked_entity_type as LinkedEntityType) || "none");
+      setLinkedEntityId(((taskDbData as any).linked_entity_id as string) || "");
     }
   }, [taskDbData]);
 
