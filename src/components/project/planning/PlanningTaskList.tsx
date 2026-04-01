@@ -75,7 +75,7 @@ const isOverdue = (task: EstablishmentTask) => {
 };
 
 const hasNoDates = (task: EstablishmentTask) => !task.start_date || !task.end_date;
-const hasNoOwner = (task: EstablishmentTask) => (!task.assigned_to_ids || task.assigned_to_ids.length === 0) && !task.assigned_to && task.status !== "done" && task.status !== "cancelled";
+const hasNoOwner = (task: EstablishmentTask) => (!task.assigned_to_ids || task.assigned_to_ids.length === 0) && !task.assigned_to && task.status !== "done";
 
 const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, bookingId }: PlanningTaskListProps) => {
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
