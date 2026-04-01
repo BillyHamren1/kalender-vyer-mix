@@ -95,6 +95,9 @@ const LargeProjectViewPage = () => {
             onDeleteTask={detail.deleteTask}
             bookingId={bookingId}
             executionHref="establishment"
+            onOpenInChat={(taskId, taskTitle) =>
+              navigate("collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } })
+            }
           />
         </TabsContent>
 
