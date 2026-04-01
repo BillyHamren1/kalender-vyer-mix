@@ -4,6 +4,8 @@ import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns"
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
 export type TaskPriority = 'low' | 'medium' | 'high';
+export type TaskType = 'crew' | 'pm' | 'logistics' | 'admin';
+export type LinkedEntityType = 'booking' | 'supplier' | 'location' | 'none';
 
 export interface EstablishmentTask {
   id: string;
@@ -28,6 +30,13 @@ export interface EstablishmentTask {
   blockers: string | null;
   blocker_responsible: string | null;
   decision_needed: boolean;
+  // Unified execution model fields
+  task_type: TaskType;
+  assigned_user_id: string | null;
+  due_date: string | null;
+  start_date_ts: string | null;
+  linked_entity_type: LinkedEntityType;
+  linked_entity_id: string | null;
 }
 
 // IMPORTANT:
@@ -114,7 +123,7 @@ const validateStaffAgainstBSA = async (
   return staffIds.filter(id => !bsaStaffIds.has(id));
 };
 
-const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed';
+const TASK_SELECT = 'id, booking_id, large_project_id, title, category, start_date, end_date, completed, sort_order, notes, assigned_to, assigned_to_ids, source, source_product_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, task_type, assigned_user_id, due_date, start_date_ts, linked_entity_type, linked_entity_id';
 
 export const fetchEstablishmentTasks = async (bookingId: string): Promise<EstablishmentTask[]> => {
   const { data, error } = await supabase
@@ -161,6 +170,13 @@ export const createEstablishmentTask = async (task: {
   blockers?: string | null;
   blocker_responsible?: string | null;
   decision_needed?: boolean;
+  // Unified execution model fields
+  task_type?: TaskType;
+  assigned_user_id?: string | null;
+  due_date?: string | null;
+  start_date_ts?: string | null;
+  linked_entity_type?: LinkedEntityType;
+  linked_entity_id?: string | null;
 }): Promise<EstablishmentTask> => {
   // Ensure assigned_to_ids is always the primary source of truth
   const assignedTo = task.assigned_to ?? null;
@@ -171,7 +187,9 @@ export const createEstablishmentTask = async (task: {
       : [];
 
   // ENFORCEMENT: All assigned staff MUST belong to the project team (BSA)
-  if (assignedToIds.length > 0) {
+  // Only enforced for crew tasks; pm/logistics/admin tasks use soft validation
+  const taskType = task.task_type ?? 'crew';
+  if (taskType === 'crew' && assignedToIds.length > 0) {
     const invalidIds = await validateStaffAgainstBSA(task.booking_id ?? null, assignedToIds);
     if (invalidIds.length > 0) {
       throw new BSAValidationError(invalidIds);
@@ -202,6 +220,12 @@ export const createEstablishmentTask = async (task: {
       blockers: task.blockers ?? null,
       blocker_responsible: task.blocker_responsible ?? null,
       decision_needed: task.decision_needed ?? false,
+      task_type: taskType,
+      assigned_user_id: task.assigned_user_id ?? null,
+      due_date: task.due_date ?? null,
+      start_date_ts: task.start_date_ts ?? null,
+      linked_entity_type: task.linked_entity_type ?? 'booking',
+      linked_entity_id: task.linked_entity_id ?? null,
     })
     .select()
     .single();
@@ -218,7 +242,7 @@ export const createEstablishmentTask = async (task: {
 
 export const updateEstablishmentTask = async (
   id: string,
-  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'assigned_to_ids' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed'>>
+  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'assigned_to_ids' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed' | 'task_type' | 'assigned_user_id' | 'due_date' | 'start_date_ts' | 'linked_entity_type' | 'linked_entity_id'>>
 ): Promise<void> => {
   // Sync completed with status
   if (updates.status === 'done' && updates.completed === undefined) {

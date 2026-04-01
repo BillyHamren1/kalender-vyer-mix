@@ -12,7 +12,7 @@ import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
-import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
+import type { TaskStatus, TaskReadiness, TaskPriority, TaskType, LinkedEntityType } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
@@ -43,6 +43,13 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: 'low', label: 'Låg' },
 ];
 
+const TASK_TYPE_OPTIONS: { value: TaskType; label: string }[] = [
+  { value: 'crew', label: 'Fältarbete' },
+  { value: 'pm', label: 'Projektledning' },
+  { value: 'logistics', label: 'Logistik' },
+  { value: 'admin', label: 'Admin' },
+];
+
 const AddEstablishmentTaskDialog = ({
   open,
   onOpenChange,
@@ -58,6 +65,8 @@ const AddEstablishmentTaskDialog = ({
   const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [taskType, setTaskType] = useState<TaskType>("crew");
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [startDate, setStartDate] = useState<Date | undefined>(
     defaultDate ? new Date(defaultDate) : undefined
   );
@@ -85,6 +94,8 @@ const AddEstablishmentTaskDialog = ({
     if (!open) {
       setSelectedBookingId("none");
       setPriority("medium");
+      setTaskType("crew");
+      setDueDate(undefined);
     }
   }, [open]);
 
@@ -107,7 +118,8 @@ const AddEstablishmentTaskDialog = ({
         source_product_id: product.id,
         assigned_to: assignedTo,
         priority,
-        // Defaults: status=not_started, readiness=missing_information
+        task_type: taskType,
+        due_date: dueDate ? dueDate.toISOString() : null,
       });
       toast.success(`Aktivitet skapad: ${product.name}`);
       onTaskCreated();
@@ -136,7 +148,8 @@ const AddEstablishmentTaskDialog = ({
         source: 'manual',
         assigned_to: assignedTo,
         priority,
-        // Defaults: status=not_started, readiness=missing_information
+        task_type: taskType,
+        due_date: dueDate ? dueDate.toISOString() : null,
       });
       toast.success("Aktivitet skapad");
       setTitle("");
@@ -222,7 +235,20 @@ const AddEstablishmentTaskDialog = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Typ</Label>
+              <Select value={taskType} onValueChange={(v) => setTaskType(v as TaskType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Kategori</Label>
               <CategoryCombobox value={category} onValueChange={setCategory} className="h-10 text-base md:text-sm" />
@@ -298,6 +324,26 @@ const AddEstablishmentTaskDialog = ({
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+
+          <div>
+            <Label>Deadline</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(dueDate, 'yyyy-MM-dd') : 'Ingen deadline'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <p className="text-[11px] text-muted-foreground">
