@@ -23,8 +23,8 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
   // Revenue from productCosts (single source — same as signals model)
   const revenue = summary.productRevenue;
 
-  // Actual costs = staff + purchases + supplier invoices
-  const totalCosts = summary.staffActual + summary.purchasesTotal + summary.supplierInvoicesTotal;
+  // Actual costs — must match calculateEconomySummary.totalActual exactly
+  const totalCosts = summary.totalActual;
 
   // Result = Revenue - Costs
   const result = revenue - totalCosts;
@@ -72,7 +72,7 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
         </div>
 
         {/* Cost breakdown */}
-        <div className="grid grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div className="p-2 rounded border text-center">
             <p className="text-xs text-muted-foreground">Personal</p>
             <p className="font-medium">{formatCurrency(summary.staffActual)}</p>
@@ -81,6 +81,10 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
           <div className="p-2 rounded border text-center">
             <p className="text-xs text-muted-foreground">Inköp</p>
             <p className="font-medium">{formatCurrency(summary.purchasesTotal)}</p>
+          </div>
+          <div className="p-2 rounded border text-center">
+            <p className="text-xs text-muted-foreground">Fakturor</p>
+            <p className="font-medium">{formatCurrency(summary.invoicesTotal)}</p>
           </div>
           <div className="p-2 rounded border text-center">
             <p className="text-xs text-muted-foreground">Leverantörsfakturor</p>
