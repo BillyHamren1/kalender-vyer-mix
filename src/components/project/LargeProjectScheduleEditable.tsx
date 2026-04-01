@@ -14,7 +14,7 @@ interface LargeProjectScheduleEditableProps {
   eventEndTime?: string | null;
   endStartTime?: string | null;
   endEndTime?: string | null;
-  onUpdateDates: (updates: Record<string, string | null>) => void;
+  onUpdateSchedule: (dateType: DateType, date: string, startTime: string, endTime: string) => void;
 }
 
 type DateType = 'rig' | 'event' | 'rigDown';
@@ -41,7 +41,7 @@ const LargeProjectScheduleEditable = ({
   startStartTime, startEndTime,
   eventStartTime, eventEndTime,
   endStartTime, endEndTime,
-  onUpdateDates,
+  onUpdateSchedule,
 }: LargeProjectScheduleEditableProps) => {
   const [editingItem, setEditingItem] = useState<DateItem | null>(null);
 
@@ -66,18 +66,12 @@ const LargeProjectScheduleEditable = ({
   const handleSave = (
     _oldDate: string,
     newDate: string,
-    _startTime: string,
-    _endTime: string,
+    startTime: string,
+    endTime: string,
     _eventType: DateType
   ) => {
     if (!editingItem) return;
-    const k = editingItem.key;
-    const dateField = k === 'start' ? 'start_date' : k === 'event' ? 'event_date' : 'end_date';
-
-    // Only save the date — times are derived from bookings
-    onUpdateDates({
-      [dateField]: newDate,
-    });
+    onUpdateSchedule(editingItem.editKey, newDate, startTime, endTime);
     setEditingItem(null);
   };
 
