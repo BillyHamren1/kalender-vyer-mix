@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAllOrganizationLocations,
@@ -7,13 +7,15 @@ import {
   deleteOrganizationLocation,
   OrganizationLocation,
 } from '@/services/organizationLocationService';
-import { Building2, Plus, Trash2, MapPin, Edit2, X, Check } from 'lucide-react';
+import { Building2, Plus, Trash2, MapPin, Edit2, X, Check, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 const OrganizationLocationsManager = () => {
   const queryClient = useQueryClient();
