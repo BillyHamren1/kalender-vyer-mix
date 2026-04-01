@@ -387,36 +387,121 @@ const ActivityPlannerSheet = ({
   }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange]);
 
   // --- Render ---
+  const toggleExpandProduct = useCallback((productId: string) => {
+    setExpandedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    // Clear any selected virtual IDs for this product when collapsing
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      prev.forEach(id => {
+        const parsed = parseVirtualId(id);
+        if (parsed?.realId === productId) { next.delete(id); changed = true; }
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
   const renderProductNode = (node: ProductNode, depth: number = 0) => {
     const isPlanned = plannedProductIds.has(node.product.id);
-    const isSelected = selectedIds.has(node.product.id);
     const hasChildren = node.children.length > 0;
+    const qty = node.product.quantity;
+    const isExpanded = expandedProductIds.has(node.product.id);
+    const canSplit = qty > 1 && depth === 0;
+
+    // If expanded, render individual unit rows instead
+    if (canSplit && isExpanded) {
+      return (
+        <div key={node.product.id}>
+          {/* Collapse header */}
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-md",
+            depth > 0 && "ml-6 border-l-2 border-border pl-3"
+          )}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => toggleExpandProduct(node.product.id)}
+              title="Slå ihop"
+            >
+              <Minimize2 className="h-3 w-3" />
+            </Button>
+            <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 text-sm truncate font-medium">{node.product.name}</span>
+            <span className="text-xs text-muted-foreground">({qty} st)</span>
+          </div>
+          {/* Individual unit rows */}
+          {Array.from({ length: qty }, (_, i) => {
+            const virtualId = `${node.product.id}__unit_${i + 1}`;
+            const isUnitSelected = selectedIds.has(virtualId);
+            return (
+              <label
+                key={virtualId}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 ml-6 rounded-md cursor-pointer transition-colors hover:bg-accent/50 border-l-2 border-primary/30 pl-3",
+                  isPlanned && "opacity-50"
+                )}
+              >
+                <Checkbox
+                  checked={isUnitSelected}
+                  disabled={isPlanned}
+                  onCheckedChange={() => toggleProduct(virtualId)}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {node.product.name} ({i + 1}/{qty})
+                </span>
+              </label>
+            );
+          })}
+          {node.children.map(child => renderProductNode(child, depth + 1))}
+        </div>
+      );
+    }
+
+    const isSelected = selectedIds.has(node.product.id);
     return (
       <div key={node.product.id}>
-        <label className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors hover:bg-accent/50",
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:bg-accent/50",
           isPlanned && "opacity-50",
           depth > 0 && "ml-6 border-l-2 border-border pl-3"
         )}>
-          <Checkbox
-            checked={isPlanned || isSelected}
-            disabled={isPlanned}
-            onCheckedChange={() => {
-              if (hasChildren && depth === 0) toggleParentWithChildren(node);
-              else toggleProduct(node.product.id);
-            }}
-          />
-          <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-          <span className={cn("flex-1 text-sm truncate", isPlanned && "line-through text-muted-foreground")}>
-            {depth > 0 && "• "}{node.product.name}
-          </span>
-          {node.product.quantity > 1 && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">x{node.product.quantity}</span>
+          <label className="flex items-center gap-2 flex-1 cursor-pointer">
+            <Checkbox
+              checked={isPlanned || isSelected}
+              disabled={isPlanned}
+              onCheckedChange={() => {
+                if (hasChildren && depth === 0) toggleParentWithChildren(node);
+                else toggleProduct(node.product.id);
+              }}
+            />
+            <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className={cn("flex-1 text-sm truncate", isPlanned && "line-through text-muted-foreground")}>
+              {depth > 0 && "• "}{node.product.name}
+            </span>
+          </label>
+          {qty > 1 && (
+            <span className="text-xs text-muted-foreground flex-shrink-0">x{qty}</span>
+          )}
+          {canSplit && !isPlanned && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-muted-foreground hover:text-primary"
+              onClick={(e) => { e.stopPropagation(); toggleExpandProduct(node.product.id); }}
+              title="Dela upp i enskilda enheter"
+            >
+              <SplitSquareHorizontal className="h-3 w-3" />
+            </Button>
           )}
           {isPlanned && (
             <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Planerad</span>
           )}
-        </label>
+        </div>
         {node.children.map(child => renderProductNode(child, depth + 1))}
       </div>
     );
