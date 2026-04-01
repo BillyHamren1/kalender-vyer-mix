@@ -304,21 +304,52 @@ const AddEstablishmentTaskDialog = ({
             </div>
           </div>
 
-          <div>
-            <Label>Tilldela från projektteam</Label>
-            <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Ingen tilldelad" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Ingen tilldelad</SelectItem>
-                {staffPool.length > 0 ? staffPool.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                )) : (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Bemanna via kalendern först</div>
-                )}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2">
+            <Label>Tilldela till</Label>
+            <Tabs value={assigneeType} onValueChange={(v) => {
+              setAssigneeType(v as "staff" | "user");
+              if (v === "staff") setAssignedUserId(null);
+              if (v === "user") setAssignedTo(null);
+            }}>
+              <TabsList className="w-full h-9">
+                <TabsTrigger value="staff" className="flex-1 gap-1.5 text-xs">
+                  <HardHat className="h-3.5 w-3.5" />
+                  Fältpersonal
+                </TabsTrigger>
+                <TabsTrigger value="user" className="flex-1 gap-1.5 text-xs">
+                  <UserCog className="h-3.5 w-3.5" />
+                  Kontor / PL
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {assigneeType === "staff" ? (
+              <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ingen tilldelad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen tilldelad</SelectItem>
+                  {staffPool.length > 0 ? staffPool.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  )) : (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Bemanna via kalendern först</div>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={assignedUserId || "none"} onValueChange={(v) => setAssignedUserId(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ingen tilldelad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen tilldelad</SelectItem>
+                  {systemUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
