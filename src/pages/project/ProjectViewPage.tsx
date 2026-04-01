@@ -164,7 +164,7 @@ const ProjectViewPage = () => {
             )}
             <BookingInfoExpanded
               booking={displayBooking}
-              projectLeader={project.project_leader}
+              projectLeader={projectLeaderDisplay}
               bookingAttachments={bookingAttachments}
             />
           </div>
