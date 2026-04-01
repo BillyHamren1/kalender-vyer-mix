@@ -127,9 +127,11 @@ export async function syncProjectTaskToExecution(
       .eq('id', executionTaskId);
 
     if (error) {
-      console.error('[Bridge] Failed to sync to execution task:', error);
+      console.error('[Bridge] Sync failed for execution task:', executionTaskId, error);
+    } else {
+      console.log('[Bridge] Synced execution task:', executionTaskId, Object.keys(patch));
     }
   } catch (err) {
-    console.error('[Bridge] Sync error:', err);
+    console.error('[Bridge] Sync error for execution task:', executionTaskId, err);
   }
 }
