@@ -100,18 +100,18 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: hasBooking,
   });
 
-  // ===== Local data (via Supabase, always available) =====
+  // ===== Local data (only for projects WITHOUT a booking) =====
 
   const { data: localBudget, isLoading: localBudgetLoading } = useQuery({
     queryKey: ['local-project-budget', projectId],
     queryFn: () => fetchLocalProjectBudget(projectId!),
-    enabled: !!projectId,
+    enabled: !!projectId && !hasBooking,
   });
 
   const { data: localPurchases = [], isLoading: localPurchasesLoading } = useQuery({
     queryKey: ['local-project-purchases', projectId],
     queryFn: () => fetchLocalProjectPurchases(projectId!),
-    enabled: !!projectId,
+    enabled: !!projectId && !hasBooking,
   });
 
   // ===== Product cost overrides (local Supabase) =====
@@ -121,13 +121,9 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!projectId,
   });
 
-  // ===== Merged data: prefer remote if available, fall back to local =====
+  // ===== Data source: ONE source per project type =====
   const budget = hasBooking ? remoteBudget : localBudget;
-  
-  // Combine remote + local purchases
-  const purchases = hasBooking
-    ? [...remotePurchases, ...localPurchases]
-    : localPurchases;
+  const purchases = hasBooking ? remotePurchases : localPurchases;
 
   // Merge product cost overrides into productCosts
   const mergedProductCosts: ProductCostSummary | undefined = useMemo(() => {
