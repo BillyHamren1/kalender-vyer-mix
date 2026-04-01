@@ -193,6 +193,7 @@ const LargeProjectLayout = () => {
             {/* Schedule date cards */}
             <LargeProjectScheduleEditable
               startDate={project.start_date}
+              eventDate={(project as any).event_date}
               endDate={project.end_date}
               onUpdateDates={(updates) => detail.updateProject(updates)}
             />

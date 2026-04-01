@@ -9,19 +9,22 @@ import { cn } from "@/lib/utils";
 
 interface LargeProjectScheduleEditableProps {
   startDate?: string | null;
+  eventDate?: string | null;
   endDate?: string | null;
-  onUpdateDates: (updates: { start_date?: string | null; end_date?: string | null }) => void;
+  onUpdateDates: (updates: { start_date?: string | null; event_date?: string | null; end_date?: string | null }) => void;
 }
 
-type DateType = 'start' | 'end';
+type DateType = 'start' | 'event' | 'end';
 
 const dateConfig = {
   start: { label: 'RIGG / START', icon: Truck, dialogTitle: 'Startdatum' },
+  event: { label: 'EVENT', icon: PartyPopper, dialogTitle: 'Eventdatum' },
   end: { label: 'NEDRIVNING / SLUT', icon: ArrowDownToLine, dialogTitle: 'Slutdatum' },
 };
 
 const LargeProjectScheduleEditable = ({
   startDate,
+  eventDate,
   endDate,
   onUpdateDates,
 }: LargeProjectScheduleEditableProps) => {
@@ -30,6 +33,7 @@ const LargeProjectScheduleEditable = ({
 
   const dates: { key: DateType; label: string; date: string | null | undefined; icon: typeof Truck }[] = [
     { key: 'start', label: dateConfig.start.label, date: startDate, icon: dateConfig.start.icon },
+    { key: 'event', label: dateConfig.event.label, date: eventDate, icon: dateConfig.event.icon },
     { key: 'end', label: dateConfig.end.label, date: endDate, icon: dateConfig.end.icon },
   ];
 
@@ -59,6 +63,8 @@ const LargeProjectScheduleEditable = ({
 
     if (editingType === 'start') {
       onUpdateDates({ start_date: dateStr });
+    } else if (editingType === 'event') {
+      onUpdateDates({ event_date: dateStr });
     } else {
       onUpdateDates({ end_date: dateStr });
     }
