@@ -18,6 +18,7 @@ import {
 } from "@/services/projectService";
 
 import { fetchProjectActivities, logProjectActivity } from "@/services/projectActivityService";
+import { bridgeProjectTaskToExecution, syncProjectTaskToExecution } from "@/services/projectTaskBridgeService";
 import { ProjectStatus, ProjectTask, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
 import { createOptimisticCallbacks } from "./useOptimisticMutation";
