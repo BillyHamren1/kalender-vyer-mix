@@ -224,6 +224,7 @@ const ProjectViewPage = () => {
               return undefined;
             }}
             executionHref="execution"
+            onOpenInChat={(taskId, taskTitle) => setChatTaskRef({ taskId, taskTitle })}
           />
         </div>
 
