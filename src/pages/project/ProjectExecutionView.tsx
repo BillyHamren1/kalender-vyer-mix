@@ -405,6 +405,17 @@ const ProjectExecutionView = () => {
           </SelectContent>
         </Select>
 
+        {(filterStatus !== "all" || filterType !== "all" || filterPerson !== "all" || filterDateGroup !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground"
+            onClick={() => { setFilterStatus("all"); setFilterType("all"); setFilterPerson("all"); setFilterDateGroup("all"); }}
+          >
+            Rensa filter ×
+          </Button>
+        )}
+
         <div className="ml-auto text-sm text-muted-foreground">
           {filtered.length} av {tasks.length} aktiviteter
         </div>
