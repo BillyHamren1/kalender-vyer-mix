@@ -213,7 +213,7 @@ export const createEstablishmentTask = async (task: {
       notes: task.notes ?? null,
       assigned_to: assignedTo,
       assigned_to_ids: assignedToIds,
-      status: task.status ?? 'not_started',
+      status: task.status ?? 'todo',
       readiness: task.readiness ?? 'missing_information',
       priority: task.priority ?? 'medium',
       description: task.description ?? null,
