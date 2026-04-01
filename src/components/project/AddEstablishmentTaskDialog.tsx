@@ -12,7 +12,7 @@ import { CalendarIcon, Package, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
-import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
+import type { TaskStatus, TaskReadiness, TaskPriority, TaskType, LinkedEntityType } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
