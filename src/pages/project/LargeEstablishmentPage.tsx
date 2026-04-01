@@ -34,7 +34,7 @@ const LargeEstablishmentPage = () => {
   const { project } = detail;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
