@@ -128,6 +128,8 @@ const CustomCalendarPage = () => {
       } else if (data?.assigned_project_id) {
         navigate(`/project/${data.assigned_project_id}/execution`, { state: { highlightTaskId: props.taskId } });
       } else {
+        // Booking has no project — navigate to booking but inform user
+        toast.info("Bokningen saknar kopplat projekt. Skapa ett projekt för att hantera uppgifter i Utförande.");
         navigate(`/booking/${props.bookingId}`);
       }
     }

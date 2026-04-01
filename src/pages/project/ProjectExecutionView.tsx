@@ -566,15 +566,21 @@ const ProjectExecutionView = () => {
                       </Popover>
 
                       {/* Open in chat */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 flex-shrink-0"
-                        title="Öppna i projektchatt"
-                        onClick={() => handleOpenInChat(task.id, task.title)}
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 flex-shrink-0"
+                            onClick={() => handleOpenInChat(task.id, task.title)}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          Öppna i projektchatt
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 );
