@@ -46,11 +46,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  not_started: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Ej startad' },
+  todo: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Att göra' },
   in_progress: { bg: 'bg-primary/15', text: 'text-primary', label: 'Pågår' },
   blocked: { bg: 'bg-destructive/15', text: 'text-destructive', label: 'Blockerad' },
   done: { bg: 'bg-emerald-500/15', text: 'text-emerald-600', label: 'Klar' },
-  cancelled: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Avbruten' },
 };
 
 const READINESS_LABELS: Record<string, string> = {

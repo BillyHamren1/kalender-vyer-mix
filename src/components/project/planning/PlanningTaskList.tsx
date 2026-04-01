@@ -239,7 +239,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
               const noOwner = hasNoOwner(task);
               const noDates = hasNoDates(task);
               const blocked = task.status === "blocked";
-              const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.not_started;
+              const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
               const StatusIcon = statusCfg.icon;
               const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
               const PriorityIcon = priorityCfg.icon;

@@ -419,7 +419,7 @@ export const generateDefaultTasksForProject = async (
   const rows = defaults.map(d => ({
     large_project_id: largeProjectId,
     source: 'default',
-    status: 'not_started' as TaskStatus,
+    status: 'todo' as TaskStatus,
     readiness: 'missing_information' as TaskReadiness,
     priority: 'medium' as TaskPriority,
     ...d,
