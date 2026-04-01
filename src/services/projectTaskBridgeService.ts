@@ -38,6 +38,7 @@ export async function bridgeProjectTaskToExecution(
       .maybeSingle();
 
     if ((existing as any)?.execution_task_id) {
+      console.log('[Bridge] Skipped — execution task already exists:', (existing as any).execution_task_id);
       return (existing as any).execution_task_id;
     }
 
