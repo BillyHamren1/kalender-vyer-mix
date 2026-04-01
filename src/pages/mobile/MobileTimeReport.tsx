@@ -100,38 +100,85 @@ const MobileTimeReport = () => {
         {activeTimers.size > 0 && (
           <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
-            {Array.from(activeTimers.entries()).map(([bookingId, timer]) => (
+            {Array.from(activeTimers.entries()).map(([key, timer]) => (
               <ActiveTimerCard
-                key={bookingId}
+                key={key}
                 timer={timer}
+                isLocation={!!timer.locationId}
                 onStop={async () => {
-                  const stopTime = new Date();
-                  const startTimeDate = parseISO(timer.startTime);
-                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-                  if (totalHours < 0) totalHours += 24;
-                  const breakDeduction = totalHours > 5 ? 0.5 : 0;
-                  const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+                  if (timer.locationId) {
+                    // Location timer — just stop, server handles time entry
+                    stopTimer(key);
+                    toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
+                  } else {
+                    // Booking timer — create time report
+                    const stopTime = new Date();
+                    const startTimeDate = parseISO(timer.startTime);
+                    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                    if (totalHours < 0) totalHours += 24;
+                    const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                    const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
 
-                  stopTimer(bookingId);
+                    stopTimer(key);
 
-                  try {
-                    await mobileApi.createTimeReport({
-                      booking_id: bookingId,
-                      report_date: format(new Date(), 'yyyy-MM-dd'),
-                      start_time: format(startTimeDate, 'HH:mm'),
-                      end_time: format(stopTime, 'HH:mm'),
-                      hours_worked: hoursWorked,
-                      break_time: breakDeduction,
-                      description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
-                      establishment_task_id: timer.establishmentTaskId,
-                    });
-                    toast.success(`Tidrapport sparad: ${hoursWorked}h`);
-                  } catch (err: any) {
-                    toast.error(err.message || 'Kunde inte spara tidrapport');
+                    try {
+                      await mobileApi.createTimeReport({
+                        booking_id: key,
+                        report_date: format(new Date(), 'yyyy-MM-dd'),
+                        start_time: format(startTimeDate, 'HH:mm'),
+                        end_time: format(stopTime, 'HH:mm'),
+                        hours_worked: hoursWorked,
+                        break_time: breakDeduction,
+                        description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
+                        establishment_task_id: timer.establishmentTaskId,
+                      });
+                      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                    } catch (err: any) {
+                      toast.error(err.message || 'Kunde inte spara tidrapport');
+                    }
                   }
                 }}
               />
             ))}
+          </div>
+        )}
+
+        {/* Fixed location quick-start buttons */}
+        {orgLocations.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Fasta platser</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {orgLocations.map(loc => {
+                const locKey = `location-${loc.id}`;
+                const isActive = activeTimers.has(locKey);
+                return (
+                  <button
+                    key={loc.id}
+                    onClick={() => {
+                      if (isActive) {
+                        stopTimer(locKey);
+                        toast.success(`Tid på ${loc.name} stoppad`);
+                      } else {
+                        startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
+                        toast.success(`Timer startad: ${loc.name}`);
+                      }
+                    }}
+                    className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
+                      isActive
+                        ? 'border-primary/30 bg-primary/5'
+                        : 'border-border/60 bg-muted/30 hover:bg-muted/50'
+                    }`}
+                  >
+                    <Building2 className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{loc.name}</p>
+                      {isActive && <p className="text-[10px] text-primary">● Aktiv</p>}
+                    </div>
+                    {isActive && <Square className="w-3.5 h-3.5 text-destructive" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
