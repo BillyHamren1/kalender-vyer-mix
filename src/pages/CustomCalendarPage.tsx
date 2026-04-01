@@ -368,7 +368,7 @@ const CustomCalendarPage = () => {
             ) : (
               // List View
               <StaffBookingsList
-                events={events}
+                events={mergedEvents}
                 resources={teamResources}
                 currentDate={currentWeekStart}
                 weeklyStaffOperations={staffOps}
