@@ -326,7 +326,26 @@ const AddEstablishmentTaskDialog = ({
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground">
+          <div>
+            <Label>Deadline</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(dueDate, 'yyyy-MM-dd') : 'Ingen deadline'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
             Nya aktiviteter skapas som "Ej startad" med beredskap "Saknar information"
           </p>
 
