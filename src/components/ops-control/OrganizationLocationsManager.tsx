@@ -76,6 +76,41 @@ const OrganizationLocationsManager = () => {
     setDialogOpen(true);
   };
 
+  const geocodeAddress = useCallback(async () => {
+    if (!form.address.trim()) {
+      toast.error('Ange en adress först');
+      return;
+    }
+    if (!MAPBOX_TOKEN) {
+      toast.error('Mapbox-token saknas');
+      return;
+    }
+    setIsGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(form.address)}.json?access_token=${MAPBOX_TOKEN}&country=se&limit=1`
+      );
+      const json = await res.json();
+      const feature = json.features?.[0];
+      if (!feature) {
+        toast.error('Kunde inte hitta adressen');
+        return;
+      }
+      const [lng, lat] = feature.center;
+      setForm(f => ({
+        ...f,
+        latitude: String(lat),
+        longitude: String(lng),
+        address: feature.place_name || f.address,
+      }));
+      toast.success('Koordinater hämtade');
+    } catch {
+      toast.error('Geocoding misslyckades');
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, [form.address]);
+
   const handleSave = () => {
     const lat = parseFloat(form.latitude);
     const lng = parseFloat(form.longitude);
