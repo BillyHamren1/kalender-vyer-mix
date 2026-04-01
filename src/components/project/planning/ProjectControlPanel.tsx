@@ -248,9 +248,10 @@ const UnassignedSection = ({ analytics, staffPool, onTaskClick, onFilterChange }
 
 // ─── Section: Tasks per person ──────────────────────────────────────────────
 
-const PersonSection = ({ analytics, staffPool, onFilterChange }: {
+const PersonSection = ({ analytics, staffPool, userMap, onFilterChange }: {
   analytics: TaskAnalytics;
   staffPool: Array<{ id: string; name: string }>;
+  userMap?: Record<string, string>;
   onFilterChange?: (filter: OverviewFilter) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
