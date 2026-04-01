@@ -26,7 +26,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
   open,
   onOpenChange,
   projectName,
-  gates,
   canClose,
   isClosing,
   onClose,
