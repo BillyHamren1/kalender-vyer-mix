@@ -130,7 +130,19 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOp
       )}
 
       {/* Inline metadata */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+        {task.execution_task_id && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 font-normal gap-0.5 cursor-default">
+                Synkad
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Uppgiften finns i Utförande-vyn
+            </TooltipContent>
+          </Tooltip>
+        )}
         {assignedStaff && (
           <div className="flex items-center gap-1 max-w-[100px]">
             <User className="h-3 w-3 shrink-0" />
@@ -150,6 +162,28 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOp
           </div>
         )}
       </div>
+
+      {/* Open in execution */}
+      {task.execution_task_id && onOpenInExecution && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInExecution();
+              }}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Öppna i Utförande
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Delete button */}
       {onDelete && (
