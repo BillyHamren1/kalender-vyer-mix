@@ -71,6 +71,7 @@ export const useLargeProjectDetail = (projectId: string) => {
     end_date: null,
     phase: null,
     dependency_task_id: null,
+    execution_task_id: (t as any).execution_task_id ?? null,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }));
