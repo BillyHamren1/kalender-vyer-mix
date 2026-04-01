@@ -148,53 +148,10 @@ const LargeProjectLayout = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !project.start_date && "text-muted-foreground")}>
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    {project.start_date ? format(new Date(project.start_date), "d MMM yyyy", { locale: sv }) : "Startdatum"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <CalendarPicker
-                    mode="single"
-                    selected={project.start_date ? new Date(project.start_date) : undefined}
-                    onSelect={(date) => {
-                      detail.updateProject({ start_date: date ? format(date, 'yyyy-MM-dd') : null });
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <span className="text-xs text-muted-foreground">–</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !project.end_date && "text-muted-foreground")}>
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    {project.end_date ? format(new Date(project.end_date), "d MMM yyyy", { locale: sv }) : "Slutdatum"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <CalendarPicker
-                    mode="single"
-                    selected={project.end_date ? new Date(project.end_date) : undefined}
-                    onSelect={(date) => {
-                      detail.updateProject({ end_date: date ? format(date, 'yyyy-MM-dd') : null });
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <ProjectStatusDropdown
-              status={statusMap[project.status] || "planning"}
-              onStatusChange={(status) => detail.updateStatus(status as any)}
-            />
-          </div>
+          <ProjectStatusDropdown
+            status={statusMap[project.status] || "planning"}
+            onStatusChange={(status) => detail.updateStatus(status as any)}
+          />
         </div>
 
         {/* 3-page navigation */}
