@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map, Satellite, Clock, Wifi } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map, Satellite, Clock, Wifi, Building2 } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useTrafficCameras, TrafficCamera } from '@/hooks/useTrafficCameras';
+import { fetchOrganizationLocations, OrganizationLocation } from '@/services/organizationLocationService';
 
 interface Props {
   locations: StaffLocation[];
@@ -48,6 +49,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const jobMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const cameraMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupsRef = useRef<mapboxgl.Popup[]>([]);
+  const orgLocMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OpsMapJob | null>(null);
   const [staffPanel, setStaffPanel] = useState<StaffLocation | null>(null);
@@ -56,6 +58,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showCameras, setShowCameras] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
+  const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
+  const [showOrgLocations, setShowOrgLocations] = useState(true);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
@@ -94,6 +98,11 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     return () => { cancelled = true; map.current?.remove(); map.current = null; };
   }, []);
 
+  // Fetch organization locations
+  useEffect(() => {
+    fetchOrganizationLocations().then(setOrgLocations).catch(() => {});
+  }, []);
+
   // Clear all markers
   const clearMarkers = useCallback(() => {
     staffMarkersRef.current.forEach(m => m.remove());
@@ -104,10 +113,25 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     popupsRef.current = [];
   }, []);
 
+  const clearOrgLocMarkers = useCallback(() => {
+    orgLocMarkersRef.current.forEach(m => m.remove());
+    orgLocMarkersRef.current = [];
+    // Remove geofence circles
+    if (map.current) {
+      orgLocations.forEach((_, i) => {
+        const layerId = `org-loc-circle-${i}`;
+        const sourceId = `org-loc-source-${i}`;
+        if (map.current!.getLayer(layerId)) map.current!.removeLayer(layerId);
+        if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
+      });
+    }
+  }, [orgLocations]);
+
   const clearCameraMarkers = useCallback(() => {
     cameraMarkersRef.current.forEach(m => m.remove());
     cameraMarkersRef.current = [];
   }, []);
+
 
   // Toggle cameras
   const handleToggleCameras = useCallback(async () => {
@@ -155,6 +179,86 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       cameraMarkersRef.current.push(marker);
     });
   }, [mapReady, showCameras, cameras, clearCameraMarkers]);
+
+  // Render organization location markers
+  useEffect(() => {
+    if (!mapReady || !map.current) return;
+    clearOrgLocMarkers();
+
+    if (!showOrgLocations || orgLocations.length === 0) return;
+
+    orgLocations.forEach((loc, i) => {
+      if (!loc.latitude || !loc.longitude) return;
+
+      // Create building marker
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width: 28px; height: 28px; border-radius: 6px;
+        background: #7c3aed; border: 2.5px solid white;
+        box-shadow: 0 2px 8px rgba(124,58,237,0.35);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+      `;
+      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`;
+
+      const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, maxWidth: '180px' })
+        .setHTML(`
+          <div style="font-size:12px;line-height:1.4">
+            <strong>${loc.name}</strong>
+            ${loc.address ? `<br/><span style="color:#666">${loc.address}</span>` : ''}
+            <br/><span style="color:#7c3aed;font-size:10px;">Radie: ${loc.radius_meters}m</span>
+          </div>
+        `);
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([loc.longitude, loc.latitude])
+        .setPopup(popup)
+        .addTo(map.current!);
+      orgLocMarkersRef.current.push(marker);
+
+      // Add geofence radius circle
+      const sourceId = `org-loc-source-${i}`;
+      const layerId = `org-loc-circle-${i}`;
+
+      if (!map.current!.getSource(sourceId)) {
+        // Create a GeoJSON circle (approximation with 64 points)
+        const center = [loc.longitude, loc.latitude];
+        const radiusKm = loc.radius_meters / 1000;
+        const points = 64;
+        const coords: [number, number][] = [];
+        for (let j = 0; j < points; j++) {
+          const angle = (j / points) * 2 * Math.PI;
+          const dx = radiusKm * Math.cos(angle);
+          const dy = radiusKm * Math.sin(angle);
+          const lat = center[1] + (dy / 111.32);
+          const lng = center[0] + (dx / (111.32 * Math.cos(center[1] * Math.PI / 180)));
+          coords.push([lng, lat]);
+        }
+        coords.push(coords[0]); // close ring
+
+        map.current!.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'Polygon', coordinates: [coords] },
+          },
+        });
+
+        map.current!.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#7c3aed',
+            'fill-opacity': 0.08,
+          },
+        });
+      }
+    });
+
+    return () => clearOrgLocMarkers();
+  }, [mapReady, showOrgLocations, orgLocations, clearOrgLocMarkers]);
 
   // Render markers
   useEffect(() => {
@@ -463,6 +567,17 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             <Camera className="w-3 h-3" />
             {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
           </button>
+          <button
+            onClick={() => setShowOrgLocations(v => !v)}
+            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+              showOrgLocations
+                ? 'bg-purple-600 text-white font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <Building2 className="w-3 h-3" />
+            {showOrgLocations ? `Platser (${orgLocations.length})` : 'Platser'}
+          </button>
         </div>
       </div>
 
@@ -509,6 +624,12 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
               <span className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
               Kamera
+            </span>
+          )}
+          {showOrgLocations && orgLocations.length > 0 && (
+            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="w-2 h-2 rounded shrink-0" style={{ background: '#7c3aed' }} />
+              Plats
             </span>
           )}
         </div>
