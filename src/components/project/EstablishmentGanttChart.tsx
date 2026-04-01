@@ -399,10 +399,16 @@ const EstablishmentGanttChart = ({
         </CardHeader>
         <CardContent className="text-center py-8 space-y-3">
           <p className="text-muted-foreground">Inga aktiviteter ännu.</p>
-          <Button onClick={() => setShowAddDialog(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Lägg till aktivitet
-          </Button>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <Button onClick={() => setShowAddDialog(true)} className="gap-1.5">
+              <Package className="h-4 w-4" />
+              Skapa aktiviteter från bokning
+            </Button>
+            <Button variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Lägg till enskild aktivitet
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
