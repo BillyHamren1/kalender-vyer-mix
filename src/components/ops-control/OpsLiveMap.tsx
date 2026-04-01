@@ -98,6 +98,11 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     return () => { cancelled = true; map.current?.remove(); map.current = null; };
   }, []);
 
+  // Fetch organization locations
+  useEffect(() => {
+    fetchOrganizationLocations().then(setOrgLocations).catch(() => {});
+  }, []);
+
   // Clear all markers
   const clearMarkers = useCallback(() => {
     staffMarkersRef.current.forEach(m => m.remove());
@@ -108,10 +113,25 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     popupsRef.current = [];
   }, []);
 
+  const clearOrgLocMarkers = useCallback(() => {
+    orgLocMarkersRef.current.forEach(m => m.remove());
+    orgLocMarkersRef.current = [];
+    // Remove geofence circles
+    if (map.current) {
+      orgLocations.forEach((_, i) => {
+        const layerId = `org-loc-circle-${i}`;
+        const sourceId = `org-loc-source-${i}`;
+        if (map.current!.getLayer(layerId)) map.current!.removeLayer(layerId);
+        if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
+      });
+    }
+  }, [orgLocations]);
+
   const clearCameraMarkers = useCallback(() => {
     cameraMarkersRef.current.forEach(m => m.remove());
     cameraMarkersRef.current = [];
   }, []);
+
 
   // Toggle cameras
   const handleToggleCameras = useCallback(async () => {
