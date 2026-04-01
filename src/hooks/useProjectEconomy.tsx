@@ -199,26 +199,30 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSuccess: () => {
       if (hasBooking) {
         queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
       }
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
       toast.success('Inköp tillagt');
     },
     onError: () => toast.error('Kunde inte lägga till inköp'),
   });
 
-  // Update local purchase
+  // Update purchase (routes to correct backend)
   const updatePurchaseMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) =>
       updateLocalProjectPurchase(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
-      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      }
       toast.success('Inköp uppdaterat');
     },
     onError: () => toast.error('Kunde inte uppdatera inköp'),
   });
 
-  // Remove purchase
+  // Remove purchase (single source — no fallback chain)
   const removePurchaseOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
     queryKey: hasBooking ? ['project-purchases', bookingId] : ['local-project-purchases', projectId],
@@ -229,16 +233,18 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const removePurchaseMutation = useMutation({
     mutationFn: (id: string) => {
-      // Try local first, if it fails try remote
       if (hasBooking) {
-        return deletePurchase(id).catch(() => deleteLocalProjectPurchase(id));
+        return deletePurchase(id);
       }
       return deleteLocalProjectPurchase(id);
     },
     ...removePurchaseOptimistic,
     onSuccess: () => {
-      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
-      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      }
       toast.success('Inköp borttaget');
     },
     onError: removePurchaseOptimistic.onError,
