@@ -225,10 +225,20 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
       console.log(
         `[TimeReports] Using snapshot rate ${snapshotRate} instead of current ${currentRate} for staff ${staffId}`
       );
+    } else if (snapshotRate == null) {
+      console.warn(
+        `[TimeReports] No snapshot rate for staff ${staffId} on ${report.report_date} — using current rate ${currentRate}. Cost may drift if rate changes.`
+      );
     }
 
     const currentOvertimeRate = Number(staffData?.overtime_rate) || 0;
+    // Overtime rate: use current if stored, otherwise derive from the resolved hourly rate
     const overtimeRate = currentOvertimeRate > 0 ? currentOvertimeRate : hourlyRate * 1.5;
+    if (currentOvertimeRate === 0) {
+      console.warn(
+        `[TimeReports] No stored overtime_rate for staff ${staffId} — using derived ${overtimeRate} (${hourlyRate} × 1.5)`
+      );
+    }
     const hoursWorked = Number(report.hours_worked) || 0;
     const overtimeHours = Number(report.overtime_hours) || 0;
     
