@@ -36,7 +36,7 @@ interface PersonData {
 }
 
 const isOverdue = (task: EstablishmentTask) => {
-  if (task.status === "done" || task.status === "cancelled") return false;
+  if (task.status === "done") return false;
   if (!task.end_date) return false;
   return isBefore(startOfDay(new Date(task.end_date)), startOfDay(new Date()));
 };
@@ -81,8 +81,7 @@ const TaskRow = ({ task, onClick }: { task: EstablishmentTask; onClick: () => vo
         task.status === "done" && "text-emerald-600 dark:text-emerald-400",
         task.status === "in_progress" && "text-primary",
         task.status === "blocked" && "text-destructive",
-        task.status === "not_started" && "text-muted-foreground",
-        task.status === "cancelled" && "text-muted-foreground",
+        task.status === "todo" && "text-muted-foreground",
       )} />
       <PriorityIcon className={cn("h-3 w-3 flex-shrink-0", priorityCfg.className)} />
       <span className={cn(
@@ -218,7 +217,7 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
     const unassigned: EstablishmentTask[] = [];
 
     for (const task of analytics.tasks) {
-      if (task.status === "cancelled") continue;
+      // All tasks are active in the new lifecycle
       const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
       if (ids.length === 0) {
         if (task.status !== "done") unassigned.push(task);

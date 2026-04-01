@@ -42,11 +42,10 @@ const TASK_TYPE_COLORS: Record<TaskType, string> = {
 };
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: "Ej startad",
+  todo: "Att göra",
   in_progress: "Pågår",
   blocked: "Blockerad",
   done: "Klar",
-  cancelled: "Avbruten",
 };
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -56,7 +55,7 @@ function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming"
   if (!ref) return "no_date";
   const d = startOfDay(parseISO(ref));
   const now = startOfDay(new Date());
-  if (task.status === "done" || task.status === "cancelled") return "upcoming";
+  if (task.status === "done") return "upcoming";
   if (isBefore(d, now)) return "overdue";
   if (isToday(d)) return "today";
   return "upcoming";
@@ -179,7 +178,7 @@ const ProjectExecutionView = () => {
   const handleMarkDone = async (task: EstablishmentTask) => {
     try {
       await updateEstablishmentTask(task.id, {
-        status: task.status === "done" ? "not_started" : "done",
+        status: task.status === "done" ? "todo" : "done",
         completed: task.status !== "done",
       });
       refetch();

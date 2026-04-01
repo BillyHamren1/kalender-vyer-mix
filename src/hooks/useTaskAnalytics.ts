@@ -56,7 +56,7 @@ const hasValidDates = (task: EstablishmentTask) => {
 };
 
 const isOverdue = (task: EstablishmentTask, today: Date) => {
-  if (task.status === 'done' || task.status === 'cancelled') return false;
+  if (task.status === 'done') return false;
   if (!task.end_date) return false;
   try {
     const end = startOfDay(new Date(task.end_date));
@@ -79,12 +79,11 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const tomorrow = addDays(today, 1);
     const weekEnd = addDays(today, 7);
 
-    const activeTasks = tasks.filter(t => t.status !== 'cancelled');
+    const activeTasks = tasks;
     const completed = activeTasks.filter(t => t.status === 'done');
     const blocked = activeTasks.filter(t => t.status === 'blocked');
     const inProgress = activeTasks.filter(t => t.status === 'in_progress');
-    const notStarted = activeTasks.filter(t => t.status === 'not_started');
-    const cancelled = tasks.filter(t => t.status === 'cancelled');
+    const notStarted = activeTasks.filter(t => t.status === 'todo');
     const withDates = activeTasks.filter(t => hasValidDates(t));
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
     const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && t.status !== 'done');
@@ -197,7 +196,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       overdue: overdueTasks.length,
       blocked: blocked.length,
       inProgress: inProgress.length,
-      cancelled: cancelled.length,
+      cancelled: 0,
       notStarted: notStarted.length,
       waitingForDecision: waitingForDecision.length,
       missingSetup: missingSetup.length,

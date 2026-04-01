@@ -63,14 +63,14 @@ export function applyFilters(
           break;
         }
         case "overdue":
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           if (!task.end_date || !isBefore(startOfDay(new Date(task.end_date)), today)) return false;
           break;
         case "blocked":
           if (task.status !== "blocked") return false;
           break;
         case "today": {
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           const s = task.start_date ? startOfDay(new Date(task.start_date)) : null;
           const e = task.end_date ? endOfDay(new Date(task.end_date)) : null;
           if (!s || !e) return false;
@@ -78,7 +78,7 @@ export function applyFilters(
           break;
         }
         case "this_week": {
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           const s = task.start_date ? startOfDay(new Date(task.start_date)) : null;
           const e = task.end_date ? endOfDay(new Date(task.end_date)) : null;
           if (!s || !e) return false;
@@ -89,7 +89,7 @@ export function applyFilters(
         case "unassigned": {
           const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
           if (ids.length > 0) return false;
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           break;
         }
         case "completed":
@@ -144,7 +144,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
     key: "overdue", label: "Försenade", icon: Clock,
     countFn: (tasks) => {
       const today = startOfDay(new Date());
-      return tasks.filter(t => t.status !== "done" && t.status !== "cancelled" && t.end_date && isBefore(startOfDay(new Date(t.end_date)), today)).length;
+      return tasks.filter(t => t.status !== "done" && t.end_date && isBefore(startOfDay(new Date(t.end_date)), today)).length;
     },
   },
   {
@@ -156,7 +156,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
     countFn: (tasks) => {
       const today = startOfDay(new Date());
       return tasks.filter(t => {
-        if (t.status === "done" || t.status === "cancelled") return false;
+        if (t.status === "done") return false;
         const s = t.start_date ? startOfDay(new Date(t.start_date)) : null;
         const e = t.end_date ? endOfDay(new Date(t.end_date)) : null;
         if (!s || !e) return false;
@@ -171,7 +171,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
       const ws = startOfWeek(today, { weekStartsOn: 1 });
       const we = endOfWeek(today, { weekStartsOn: 1 });
       return tasks.filter(t => {
-        if (t.status === "done" || t.status === "cancelled") return false;
+        if (t.status === "done") return false;
         const s = t.start_date ? startOfDay(new Date(t.start_date)) : null;
         const e = t.end_date ? endOfDay(new Date(t.end_date)) : null;
         if (!s || !e) return false;
@@ -183,7 +183,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
     key: "unassigned", label: "Utan ägare", icon: UserX,
     countFn: (tasks) => tasks.filter(t => {
       const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
-      return ids.length === 0 && t.status !== "done" && t.status !== "cancelled";
+      return ids.length === 0 && t.status !== "done";
     }).length,
   },
   {
@@ -206,11 +206,10 @@ interface PlanningFilterBarProps {
 }
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "not_started", label: "Ej startad" },
+  { value: "todo", label: "Att göra" },
   { value: "in_progress", label: "Pågår" },
   { value: "blocked", label: "Blockerad" },
   { value: "done", label: "Klar" },
-  { value: "cancelled", label: "Avbruten" },
 ];
 
 const READINESS_OPTIONS: { value: TaskReadiness; label: string }[] = [

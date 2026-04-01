@@ -30,11 +30,10 @@ interface PlanningTaskListProps {
 }
 
 const STATUS_CONFIG: Record<string, { icon: typeof Circle; label: string; className: string; rowClass: string }> = {
-  not_started: { icon: Circle, label: "Ej startad", className: "text-muted-foreground", rowClass: "" },
+  todo: { icon: Circle, label: "Att göra", className: "text-muted-foreground", rowClass: "" },
   in_progress: { icon: Play, label: "Pågår", className: "text-primary", rowClass: "" },
   blocked: { icon: Ban, label: "Blockerad", className: "text-destructive", rowClass: "bg-destructive/5 border-destructive/20" },
   done: { icon: CheckCircle2, label: "Klar", className: "text-emerald-600 dark:text-emerald-400", rowClass: "opacity-60" },
-  cancelled: { icon: XCircle, label: "Avbruten", className: "text-muted-foreground", rowClass: "opacity-40" },
 };
 
 const PRIORITY_CONFIG: Record<string, { icon: typeof ArrowUp; className: string; label: string }> = {
@@ -51,14 +50,13 @@ const READINESS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "not_started", label: "Ej startad" },
+  { value: "todo", label: "Att göra" },
   { value: "in_progress", label: "Pågår" },
   { value: "blocked", label: "Blockerad" },
   { value: "done", label: "Klar" },
-  { value: "cancelled", label: "Avbruten" },
 ];
 
-const STATUS_GROUP_ORDER: TaskStatus[] = ["blocked", "in_progress", "not_started", "done", "cancelled"];
+const STATUS_GROUP_ORDER: TaskStatus[] = ["blocked", "in_progress", "todo", "done"];
 
 const getStaffName = (staffId: string | null, staffPool: Array<{ id: string; name: string }>) => {
   if (!staffId) return null;
@@ -71,13 +69,13 @@ const getStaffNames = (task: EstablishmentTask, staffPool: Array<{ id: string; n
 };
 
 const isOverdue = (task: EstablishmentTask) => {
-  if (task.status === "done" || task.status === "cancelled") return false;
+  if (task.status === "done") return false;
   if (!task.end_date) return false;
   return isBefore(startOfDay(new Date(task.end_date)), startOfDay(new Date()));
 };
 
 const hasNoDates = (task: EstablishmentTask) => !task.start_date || !task.end_date;
-const hasNoOwner = (task: EstablishmentTask) => (!task.assigned_to_ids || task.assigned_to_ids.length === 0) && !task.assigned_to && task.status !== "done" && task.status !== "cancelled";
+const hasNoOwner = (task: EstablishmentTask) => (!task.assigned_to_ids || task.assigned_to_ids.length === 0) && !task.assigned_to && task.status !== "done";
 
 const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, bookingId }: PlanningTaskListProps) => {
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
@@ -128,7 +126,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
 
   const handleToggleBlocked = async (task: EstablishmentTask, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newStatus: TaskStatus = task.status === "blocked" ? "not_started" : "blocked";
+    const newStatus: TaskStatus = task.status === "blocked" ? "todo" : "blocked";
     try {
       await updateEstablishmentTask(task.id, { status: newStatus });
       invalidateAll();
@@ -241,7 +239,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
               const noOwner = hasNoOwner(task);
               const noDates = hasNoDates(task);
               const blocked = task.status === "blocked";
-              const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.not_started;
+              const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
               const StatusIcon = statusCfg.icon;
               const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
               const PriorityIcon = priorityCfg.icon;
@@ -277,7 +275,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                         <span className={cn(
                           "text-sm font-medium truncate",
                           task.status === "done" && "line-through text-muted-foreground",
-                          task.status === "cancelled" && "line-through text-muted-foreground",
+                          task.status === "done" && "line-through text-muted-foreground",
                         )}>
                           {task.title}
                         </span>

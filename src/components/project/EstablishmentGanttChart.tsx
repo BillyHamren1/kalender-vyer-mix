@@ -46,11 +46,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  not_started: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Ej startad' },
+  todo: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Att göra' },
   in_progress: { bg: 'bg-primary/15', text: 'text-primary', label: 'Pågår' },
   blocked: { bg: 'bg-destructive/15', text: 'text-destructive', label: 'Blockerad' },
   done: { bg: 'bg-emerald-500/15', text: 'text-emerald-600', label: 'Klar' },
-  cancelled: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Avbruten' },
 };
 
 const READINESS_LABELS: Record<string, string> = {
@@ -432,12 +431,12 @@ const EstablishmentGanttChart = ({
                 {ganttData.taskDates.map((task) => {
                   const dbTask = tasks.find(t => t.id === task.id);
                   const IconComponent = CATEGORY_ICONS[task.category] || Wrench;
-                  const status = (dbTask as any)?.status || 'not_started';
+                  const status = (dbTask as any)?.status || 'todo';
                   const readiness = (dbTask as any)?.readiness || 'missing_information';
                   const priority = (dbTask as any)?.priority || 'medium';
                   const hasBlockers = !!(dbTask as any)?.blockers;
                   const StatusIcon = STATUS_ICON_MAP[status] || Circle;
-                  const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.not_started;
+                  const statusConfig = STATUS_COLORS[status] || STATUS_COLORS.todo;
                   const PriorityIcon = PRIORITY_CONFIG[priority]?.icon || ArrowRight;
                   const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
                   const assignedName = taskAssignedIds.length > 0
@@ -591,7 +590,7 @@ const EstablishmentGanttChart = ({
                   const assignedName = taskAssignedIds.length > 0
                     ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
                     : null;
-                  const noOwner = taskAssignedIds.length === 0 && taskStatus !== 'done' && taskStatus !== 'cancelled';
+                  const noOwner = taskAssignedIds.length === 0 && taskStatus !== 'done';
 
                   // Overlap detection: any shared assigned person across overlapping tasks
                   const hasPersonOverlap = taskAssignedIds.length > 0 && ganttData.taskDates.some(other => {
@@ -603,7 +602,7 @@ const EstablishmentGanttChart = ({
                   });
                   const taskDecisionNeeded = (dbTask as any)?.decision_needed || false;
                   const taskReadiness = (dbTask as any)?.readiness || 'missing_information';
-                  const isOverdue = taskStatus !== 'done' && taskStatus !== 'cancelled' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
+                  const isOverdue = taskStatus !== 'done' && task.end_date && isBefore(startOfDay(new Date(task.end_date)), today);
 
                   // Compute bar position from adaptive column layout
                   const startPos = dayIndexToX.get(startDayIndex);
@@ -614,7 +613,6 @@ const EstablishmentGanttChart = ({
 
                   const barColor = taskStatus === 'blocked' ? 'bg-destructive'
                     : taskStatus === 'done' ? 'bg-emerald-500'
-                    : taskStatus === 'cancelled' ? 'bg-muted-foreground'
                     : isOverdue ? 'bg-destructive'
                     : taskStatus === 'in_progress' ? 'bg-primary'
                     : CATEGORY_COLORS[task.category] || 'bg-primary';
@@ -676,7 +674,6 @@ const EstablishmentGanttChart = ({
                         className={cn(
                           "absolute top-1.5 bottom-1.5 rounded-md cursor-pointer transition-all hover:brightness-110 shadow-sm flex flex-col justify-center overflow-hidden",
                           taskStatus === 'done' && "opacity-50",
-                          taskStatus === 'cancelled' && "opacity-30",
                           barColor,
                           borderStyle,
                         )}

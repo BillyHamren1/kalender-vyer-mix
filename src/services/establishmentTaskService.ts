@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns";
 
-export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
+export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskType = 'crew' | 'pm' | 'logistics' | 'admin';
@@ -213,7 +213,7 @@ export const createEstablishmentTask = async (task: {
       notes: task.notes ?? null,
       assigned_to: assignedTo,
       assigned_to_ids: assignedToIds,
-      status: task.status ?? 'not_started',
+      status: task.status ?? 'todo',
       readiness: task.readiness ?? 'missing_information',
       priority: task.priority ?? 'medium',
       description: task.description ?? null,
@@ -252,7 +252,7 @@ export const updateEstablishmentTask = async (
     updates.status = 'done';
   }
   if (updates.completed === false && !updates.status) {
-    updates.status = 'not_started';
+    updates.status = 'todo';
   }
 
   // SAFEGUARD: If assigned_to is being set but assigned_to_ids is not, sync them
@@ -380,7 +380,7 @@ export const generateDefaultTasks = async (
   const rows = defaults.map(d => ({
     booking_id: bookingId,
     source: 'default',
-    status: 'not_started' as TaskStatus,
+    status: 'todo' as TaskStatus,
     readiness: 'missing_information' as TaskReadiness,
     priority: 'medium' as TaskPriority,
     ...d,
@@ -419,7 +419,7 @@ export const generateDefaultTasksForProject = async (
   const rows = defaults.map(d => ({
     large_project_id: largeProjectId,
     source: 'default',
-    status: 'not_started' as TaskStatus,
+    status: 'todo' as TaskStatus,
     readiness: 'missing_information' as TaskReadiness,
     priority: 'medium' as TaskPriority,
     ...d,

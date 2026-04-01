@@ -79,11 +79,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "not_started", label: "Ej startad" },
+  { value: "todo", label: "Att göra" },
   { value: "in_progress", label: "Pågår" },
   { value: "blocked", label: "Blockerad" },
   { value: "done", label: "Klar" },
-  { value: "cancelled", label: "Avbruten" },
 ];
 
 const READINESS_OPTIONS: { value: TaskReadiness; label: string }[] = [
@@ -115,7 +114,7 @@ const EstablishmentTaskDetailSheet = ({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [taskNotes, setTaskNotes] = useState("");
   const [taskAssignedToIds, setTaskAssignedToIds] = useState<string[]>([]);
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>("not_started");
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>("todo");
   const [taskReadiness, setTaskReadiness] = useState<TaskReadiness>("missing_information");
   const [taskPriority, setTaskPriority] = useState<TaskPriority>("medium");
   const [taskDescription, setTaskDescription] = useState("");
@@ -251,7 +250,7 @@ const EstablishmentTaskDetailSheet = ({
       const ids = (taskDbData as any).assigned_to_ids as string[] | null;
       setTaskAssignedToIds(ids && ids.length > 0 ? ids : (taskDbData.assigned_to ? [taskDbData.assigned_to] : []));
       setTaskNotes(taskDbData.notes || "");
-      setTaskStatus((taskDbData.status as TaskStatus) || "not_started");
+      setTaskStatus((taskDbData.status as TaskStatus) || "todo");
       setTaskReadiness((taskDbData.readiness as TaskReadiness) || "missing_information");
       setTaskPriority((taskDbData.priority as TaskPriority) || "medium");
       setTaskDescription(taskDbData.description || "");
