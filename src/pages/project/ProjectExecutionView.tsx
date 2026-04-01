@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Filter,
   User,
+  UserCog,
   CalendarIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +109,15 @@ const ProjectExecutionView = () => {
     return Array.from(ids);
   }, [tasks]);
 
+  // Fetch user IDs (system users / PL)
+  const userIds = useMemo(() => {
+    const ids = new Set<string>();
+    tasks.forEach((t) => {
+      if (t.assigned_user_id) ids.add(t.assigned_user_id);
+    });
+    return Array.from(ids);
+  }, [tasks]);
+
   const { data: staffMap = {} } = useQuery({
     queryKey: ["staff-names", staffIds.join(",")],
     queryFn: async () => {
@@ -123,6 +133,21 @@ const ProjectExecutionView = () => {
     enabled: staffIds.length > 0,
   });
 
+  const { data: userMap = {} } = useQuery({
+    queryKey: ["user-names", userIds.join(",")],
+    queryFn: async () => {
+      if (userIds.length === 0) return {};
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", userIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u) => (map[u.user_id] = u.full_name || u.email || "Okänd"));
+      return map;
+    },
+    enabled: userIds.length > 0,
+  });
+
   // Apply filters
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -130,7 +155,7 @@ const ProjectExecutionView = () => {
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (filterPerson !== "all") {
         const ids = t.assigned_to_ids || [];
-        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson) return false;
+        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson && t.assigned_user_id !== filterPerson) return false;
       }
       return true;
     });
@@ -231,6 +256,11 @@ const ProjectExecutionView = () => {
                 {staffMap[id] || id.slice(0, 8)}
               </SelectItem>
             ))}
+            {userIds.map((id) => (
+              <SelectItem key={`u-${id}`} value={id}>
+                {userMap[id] || id.slice(0, 8)} (kontor)
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -258,6 +288,7 @@ const ProjectExecutionView = () => {
                 const assignedNames = (task.assigned_to_ids || [])
                   .map((id) => staffMap[id])
                   .filter(Boolean);
+                const assignedUserName = task.assigned_user_id ? userMap[task.assigned_user_id] : null;
 
                 return (
                   <div
@@ -307,6 +338,12 @@ const ProjectExecutionView = () => {
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {assignedNames.join(", ")}
+                          </span>
+                        )}
+                        {assignedUserName && (
+                          <span className="flex items-center gap-1">
+                            <UserCog className="h-3 w-3" />
+                            {assignedUserName}
                           </span>
                         )}
                         {(task.due_date || task.end_date) && (

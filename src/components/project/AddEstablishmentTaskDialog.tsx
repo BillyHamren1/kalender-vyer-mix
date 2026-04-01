@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Package, Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarIcon, Package, Plus, HardHat, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CategoryCombobox from "./CategoryCombobox";
 import { createEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
 import type { TaskStatus, TaskReadiness, TaskPriority, TaskType, LinkedEntityType } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
 
@@ -64,6 +66,8 @@ const AddEstablishmentTaskDialog = ({
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Montering");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [assignedUserId, setAssignedUserId] = useState<string | null>(null);
+  const [assigneeType, setAssigneeType] = useState<"staff" | "user">("staff");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [taskType, setTaskType] = useState<TaskType>("crew");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
@@ -75,6 +79,22 @@ const AddEstablishmentTaskDialog = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
+
+  // Fetch system users (profiles) for non-staff assignment
+  const { data: systemUsers = [] } = useQuery({
+    queryKey: ["system-users-profiles"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .order("full_name");
+      return (data || []).filter(u => u.full_name || u.email).map(u => ({
+        id: u.user_id,
+        name: u.full_name || u.email || "Okänd",
+      }));
+    },
+    staleTime: 60_000,
+  });
 
   const isProjectMode = !!largeProjectId && projectBookings.length > 0;
 
@@ -96,8 +116,22 @@ const AddEstablishmentTaskDialog = ({
       setPriority("medium");
       setTaskType("crew");
       setDueDate(undefined);
+      setAssignedTo(null);
+      setAssignedUserId(null);
+      setAssigneeType("staff");
     }
   }, [open]);
+
+  // Auto-switch to user mode for non-crew tasks
+  useEffect(() => {
+    if (taskType !== "crew") {
+      setAssigneeType("user");
+      setAssignedTo(null);
+    } else {
+      setAssigneeType("staff");
+      setAssignedUserId(null);
+    }
+  }, [taskType]);
 
   const handleQuickAdd = async (product: BookingProduct) => {
     setIsSubmitting(true);
@@ -116,7 +150,8 @@ const AddEstablishmentTaskDialog = ({
         end_date: date,
         source: 'product',
         source_product_id: product.id,
-        assigned_to: assignedTo,
+        assigned_to: assigneeType === "staff" ? assignedTo : null,
+        assigned_user_id: assigneeType === "user" ? assignedUserId : null,
         priority,
         task_type: taskType,
         due_date: dueDate ? dueDate.toISOString() : null,
@@ -146,7 +181,8 @@ const AddEstablishmentTaskDialog = ({
         start_date: format(startDate, 'yyyy-MM-dd'),
         end_date: format(endDate, 'yyyy-MM-dd'),
         source: 'manual',
-        assigned_to: assignedTo,
+        assigned_to: assigneeType === "staff" ? assignedTo : null,
+        assigned_user_id: assigneeType === "user" ? assignedUserId : null,
         priority,
         task_type: taskType,
         due_date: dueDate ? dueDate.toISOString() : null,
@@ -268,21 +304,52 @@ const AddEstablishmentTaskDialog = ({
             </div>
           </div>
 
-          <div>
-            <Label>Tilldela från projektteam</Label>
-            <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Ingen tilldelad" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Ingen tilldelad</SelectItem>
-                {staffPool.length > 0 ? staffPool.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                )) : (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Bemanna via kalendern först</div>
-                )}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2">
+            <Label>Tilldela till</Label>
+            <Tabs value={assigneeType} onValueChange={(v) => {
+              setAssigneeType(v as "staff" | "user");
+              if (v === "staff") setAssignedUserId(null);
+              if (v === "user") setAssignedTo(null);
+            }}>
+              <TabsList className="w-full h-9">
+                <TabsTrigger value="staff" className="flex-1 gap-1.5 text-xs">
+                  <HardHat className="h-3.5 w-3.5" />
+                  Fältpersonal
+                </TabsTrigger>
+                <TabsTrigger value="user" className="flex-1 gap-1.5 text-xs">
+                  <UserCog className="h-3.5 w-3.5" />
+                  Kontor / PL
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {assigneeType === "staff" ? (
+              <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ingen tilldelad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen tilldelad</SelectItem>
+                  {staffPool.length > 0 ? staffPool.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  )) : (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Bemanna via kalendern först</div>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={assignedUserId || "none"} onValueChange={(v) => setAssignedUserId(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ingen tilldelad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen tilldelad</SelectItem>
+                  {systemUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
