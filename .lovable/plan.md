@@ -1,17 +1,23 @@
 
 
-## Plan: Ta bort Stängningskontroll
+## Plan: Byt alla gröna färger till teal i ekonomivyn
 
-Tar bort `ProjectClosureGate`-komponenten och all relaterad logik från ekonomivyn.
+Alla gröna statusfärger (green/emerald) i ekonomisektionen byts ut mot **teal**.
 
 ### Ändringar
 
-| Fil | Ändring |
-|---|---|
-| `src/components/project/ProjectEconomyTab.tsx` | Ta bort import av `ProjectClosureGate`, ta bort `closureGates`-beräkningen, ta bort renderingen (rad 356-357), ta bort gates-prop från `ProjectClosureDialog` |
-| `src/components/project/ProjectClosureDialog.tsx` | Ta bort `ProjectClosureGate`-import och rendering inuti dialogen, ta bort `gates`-prop |
-| `src/components/economy/ProjectClosureGate.tsx` | Radera filen |
-| `src/lib/economy/projectEconomyStatus.ts` | Ta bort `buildGateItemsFromSignals`-funktionen och `GateItem`-importen |
+**`src/components/project/ProjectEconomyTab.tsx`**
+- `bg-green-500` → `bg-teal-500` (signalDot ok)
+- `text-green-600` → `text-teal-600` (margin text)
+- `bg-green-600 hover:bg-green-700` → `bg-teal-600 hover:bg-teal-700` (stäng-knapp)
 
-Stäng-knappen och stängningsdialogen behålls — det är bara den opålitliga checklistan som tas bort.
+**`src/components/project/ProjectClosureDialog.tsx`**
+- `text-green-600` → `text-teal-600` (checkmark icon)
+- `bg-green-600 hover:bg-green-700` → `bg-teal-600 hover:bg-teal-700` (stäng-knapp)
+
+**`src/pages/ProjectEconomyDetail.tsx`**
+- `border-emerald-200 text-emerald-600 bg-emerald-50` → `border-teal-200 text-teal-600 bg-teal-50` (ÖPPEN badge)
+
+**`src/components/economy/EconomyStatusBadge.tsx`**
+- Alla `green-*` references → `teal-*` equivalents
 
