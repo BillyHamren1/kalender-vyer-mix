@@ -1,15 +1,23 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { GanttChart, List, Users } from "lucide-react";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
+import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
+import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
+import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
+import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
+import PeopleOverview from "@/components/project/planning/PeopleOverview";
+import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
-const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+type ViewMode = "gantt" | "list" | "people";
 
 interface SelectedTask {
   id: string;
@@ -24,6 +32,7 @@ const EstablishmentPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const { project } = detail;
   const booking = project?.booking;
+  const bookingId = booking?.id || project?.booking_id || null;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const navigate = useNavigate();
@@ -34,7 +43,6 @@ const EstablishmentPage = () => {
     const tid = (location.state as any)?.highlightTaskId;
     if (tid) {
       window.history.replaceState({}, document.title);
-      // Fetch the task to populate the detail sheet
       supabase
         .from("establishment_tasks")
         .select("id, title, category, start_date, end_date, completed")
@@ -56,21 +64,23 @@ const EstablishmentPage = () => {
     }
   }, [location.state]);
 
-  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    setSheetOpen(false);
-    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
-  }, [navigate]);
+  const [viewMode, setViewMode] = useState<ViewMode>("gantt");
+  const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  const tabTriggerClass =
+    "relative px-4 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
-    queryKey: ['booking-staff-pool', booking?.id],
+    queryKey: ["booking-staff-pool", bookingId],
     queryFn: async () => {
       const { data } = await supabase
         .from("booking_staff_assignments")
         .select("staff_id")
-        .eq("booking_id", booking!.id);
+        .eq("booking_id", bookingId!);
 
-      const uniqueIds = [...new Set((data || []).map(r => r.staff_id))];
+      const uniqueIds = [...new Set((data || []).map((r) => r.staff_id))];
       if (uniqueIds.length === 0) return [];
 
       const { data: staffData } = await supabase
@@ -81,58 +91,172 @@ const EstablishmentPage = () => {
 
       return staffData || [];
     },
-    enabled: !!booking?.id,
+    enabled: !!bookingId,
   });
+
+  const { analytics } = useBookingTaskAnalytics(bookingId);
+
+  const filteredTasks = useMemo(() => {
+    if (!hasActiveFilters(filters)) return analytics.tasks;
+    return applyFilters(analytics.tasks, filters);
+  }, [analytics.tasks, filters]);
+
+  const visibleTaskIds = useMemo(() => {
+    if (!hasActiveFilters(filters)) return null;
+    return new Set(filteredTasks.map((t) => t.id));
+  }, [filteredTasks, filters]);
 
   const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
     setSheetOpen(true);
   }, []);
 
+  const handleOpenInChat = useCallback(
+    (taskId: string, taskTitle: string) => {
+      setSheetOpen(false);
+      navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+    },
+    [navigate]
+  );
+
+  const handleControlPanelTaskClick = useCallback(
+    (taskId: string) => {
+      const task = analytics.tasks.find((t) => t.id === taskId);
+      if (task) {
+        setSelectedTask({
+          id: task.id,
+          title: task.title,
+          category: task.category,
+          startDate: new Date(task.start_date),
+          endDate: new Date(task.end_date),
+          completed: task.completed,
+        });
+        setSheetOpen(true);
+      }
+    },
+    [analytics.tasks]
+  );
+
+  const handleOverviewFilter = useCallback((filter: OverviewFilter) => {
+    const newFilters: PlanningFilters = { ...EMPTY_FILTERS };
+    if (filter.section === "overdue") newFilters.quickFilter = "overdue";
+    else if (filter.section === "today") newFilters.quickFilter = "today";
+    else if (filter.section === "unassigned") newFilters.quickFilter = "unassigned";
+    else if (filter.status === "done") newFilters.quickFilter = "completed";
+    else if (filter.status) newFilters.status = filter.status as any;
+    if (filter.person) newFilters.assignedTo = filter.person;
+
+    setFilters(newFilters);
+    setViewMode("list");
+    setTimeout(() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  }, []);
+
   if (!project) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
+      {/* LEVEL 1: Project overview — same as LargeEstablishmentPage */}
+      <ProjectControlPanel
+        analytics={analytics}
+        staffPool={staffPool}
+        onTaskClick={handleControlPanelTaskClick}
+        onFilterChange={handleOverviewFilter}
+      />
 
-      <Tabs defaultValue="establishment" className="space-y-6">
-        <div className="border-b border-border/40 overflow-x-auto">
-          <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="establishment" className={tabTriggerClass}>
-              Etablering
-            </TabsTrigger>
-            <TabsTrigger value="deestablishment" className={tabTriggerClass}>
-              Avetablering
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      {/* LEVEL 2: Workspace */}
+      <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
+        <Tabs defaultValue="establishment">
+          <div className="border-b border-border/40 px-3 flex items-center justify-between">
+            <TabsList className="h-auto p-0 bg-transparent gap-0">
+              <TabsTrigger value="establishment" className={tabTriggerClass}>
+                Etablering
+              </TabsTrigger>
+              <TabsTrigger value="deestablishment" className={tabTriggerClass}>
+                Avetablering
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="establishment">
-          <EstablishmentGanttChart
-            rigDate={booking?.rigdaydate}
-            eventDate={booking?.eventdate}
-            bookingId={booking?.id}
-            client={booking?.client}
-            address={booking?.deliveryaddress}
-            staffPool={staffPool}
-            onTaskClick={handleTaskClick}
-          />
-        </TabsContent>
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+              <Button
+                variant={viewMode === "gantt" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("gantt")}
+              >
+                <GanttChart className="h-3.5 w-3.5" />
+                Gantt
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === "people" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("people")}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Personal
+              </Button>
+            </div>
+          </div>
 
-        <TabsContent value="deestablishment">
-          <DeestablishmentGanttChart
-            eventDate={booking?.eventdate}
-            rigdownDate={booking?.rigdowndate}
-            bookingId={booking?.id}
-            onTaskClick={handleTaskClick}
-          />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="establishment" className="mt-0 p-3 space-y-2">
+            <PlanningFilterBar
+              tasks={analytics.tasks}
+              filters={filters}
+              onFiltersChange={setFilters}
+              staffPool={staffPool}
+              filteredCount={filteredTasks.length}
+            />
+            {viewMode === "gantt" ? (
+              <EstablishmentGanttChart
+                rigDate={booking?.rigdaydate}
+                eventDate={booking?.eventdate}
+                bookingId={bookingId}
+                client={booking?.client}
+                address={booking?.deliveryaddress}
+                staffPool={staffPool}
+                onTaskClick={handleTaskClick}
+                visibleTaskIds={visibleTaskIds}
+              />
+            ) : viewMode === "list" ? (
+              <PlanningTaskList
+                tasks={filteredTasks}
+                staffPool={staffPool}
+                onTaskClick={handleTaskClick}
+              />
+            ) : (
+              <PeopleOverview
+                analytics={analytics}
+                staffPool={staffPool}
+                onTaskClick={handleControlPanelTaskClick}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="deestablishment" className="mt-0 p-3">
+            <DeestablishmentGanttChart
+              eventDate={booking?.eventdate}
+              rigdownDate={booking?.rigdowndate}
+              bookingId={bookingId}
+              onTaskClick={handleTaskClick}
+            />
+          </TabsContent>
+        </Tabs>
+      </Card>
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         task={selectedTask}
-        bookingId={booking?.id ?? null}
+        bookingId={bookingId}
         staffPool={staffPool}
         projectId={project?.id}
         onOpenInChat={handleOpenInChat}
