@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
-  { key: "execution", label: "Execution", icon: ListChecks, path: "/execution" },
+  { key: "execution", label: "Execution", icon: ListChecks, path: "/execution", emphasis: true },
   { key: "establishment", label: "Etableringsschema", icon: HardHat, path: "/establishment" },
   { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
 ];
@@ -163,6 +163,9 @@ const ProjectLayout = () => {
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{item.label}</span>
+                  {!isActive && (item as any).emphasis && (
+                    <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  )}
                 </Link>
               );
             })}
