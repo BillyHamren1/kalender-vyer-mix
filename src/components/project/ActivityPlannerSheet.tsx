@@ -90,7 +90,22 @@ interface ActivityRow {
   assignedToIds: string[];
   notes: string;
   productIds: string[];
+  /** Maps real product ID → how many units assigned to this row (for split products) */
+  productQuantities: Record<string, number>;
   source: 'product' | 'manual';
+}
+
+/** Parse a virtual unit ID like "abc__unit_3" → { realId: "abc", unitIndex: 3 } */
+function parseVirtualId(id: string): { realId: string; unitIndex: number } | null {
+  const match = id.match(/^(.+)__unit_(\d+)$/);
+  if (!match) return null;
+  return { realId: match[1], unitIndex: parseInt(match[2], 10) };
+}
+
+/** Get the real product ID from a possibly virtual ID */
+function getRealProductId(id: string): string {
+  const parsed = parseVirtualId(id);
+  return parsed ? parsed.realId : id;
 }
 
 let _rowId = 0;
