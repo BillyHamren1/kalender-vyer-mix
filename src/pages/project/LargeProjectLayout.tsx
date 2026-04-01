@@ -189,8 +189,13 @@ const LargeProjectLayout = () => {
 
         {/* Booking info – show on overview page */}
         {activeKey === "overview" && (
-          <div className="space-y-2 mb-6">
-            <div className="flex items-center justify-between mb-2">
+          <div className="space-y-4 mb-6">
+            {/* Schedule date cards */}
+            <LargeProjectScheduleEditable
+              startDate={project.start_date}
+              endDate={project.end_date}
+              onUpdateDates={(updates) => detail.updateProject(updates)}
+            />
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Kopplade bokningar ({bookings.length})
               </h3>
