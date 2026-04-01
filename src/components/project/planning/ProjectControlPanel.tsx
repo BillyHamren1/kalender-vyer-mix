@@ -312,12 +312,10 @@ const ActionRequired = ({ issues, staffPool, onTaskClick }: {
   staffPool: Array<{ id: string; name: string }>;
   onTaskClick?: (taskId: string) => void;
 }) => {
-  // Filter out overdue/blocked (shown in their own section) and no_owner (shown in unassigned)
-  const filteredIssues = issues.filter(i => 
-    i.type !== "overdue" && i.type !== "blocked" && i.type !== "no_owner"
-  );
-
-  if (filteredIssues.length === 0) return null;
+  const filteredIssues = useMemo(() => 
+    issues.filter(i => 
+      i.type !== "overdue" && i.type !== "blocked" && i.type !== "no_owner"
+    ), [issues]);
 
   const grouped = useMemo(() => {
     const map = new Map<CriticalIssue["type"], CriticalIssue[]>();
@@ -327,6 +325,8 @@ const ActionRequired = ({ issues, staffPool, onTaskClick }: {
     });
     return Array.from(map.entries());
   }, [filteredIssues]);
+
+  if (filteredIssues.length === 0) return null;
 
   return (
     <SectionCard icon={Zap} title="Övriga problem" count={filteredIssues.length} variant="warning">
