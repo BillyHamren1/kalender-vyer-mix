@@ -815,9 +815,31 @@ const ActivityPlannerSheet = ({
             attachingToRowId ? "block" : "hidden md:flex"
           )}>
             <div className="px-4 py-3 border-b border-border bg-muted/20">
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Produkter från bokningen
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Produkter från bokningen
+                </h3>
+                {attachingToRowId && productTree.length > 0 && (() => {
+                  const allIds = productTree.map(n => n.product.id);
+                  const allSelected = allIds.length > 0 && allIds.every(id => selectedIds.has(id));
+                  return (
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={() => {
+                          if (allSelected) {
+                            setSelectedIds(new Set());
+                          } else {
+                            setSelectedIds(new Set(allIds));
+                          }
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      Markera alla
+                    </label>
+                  );
+                })()}
+              </div>
               {attachingToRowId && (
                 <p className="text-xs text-primary mt-0.5">
                   Kopplar till: <strong>#{rows.findIndex(r => r.id === attachingToRowId) + 1} {rows.find(r => r.id === attachingToRowId)?.title || '(namnlös)'}</strong> • {selectedIds.size} valda
