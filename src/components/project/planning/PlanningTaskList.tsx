@@ -30,11 +30,10 @@ interface PlanningTaskListProps {
 }
 
 const STATUS_CONFIG: Record<string, { icon: typeof Circle; label: string; className: string; rowClass: string }> = {
-  not_started: { icon: Circle, label: "Ej startad", className: "text-muted-foreground", rowClass: "" },
+  todo: { icon: Circle, label: "Att göra", className: "text-muted-foreground", rowClass: "" },
   in_progress: { icon: Play, label: "Pågår", className: "text-primary", rowClass: "" },
   blocked: { icon: Ban, label: "Blockerad", className: "text-destructive", rowClass: "bg-destructive/5 border-destructive/20" },
   done: { icon: CheckCircle2, label: "Klar", className: "text-emerald-600 dark:text-emerald-400", rowClass: "opacity-60" },
-  cancelled: { icon: XCircle, label: "Avbruten", className: "text-muted-foreground", rowClass: "opacity-40" },
 };
 
 const PRIORITY_CONFIG: Record<string, { icon: typeof ArrowUp; className: string; label: string }> = {
