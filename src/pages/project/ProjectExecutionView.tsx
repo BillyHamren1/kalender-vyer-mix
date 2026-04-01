@@ -86,6 +86,7 @@ const ProjectExecutionView = () => {
   const { project } = detail;
   const location = useLocation();
   const bookingId = project?.booking_id || project?.booking?.id || null;
+  const navigate = useNavigate();
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 

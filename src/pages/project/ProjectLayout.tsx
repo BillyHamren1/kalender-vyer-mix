@@ -163,6 +163,9 @@ const ProjectLayout = () => {
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{item.label}</span>
+                  {!isActive && (item as any).emphasis && (
+                    <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  )}
                 </Link>
               );
             })}
