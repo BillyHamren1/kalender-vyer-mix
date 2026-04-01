@@ -590,7 +590,7 @@ const EstablishmentGanttChart = ({
                   const assignedName = taskAssignedIds.length > 0
                     ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
                     : null;
-                  const noOwner = taskAssignedIds.length === 0 && taskStatus !== 'done' && taskStatus !== 'cancelled';
+                  const noOwner = taskAssignedIds.length === 0 && taskStatus !== 'done';
 
                   // Overlap detection: any shared assigned person across overlapping tasks
                   const hasPersonOverlap = taskAssignedIds.length > 0 && ganttData.taskDates.some(other => {
