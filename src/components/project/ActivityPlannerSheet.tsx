@@ -418,11 +418,20 @@ const ActivityPlannerSheet = ({
     });
   }, []);
 
+  const toggleShowChildren = useCallback((productId: string) => {
+    setShowChildrenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId); else next.add(productId);
+      return next;
+    });
+  }, []);
+
   const renderProductNode = (node: ProductNode, depth: number = 0) => {
     const isPlanned = plannedProductIds.has(node.product.id);
     const hasChildren = node.children.length > 0;
     const qty = node.product.quantity;
     const isExpanded = expandedProductIds.has(node.product.id);
+    const childrenVisible = showChildrenIds.has(node.product.id);
     const canSplit = qty > 1 && depth === 0;
 
     // If expanded, render individual unit rows instead
