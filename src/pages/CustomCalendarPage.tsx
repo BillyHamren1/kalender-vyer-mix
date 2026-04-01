@@ -360,6 +360,7 @@ const CustomCalendarPage = () => {
                     onToggleTeamForDay={handleToggleTeamForDay}
                     allTeams={teamResources}
                     onEventClick={handleEventClick}
+                    isEventReadOnly={isEventReadOnly}
                   />
                   <WeekTabsNavigation
                     currentMonth={monthlyDate}
