@@ -2,16 +2,15 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, CalendarIcon } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import LargeProjectScheduleEditable from "@/components/project/LargeProjectScheduleEditable";
 import { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { fetchAvailableBookingsForLargeProject } from "@/services/largeProjectService";
 import { ProjectStatus } from "@/types/project";
@@ -149,53 +148,10 @@ const LargeProjectLayout = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !project.start_date && "text-muted-foreground")}>
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    {project.start_date ? format(new Date(project.start_date), "d MMM yyyy", { locale: sv }) : "Startdatum"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <CalendarPicker
-                    mode="single"
-                    selected={project.start_date ? new Date(project.start_date) : undefined}
-                    onSelect={(date) => {
-                      detail.updateProject({ start_date: date ? format(date, 'yyyy-MM-dd') : null });
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <span className="text-xs text-muted-foreground">–</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !project.end_date && "text-muted-foreground")}>
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    {project.end_date ? format(new Date(project.end_date), "d MMM yyyy", { locale: sv }) : "Slutdatum"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <CalendarPicker
-                    mode="single"
-                    selected={project.end_date ? new Date(project.end_date) : undefined}
-                    onSelect={(date) => {
-                      detail.updateProject({ end_date: date ? format(date, 'yyyy-MM-dd') : null });
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <ProjectStatusDropdown
-              status={statusMap[project.status] || "planning"}
-              onStatusChange={(status) => detail.updateStatus(status as any)}
-            />
-          </div>
+          <ProjectStatusDropdown
+            status={statusMap[project.status] || "planning"}
+            onStatusChange={(status) => detail.updateStatus(status as any)}
+          />
         </div>
 
         {/* 3-page navigation */}
@@ -233,8 +189,15 @@ const LargeProjectLayout = () => {
 
         {/* Booking info – show on overview page */}
         {activeKey === "overview" && (
-          <div className="space-y-2 mb-6">
-            <div className="flex items-center justify-between mb-2">
+          <div className="space-y-4 mb-6">
+            {/* Schedule date cards */}
+            <LargeProjectScheduleEditable
+              startDate={project.start_date}
+              endDate={project.end_date}
+              onUpdateDates={(updates) => detail.updateProject(updates)}
+            />
+
+            <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Kopplade bokningar ({bookings.length})
               </h3>
