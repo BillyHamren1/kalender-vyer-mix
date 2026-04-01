@@ -58,11 +58,10 @@ const EstablishmentPage = () => {
   };
 
   const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    setLinkedTaskRef({ taskId, taskTitle });
     setSheetOpen(false);
-    // Chat is on the project view page — navigate there
-    // For now, store the ref so parent can pick it up if communication is on this page
-  }, []);
+    // Navigate to the project overview page which hosts ProjectCommunication, passing task ref
+    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  }, [navigate]);
 
   return (
     <div className="space-y-6">
