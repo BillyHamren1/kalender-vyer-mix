@@ -1,0 +1,355 @@
+import { useState, useMemo } from "react";
+import { useOutletContext } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { format, isToday, isBefore, startOfDay, addDays, parseISO } from "date-fns";
+import { sv } from "date-fns/locale";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  AlertTriangle,
+  Filter,
+  User,
+  CalendarIcon,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import type { useProjectDetail } from "@/hooks/useProjectDetail";
+import type { EstablishmentTask, TaskType, TaskStatus } from "@/services/establishmentTaskService";
+import { updateEstablishmentTask } from "@/services/establishmentTaskService";
+
+// ── constants ──────────────────────────────────────────────────────────
+
+const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  crew: "Fält",
+  pm: "PL",
+  logistics: "Logistik",
+  admin: "Admin",
+};
+
+const TASK_TYPE_COLORS: Record<TaskType, string> = {
+  crew: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  pm: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  logistics: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  admin: "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300",
+};
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  not_started: "Ej startad",
+  in_progress: "Pågår",
+  blocked: "Blockerad",
+  done: "Klar",
+  cancelled: "Avbruten",
+};
+
+// ── helpers ────────────────────────────────────────────────────────────
+
+function getDateGroup(task: EstablishmentTask): "overdue" | "today" | "upcoming" | "no_date" {
+  const ref = task.due_date ?? task.end_date;
+  if (!ref) return "no_date";
+  const d = startOfDay(parseISO(ref));
+  const now = startOfDay(new Date());
+  if (task.status === "done" || task.status === "cancelled") return "upcoming";
+  if (isBefore(d, now)) return "overdue";
+  if (isToday(d)) return "today";
+  return "upcoming";
+}
+
+function getIndicatorColor(group: string, status: TaskStatus) {
+  if (status === "done") return "border-l-green-500";
+  if (group === "overdue") return "border-l-red-500";
+  if (group === "today") return "border-l-yellow-500";
+  return "border-l-border";
+}
+
+// ── component ──────────────────────────────────────────────────────────
+
+const ProjectExecutionView = () => {
+  const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
+  const { project } = detail;
+  const bookingId = project?.booking_id || project?.booking?.id || null;
+
+  // Filters
+  const [filterPerson, setFilterPerson] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  // Fetch establishment tasks for this booking
+  const { data: tasks = [], refetch } = useQuery({
+    queryKey: ["execution-tasks", bookingId],
+    queryFn: async () => {
+      if (!bookingId) return [];
+      const { data, error } = await supabase
+        .from("establishment_tasks")
+        .select(
+          "id, title, category, start_date, end_date, status, priority, assigned_to, assigned_to_ids, task_type, assigned_user_id, due_date, completed, notes"
+        )
+        .eq("booking_id", bookingId)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data || []) as EstablishmentTask[];
+    },
+    enabled: !!bookingId,
+  });
+
+  // Fetch staff names
+  const staffIds = useMemo(() => {
+    const ids = new Set<string>();
+    tasks.forEach((t) => {
+      (t.assigned_to_ids || []).forEach((id) => ids.add(id));
+      if (t.assigned_to) ids.add(t.assigned_to);
+    });
+    return Array.from(ids);
+  }, [tasks]);
+
+  const { data: staffMap = {} } = useQuery({
+    queryKey: ["staff-names", staffIds.join(",")],
+    queryFn: async () => {
+      if (staffIds.length === 0) return {};
+      const { data } = await supabase
+        .from("staff_members")
+        .select("id, name")
+        .in("id", staffIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => (map[s.id] = s.name));
+      return map;
+    },
+    enabled: staffIds.length > 0,
+  });
+
+  // Apply filters
+  const filtered = useMemo(() => {
+    return tasks.filter((t) => {
+      if (filterType !== "all" && t.task_type !== filterType) return false;
+      if (filterStatus !== "all" && t.status !== filterStatus) return false;
+      if (filterPerson !== "all") {
+        const ids = t.assigned_to_ids || [];
+        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson) return false;
+      }
+      return true;
+    });
+  }, [tasks, filterPerson, filterType, filterStatus]);
+
+  // Group by date bucket
+  const groups = useMemo(() => {
+    const buckets: Record<string, EstablishmentTask[]> = {
+      overdue: [],
+      today: [],
+      upcoming: [],
+      no_date: [],
+    };
+    filtered.forEach((t) => {
+      buckets[getDateGroup(t)].push(t);
+    });
+    return buckets;
+  }, [filtered]);
+
+  // Quick actions
+  const handleMarkDone = async (task: EstablishmentTask) => {
+    try {
+      await updateEstablishmentTask(task.id, {
+        status: task.status === "done" ? "not_started" : "done",
+        completed: task.status !== "done",
+      });
+      refetch();
+      toast.success(task.status === "done" ? "Återöppnad" : "Markerad som klar");
+    } catch {
+      toast.error("Kunde inte uppdatera");
+    }
+  };
+
+  const handleChangeDate = async (taskId: string, date: Date) => {
+    try {
+      await updateEstablishmentTask(taskId, {
+        due_date: date.toISOString(),
+      } as any);
+      refetch();
+      toast.success("Deadline uppdaterad");
+    } catch {
+      toast.error("Kunde inte uppdatera");
+    }
+  };
+
+  if (!project) return null;
+
+  const groupOrder: { key: string; label: string; icon: React.ReactNode }[] = [
+    { key: "overdue", label: "Försenade", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> },
+    { key: "today", label: "Idag", icon: <Clock className="h-4 w-4 text-yellow-500" /> },
+    { key: "upcoming", label: "Kommande", icon: <CalendarIcon className="h-4 w-4 text-muted-foreground" /> },
+    { key: "no_date", label: "Utan datum", icon: <Circle className="h-4 w-4 text-muted-foreground" /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          Filter
+        </div>
+
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="Typ" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alla typer</SelectItem>
+            <SelectItem value="crew">Fält</SelectItem>
+            <SelectItem value="pm">Projektledning</SelectItem>
+            <SelectItem value="logistics">Logistik</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alla status</SelectItem>
+            <SelectItem value="not_started">Ej startad</SelectItem>
+            <SelectItem value="in_progress">Pågår</SelectItem>
+            <SelectItem value="blocked">Blockerad</SelectItem>
+            <SelectItem value="done">Klar</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterPerson} onValueChange={setFilterPerson}>
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="Person" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alla personer</SelectItem>
+            {staffIds.map((id) => (
+              <SelectItem key={id} value={id}>
+                {staffMap[id] || id.slice(0, 8)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="ml-auto text-sm text-muted-foreground">
+          {filtered.length} av {tasks.length} aktiviteter
+        </div>
+      </div>
+
+      {/* Task groups */}
+      {groupOrder.map(({ key, label, icon }) => {
+        const items = groups[key] || [];
+        if (items.length === 0) return null;
+
+        return (
+          <div key={key}>
+            <div className="flex items-center gap-2 mb-3">
+              {icon}
+              <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+              <span className="text-xs text-muted-foreground">({items.length})</span>
+            </div>
+
+            <div className="space-y-2">
+              {items.map((task) => {
+                const group = getDateGroup(task);
+                const assignedNames = (task.assigned_to_ids || [])
+                  .map((id) => staffMap[id])
+                  .filter(Boolean);
+
+                return (
+                  <div
+                    key={task.id}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border bg-card p-3 border-l-4 transition-colors hover:bg-accent/30",
+                      getIndicatorColor(group, task.status as TaskStatus)
+                    )}
+                  >
+                    {/* Done toggle */}
+                    <button
+                      onClick={() => handleMarkDone(task)}
+                      className="flex-shrink-0"
+                    >
+                      {task.status === "done" ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                      )}
+                    </button>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={cn(
+                            "text-sm font-medium truncate",
+                            task.status === "done" && "line-through text-muted-foreground"
+                          )}
+                        >
+                          {task.title}
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className={cn("text-[10px] px-1.5 py-0", TASK_TYPE_COLORS[task.task_type as TaskType] || TASK_TYPE_COLORS.crew)}
+                        >
+                          {TASK_TYPE_LABELS[task.task_type as TaskType] || "Fält"}
+                        </Badge>
+                        {task.priority === "high" && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                            Hög
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                        {assignedNames.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {assignedNames.join(", ")}
+                          </span>
+                        )}
+                        {(task.due_date || task.end_date) && (
+                          <span className="flex items-center gap-1">
+                            <CalendarIcon className="h-3 w-3" />
+                            {format(parseISO(task.due_date || task.end_date), "d MMM", { locale: sv })}
+                          </span>
+                        )}
+                        <span>{STATUS_LABELS[task.status as TaskStatus] || task.status}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick date change */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                          <CalendarIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                          mode="single"
+                          selected={task.due_date ? parseISO(task.due_date) : undefined}
+                          onSelect={(d) => d && handleChangeDate(task.id, d)}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {filtered.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="text-sm">Inga aktiviteter matchar filtret</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ProjectExecutionView;

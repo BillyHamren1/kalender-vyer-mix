@@ -98,6 +98,8 @@ const ProjectLayout = () => {
     ? "establishment"
     : currentPath.endsWith("/economy")
     ? "economy"
+    : currentPath.endsWith("/execution")
+    ? "execution"
     : "overview";
 
   return (
