@@ -160,6 +160,21 @@ const LargeEstablishmentPage = () => {
     client: (b as any).booking?.client || null,
   }));
 
+  // Derive fallback dates from bookings when project has no explicit dates
+  const fallbackDates = useMemo(() => {
+    if (project.start_date && project.end_date) return { start: project.start_date, end: project.end_date };
+    const bookingDates = (project.bookings || [])
+      .map(b => b.booking)
+      .filter(Boolean)
+      .flatMap(bk => [bk!.rigdaydate, bk!.eventdate, bk!.rigdowndate].filter(Boolean) as string[]);
+    if (bookingDates.length === 0) return { start: project.start_date, end: project.end_date };
+    const sorted = bookingDates.sort();
+    return {
+      start: project.start_date || sorted[0],
+      end: project.end_date || sorted[sorted.length - 1],
+    };
+  }, [project]);
+
   return (
     <div className="space-y-3">
       {/* LEVEL 1: Project overview */}
