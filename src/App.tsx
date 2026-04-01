@@ -33,6 +33,7 @@ import ProjectLayout from "./pages/project/ProjectLayout";
 import ProjectViewPage from "./pages/project/ProjectViewPage";
 import EstablishmentPage from "./pages/project/EstablishmentPage";
 import ProjectEconomyPage from "./pages/project/ProjectEconomyPage";
+import ProjectExecutionView from "./pages/project/ProjectExecutionView";
 import LargeProjectLayout from "./pages/project/LargeProjectLayout";
 import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
 import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
