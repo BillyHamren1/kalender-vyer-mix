@@ -192,18 +192,39 @@ const OrganizationLocationsManager = () => {
             </div>
             <div>
               <Label className="text-xs">Adress</Label>
-              <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Storgatan 1, Stockholm" className="h-9 text-sm" />
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label className="text-xs">Latitud</Label>
-                <Input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="59.3293" className="h-9 text-sm" />
+              <div className="flex gap-1.5">
+                <Input
+                  value={form.address}
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="Storgatan 1, Stockholm"
+                  className="h-9 text-sm flex-1"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); geocodeAddress(); } }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-2.5 shrink-0"
+                  onClick={geocodeAddress}
+                  disabled={isGeocoding}
+                >
+                  {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                </Button>
               </div>
-              <div className="flex-1">
-                <Label className="text-xs">Longitud</Label>
-                <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
-              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Skriv adress och klicka sök — koordinater fylls i automatiskt</p>
             </div>
+            {(form.latitude || form.longitude) && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label className="text-[10px] text-muted-foreground">Latitud</Label>
+                  <Input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} className="h-8 text-xs bg-muted/40" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-[10px] text-muted-foreground">Longitud</Label>
+                  <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} className="h-8 text-xs bg-muted/40" />
+                </div>
+              </div>
+            )}
             <div>
               <Label className="text-xs">Radie (meter)</Label>
               <Input type="number" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
