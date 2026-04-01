@@ -55,6 +55,8 @@ interface EstablishmentTaskDetailSheetProps {
   largeProjectId?: string | null;
   staffPool?: StaffMember[];
   projectBookings?: BookingInfo[];
+  projectId?: string | null;
+  onOpenInChat?: (taskId: string, taskTitle: string) => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
