@@ -264,21 +264,82 @@ const ProjectExecutionView = () => {
 
   if (!project) return null;
 
+  // Summary metrics
+  const overdueCount = (groups.overdue || []).length;
+  const todayCount = (groups.today || []).length;
+  const blockedCount = tasks.filter(t => t.status === "blocked").length;
+  const unassignedCount = tasks.filter(t => t.status !== "done" && (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && !t.assigned_user_id).length;
+
   const allAssignees = [
     ...staffIds.map(id => ({ id, name: staffMap[id] || id.slice(0, 8), type: "staff" as const })),
     ...userIds.map(id => ({ id, name: userMap[id] || id.slice(0, 8), type: "user" as const })),
   ];
 
   const groupOrder: { key: string; label: string; icon: React.ReactNode }[] = [
-    { key: "overdue", label: "Försenade", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> },
+    { key: "overdue", label: "Försenade", icon: <AlertTriangle className="h-4 w-4 text-destructive" /> },
     { key: "today", label: "Idag", icon: <Clock className="h-4 w-4 text-yellow-500" /> },
     { key: "upcoming", label: "Kommande", icon: <CalendarIcon className="h-4 w-4 text-muted-foreground" /> },
     { key: "no_date", label: "Utan datum", icon: <Circle className="h-4 w-4 text-muted-foreground" /> },
-    { key: "done", label: "Klara", icon: <CheckCircle2 className="h-4 w-4 text-green-500" /> },
+    { key: "done", label: "Klara", icon: <CheckCircle2 className="h-4 w-4 text-primary" /> },
   ];
+
+  const handleOpenInChat = (taskId: string, taskTitle: string) => {
+    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  };
 
   return (
     <div className="space-y-6">
+      {/* Summary metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button
+          onClick={() => { setFilterStatus("all"); }}
+          className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
+            overdueCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50"
+          )}
+        >
+          <AlertTriangle className={cn("h-5 w-5", overdueCount > 0 ? "text-destructive" : "text-muted-foreground")} />
+          <div className="text-left">
+            <span className={cn("text-xl font-bold tabular-nums leading-none", overdueCount > 0 ? "text-destructive" : "text-muted-foreground")}>{overdueCount}</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Försenade</p>
+          </div>
+        </button>
+        <button
+          onClick={() => { setFilterStatus("all"); }}
+          className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
+            todayCount > 0 ? "border-yellow-500/30 bg-yellow-500/5" : "border-border/50"
+          )}
+        >
+          <Clock className={cn("h-5 w-5", todayCount > 0 ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground")} />
+          <div className="text-left">
+            <span className={cn("text-xl font-bold tabular-nums leading-none", todayCount > 0 ? "text-foreground" : "text-muted-foreground")}>{todayCount}</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Idag</p>
+          </div>
+        </button>
+        <button
+          onClick={() => setFilterStatus("blocked")}
+          className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
+            blockedCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-border/50"
+          )}
+        >
+          <Ban className={cn("h-5 w-5", blockedCount > 0 ? "text-destructive" : "text-muted-foreground")} />
+          <div className="text-left">
+            <span className={cn("text-xl font-bold tabular-nums leading-none", blockedCount > 0 ? "text-destructive" : "text-muted-foreground")}>{blockedCount}</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Blockerade</p>
+          </div>
+        </button>
+        <button
+          onClick={() => setFilterPerson("all")}
+          className={cn("flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-md",
+            unassignedCount > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50"
+          )}
+        >
+          <User className={cn("h-5 w-5", unassignedCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} />
+          <div className="text-left">
+            <span className={cn("text-xl font-bold tabular-nums leading-none", unassignedCount > 0 ? "text-foreground" : "text-muted-foreground")}>{unassignedCount}</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Ej tilldelade</p>
+          </div>
+        </button>
+      </div>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
