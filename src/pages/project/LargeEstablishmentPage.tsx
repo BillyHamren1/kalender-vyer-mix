@@ -90,8 +90,8 @@ const LargeEstablishmentPage = () => {
 
   const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
     setSheetOpen(false);
-    // Navigate to the collaboration page which hosts chat, passing task ref
-    navigate("collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } });
+    // Navigate to sibling collaboration route, passing task ref
+    navigate("../collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } });
   }, [navigate]);
 
   const handleControlPanelTaskClick = useCallback((taskId: string) => {
