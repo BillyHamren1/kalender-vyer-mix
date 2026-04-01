@@ -56,7 +56,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "Klar" },
 ];
 
-const STATUS_GROUP_ORDER: TaskStatus[] = ["blocked", "in_progress", "not_started", "done", "cancelled"];
+const STATUS_GROUP_ORDER: TaskStatus[] = ["blocked", "in_progress", "todo", "done"];
 
 const getStaffName = (staffId: string | null, staffPool: Array<{ id: string; name: string }>) => {
   if (!staffId) return null;
