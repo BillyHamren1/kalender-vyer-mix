@@ -328,6 +328,7 @@ const CustomCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
                   onEventClick={handleEventClick}
+                  isEventReadOnly={isEventReadOnly}
                 />
               )
             ) : viewMode === 'monthly' ? (
