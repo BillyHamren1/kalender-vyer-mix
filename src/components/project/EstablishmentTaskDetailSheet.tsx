@@ -573,14 +573,156 @@ const EstablishmentTaskDetailSheet = ({
             <>
               <div className="py-3">
                 <Label className="text-xs text-muted-foreground">Kopplad bokning</Label>
-                <Badge variant="secondary" className="text-xs mt-1 block w-fit">
+                <Badge
+                  variant="secondary"
+                  className="text-xs mt-1 block w-fit cursor-pointer hover:bg-accent transition-colors"
+                  onClick={() => navigate(`/booking/${taskDbData.booking_id}`)}
+                >
                   {linked.display_name || linked.client || linked.booking_id}
+                  <ExternalLink className="h-2.5 w-2.5 ml-1 inline" />
                 </Badge>
               </div>
               <Separator />
             </>
           ) : null;
         })()}
+
+        {/* Linked entity (booking / supplier reference) */}
+        <div className="py-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs text-muted-foreground">Länkad kontext</Label>
+          </div>
+
+          {/* Display existing link */}
+          {linkedEntityType !== "none" && linkedEntityId && (
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-accent transition-colors flex items-center gap-1"
+                onClick={() => {
+                  if (linkedEntityType === "booking") {
+                    navigate(`/booking/${linkedEntityId}`);
+                  }
+                  // supplier = just a text reference, no navigation
+                }}
+              >
+                {linkedEntityType === "booking" ? "📋 Bokning" : "🏢 Leverantör"}:&nbsp;
+                <span className="font-medium">{linkedEntityId.length > 20 ? linkedEntityId.slice(0, 20) + "…" : linkedEntityId}</span>
+                {linkedEntityType === "booking" && <ExternalLink className="h-2.5 w-2.5 ml-0.5" />}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={async () => {
+                  await updateEstablishmentTask(task!.id, { linked_entity_type: "none", linked_entity_id: null });
+                  setLinkedEntityType("none");
+                  setLinkedEntityId("");
+                  queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task!.id] });
+                  toast.success("Länk borttagen");
+                }}
+              >
+                <Trash2 className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+          )}
+
+          {/* Add/edit link */}
+          {linkedEntityType === "none" && (
+            <div className="flex items-center gap-2">
+              <Select
+                value=""
+                onValueChange={async (type) => {
+                  setLinkedEntityType(type as LinkedEntityType);
+                }}
+              >
+                <SelectTrigger className="h-7 w-[130px] text-xs">
+                  <SelectValue placeholder="Lägg till länk…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="booking">Bokning</SelectItem>
+                  <SelectItem value="supplier">Leverantör</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {linkedEntityType !== "none" && !linkedEntityId && (
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder={linkedEntityType === "booking" ? "Boknings-ID…" : "Leverantörsnamn…"}
+                className="h-7 text-xs flex-1"
+                value={linkedEntityId}
+                onChange={(e) => setLinkedEntityId(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === "Enter" && linkedEntityId.trim()) {
+                    await updateEstablishmentTask(task!.id, {
+                      linked_entity_type: linkedEntityType,
+                      linked_entity_id: linkedEntityId.trim(),
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task!.id] });
+                    toast.success("Länk sparad");
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2"
+                disabled={!linkedEntityId.trim()}
+                onClick={async () => {
+                  if (!linkedEntityId.trim()) return;
+                  await updateEstablishmentTask(task!.id, {
+                    linked_entity_type: linkedEntityType,
+                    linked_entity_id: linkedEntityId.trim(),
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task!.id] });
+                  toast.success("Länk sparad");
+                }}
+              >
+                <Check className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => {
+                  setLinkedEntityType("none");
+                  setLinkedEntityId("");
+                }}
+              >
+                Avbryt
+              </Button>
+            </div>
+          )}
+
+          {/* Booking picker from projectBookings */}
+          {linkedEntityType === "booking" && !linkedEntityId && projectBookings.length > 0 && (
+            <div className="space-y-0.5 mt-1">
+              <p className="text-[10px] text-muted-foreground">Eller välj en bokning:</p>
+              {projectBookings.map(b => (
+                <button
+                  key={b.booking_id}
+                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent/50 transition-colors"
+                  onClick={async () => {
+                    setLinkedEntityId(b.booking_id);
+                    await updateEstablishmentTask(task!.id, {
+                      linked_entity_type: "booking",
+                      linked_entity_id: b.booking_id,
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task!.id] });
+                    toast.success("Länk sparad");
+                  }}
+                >
+                  {b.display_name || b.client || b.booking_id}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Separator />
 
         {/* Product checklist from source_product_ids */}
         {productHierarchy.length > 0 && (
