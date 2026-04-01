@@ -208,6 +208,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
                 onAction={getTaskAction?.(syncedSelectedTask)}
+                onOpenInExecution={syncedSelectedTask.execution_task_id ? () => handleOpenInExecution(syncedSelectedTask) : undefined}
               />
             </div>
           )}
