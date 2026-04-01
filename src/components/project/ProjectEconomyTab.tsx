@@ -353,8 +353,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       {/* ─── D. Time Approval Summary ─── */}
       <TimeApprovalSummary timeReports={timeReports} />
 
-      {/* ─── E. Closure Gate (always visible) ─── */}
-      <ProjectClosureGate gates={closureGates} />
 
       {/* ─── F. Offertunderlag från bokning ─── */}
       {bookingEconomics && (
