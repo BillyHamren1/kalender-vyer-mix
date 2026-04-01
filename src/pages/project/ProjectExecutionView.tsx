@@ -154,7 +154,7 @@ const ProjectExecutionView = () => {
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (filterPerson !== "all") {
         const ids = t.assigned_to_ids || [];
-        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson) return false;
+        if (!ids.includes(filterPerson) && t.assigned_to !== filterPerson && t.assigned_user_id !== filterPerson) return false;
       }
       return true;
     });
