@@ -289,7 +289,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       const projectData: Record<string, any> = {
         name: name.trim(),
         booking_id: bookingId,
-        project_leader: selectedLeaderId && selectedLeaderId !== "none" ? selectedLeaderId : null
+        project_leader: selectedLeaderId && selectedLeaderId !== "none" ? (staffMembers.find(s => s.id === selectedLeaderId)?.name || selectedLeaderId) : null
       };
 
       // Add standalone fields if no booking
