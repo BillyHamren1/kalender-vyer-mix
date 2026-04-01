@@ -475,6 +475,22 @@ export async function createLargeProjectPurchase(purchase: {
   return data;
 }
 
+export async function updateLargeProjectPurchase(id: string, updates: Partial<{
+  description: string;
+  amount: number;
+  category: string | null;
+  supplier: string | null;
+  purchase_date: string | null;
+  receipt_url: string | null;
+}>): Promise<void> {
+  const { error } = await supabase
+    .from('large_project_purchases')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 export async function deleteLargeProjectPurchase(id: string): Promise<void> {
   const { error } = await supabase
     .from('large_project_purchases')
