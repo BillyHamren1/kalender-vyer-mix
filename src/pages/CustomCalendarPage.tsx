@@ -240,6 +240,8 @@ const CustomCalendarPage = () => {
     // Also update currentWeekStart to first week of new month
     setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
+  // Task overlay events are read-only (no drag/drop)
+  const isEventReadOnly = (event: any) => !!event.extendedProps?.isTaskOverlay;
 
   return (
     <TooltipProvider>
