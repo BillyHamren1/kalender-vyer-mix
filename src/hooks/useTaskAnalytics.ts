@@ -14,8 +14,7 @@ export interface TaskAnalytics {
   overdue: number;
   blocked: number;
   inProgress: number;
-  cancelled: number;
-  notStarted: number;
+  todo: number;
   waitingForDecision: number;
   missingSetup: number;
   waitingForExternal: number;
