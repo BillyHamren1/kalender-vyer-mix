@@ -138,7 +138,7 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, assigned_to_ids, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, start_time, end_time, updated_at")
+        .select("assigned_to, assigned_to_ids, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, start_time, end_time, updated_at, linked_entity_type, linked_entity_id")
         .eq("id", task!.id)
         .single();
       return data;
