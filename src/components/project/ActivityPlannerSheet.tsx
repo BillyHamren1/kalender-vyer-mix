@@ -628,11 +628,11 @@ const ActivityPlannerSheet = ({
           )}>
             <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Aktiviteter ({rows.length})
+                Aktiviteter för denna bokning ({rows.length})
               </h3>
               <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addRow}>
                 <Plus className="h-3 w-3" />
-                Ny rad
+                Lägg till aktivitet
               </Button>
             </div>
 
