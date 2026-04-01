@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon, Plus, Package, Trash2, Copy } from "lucide-react";
+import { CalendarIcon, Plus, Package, Trash2, Copy, SplitSquareHorizontal, Minimize2 } from "lucide-react";
 import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
@@ -90,7 +90,22 @@ interface ActivityRow {
   assignedToIds: string[];
   notes: string;
   productIds: string[];
+  /** Maps real product ID → how many units assigned to this row (for split products) */
+  productQuantities: Record<string, number>;
   source: 'product' | 'manual';
+}
+
+/** Parse a virtual unit ID like "abc__unit_3" → { realId: "abc", unitIndex: 3 } */
+function parseVirtualId(id: string): { realId: string; unitIndex: number } | null {
+  const match = id.match(/^(.+)__unit_(\d+)$/);
+  if (!match) return null;
+  return { realId: match[1], unitIndex: parseInt(match[2], 10) };
+}
+
+/** Get the real product ID from a possibly virtual ID */
+function getRealProductId(id: string): string {
+  const parsed = parseVirtualId(id);
+  return parsed ? parsed.realId : id;
 }
 
 let _rowId = 0;
@@ -109,6 +124,7 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
     assignedToIds: [],
     notes: "",
     productIds: [],
+    productQuantities: {},
     source: 'manual',
   };
 }
@@ -162,6 +178,8 @@ const ActivityPlannerSheet = ({
   // Product-selection state (for attaching products to a specific row)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [attachingToRowId, setAttachingToRowId] = useState<string | null>(null);
+  // Track which products are split into individual unit rows
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
 
   const defaultDateObj = defaultDate ? new Date(defaultDate) : undefined;
 
@@ -198,6 +216,7 @@ const ActivityPlannerSheet = ({
       setSelectedBookingId("none");
       setSelectedIds(new Set());
       setAttachingToRowId(null);
+      setExpandedProductIds(new Set());
       setShowTemplates(true);
       setRows([createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj })]);
     }
@@ -244,7 +263,7 @@ const ActivityPlannerSheet = ({
     setRows(prev => {
       const idx = prev.findIndex(r => r.id === rowId);
       if (idx === -1) return prev;
-      const clone: ActivityRow = { ...prev[idx], id: makeRowId(), productIds: [...prev[idx].productIds], assignedToIds: [...prev[idx].assignedToIds] };
+      const clone: ActivityRow = { ...prev[idx], id: makeRowId(), productIds: [...prev[idx].productIds], assignedToIds: [...prev[idx].assignedToIds], productQuantities: { ...prev[idx].productQuantities } };
       const next = [...prev];
       next.splice(idx + 1, 0, clone);
       return next;
@@ -276,20 +295,49 @@ const ActivityPlannerSheet = ({
 
   const attachProductsToRow = useCallback(() => {
     if (!attachingToRowId || selectedIds.size === 0) return;
-    const prodIds = Array.from(selectedIds);
+    const virtualIds = Array.from(selectedIds);
+
+    // Resolve virtual IDs to real product IDs with quantity counts
+    const quantityMap: Record<string, number> = {};
+    const realProductIds = new Set<string>();
+    virtualIds.forEach(vid => {
+      const parsed = parseVirtualId(vid);
+      const realId = parsed ? parsed.realId : vid;
+      realProductIds.add(realId);
+      quantityMap[realId] = (quantityMap[realId] || 0) + 1;
+    });
+
+    // For non-split products (no virtual IDs), use full quantity
+    realProductIds.forEach(realId => {
+      if (!virtualIds.some(vid => parseVirtualId(vid)?.realId === realId)) {
+        // Was selected as whole product, not split units
+        const prod = activeProducts.find(p => p.id === realId);
+        if (prod) quantityMap[realId] = prod.quantity;
+      }
+    });
+
+    const realIds = Array.from(realProductIds);
     const prodNames = activeProducts
-      .filter(p => selectedIds.has(p.id))
-      .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`);
+      .filter(p => realProductIds.has(p.id))
+      .map(p => {
+        const qty = quantityMap[p.id] || p.quantity;
+        return `${p.name}${qty > 1 ? ` x${qty}` : ''}`;
+      });
 
     setRows(prev => prev.map(r => {
       if (r.id !== attachingToRowId) return r;
-      const merged = [...new Set([...r.productIds, ...prodIds])];
+      const mergedIds = [...new Set([...r.productIds, ...realIds])];
+      const mergedQuantities = { ...r.productQuantities };
+      realIds.forEach(id => {
+        mergedQuantities[id] = quantityMap[id] || 1;
+      });
       const autoTitle = r.title || prodNames.join(', ');
-      return { ...r, productIds: merged, source: 'product', title: autoTitle };
+      return { ...r, productIds: mergedIds, productQuantities: mergedQuantities, source: 'product', title: autoTitle };
     }));
     setSelectedIds(new Set());
     setAttachingToRowId(null);
-    toast.success(`${prodIds.length} produkt(er) kopplade`);
+    const totalUnits = Object.values(quantityMap).reduce((s, n) => s + n, 0);
+    toast.success(`${totalUnits} enhet(er) kopplade`);
   }, [attachingToRowId, selectedIds, activeProducts]);
 
   // --- Save all rows ---
@@ -306,6 +354,21 @@ const ActivityPlannerSheet = ({
     let ok = 0, fail = 0;
     for (const row of validRows) {
       try {
+        // Build quantity description for partial assignments
+        const quantityNotes = Object.entries(row.productQuantities)
+          .filter(([pid, qty]) => {
+            const prod = activeProducts.find(p => p.id === pid);
+            return prod && qty < prod.quantity;
+          })
+          .map(([pid, qty]) => {
+            const prod = activeProducts.find(p => p.id === pid);
+            return prod ? `${prod.name}: ${qty} av ${prod.quantity}` : '';
+          })
+          .filter(Boolean)
+          .join('; ');
+
+        const descParts = [row.notes.trim(), quantityNotes].filter(Boolean);
+
         await createEstablishmentTask({
           booking_id: effectiveBookingId,
           large_project_id: largeProjectId || null,
@@ -321,7 +384,7 @@ const ActivityPlannerSheet = ({
           assigned_to: row.assignedToIds[0] || null,
           assigned_to_ids: row.assignedToIds,
           priority: row.priority,
-          description: row.notes.trim() || undefined,
+          description: descParts.join('\n') || undefined,
         });
         ok++;
       } catch (e) {
@@ -339,36 +402,121 @@ const ActivityPlannerSheet = ({
   }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange]);
 
   // --- Render ---
+  const toggleExpandProduct = useCallback((productId: string) => {
+    setExpandedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId); else next.add(productId);
+      return next;
+    });
+    // Clear any selected virtual IDs for this product when collapsing
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      prev.forEach(id => {
+        const parsed = parseVirtualId(id);
+        if (parsed?.realId === productId) { next.delete(id); changed = true; }
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
   const renderProductNode = (node: ProductNode, depth: number = 0) => {
     const isPlanned = plannedProductIds.has(node.product.id);
-    const isSelected = selectedIds.has(node.product.id);
     const hasChildren = node.children.length > 0;
+    const qty = node.product.quantity;
+    const isExpanded = expandedProductIds.has(node.product.id);
+    const canSplit = qty > 1 && depth === 0;
+
+    // If expanded, render individual unit rows instead
+    if (canSplit && isExpanded) {
+      return (
+        <div key={node.product.id}>
+          {/* Collapse header */}
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-md",
+            depth > 0 && "ml-6 border-l-2 border-border pl-3"
+          )}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => toggleExpandProduct(node.product.id)}
+              title="Slå ihop"
+            >
+              <Minimize2 className="h-3 w-3" />
+            </Button>
+            <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 text-sm truncate font-medium">{node.product.name}</span>
+            <span className="text-xs text-muted-foreground">({qty} st)</span>
+          </div>
+          {/* Individual unit rows */}
+          {Array.from({ length: qty }, (_, i) => {
+            const virtualId = `${node.product.id}__unit_${i + 1}`;
+            const isUnitSelected = selectedIds.has(virtualId);
+            return (
+              <label
+                key={virtualId}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 ml-6 rounded-md cursor-pointer transition-colors hover:bg-accent/50 border-l-2 border-primary/30 pl-3",
+                  isPlanned && "opacity-50"
+                )}
+              >
+                <Checkbox
+                  checked={isUnitSelected}
+                  disabled={isPlanned}
+                  onCheckedChange={() => toggleProduct(virtualId)}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {node.product.name} ({i + 1}/{qty})
+                </span>
+              </label>
+            );
+          })}
+          {node.children.map(child => renderProductNode(child, depth + 1))}
+        </div>
+      );
+    }
+
+    const isSelected = selectedIds.has(node.product.id);
     return (
       <div key={node.product.id}>
-        <label className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors hover:bg-accent/50",
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:bg-accent/50",
           isPlanned && "opacity-50",
           depth > 0 && "ml-6 border-l-2 border-border pl-3"
         )}>
-          <Checkbox
-            checked={isPlanned || isSelected}
-            disabled={isPlanned}
-            onCheckedChange={() => {
-              if (hasChildren && depth === 0) toggleParentWithChildren(node);
-              else toggleProduct(node.product.id);
-            }}
-          />
-          <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-          <span className={cn("flex-1 text-sm truncate", isPlanned && "line-through text-muted-foreground")}>
-            {depth > 0 && "• "}{node.product.name}
-          </span>
-          {node.product.quantity > 1 && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">x{node.product.quantity}</span>
+          <label className="flex items-center gap-2 flex-1 cursor-pointer">
+            <Checkbox
+              checked={isPlanned || isSelected}
+              disabled={isPlanned}
+              onCheckedChange={() => {
+                if (hasChildren && depth === 0) toggleParentWithChildren(node);
+                else toggleProduct(node.product.id);
+              }}
+            />
+            <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className={cn("flex-1 text-sm truncate", isPlanned && "line-through text-muted-foreground")}>
+              {depth > 0 && "• "}{node.product.name}
+            </span>
+          </label>
+          {qty > 1 && (
+            <span className="text-xs text-muted-foreground flex-shrink-0">x{qty}</span>
+          )}
+          {canSplit && !isPlanned && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-muted-foreground hover:text-primary"
+              onClick={(e) => { e.stopPropagation(); toggleExpandProduct(node.product.id); }}
+              title="Dela upp i enskilda enheter"
+            >
+              <SplitSquareHorizontal className="h-3 w-3" />
+            </Button>
           )}
           {isPlanned && (
             <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Planerad</span>
           )}
-        </label>
+        </div>
         {node.children.map(child => renderProductNode(child, depth + 1))}
       </div>
     );
@@ -543,16 +691,27 @@ const ActivityPlannerSheet = ({
               {row.productIds.map(pid => {
                 const prod = activeProducts.find(p => p.id === pid);
                 if (!prod) return null;
+                const assignedQty = row.productQuantities[pid];
+                const isPartial = assignedQty && assignedQty < prod.quantity;
                 return (
                   <span
                     key={pid}
                     className="inline-flex items-center gap-1 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5"
                   >
-                    {prod.name}{prod.quantity > 1 ? ` x${prod.quantity}` : ''}
+                    {prod.name}
+                    {prod.quantity > 1 && (
+                      <span className={isPartial ? "font-medium text-primary" : ""}>
+                        {isPartial ? ` (${assignedQty} av ${prod.quantity})` : ` x${prod.quantity}`}
+                      </span>
+                    )}
                     <button
                       type="button"
                       className="ml-0.5 hover:text-destructive"
-                      onClick={() => updateRow(row.id, { productIds: row.productIds.filter(id => id !== pid) })}
+                      onClick={() => {
+                        const newQuantities = { ...row.productQuantities };
+                        delete newQuantities[pid];
+                        updateRow(row.id, { productIds: row.productIds.filter(id => id !== pid), productQuantities: newQuantities });
+                      }}
                     >
                       ×
                     </button>
