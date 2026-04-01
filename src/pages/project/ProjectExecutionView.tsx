@@ -42,11 +42,10 @@ const TASK_TYPE_COLORS: Record<TaskType, string> = {
 };
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: "Ej startad",
+  todo: "Att göra",
   in_progress: "Pågår",
   blocked: "Blockerad",
   done: "Klar",
-  cancelled: "Avbruten",
 };
 
 // ── helpers ────────────────────────────────────────────────────────────
