@@ -448,7 +448,7 @@ const EstablishmentGanttChart = ({
                       className={cn(
                         "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors group",
                         status === 'done' && "opacity-60",
-                        status === 'cancelled' && "opacity-40"
+                        status === 'blocked' && "border-destructive/30"
                       )}
                       style={{ height: rowHeight }}
                       onClick={() =>
