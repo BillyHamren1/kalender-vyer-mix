@@ -38,7 +38,7 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             {canClose ? (
-              <CheckCircle2 className="h-5 w-5 text-teal-600" />
+              <CheckCircle2 className="h-5 w-5 text-primary" />
             ) : (
               <Lock className="h-5 w-5 text-red-600" />
             )}
