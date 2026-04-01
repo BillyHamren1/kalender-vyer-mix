@@ -295,20 +295,49 @@ const ActivityPlannerSheet = ({
 
   const attachProductsToRow = useCallback(() => {
     if (!attachingToRowId || selectedIds.size === 0) return;
-    const prodIds = Array.from(selectedIds);
+    const virtualIds = Array.from(selectedIds);
+
+    // Resolve virtual IDs to real product IDs with quantity counts
+    const quantityMap: Record<string, number> = {};
+    const realProductIds = new Set<string>();
+    virtualIds.forEach(vid => {
+      const parsed = parseVirtualId(vid);
+      const realId = parsed ? parsed.realId : vid;
+      realProductIds.add(realId);
+      quantityMap[realId] = (quantityMap[realId] || 0) + 1;
+    });
+
+    // For non-split products (no virtual IDs), use full quantity
+    realProductIds.forEach(realId => {
+      if (!virtualIds.some(vid => parseVirtualId(vid)?.realId === realId)) {
+        // Was selected as whole product, not split units
+        const prod = activeProducts.find(p => p.id === realId);
+        if (prod) quantityMap[realId] = prod.quantity;
+      }
+    });
+
+    const realIds = Array.from(realProductIds);
     const prodNames = activeProducts
-      .filter(p => selectedIds.has(p.id))
-      .map(p => `${p.name}${p.quantity > 1 ? ` x${p.quantity}` : ''}`);
+      .filter(p => realProductIds.has(p.id))
+      .map(p => {
+        const qty = quantityMap[p.id] || p.quantity;
+        return `${p.name}${qty > 1 ? ` x${qty}` : ''}`;
+      });
 
     setRows(prev => prev.map(r => {
       if (r.id !== attachingToRowId) return r;
-      const merged = [...new Set([...r.productIds, ...prodIds])];
+      const mergedIds = [...new Set([...r.productIds, ...realIds])];
+      const mergedQuantities = { ...r.productQuantities };
+      realIds.forEach(id => {
+        mergedQuantities[id] = quantityMap[id] || 1;
+      });
       const autoTitle = r.title || prodNames.join(', ');
-      return { ...r, productIds: merged, source: 'product', title: autoTitle };
+      return { ...r, productIds: mergedIds, productQuantities: mergedQuantities, source: 'product', title: autoTitle };
     }));
     setSelectedIds(new Set());
     setAttachingToRowId(null);
-    toast.success(`${prodIds.length} produkt(er) kopplade`);
+    const totalUnits = Object.values(quantityMap).reduce((s, n) => s + n, 0);
+    toast.success(`${totalUnits} enhet(er) kopplade`);
   }, [attachingToRowId, selectedIds, activeProducts]);
 
   // --- Save all rows ---
