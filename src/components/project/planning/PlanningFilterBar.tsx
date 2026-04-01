@@ -78,7 +78,7 @@ export function applyFilters(
           break;
         }
         case "this_week": {
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           const s = task.start_date ? startOfDay(new Date(task.start_date)) : null;
           const e = task.end_date ? endOfDay(new Date(task.end_date)) : null;
           if (!s || !e) return false;
