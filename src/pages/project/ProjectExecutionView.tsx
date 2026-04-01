@@ -339,6 +339,12 @@ const ProjectExecutionView = () => {
                             {assignedNames.join(", ")}
                           </span>
                         )}
+                        {assignedUserName && (
+                          <span className="flex items-center gap-1">
+                            <UserCog className="h-3 w-3" />
+                            {assignedUserName}
+                          </span>
+                        )}
                         {(task.due_date || task.end_date) && (
                           <span className="flex items-center gap-1">
                             <CalendarIcon className="h-3 w-3" />
