@@ -113,9 +113,9 @@ const EstablishmentGanttChart = ({
     ? ['establishment-tasks', 'project', largeProjectId]
     : ['establishment-tasks', bookingId];
 
-  // Effective dates for generation
-  const effectiveStartDate = rigDate || startDate;
-  const effectiveEndDate = eventDate || endDate;
+  // Effective dates for generation (props-level, before tasks are loaded)
+  const propsStartDate = rigDate || startDate;
+  const propsEndDate = eventDate || endDate;
 
   // Fetch booking data for products list in dialog (only in booking mode)
   const { data: bookingData } = useQuery({
