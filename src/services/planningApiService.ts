@@ -36,6 +36,9 @@ export const fetchPurchases = (bookingId: string) =>
 export const createPurchase = (data: Record<string, any>) =>
   callPlanningApi({ type: 'purchases', method: 'POST', data });
 
+export const updatePurchase = (id: string, updates: Record<string, any>) =>
+  callPlanningApi({ type: 'purchases', method: 'PUT', id, data: updates });
+
 export const deletePurchase = (id: string) =>
   callPlanningApi({ type: 'purchases', method: 'DELETE', id });
 
