@@ -74,12 +74,17 @@ export async function bridgeProjectTaskToExecution(
  */
 export async function syncProjectTaskToExecution(
   executionTaskId: string,
-  updates: { title?: string; description?: string | null; deadline?: string | null; completed?: boolean }
+  updates: { title?: string; description?: string | null; deadline?: string | null; completed?: boolean; assigned_to?: string | null }
 ): Promise<void> {
   try {
     const patch: Record<string, unknown> = {};
     if (updates.title !== undefined) patch.title = updates.title;
     if (updates.description !== undefined) patch.description = updates.description;
+    if (updates.assigned_to !== undefined) {
+      const staffId = updates.assigned_to || null;
+      patch.assigned_to = staffId;
+      patch.assigned_to_ids = staffId ? [staffId] : [];
+    }
     if (updates.deadline !== undefined) {
       patch.due_date = updates.deadline;
       patch.end_date = updates.deadline || format(new Date(), 'yyyy-MM-dd');
