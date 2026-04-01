@@ -288,7 +288,7 @@ const MobileTimeReport = () => {
   );
 };
 
-const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => void }) => {
+const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; onStop: () => void; isLocation?: boolean }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -303,15 +303,18 @@ const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => 
   const s = elapsed % 60;
 
   return (
-    <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-primary/20 bg-primary/5">
+    <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isLocation ? 'border-amber-500/20 bg-amber-500/5' : 'border-primary/20 bg-primary/5'}`}>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate text-foreground">{timer.client}</p>
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+          {isLocation && <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+          {timer.locationName || timer.client}
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           Startad {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
-      <div className="font-mono font-extrabold text-primary text-base tabular-nums">
+      <div className={`font-mono font-extrabold text-base tabular-nums ${isLocation ? 'text-amber-600' : 'text-primary'}`}>
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
       <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop}>
