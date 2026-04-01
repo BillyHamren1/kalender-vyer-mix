@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Truck, User } from "lucide-react";
+import { MessageSquare, Users, Truck, User, ListChecks } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import MessageThread from "./MessageThread";
 import { useProjectMessages } from "@/hooks/useProjectMessages";
 import type { MergedSupplier } from "@/types/supplier";
@@ -11,6 +12,9 @@ interface ProjectCommunicationProps {
   projectId: string;
   senderName: string;
   suppliers: MergedSupplier[];
+  /** When set, auto-scrolls to internal tab with task reference pre-filled */
+  linkedTaskRef?: { taskId: string; taskTitle: string } | null;
+  onClearTaskRef?: () => void;
 }
 
 const tabClass =
