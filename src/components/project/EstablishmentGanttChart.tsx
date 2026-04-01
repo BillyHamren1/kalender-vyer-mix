@@ -584,7 +584,7 @@ const EstablishmentGanttChart = ({
                   const startDayIndex = differenceInDays(task.startDate, ganttData.minDate);
                   const endDayIndex = differenceInDays(task.endDate, ganttData.minDate);
                   const dbTask = tasks.find(t => t.id === task.id);
-                  const taskStatus = (dbTask as any)?.status || 'not_started';
+                  const taskStatus = (dbTask as any)?.status || 'todo';
                   const taskAssignedIds: string[] = (dbTask as any)?.assigned_to_ids?.length ? (dbTask as any).assigned_to_ids : ((dbTask as any)?.assigned_to ? [(dbTask as any).assigned_to] : []);
                   const assignedName = taskAssignedIds.length > 0
                     ? taskAssignedIds.map(id => staffPool.find(s => s.id === id)?.name).filter(Boolean).join(', ')
