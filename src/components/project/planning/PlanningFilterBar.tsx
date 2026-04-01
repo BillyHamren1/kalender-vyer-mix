@@ -171,7 +171,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
       const ws = startOfWeek(today, { weekStartsOn: 1 });
       const we = endOfWeek(today, { weekStartsOn: 1 });
       return tasks.filter(t => {
-        if (t.status === "done" || t.status === "cancelled") return false;
+        if (t.status === "done") return false;
         const s = t.start_date ? startOfDay(new Date(t.start_date)) : null;
         const e = t.end_date ? endOfDay(new Date(t.end_date)) : null;
         if (!s || !e) return false;
