@@ -41,7 +41,7 @@ export function useTaskCalendarEvents(enabled: boolean) {
         .select(
           "id, title, task_type, start_date, end_date, due_date, status, priority, booking_id, assigned_to_ids"
         )
-        .neq("status", "cancelled")
+        .neq("status", "done")
         .order("start_date", { ascending: true });
       if (error) throw error;
       return data || [];

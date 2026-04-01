@@ -217,7 +217,7 @@ const PeopleOverview = ({ analytics, staffPool, onTaskClick }: PeopleOverviewPro
     const unassigned: EstablishmentTask[] = [];
 
     for (const task of analytics.tasks) {
-      // skip - no cancelled status
+      // All tasks are active in the new lifecycle
       const ids = task.assigned_to_ids?.length ? task.assigned_to_ids : (task.assigned_to ? [task.assigned_to] : []);
       if (ids.length === 0) {
         if (task.status !== "done") unassigned.push(task);

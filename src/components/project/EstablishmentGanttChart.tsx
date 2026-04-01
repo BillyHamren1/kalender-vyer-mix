@@ -674,7 +674,6 @@ const EstablishmentGanttChart = ({
                         className={cn(
                           "absolute top-1.5 bottom-1.5 rounded-md cursor-pointer transition-all hover:brightness-110 shadow-sm flex flex-col justify-center overflow-hidden",
                           taskStatus === 'done' && "opacity-50",
-                          taskStatus === 'cancelled' && "opacity-30",
                           barColor,
                           borderStyle,
                         )}
