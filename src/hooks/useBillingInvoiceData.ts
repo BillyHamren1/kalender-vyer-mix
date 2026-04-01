@@ -45,22 +45,41 @@ export interface BillingInvoiceData {
   isLoading: boolean;
 }
 
+// ── Table/FK mapping per project type ──
+const LABOR_CONFIG: Record<string, { table: string; fkCol: string }> = {
+  small:  { table: 'project_labor_costs', fkCol: 'project_id' },
+  medium: { table: 'project_labor_costs', fkCol: 'project_id' },
+  large:  { table: 'packing_labor_costs', fkCol: 'packing_id' },
+};
+
+const PURCHASE_CONFIG: Record<string, { table: string; fkCol: string }> = {
+  small:  { table: 'project_purchases',        fkCol: 'project_id' },
+  medium: { table: 'project_purchases',        fkCol: 'project_id' },
+  large:  { table: 'large_project_purchases',  fkCol: 'large_project_id' },
+};
+
 export function useBillingInvoiceData(billing: ProjectBilling | null): BillingInvoiceData {
   const bookingId = billing?.booking_id;
   const projectId = billing?.project_id;
-  const projectType = billing?.project_type;
+  const projectType = billing?.project_type ?? 'small';
 
-  // Fetch materials from booking_products
+  // ── Materials (from booking_products) ──
   const { data: materials = [], isLoading: loadingMaterials } = useQuery({
     queryKey: ['billing-materials', bookingId],
     queryFn: async () => {
-      if (!bookingId) return [];
+      if (!bookingId) {
+        console.warn('[BillingData] No booking_id — cannot fetch materials');
+        return [];
+      }
       const { data, error } = await supabase
         .from('booking_products')
         .select('id, name, quantity, unit_price, total_price, discount, vat_rate, is_package_component, parent_product_id')
         .eq('booking_id', bookingId)
         .order('sort_index', { ascending: true });
       if (error) throw error;
+      if (!data || data.length === 0) {
+        console.warn(`[BillingData] No materials found for booking ${bookingId}`);
+      }
       return (data ?? []).map(p => ({
         id: p.id,
         name: p.name,
@@ -76,24 +95,27 @@ export function useBillingInvoiceData(billing: ProjectBilling | null): BillingIn
     enabled: !!bookingId,
   });
 
-  // Fetch time entries (labor costs) based on project type
-  const laborTable = projectType === 'large' ? 'large_project_purchases' :
-                     projectType === 'medium' ? 'packing_labor_costs' : 'project_labor_costs';
-  const laborFkCol = projectType === 'large' ? 'large_project_id' :
-                     projectType === 'medium' ? 'packing_id' : 'project_id';
+  // ── Labor costs ──
+  const laborCfg = LABOR_CONFIG[projectType] ?? LABOR_CONFIG.small;
 
   const { data: timeEntries = [], isLoading: loadingTime } = useQuery({
     queryKey: ['billing-time', projectId, projectType],
     queryFn: async () => {
-      if (!projectId) return [];
-      // For large projects we don't have labor_costs table, return empty
-      if (projectType === 'large') return [];
-      
+      if (!projectId) {
+        console.warn('[BillingData] No project_id — cannot fetch labor costs');
+        return [];
+      }
       const { data, error } = await supabase
-        .from(laborTable as any)
+        .from(laborCfg.table as any)
         .select('id, staff_name, work_date, hours, hourly_rate, description')
-        .eq(laborFkCol, projectId);
-      if (error) throw error;
+        .eq(laborCfg.fkCol, projectId);
+      if (error) {
+        console.error(`[BillingData] Labor query failed (${laborCfg.table}):`, error.message);
+        throw error;
+      }
+      if (!data || data.length === 0) {
+        console.warn(`[BillingData] No labor costs found in ${laborCfg.table} for ${laborCfg.fkCol}=${projectId}`);
+      }
       return (data ?? []).map((t: any) => ({
         id: t.id,
         staff_name: t.staff_name,
@@ -104,36 +126,30 @@ export function useBillingInvoiceData(billing: ProjectBilling | null): BillingIn
         total: Number(t.hours ?? 0) * Number(t.hourly_rate ?? 0),
       })) as BillingTimeEntry[];
     },
-    enabled: !!projectId && projectType !== 'large',
+    enabled: !!projectId,
   });
 
-  // Fetch purchases
-  const purchaseTable = projectType === 'large' ? 'large_project_purchases' :
-                        projectType === 'medium' ? 'packing_purchases' : 'project_labor_costs';
-  // For small projects, purchases come from project_purchases table (doesn't exist in types, use project_invoices as proxy)
-  // Actually let's check what tables exist... we have project_purchases not in schema but project_invoices is.
-  // Use a simpler approach: just fetch from the appropriate purchases table
+  // ── Purchases ──
+  const purchaseCfg = PURCHASE_CONFIG[projectType] ?? PURCHASE_CONFIG.small;
+
   const { data: purchases = [], isLoading: loadingPurchases } = useQuery({
     queryKey: ['billing-purchases', projectId, projectType],
     queryFn: async () => {
-      if (!projectId) return [];
-      let tableName: string;
-      let fkCol: string;
-      if (projectType === 'large') {
-        tableName = 'large_project_purchases';
-        fkCol = 'large_project_id';
-      } else if (projectType === 'medium') {
-        tableName = 'packing_purchases';
-        fkCol = 'packing_id';
-      } else {
-        // No dedicated purchases table for small projects
+      if (!projectId) {
+        console.warn('[BillingData] No project_id — cannot fetch purchases');
         return [];
       }
       const { data, error } = await supabase
-        .from(tableName as any)
+        .from(purchaseCfg.table as any)
         .select('id, description, amount, supplier, category, purchase_date')
-        .eq(fkCol, projectId);
-      if (error) throw error;
+        .eq(purchaseCfg.fkCol, projectId);
+      if (error) {
+        console.error(`[BillingData] Purchase query failed (${purchaseCfg.table}):`, error.message);
+        throw error;
+      }
+      if (!data || data.length === 0) {
+        console.warn(`[BillingData] No purchases found in ${purchaseCfg.table} for ${purchaseCfg.fkCol}=${projectId}`);
+      }
       return (data ?? []).map((p: any) => ({
         id: p.id,
         description: p.description,
