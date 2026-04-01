@@ -124,6 +124,7 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
     assignedToIds: [],
     notes: "",
     productIds: [],
+    productQuantities: {},
     source: 'manual',
   };
 }
