@@ -8,6 +8,7 @@ import {
   upsertBudget,
   fetchPurchases,
   createPurchase,
+  updatePurchase as updateRemotePurchase,
   deletePurchase,
   fetchQuotes,
   createQuote,
@@ -209,8 +210,12 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // Update purchase (routes to correct backend)
   const updatePurchaseMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) =>
-      updateLocalProjectPurchase(id, updates),
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) => {
+      if (hasBooking) {
+        return updateRemotePurchase(id, updates as Record<string, any>);
+      }
+      return updateLocalProjectPurchase(id, updates);
+    },
     onSuccess: () => {
       if (hasBooking) {
         queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
