@@ -631,7 +631,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
               <span className="w-2 h-2 rounded shrink-0" style={{ background: '#7c3aed' }} />
               Plats
             </span>
+          )}
         </div>
+      </div>
       </div>
 
       {/* Selected job panel */}
