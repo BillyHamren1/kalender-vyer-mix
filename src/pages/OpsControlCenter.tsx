@@ -9,6 +9,7 @@ import OpsJobChat from '@/components/ops-control/OpsJobChat';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
 import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
+import OrganizationLocationsManager from '@/components/ops-control/OrganizationLocationsManager';
 import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import { Radio } from 'lucide-react';
