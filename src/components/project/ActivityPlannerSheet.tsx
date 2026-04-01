@@ -178,6 +178,8 @@ const ActivityPlannerSheet = ({
   // Product-selection state (for attaching products to a specific row)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [attachingToRowId, setAttachingToRowId] = useState<string | null>(null);
+  // Track which products are split into individual unit rows
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
 
   const defaultDateObj = defaultDate ? new Date(defaultDate) : undefined;
 
