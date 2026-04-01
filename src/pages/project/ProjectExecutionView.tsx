@@ -255,6 +255,11 @@ const ProjectExecutionView = () => {
                 {staffMap[id] || id.slice(0, 8)}
               </SelectItem>
             ))}
+            {userIds.map((id) => (
+              <SelectItem key={`u-${id}`} value={id}>
+                {userMap[id] || id.slice(0, 8)} (kontor)
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
