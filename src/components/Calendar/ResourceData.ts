@@ -78,6 +78,10 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'return': return 'bg-violet-500';
     case 'inventory': return 'bg-cyan-500';
     case 'unpacking': return 'bg-slate-400';
+    case 'task_crew': return 'bg-blue-500';
+    case 'task_pm': return 'bg-purple-500';
+    case 'task_logistics': return 'bg-amber-500';
+    case 'task_admin': return 'bg-slate-400';
     default: return 'bg-gray-500';
   }
 };
