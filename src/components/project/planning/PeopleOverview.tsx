@@ -81,8 +81,7 @@ const TaskRow = ({ task, onClick }: { task: EstablishmentTask; onClick: () => vo
         task.status === "done" && "text-emerald-600 dark:text-emerald-400",
         task.status === "in_progress" && "text-primary",
         task.status === "blocked" && "text-destructive",
-        task.status === "not_started" && "text-muted-foreground",
-        task.status === "cancelled" && "text-muted-foreground",
+        task.status === "todo" && "text-muted-foreground",
       )} />
       <PriorityIcon className={cn("h-3 w-3 flex-shrink-0", priorityCfg.className)} />
       <span className={cn(
