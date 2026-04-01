@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAllOrganizationLocations,
@@ -7,7 +7,7 @@ import {
   deleteOrganizationLocation,
   OrganizationLocation,
 } from '@/services/organizationLocationService';
-import { Building2, Plus, Trash2, MapPin, Edit2, X, Check } from 'lucide-react';
+import { Building2, Plus, Trash2, MapPin, Edit2, X, Check, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,11 +15,14 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+
 const OrganizationLocationsManager = () => {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100' });
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery({
     queryKey: ['organization-locations'],
@@ -72,6 +75,41 @@ const OrganizationLocationsManager = () => {
     });
     setDialogOpen(true);
   };
+
+  const geocodeAddress = useCallback(async () => {
+    if (!form.address.trim()) {
+      toast.error('Ange en adress först');
+      return;
+    }
+    if (!MAPBOX_TOKEN) {
+      toast.error('Mapbox-token saknas');
+      return;
+    }
+    setIsGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(form.address)}.json?access_token=${MAPBOX_TOKEN}&country=se&limit=1`
+      );
+      const json = await res.json();
+      const feature = json.features?.[0];
+      if (!feature) {
+        toast.error('Kunde inte hitta adressen');
+        return;
+      }
+      const [lng, lat] = feature.center;
+      setForm(f => ({
+        ...f,
+        latitude: String(lat),
+        longitude: String(lng),
+        address: feature.place_name || f.address,
+      }));
+      toast.success('Koordinater hämtade');
+    } catch {
+      toast.error('Geocoding misslyckades');
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, [form.address]);
 
   const handleSave = () => {
     const lat = parseFloat(form.latitude);
@@ -154,18 +192,39 @@ const OrganizationLocationsManager = () => {
             </div>
             <div>
               <Label className="text-xs">Adress</Label>
-              <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Storgatan 1, Stockholm" className="h-9 text-sm" />
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label className="text-xs">Latitud</Label>
-                <Input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="59.3293" className="h-9 text-sm" />
+              <div className="flex gap-1.5">
+                <Input
+                  value={form.address}
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="Storgatan 1, Stockholm"
+                  className="h-9 text-sm flex-1"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); geocodeAddress(); } }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-2.5 shrink-0"
+                  onClick={geocodeAddress}
+                  disabled={isGeocoding}
+                >
+                  {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                </Button>
               </div>
-              <div className="flex-1">
-                <Label className="text-xs">Longitud</Label>
-                <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
-              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Skriv adress och klicka sök — koordinater fylls i automatiskt</p>
             </div>
+            {(form.latitude || form.longitude) && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label className="text-[10px] text-muted-foreground">Latitud</Label>
+                  <Input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} className="h-8 text-xs bg-muted/40" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-[10px] text-muted-foreground">Longitud</Label>
+                  <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} className="h-8 text-xs bg-muted/40" />
+                </div>
+              </div>
+            )}
             <div>
               <Label className="text-xs">Radie (meter)</Label>
               <Input type="number" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
