@@ -141,64 +141,28 @@ const LargeCollaborationPage = () => {
   return (
     <Card className="border-border/50 shadow-sm">
       <div className="p-4 sm:p-6">
-        <Tabs defaultValue="chat" className="w-full">
-          <TabsList className="w-full max-w-md h-9 p-0.5 bg-muted/50">
-            <TabsTrigger value="chat" className="flex-1 text-sm h-8 data-[state=active]:shadow-sm gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Chatt
-              {(comments?.length ?? 0) > 0 && (
-                <span className="text-[10px] bg-primary/10 text-primary px-1.5 rounded-full">
-                  {comments?.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="notes" className="flex-1 text-sm h-8 data-[state=active]:shadow-sm gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Noteringar
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="flex-1 text-sm h-8 data-[state=active]:shadow-sm gap-1.5">
-              <Bell className="h-3.5 w-3.5" />
-              Aktivitet
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
+            <MessageSquare className="h-4 w-4 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground tracking-tight">Projektchatt</h2>
+          {(comments?.length ?? 0) > 0 && (
+            <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary text-primary-foreground">
+              {comments?.length}
+            </span>
+          )}
+        </div>
 
-          <TabsContent value="chat" className="mt-4">
-            {linkedTaskRef && (
-              <div className="flex items-center gap-2 px-4 py-2 mb-2 rounded-lg bg-primary/5 border border-border/40">
-                <ListChecks className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span className="text-xs text-foreground/80 truncate">
-                  Refererar till: <span className="font-medium">{linkedTaskRef.taskTitle}</span>
-                </span>
-                <button onClick={() => setLinkedTaskRef(null)} className="text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">✕</button>
-              </div>
-            )}
-            <ChatMessages comments={comments || []} onAddComment={addComment} />
-          </TabsContent>
-
-          <TabsContent value="notes" className="mt-4">
-            <div className="flex items-center justify-center h-[calc(100vh-320px)] min-h-[400px] text-center p-8">
-              <div>
-                <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                  <FileText className="h-6 w-6 text-muted-foreground/50" />
-                </div>
-                <p className="text-sm text-muted-foreground">Projektnoteringar</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Kommer snart</p>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="activity" className="mt-4">
-            <div className="flex items-center justify-center h-[calc(100vh-320px)] min-h-[400px] text-center p-8">
-              <div>
-                <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                  <Bell className="h-6 w-6 text-muted-foreground/50" />
-                </div>
-                <p className="text-sm text-muted-foreground">Aktivitetslogg</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Kommer snart</p>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        {linkedTaskRef && (
+          <div className="flex items-center gap-2 px-4 py-2 mb-2 rounded-lg bg-primary/5 border border-border/40">
+            <ListChecks className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-xs text-foreground/80 truncate">
+              Refererar till: <span className="font-medium">{linkedTaskRef.taskTitle}</span>
+            </span>
+            <button onClick={() => setLinkedTaskRef(null)} className="text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">✕</button>
+          </div>
+        )}
+        <ChatMessages comments={comments || []} onAddComment={addComment} />
       </div>
     </Card>
   );
