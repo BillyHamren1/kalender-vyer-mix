@@ -479,7 +479,16 @@ const ActivityPlannerSheet = ({
               </label>
             );
           })}
-          {node.children.map(child => renderProductNode(child, depth + 1))}
+          {hasChildren && (
+            <div
+              className="flex items-center gap-1 ml-6 px-3 py-1 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => toggleShowChildren(node.product.id)}
+            >
+              {childrenVisible ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span>{childrenVisible ? "Dölj" : "Visa"} tillbehör ({node.children.length})</span>
+            </div>
+          )}
+          {childrenVisible && node.children.map(child => renderProductNode(child, depth + 1))}
         </div>
       );
     }
