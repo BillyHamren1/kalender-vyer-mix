@@ -283,10 +283,10 @@ const CustomCalendarPage = () => {
             {viewMode === 'day' ? (
               // Day View - 3D Carousel with single focused day and side cards
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <MobileCalendarView events={mergedEvents} />
               ) : (
                 <CustomCalendar
-                  events={events}
+                  events={mergedEvents}
                   setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -301,15 +301,16 @@ const CustomCalendarPage = () => {
                   getVisibleTeamsForDay={getVisibleTeamsForDay}
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
+                  onEventClick={handleEventClick}
                 />
               )
             ) : viewMode === 'weekly' ? (
               // Weekly View - 7 days side by side with horizontal scroll
               isMobile ? (
-                <MobileCalendarView events={events} />
+                <MobileCalendarView events={mergedEvents} />
               ) : (
                 <CustomCalendar
-                  events={events}
+                  events={mergedEvents}
                   setEvents={setEvents}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -324,13 +325,14 @@ const CustomCalendarPage = () => {
                   getVisibleTeamsForDay={getVisibleTeamsForDay}
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
+                  onEventClick={handleEventClick}
                 />
               )
             ) : viewMode === 'monthly' ? (
               // Monthly View - same day-grid style as warehouse calendar
               isMobile ? (
                 <MobileCalendarView
-                  events={events}
+                  events={mergedEvents}
                   currentMonth={monthlyDate}
                   selectedWeekStart={currentWeekStart}
                   onMonthChange={handleMonthChange}
@@ -339,7 +341,7 @@ const CustomCalendarPage = () => {
               ) : (
                 <>
                   <CustomCalendar
-                    events={events}
+                    events={mergedEvents}
                     setEvents={setEvents}
                     resources={teamResources}
                     isLoading={isLoading}
@@ -354,6 +356,7 @@ const CustomCalendarPage = () => {
                     getVisibleTeamsForDay={getVisibleTeamsForDay}
                     onToggleTeamForDay={handleToggleTeamForDay}
                     allTeams={teamResources}
+                    onEventClick={handleEventClick}
                   />
                   <WeekTabsNavigation
                     currentMonth={monthlyDate}
