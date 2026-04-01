@@ -181,6 +181,14 @@ Deno.serve(async (req) => {
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
+      case 'get_organization_locations':
+        return await handleGetOrganizationLocations(supabase, organizationId)
+      case 'start_location_timer':
+        return await handleStartLocationTimer(supabase, staffId, data, organizationId)
+      case 'stop_location_timer':
+        return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'get_location_time_entries':
+        return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
