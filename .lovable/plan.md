@@ -2,34 +2,30 @@
 
 ## Problem
 
-Kolumnen "Pris/st" visar `unit_price` (264 000) och "Totalt" visar `total` (198 000). När `quantity = 1` ser det ut som ett fel, men skillnaden beror på **rabatt** (`discount`-fältet i `ProductCostData`). Rabatten visas aldrig i tabellen, så användaren har ingen aning om varför summorna inte stämmer.
+When a large project has no `start_date`/`end_date` set on the project record itself, the Gantt chart shows a "no dates" message — even though the underlying bookings and tasks DO have dates. This makes the planning view unusable for projects that haven't explicitly set project-level dates.
 
-## Lösning
+## Solution
 
-Visa rabatten tydligt i produkttabellen i `ProductCostsCard.tsx`:
+Two changes to fix this:
 
-### Ändring i `src/components/project/ProductCostsCard.tsx`
+### 1. Derive effective dates from tasks when project dates are missing (`EstablishmentGanttChart.tsx`)
 
-1. **Lägg till en "Rabatt"-kolumn** i tabellhuvudet mellan "Pris/st" och "Totalt" — visar `discount`-värdet (t.ex. 25%) om det finns.
+After tasks are loaded (~line 165), compute fallback dates from the task data itself:
 
-2. **Alternativ (enklare)**: Om `product.discount > 0`, visa rabatten som en liten text under "Totalt"-värdet, t.ex. `198 000` med en grå text `(-25%)` under. Detta kräver ingen extra kolumn.
+- If `startDate`/`endDate` props are null but tasks exist with `start_date`/`end_date`, derive the min/max from those tasks
+- Update the `hasDates` check to also consider whether tasks with dates exist
+- This way the Gantt renders its timeline from actual task dates even without project-level dates
 
-### Rekommendation
+### 2. Auto-populate project dates from bookings on creation (`LargeEstablishmentPage.tsx`)
 
-Alternativ 2 är smidigare — ingen layout-ändring, bara en tydlig indikation:
+When passing `startDate`/`endDate` to the Gantt, fall back to the earliest/latest dates found across the project's bookings (from `projectBookings` or analytics data) if the project record itself has no dates.
 
-```
-Totalt
-198 000
-(-25%)
-```
+### Technical detail
 
-Ändringen görs på **tre ställen** i filen:
-- `renderChildRow` (rad ~238): lägg till rabattindikator under `fmt(rev)`
-- `renderGroupRows` parentRow (rad ~306): samma sak för grupprad
-- Kolumnhuvudet behöver inte ändras
+In `EstablishmentGanttChart.tsx`:
+- Add a `useMemo` that computes `derivedStartDate` and `derivedEndDate` from `allTasks` (min of `start_date`, max of `end_date`)
+- Change the `effectiveStartDate`/`effectiveEndDate` to use these derived dates as fallback
+- Update `hasDates` to: `isProjectMode ? (!!startDate || !!endDate || allTasks.some(t => t.start_date)) : (!!rigDate && !!eventDate)`
 
-### Teknisk detalj
-
-`discount`-fältet finns redan i `ProductCostData` (rad 12 i `productCostService.ts`). Beräkning: om `unit_price * quantity ≠ total` och `discount > 0`, visa `(-{discount}%)`.
+This is a minimal, non-architectural change — the Gantt simply becomes smarter about finding dates when they aren't explicitly provided at the project level.
 
