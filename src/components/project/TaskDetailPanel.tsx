@@ -39,7 +39,7 @@ interface TaskDetailPanelProps {
 const initials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }: TaskDetailPanelProps) => {
+const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, onOpenInExecution }: TaskDetailPanelProps) => {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState("");
   const [authorName, setAuthorName] = useState(() => localStorage.getItem("task-comment-author") || "");
