@@ -20,54 +20,64 @@ import {
   fetchSupplierInvoices,
   updateSupplierInvoiceLink,
 } from '@/services/planningApiService';
+import {
+  fetchLocalProjectBudget,
+  upsertLocalProjectBudget,
+  fetchLocalProjectPurchases,
+  createLocalProjectPurchase,
+  updateLocalProjectPurchase,
+  deleteLocalProjectPurchase,
+} from '@/services/localProjectEconomyService';
 import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
   const queryClient = useQueryClient();
+  const hasBooking = !!bookingId;
 
-  // All economy data is now fetched via bookingId through the planning-api-proxy
-  const { data: budget, isLoading: budgetLoading } = useQuery({
+  // ===== Remote data (via planning-api-proxy, needs bookingId) =====
+
+  const { data: remoteBudget, isLoading: remoteBudgetLoading } = useQuery({
     queryKey: ['project-budget', bookingId],
     queryFn: () => fetchBudget(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: timeReports = [], isLoading: timeReportsLoading } = useQuery({
     queryKey: ['project-time-reports', bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
-  const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
+  const { data: remotePurchases = [], isLoading: remotePurchasesLoading } = useQuery({
     queryKey: ['project-purchases', bookingId],
     queryFn: () => fetchPurchases(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: quotes = [], isLoading: quotesLoading } = useQuery({
     queryKey: ['project-quotes', bookingId],
     queryFn: () => fetchQuotes(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ['project-invoices', bookingId],
     queryFn: () => fetchInvoices(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts } = useQuery({
     queryKey: ['product-costs', bookingId],
     queryFn: () => fetchProductCostsRemote(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices } = useQuery({
     queryKey: ['supplier-invoices', bookingId],
     queryFn: () => fetchSupplierInvoices(bookingId!),
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
 
   const { data: bookingEconomics } = useQuery({
@@ -80,63 +90,123 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
         .single();
       return (data?.economics_data ?? null) as BookingEconomics | null;
     },
-    enabled: !!bookingId,
+    enabled: hasBooking,
   });
+
+  // ===== Local data (via Supabase, always available) =====
+
+  const { data: localBudget, isLoading: localBudgetLoading } = useQuery({
+    queryKey: ['local-project-budget', projectId],
+    queryFn: () => fetchLocalProjectBudget(projectId!),
+    enabled: !!projectId,
+  });
+
+  const { data: localPurchases = [], isLoading: localPurchasesLoading } = useQuery({
+    queryKey: ['local-project-purchases', projectId],
+    queryFn: () => fetchLocalProjectPurchases(projectId!),
+    enabled: !!projectId,
+  });
+
+  // ===== Merged data: prefer remote if available, fall back to local =====
+  const budget = hasBooking ? remoteBudget : localBudget;
+  
+  // Combine remote + local purchases
+  const purchases = hasBooking
+    ? [...remotePurchases, ...localPurchases]
+    : localPurchases;
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, productCosts || null, supplierInvoices);
 
-  // --- Mutations (all via planning-api-proxy) ---
-
+  // ===== Budget mutation (routes to correct backend) =====
   const saveBudgetMutation = useMutation({
-    mutationFn: (data: { budgeted_hours: number; hourly_rate: number; description?: string }) =>
-      upsertBudget(bookingId!, data),
+    mutationFn: (data: { budgeted_hours: number; hourly_rate: number; description?: string }) => {
+      if (hasBooking) {
+        return upsertBudget(bookingId!, data);
+      }
+      return upsertLocalProjectBudget({ project_id: projectId!, ...data });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-budget', bookingId] });
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-budget', bookingId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['local-project-budget', projectId] });
       toast.success('Budget sparad');
     },
     onError: () => toast.error('Kunde inte spara budget'),
   });
 
-  // Purchase - add
-  const addPurchaseOptimistic = createOptimisticCallbacks<any, Omit<ProjectPurchase, 'id' | 'created_at'>>({
+  // ===== Purchase mutations =====
+  // Add purchase (local always, for projects without booking also local)
+  const addLocalPurchaseOptimistic = createOptimisticCallbacks<any, any>({
     queryClient,
-    queryKey: ['project-purchases', bookingId],
+    queryKey: ['local-project-purchases', projectId],
     type: 'add',
-    optimisticData: (vars) => ({
+    optimisticData: (vars: any) => ({
       id: `temp-${Date.now()}`,
       created_at: new Date().toISOString(),
+      approved: false,
       ...vars,
     }),
     errorMessage: 'Kunde inte lägga till inköp',
   });
 
   const addPurchaseMutation = useMutation({
-    mutationFn: (data: Omit<ProjectPurchase, 'id' | 'created_at'>) =>
-      createPurchase({ ...data, booking_id: bookingId }),
-    ...addPurchaseOptimistic,
-    onSuccess: () => { toast.success('Inköp tillagt'); },
-    onError: addPurchaseOptimistic.onError,
-    onSettled: addPurchaseOptimistic.onSettled,
+    mutationFn: (data: Omit<ProjectPurchase, 'id' | 'created_at'>) => {
+      if (hasBooking) {
+        return createPurchase({ ...data, booking_id: bookingId });
+      }
+      return createLocalProjectPurchase({ ...data, project_id: projectId! } as any);
+    },
+    onSuccess: () => {
+      if (hasBooking) {
+        queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      toast.success('Inköp tillagt');
+    },
+    onError: () => toast.error('Kunde inte lägga till inköp'),
   });
 
-  // Purchase - delete
+  // Update local purchase
+  const updatePurchaseMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) =>
+      updateLocalProjectPurchase(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      toast.success('Inköp uppdaterat');
+    },
+    onError: () => toast.error('Kunde inte uppdatera inköp'),
+  });
+
+  // Remove purchase
   const removePurchaseOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
-    queryKey: ['project-purchases', bookingId],
+    queryKey: hasBooking ? ['project-purchases', bookingId] : ['local-project-purchases', projectId],
     type: 'delete',
     getId: (id) => id,
     errorMessage: 'Kunde inte ta bort inköp',
   });
 
   const removePurchaseMutation = useMutation({
-    mutationFn: deletePurchase,
+    mutationFn: (id: string) => {
+      // Try local first, if it fails try remote
+      if (hasBooking) {
+        return deletePurchase(id).catch(() => deleteLocalProjectPurchase(id));
+      }
+      return deleteLocalProjectPurchase(id);
+    },
     ...removePurchaseOptimistic,
-    onSuccess: () => { toast.success('Inköp borttaget'); },
+    onSuccess: () => {
+      if (hasBooking) queryClient.invalidateQueries({ queryKey: ['project-purchases', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['local-project-purchases', projectId] });
+      toast.success('Inköp borttaget');
+    },
     onError: removePurchaseOptimistic.onError,
     onSettled: removePurchaseOptimistic.onSettled,
   });
 
-  // Quote - add
+  // ===== Quote mutations (remote only) =====
   const addQuoteOptimistic = createOptimisticCallbacks<any, Omit<ProjectQuote, 'id' | 'created_at' | 'updated_at'>>({
     queryClient,
     queryKey: ['project-quotes', bookingId],
@@ -159,7 +229,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: addQuoteOptimistic.onSettled,
   });
 
-  // Quote - update
   const updateQuoteOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<ProjectQuote> }>({
     queryClient,
     queryKey: ['project-quotes', bookingId],
@@ -181,7 +250,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: updateQuoteOptimistic.onSettled,
   });
 
-  // Quote - delete
   const removeQuoteOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
     queryKey: ['project-quotes', bookingId],
@@ -198,7 +266,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: removeQuoteOptimistic.onSettled,
   });
 
-  // Invoice - add
+  // ===== Invoice mutations (remote only) =====
   const addInvoiceOptimistic = createOptimisticCallbacks<any, Omit<ProjectInvoice, 'id' | 'created_at'>>({
     queryClient,
     queryKey: ['project-invoices', bookingId],
@@ -220,7 +288,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: addInvoiceOptimistic.onSettled,
   });
 
-  // Invoice - update
   const updateInvoiceOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<ProjectInvoice> }>({
     queryClient,
     queryKey: ['project-invoices', bookingId],
@@ -242,7 +309,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: updateInvoiceOptimistic.onSettled,
   });
 
-  // Invoice - delete
   const removeInvoiceOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
     queryKey: ['project-invoices', bookingId],
@@ -259,8 +325,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: removeInvoiceOptimistic.onSettled,
   });
 
-  // Product costs are read-only from Booking system — no local update mutation needed
-
   // Supplier invoice linking
   const linkSupplierInvoiceMutation = useMutation({
     mutationFn: ({ id, linked_cost_type, linked_cost_id, is_final_link }: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) =>
@@ -272,12 +336,13 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onError: () => toast.error('Kunde inte spara koppling'),
   });
 
-  const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading;
+  const isLoading = (hasBooking ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading) : false) || localBudgetLoading || localPurchasesLoading;
 
   return {
     budget,
     timeReports,
     purchases,
+    localPurchases,
     quotes,
     invoices,
     productCosts,
@@ -285,8 +350,10 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     bookingEconomics,
     summary,
     isLoading,
+    hasBooking,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,
+    updatePurchase: updatePurchaseMutation.mutate,
     removePurchase: removePurchaseMutation.mutate,
     addQuote: addQuoteMutation.mutate,
     updateQuote: updateQuoteMutation.mutate,
