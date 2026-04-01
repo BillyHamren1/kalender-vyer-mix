@@ -22,6 +22,7 @@ const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
+  const navigate = useNavigate();
 
   const { project, tasks, files, comments, ganttSteps } = detail;
 
