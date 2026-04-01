@@ -66,20 +66,17 @@ const LargeProjectScheduleEditable = ({
   const handleSave = (
     _oldDate: string,
     newDate: string,
-    startTime: string,
-    endTime: string,
+    _startTime: string,
+    _endTime: string,
     _eventType: DateType
   ) => {
     if (!editingItem) return;
     const k = editingItem.key;
     const dateField = k === 'start' ? 'start_date' : k === 'event' ? 'event_date' : 'end_date';
-    const startTimeField = `${k}_start_time`;
-    const endTimeField = `${k}_end_time`;
 
+    // Only save the date — times are derived from bookings
     onUpdateDates({
       [dateField]: newDate,
-      [startTimeField]: startTime || null,
-      [endTimeField]: endTime || null,
     });
     setEditingItem(null);
   };
