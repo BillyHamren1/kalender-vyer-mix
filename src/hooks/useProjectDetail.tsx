@@ -265,8 +265,20 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }) => 
-      createProjectTask({ ...task, project_id: projectId }),
+    mutationFn: async (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null; start_date?: string | null; end_date?: string | null; phase?: string | null; dependency_task_id?: string | null }) => {
+      const created = await createProjectTask({ ...task, project_id: projectId });
+      // BRIDGE: also create execution task (fire-and-forget, non-blocking)
+      const bId = bookingId;
+      bridgeProjectTaskToExecution(
+        created.id,
+        { title: task.title, description: task.description, assigned_to: task.assigned_to, deadline: task.deadline },
+        { bookingId: bId },
+        'project_tasks'
+      ).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
+      });
+      return created;
+    },
     ...addTaskOptimistic,
     onSuccess: (_data, variables) => {
       logActivity('task_added', `Uppgift tillagd: "${variables.title}"`);
