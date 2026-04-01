@@ -220,6 +220,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 onDeleteTask={onDeleteTask}
                 onAction={getTaskAction?.(syncedSelectedTask)}
                 onOpenInExecution={syncedSelectedTask.execution_task_id ? () => handleOpenInExecution(syncedSelectedTask) : undefined}
+                onOpenInChat={onOpenInChat ? () => onOpenInChat(syncedSelectedTask.id, syncedSelectedTask.title) : undefined}
               />
             </div>
           )}
