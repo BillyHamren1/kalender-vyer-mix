@@ -65,12 +65,6 @@ export const ProjectClosureDialog: React.FC<ProjectClosureDialogProps> = ({
           </div>
         )}
 
-        {warnings.length > 0 && canClose && (
-          <p className="text-xs text-amber-600">
-            {warnings.length} varning(ar) kvarstår men blockerar inte stängning.
-          </p>
-        )}
-
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isClosing}>Avbryt</AlertDialogCancel>
           {canClose && (

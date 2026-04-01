@@ -461,7 +461,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         open={closureDialogOpen}
         onOpenChange={setClosureDialogOpen}
         projectName={projectName}
-        gates={closureGates}
+        
         canClose={signals.closure.canClose}
         isClosing={isClosing}
         onClose={handleCloseProject}
