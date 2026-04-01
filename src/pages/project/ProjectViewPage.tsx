@@ -63,14 +63,12 @@ const ProjectViewPage = () => {
   const { suppliers } = useProjectSuppliers(project?.id);
 
   // Auto-complete Transportbokning task if transport assignments exist
+  const incompleteTransportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
   useEffect(() => {
-    if (transportAssignments.length > 0 && tasks.length > 0) {
-      const transportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
-      if (transportTask) {
-        detail.updateTask({ id: transportTask.id, updates: { completed: true } });
-      }
+    if (transportAssignments.length > 0 && incompleteTransportTask) {
+      detail.updateTask({ id: incompleteTransportTask.id, updates: { completed: true } });
     }
-  }, [transportAssignments.length, tasks]);
+  }, [transportAssignments.length, incompleteTransportTask?.id]);
 
   if (!project) return null;
 
