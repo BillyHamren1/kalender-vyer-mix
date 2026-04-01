@@ -261,10 +261,11 @@ const PersonSection = ({ analytics, staffPool, userMap, onFilterChange }: {
     return workload
       .map(w => ({
         ...w,
-        staffName: staffPool.find(s => s.id === w.staffId)?.name || w.staffId.slice(0, 8),
+        staffName: staffPool.find(s => s.id === w.staffId)?.name || userMap?.[w.staffId] || w.staffId.slice(0, 8),
+        isUser: !staffPool.find(s => s.id === w.staffId) && !!userMap?.[w.staffId],
       }))
       .sort((a, b) => b.totalTasks - a.totalTasks);
-  }, [workload, staffPool]);
+  }, [workload, staffPool, userMap]);
 
   if (workload.length === 0) return null;
 
