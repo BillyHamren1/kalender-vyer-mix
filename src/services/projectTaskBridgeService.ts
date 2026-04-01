@@ -17,6 +17,8 @@ interface BridgeContext {
 /**
  * After a project task is created, mirror it into the execution layer.
  * Returns the execution_task_id if successful, null otherwise.
+ * 
+ * IDEMPOTENT: safe to call multiple times — will not create duplicates.
  */
 export async function bridgeProjectTaskToExecution(
   projectTaskId: string,
@@ -30,6 +32,11 @@ export async function bridgeProjectTaskToExecution(
   tableName: 'project_tasks' | 'large_project_tasks'
 ): Promise<string | null> {
   try {
+    if (!projectTaskId) {
+      console.warn('[Bridge] Skipped — no projectTaskId provided');
+      return null;
+    }
+
     // Guard: check if this project task already has a linked execution task
     const { data: existing } = await supabase
       .from(tableName)
@@ -84,12 +91,21 @@ export async function bridgeProjectTaskToExecution(
 /**
  * Sync title/deadline updates from project task to linked execution task.
  * Non-critical — failures are logged but don't block.
+ * 
+ * SAFE: skips if executionTaskId is falsy.
+ * PROTECTED: never regresses richer execution status (in_progress, blocked).
  */
 export async function syncProjectTaskToExecution(
   executionTaskId: string,
   updates: { title?: string; description?: string | null; deadline?: string | null; completed?: boolean; assigned_to?: string | null }
 ): Promise<void> {
   try {
+    // Guard: nothing to sync to
+    if (!executionTaskId) {
+      console.warn('[Bridge] Sync skipped — no executionTaskId');
+      return;
+    }
+
     const patch: Record<string, unknown> = {};
     if (updates.title !== undefined) patch.title = updates.title;
     if (updates.description !== undefined) patch.description = updates.description;
@@ -106,8 +122,9 @@ export async function syncProjectTaskToExecution(
       patch.status = 'done';
       patch.completed = true;
     } else if (updates.completed === false) {
-      // Only revert to 'todo' if execution task is still in initial state
-      // Don't regress from in_progress or blocked
+      // Only revert to 'todo' if execution task is still in 'done' or 'todo'.
+      // NEVER regress from 'in_progress' or 'blocked' — those are richer states
+      // set by the execution layer and must be respected.
       const { data: current } = await supabase
         .from('establishment_tasks')
         .select('status')
@@ -133,5 +150,45 @@ export async function syncProjectTaskToExecution(
     }
   } catch (err) {
     console.error('[Bridge] Sync error for execution task:', executionTaskId, err);
+  }
+}
+
+/**
+ * Ensures a project task has a linked execution task.
+ * If execution_task_id exists, syncs updates. If not, creates the bridge.
+ * 
+ * Use this on UPDATE paths to handle the case where the initial bridge
+ * creation failed or was missed.
+ */
+export async function ensureBridgeAndSync(
+  projectTaskId: string,
+  executionTaskId: string | null | undefined,
+  task: {
+    title?: string;
+    description?: string | null;
+    assigned_to?: string | null;
+    deadline?: string | null;
+    completed?: boolean;
+  },
+  context: BridgeContext,
+  tableName: 'project_tasks' | 'large_project_tasks'
+): Promise<void> {
+  if (executionTaskId) {
+    // Execution task exists — sync updates
+    await syncProjectTaskToExecution(executionTaskId, task);
+  } else {
+    // No execution task yet — create the bridge (retry/recovery path)
+    console.log('[Bridge] No execution_task_id found for', tableName, projectTaskId, '— creating bridge now');
+    await bridgeProjectTaskToExecution(
+      projectTaskId,
+      {
+        title: task.title ?? '',
+        description: task.description,
+        assigned_to: task.assigned_to,
+        deadline: task.deadline,
+      },
+      context,
+      tableName
+    );
   }
 }
