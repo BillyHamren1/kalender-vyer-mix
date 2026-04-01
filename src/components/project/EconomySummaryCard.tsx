@@ -23,8 +23,8 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
   // Revenue from productCosts (single source — same as signals model)
   const revenue = summary.productRevenue;
 
-  // Actual costs = staff + purchases + supplier invoices
-  const totalCosts = summary.staffActual + summary.purchasesTotal + summary.supplierInvoicesTotal;
+  // Actual costs — must match calculateEconomySummary.totalActual exactly
+  const totalCosts = summary.totalActual;
 
   // Result = Revenue - Costs
   const result = revenue - totalCosts;
