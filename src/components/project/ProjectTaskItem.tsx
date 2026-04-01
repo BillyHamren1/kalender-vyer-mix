@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Calendar, User, MessageSquare, Trash2, GripVertical } from "lucide-react";
+import { Calendar, User, MessageSquare, Trash2, GripVertical, ArrowUpRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProjectTaskItemProps {
   task: ProjectTask;
