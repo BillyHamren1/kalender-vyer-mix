@@ -41,7 +41,7 @@ const LargeProjectScheduleEditable = ({
   startStartTime, startEndTime,
   eventStartTime, eventEndTime,
   endStartTime, endEndTime,
-  onUpdateDates,
+  onUpdateSchedule,
 }: LargeProjectScheduleEditableProps) => {
   const [editingItem, setEditingItem] = useState<DateItem | null>(null);
 
