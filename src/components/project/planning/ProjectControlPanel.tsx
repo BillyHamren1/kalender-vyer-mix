@@ -75,7 +75,7 @@ const MetricsRow = ({ analytics, onFilterChange }: {
     { label: "Totalt", value: analytics.total, icon: ListTodo, color: "text-foreground", bg: "bg-muted/50", filter: { section: "all" as const } },
     { label: "Klara", value: analytics.completed, icon: CheckCircle2, color: "text-primary", bg: "bg-primary/10", filter: { status: "done" } },
     { label: "Pågår", value: analytics.inProgress, icon: CircleDot, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", filter: { status: "in_progress" } },
-    { label: "Kvar", value: pending, icon: Clock, color: "text-muted-foreground", bg: "bg-muted/50", filter: { status: "not_started" } },
+    { label: "Kvar", value: pending, icon: Clock, color: "text-muted-foreground", bg: "bg-muted/50", filter: { status: "todo" } },
     { label: "Försenade", value: analytics.overdue, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", filter: { section: "overdue" as const }, alert: true },
     { label: "Utan ägare", value: analytics.withoutOwner, icon: UserX, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", filter: { section: "unassigned" as const }, alert: true },
   ];

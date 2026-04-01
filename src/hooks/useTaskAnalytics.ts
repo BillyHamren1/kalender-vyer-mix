@@ -14,8 +14,7 @@ export interface TaskAnalytics {
   overdue: number;
   blocked: number;
   inProgress: number;
-  cancelled: number;
-  notStarted: number;
+  todo: number;
   waitingForDecision: number;
   missingSetup: number;
   waitingForExternal: number;
@@ -83,10 +82,10 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const completed = activeTasks.filter(t => t.status === 'done');
     const blocked = activeTasks.filter(t => t.status === 'blocked');
     const inProgress = activeTasks.filter(t => t.status === 'in_progress');
-    const notStarted = activeTasks.filter(t => t.status === 'todo');
+    const todoTasks = activeTasks.filter(t => t.status === 'todo');
     const withDates = activeTasks.filter(t => hasValidDates(t));
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
-    const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && t.status !== 'done');
+    const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && !t.assigned_user_id && t.status !== 'done');
     const overdueTasks = activeTasks.filter(t => isOverdue(t, today));
     const waitingForDecision = activeTasks.filter(t => t.decision_needed && t.status !== 'done');
     const missingSetup = activeTasks.filter(t => t.readiness === 'missing_information' && t.status !== 'done');
@@ -196,8 +195,7 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
       overdue: overdueTasks.length,
       blocked: blocked.length,
       inProgress: inProgress.length,
-      cancelled: 0,
-      notStarted: notStarted.length,
+      todo: todoTasks.length,
       waitingForDecision: waitingForDecision.length,
       missingSetup: missingSetup.length,
       waitingForExternal: waitingForExternal.length,
