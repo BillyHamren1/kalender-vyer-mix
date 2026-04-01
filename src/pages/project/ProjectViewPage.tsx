@@ -101,6 +101,13 @@ const ProjectViewPage = () => {
     staleTime: Infinity,
   });
 
+  // Auto-heal: persist resolved name back to DB so UUID is replaced permanently
+  useEffect(() => {
+    if (isLeaderUuid && resolvedLeaderName && resolvedLeaderName !== rawLeader && project?.id) {
+      detail.updateProject({ project_leader: resolvedLeaderName });
+    }
+  }, [isLeaderUuid, resolvedLeaderName, rawLeader, project?.id]);
+
   const projectLeaderDisplay = isLeaderUuid ? (resolvedLeaderName || null) : rawLeader;
 
   if (!project) return null;
