@@ -39,7 +39,18 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
+  const location = useLocation();
   const [chatTaskRef, setChatTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+
+  // Pick up linkedTaskRef from navigation state (e.g. from EstablishmentPage)
+  useEffect(() => {
+    const navRef = (location.state as any)?.linkedTaskRef;
+    if (navRef?.taskId) {
+      setChatTaskRef(navRef);
+      // Clear navigation state so it doesn't re-trigger on re-render
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
     setChatTaskRef({ taskId, taskTitle });
