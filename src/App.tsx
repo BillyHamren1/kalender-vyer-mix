@@ -33,6 +33,7 @@ import ProjectLayout from "./pages/project/ProjectLayout";
 import ProjectViewPage from "./pages/project/ProjectViewPage";
 import EstablishmentPage from "./pages/project/EstablishmentPage";
 import ProjectEconomyPage from "./pages/project/ProjectEconomyPage";
+import ProjectExecutionView from "./pages/project/ProjectExecutionView";
 import LargeProjectLayout from "./pages/project/LargeProjectLayout";
 import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
 import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
@@ -210,6 +211,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/projects/closing" element={<ProtectedRoute><MainSystemLayout><ProjectClosing /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
               <Route index element={<ProjectViewPage />} />
+              <Route path="execution" element={<ProjectExecutionView />} />
               <Route path="establishment" element={<EstablishmentPage />} />
               <Route path="economy" element={<ProjectEconomyPage />} />
             </Route>
