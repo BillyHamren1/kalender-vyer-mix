@@ -354,6 +354,21 @@ const ActivityPlannerSheet = ({
     let ok = 0, fail = 0;
     for (const row of validRows) {
       try {
+        // Build quantity description for partial assignments
+        const quantityNotes = Object.entries(row.productQuantities)
+          .filter(([pid, qty]) => {
+            const prod = activeProducts.find(p => p.id === pid);
+            return prod && qty < prod.quantity;
+          })
+          .map(([pid, qty]) => {
+            const prod = activeProducts.find(p => p.id === pid);
+            return prod ? `${prod.name}: ${qty} av ${prod.quantity}` : '';
+          })
+          .filter(Boolean)
+          .join('; ');
+
+        const descParts = [row.notes.trim(), quantityNotes].filter(Boolean);
+
         await createEstablishmentTask({
           booking_id: effectiveBookingId,
           large_project_id: largeProjectId || null,
@@ -369,7 +384,7 @@ const ActivityPlannerSheet = ({
           assigned_to: row.assignedToIds[0] || null,
           assigned_to_ids: row.assignedToIds,
           priority: row.priority,
-          description: row.notes.trim() || undefined,
+          description: descParts.join('\n') || undefined,
         });
         ok++;
       } catch (e) {
