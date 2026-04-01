@@ -113,6 +113,34 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
   };
 }
 
+/** Preset templates for common activity workflows */
+const ACTIVITY_TEMPLATES: { label: string; rows: Array<{ title: string; category: string; startTime: string; endTime: string }> }[] = [
+  {
+    label: 'Komplett rigg-flöde',
+    rows: [
+      { title: 'Lastning', category: 'transport', startTime: '07:00', endTime: '09:00' },
+      { title: 'Transport', category: 'transport', startTime: '09:00', endTime: '11:00' },
+      { title: 'Montering', category: 'installation', startTime: '11:00', endTime: '17:00' },
+      { title: 'Platsansvar', category: 'kontroll', startTime: '08:00', endTime: '17:00' },
+      { title: 'Rivning', category: 'installation', startTime: '08:00', endTime: '14:00' },
+    ],
+  },
+  {
+    label: 'Leverans & montering',
+    rows: [
+      { title: 'Transport', category: 'transport', startTime: '07:00', endTime: '10:00' },
+      { title: 'Montering', category: 'installation', startTime: '10:00', endTime: '17:00' },
+    ],
+  },
+  {
+    label: 'Montering & rivning',
+    rows: [
+      { title: 'Montering', category: 'installation', startTime: '08:00', endTime: '16:00' },
+      { title: 'Rivning', category: 'installation', startTime: '08:00', endTime: '14:00' },
+    ],
+  },
+];
+
 const ActivityPlannerSheet = ({
   open,
   onOpenChange,
@@ -129,6 +157,7 @@ const ActivityPlannerSheet = ({
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
+  const [showTemplates, setShowTemplates] = useState(true);
 
   // Product-selection state (for attaching products to a specific row)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -169,9 +198,22 @@ const ActivityPlannerSheet = ({
       setSelectedBookingId("none");
       setSelectedIds(new Set());
       setAttachingToRowId(null);
+      setShowTemplates(true);
       setRows([createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj })]);
     }
   }, [open]);
+
+  const applyTemplate = useCallback((template: typeof ACTIVITY_TEMPLATES[number]) => {
+    const newRows = template.rows.map(t => ({
+      ...createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj }),
+      title: t.title,
+      category: t.category,
+      startTime: t.startTime,
+      endTime: t.endTime,
+    }));
+    setRows(newRows);
+    setShowTemplates(false);
+  }, [defaultDateObj]);
 
   const productTree = useMemo(() => buildProductTree(activeProducts), [activeProducts]);
 
@@ -637,6 +679,32 @@ const ActivityPlannerSheet = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Template chooser */}
+              {showTemplates && rows.length <= 1 && !rows[0]?.title && (
+                <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
+                  <p className="text-xs font-medium text-muted-foreground">Starta från en mall:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ACTIVITY_TEMPLATES.map(t => (
+                      <Button
+                        key={t.label}
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => applyTemplate(t)}
+                      >
+                        {t.label} ({t.rows.length})
+                      </Button>
+                    ))}
+                  </div>
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                    onClick={() => setShowTemplates(false)}
+                  >
+                    Börja med tom rad istället
+                  </button>
+                </div>
+              )}
+
               {rows.map((row, idx) => renderActivityRow(row, idx))}
 
               <Button variant="outline" size="sm" className="w-full h-9 text-xs border-dashed border-2" onClick={addRow}>
