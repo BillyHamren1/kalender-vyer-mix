@@ -15,6 +15,8 @@ export interface StaffLocation {
   isWorking: boolean;
   lastReportTime: string | null;
   isGps: boolean; // true = live GPS, false = fallback to booking address
+  locationSince: string | null; // when staff arrived at current position
+  isOffline: boolean; // true if GPS hasn't been updated in >10 min
 }
 
 // Available staff for booking
@@ -341,12 +343,12 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   const assignedStaffIds = (assignments || []).map(a => a.staff_id);
   const assignedSet = new Set(assignedStaffIds);
 
-  // Also get ALL recent GPS positions (last 10 min) to find unassigned staff
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // Get ALL GPS positions (no time filter — show everyone, mark offline if stale)
   const { data: allGpsData } = await supabase
     .from('staff_locations')
-    .select('staff_id, latitude, longitude, updated_at')
-    .gte('updated_at', tenMinAgo);
+    .select('staff_id, latitude, longitude, updated_at, location_since');
+
+  const tenMinAgo = Date.now() - 10 * 60 * 1000;
 
   const gpsMap = new Map(allGpsData?.map(g => [g.staff_id, g]) || []);
 
@@ -410,6 +412,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
 
     const gpsLoc = gpsMap.get(staffMember.id);
     const hasGps = !!gpsLoc;
+    const isOffline = hasGps ? new Date(gpsLoc.updated_at).getTime() < tenMinAgo : false;
 
     return {
       id: staffMember.id,
@@ -424,6 +427,8 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       isWorking: workingStaffIds.has(assignment.staff_id),
       lastReportTime: report?.created_at || null,
       isGps: hasGps,
+      locationSince: gpsLoc?.location_since || null,
+      isOffline,
     };
   });
 
@@ -431,6 +436,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   for (const [staffId, details] of unassignedStaffDetails) {
     const gpsLoc = gpsMap.get(staffId);
     if (!gpsLoc) continue;
+    const isOffline = new Date(gpsLoc.updated_at).getTime() < tenMinAgo;
     results.push({
       id: staffId,
       name: details.name,
@@ -444,6 +450,8 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
       isWorking: workingStaffIds.has(staffId),
       lastReportTime: staffReportMap.get(staffId)?.created_at || null,
       isGps: true,
+      locationSince: gpsLoc.location_since || null,
+      isOffline,
     });
   }
 

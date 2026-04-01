@@ -1,10 +1,10 @@
-import { MapPin, Clock, User } from "lucide-react";
+import { MapPin, Clock, User, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StaffLocation } from "@/services/planningDashboardService";
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { sv } from "date-fns/locale";
 
 interface StaffLocationsCardProps {
@@ -83,13 +83,27 @@ const StaffLocationsCard = ({ locations, isLoading }: StaffLocationsCardProps) =
   );
 };
 
+function formatDuration(since: string): string {
+  const mins = differenceInMinutes(new Date(), new Date(since));
+  if (mins < 1) return 'Just nu';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m} min`;
+  return `${h} tim ${m} min`;
+}
+
 const StaffLocationItem = ({ staff, isActive }: { staff: StaffLocation; isActive?: boolean }) => {
+  const isOffline = staff.isOffline;
+
   return (
-    <div className={`p-3 rounded-lg border ${isActive ? 'border-green-200 bg-green-50' : 'bg-muted/30'}`}>
+    <div className={`p-3 rounded-lg border ${isOffline ? 'border-border bg-muted/20 opacity-60' : isActive ? 'border-green-200 bg-green-50' : 'bg-muted/30'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-muted-foreground" />
           <span className="font-medium text-sm">{staff.name}</span>
+          {isOffline && (
+            <span className="text-[10px] text-muted-foreground italic">offline</span>
+          )}
         </div>
         <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
           {staff.teamName}
@@ -120,6 +134,15 @@ const StaffLocationItem = ({ staff, isActive }: { staff: StaffLocation; isActive
         >
           Visa på karta →
         </a>
+      )}
+
+      {staff.locationSince && (
+        <div className="flex items-center gap-1 mt-1 ml-6">
+          <Timer className="w-3 h-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            På plats: {formatDuration(staff.locationSince)}
+          </span>
+        </div>
       )}
 
       {staff.lastReportTime && (

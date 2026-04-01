@@ -206,6 +206,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       const style = statusStyles[status];
 
       const el = document.createElement('div');
+      const opacity = loc.isOffline ? '0.4' : '1';
       el.style.cssText = `
         width: 26px; height: 26px; border-radius: 50%;
         background: ${style.color}; border: 2.5px solid white;
@@ -213,7 +214,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         display: flex; align-items: center; justify-content: center;
         cursor: pointer; transition: box-shadow 0.15s;
         font-size: 10px; font-weight: 700; color: white;
-        position: relative;
+        position: relative; opacity: ${opacity};
       `;
       el.textContent = loc.name.charAt(0).toUpperCase();
 
@@ -581,6 +582,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             <div className="text-[10px] text-muted-foreground">
               {statusStyles[getStaffStatus(staffPanel, mapJobs)].label}
               {staffPanel.teamName && ` · ${staffPanel.teamName}`}
+              {staffPanel.isOffline && ' · Offline'}
             </div>
             {/* GPS / Last seen */}
             <div className="flex items-center gap-1.5 text-[10px]">
@@ -604,6 +606,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
                 </span>
               )}
             </div>
+            {/* Time at location */}
+            {staffPanel.locationSince && (
+              <div className="flex items-center gap-1 text-[10px] text-foreground">
+                <Navigation className="w-3 h-3 text-muted-foreground" />
+                <span>
+                  På plats sedan {format(new Date(staffPanel.locationSince), 'HH:mm', { locale: sv })}
+                  {' '}({(() => {
+                    const mins = Math.floor((Date.now() - new Date(staffPanel.locationSince).getTime()) / 60000);
+                    if (mins < 1) return 'just nu';
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    if (h === 0) return `${m} min`;
+                    return `${h} tim ${m} min`;
+                  })()})
+                </span>
+              </div>
+            )}
             {staffPanel.bookingClient && (
               <div className="flex items-center gap-1 text-[10px] text-foreground">
                 <Briefcase className="w-3 h-3 text-muted-foreground" />

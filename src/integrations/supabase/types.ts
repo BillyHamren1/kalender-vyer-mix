@@ -3959,6 +3959,7 @@ export type Database = {
         Row: {
           accuracy: number | null
           latitude: number
+          location_since: string | null
           longitude: number
           organization_id: string
           speed: number | null
@@ -3968,6 +3969,7 @@ export type Database = {
         Insert: {
           accuracy?: number | null
           latitude: number
+          location_since?: string | null
           longitude: number
           organization_id?: string
           speed?: number | null
@@ -3977,6 +3979,7 @@ export type Database = {
         Update: {
           accuracy?: number | null
           latitude?: number
+          location_since?: string | null
           longitude?: number
           organization_id?: string
           speed?: number | null

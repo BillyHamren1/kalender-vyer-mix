@@ -2230,6 +2230,16 @@ async function handleUnregisterPushToken(supabase: any, staffId: string, data: a
   )
 }
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 async function handleReportLocation(supabase: any, staffId: string, data: any, organizationId: string) {
   const { latitude, longitude, accuracy, speed } = data || {}
 
@@ -2238,6 +2248,22 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       JSON.stringify({ error: 'latitude and longitude are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // Check existing position to determine if location_since should be reset
+  const { data: existing } = await supabase
+    .from('staff_locations')
+    .select('latitude, longitude, location_since')
+    .eq('staff_id', staffId)
+    .single()
+
+  let locationSince: string | undefined
+  if (existing && existing.latitude != null && existing.longitude != null) {
+    const dist = haversineMeters(existing.latitude, existing.longitude, latitude, longitude)
+    // If moved more than 100m, reset location_since
+    locationSince = dist > 100 ? new Date().toISOString() : (existing.location_since || new Date().toISOString())
+  } else {
+    locationSince = new Date().toISOString()
   }
 
   const { error } = await supabase
@@ -2250,6 +2276,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       accuracy: accuracy ?? null,
       speed: speed ?? null,
       updated_at: new Date().toISOString(),
+      location_since: locationSince,
     }, { onConflict: 'staff_id' })
 
   if (error) {

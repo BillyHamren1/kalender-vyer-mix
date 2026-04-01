@@ -1,0 +1,1 @@
+ALTER TABLE staff_locations ADD COLUMN IF NOT EXISTS location_since timestamptz DEFAULT now();
