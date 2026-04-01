@@ -39,7 +39,7 @@ export function useTaskCalendarEvents(enabled: boolean) {
       const { data, error } = await supabase
         .from("establishment_tasks")
         .select(
-          "id, title, task_type, start_date, end_date, due_date, status, priority, booking_id, assigned_to_ids"
+          "id, title, task_type, start_date, end_date, due_date, status, priority, booking_id, large_project_id, assigned_to_ids"
         )
         .neq("status", "done")
         .order("start_date", { ascending: true });
@@ -80,6 +80,7 @@ export function useTaskCalendarEvents(enabled: boolean) {
             taskId: t.id,
             taskType,
             bookingId: t.booking_id,
+            largeProjectId: (t as any).large_project_id,
             status: t.status,
             priority: t.priority,
           },
