@@ -168,6 +168,7 @@ export const useLargeProjectDetail = (projectId: string) => {
       if (task?.execution_task_id) {
         syncProjectTaskToExecution(task.execution_task_id, {
           title: updates.title,
+          description: updates.description,
           deadline: updates.deadline,
           completed: updates.completed,
         });
