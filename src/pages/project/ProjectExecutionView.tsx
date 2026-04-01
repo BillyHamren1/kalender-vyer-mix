@@ -113,6 +113,7 @@ const ProjectExecutionView = () => {
   const [filterPerson, setFilterPerson] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterDateGroup, setFilterDateGroup] = useState<string>("all");
 
   // Fetch establishment tasks for this booking
   const { data: tasks = [], refetch } = useQuery({
