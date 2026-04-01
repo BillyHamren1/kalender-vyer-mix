@@ -1,14 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, Info } from 'lucide-react';
 import type { EconomySummary } from '@/types/projectEconomy';
-import type { BookingEconomics } from '@/types/booking';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 interface EconomySummaryCardProps {
   summary: EconomySummary;
-  bookingEconomics?: BookingEconomics | null;
 }
 
 const formatCurrency = (amount: number) =>
@@ -19,11 +17,11 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-export const EconomySummaryCard = ({ summary, bookingEconomics }: EconomySummaryCardProps) => {
+export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
   const [budgetOpen, setBudgetOpen] = useState(false);
 
-  // Revenue from booking economics (offert)
-  const revenue = bookingEconomics?.revenue?.total_ex_vat ?? bookingEconomics?.total_revenue_ex_vat ?? 0;
+  // Revenue from productCosts (single source — same as signals model)
+  const revenue = summary.productRevenue;
 
   // Actual costs = staff + purchases + supplier invoices
   const totalCosts = summary.staffActual + summary.purchasesTotal + summary.supplierInvoicesTotal;
@@ -51,7 +49,7 @@ export const EconomySummaryCard = ({ summary, bookingEconomics }: EconomySummary
           <div className="rounded-lg bg-muted/50 p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Intäkter</p>
             <p className="text-xl font-bold">{formatCurrency(revenue)}</p>
-            <p className="text-xs text-muted-foreground">från offert</p>
+            <p className="text-xs text-muted-foreground">från produkter</p>
           </div>
 
           <div className="rounded-lg bg-muted/50 p-4 text-center">
