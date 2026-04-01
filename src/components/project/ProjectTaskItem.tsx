@@ -19,13 +19,14 @@ interface ProjectTaskItemProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onRenameTask?: (id: string, title: string) => void;
+  onOpenInExecution?: () => void;
   commentCount?: number;
   isFirst?: boolean;
   isLast?: boolean;
   isSelected?: boolean;
 }
 
-const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, commentCount = 0, isSelected }: ProjectTaskItemProps) => {
+const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOpenInExecution, commentCount = 0, isSelected }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
