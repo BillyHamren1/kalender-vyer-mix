@@ -235,7 +235,14 @@ export const ProductCostsCard = ({
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unit_price)}</td>
-        <td className="py-1.5 px-2 text-right text-xs">{fmt(rev)}</td>
+        <td className="py-1.5 px-2 text-right text-xs">
+          <div className="flex flex-col items-end">
+            <span>{fmt(rev)}</span>
+            {product.discount > 0 && (
+              <span className="text-[10px] text-muted-foreground">(-{product.discount}%)</span>
+            )}
+          </div>
+        </td>
         {renderCostCells(product, 'text-xs')}
         <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
         <td className={`py-1.5 px-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
