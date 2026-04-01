@@ -30,7 +30,7 @@ import { useSupplierInvoiceAttestations, getAttestationCounts } from '@/hooks/us
 import { useProjectBillingList, useCreateProjectBilling, useAdvanceBillingStatus } from '@/hooks/useProjectBilling';
 import {
   computeProjectEconomySignals,
-  buildGateItemsFromSignals,
+  
   type ProjectEconomyInput,
   type SignalLevel,
 } from '@/lib/economy/projectEconomyStatus';
