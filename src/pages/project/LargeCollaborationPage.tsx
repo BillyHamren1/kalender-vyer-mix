@@ -124,7 +124,19 @@ const ChatMessages = ({
 
 const LargeCollaborationPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const { comments, addComment } = detail;
+  const { comments, addComment, project } = detail;
+  const location = useLocation();
+
+  const [linkedTaskRef, setLinkedTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
+
+  // Pick up linkedTaskRef from navigation state (e.g. from LargeEstablishmentPage)
+  useEffect(() => {
+    const navRef = (location.state as any)?.linkedTaskRef;
+    if (navRef?.taskId) {
+      setLinkedTaskRef(navRef);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   return (
     <Card className="border-border/50 shadow-sm">
