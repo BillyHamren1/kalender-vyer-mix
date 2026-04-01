@@ -138,7 +138,7 @@ const LargeEstablishmentPage = () => {
       />
 
       {/* LEVEL 2: Workspace — answers "what's the full picture?" */}
-      <Card className="border-border/50 shadow-sm overflow-hidden">
+      <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
         <Tabs defaultValue="establishment">
           <div className="border-b border-border/40 px-3 flex items-center justify-between">
             <TabsList className="h-auto p-0 bg-transparent gap-0">
