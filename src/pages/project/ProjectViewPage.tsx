@@ -72,6 +72,37 @@ const ProjectViewPage = () => {
     }
   }, [transportAssignments.length, incompleteTransportTask?.id]);
 
+  // Resolve project_leader if it's stored as a UUID instead of a name
+  const rawLeader = project?.project_leader || null;
+  const isLeaderUuid = rawLeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawLeader);
+
+  const { data: resolvedLeaderName } = useQuery({
+    queryKey: ['resolve-leader-name', rawLeader],
+    queryFn: async () => {
+      // Try profiles first (user_id), then staff_members (id)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('user_id', rawLeader!)
+        .maybeSingle();
+      if (profile?.full_name) return profile.full_name;
+      if (profile?.email) return profile.email.split('@')[0];
+
+      const { data: staff } = await supabase
+        .from('staff_members')
+        .select('name')
+        .eq('id', rawLeader!)
+        .maybeSingle();
+      if (staff?.name) return staff.name;
+
+      return rawLeader;
+    },
+    enabled: !!isLeaderUuid,
+    staleTime: Infinity,
+  });
+
+  const projectLeaderDisplay = isLeaderUuid ? (resolvedLeaderName || null) : rawLeader;
+
   if (!project) return null;
 
   // Use booking data if available, otherwise construct from standalone project fields
