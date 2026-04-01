@@ -1,10 +1,10 @@
-import { MapPin, Clock, User } from "lucide-react";
+import { MapPin, Clock, User, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StaffLocation } from "@/services/planningDashboardService";
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { sv } from "date-fns/locale";
 
 interface StaffLocationsCardProps {
