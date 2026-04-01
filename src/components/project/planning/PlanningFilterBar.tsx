@@ -183,7 +183,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: typeof Ban; countF
     key: "unassigned", label: "Utan ägare", icon: UserX,
     countFn: (tasks) => tasks.filter(t => {
       const ids = t.assigned_to_ids?.length ? t.assigned_to_ids : (t.assigned_to ? [t.assigned_to] : []);
-      return ids.length === 0 && t.status !== "done" && t.status !== "cancelled";
+      return ids.length === 0 && t.status !== "done";
     }).length,
   },
   {
