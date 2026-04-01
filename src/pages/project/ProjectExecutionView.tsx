@@ -100,6 +100,13 @@ const ProjectExecutionView = () => {
     }
   }, [location.state]);
 
+  // Scroll highlighted task into view once rendered
+  useEffect(() => {
+    if (highlightedTaskId && highlightRef.current) {
+      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+    }
+  }, [highlightedTaskId]);
+
   // Filters
   const [filterPerson, setFilterPerson] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
