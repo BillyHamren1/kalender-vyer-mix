@@ -46,43 +46,43 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // ===== Remote data (via planning-api-proxy, needs bookingId) =====
 
-  const { data: remoteBudget, isLoading: remoteBudgetLoading } = useQuery({
+  const { data: remoteBudget, isLoading: remoteBudgetLoading, error: remoteBudgetError } = useQuery({
     queryKey: ['project-budget', bookingId],
     queryFn: () => fetchBudget(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: timeReports = [], isLoading: timeReportsLoading } = useQuery({
+  const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
     queryKey: ['project-time-reports', bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: remotePurchases = [], isLoading: remotePurchasesLoading } = useQuery({
+  const { data: remotePurchases = [], isLoading: remotePurchasesLoading, error: remotePurchasesError } = useQuery({
     queryKey: ['project-purchases', bookingId],
     queryFn: () => fetchPurchases(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: quotes = [], isLoading: quotesLoading } = useQuery({
+  const { data: quotes = [], isLoading: quotesLoading, error: quotesError } = useQuery({
     queryKey: ['project-quotes', bookingId],
     queryFn: () => fetchQuotes(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
+  const { data: invoices = [], isLoading: invoicesLoading, error: invoicesError } = useQuery({
     queryKey: ['project-invoices', bookingId],
     queryFn: () => fetchInvoices(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts } = useQuery({
+  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts, error: productCostsError } = useQuery({
     queryKey: ['product-costs', bookingId],
     queryFn: () => fetchProductCostsRemote(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices } = useQuery({
+  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices, error: supplierInvoicesError } = useQuery({
     queryKey: ['supplier-invoices', bookingId],
     queryFn: () => fetchSupplierInvoices(bookingId!),
     enabled: hasBooking,
