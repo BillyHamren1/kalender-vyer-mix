@@ -88,6 +88,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     refetchProductCosts,
     refetchSupplierInvoices,
     linkSupplierInvoice,
+    costOverrides,
+    updateProductCost,
+    resetProductCost,
   } = useProjectEconomy(projectId, bookingId);
 
   const { data: attestations = [] } = useSupplierInvoiceAttestations(bookingId);
@@ -371,6 +374,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           isLoading={isLoading}
           onRefresh={refetchProductCosts}
           supplierInvoices={supplierInvoices}
+          costOverrides={costOverrides}
+          onUpdateProductCost={updateProductCost}
+          onResetProductCost={resetProductCost}
         />
       )}
 

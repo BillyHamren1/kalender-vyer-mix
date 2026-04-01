@@ -2655,6 +2655,57 @@ export type Database = {
           },
         ]
       }
+      product_cost_overrides: {
+        Row: {
+          assembly_cost: number | null
+          booking_id: string | null
+          handling_cost: number | null
+          id: string
+          organization_id: string | null
+          product_id: string
+          project_id: string
+          purchase_cost: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assembly_cost?: number | null
+          booking_id?: string | null
+          handling_cost?: number | null
+          id?: string
+          organization_id?: string | null
+          product_id: string
+          project_id: string
+          purchase_cost?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assembly_cost?: number | null
+          booking_id?: string | null
+          handling_cost?: number | null
+          id?: string
+          organization_id?: string | null
+          product_id?: string
+          project_id?: string
+          purchase_cost?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_cost_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_cost_overrides_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null

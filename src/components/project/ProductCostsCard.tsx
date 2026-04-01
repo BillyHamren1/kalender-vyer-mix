@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { Package, ChevronDown, ChevronRight, RefreshCw, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { ProductCostData, ProductCostSummary } from '@/services/productCostService';
+import type { ProductCostOverride } from '@/services/productCostOverrideService';
 import type { SupplierInvoice } from '@/types/projectEconomy';
 
 interface ProductCostsCardProps {
@@ -11,6 +13,9 @@ interface ProductCostsCardProps {
   isLoading?: boolean;
   onRefresh?: () => Promise<any>;
   supplierInvoices?: SupplierInvoice[];
+  costOverrides?: ProductCostOverride[];
+  onUpdateProductCost?: (data: { productId: string; costs: { assembly_cost?: number | null; handling_cost?: number | null; purchase_cost?: number | null } }) => void;
+  onResetProductCost?: (productId: string) => void;
 }
 
 interface ProductGroup {
@@ -28,8 +33,76 @@ const fmt = (v: number) =>
 const getMarginColor = (pct: number) =>
   pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
 
-export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [] }: ProductCostsCardProps) => {
+// ── Inline editable cell ──
+interface EditableCellProps {
+  value: number;
+  isOverridden: boolean;
+  onSave: (newValue: number) => void;
+  className?: string;
+}
+
+const EditableCell = ({ value, isOverridden, onSave, className }: EditableCellProps) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(String(value));
+      setTimeout(() => inputRef.current?.select(), 0);
+    }
+  }, [editing, value]);
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = parseFloat(draft.replace(/\s/g, '').replace(',', '.'));
+    if (!isNaN(parsed) && parsed !== value) {
+      onSave(parsed);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="w-16 text-right text-xs border border-primary/40 rounded px-1 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className={cn(
+        'cursor-pointer hover:bg-primary/10 rounded px-1 py-0.5 -mx-1 transition-colors',
+        isOverridden && 'bg-primary/5 font-medium text-primary',
+        className
+      )}
+      title={isOverridden ? 'Lokalt ändrad – klicka för att redigera' : 'Klicka för att redigera'}
+    >
+      {fmt(value)}
+    </span>
+  );
+};
+
+export const ProductCostsCard = ({
+  productCosts,
+  onRefresh,
+  supplierInvoices = [],
+  costOverrides = [],
+  onUpdateProductCost,
+  onResetProductCost,
+}: ProductCostsCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const overrideSet = useMemo(() => new Set(costOverrides.map(o => o.product_id)), [costOverrides]);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -43,6 +116,7 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
       setIsRefreshing(false);
     }
   };
+
   const groupedProducts = useMemo((): ProductGroup[] => {
     const parents = productCosts.products.filter(p => !p.parent_product_id);
     return parents.map(parent => ({
@@ -89,24 +163,80 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
     const isFinal = linked.some(si => si.is_final_link);
     return { invoicedTotal, isFinal };
   };
+
+  const handleCostUpdate = (productId: string, field: 'assembly_cost' | 'handling_cost' | 'purchase_cost', newValue: number) => {
+    if (!onUpdateProductCost) return;
+    onUpdateProductCost({ productId, costs: { [field]: newValue } });
+  };
+
+  const renderCostCells = (product: ProductCostData, sizeClass: string) => {
+    const isOverridden = overrideSet.has(product.id);
+    const canEdit = !!onUpdateProductCost;
+
+    if (canEdit) {
+      return (
+        <>
+          <td className={`py-1.5 px-2 text-right ${sizeClass}`}>
+            <EditableCell
+              value={product.assembly_cost}
+              isOverridden={isOverridden}
+              onSave={v => handleCostUpdate(product.id, 'assembly_cost', v)}
+            />
+          </td>
+          <td className={`py-1.5 px-2 text-right ${sizeClass}`}>
+            <EditableCell
+              value={product.handling_cost}
+              isOverridden={isOverridden}
+              onSave={v => handleCostUpdate(product.id, 'handling_cost', v)}
+            />
+          </td>
+          <td className={`py-1.5 px-2 text-right ${sizeClass}`}>
+            <EditableCell
+              value={product.purchase_cost}
+              isOverridden={isOverridden}
+              onSave={v => handleCostUpdate(product.id, 'purchase_cost', v)}
+            />
+          </td>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <td className={`py-1.5 px-2 text-right ${sizeClass} text-muted-foreground`}>{fmt(product.assembly_cost)}</td>
+        <td className={`py-1.5 px-2 text-right ${sizeClass} text-muted-foreground`}>{fmt(product.handling_cost)}</td>
+        <td className={`py-1.5 px-2 text-right ${sizeClass} text-muted-foreground`}>{fmt(product.purchase_cost)}</td>
+      </>
+    );
+  };
+
   const renderChildRow = (product: ProductCostData) => {
     const rev = product.total;
     const cost = calcTotalCost(product);
     const pct = rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0;
     const purchaseBudget = product.purchase_cost * product.quantity;
     const invoiceInfo = getLinkedInvoiceInfo(product.id);
+    const isOverridden = overrideSet.has(product.id);
+
     return (
       <tr key={product.id} className="border-b border-border/20 bg-muted/10">
         <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
           <span className="mr-1 opacity-50">└</span>
           {cleanName(product.product_name)}
+          {isOverridden && onResetProductCost && (
+            <button
+              onClick={() => onResetProductCost(product.id)}
+              className="ml-1 text-muted-foreground/60 hover:text-primary inline-flex items-center"
+              title="Återställ till originalvärde"
+            >
+              <RotateCcw className="h-3 w-3" />
+            </button>
+          )}
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unit_price)}</td>
         <td className="py-1.5 px-2 text-right text-xs">{fmt(rev)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.assembly_cost)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.handling_cost)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.purchase_cost)}</td>
+        {renderCostCells(product, 'text-xs')}
         <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
         <td className={`py-1.5 px-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
           {rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
@@ -141,14 +271,17 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
     const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
     const purchaseBudget = group.parent.purchase_cost * group.parent.quantity;
     const invoiceInfo = getLinkedInvoiceInfo(group.parent.id);
+    const isOverridden = overrideSet.has(group.parent.id);
 
     const parentRow = (
       <tr
         key={group.parent.id}
         className={`border-b border-border/40 ${hasChildren ? 'cursor-pointer hover:bg-muted/30' : 'hover:bg-muted/20'}`}
-        onClick={hasChildren ? () => toggleGroup(group.parent.id) : undefined}
       >
-        <td className="py-2 pr-3">
+        <td
+          className="py-2 pr-3"
+          onClick={hasChildren ? () => toggleGroup(group.parent.id) : undefined}
+        >
           <span className="flex items-center gap-1.5 text-sm font-medium">
             {hasChildren && (
               isExpanded
@@ -157,14 +290,21 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
             )}
             {!hasChildren && <span className="w-3.5 inline-block" />}
             {cleanName(group.parent.product_name)}
+            {isOverridden && onResetProductCost && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onResetProductCost(group.parent.id); }}
+                className="ml-1 text-muted-foreground/60 hover:text-primary inline-flex items-center"
+                title="Återställ till originalvärde"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
           </span>
         </td>
         <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
         <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unit_price)}</td>
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupRev)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.assembly_cost)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.handling_cost)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.purchase_cost)}</td>
+        {renderCostCells(group.parent, 'text-sm')}
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
         <td className={`py-2 px-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
           {groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
@@ -199,7 +339,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
   const { revenue, costs, margin } = productCosts.summary;
   const marginPct = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
 
-  // Calculate column totals from products
   const assemblyCostTotal = productCosts.products.reduce((s, p) => s + p.assembly_cost * p.quantity, 0);
   const handlingCostTotal = productCosts.products.reduce((s, p) => s + p.handling_cost * p.quantity, 0);
   const purchaseCostTotal = productCosts.products.reduce((s, p) => s + p.purchase_cost * p.quantity, 0);
@@ -211,6 +350,11 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
           <CardTitle className="flex items-center gap-2 text-base">
             <Package className="h-4 w-4" />
             Produktkostnader
+            {costOverrides.length > 0 && (
+              <span className="text-xs font-normal text-primary ml-1">
+                ({costOverrides.length} lokala ändringar)
+              </span>
+            )}
           </CardTitle>
           {onRefresh && (
             <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8">
