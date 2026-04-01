@@ -170,6 +170,13 @@ export const createEstablishmentTask = async (task: {
   blockers?: string | null;
   blocker_responsible?: string | null;
   decision_needed?: boolean;
+  // Unified execution model fields
+  task_type?: TaskType;
+  assigned_user_id?: string | null;
+  due_date?: string | null;
+  start_date_ts?: string | null;
+  linked_entity_type?: LinkedEntityType;
+  linked_entity_id?: string | null;
 }): Promise<EstablishmentTask> => {
   // Ensure assigned_to_ids is always the primary source of truth
   const assignedTo = task.assigned_to ?? null;
@@ -180,7 +187,9 @@ export const createEstablishmentTask = async (task: {
       : [];
 
   // ENFORCEMENT: All assigned staff MUST belong to the project team (BSA)
-  if (assignedToIds.length > 0) {
+  // Only enforced for crew tasks; pm/logistics/admin tasks use soft validation
+  const taskType = task.task_type ?? 'crew';
+  if (taskType === 'crew' && assignedToIds.length > 0) {
     const invalidIds = await validateStaffAgainstBSA(task.booking_id ?? null, assignedToIds);
     if (invalidIds.length > 0) {
       throw new BSAValidationError(invalidIds);
@@ -211,6 +220,12 @@ export const createEstablishmentTask = async (task: {
       blockers: task.blockers ?? null,
       blocker_responsible: task.blocker_responsible ?? null,
       decision_needed: task.decision_needed ?? false,
+      task_type: taskType,
+      assigned_user_id: task.assigned_user_id ?? null,
+      due_date: task.due_date ?? null,
+      start_date_ts: task.start_date_ts ?? null,
+      linked_entity_type: task.linked_entity_type ?? 'booking',
+      linked_entity_id: task.linked_entity_id ?? null,
     })
     .select()
     .single();
