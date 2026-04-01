@@ -35,6 +35,33 @@ const LargeEstablishmentPage = () => {
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Auto-open task from calendar navigation
+  useEffect(() => {
+    const tid = (location.state as any)?.highlightTaskId;
+    if (tid) {
+      window.history.replaceState({}, document.title);
+      supabase
+        .from("establishment_tasks")
+        .select("id, title, category, start_date, end_date, completed")
+        .eq("id", tid)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedTask({
+              id: data.id,
+              title: data.title,
+              category: data.category,
+              startDate: new Date(data.start_date),
+              endDate: new Date(data.end_date),
+              completed: data.completed ?? false,
+            });
+            setSheetOpen(true);
+          }
+        });
+    }
+  }, [location.state]);
   const [viewMode, setViewMode] = useState<ViewMode>("gantt");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
