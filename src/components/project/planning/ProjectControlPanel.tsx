@@ -202,7 +202,7 @@ const UnassignedSection = ({ analytics, staffPool, onTaskClick, onFilterChange }
 }) => {
   const unassigned = useMemo(() => {
     return analytics.tasks.filter(t =>
-      t.status !== 'done' && t.status !== 'cancelled' &&
+      t.status !== 'done' &&
       (!t.assigned_to_ids || t.assigned_to_ids.length === 0) &&
       !t.assigned_to && !t.assigned_user_id
     );

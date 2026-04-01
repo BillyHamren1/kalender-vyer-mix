@@ -79,12 +79,11 @@ export const useTaskAnalytics = (largeProjectId: string | undefined) => {
     const tomorrow = addDays(today, 1);
     const weekEnd = addDays(today, 7);
 
-    const activeTasks = tasks.filter(t => t.status !== 'cancelled');
+    const activeTasks = tasks;
     const completed = activeTasks.filter(t => t.status === 'done');
     const blocked = activeTasks.filter(t => t.status === 'blocked');
     const inProgress = activeTasks.filter(t => t.status === 'in_progress');
-    const notStarted = activeTasks.filter(t => t.status === 'not_started');
-    const cancelled = tasks.filter(t => t.status === 'cancelled');
+    const notStarted = activeTasks.filter(t => t.status === 'todo');
     const withDates = activeTasks.filter(t => hasValidDates(t));
     const withoutDates = activeTasks.filter(t => !hasValidDates(t));
     const withoutOwner = activeTasks.filter(t => (!t.assigned_to_ids || t.assigned_to_ids.length === 0) && !t.assigned_to && t.status !== 'done');

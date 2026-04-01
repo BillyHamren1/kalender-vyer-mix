@@ -250,7 +250,7 @@ const EstablishmentTaskDetailSheet = ({
       const ids = (taskDbData as any).assigned_to_ids as string[] | null;
       setTaskAssignedToIds(ids && ids.length > 0 ? ids : (taskDbData.assigned_to ? [taskDbData.assigned_to] : []));
       setTaskNotes(taskDbData.notes || "");
-      setTaskStatus((taskDbData.status as TaskStatus) || "not_started");
+      setTaskStatus((taskDbData.status as TaskStatus) || "todo");
       setTaskReadiness((taskDbData.readiness as TaskReadiness) || "missing_information");
       setTaskPriority((taskDbData.priority as TaskPriority) || "medium");
       setTaskDescription(taskDbData.description || "");

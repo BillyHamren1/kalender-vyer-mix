@@ -275,7 +275,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
                         <span className={cn(
                           "text-sm font-medium truncate",
                           task.status === "done" && "line-through text-muted-foreground",
-                          task.status === "cancelled" && "line-through text-muted-foreground",
+                          task.status === "done" && "line-through text-muted-foreground",
                         )}>
                           {task.title}
                         </span>
