@@ -27,7 +27,8 @@ interface ProjectTaskListProps {
   executionHref?: string;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref }: ProjectTaskListProps) => {
+  const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
