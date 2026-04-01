@@ -214,6 +214,7 @@ const ActivityPlannerSheet = ({
       setSelectedIds(new Set());
       setAttachingToRowId(null);
       setExpandedProductIds(new Set());
+      setShowChildrenIds(new Set());
       setShowTemplates(true);
       setRows([createEmptyRow({ startDate: defaultDateObj, endDate: defaultDateObj })]);
     }
