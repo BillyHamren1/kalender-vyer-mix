@@ -23,6 +23,8 @@ interface ProjectTaskListProps {
   getTaskAction?: (task: ProjectTask) => (() => void) | undefined;
   /** Pass bookingId to filter task assignment to BSA team */
   bookingId?: string | null;
+  /** Relative path to execution view (e.g. "execution" or "establishment") */
+  executionHref?: string;
 }
 
 const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId }: ProjectTaskListProps) => {
