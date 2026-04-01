@@ -29,7 +29,7 @@ interface ProjectTaskListProps {
   onOpenInChat?: (taskId: string, taskTitle: string) => void;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref, onOpenInChat }: ProjectTaskListProps) => {
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
