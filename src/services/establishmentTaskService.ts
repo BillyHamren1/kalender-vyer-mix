@@ -252,7 +252,7 @@ export const updateEstablishmentTask = async (
     updates.status = 'done';
   }
   if (updates.completed === false && !updates.status) {
-    updates.status = 'not_started';
+    updates.status = 'todo';
   }
 
   // SAFEGUARD: If assigned_to is being set but assigned_to_ids is not, sync them
