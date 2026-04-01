@@ -25,6 +25,8 @@ interface ProjectTaskListProps {
   bookingId?: string | null;
   /** Relative path to execution view (e.g. "execution" or "establishment") */
   executionHref?: string;
+  /** Called to open chat with task context */
+  onOpenInChat?: (taskId: string, taskTitle: string) => void;
 }
 
 const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction, bookingId, executionHref }: ProjectTaskListProps) => {
