@@ -127,7 +127,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
             {/* Explanatory subtitle */}
             <p className="px-4 pb-2 text-[11px] text-muted-foreground leading-snug">
-              Enklare samordningsuppgifter. Full operativ planering hanteras i Execution.
+              Enklare samordningsuppgifter. Full operativ planering hanteras under <strong>Utförande</strong>.
             </p>
 
             {/* Progress bar */}
