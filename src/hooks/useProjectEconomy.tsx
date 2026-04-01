@@ -378,6 +378,27 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onError: () => toast.error('Kunde inte spara koppling'),
   });
 
+  // ===== Product cost override mutation =====
+  const updateProductCostMutation = useMutation({
+    mutationFn: ({ productId, costs }: { productId: string; costs: { assembly_cost?: number | null; handling_cost?: number | null; purchase_cost?: number | null } }) =>
+      upsertProductCostOverride(projectId!, productId, costs, bookingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', projectId] });
+      toast.success('Kostnad uppdaterad');
+    },
+    onError: () => toast.error('Kunde inte uppdatera kostnad'),
+  });
+
+  const resetProductCostMutation = useMutation({
+    mutationFn: (productId: string) =>
+      deleteProductCostOverride(projectId!, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', projectId] });
+      toast.success('Kostnad återställd');
+    },
+    onError: () => toast.error('Kunde inte återställa kostnad'),
+  });
+
   const isLoading = (hasBooking ? (remoteBudgetLoading || timeReportsLoading || remotePurchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading) : false) || localBudgetLoading || localPurchasesLoading;
 
   return {
@@ -387,7 +408,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     localPurchases,
     quotes,
     invoices,
-    productCosts,
+    productCosts: mergedProductCosts,
+    costOverrides,
     supplierInvoices,
     bookingEconomics,
     summary,
@@ -406,5 +428,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     refetchProductCosts,
     refetchSupplierInvoices,
     linkSupplierInvoice: linkSupplierInvoiceMutation.mutate,
+    updateProductCost: updateProductCostMutation.mutate,
+    resetProductCost: resetProductCostMutation.mutate,
   };
 };
