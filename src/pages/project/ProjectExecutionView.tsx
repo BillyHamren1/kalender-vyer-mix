@@ -352,9 +352,11 @@ const ProjectExecutionView = () => {
                 return (
                   <div
                     key={task.id}
+                    ref={task.id === highlightedTaskId ? highlightRef : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl border bg-card p-3 border-l-4 transition-colors hover:bg-accent/30",
-                      getIndicatorColor(group, task.status as TaskStatus)
+                      "flex items-center gap-3 rounded-xl border bg-card p-3 border-l-4 transition-all hover:bg-accent/30",
+                      getIndicatorColor(group, task.status as TaskStatus),
+                      task.id === highlightedTaskId && "ring-2 ring-primary ring-offset-2 bg-primary/5"
                     )}
                   >
                     {/* Done toggle */}
