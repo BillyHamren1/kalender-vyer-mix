@@ -113,19 +113,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     popupsRef.current = [];
   }, []);
 
-  const clearOrgLocMarkers = useCallback(() => {
-    orgLocMarkersRef.current.forEach(m => m.remove());
-    orgLocMarkersRef.current = [];
-    // Remove geofence circles
-    if (map.current) {
-      orgLocations.forEach((_, i) => {
-        const layerId = `org-loc-circle-${i}`;
-        const sourceId = `org-loc-source-${i}`;
-        if (map.current!.getLayer(layerId)) map.current!.removeLayer(layerId);
-        if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
-      });
-    }
-  }, [orgLocations]);
 
   const clearCameraMarkers = useCallback(() => {
     cameraMarkersRef.current.forEach(m => m.remove());
