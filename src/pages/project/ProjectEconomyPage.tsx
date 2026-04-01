@@ -6,17 +6,7 @@ import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lock, CheckCircle2, Circle, Unlock, Loader2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Unlock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
