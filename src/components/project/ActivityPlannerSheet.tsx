@@ -175,6 +175,8 @@ const ActivityPlannerSheet = ({
   const [attachingToRowId, setAttachingToRowId] = useState<string | null>(null);
   // Track which products are split into individual unit rows
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+  // Track which products have their accessories/children visible (collapsed by default)
+  const [showChildrenIds, setShowChildrenIds] = useState<Set<string>>(new Set());
 
   const defaultDateObj = defaultDate ? new Date(defaultDate) : undefined;
 
