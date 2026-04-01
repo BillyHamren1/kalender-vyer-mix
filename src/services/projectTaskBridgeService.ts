@@ -72,6 +72,7 @@ export async function bridgeProjectTaskToExecution(
       console.error('[Bridge] Failed to store execution_task_id:', error);
     }
 
+    console.log('[Bridge] Created execution task:', executionTask.id, 'for', tableName, projectTaskId);
     return executionTask.id;
   } catch (err) {
     // Bridge failures are non-critical — log but don't block
