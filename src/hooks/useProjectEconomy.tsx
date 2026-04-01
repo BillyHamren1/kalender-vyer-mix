@@ -156,6 +156,56 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
 
+  // ===== Diagnostics: log fetch failures and data anomalies =====
+  useEffect(() => {
+    const tag = `[Economy:${projectId?.slice(0, 8)}]`;
+
+    // Log remote fetch errors
+    if (remoteBudgetError) console.error(`${tag} Budget fetch failed:`, remoteBudgetError);
+    if (timeReportsError) console.error(`${tag} Time reports fetch failed:`, timeReportsError);
+    if (remotePurchasesError) console.error(`${tag} Purchases fetch failed:`, remotePurchasesError);
+    if (quotesError) console.error(`${tag} Quotes fetch failed:`, quotesError);
+    if (invoicesError) console.error(`${tag} Invoices fetch failed:`, invoicesError);
+    if (productCostsError) console.error(`${tag} Product costs fetch failed:`, productCostsError);
+    if (supplierInvoicesError) console.error(`${tag} Supplier invoices fetch failed:`, supplierInvoicesError);
+
+    // Log missing remote data when booking exists
+    if (hasBooking && !remoteBudgetLoading && !remoteBudget) {
+      console.warn(`${tag} Booking ${bookingId} has no budget data`);
+    }
+    if (hasBooking && !productCostsLoading && !productCosts) {
+      console.warn(`${tag} Booking ${bookingId} has no product cost data`);
+    }
+    if (hasBooking && !timeReportsLoading && timeReports.length === 0) {
+      console.warn(`${tag} Booking ${bookingId} has no time reports`);
+    }
+
+    // Check for duplicate purchase IDs
+    const purchaseIds = purchases.map(p => p.id);
+    const dupPurchases = purchaseIds.filter((id, i) => purchaseIds.indexOf(id) !== i);
+    if (dupPurchases.length > 0) {
+      console.error(`${tag} Duplicate purchase IDs detected:`, dupPurchases);
+    }
+
+    // Verify totalActual = sum of components
+    const expectedActual = summary.staffActual + summary.purchasesTotal + summary.invoicesTotal + summary.supplierInvoicesTotal;
+    if (Math.abs(summary.totalActual - expectedActual) > 0.01) {
+      console.error(`${tag} totalActual mismatch: stored=${summary.totalActual}, expected=${expectedActual}`);
+    }
+
+    // Verify totalBudget = sum of components
+    const expectedBudget = summary.staffBudget + summary.quotesTotal + summary.productCostBudget;
+    if (Math.abs(summary.totalBudget - expectedBudget) > 0.01) {
+      console.error(`${tag} totalBudget mismatch: stored=${summary.totalBudget}, expected=${expectedBudget}`);
+    }
+  }, [
+    projectId, bookingId, hasBooking, summary, purchases, timeReports,
+    remoteBudget, productCosts,
+    remoteBudgetError, timeReportsError, remotePurchasesError,
+    quotesError, invoicesError, productCostsError, supplierInvoicesError,
+    remoteBudgetLoading, productCostsLoading, timeReportsLoading,
+  ]);
+
   // ===== Budget mutation (routes to correct backend) =====
   const saveBudgetMutation = useMutation({
     mutationFn: (data: { budgeted_hours: number; hourly_rate: number; description?: string }) => {
