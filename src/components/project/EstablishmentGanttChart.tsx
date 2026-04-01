@@ -790,6 +790,7 @@ const EstablishmentGanttChart = ({
                         )}
                       </div>
                     </div>
+                    </div>
                   );
                 })}
               </div>
