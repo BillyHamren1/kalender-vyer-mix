@@ -252,8 +252,6 @@ const PersonSection = ({ analytics, staffPool, onFilterChange }: {
   const [expanded, setExpanded] = useState(false);
   const workload = analytics.teamWorkload;
 
-  if (workload.length === 0) return null;
-
   const enriched = useMemo(() => {
     return workload
       .map(w => ({
@@ -262,6 +260,8 @@ const PersonSection = ({ analytics, staffPool, onFilterChange }: {
       }))
       .sort((a, b) => b.totalTasks - a.totalTasks);
   }, [workload, staffPool]);
+
+  if (workload.length === 0) return null;
 
   const shown = expanded ? enriched : enriched.slice(0, 4);
 
