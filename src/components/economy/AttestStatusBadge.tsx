@@ -20,7 +20,7 @@ const ATTEST_CONFIG: Record<AttestStatus, { label: string; className: string }> 
   },
   attested: {
     label: 'Attesterad',
-    className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-800',
+    className: 'bg-primary/5 text-primary border-primary/30 dark:bg-primary/10 dark:text-primary dark:border-primary/20',
   },
   sent_to_booking: {
     label: 'Skickad',
@@ -43,7 +43,7 @@ const SYNC_CONFIG: Record<SyncStatus, { label: string; className: string }> = {
   },
   confirmed: {
     label: 'Bekräftad',
-    className: 'bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-800',
+    className: 'bg-primary/5 text-primary border-primary/30 dark:bg-primary/10 dark:text-primary dark:border-primary/20',
   },
   failed: {
     label: 'Misslyckad',
