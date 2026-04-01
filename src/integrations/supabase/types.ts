@@ -1870,19 +1870,13 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
-          end_end_time: string | null
-          end_start_time: string | null
           event_date: string | null
-          event_end_time: string | null
-          event_start_time: string | null
           id: string
           location: string | null
           name: string
           organization_id: string
           project_leader: string | null
           start_date: string | null
-          start_end_time: string | null
-          start_start_time: string | null
           status: string
           updated_at: string
         }
@@ -1890,19 +1884,13 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
-          end_end_time?: string | null
-          end_start_time?: string | null
           event_date?: string | null
-          event_end_time?: string | null
-          event_start_time?: string | null
           id?: string
           location?: string | null
           name: string
           organization_id?: string
           project_leader?: string | null
           start_date?: string | null
-          start_end_time?: string | null
-          start_start_time?: string | null
           status?: string
           updated_at?: string
         }
@@ -1910,19 +1898,13 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
-          end_end_time?: string | null
-          end_start_time?: string | null
           event_date?: string | null
-          event_end_time?: string | null
-          event_start_time?: string | null
           id?: string
           location?: string | null
           name?: string
           organization_id?: string
           project_leader?: string | null
           start_date?: string | null
-          start_end_time?: string | null
-          start_start_time?: string | null
           status?: string
           updated_at?: string
         }
