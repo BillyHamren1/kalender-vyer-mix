@@ -235,7 +235,7 @@ const OrganizationLocationsManager = () => {
             </div>
             <div>
               <Label className="text-xs">Radie (meter)</Label>
-              <Input type="number" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
+              <Input type="text" inputMode="numeric" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>
