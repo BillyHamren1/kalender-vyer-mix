@@ -392,6 +392,7 @@ const ProjectExecutionView = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Alla personer</SelectItem>
+            <SelectItem value="__unassigned__">Ej tilldelade</SelectItem>
             {staffIds.map((id) => (
               <SelectItem key={id} value={id}>
                 {staffMap[id] || id.slice(0, 8)}
