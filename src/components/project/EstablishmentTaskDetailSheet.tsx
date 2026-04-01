@@ -17,7 +17,8 @@ import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { updateEstablishmentTask, deleteEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
-import type { TaskStatus, TaskReadiness, TaskPriority } from "@/services/establishmentTaskService";
+import type { TaskStatus, TaskReadiness, TaskPriority, LinkedEntityType } from "@/services/establishmentTaskService";
+import { useNavigate } from "react-router-dom";
 import {
   fetchSubtasks,
   createSubtask,
