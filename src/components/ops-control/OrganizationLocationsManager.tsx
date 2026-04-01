@@ -111,11 +111,21 @@ const OrganizationLocationsManager = () => {
     }
   }, [form.address]);
 
+  const normalize = (v: string) => parseFloat(v.replace(',', '.'));
+
   const handleSave = () => {
-    const lat = parseFloat(form.latitude);
-    const lng = parseFloat(form.longitude);
+    const lat = normalize(form.latitude);
+    const lng = normalize(form.longitude);
     if (!form.name.trim() || isNaN(lat) || isNaN(lng)) {
       toast.error('Namn, latitud och longitud krävs');
+      return;
+    }
+    if (lat < -90 || lat > 90) {
+      toast.error('Latitud måste vara mellan -90 och 90');
+      return;
+    }
+    if (lng < -180 || lng > 180) {
+      toast.error('Longitud måste vara mellan -180 och 180');
       return;
     }
     const payload = {
@@ -123,7 +133,7 @@ const OrganizationLocationsManager = () => {
       address: form.address.trim() || undefined,
       latitude: lat,
       longitude: lng,
-      radius_meters: parseInt(form.radius_meters) || 100,
+      radius_meters: parseInt(form.radius_meters.replace(',', '.')) || 100,
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, updates: payload });
@@ -216,16 +226,16 @@ const OrganizationLocationsManager = () => {
             <div className="flex gap-2">
               <div className="flex-1">
                 <Label className="text-xs">Latitud</Label>
-                <Input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="59.3293" className="h-9 text-sm" />
+                <Input type="text" inputMode="decimal" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="59.3293" className="h-9 text-sm" />
               </div>
               <div className="flex-1">
                 <Label className="text-xs">Longitud</Label>
-                <Input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
+                <Input type="text" inputMode="decimal" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
               </div>
             </div>
             <div>
               <Label className="text-xs">Radie (meter)</Label>
-              <Input type="number" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
+              <Input type="text" inputMode="numeric" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>
