@@ -471,21 +471,51 @@ const ActivityPlannerSheet = ({
         </div>
 
         {/* Product link */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={() => {
-              setAttachingToRowId(row.id);
-              setSelectedIds(new Set());
-            }}
-          >
-            <Package className="h-3 w-3" />
-            Koppla produkter
-          </Button>
+        <div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={attachingToRowId === row.id ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => {
+                if (attachingToRowId === row.id) {
+                  setAttachingToRowId(null);
+                  setSelectedIds(new Set());
+                } else {
+                  setAttachingToRowId(row.id);
+                  setSelectedIds(new Set());
+                }
+              }}
+            >
+              <Package className="h-3 w-3" />
+              {attachingToRowId === row.id ? 'Väljer...' : 'Koppla produkter'}
+            </Button>
+            {productCount > 0 && (
+              <span className="text-[10px] text-muted-foreground">{productCount} produkt(er)</span>
+            )}
+          </div>
           {productCount > 0 && (
-            <span className="text-[10px] text-primary">{productCount} produkt(er)</span>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {row.productIds.map(pid => {
+                const prod = activeProducts.find(p => p.id === pid);
+                if (!prod) return null;
+                return (
+                  <span
+                    key={pid}
+                    className="inline-flex items-center gap-1 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5"
+                  >
+                    {prod.name}{prod.quantity > 1 ? ` x${prod.quantity}` : ''}
+                    <button
+                      type="button"
+                      className="ml-0.5 hover:text-destructive"
+                      onClick={() => updateRow(row.id, { productIds: row.productIds.filter(id => id !== pid) })}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
