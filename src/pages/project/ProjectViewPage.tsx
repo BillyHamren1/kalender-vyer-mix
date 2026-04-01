@@ -207,6 +207,8 @@ const ProjectViewPage = () => {
         projectId={project.id}
         senderName={project.project_leader || 'Projektledare'}
         suppliers={suppliers}
+        linkedTaskRef={chatTaskRef}
+        onClearTaskRef={() => setChatTaskRef(null)}
       />
 
       {/* Kommentarer */}
