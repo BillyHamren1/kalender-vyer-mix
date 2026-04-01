@@ -126,7 +126,7 @@ const PlanningTaskList = ({ tasks, staffPool, onTaskClick, largeProjectId, booki
 
   const handleToggleBlocked = async (task: EstablishmentTask, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newStatus: TaskStatus = task.status === "blocked" ? "not_started" : "blocked";
+    const newStatus: TaskStatus = task.status === "blocked" ? "todo" : "blocked";
     try {
       await updateEstablishmentTask(task.id, { status: newStatus });
       invalidateAll();
