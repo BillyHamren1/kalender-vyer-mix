@@ -51,7 +51,11 @@ export const useLargeProjectEconomy = (
 
   // Compute aggregated summary from booking economy
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
+    const TAG = '[LargeProjectEcon]';
     if (!bookingEconomyData) {
+      if (bookingIds.length > 0 && !bookingEconomyLoading) {
+        console.warn(`${TAG} No economy data returned for ${bookingIds.length} bookings (project ${largeProjectId})`);
+      }
       return {
         totalRevenue: 0, totalCost: 0, totalStaffCost: 0,
         totalPurchases: 0, totalQuotes: 0, totalInvoices: 0,
@@ -62,23 +66,36 @@ export const useLargeProjectEconomy = (
     let totalPurchases = 0, totalQuotes = 0, totalInvoices = 0, totalSupplierInvoices = 0;
     let bookingCount = 0;
 
-    Object.values(bookingEconomyData).forEach((bd) => {
+    // Check for bookings that returned no data at all
+    const returnedIds = new Set(Object.keys(bookingEconomyData));
+    const missingIds = bookingIds.filter(id => !returnedIds.has(id));
+    if (missingIds.length > 0) {
+      console.warn(`${TAG} ${missingIds.length} of ${bookingIds.length} bookings returned no economy data:`, missingIds);
+    }
+
+    Object.entries(bookingEconomyData).forEach(([bId, bd]) => {
       bookingCount++;
       // Product costs (revenue from booking)
       const pc = bd.product_costs;
       if (pc?.summary) {
         totalRevenue += pc.summary.revenue || 0;
         totalCost += pc.summary.costs || 0;
+      } else {
+        console.warn(`${TAG} Booking ${bId}: missing product_costs.summary`);
       }
       // Staff/time
       const tr = bd.time_reports;
       if (Array.isArray(tr)) {
         tr.forEach((r: any) => { totalStaffCost += r.total_cost || 0; });
+      } else if (tr !== undefined) {
+        console.warn(`${TAG} Booking ${bId}: time_reports is not an array`, typeof tr);
       }
       // Purchases
       const pu = bd.purchases;
       if (Array.isArray(pu)) {
         pu.forEach((p: any) => { totalPurchases += p.amount || 0; });
+      } else if (pu !== undefined) {
+        console.warn(`${TAG} Booking ${bId}: purchases is not an array`, typeof pu);
       }
       // Quotes
       const qu = bd.quotes;
@@ -97,7 +114,7 @@ export const useLargeProjectEconomy = (
           const amount = Number(s.invoice_data?.Total) || 0;
           if (s.is_final_link && s.linked_cost_id) {
             console.warn(
-              `[LargeProjectEcon] Skipping linked supplier invoice ${s.id} (${amount} kr) — already in ${s.linked_cost_type}:${s.linked_cost_id}`
+              `${TAG} Skipping linked supplier invoice ${s.id} (${amount} kr) — already in ${s.linked_cost_type}:${s.linked_cost_id}`
             );
             return;
           }
