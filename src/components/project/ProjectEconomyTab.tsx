@@ -319,7 +319,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         <Button
           variant={signals.closure.canClose ? 'default' : 'outline'}
           size="sm"
-          className={cn('gap-1.5', signals.closure.canClose && 'bg-primary hover:bg-primary/90')}
+          className={cn('gap-1.5 text-primary-foreground', signals.closure.canClose && 'shadow-lg')}
+          style={signals.closure.canClose ? { background: 'var(--gradient-icon)', boxShadow: '0 4px 14px -2px hsl(184 60% 38% / 0.4)' } : undefined}
           onClick={() => setClosureDialogOpen(true)}
         >
           {signals.closure.canClose ? (
