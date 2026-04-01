@@ -63,7 +63,7 @@ export function applyFilters(
           break;
         }
         case "overdue":
-          if (task.status === "done" || task.status === "cancelled") return false;
+          if (task.status === "done") return false;
           if (!task.end_date || !isBefore(startOfDay(new Date(task.end_date)), today)) return false;
           break;
         case "blocked":
