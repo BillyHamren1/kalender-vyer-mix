@@ -781,6 +781,7 @@ const EstablishmentGanttChart = ({
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         bookingId={bookingId || undefined}
+        bookingName={bookingData?.booking ? `${bookingData.booking.client || ''}${bookingData.booking.bookingNumber ? ` (${bookingData.booking.bookingNumber})` : ''}`.trim() || undefined : undefined}
         largeProjectId={largeProjectId || undefined}
         products={bookingData?.products || []}
         defaultDate={effectiveStartDate || null}

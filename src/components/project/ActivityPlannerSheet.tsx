@@ -24,6 +24,7 @@ interface ActivityPlannerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bookingId?: string;
+  bookingName?: string;
   largeProjectId?: string;
   products: BookingProduct[];
   defaultDate: string | null;
@@ -116,6 +117,7 @@ const ActivityPlannerSheet = ({
   open,
   onOpenChange,
   bookingId,
+  bookingName,
   largeProjectId,
   products,
   defaultDate,
@@ -529,21 +531,41 @@ const ActivityPlannerSheet = ({
         className="h-[85vh] max-h-[85vh] p-0 flex flex-col [&>button]:hidden inset-x-4 bottom-4 rounded-2xl border border-border"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <SheetTitle className="text-lg font-semibold">Planera aktiviteter</SheetTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {validRows.length} av {rows.length} redo
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Stäng</Button>
+        <div className="px-6 py-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="text-lg font-semibold">Planera aktiviteter</SheetTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {validRows.length} av {rows.length} redo
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Stäng</Button>
+            </div>
           </div>
+
+          {/* Selected booking context */}
+          {(() => {
+            const selectedProjectBooking = isProjectMode && selectedBookingId !== "none"
+              ? projectBookings.find(b => b.booking_id === selectedBookingId)
+              : null;
+            const displayName = isProjectMode
+              ? (selectedProjectBooking ? (selectedProjectBooking.display_name || selectedProjectBooking.client || selectedProjectBooking.booking_id) : null)
+              : bookingName;
+            if (displayName) {
+              return (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vald bokning: <span className="font-medium text-foreground">{displayName}</span>
+                </p>
+              );
+            }
+            return null;
+          })()}
         </div>
 
-        {/* Booking selector */}
+        {/* Booking selector (project mode) */}
         {isProjectMode && (
           <div className="px-6 py-3 border-b border-border bg-muted/30">
             <div className="flex items-center gap-3 max-w-md">
-              <Label className="text-sm whitespace-nowrap">Bokning:</Label>
+              <Label className="text-sm whitespace-nowrap">Välj bokning:</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
                 <SelectTrigger className="flex-1"><SelectValue placeholder="Välj bokning" /></SelectTrigger>
                 <SelectContent>
@@ -606,11 +628,11 @@ const ActivityPlannerSheet = ({
           )}>
             <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Aktiviteter ({rows.length})
+                Aktiviteter för denna bokning ({rows.length})
               </h3>
               <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addRow}>
                 <Plus className="h-3 w-3" />
-                Ny rad
+                Lägg till aktivitet
               </Button>
             </div>
 
@@ -626,7 +648,7 @@ const ActivityPlannerSheet = ({
             {/* Save bar */}
             <div className="p-4 border-t border-border bg-muted/30 flex items-center gap-3">
               <p className="text-[10px] text-muted-foreground flex-1">
-                Varje rad skapas som en separat aktivitet kopplad till bokningen.
+                Varje rad skapas som en separat aktivitet i Gantt-vyn.
               </p>
               <Button
                 onClick={handleSaveAll}
@@ -634,8 +656,8 @@ const ActivityPlannerSheet = ({
                 className="min-w-[160px]"
               >
                 {isSubmitting
-                  ? "Skapar..."
-                  : `Skapa ${validRows.length} aktivitet(er)`}
+                  ? "Sparar..."
+                  : `Spara ${validRows.length} aktivitet(er)`}
               </Button>
             </div>
           </div>
