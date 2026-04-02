@@ -138,17 +138,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       // On native platforms, try to check/request permission via Web API
       // (NOT @capacitor/camera which is for photo capture, not getUserMedia)
-      if (Capacitor.isNativePlatform()) {
+      // On Android, try Web Permissions API (skip on iOS — it can hang in WKWebView)
+      const isIosNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+      if (Capacitor.isNativePlatform() && !isIosNative) {
         try {
-          // Try Web Permissions API first (supported on Android WebView)
           if (navigator.permissions?.query) {
-            const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
-            console.log('[QRScanner] Web permission status:', status.state);
-            if (status.state === 'denied') {
+            const permPromise = navigator.permissions.query({ name: 'camera' as PermissionName });
+            const status = await Promise.race([
+              permPromise,
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+            ]);
+            if (status && status.state === 'denied') {
+              console.log('[QRScanner] Web permission denied');
               setCameraState('error');
               setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
               return;
             }
+            console.log('[QRScanner] Web permission status:', status?.state ?? 'timeout');
           }
         } catch (permErr) {
           console.warn('[QRScanner] Permission query not supported, proceeding to getUserMedia:', permErr);
@@ -156,14 +162,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }
 
       // Use simpler constraints on iOS to avoid hanging
-      const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isIos = isIosNative || /iPhone|iPad|iPod/i.test(navigator.userAgent);
       const constraints: MediaStreamConstraints = {
         video: isIos
           ? { facingMode: 'environment' }
-          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
       };
 
-      console.log('[QRScanner] Requesting getUserMedia with constraints:', JSON.stringify(constraints));
+      console.log('[QRScanner] Requesting getUserMedia, iOS:', isIos);
       
       // Wrap getUserMedia in a timeout — on some Android WebViews it hangs forever
       const stream = await Promise.race([
