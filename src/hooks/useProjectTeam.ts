@@ -6,7 +6,7 @@ export interface ProjectTeamMember {
   id: string; // BSA row id
   staff_id: string;
   staff_name: string;
-  role: string; // 'field' | 'project_manager' | 'coordinator'
+  role: string; // 'field' | 'project_manager' | 'coordinator' | 'team_leader'
   assignment_date: string;
   team_id: string;
 }
