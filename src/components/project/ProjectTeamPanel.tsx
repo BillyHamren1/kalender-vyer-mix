@@ -210,6 +210,7 @@ const ProjectTeamPanel = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="team_leader">Teamledare</SelectItem>
                 <SelectItem value="project_manager">Projektledare</SelectItem>
                 <SelectItem value="coordinator">Koordinator</SelectItem>
               </SelectContent>
