@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus, X, Crown, Users, Briefcase, HardHat } from 'lucide-react';
+import { UserPlus, X, Crown, Users, Briefcase, HardHat, Shield } from 'lucide-react';
 import { useProjectTeam } from '@/hooks/useProjectTeam';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
