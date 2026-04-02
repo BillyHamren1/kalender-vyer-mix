@@ -164,7 +164,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       };
 
       console.log('[QRScanner] Requesting getUserMedia with constraints:', JSON.stringify(constraints));
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Wrap getUserMedia in a timeout — on some Android WebViews it hangs forever
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia(constraints),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('getUserMedia timeout efter 10s — kameran svarar inte.')), 10000)
+        ),
+      ]);
       console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
 
       if (!mountedRef.current) {
