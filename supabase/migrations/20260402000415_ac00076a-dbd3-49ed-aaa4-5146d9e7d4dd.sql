@@ -1,0 +1,1 @@
+UPDATE organization_locations SET latitude = 59.491583, longitude = 17.855656 WHERE id = '0b9d94df-e46e-4987-8b7f-ef04b663dac5';
