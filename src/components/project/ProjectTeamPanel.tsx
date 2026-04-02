@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus, X, Crown, Users, Briefcase, HardHat } from 'lucide-react';
+import { UserPlus, X, Crown, Users, Briefcase, HardHat, Shield } from 'lucide-react';
 import { useProjectTeam } from '@/hooks/useProjectTeam';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
@@ -21,12 +21,14 @@ const ROLE_LABELS: Record<string, string> = {
   field: 'FÄLT',
   project_manager: 'PROJEKTLEDARE',
   coordinator: 'KOORDINATOR',
+  team_leader: 'TEAMLEDARE',
 };
 
 const ROLE_ICONS: Record<string, React.ElementType> = {
   field: HardHat,
   project_manager: Briefcase,
   coordinator: Users,
+  team_leader: Shield,
 };
 
 const ProjectTeamPanel = ({
@@ -208,6 +210,7 @@ const ProjectTeamPanel = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="team_leader">Teamledare</SelectItem>
                 <SelectItem value="project_manager">Projektledare</SelectItem>
                 <SelectItem value="coordinator">Koordinator</SelectItem>
               </SelectContent>
