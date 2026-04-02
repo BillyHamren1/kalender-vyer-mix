@@ -21,12 +21,14 @@ const ROLE_LABELS: Record<string, string> = {
   field: 'FÄLT',
   project_manager: 'PROJEKTLEDARE',
   coordinator: 'KOORDINATOR',
+  team_leader: 'TEAMLEDARE',
 };
 
 const ROLE_ICONS: Record<string, React.ElementType> = {
   field: HardHat,
   project_manager: Briefcase,
   coordinator: Users,
+  team_leader: Shield,
 };
 
 const ProjectTeamPanel = ({
