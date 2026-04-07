@@ -186,28 +186,12 @@ const LargeProjectEconomyPage = () => {
         </CardContent>
       </Card>
 
-      {/* Aggregated booking economy breakdown */}
-      {summary.bookingCount > 0 && (
-        <Card className="border-border/40">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">Ekonomi från bokningar</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Personalkostnad', value: summary.totalStaffCost },
-                { label: 'Bokningsinköp', value: summary.totalPurchases },
-                { label: 'Produktkostnad', value: summary.totalCost },
-                { label: 'Leverantörsfakturor', value: summary.totalSupplierInvoices },
-              ].map((item) => (
-                <div key={item.label} className={cn(item.value === 0 && "opacity-40")}>
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="font-semibold">{fmt(item.value)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Detailed per-booking economy breakdown */}
+      {bookingEconomyData && summary.bookingCount > 0 && (
+        <LargeProjectBookingEconomyBreakdown
+          bookingEconomyData={bookingEconomyData}
+          bookings={bookings}
+        />
       )}
 
       {/* Purchases */}
