@@ -13,6 +13,10 @@ const fmt = (v: number) =>
 interface BookingInfo {
   booking_id: string;
   display_name: string | null;
+  booking?: {
+    client?: string;
+    booking_number?: string | null;
+  } | null;
 }
 
 interface Props {
@@ -33,7 +37,12 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const getBookingName = (id: string) => {
     const b = bookings.find(b => b.booking_id === id);
-    return b?.display_name || `Bokning ${id.slice(0, 8)}`;
+    if (b?.display_name) return b.display_name;
+    if (b?.booking?.client) {
+      const num = b.booking.booking_number ? ` (#${b.booking.booking_number})` : '';
+      return `${b.booking.client}${num}`;
+    }
+    return `Bokning ${id.slice(0, 8)}`;
   };
 
   return (
