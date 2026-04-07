@@ -205,6 +205,7 @@ export const useLargeProjectEconomy = (
     budget,
     purchases,
     summary,
+    bookingEconomyData: bookingEconomyData || null,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,
