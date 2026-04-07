@@ -14,8 +14,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Trash2, Settings, DollarSign, BarChart3, TrendingDown,
-  ShoppingCart, Receipt, Image, ExternalLink, Pencil,
+  ShoppingCart, Receipt, Image, ExternalLink, Pencil, ChevronDown, ChevronUp,
 } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -49,6 +52,7 @@ const LargeProjectEconomyPage = () => {
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<LargeProjectPurchase | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<{ url: string; description: string } | null>(null);
+  const [costBreakdownOpen, setCostBreakdownOpen] = useState(false);
 
   if (!project) return null;
 
@@ -82,11 +86,41 @@ const LargeProjectEconomyPage = () => {
         </Card>
         <Card className="border-border/40">
           <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total kostnad</p>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total kostnad</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => setCostBreakdownOpen(!costBreakdownOpen)}
+              >
+                {costBreakdownOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </Button>
             </div>
             <p className="text-xl font-bold text-foreground">{fmt(summary.grandTotalCost)}</p>
+            {costBreakdownOpen && (
+              <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5">
+                {[
+                  { label: 'Produktkostnad (bokningar)', value: summary.totalCost },
+                  { label: 'Personalkostnad', value: summary.totalStaffCost },
+                  { label: 'Bokningsinköp', value: summary.totalPurchases },
+                  { label: 'Fakturor', value: summary.totalInvoices },
+                  { label: 'Leverantörsfakturor', value: summary.totalSupplierInvoices },
+                  { label: 'Projektinköp (lokala)', value: summary.localPurchasesTotal },
+                ].map((item) => (
+                  <div key={item.label} className={cn(
+                    "flex items-center justify-between text-xs",
+                    item.value === 0 ? "text-muted-foreground/50" : "text-foreground"
+                  )}>
+                    <span>{item.label}</span>
+                    <span className={cn("font-medium", item.value > 0 && "text-foreground")}>{fmt(item.value)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className={cn("border-border/40", margin < 0 && "border-red-200/60 dark:border-red-800/40")}>
@@ -159,22 +193,17 @@ const LargeProjectEconomyPage = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Personalkostnad</p>
-                <p className="font-semibold">{fmt(summary.totalStaffCost)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Bokningsinköp</p>
-                <p className="font-semibold">{fmt(summary.totalPurchases)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Produktkostnad</p>
-                <p className="font-semibold">{fmt(summary.totalCost)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Leverantörsfakturor</p>
-                <p className="font-semibold">{fmt(summary.totalSupplierInvoices)}</p>
-              </div>
+              {[
+                { label: 'Personalkostnad', value: summary.totalStaffCost },
+                { label: 'Bokningsinköp', value: summary.totalPurchases },
+                { label: 'Produktkostnad', value: summary.totalCost },
+                { label: 'Leverantörsfakturor', value: summary.totalSupplierInvoices },
+              ].map((item) => (
+                <div key={item.label} className={cn(item.value === 0 && "opacity-40")}>
+                  <p className="text-xs text-muted-foreground">{item.label}</p>
+                  <p className="font-semibold">{fmt(item.value)}</p>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
