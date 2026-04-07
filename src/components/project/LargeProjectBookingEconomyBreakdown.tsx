@@ -103,7 +103,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         <TableBody>
                           {products.map((p: any, i: number) => (
                             <TableRow key={i}>
-                              <TableCell className="text-xs font-medium">{p.name}</TableCell>
+                              <TableCell className="text-xs font-medium">{p.name || p.product_name || p.description || '—'}</TableCell>
                               <TableCell className="text-xs text-right">{p.quantity}</TableCell>
                               <TableCell className="text-xs text-right">{fmt(p.revenue || p.total_price || 0)}</TableCell>
                               <TableCell className="text-xs text-right">{fmt(p.cost || p.total_cost || 0)}</TableCell>
