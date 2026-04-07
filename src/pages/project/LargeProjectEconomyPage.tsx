@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useLargeProjectEconomy } from "@/hooks/useLargeProjectEconomy";
 import type { LargeProjectPurchase } from "@/types/largeProject";
+import { LargeProjectBookingEconomyBreakdown } from "@/components/project/LargeProjectBookingEconomyBreakdown";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(v);
@@ -44,7 +45,7 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    budget, purchases, summary, isLoading,
+    budget, purchases, summary, isLoading, bookingEconomyData,
     saveBudget, addPurchase, updatePurchase, removePurchase,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
