@@ -14,8 +14,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Trash2, Settings, DollarSign, BarChart3, TrendingDown,
-  ShoppingCart, Receipt, Image, ExternalLink, Pencil,
+  ShoppingCart, Receipt, Image, ExternalLink, Pencil, ChevronDown, ChevronUp,
 } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
