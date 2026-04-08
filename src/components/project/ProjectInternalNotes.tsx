@@ -76,7 +76,7 @@ const ProjectInternalNotes = ({ bookingId, currentNotes, projectId, className }:
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={!isDirty || isSaving || !bookingId}
+          disabled={!isDirty || isSaving}
           className="self-end gap-1.5"
         >
           <Save className="h-3.5 w-3.5" />
