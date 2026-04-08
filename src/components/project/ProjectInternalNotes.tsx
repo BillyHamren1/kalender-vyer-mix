@@ -71,7 +71,7 @@ const ProjectInternalNotes = ({ bookingId, currentNotes, projectId, className }:
           value={notes}
           onChange={handleChange}
           className="flex-1 resize-none min-h-[180px] text-sm"
-          disabled={!bookingId}
+          disabled={false}
         />
         <Button
           size="sm"
