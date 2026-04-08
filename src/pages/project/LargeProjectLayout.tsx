@@ -240,11 +240,17 @@ const LargeProjectLayout = () => {
                     bookingIds.map(bid => updateBookingDateWithTimes(bid, dateType, date, startTime, endTime))
                   );
 
-                  // 3. Trigger calendar sync per booking
+                  // 3. Trigger calendar sync per booking with correct parameters
+                  const { data: { user } } = await supabase.auth.getUser();
+                  let orgId: string | undefined;
+                  if (user) {
+                    const { data: profile } = await supabase.from('profiles').select('organization_id').eq('user_id', user.id).single();
+                    orgId = profile?.organization_id ?? undefined;
+                  }
                   await Promise.all(
                     bookingIds.map(bid =>
                       supabase.functions.invoke('import-bookings', {
-                        body: { bookingId: bid, syncMode: 'single' },
+                        body: { booking_id: bid, syncMode: 'single', organization_id: orgId },
                       })
                     )
                   );

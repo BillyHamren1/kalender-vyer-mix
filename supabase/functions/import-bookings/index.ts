@@ -2606,7 +2606,8 @@ serve(async (req) => {
           }
 
           // Prepare update data - strip non-DB fields and reset viewed flag if booking is newly confirmed
-          const { allRigDates: _ard, allEventDates: _aed, allRigdownDates: _ardd, ...dbBookingData } = bookingData as any;
+          // CRITICAL: Never overwrite organization_id on existing bookings to prevent cross-tenant data theft
+          const { allRigDates: _ard, allEventDates: _aed, allRigdownDates: _ardd, organization_id: _stripOrgId, ...dbBookingData } = bookingData as any;
           const updateData: any = {
             ...dbBookingData,
             id: existingBooking.id,
@@ -2702,7 +2703,31 @@ serve(async (req) => {
           bookingData.id = existingBooking.id
 
         } else {
-          // NEW BOOKING - Insert only if truly new
+          // NEW BOOKING - but first check if it exists in ANOTHER organization
+          const { data: crossOrgBooking } = await supabase
+            .from('bookings')
+            .select('id, organization_id')
+            .eq('id', externalBooking.id)
+            .maybeSingle();
+
+          if (crossOrgBooking && crossOrgBooking.organization_id !== organizationId) {
+            console.error(`[CROSS-ORG BLOCK] Booking ${externalBooking.id} already exists in org ${crossOrgBooking.organization_id}, current import is for org ${organizationId}. SKIPPING to prevent data theft.`);
+            // Write audit record for the blocked attempt
+            await supabase.from('booking_import_audit').insert({
+              booking_id: externalBooking.id,
+              booking_number: externalBooking.booking_number || null,
+              source: isSingleBookingRefresh ? 'single_refresh' : (body.quiet ? 'background' : 'manual'),
+              request_organization_id: organizationId,
+              external_organization_id: crossOrgBooking.organization_id,
+              resolved_organization_id: organizationId,
+              org_match: false,
+              action: 'blocked_cross_org'
+            });
+            results.errors.push({ booking_id: externalBooking.id, error: `Cross-org conflict: booking belongs to org ${crossOrgBooking.organization_id}` });
+            results.failed++;
+            continue;
+          }
+
           console.log(`Inserting new booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
           
           const { allRigDates: _ard2, allEventDates: _aed2, allRigdownDates: _ardd2, ...dbInsertData } = bookingData as any;
@@ -2722,6 +2747,17 @@ serve(async (req) => {
             results.failed++
             continue
           }
+
+          // Audit successful new import
+          await supabase.from('booking_import_audit').insert({
+            booking_id: bookingData.id,
+            booking_number: bookingData.booking_number || null,
+            source: isSingleBookingRefresh ? 'single_refresh' : (body.quiet ? 'background' : 'manual'),
+            request_organization_id: organizationId,
+            resolved_organization_id: organizationId,
+            org_match: true,
+            action: 'insert'
+          });
 
           results.new_bookings.push(bookingData.id)
         }
