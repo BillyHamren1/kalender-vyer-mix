@@ -179,7 +179,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                   </TableCell>
                   <TableCell>
                     {report.approved ? (
-                      <Badge variant="default" className="text-[10px] bg-green-600/20 text-green-700 border-0">
+                      <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
                         Godkänd
                       </Badge>
                     ) : (
