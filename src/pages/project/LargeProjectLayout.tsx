@@ -1,10 +1,10 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { updateBookingDateWithTimes } from "@/services/bookingService";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +36,9 @@ const LargeProjectLayout = () => {
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
@@ -149,6 +152,33 @@ const LargeProjectLayout = () => {
     ? "economy"
     : "overview";
 
+  const handleStartEditName = () => {
+    setEditName(project.name);
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = editName.trim();
+    if (!trimmed || trimmed === project.name) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({ name: trimmed })
+        .eq('id', id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['large-project-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      toast.success('Projektnamn uppdaterat');
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte uppdatera projektnamn');
+    }
+    setIsEditingName(false);
+  };
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
@@ -161,9 +191,36 @@ const LargeProjectLayout = () => {
             </Button>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight" style={{ color: "hsl(var(--heading))" }}>
-                  {project.name}
-                </h1>
+                {isEditingName ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      ref={nameInputRef}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName();
+                        if (e.key === 'Escape') setIsEditingName(false);
+                      }}
+                      className="text-2xl font-bold h-9 px-2 w-64"
+                    />
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
+                      <Check className="h-4 w-4 text-green-600" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <h1
+                    className="text-2xl font-bold tracking-tight cursor-pointer group flex items-center gap-1.5"
+                    style={{ color: "hsl(var(--heading))" }}
+                    onClick={handleStartEditName}
+                    title="Klicka för att ändra namn"
+                  >
+                    {project.name}
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </h1>
+                )}
                 <Badge variant="outline" className="text-xs">Stort projekt</Badge>
                 {project.project_number && (
                   <Badge variant="secondary" className="text-xs font-mono">{project.project_number}</Badge>
