@@ -29,60 +29,42 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // Native: use @capgo/background-geolocation for true background tracking
       let stopped = false;
 
-      const startBackgroundTracking = async () => {
-        try {
-          // Add watcher — this persists across app backgrounding and device sleep
-          const watcherId = await BackgroundGeolocation.addWatcher(
-            {
-              backgroundMessage: 'EventFlow Time spårar din position',
-              backgroundTitle: 'EventFlow Time',
-              requestPermissions: true,
-              stale: false,
-              distanceFilter: 20, // meters — triggers callback when user moves 20m
-            },
-            (location, error) => {
-              if (stopped) return;
-              if (error) {
-                if (error.code === 'NOT_AUTHORIZED') {
-                  console.warn('[BGLocation] User denied location permission');
-                  // Optionally prompt to open settings:
-                  // if (window.confirm('GPS behövs. Öppna inställningar?')) {
-                  //   BackgroundGeolocation.openSettings();
-                  // }
-                } else {
-                  console.warn('[BGLocation] error:', error.code);
-                }
-                return;
-              }
-              if (location) {
-                reportPosition(
-                  location.latitude,
-                  location.longitude,
-                  location.accuracy ?? null,
-                  location.speed ?? null,
-                );
-              }
-            },
-          );
-
-          console.log('[BGLocation] watcher started, id:', watcherId);
-
-          // Store watcher id for cleanup
-          (window as any).__bgGeoWatcherId = watcherId;
-        } catch (err: any) {
-          console.warn('[BGLocation] Failed to start background tracking:', err?.message || err);
-        }
-      };
-
-      startBackgroundTracking();
+      BackgroundGeolocation.start(
+        {
+          backgroundMessage: 'EventFlow Time spårar din position',
+          backgroundTitle: 'EventFlow Time',
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 20,
+        },
+        (location, error) => {
+          if (stopped) return;
+          if (error) {
+            if (error.code === 'NOT_AUTHORIZED') {
+              console.warn('[BGLocation] User denied location permission');
+            } else {
+              console.warn('[BGLocation] error:', error.code);
+            }
+            return;
+          }
+          if (location) {
+            reportPosition(
+              location.latitude,
+              location.longitude,
+              location.accuracy ?? null,
+              location.speed ?? null,
+            );
+          }
+        },
+      ).then(() => {
+        console.log('[BGLocation] background tracking started');
+      }).catch((err) => {
+        console.warn('[BGLocation] Failed to start:', err?.message || err);
+      });
 
       return () => {
         stopped = true;
-        const watcherId = (window as any).__bgGeoWatcherId;
-        if (watcherId != null) {
-          BackgroundGeolocation.removeWatcher({ id: watcherId }).catch(() => {});
-          delete (window as any).__bgGeoWatcherId;
-        }
+        BackgroundGeolocation.stop().catch(() => {});
       };
     } else {
       // Web: use navigator.geolocation
