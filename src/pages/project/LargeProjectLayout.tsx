@@ -19,6 +19,7 @@ import { ProjectStatus } from "@/types/project";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
@@ -292,8 +293,7 @@ const LargeProjectLayout = () => {
                           <div className="flex items-center gap-3 min-w-0">
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                             <span className="text-sm font-medium truncate">
-                              {b?.client || lpb.display_name || `Bokning ${lpb.booking_id.slice(0, 8)}`}
-                              {b?.booking_number ? ` (#${b.booking_number})` : ''}
+                              {getLargeProjectBookingLabel(lpb)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
