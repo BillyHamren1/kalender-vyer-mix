@@ -1,89 +1,60 @@
 
-Mina faktiska fynd efter kodgranskningen:
 
-1. Jag kan inte bevisa originalhändelsen via edge-loggar just nu
-- Det finns inga bevarade loggar som matchar den aktuella bokningen/numret i de tillgängliga edge-loggarna.
-- Det betyder att jag inte kan läsa upp exakt request-payloaden från den dagen enbart från loggarna som finns kvar.
+## Plan: Implementera Capacitor Background Geolocation
 
-2. Det viktiga: nuvarande webhook-kedja verkar inte vara boven
-- `receive-booking` tar emot `organization_id` och sparar det oförändrat i `booking_sync_jobs`.
-- `process-sync-jobs` skickar samma `organization_id` vidare till `import-bookings`.
-- `import-bookings` sätter sedan `bookingData.organization_id = organizationId` innan insert/update i `bookings`.
-- Jag hittar ingen `BEFORE INSERT`-trigger på `bookings` som skriver över `organization_id`.
+### Bakgrund
+Nuvarande `useBackgroundLocationReporter` använder `@capacitor/geolocation` som bara fungerar när appen är i förgrunden. iOS och Android dödar bakgrundsprocesser, vilket gör att GPS-rapporteringen tystnar efter kort tid. Därför syns personalen som "offline" och ingen tid loggas i `location_time_entries`.
 
-Slutsats:
-- Den tidigare trigger-teorin håller inte för `bookings`.
-- Om bokningen har sparats under fel organisation så är det mycket mer sannolikt att den skapades via fel importväg/fel anropskontext, inte att databasen skrev över org-id i efterhand.
+### Lösning
+Installera **`@capgo/background-geolocation`** — ett Capacitor-plugin som fortsätter spåra position även när appen är minimerad eller skärmen är låst. Det är gratis, aktivt underhållet och kompatibelt med Capacitor 8.
 
-Trolig rotorsak utifrån koden:
-- `import-bookings` litar på `organization_id` från anropet, inte på något `organization_id` i själva externa bokningsobjektet.
-- Om en bokning någon gång importerades via fel tenant-kontekst, eller via en äldre importväg, så skulle den sparas under den organisation som anropet kördes med.
-- Med andra ord: även om BOOKING “har rätt org”, så kan Planning fortfarande spara den fel om importanropet sker med fel org-kontext.
+### Steg
 
-Detta är extra viktigt eftersom:
-- det finns frontend-anrop som kör `import-bookings` direkt,
-- och jag ser åtminstone ett nuvarande anrop i `LargeProjectLayout.tsx` som skickar fel body-format (`bookingId` i stället för `booking_id`) och dessutom utan `organization_id`.
-- Det verkar inte vara orsaken till just den historiska felbokningen, men det visar att det finns fler vägar in än webhook-kedjan.
+**1. Installera pluginet**
+- Lägg till `@capgo/background-geolocation` i `package.json`
 
-Reviderad plan för att få det exakta svaret och samtidigt täppa igen hålet:
+**2. Uppdatera `useBackgroundLocationReporter.ts`**
+- Ersätt `@capacitor/geolocation` med `BackgroundGeolocation.start()` på native-plattformar
+- Pluginet ger en callback vid varje positionsändring, även i bakgrunden
+- Behåll web-fallback med `navigator.geolocation.watchPosition`
+- Behåll 30-sekunders throttling via `lastReportRef`
 
-1. Forensisk spårning av just den bokningen
-- Läs historiken för bokningen i databasen via:
-  - `booking_changes`
-  - `sync_audit_log`
-  - eventuell första förekomst i `booking_sync_jobs`
-  - `created_at`/`updated_at` och första ändring
-- Målet är att avgöra om bokningen:
-  - kom via webhook-kedjan
-  - kom via manuell/frontend-import
-  - eller skapades innan nuvarande kö-system infördes
+**3. iOS-konfiguration (Info.plist)**
+- `NSLocationAlwaysAndWhenInUseUsageDescription` finns redan
+- Säkerställ att `UIBackgroundModes` inkluderar `location`
 
-2. Hårdsäkra importen
-- Uppdatera `import-bookings` så att den:
-  - loggar både `request.organization_id` och `externalBooking.organization_id` om det externa svaret innehåller det
-  - avbryter importen med tydligt fel om de inte matchar
-- Då kan en bokning aldrig sparas under “anropets org” om exporten egentligen tillhör en annan org.
+**4. Android-konfiguration**
+- Pluginet hanterar foreground service automatiskt
+- Bakgrundsmeddelande visas i notifikationsfältet
 
-3. Skapa permanent ingest-audit
-- Lägg till en enkel audit-tabell för varje booking-import:
-  - `booking_id`
-  - `source` (`webhook`, `worker`, `manual`, `background`, `single_refresh`)
-  - `request_organization_id`
-  - `external_organization_id`
-  - `resolved_organization_id`
-  - `matched` true/false
-  - timestamp
-- Då går det framåt att se exakt hur en bokning kom in och vem/vad som satte org.
+### Teknisk detalj
 
-4. Täta alla direkta import-anrop i appen
-- Gå igenom alla ställen som kallar `import-bookings` direkt.
-- Säkerställ att alla skickar:
-  - rätt `booking_id`
-  - rätt `organization_id`
-  - och helst samma säkra väg som webhook/worker använder
-- Särskilt `LargeProjectLayout.tsx` behöver rättas eftersom det just nu inte följer samma kontrakt.
+```typescript
+// Ny native-implementering i useBackgroundLocationReporter
+import { BackgroundGeolocation } from "@capgo/background-geolocation";
 
-5. Efterbevisning på Tiomila-bokningen
-- När historiken är läst ska resultatet kunna besvaras exakt:
-  - “den skapades av X”
-  - “med organization_id Y”
-  - “vid tidpunkt Z”
-  - “via webhook/manual import”
-- Först därefter bör själva datan korrigeras, så att vi inte bara lappar utan verkligen vet varför det hände.
+BackgroundGeolocation.start(
+  {
+    backgroundMessage: "EventFlow spårar din position",
+    backgroundTitle: "EventFlow Time",
+    requestPermissions: true,
+    stale: false,
+    distanceFilter: 20, // meters
+  },
+  (location, error) => {
+    if (location) {
+      reportPosition(location.latitude, location.longitude, 
+                     location.accuracy, location.speed);
+    }
+  }
+);
 
-Tekniska detaljer
-- Bekräftad kedja i kod:
-  - `supabase/functions/receive-booking/index.ts`
-  - `supabase/functions/process-sync-jobs/index.ts`
-  - `supabase/functions/import-bookings/index.ts`
-- Viktig observation:
-  - `import-bookings` använder `organization_id` från requesten som sanning när bokningen skrivs lokalt.
-- Viktig korrigering av tidigare spår:
-  - jag hittar ingen aktiv insert-trigger på `bookings` som skulle skriva över org-id där.
-- Riskfil att åtgärda:
-  - `src/pages/project/LargeProjectLayout.tsx` har ett direktanrop till `import-bookings` som inte skickar korrekt org-data.
+// Cleanup
+BackgroundGeolocation.stop();
+```
 
-Kort sagt:
-- Jag kan inte läsa den historiska original-loggen just nu.
-- Men koden visar att felet sannolikt inte är “BOOKING skickade fel”, utan att Planning vid något tillfälle importerade bokningen under fel org-kontext.
-- Nästa steg ska därför vara forensisk verifiering i historiktabeller + hårt skydd i importpipen så detta aldrig kan ske igen.
+### Vad användaren behöver göra efter implementation
+- Dra ner koden (`git pull`)
+- Kör `npm install && npx cap sync`
+- Bygg och installera appen på nytt på personalens telefoner
+
