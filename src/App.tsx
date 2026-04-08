@@ -23,6 +23,7 @@ import InvoicingPage from "./pages/InvoicingPage";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import TimeReportApprovals from "./pages/TimeReportApprovals";
+import StaffTimeReports from "./pages/StaffTimeReports";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
@@ -203,6 +204,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/communication" element={<ProtectedRoute><MainSystemLayout><CommunicationPage /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff-management/time-reports" element={<ProtectedRoute><MainSystemLayout><StaffTimeReports /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
