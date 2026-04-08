@@ -32,15 +32,25 @@ const ProjectInternalNotes = ({ bookingId, currentNotes, projectId, className }:
   };
 
   const handleSave = async () => {
-    if (!bookingId) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("bookings")
+      // Always save to the project
+      const { error: projectError } = await supabase
+        .from("projects")
         .update({ internalnotes: notes })
-        .eq("id", bookingId);
+        .eq("id", projectId);
 
-      if (error) throw error;
+      if (projectError) throw projectError;
+
+      // Also sync to booking if linked
+      if (bookingId) {
+        const { error: bookingError } = await supabase
+          .from("bookings")
+          .update({ internalnotes: notes })
+          .eq("id", bookingId);
+
+        if (bookingError) throw bookingError;
+      }
 
       setIsDirty(false);
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
