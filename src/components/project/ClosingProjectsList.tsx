@@ -509,6 +509,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
 const ClosingProjectsList = () => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
@@ -592,16 +593,17 @@ const ClosingProjectsList = () => {
     return items.sort((a, b) => b.daysSinceEvent - a.daysSinceEvent);
   }, [jobs, projects, largeProjects, todayStr, today]);
 
-  if (closingItems.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <Check className="h-8 w-8 mx-auto text-green-500 mb-2" />
-          <p className="text-sm text-muted-foreground">Inga projekt behöver stängas just nu.</p>
-        </CardContent>
-      </Card>
+  const pendingItems = useMemo(() => closingItems.filter(i => !i.isClosed), [closingItems]);
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return closingItems;
+    const q = searchQuery.toLowerCase();
+    return closingItems.filter(item =>
+      item.name.toLowerCase().includes(q) ||
+      (item.subtitle && item.subtitle.toLowerCase().includes(q)) ||
+      TYPE_LABELS[item.type].toLowerCase().includes(q)
     );
-  }
+  }, [closingItems, searchQuery]);
 
   const formatDate = (dateStr: string) => {
     try { return format(new Date(dateStr), 'd MMM yyyy', { locale: sv }); }
@@ -614,71 +616,178 @@ const ClosingProjectsList = () => {
     return 'text-muted-foreground';
   };
 
-  return (
-    <div className="space-y-2">
-      {closingItems.map(item => {
-        const isExpanded = expandedId === `${item.type}-${item.id}`;
-        const itemKey = `${item.type}-${item.id}`;
+  const renderItem = (item: ClosingItem) => {
+    const isExpanded = expandedId === `${item.type}-${item.id}`;
+    const itemKey = `${item.type}-${item.id}`;
 
-        return (
-          <Card key={itemKey} className={cn(
-            'overflow-hidden transition-shadow',
-            isExpanded && 'ring-1 ring-primary/20 shadow-md'
-          )}>
-            <div
-              onClick={() => setExpandedId(isExpanded ? null : itemKey)}
-              className="group flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-            >
-              <div className="shrink-0">
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-primary" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary/50" />
-                )}
-              </div>
+    return (
+      <Card key={itemKey} className={cn(
+        'overflow-hidden transition-shadow',
+        isExpanded && 'ring-1 ring-primary/20 shadow-md'
+      )}>
+        <div
+          onClick={() => setExpandedId(isExpanded ? null : itemKey)}
+          className="group flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+        >
+          <div className="shrink-0">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-primary" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary/50" />
+            )}
+          </div>
 
-              <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[item.type]}`}>
-                {TYPE_LABELS[item.type]}
-              </Badge>
+          <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[item.type]}`}>
+            {TYPE_LABELS[item.type]}
+          </Badge>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
-                  {item.isClosed && (
-                    <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50 text-[10px] px-1.5 py-0 shrink-0">
-                      STÄNGD
-                    </Badge>
-                  )}
-                </div>
-                {item.subtitle && (
-                  <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
-                )}
-              </div>
-
-              <div className="shrink-0 text-right">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  {formatDate(item.eventDate)}
-                </div>
-                <p className={`text-[11px] ${urgencyClass(item.daysSinceEvent)}`}>
-                  {item.daysSinceEvent} {item.daysSinceEvent === 1 ? 'dag' : 'dagar'} sedan
-                </p>
-              </div>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={(e) => { e.stopPropagation(); navigate(item.navigateTo); }}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+              {item.isClosed && (
+                <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50 text-[10px] px-1.5 py-0 shrink-0">
+                  STÄNGD
+                </Badge>
+              )}
             </div>
+            {item.subtitle && (
+              <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
+            )}
+          </div>
 
-            {isExpanded && <ClosingItemDetail item={item} />}
-          </Card>
-        );
-      })}
+          <div className="shrink-0 text-right">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              {formatDate(item.eventDate)}
+            </div>
+            <p className={`text-[11px] ${urgencyClass(item.daysSinceEvent)}`}>
+              {item.daysSinceEvent} {item.daysSinceEvent === 1 ? 'dag' : 'dagar'} sedan
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={(e) => { e.stopPropagation(); navigate(item.navigateTo); }}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {isExpanded && <ClosingItemDetail item={item} />}
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Search field */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Sök projektnamn, kund, adress..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 h-11 rounded-xl bg-card border-border/40 shadow-sm"
+        />
+      </div>
+
+      {/* If searching, show filtered results across all items */}
+      {searchQuery.trim() ? (
+        <div className="space-y-2">
+          {filteredItems.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">Inga projekt matchar sökningen.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredItems.map(renderItem)
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Non-closed projects container */}
+          {pendingItems.length > 0 ? (
+            <Card className="border-border/40 shadow-sm overflow-hidden">
+              <CardContent className="p-0">
+                <div className="px-5 py-4 border-b border-border/30 flex items-center gap-2.5">
+                  <AlertCircle className="h-4.5 w-4.5 text-amber-500" />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Ej stängda projekt
+                  </h3>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
+                    {pendingItems.length}
+                  </Badge>
+                </div>
+                <div className="divide-y divide-border/30">
+                  {pendingItems.map(item => {
+                    const isExpanded = expandedId === `${item.type}-${item.id}`;
+                    const itemKey = `${item.type}-${item.id}`;
+
+                    return (
+                      <div key={itemKey}>
+                        <div
+                          onClick={() => setExpandedId(isExpanded ? null : itemKey)}
+                          className="group flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="shrink-0">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-primary" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary/50" />
+                            )}
+                          </div>
+
+                          <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[item.type]}`}>
+                            {TYPE_LABELS[item.type]}
+                          </Badge>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
+                            {item.subtitle && (
+                              <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(item.eventDate)}
+                            </div>
+                            <p className={`text-[11px] ${urgencyClass(item.daysSinceEvent)}`}>
+                              {item.daysSinceEvent} {item.daysSinceEvent === 1 ? 'dag' : 'dagar'} sedan
+                            </p>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            onClick={(e) => { e.stopPropagation(); navigate(item.navigateTo); }}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {isExpanded && <ClosingItemDetail item={item} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Check className="h-8 w-8 mx-auto text-green-500 mb-2" />
+                <p className="text-sm text-muted-foreground">Inga projekt behöver stängas just nu.</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   );
 };
