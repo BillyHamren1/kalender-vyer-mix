@@ -34,10 +34,39 @@ interface Props {
   largeProjectId?: string;
 }
 
-/* ─── Inline editable row for purchases ─── */
-function EditablePurchaseRow({ purchase, bookingId, onSaved, onDeleted }: {
+/** Resolve a human-readable booking name. Always prefer real booking data over display_name. */
+function resolveBookingName(id: string, bookings: BookingInfo[]): string {
+  const b = bookings.find(b => b.booking_id === id);
+  const client = b?.booking?.client?.trim();
+  const bookingNumber = b?.booking?.booking_number?.trim();
+
+  // Always prefer real data
+  if (client) {
+    const num = bookingNumber ? ` (#${bookingNumber})` : '';
+    return `${client}${num}`;
+  }
+  if (bookingNumber) return `#${bookingNumber}`;
+
+  // Fallback to display_name only if it's not a generic UUID-based name
+  const displayName = b?.display_name?.trim();
+  if (displayName && !/^Bokning\s+[0-9a-f-]{8,}$/i.test(displayName)) return displayName;
+
+  return `Bokning ${id.slice(0, 8)}`;
+}
+
+/** Extract product list from batch data, handling multiple API formats */
+function extractProducts(data: BatchEconomyData): any[] {
+  const pc = data.product_costs;
+  if (!pc) return [];
+  // Try line_items first (new format), then products
+  if (Array.isArray(pc.line_items)) return pc.line_items;
+  if (Array.isArray((pc as any).products)) return (pc as any).products;
+  return [];
+}
+
+/* ─── Inline editable purchase row ─── */
+function EditablePurchaseRow({ purchase, onSaved, onDeleted }: {
   purchase: any;
-  bookingId: string;
   onSaved: () => void;
   onDeleted: () => void;
 }) {
@@ -50,19 +79,12 @@ function EditablePurchaseRow({ purchase, bookingId, onSaved, onDeleted }: {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePurchase(purchase.id, {
-        description: desc,
-        supplier: supplier || null,
-        amount: parseFloat(amount) || 0,
-      });
+      await updatePurchase(purchase.id, { description: desc, supplier: supplier || null, amount: parseFloat(amount) || 0 });
       toast.success('Inköp uppdaterat');
       setEditing(false);
       onSaved();
-    } catch {
-      toast.error('Kunde inte spara');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Kunde inte spara'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -71,33 +93,20 @@ function EditablePurchaseRow({ purchase, bookingId, onSaved, onDeleted }: {
       await deletePurchase(purchase.id);
       toast.success('Inköp borttaget');
       onDeleted();
-    } catch {
-      toast.error('Kunde inte ta bort');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Kunde inte ta bort'); }
+    finally { setSaving(false); }
   };
 
   if (editing) {
     return (
       <TableRow>
-        <TableCell>
-          <Input value={desc} onChange={e => setDesc(e.target.value)} className="h-7 text-xs" placeholder="Beskrivning" />
-        </TableCell>
-        <TableCell>
-          <Input value={supplier} onChange={e => setSupplier(e.target.value)} className="h-7 text-xs" placeholder="Leverantör" />
-        </TableCell>
-        <TableCell className="text-right">
-          <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="h-7 text-xs text-right w-24 ml-auto" />
-        </TableCell>
+        <TableCell><Input value={desc} onChange={e => setDesc(e.target.value)} className="h-7 text-xs" placeholder="Beskrivning" /></TableCell>
+        <TableCell><Input value={supplier} onChange={e => setSupplier(e.target.value)} className="h-7 text-xs" placeholder="Leverantör" /></TableCell>
+        <TableCell className="text-right"><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="h-7 text-xs text-right w-24 ml-auto" /></TableCell>
         <TableCell>
           <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSave} disabled={saving}>
-              <Save className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(false)}>
-              <X className="h-3 w-3" />
-            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSave} disabled={saving}><Save className="h-3 w-3" /></Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(false)}><X className="h-3 w-3" /></Button>
           </div>
         </TableCell>
       </TableRow>
@@ -105,18 +114,14 @@ function EditablePurchaseRow({ purchase, bookingId, onSaved, onDeleted }: {
   }
 
   return (
-    <TableRow className="group">
+    <TableRow>
       <TableCell className="text-xs font-medium">{purchase.description || '—'}</TableCell>
       <TableCell className="text-xs">{purchase.supplier || '—'}</TableCell>
       <TableCell className="text-xs text-right">{fmt(purchase.amount || 0)}</TableCell>
       <TableCell>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={handleDelete} disabled={saving}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}><Pencil className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={handleDelete} disabled={saving}><Trash2 className="h-3 w-3" /></Button>
         </div>
       </TableCell>
     </TableRow>
@@ -147,45 +152,57 @@ function AddPurchaseRow({ bookingId, onAdded }: { bookingId: string; onAdded: ()
     if (!desc || !amount) return;
     setSaving(true);
     try {
-      await createPurchase({
-        booking_id: bookingId,
-        description: desc,
-        supplier: supplier || null,
-        amount: parseFloat(amount) || 0,
-      });
+      await createPurchase({ booking_id: bookingId, description: desc, supplier: supplier || null, amount: parseFloat(amount) || 0 });
       toast.success('Inköp tillagt');
       setDesc(''); setSupplier(''); setAmount('');
       setOpen(false);
       onAdded();
-    } catch {
-      toast.error('Kunde inte lägga till inköp');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Kunde inte lägga till inköp'); }
+    finally { setSaving(false); }
   };
 
   return (
     <TableRow>
-      <TableCell>
-        <Input value={desc} onChange={e => setDesc(e.target.value)} className="h-7 text-xs" placeholder="Beskrivning *" />
-      </TableCell>
-      <TableCell>
-        <Input value={supplier} onChange={e => setSupplier(e.target.value)} className="h-7 text-xs" placeholder="Leverantör" />
-      </TableCell>
-      <TableCell>
-        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="h-7 text-xs text-right w-24 ml-auto" placeholder="0" />
-      </TableCell>
+      <TableCell><Input value={desc} onChange={e => setDesc(e.target.value)} className="h-7 text-xs" placeholder="Beskrivning *" /></TableCell>
+      <TableCell><Input value={supplier} onChange={e => setSupplier(e.target.value)} className="h-7 text-xs" placeholder="Leverantör" /></TableCell>
+      <TableCell><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="h-7 text-xs text-right w-24 ml-auto" placeholder="0" /></TableCell>
       <TableCell>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAdd} disabled={saving || !desc || !amount}>
-            <Save className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)}>
-            <X className="h-3 w-3" />
-          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAdd} disabled={saving || !desc || !amount}><Save className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)}><X className="h-3 w-3" /></Button>
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+/* ─── Editable product cost cell ─── */
+function EditableCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value.toString());
+
+  if (editing) {
+    return (
+      <Input
+        type="number"
+        className="h-7 text-xs text-right w-24"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={() => { onSave(parseFloat(val) || 0); setEditing(false); }}
+        onKeyDown={e => { if (e.key === 'Enter') { onSave(parseFloat(val) || 0); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setVal(value.toString()); setEditing(true); }}
+      className="text-xs text-right w-full cursor-pointer hover:bg-muted/60 rounded px-1 py-0.5 transition-colors"
+      title="Klicka för att redigera"
+    >
+      {fmt(value)}
+    </button>
   );
 }
 
@@ -201,21 +218,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     });
   };
 
-  const getBookingName = (id: string) => {
-    const b = bookings.find(b => b.booking_id === id);
-    const displayName = b?.display_name?.trim();
-    const client = b?.booking?.client?.trim();
-    const bookingNumber = b?.booking?.booking_number?.trim();
-    const hasGenericFallbackName = !!displayName && /^Bokning\s+[0-9a-f-]{8,}$/i.test(displayName);
-
-    if (displayName && !hasGenericFallbackName) return displayName;
-    if (client) {
-      const num = bookingNumber ? ` (#${bookingNumber})` : '';
-      return `${client}${num}`;
-    }
-    if (bookingNumber) return `#${bookingNumber}`;
-    return `Bokning ${id.slice(0, 8)}`;
-  };
+  const getBookingName = (id: string) => resolveBookingName(id, bookings);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
@@ -223,39 +226,67 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   // Build merged list of all costs across bookings
   const mergedCosts = useMemo(() => {
-    const all: { type: string; bookingId: string; bookingName: string; description: string; supplier: string; amount: number; id?: string }[] = [];
+    const all: { type: string; bookingId: string; bookingName: string; description: string; info: string; amount: number }[] = [];
     Object.entries(bookingEconomyData).forEach(([bookingId, data]) => {
       const bName = getBookingName(bookingId);
-      // Products
-      const products = data.product_costs?.products || [];
+
+      // Products — include ALL, even zero-cost
+      const products = extractProducts(data);
       products.forEach((p: any) => {
-        const cost = p.cost || p.total_cost || 0;
-        if (cost > 0) {
-          all.push({ type: 'Produkt', bookingId, bookingName: bName, description: p.name || p.product_name || p.description || '—', supplier: '—', amount: cost });
-        }
+        const cost = p.total_cost ?? p.cost ?? ((p.assembly_cost || 0) + (p.handling_cost || 0) + (p.purchase_cost || 0));
+        all.push({
+          type: 'Produkt', bookingId, bookingName: bName,
+          description: p.product_name || p.name || p.description || '—',
+          info: `${p.quantity || 1} st`,
+          amount: cost,
+        });
       });
-      // Staff
+
+      // Staff / time reports
       const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
       timeReports.forEach((r: any) => {
-        if ((r.total_cost || 0) > 0) {
-          all.push({ type: 'Personal', bookingId, bookingName: bName, description: r.staff_name || 'Okänd', supplier: `${r.total_hours || r.hours_worked || 0}h`, amount: r.total_cost || 0 });
-        }
+        all.push({
+          type: 'Personal', bookingId, bookingName: bName,
+          description: r.staff_name || 'Okänd',
+          info: `${r.total_hours || r.hours_worked || 0}h`,
+          amount: r.total_cost || 0,
+        });
       });
+
       // Purchases
       const purchases = Array.isArray(data.purchases) ? data.purchases : [];
       purchases.forEach((p: any) => {
-        all.push({ type: 'Inköp', bookingId, bookingName: bName, description: p.description || '—', supplier: p.supplier || '—', amount: p.amount || 0, id: p.id });
+        all.push({
+          type: 'Inköp', bookingId, bookingName: bName,
+          description: p.description || '—',
+          info: p.supplier || '—',
+          amount: p.amount || 0,
+        });
       });
+
       // Invoices
       const invoices = Array.isArray(data.invoices) ? data.invoices : [];
       invoices.forEach((inv: any) => {
-        all.push({ type: 'Faktura', bookingId, bookingName: bName, description: inv.supplier || '—', supplier: inv.invoice_number || '—', amount: Number(inv.invoiced_amount) || 0 });
+        all.push({
+          type: 'Faktura', bookingId, bookingName: bName,
+          description: inv.supplier || '—',
+          info: inv.invoice_number || '—',
+          amount: Number(inv.invoiced_amount) || 0,
+        });
       });
-      // Supplier invoices
+
+      // Supplier invoices (skip linked to avoid double-counting)
       const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
-      supplierInvoices.filter((s: any) => !(s.is_final_link && s.linked_cost_id)).forEach((si: any) => {
-        all.push({ type: 'Lev.faktura', bookingId, bookingName: bName, description: si.invoice_data?.SupplierName || '—', supplier: si.invoice_data?.GivenNumber || '—', amount: Number(si.invoice_data?.Total) || 0 });
-      });
+      supplierInvoices
+        .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
+        .forEach((si: any) => {
+          all.push({
+            type: 'Lev.faktura', bookingId, bookingName: bName,
+            description: si.invoice_data?.SupplierName || '—',
+            info: si.invoice_data?.GivenNumber || '—',
+            amount: Number(si.invoice_data?.Total) || 0,
+          });
+        });
     });
     return all;
   }, [bookingEconomyData, bookings]);
@@ -271,14 +302,14 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
         <Tabs defaultValue="per-booking" className="space-y-4">
           <TabsList className="h-9 p-0.5">
             <TabsTrigger value="per-booking" className="text-xs px-3">Per bokning</TabsTrigger>
-            <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader</TabsTrigger>
+            <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader ({mergedCosts.length})</TabsTrigger>
           </TabsList>
 
           {/* ─── Per booking view ─── */}
           <TabsContent value="per-booking" className="space-y-3 mt-0">
             {Object.entries(bookingEconomyData).map(([bookingId, data]) => {
               const isExpanded = expandedBookings.has(bookingId);
-              const products = data.product_costs?.products || [];
+              const products = extractProducts(data);
               const productSummary = data.product_costs?.summary;
               const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
               const purchases = Array.isArray(data.purchases) ? data.purchases : [];
@@ -312,7 +343,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
                   {isExpanded && (
                     <div className="border-t border-border/40 p-3 space-y-4 bg-muted/20">
-                      {/* Products */}
+                      {/* Products — editable costs */}
                       {products.length > 0 && (
                         <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={productSummary?.costs || 0}>
                           <Table>
@@ -321,21 +352,34 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                 <TableHead className="text-xs">Produkt</TableHead>
                                 <TableHead className="text-xs text-right">Antal</TableHead>
                                 <TableHead className="text-xs text-right">Intäkt</TableHead>
-                                <TableHead className="text-xs text-right">Kostnad</TableHead>
+                                <TableHead className="text-xs text-right">Montage</TableHead>
+                                <TableHead className="text-xs text-right">Hantering</TableHead>
+                                <TableHead className="text-xs text-right">Inköp</TableHead>
+                                <TableHead className="text-xs text-right">Tot. kostnad</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {products.map((p: any, i: number) => (
-                                <TableRow key={i}>
-                                  <TableCell className="text-xs font-medium">{p.name || p.product_name || p.description || '—'}</TableCell>
-                                  <TableCell className="text-xs text-right">{p.quantity}</TableCell>
-                                  <TableCell className="text-xs text-right">{fmt(p.revenue || p.total_price || 0)}</TableCell>
-                                  <TableCell className="text-xs text-right">{fmt(p.cost || p.total_cost || 0)}</TableCell>
-                                </TableRow>
-                              ))}
+                              {products.map((p: any, i: number) => {
+                                const assemblyCost = p.assembly_cost || 0;
+                                const handlingCost = p.handling_cost || 0;
+                                const purchaseCost = p.purchase_cost || 0;
+                                const totalPCost = p.total_cost ?? p.cost ?? (assemblyCost + handlingCost + purchaseCost);
+                                return (
+                                  <TableRow key={i}>
+                                    <TableCell className="text-xs font-medium">{p.product_name || p.name || p.description || '—'}</TableCell>
+                                    <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(p.total_revenue || p.revenue || p.total_price || 0)}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(assemblyCost)}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(handlingCost)}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(purchaseCost)}</TableCell>
+                                    <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
                               <TableRow className="font-semibold border-t">
                                 <TableCell colSpan={2} className="text-xs">Summa</TableCell>
                                 <TableCell className="text-xs text-right">{fmt(productSummary?.revenue || 0)}</TableCell>
+                                <TableCell colSpan={3}></TableCell>
                                 <TableCell className="text-xs text-right">{fmt(productSummary?.costs || 0)}</TableCell>
                               </TableRow>
                             </TableBody>
@@ -369,7 +413,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         </Section>
                       )}
 
-                      {/* Purchases — editable */}
+                      {/* Purchases — always editable, buttons always visible */}
                       <Section icon={<ShoppingCart className="h-3.5 w-3.5" />} title="Inköp" total={purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0)}>
                         <Table>
                           <TableHeader>
@@ -377,18 +421,12 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                               <TableHead className="text-xs">Beskrivning</TableHead>
                               <TableHead className="text-xs">Leverantör</TableHead>
                               <TableHead className="text-xs text-right">Belopp</TableHead>
-                              <TableHead className="text-xs w-16"></TableHead>
+                              <TableHead className="text-xs w-20"></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {purchases.map((p: any) => (
-                              <EditablePurchaseRow
-                                key={p.id}
-                                purchase={p}
-                                bookingId={bookingId}
-                                onSaved={invalidate}
-                                onDeleted={invalidate}
-                              />
+                              <EditablePurchaseRow key={p.id} purchase={p} onSaved={invalidate} onDeleted={invalidate} />
                             ))}
                             <AddPurchaseRow bookingId={bookingId} onAdded={invalidate} />
                           </TableBody>
@@ -443,11 +481,10 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     <TableCell className="text-xs font-medium">{si.invoice_data?.SupplierName || '-'}</TableCell>
                                     <TableCell className="text-xs">{si.invoice_data?.GivenNumber || si.given_number || '-'}</TableCell>
                                     <TableCell className="text-xs">
-                                      {isLinked ? (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0">Länkad</Badge>
-                                      ) : (
-                                        <Badge variant="secondary" className="text-[9px] px-1 py-0">Olänkad</Badge>
-                                      )}
+                                      {isLinked
+                                        ? <Badge variant="outline" className="text-[9px] px-1 py-0">Länkad</Badge>
+                                        : <Badge variant="secondary" className="text-[9px] px-1 py-0">Olänkad</Badge>
+                                      }
                                     </TableCell>
                                     <TableCell className="text-xs text-right">{fmt(Number(si.invoice_data?.Total) || 0)}</TableCell>
                                   </TableRow>
@@ -468,45 +505,40 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
             })}
           </TabsContent>
 
-          {/* ─── Merged view ─── */}
+          {/* ─── Merged view — all costs in one table ─── */}
           <TabsContent value="merged" className="mt-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Typ</TableHead>
-                  <TableHead className="text-xs">Bokning</TableHead>
-                  <TableHead className="text-xs">Beskrivning</TableHead>
-                  <TableHead className="text-xs">Leverantör / Info</TableHead>
-                  <TableHead className="text-xs text-right">Belopp</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mergedCosts.map((c, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">{c.bookingName}</TableCell>
-                    <TableCell className="text-xs font-medium">{c.description}</TableCell>
-                    <TableCell className="text-xs">{c.supplier}</TableCell>
-                    <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
-                  </TableRow>
-                ))}
-                {mergedCosts.length === 0 && (
+            {mergedCosts.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8 text-sm">Inga kostnader registrerade i bokningarna</p>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-8">
-                      Inga kostnader registrerade
-                    </TableCell>
+                    <TableHead className="text-xs">Typ</TableHead>
+                    <TableHead className="text-xs">Bokning</TableHead>
+                    <TableHead className="text-xs">Beskrivning</TableHead>
+                    <TableHead className="text-xs">Info</TableHead>
+                    <TableHead className="text-xs text-right">Belopp</TableHead>
                   </TableRow>
-                )}
-                {mergedCosts.length > 0 && (
+                </TableHeader>
+                <TableBody>
+                  {mergedCosts.map((c, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{c.bookingName}</TableCell>
+                      <TableCell className="text-xs font-medium">{c.description}</TableCell>
+                      <TableCell className="text-xs">{c.info}</TableCell>
+                      <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
+                    </TableRow>
+                  ))}
                   <TableRow className="font-bold border-t-2">
                     <TableCell colSpan={4} className="text-xs">TOTALT</TableCell>
                     <TableCell className="text-xs text-right">{fmt(mergedTotal)}</TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            )}
           </TabsContent>
         </Tabs>
       </CardContent>
