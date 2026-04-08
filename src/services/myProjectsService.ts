@@ -115,6 +115,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       role: project.role,
       projectLeader: project.project_leader,
       bookingNumber: booking?.bookingNumber || null,
+      projectNumber: booking?.bookingNumber || null,
       address: booking?.address || null,
     });
   }
@@ -122,7 +123,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
   // --- Large projects ---
   const { data: largeLeaderProjects } = await supabase
     .from('large_projects')
-    .select('id, name, status, start_date, end_date, project_leader')
+    .select('id, name, status, start_date, end_date, project_leader, project_number')
     .eq('project_leader', staffId)
     .neq('status', 'completed');
 
