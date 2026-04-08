@@ -1876,6 +1876,7 @@ export type Database = {
           name: string
           organization_id: string
           project_leader: string | null
+          project_number: string | null
           start_date: string | null
           status: string
           updated_at: string
@@ -1890,6 +1891,7 @@ export type Database = {
           name: string
           organization_id?: string
           project_leader?: string | null
+          project_number?: string | null
           start_date?: string | null
           status?: string
           updated_at?: string
@@ -1904,6 +1906,7 @@ export type Database = {
           name?: string
           organization_id?: string
           project_leader?: string | null
+          project_number?: string | null
           start_date?: string | null
           status?: string
           updated_at?: string
