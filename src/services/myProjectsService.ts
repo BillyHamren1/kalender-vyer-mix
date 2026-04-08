@@ -13,6 +13,7 @@ export interface MyProjectItem {
   role: 'leader' | 'assigned';
   projectLeader: string | null;
   bookingNumber: string | null;
+  projectNumber: string | null;
   address: string | null;
 }
 
