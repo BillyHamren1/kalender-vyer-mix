@@ -55,7 +55,7 @@ const baseNavigationItems: NavItem[] = [
     ],
   },
   {
-    title: "Personalhantering",
+    title: "Personal",
     url: "/staff-management",
     icon: Users,
     children: [
