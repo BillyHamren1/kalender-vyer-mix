@@ -36,6 +36,9 @@ const LargeProjectLayout = () => {
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
