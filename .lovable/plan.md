@@ -1,40 +1,36 @@
 
 
-## Analys: Var kommer 308 455 kr ifrån?
+## Problem
 
-Summan kommer från **produktkostnader** (`product_costs.summary.costs`) som hämtas från de länkade bokningarna via planning-API:et. Detta är den totala självkostnaden på produkterna i bokningarna (material, arbete, externa kostnader etc.) — inte inköp, fakturor eller personal.
+`ProjectInternalNotes` sparar BARA till `bookings`-tabellen (rad 38-41). Det finns två scenarion som fallerar:
 
-### Problemet
+1. **Projekt utan bokning** (`bookingId = null`): `handleSave` gör `if (!bookingId) return` — texten sparas aldrig.
+2. **Projekt med bokning**: Sparar till `bookings.internalnotes`, men `currentNotes` läser `booking?.internalnotes || project.internalnotes` — om projektet skapades med egna anteckningar kan det uppstå en mismatch.
 
-Formeln för `grandTotalCost` i `useLargeProjectEconomy.tsx` (rad 142-148) summerar:
+Kärnan: det finns en `internalnotes`-kolumn på `projects`-tabellen, men komponenten uppdaterar den aldrig.
 
-```text
-grandTotalCost = localPurchasesTotal      ← projektinköp (0 kr)
-               + agg.totalCost            ← produktkostnad från bokningar (308 455 kr?)
-               + agg.totalStaffCost       ← personalkostnad (0 kr)
-               + agg.totalPurchases       ← bokningsinköp (0 kr)
-               + agg.totalInvoices        ← fakturor (0 kr)
-               + agg.totalSupplierInvoices ← leverantörsfakturor (0 kr)
+## Lösning
+
+Uppdatera `ProjectInternalNotes` så den sparar till **rätt tabell** beroende på om det finns en kopplad bokning eller inte:
+
+### Fil: `src/components/project/ProjectInternalNotes.tsx`
+
+**Ändra `handleSave`-logiken:**
+- Om `bookingId` finns: spara till `bookings.internalnotes` (som idag) OCH till `projects.internalnotes`
+- Om `bookingId` saknas (standalone-projekt): spara till `projects.internalnotes`
+
+Konkret:
+```
+1. Alltid uppdatera projects.internalnotes WHERE id = projectId
+2. Om bookingId finns, även uppdatera bookings.internalnotes WHERE id = bookingId
+3. Ta bort early return på !bookingId — låt sparningen gå igenom mot projects-tabellen
 ```
 
-Produktkostnaden syns i kortet "Ekonomi från bokningar" → "Produktkostnad", men det framgar inte tydligt att det ar den som driver totalbeloppet.
+### Inga databasändringar
+Kolumnen `internalnotes` finns redan på `projects`-tabellen (bekräftat i types.ts och CreateProjectWizard).
 
-### Foreslagna forbattringar
-
-1. **Tydligare kostnadsuppdelning i summary-kortet "Total kostnad"**
-   - Visa en tooltip eller expanderbar breakdown under totalbeloppet som listar varje delpost (produktkostnad, personal, inköp, fakturor, leverantörsfakturor).
-
-2. **Gör "Total kostnad"-kortet klickbart/expanderbart**
-   - Vid klick/hover visas en mini-lista med alla delkostnader och deras belopp, så att användaren direkt ser vad som ingår.
-
-3. **Markera 0-poster som inaktiva**
-   - I "Ekonomi från bokningar"-sektionen, visa poster med 0 kr i en dämpad stil så att den post som faktiskt har ett värde (produktkostnad) sticker ut.
-
-### Tekniska ändringar
-
-- **Fil**: `src/pages/project/LargeProjectEconomyPage.tsx`
-  - Under "Total kostnad"-kortet: lägg till en kompakt breakdown-lista med alla kostnadskategorier och deras belopp
-  - Eventuellt som en expanderbar sektion eller tooltip
-
-- **Inga beräkningsändringar** — formeln är korrekt, men transparensen behöver förbättras i UI:t.
+### Sammanfattning
+- En ändring i en fil
+- Texten sparas alltid till projektet, och synkas till bokningen om den finns
+- Vid refresh läser `currentNotes` korrekt `booking?.internalnotes || project.internalnotes`, vilket nu alltid matchar
 
