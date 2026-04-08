@@ -118,6 +118,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
         bookingId: p.booking_id,
+        projectNumber: bookingNum || null,
       });
     });
 
