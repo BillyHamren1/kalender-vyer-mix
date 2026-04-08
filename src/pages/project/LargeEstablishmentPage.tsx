@@ -17,6 +17,7 @@ import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import { useTaskAnalytics } from "@/hooks/useTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
+import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 
 type ViewMode = "gantt" | "list" | "people";
 
@@ -156,7 +157,7 @@ const LargeEstablishmentPage = () => {
 
   const projectBookings = (project.bookings || []).map(b => ({
     booking_id: b.booking_id,
-    display_name: b.display_name || (b as any).booking?.client || (b as any).booking?.booking_number || b.booking_id,
+    display_name: getLargeProjectBookingLabel(b as any),
     client: (b as any).booking?.client || null,
   }));
 

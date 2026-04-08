@@ -10,6 +10,7 @@ import {
   Plus, Save, X, Pencil, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLargeProjectBookingLabel } from '@/lib/largeProjectBookingLabel';
 import { toast } from 'sonner';
 import type { BatchEconomyData } from '@/services/planningApiService';
 import { createPurchase, updatePurchase, deletePurchase } from '@/services/planningApiService';
@@ -36,22 +37,15 @@ interface Props {
 
 /** Resolve a human-readable booking name. Always prefer real booking data over display_name. */
 function resolveBookingName(id: string, bookings: BookingInfo[]): string {
-  const b = bookings.find(b => b.booking_id === id);
-  const client = b?.booking?.client?.trim();
-  const bookingNumber = b?.booking?.booking_number?.trim();
+  const bookingLink = bookings.find((booking) => booking.booking_id === id);
 
-  // Always prefer real data
-  if (client) {
-    const num = bookingNumber ? ` (#${bookingNumber})` : '';
-    return `${client}${num}`;
-  }
-  if (bookingNumber) return `#${bookingNumber}`;
-
-  // Fallback to display_name only if it's not a generic UUID-based name
-  const displayName = b?.display_name?.trim();
-  if (displayName && !/^Bokning\s+[0-9a-f-]{8,}$/i.test(displayName)) return displayName;
-
-  return `Bokning ${id.slice(0, 8)}`;
+  return getLargeProjectBookingLabel(
+    bookingLink || {
+      booking_id: id,
+      display_name: null,
+      booking: null,
+    }
+  );
 }
 
 /** Extract product list from batch data, handling multiple API formats */
