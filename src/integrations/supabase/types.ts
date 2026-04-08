@@ -127,6 +127,45 @@ export type Database = {
           },
         ]
       }
+      booking_import_audit: {
+        Row: {
+          action: string
+          booking_id: string
+          booking_number: string | null
+          created_at: string
+          external_organization_id: string | null
+          id: string
+          org_match: boolean
+          request_organization_id: string
+          resolved_organization_id: string
+          source: string
+        }
+        Insert: {
+          action?: string
+          booking_id: string
+          booking_number?: string | null
+          created_at?: string
+          external_organization_id?: string | null
+          id?: string
+          org_match?: boolean
+          request_organization_id: string
+          resolved_organization_id: string
+          source?: string
+        }
+        Update: {
+          action?: string
+          booking_id?: string
+          booking_number?: string | null
+          created_at?: string
+          external_organization_id?: string | null
+          id?: string
+          org_match?: boolean
+          request_organization_id?: string
+          resolved_organization_id?: string
+          source?: string
+        }
+        Relationships: []
+      }
       booking_products: {
         Row: {
           assembly_cost: number | null
