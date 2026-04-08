@@ -32,15 +32,25 @@ const ProjectInternalNotes = ({ bookingId, currentNotes, projectId, className }:
   };
 
   const handleSave = async () => {
-    if (!bookingId) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("bookings")
+      // Always save to the project
+      const { error: projectError } = await supabase
+        .from("projects")
         .update({ internalnotes: notes })
-        .eq("id", bookingId);
+        .eq("id", projectId);
 
-      if (error) throw error;
+      if (projectError) throw projectError;
+
+      // Also sync to booking if linked
+      if (bookingId) {
+        const { error: bookingError } = await supabase
+          .from("bookings")
+          .update({ internalnotes: notes })
+          .eq("id", bookingId);
+
+        if (bookingError) throw bookingError;
+      }
 
       setIsDirty(false);
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
@@ -61,12 +71,12 @@ const ProjectInternalNotes = ({ bookingId, currentNotes, projectId, className }:
           value={notes}
           onChange={handleChange}
           className="flex-1 resize-none min-h-[180px] text-sm"
-          disabled={!bookingId}
+          disabled={false}
         />
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={!isDirty || isSaving || !bookingId}
+          disabled={!isDirty || isSaving}
           className="self-end gap-1.5"
         >
           <Save className="h-3.5 w-3.5" />
