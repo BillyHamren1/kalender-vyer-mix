@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Plus, Search, RotateCcw, Download, UserPlus, MoreHorizontal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Plus, Search, RotateCcw, Download, UserPlus, MoreHorizontal, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageContainer } from '@/components/ui/PageContainer';
@@ -17,6 +18,7 @@ import StaffAccountsPanel from '@/components/staff/StaffAccountsPanel';
 import StaffExportDialog from '@/components/staff/StaffExportDialog';
 
 const StaffManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
@@ -104,6 +106,10 @@ const StaffManagement: React.FC = () => {
           onClick: () => setIsAddDialogOpen(true)
         }}
       >
+        <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate('/staff-management/time-reports')}>
+          <Clock className="h-4 w-4 mr-1" />
+          Tidrapporter
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="rounded-xl">
