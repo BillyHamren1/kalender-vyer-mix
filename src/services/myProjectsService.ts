@@ -13,6 +13,7 @@ export interface MyProjectItem {
   role: 'leader' | 'assigned';
   projectLeader: string | null;
   bookingNumber: string | null;
+  projectNumber: string | null;
   address: string | null;
 }
 
@@ -114,6 +115,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       role: project.role,
       projectLeader: project.project_leader,
       bookingNumber: booking?.bookingNumber || null,
+      projectNumber: booking?.bookingNumber || null,
       address: booking?.address || null,
     });
   }
@@ -121,7 +123,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
   // --- Large projects ---
   const { data: largeLeaderProjects } = await supabase
     .from('large_projects')
-    .select('id, name, status, start_date, end_date, project_leader')
+    .select('id, name, status, start_date, end_date, project_leader, project_number')
     .eq('project_leader', staffId)
     .neq('status', 'completed');
 
@@ -140,7 +142,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
   if (largeAdditionalIds.length > 0) {
     const { data } = await supabase
       .from('large_projects')
-      .select('id, name, status, start_date, end_date, project_leader')
+      .select('id, name, status, start_date, end_date, project_leader, project_number')
       .in('id', largeAdditionalIds)
       .neq('status', 'completed');
     largeAssignedProjects = data || [];
@@ -183,6 +185,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       role: project.role,
       projectLeader: project.project_leader,
       bookingNumber: null,
+      projectNumber: (project as any).project_number || null,
       address: null,
     });
   }

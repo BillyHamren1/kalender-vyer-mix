@@ -194,7 +194,11 @@ const MyProjects: React.FC = () => {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-semibold text-base text-foreground truncate">
                           {project.clientName || project.name}
-                          {project.bookingNumber && ` #${project.bookingNumber}`}
+                          {project.projectNumber && (
+                            <span className="ml-2 text-xs font-mono text-muted-foreground font-normal">
+                              {project.projectNumber}
+                            </span>
+                          )}
                         </h3>
                         <span className={cn(
                           "text-xs font-medium px-2 py-0.5 rounded-full",

@@ -28,6 +28,7 @@ interface UnifiedProject {
   navigateTo: string;
   bookingCancelled?: boolean;
   bookingId?: string | null;
+  projectNumber?: string | null;
 }
 
 interface UnifiedProjectListProps {
@@ -117,6 +118,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
         bookingId: p.booking_id,
+        projectNumber: bookingNum || null,
       });
     });
 
@@ -131,6 +133,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       address: lp.location ?? null,
       navigateTo: `/large-project/${lp.id}`,
       bookingId: null,
+      projectNumber: (lp as any).project_number || null,
     }));
 
     return items;
@@ -270,6 +273,9 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               <div className="flex-1 min-w-0">
                 <h4 className={`text-sm font-medium truncate group-hover/row:text-primary transition-colors ${project.bookingCancelled ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                   {project.name}
+                  {project.projectNumber && (
+                    <span className="ml-2 text-[11px] font-mono text-muted-foreground font-normal">{project.projectNumber}</span>
+                  )}
                 </h4>
                 {project.subtitle && (
                   <p className={`text-[11px] truncate mt-0.5 ${project.bookingCancelled ? 'line-through text-muted-foreground/60' : 'text-muted-foreground'}`}>{project.subtitle}</p>
