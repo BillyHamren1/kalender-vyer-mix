@@ -12,6 +12,7 @@
         "@capacitor/geolocation": "^8.0.1",
         "@capacitor/ios": "^8.1.0",
         "@capacitor/push-notifications": "^8.0.2",
+        "@capgo/background-geolocation": "^8.0.28",
         "@fullcalendar/core": "^6.1.17",
         "@fullcalendar/daygrid": "^6.1.17",
         "@fullcalendar/interaction": "^6.1.17",
@@ -146,6 +147,8 @@
     "@capacitor/push-notifications": ["@capacitor/push-notifications@8.0.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-mej8Eh4EU4JXbaeyMX2l+4NNK6IdY5iRsEXpBOTHLD29fuCACBP7kOJTiJv6piw134zdlbFH0rR+sDKHIiFOFg=="],
 
     "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/synapse/-/synapse-1.0.4.tgz", {}, "sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw=="],
+
+    "@capgo/background-geolocation": ["@capgo/background-geolocation@8.0.28", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capgo/background-geolocation/-/background-geolocation-8.0.28.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-Dom0wrePOT1TV1ZYgboboBEURgObkM5Fw0STaMYmEWjIOG+VXemswxzJfyFL7mCJh7hDU9bvoGZlur6gYu/7LQ=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 

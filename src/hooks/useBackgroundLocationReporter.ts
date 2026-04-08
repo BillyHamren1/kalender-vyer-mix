@@ -1,17 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
+import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { mobileApi } from '@/services/mobileApiService';
 
 /**
- * Continuously reports GPS position to staff_locations every 30s,
- * regardless of active shifts or bookings.
- * Uses Capacitor Geolocation on native, navigator.geolocation on web.
+ * Continuously reports GPS position to staff_locations every 30s.
+ * Uses @capgo/background-geolocation on native (works even when app is backgrounded/killed).
+ * Falls back to navigator.geolocation on web.
  */
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
-  const watchIdRef = useRef<string | number | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!staffId) return;
@@ -27,54 +26,45 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     };
 
     if (Capacitor.isNativePlatform()) {
-      // Native: use Capacitor Geolocation plugin
-      let running = true;
+      // Native: use @capgo/background-geolocation for true background tracking
+      let stopped = false;
 
-      const startNativeWatch = async () => {
-        try {
-          const perm = await Geolocation.requestPermissions();
-          if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
-            console.warn('[BGLocation] Location permission denied');
+      BackgroundGeolocation.start(
+        {
+          backgroundMessage: 'EventFlow Time spårar din position',
+          backgroundTitle: 'EventFlow Time',
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 20,
+        },
+        (location, error) => {
+          if (stopped) return;
+          if (error) {
+            if (error.code === 'NOT_AUTHORIZED') {
+              console.warn('[BGLocation] User denied location permission');
+            } else {
+              console.warn('[BGLocation] error:', error.code);
+            }
             return;
           }
-        } catch (e) {
-          console.warn('[BGLocation] Permission request failed:', e);
-        }
-
-        // Use polling with getCurrentPosition (more reliable on iOS background)
-        intervalRef.current = setInterval(async () => {
-          if (!running) return;
-          try {
-            const pos = await Geolocation.getCurrentPosition({
-              enableHighAccuracy: true,
-              timeout: 10000,
-            });
+          if (location) {
             reportPosition(
-              pos.coords.latitude,
-              pos.coords.longitude,
-              pos.coords.accuracy ?? null,
-              pos.coords.speed ?? null,
+              location.latitude,
+              location.longitude,
+              location.accuracy ?? null,
+              location.speed ?? null,
             );
-          } catch (err: any) {
-            console.warn('[BGLocation] native position error:', err?.message || err);
           }
-        }, 30000);
-
-        // Also get one immediately
-        try {
-          const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
-          reportPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? null, pos.coords.speed ?? null);
-        } catch {}
-      };
-
-      startNativeWatch();
+        },
+      ).then(() => {
+        console.log('[BGLocation] background tracking started');
+      }).catch((err) => {
+        console.warn('[BGLocation] Failed to start:', err?.message || err);
+      });
 
       return () => {
-        running = false;
-        if (intervalRef.current !== null) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
+        stopped = true;
+        BackgroundGeolocation.stop().catch(() => {});
       };
     } else {
       // Web: use navigator.geolocation
@@ -99,7 +89,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
       return () => {
         if (watchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(watchIdRef.current as number);
+          navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
         }
       };
