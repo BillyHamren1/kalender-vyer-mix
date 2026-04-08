@@ -14,6 +14,7 @@ import {
   PieChart,
   Truck,
   AlertCircle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,9 @@ const baseNavigationItems: NavItem[] = [
     title: "Personalhantering",
     url: "/staff-management",
     icon: Users,
+    children: [
+      { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
+    ],
   },
   {
     title: "Ekonomiöversikt",
