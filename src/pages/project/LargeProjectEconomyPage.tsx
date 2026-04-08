@@ -191,6 +191,7 @@ const LargeProjectEconomyPage = () => {
         <LargeProjectBookingEconomyBreakdown
           bookingEconomyData={bookingEconomyData}
           bookings={bookings}
+          largeProjectId={project.id}
         />
       )}
 
