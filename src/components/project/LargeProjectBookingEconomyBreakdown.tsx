@@ -203,12 +203,17 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const getBookingName = (id: string) => {
     const b = bookings.find(b => b.booking_id === id);
-    if (b?.display_name) return b.display_name;
-    if (b?.booking?.client) {
-      const num = b.booking.booking_number ? ` (#${b.booking.booking_number})` : '';
-      return `${b.booking.client}${num}`;
+    const displayName = b?.display_name?.trim();
+    const client = b?.booking?.client?.trim();
+    const bookingNumber = b?.booking?.booking_number?.trim();
+    const hasGenericFallbackName = !!displayName && /^Bokning\s+[0-9a-f-]{8,}$/i.test(displayName);
+
+    if (displayName && !hasGenericFallbackName) return displayName;
+    if (client) {
+      const num = bookingNumber ? ` (#${bookingNumber})` : '';
+      return `${client}${num}`;
     }
-    // Last resort: show a readable short ID
+    if (bookingNumber) return `#${bookingNumber}`;
     return `Bokning ${id.slice(0, 8)}`;
   };
 
