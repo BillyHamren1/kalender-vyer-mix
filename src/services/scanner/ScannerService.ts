@@ -137,7 +137,7 @@ export function destroyScanner(): void {
   scanCount = 0;
   lastScan = null;
   recentScans.length = 0;
-  barcodeDedupMap.clear();
+  
   console.log('[ScannerService] Destroyed');
 }
 
