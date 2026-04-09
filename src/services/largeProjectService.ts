@@ -227,6 +227,32 @@ export async function addBookingToLargeProject(
     .update({ large_project_id: largeProjectId })
     .eq('id', bookingId);
 
+  // If project has no dates, inherit from the first booking
+  const { data: project } = await supabase
+    .from('large_projects')
+    .select('start_date, event_date, end_date')
+    .eq('id', largeProjectId)
+    .single();
+
+  if (project && !project.start_date && !project.event_date && !project.end_date) {
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('rigdaydate, eventdate, rigdowndate')
+      .eq('id', bookingId)
+      .single();
+
+    if (booking) {
+      await supabase
+        .from('large_projects')
+        .update({
+          start_date: booking.rigdaydate || null,
+          event_date: booking.eventdate || null,
+          end_date: booking.rigdowndate || null,
+        })
+        .eq('id', largeProjectId);
+    }
+  }
+
   return data;
 }
 
