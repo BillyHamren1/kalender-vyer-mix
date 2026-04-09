@@ -406,6 +406,8 @@ export type Database = {
           large_project_id: string | null
           last_calendar_sync: string | null
           map_drawing_url: string | null
+          needs_review: boolean
+          needs_review_reason: string | null
           organization_id: string
           rig_end_time: string | null
           rig_start_time: string | null
@@ -446,6 +448,8 @@ export type Database = {
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
           organization_id?: string
           rig_end_time?: string | null
           rig_start_time?: string | null
@@ -486,6 +490,8 @@ export type Database = {
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
           organization_id?: string
           rig_end_time?: string | null
           rig_start_time?: string | null
