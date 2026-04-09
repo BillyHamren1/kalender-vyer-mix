@@ -156,7 +156,7 @@ export const deleteProject = async (id: string, performedBy?: string): Promise<{
   if (error) throw new Error(`Kunde inte radera projekt: ${error.message}`);
 
   // Log to audit trail
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: id,
     project_type: 'medium',
     action: 'soft_delete',
@@ -191,7 +191,7 @@ export const restoreProject = async (id: string): Promise<void> => {
     }).eq('id', project.booking_id);
   }
 
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: id,
     project_type: 'medium',
     action: 'restore',

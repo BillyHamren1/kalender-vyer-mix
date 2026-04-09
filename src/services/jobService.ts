@@ -349,7 +349,7 @@ export const deleteJob = async (jobId: string, performedBy?: string): Promise<{ 
   if (error) throw new Error(`Kunde inte radera jobb: ${error.message}`);
 
   // Audit log
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: jobId,
     project_type: 'small',
     action: 'soft_delete',
@@ -379,7 +379,7 @@ export const restoreJob = async (id: string): Promise<void> => {
     }).eq('id', job.booking_id);
   }
 
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: id, project_type: 'small', action: 'restore',
     booking_id: job?.booking_id || null, details: { name: job?.name },
   });

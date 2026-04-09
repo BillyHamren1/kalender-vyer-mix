@@ -169,7 +169,7 @@ export async function deleteLargeProject(id: string, performedBy?: string): Prom
 
   if (error) throw new Error(`Kunde inte radera stort projekt: ${error.message}`);
 
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: id, project_type: 'large', action: 'soft_delete',
     booking_id: uniqueBookingIds[0] || null,
     performed_by: performedBy || null,
@@ -187,7 +187,7 @@ export async function restoreLargeProject(id: string): Promise<void> {
   const { error } = await supabase.from('large_projects').update({ deleted_at: null }).eq('id', id);
   if (error) throw error;
 
-  await supabase.from('project_audit_log').insert({
+  await (supabase.from('project_audit_log') as any).insert({
     project_id: id, project_type: 'large', action: 'restore',
     details: {},
   });
