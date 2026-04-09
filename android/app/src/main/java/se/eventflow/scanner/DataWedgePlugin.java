@@ -78,10 +78,19 @@ public class DataWedgePlugin extends Plugin {
         scanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                Log.d(TAG, "Scan broadcast received, action: " + action);
+                Log.d(TAG, "Scan broadcast received");
+                Log.d(TAG, "Action: " + intent.getAction());
 
-                if (DW_SCAN_ACTION.equals(action)) {
+                Bundle extras = intent.getExtras();
+                if (extras != null) {
+                    for (String key : extras.keySet()) {
+                        Log.d(TAG, "Extra: " + key + " = " + extras.get(key));
+                    }
+                } else {
+                    Log.d(TAG, "No extras received");
+                }
+
+                if (DW_SCAN_ACTION.equals(intent.getAction())) {
                     handleScanIntent(intent);
                 }
             }
@@ -89,7 +98,7 @@ public class DataWedgePlugin extends Plugin {
 
         IntentFilter scanFilter = new IntentFilter();
         scanFilter.addAction(DW_SCAN_ACTION);
-        scanFilter.addCategory(Intent.CATEGORY_DEFAULT);
+        // IMPORTANT: REMOVE category restriction (DataWedge scan intents may not include it)
 
         // --- Result receiver (command results) ---
         resultReceiver = new BroadcastReceiver() {
