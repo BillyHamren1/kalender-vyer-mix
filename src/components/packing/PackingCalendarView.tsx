@@ -71,8 +71,11 @@ export default function PackingCalendarView({ packings }: Props) {
         const street = parts[0] || "";
         const shortAddr = street;
         
-        const label = [bookingNum, client].filter(Boolean).join(" – ");
-        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum };
+        const isConsolidated = !!p.large_project_id;
+        const label = isConsolidated
+          ? `📦 ${p.name}`
+          : [bookingNum, client].filter(Boolean).join(" – ");
+        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum, isConsolidated };
       });
   }, [packings]);
 
