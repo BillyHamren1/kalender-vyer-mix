@@ -1,47 +1,44 @@
 
 
-## Plan: Skydda projekt från tyst radering + skapa saknat projekt
+## Plan: Visa uppdaterade bokningar i triage-listan med ändringsdetaljer
 
 ### Problem
-1. Bokning 2603-126 har aldrig fått ett projekt skapat — den borde ha fångats i triage-listan
-2. Det finns ingen skyddsmekanism mot att projekt raderas tyst — `deleteProject` gör en hård DELETE utan historik
-3. Ingen audit trail för projektborttagningar
+När en bokning uppdateras (t.ex. 2603-126 fick nya internalnotes idag) syns det ingenstans i systemet. Uppdateringen sker tyst. Användaren måste aktivt bli meddelad om att en bokning har ändrats, och kunna se exakt vad som ändrats.
 
 ### Lösning
 
-**1. Soft-delete för projekt (database migration)**
-- Lägg till kolumn `deleted_at TIMESTAMPTZ DEFAULT NULL` på `projects`-tabellen
-- Ändra `deleteProject` i `projectService.ts` till att sätta `deleted_at = now()` istället för att göra `DELETE`
-- Uppdatera alla projekt-queries att filtrera `deleted_at IS NULL`
-- Samma mönster för `jobs` och `large_projects`-tabellerna
+**1. Ny kolumn `needs_review` på `bookings`-tabellen (migration)**
+- Lägg till `needs_review BOOLEAN DEFAULT false`
+- Lägg till `needs_review_reason TEXT` (t.ex. "update", "status_change")
+- Uppdatera DB-triggern `track_booking_changes()`: när en bokning som har `assigned_to_project = true` får en **extern uppdatering** (change_type = 'update' eller 'status_change'), sätt `needs_review = true` och `needs_review_reason = change_type`
+- Undantag: ändringar av interna flaggor (`viewed`, `assigned_to_project`, `assigned_project_id`, `assigned_project_name`) ska INTE trigga `needs_review`
 
-**2. Audit trail vid radering**
-- Skapa en `project_audit_log`-tabell: `id, project_id, action, booking_id, performed_by, details JSONB, created_at`
-- Logga alla raderingar (soft-delete) med vem som utförde dem
-- RLS-policy: bara admins kan läsa audit-loggen
+**2. Uppdatera `IncomingBookingsList.tsx` (Projektsidan)**
+- Lägg till en andra query: hämta bokningar där `needs_review = true` OCH `assigned_to_project = true`
+- Visa dessa i en separat sektion under "Nya bokningar" med rubriken **"Uppdaterade bokningar"** (blå ikon istället för amber)
+- Varje rad visar klientnamn, bokningsnummer, och en kort sammanfattning av vad som ändrats
+- Knapp: "Visa ändringar" → öppnar en expanderbar panel / dialog
+- Knapp: "Godkänn" → sätter `needs_review = false`
 
-**3. Skyddad radering med bekräftelse**
-- I `ProjectManagement.tsx` och alla ställen som anropar `deleteProject`: kräv extra bekräftelse med projektnamn + bokningsnummer
-- Visa tydligt varning: "Detta projekt är kopplat till bokning X — det kommer att avkopplas"
+**3. Uppdatera `DashboardNewBookings.tsx` (Dashboarden)**
+- Samma tillägg: hämta `needs_review = true`-bokningar och visa dem i samma widget under de nya bokningarna
+- Badge visar totalen: "2 nya, 1 uppdaterad"
 
-**4. Återställningsfunktion**
-- Lägg till "Papperskorgen" i arkivvyn som visar soft-deleted projekt
-- Möjlighet att återställa (sätt `deleted_at = NULL`)
-
-**5. "Orphan booking" varning**
-- Lägg till en periodisk kontroll: om en CONFIRMED-bokning saknar projekt efter X dagar, visa en varning i dashboard-widgeten
-- Förhindrar att bokningar som 2603-126 faller mellan stolarna
+**4. Skapa `BookingChangesDetail.tsx` — ändringsvisning**
+- Ny komponent som visar diff från `booking_changes`-tabellen
+- Hämtar senaste ändringen med `previous_values` och `new_values`
+- Visar varje ändrat fält med "Före → Efter" i en tydlig lista
+- Fältnamn översätts till svenska (eventdate → "Eventdatum", internalnotes → "Interna anteckningar", etc.)
 
 ### Filer att ändra
-- **Migration**: `projects` + `jobs` + `large_projects` → `deleted_at`-kolumn, `project_audit_log`-tabell
-- `src/services/projectService.ts` — soft-delete istället för DELETE
-- `src/services/jobService.ts` — samma soft-delete
-- `src/services/largeProjectService.ts` — samma soft-delete  
-- `src/services/projectConversionService.ts` — uppdatera raderingslogik
-- `src/hooks/useProjects.ts` (eller motsvarande) — filtrera `deleted_at IS NULL`
-- `src/components/project/ProjectDashboardWidgets.tsx` — orphan-bokning-varning
-- `src/pages/ProjectArchive.tsx` — visa papperskorg med soft-deleted projekt
+- **Migration**: Lägg till `needs_review` + `needs_review_reason` på `bookings`, uppdatera `track_booking_changes()`
+- `src/components/project/IncomingBookingsList.tsx` — ny sektion för uppdaterade bokningar
+- `src/components/dashboard/DashboardNewBookings.tsx` — samma
+- `src/components/booking/BookingChangesDetail.tsx` — NY: diff-visning av ändringar
+- `src/integrations/supabase/types.ts` — uppdatera Bookings-typen
 
-### Omedelbar åtgärd
-- Bokning 2603-126 saknar projekt — den borde dyka upp i "Nya bokningar" (viewed=false). Om den inte syns beror det troligen på att `viewed` sattes till `true` vid en tidigare import. Kan behöva nollställas.
+### Tekniska detaljer
+- Triggern kollar `OLD.assigned_to_project = true` innan den sätter `needs_review = true` — så att nya bokningar som ännu inte har projekt inte dubbelvisas
+- Interna flaggändringar (viewed, assigned_to_project, etc.) filtreras bort via en lista av "interna fält" i triggern
+- "Godkänn"-knappen gör `UPDATE bookings SET needs_review = false WHERE id = X`
 
