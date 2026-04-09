@@ -213,6 +213,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   carouselNav,
   setEvents
 }) => {
+  const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
   const generateTimeSlots = () => {
@@ -317,10 +318,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return Array.isArray(staff) ? staff : [];
   };
 
-  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    if (onOpenStaffSelection) {
-      onOpenStaffSelection(resourceId, resourceTitle, day, event.currentTarget);
-    }
+  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
+    setSelectingForTeam(prev => prev?.id === resourceId ? null : { id: resourceId, title: resourceTitle });
+  };
+
+  const handleAvailableStaffClick = async (staffId: string) => {
+    if (!selectingForTeam || !onStaffDrop) return;
+    await onStaffDrop(staffId, selectingForTeam.id, day);
+    setSelectingForTeam(null);
   };
 
   const handleStaffRemoval = async (staffId: string, teamId: string) => {
@@ -360,24 +365,41 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       <div 
         className="rounded-t-2xl"
         style={{ 
-          background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
+          background: selectingForTeam 
+            ? 'linear-gradient(180deg, hsl(var(--primary) / 0.15) 0%, hsl(var(--primary) / 0.08) 100%)'
+            : 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
           borderBottom: '1px solid hsl(var(--border) / 0.6)',
           padding: '6px 10px',
+          paddingLeft: `${timeColumnWidth + 10}px`,
+          transition: 'background 0.2s ease',
         }}
       >
-        <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1">Personal</div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            {selectingForTeam ? `Välj personal → ${selectingForTeam.title}` : 'Personal'}
+          </span>
+          {selectingForTeam && (
+            <button 
+              onClick={() => setSelectingForTeam(null)}
+              className="text-[9px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground"
+            >
+              Avbryt
+            </button>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
           {getUnassignedAvailableStaff().map((staff) => {
             const firstName = staff.name.trim().split(' ')[0];
             return (
               <div 
                 key={staff.id}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${selectingForTeam ? 'cursor-pointer hover:ring-2 hover:ring-primary/50 hover:scale-105 transition-all' : ''}`}
                 style={{ 
                   backgroundColor: staff.color || 'hsl(var(--muted))',
                   color: '#000'
                 }}
-                title={staff.name}
+                title={selectingForTeam ? `Tilldela ${staff.name} till ${selectingForTeam.title}` : staff.name}
+                onClick={selectingForTeam ? () => handleAvailableStaffClick(staff.id) : undefined}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
                 <span>{firstName}</span>
@@ -462,6 +484,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }}></div>
 
         {resources.map((resource, index) => {
+          const isActiveTeam = selectingForTeam?.id === resource.id;
           return (
             <div 
               key={`header-${resource.id}`}
@@ -470,9 +493,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 gridColumn: index + 2,
                 gridRow: 2,
                 width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
-                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
+                ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {})
               }}
-              onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e as unknown as React.MouseEvent<HTMLButtonElement>)}
+              onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
               title={`Assign staff to ${resource.title}`}
             >
               <div className="team-header-content">
@@ -481,7 +505,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   className="add-staff-button-header"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleStaffSelectionClick(resource.id, resource.title, e);
+                    handleStaffSelectionClick(resource.id, resource.title);
                   }}
                   title={`Assign staff to ${resource.title}`}
                 >
