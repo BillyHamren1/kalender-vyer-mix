@@ -5,26 +5,24 @@ import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react"
 import { EditDateDialog } from "@/components/booking/EditDateDialog";
 
 interface LargeProjectScheduleEditableProps {
-  startDate?: string | null;
-  eventDate?: string | null;
-  endDate?: string | null;
+  startDates?: string[] | null;
+  eventDates?: string[] | null;
+  endDates?: string[] | null;
   startStartTime?: string | null;
   startEndTime?: string | null;
   eventStartTime?: string | null;
   eventEndTime?: string | null;
   endStartTime?: string | null;
   endEndTime?: string | null;
-  onUpdateSchedule: (dateType: DateType, date: string, startTime: string, endTime: string) => void;
+  onUpdateScheduleMulti: (dateType: DateType, dates: string[], startTime: string, endTime: string) => void;
 }
 
 type DateType = 'rig' | 'event' | 'rigDown';
-type InternalKey = 'start' | 'event' | 'end';
 
 interface DateItem {
-  key: InternalKey;
   editKey: DateType;
   label: string;
-  date: string | null | undefined;
+  dates: string[];
   startTime: string | null | undefined;
   endTime: string | null | undefined;
   icon: typeof Truck;
@@ -36,67 +34,80 @@ const formatTimeFromISO = (time: string | null | undefined): string => {
   return time.substring(0, 5);
 };
 
+const formatDateSpan = (dates: string[]): string => {
+  if (dates.length === 0) return '';
+  if (dates.length === 1) return format(new Date(dates[0] + 'T00:00:00'), 'd MMM yyyy', { locale: sv });
+  const sorted = [...dates].sort();
+  const first = new Date(sorted[0] + 'T00:00:00');
+  const last = new Date(sorted[sorted.length - 1] + 'T00:00:00');
+  if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
+    return `${format(first, 'd', { locale: sv })}–${format(last, 'd MMM yyyy', { locale: sv })}`;
+  }
+  return `${format(first, 'd MMM', { locale: sv })} – ${format(last, 'd MMM yyyy', { locale: sv })}`;
+};
+
 const LargeProjectScheduleEditable = ({
-  startDate, eventDate, endDate,
+  startDates, eventDates, endDates,
   startStartTime, startEndTime,
   eventStartTime, eventEndTime,
   endStartTime, endEndTime,
-  onUpdateSchedule,
+  onUpdateScheduleMulti,
 }: LargeProjectScheduleEditableProps) => {
   const [editingItem, setEditingItem] = useState<DateItem | null>(null);
 
-  const dates: DateItem[] = [
-    { key: 'start', editKey: 'rig', label: 'RIGG', date: startDate, startTime: startStartTime, endTime: startEndTime, icon: Truck },
-    { key: 'event', editKey: 'event', label: 'EVENT', date: eventDate, startTime: eventStartTime, endTime: eventEndTime, icon: PartyPopper },
-    { key: 'end', editKey: 'rigDown', label: 'NEDRIVNING', date: endDate, startTime: endStartTime, endTime: endEndTime, icon: ArrowDownToLine },
+  const items: DateItem[] = [
+    { editKey: 'rig', label: 'RIGG', dates: startDates || [], startTime: startStartTime, endTime: startEndTime, icon: Truck },
+    { editKey: 'event', label: 'EVENT', dates: eventDates || [], startTime: eventStartTime, endTime: eventEndTime, icon: PartyPopper },
+    { editKey: 'rigDown', label: 'NEDRIVNING', dates: endDates || [], startTime: endStartTime, endTime: endEndTime, icon: ArrowDownToLine },
   ];
 
-  const getCountdownText = (dateStr: string) => {
-    const date = new Date(dateStr);
+  const getCountdownText = (dates: string[]) => {
+    if (dates.length === 0) return '';
+    const sorted = [...dates].sort();
+    const first = new Date(sorted[0] + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    if (isToday(date)) return 'Idag';
-    const days = differenceInDays(date, today);
+    first.setHours(0, 0, 0, 0);
+    if (isToday(first)) return 'Idag';
+    const days = differenceInDays(first, today);
     if (days < 0) return `${Math.abs(days)} dagar sedan`;
     if (days === 1) return 'Imorgon';
     return `Om ${days} dagar`;
   };
 
-  const handleSave = (
-    _oldDate: string,
-    newDate: string,
+  const handleSaveMulti = (
+    savedDates: string[],
     startTime: string,
     endTime: string,
     _eventType: DateType
   ) => {
     if (!editingItem) return;
-    onUpdateSchedule(editingItem.editKey, newDate, startTime, endTime);
+    onUpdateScheduleMulti(editingItem.editKey, savedDates, startTime, endTime);
     setEditingItem(null);
   };
 
   return (
     <>
       <div className="flex items-center gap-2 w-full">
-        {dates.map((item, index) => {
-          const hasDate = !!item.date;
-          const date = hasDate ? new Date(item.date!) : null;
-          const past = date ? isPast(date) && !isToday(date) : false;
-          const today = date ? isToday(date) : false;
+        {items.map((item, index) => {
+          const hasDates = item.dates.length > 0;
+          const firstDate = hasDates ? new Date(item.dates.sort()[0] + 'T00:00:00') : null;
+          const past = firstDate ? isPast(firstDate) && !isToday(firstDate) : false;
+          const today = firstDate ? isToday(firstDate) : false;
           const Icon = item.icon;
           const startDisplay = formatTimeFromISO(item.startTime);
           const endDisplay = formatTimeFromISO(item.endTime);
           const hasTime = startDisplay || endDisplay;
 
           return (
-            <div key={item.key} className="flex items-center flex-1">
+            <div key={item.editKey} className="flex items-center flex-1">
               <div
                 className={`flex-1 rounded-xl p-3 border transition-all group cursor-pointer hover:border-primary/40 hover:shadow-sm ${
                   today
                     ? 'border-primary/40 bg-accent shadow-sm'
                     : past
                       ? 'border-border/30 bg-muted/50 opacity-70'
-                      : hasDate
+                      : hasDates
                         ? 'border-border/40 bg-card'
                         : 'border-dashed border-border/40 bg-muted/30'
                 }`}
@@ -121,18 +132,23 @@ const LargeProjectScheduleEditable = ({
                   <Pencil className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
                 </div>
 
-                {hasDate ? (
+                {hasDates ? (
                   <>
                     <p className="font-semibold text-sm text-foreground tracking-tight">
-                      {format(date!, 'd MMM yyyy', { locale: sv })}
+                      {formatDateSpan(item.dates)}
                     </p>
+                    {item.dates.length > 1 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {item.dates.length} dagar
+                      </p>
+                    )}
                     {hasTime && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {startDisplay}–{endDisplay}
                       </p>
                     )}
                     <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                      {getCountdownText(item.date!)}
+                      {getCountdownText(item.dates)}
                     </p>
                   </>
                 ) : (
@@ -142,7 +158,7 @@ const LargeProjectScheduleEditable = ({
                   </div>
                 )}
               </div>
-              {index < dates.length - 1 && (
+              {index < items.length - 1 && (
                 <div className="w-6 h-px bg-border/40 flex-shrink-0 mx-1" />
               )}
             </div>
@@ -154,11 +170,14 @@ const LargeProjectScheduleEditable = ({
         <EditDateDialog
           open={!!editingItem}
           onOpenChange={(open) => { if (!open) setEditingItem(null); }}
-          date={editingItem.date || ''}
+          date={editingItem.dates[0] || ''}
+          dates={editingItem.dates}
+          multiSelect
           startTime={formatTimeFromISO(editingItem.startTime)}
           endTime={formatTimeFromISO(editingItem.endTime)}
           eventType={editingItem.editKey}
-          onSave={handleSave}
+          onSave={() => {}}
+          onSaveMulti={handleSaveMulti}
         />
       )}
     </>

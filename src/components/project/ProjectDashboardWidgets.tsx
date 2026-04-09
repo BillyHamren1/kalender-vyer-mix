@@ -69,7 +69,7 @@ const ProjectDashboardWidgets = () => {
     });
     largeProjects.forEach(lp => items.push({
       id: lp.id, name: lp.name, type: 'large',
-      date: lp.start_date ?? null,
+      date: lp.start_date?.[0] ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,

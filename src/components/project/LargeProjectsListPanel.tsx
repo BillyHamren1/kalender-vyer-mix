@@ -197,12 +197,12 @@ const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externa
                           {project.location}
                         </span>
                       )}
-                      {project.start_date && (
+                      {project.start_date?.length ? (
                         <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
                           <Calendar className="w-3 h-3" />
-                          {formatDate(project.start_date)}
+                          {formatDate(project.start_date[0])}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 

@@ -167,8 +167,8 @@ const LargeEstablishmentPage = () => {
     .filter(Boolean)
     .flatMap(bk => [bk!.rigdaydate, bk!.eventdate, bk!.rigdowndate].filter(Boolean) as string[]);
   const sortedBookingDates = bookingDates.sort();
-  const fallbackStart = project.start_date || (sortedBookingDates.length > 0 ? sortedBookingDates[0] : null);
-  const fallbackEnd = project.end_date || (sortedBookingDates.length > 0 ? sortedBookingDates[sortedBookingDates.length - 1] : null);
+  const fallbackStart = project.start_date?.[0] || (sortedBookingDates.length > 0 ? sortedBookingDates[0] : null);
+  const fallbackEnd = project.end_date?.[project.end_date.length - 1] || (sortedBookingDates.length > 0 ? sortedBookingDates[sortedBookingDates.length - 1] : null);
 
   return (
     <div className="space-y-3">
@@ -260,8 +260,8 @@ const LargeEstablishmentPage = () => {
 
           <TabsContent value="deestablishment" className="mt-0 p-3">
             <DeestablishmentGanttChart
-              eventDate={project.end_date}
-              rigdownDate={project.end_date}
+              eventDate={project.end_date?.[0] || null}
+              rigdownDate={project.end_date?.[project.end_date?.length ? project.end_date.length - 1 : 0] || null}
               bookingId={null}
               onTaskClick={handleTaskClick}
             />

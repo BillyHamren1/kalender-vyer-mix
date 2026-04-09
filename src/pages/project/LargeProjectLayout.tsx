@@ -276,28 +276,33 @@ const LargeProjectLayout = () => {
           <div className="space-y-4 mb-6">
             {/* Schedule date cards */}
             <LargeProjectScheduleEditable
-              startDate={project.start_date}
-              eventDate={(project as any).event_date}
-              endDate={project.end_date}
+              startDates={project.start_date}
+              eventDates={project.event_date}
+              endDates={project.end_date}
               startStartTime={derivedTimes.startStart}
               startEndTime={derivedTimes.startEnd}
               eventStartTime={derivedTimes.eventStart}
               eventEndTime={derivedTimes.eventEnd}
               endStartTime={derivedTimes.endStart}
               endEndTime={derivedTimes.endEnd}
-              onUpdateSchedule={async (dateType, date, startTime, endTime) => {
-                // 1. Update project-level date
+              onUpdateScheduleMulti={async (dateType, dates, startTime, endTime) => {
+                // 1. Update project-level dates (array)
                 const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
-                await detail.updateProject({ [dateFieldMap[dateType]]: date });
+                await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
 
-                // 2. Propagate times to all linked bookings
+                // 2. Propagate first date + times to all linked bookings
                 const bookingIds = bookings.map(b => b.booking_id);
+                const firstDate = dates.length > 0 ? dates[0] : null;
+                if (!firstDate) {
+                  queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+                  return;
+                }
                 try {
                   await Promise.all(
-                    bookingIds.map(bid => updateBookingDateWithTimes(bid, dateType, date, startTime, endTime))
+                    bookingIds.map(bid => updateBookingDateWithTimes(bid, dateType, firstDate, startTime, endTime))
                   );
 
-                  // 3. Trigger calendar sync per booking with correct parameters
+                  // 3. Trigger calendar sync per booking
                   const { data: { user } } = await supabase.auth.getUser();
                   let orgId: string | undefined;
                   if (user) {

@@ -571,7 +571,8 @@ const ClosingProjectsList = () => {
 
     // Large projects
     largeProjects.forEach(lp => {
-      const eventDate = lp.end_date ?? lp.start_date;
+      const eventDateArr = lp.end_date ?? lp.start_date;
+      const eventDate = eventDateArr?.[eventDateArr.length - 1] ?? null;
       const isClosed = lp.status === 'completed';
       if (eventDate && eventDate < todayStr) {
         items.push({

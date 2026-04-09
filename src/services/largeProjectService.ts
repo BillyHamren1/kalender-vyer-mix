@@ -101,8 +101,8 @@ export async function createLargeProject(project: {
   name: string;
   description?: string;
   location?: string;
-  start_date?: string;
-  end_date?: string;
+  start_date?: string[];
+  end_date?: string[];
   project_leader?: string;
 }): Promise<LargeProject> {
   const { data, error } = await supabase
@@ -245,9 +245,9 @@ export async function addBookingToLargeProject(
       await supabase
         .from('large_projects')
         .update({
-          start_date: booking.rigdaydate || null,
-          event_date: booking.eventdate || null,
-          end_date: booking.rigdowndate || null,
+          start_date: booking.rigdaydate ? [booking.rigdaydate] : null,
+          event_date: booking.eventdate ? [booking.eventdate] : null,
+          end_date: booking.rigdowndate ? [booking.rigdowndate] : null,
         })
         .eq('id', largeProjectId);
     }
