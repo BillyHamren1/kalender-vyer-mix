@@ -390,7 +390,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       </div>
 
       <div 
-        className={`time-grid-with-staff-header ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+        className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
       >
         {/* Fixed Header Section */}
         <div 
