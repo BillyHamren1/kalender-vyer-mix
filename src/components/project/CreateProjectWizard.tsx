@@ -269,7 +269,8 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           .from('projects')
           .select('id')
           .eq('booking_id', bookingId)
-          .neq('status', 'cancelled');
+          .neq('status', 'cancelled')
+          .is('deleted_at', null);
         
         if (existingProjects && existingProjects.length > 0) {
           throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
@@ -278,7 +279,8 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         const { data: existingJobs } = await supabase
           .from('jobs')
           .select('id')
-          .eq('booking_id', bookingId);
+          .eq('booking_id', bookingId)
+          .is('deleted_at', null);
         
         if (existingJobs && existingJobs.length > 0) {
           throw new Error('Bokningen har redan ett jobb (litet projekt). Använd det befintliga istället.');
@@ -320,7 +322,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
 
       // Mark the booking as assigned to a project
       if (bookingId) {
-        await supabase
+        const { error: bookingError } = await supabase
           .from('bookings')
           .update({ 
             assigned_to_project: true,
@@ -328,6 +330,12 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
             assigned_project_name: name.trim()
           })
           .eq('id', bookingId);
+
+        if (bookingError) {
+          console.error('[CreateProjectWizard] Booking assignment failed:', bookingError);
+          // Don't throw — project is already created, just warn
+          toast.error('Projektet skapades men bokningen kunde inte kopplas. Kontrollera manuellt.', { duration: 10000 });
+        }
       }
 
       // Create tasks
