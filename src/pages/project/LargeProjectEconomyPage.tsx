@@ -45,7 +45,7 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    budget, purchases, summary, isLoading, bookingEconomyData,
+    budget, purchases, summary, isLoading, bookingEconomyData, localProducts,
     saveBudget, addPurchase, updatePurchase, removePurchase,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
@@ -192,6 +192,7 @@ const LargeProjectEconomyPage = () => {
           bookingEconomyData={bookingEconomyData}
           bookings={bookings}
           largeProjectId={project.id}
+          localProducts={localProducts}
         />
       )}
 

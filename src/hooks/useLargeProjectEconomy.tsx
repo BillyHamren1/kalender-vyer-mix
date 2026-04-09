@@ -10,6 +10,7 @@ import {
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AggregatedBookingEconomy {
   totalRevenue: number;
@@ -49,6 +50,21 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
+  // Local booking products (for revenue data and editable costs)
+  const { data: localProducts = [] } = useQuery({
+    queryKey: ['large-project-local-products', bookingIds],
+    queryFn: async () => {
+      if (bookingIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('booking_products')
+        .select('id, booking_id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, parent_product_id, is_package_component, sku, sort_index')
+        .in('booking_id', bookingIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: bookingIds.length > 0,
+  });
+
   // Compute aggregated summary from booking economy
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
@@ -77,11 +93,22 @@ export const useLargeProjectEconomy = (
       bookingCount++;
       // Product costs (revenue from booking)
       const pc = bd.product_costs;
-      if (pc?.summary) {
-        totalRevenue += pc.summary.revenue || 0;
+      if (pc?.summary && pc.summary.revenue > 0) {
+        totalRevenue += pc.summary.revenue;
         totalCost += pc.summary.costs || 0;
       } else {
-        console.warn(`${TAG} Booking ${bId}: missing product_costs.summary`);
+        // Fallback: use local booking_products for revenue and costs
+        const localBP = localProducts.filter(lp => lp.booking_id === bId);
+        const localRev = localBP
+          .filter(lp => !lp.is_package_component && !lp.parent_product_id)
+          .reduce((s, lp) => s + (lp.total_price || 0), 0);
+        const localCost = localBP.reduce((s, lp) => 
+          s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+        totalRevenue += localRev;
+        totalCost += pc?.summary?.costs || localCost;
+        if (!pc?.summary) {
+          console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
+        }
       }
       // Staff/time
       const tr = bd.time_reports;
@@ -206,6 +233,7 @@ export const useLargeProjectEconomy = (
     purchases,
     summary,
     bookingEconomyData: bookingEconomyData || null,
+    localProducts,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,

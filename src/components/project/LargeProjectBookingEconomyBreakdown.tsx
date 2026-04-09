@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,9 +15,26 @@ import { toast } from 'sonner';
 import type { BatchEconomyData } from '@/services/planningApiService';
 import { createPurchase, updatePurchase, deletePurchase } from '@/services/planningApiService';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
+
+interface LocalProduct {
+  id: string;
+  booking_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number | null;
+  total_price: number | null;
+  assembly_cost: number | null;
+  handling_cost: number | null;
+  purchase_cost: number | null;
+  parent_product_id: string | null;
+  is_package_component: boolean | null;
+  sku: string | null;
+  sort_index: number | null;
+}
 
 interface BookingInfo {
   booking_id: string;
@@ -33,6 +50,7 @@ interface Props {
   bookingEconomyData: Record<string, BatchEconomyData>;
   bookings: BookingInfo[];
   largeProjectId?: string;
+  localProducts?: LocalProduct[];
 }
 
 /** Resolve a human-readable booking name. Always prefer real booking data over display_name. */
@@ -200,7 +218,7 @@ function EditableCell({ value, onSave }: { value: number; onSave: (v: number) =>
   );
 }
 
-export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId }: Props) => {
+export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId, localProducts = [] }: Props) => {
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
@@ -214,8 +232,47 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const getBookingName = (id: string) => resolveBookingName(id, bookings);
 
+  // Build lookup: booking_id -> local products for that booking
+  const localProductsByBooking = useMemo(() => {
+    const map: Record<string, LocalProduct[]> = {};
+    localProducts.forEach(lp => {
+      if (!map[lp.booking_id]) map[lp.booking_id] = [];
+      map[lp.booking_id].push(lp);
+    });
+    return map;
+  }, [localProducts]);
+
+  // Find matching local product by name + booking_id
+  const findLocalProduct = useCallback((bookingId: string, productName: string, sku?: string): LocalProduct | undefined => {
+    const candidates = localProductsByBooking[bookingId] || [];
+    // Try SKU match first
+    if (sku) {
+      const bysku = candidates.find(c => c.sku === sku);
+      if (bysku) return bysku;
+    }
+    // Then name match (trimmed)
+    const trimName = (productName || '').replace(/^[↳└]\s*/, '').trim().toLowerCase();
+    return candidates.find(c => c.name.trim().toLowerCase() === trimName);
+  }, [localProductsByBooking]);
+
+  const handleUpdateProductCost = useCallback(async (productId: string, field: string, value: number) => {
+    try {
+      const { error } = await supabase
+        .from('booking_products')
+        .update({ [field]: value })
+        .eq('id', productId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
+      queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+      toast.success('Kostnad uppdaterad');
+    } catch {
+      toast.error('Kunde inte uppdatera kostnad');
+    }
+  }, [queryClient]);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+    queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
   };
 
   // Build merged list of all costs across bookings
@@ -310,8 +367,24 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
               const invoices = Array.isArray(data.invoices) ? data.invoices : [];
               const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
 
+              // Compute local revenue per booking from local booking_products
+              const bookingLocalProducts = localProductsByBooking[bookingId] || [];
+              const localRevenueTotal = bookingLocalProducts
+                .filter(lp => !lp.is_package_component && !lp.parent_product_id)
+                .reduce((s, lp) => s + (lp.total_price || 0), 0);
+              const displayRevenue = (productSummary?.revenue && productSummary.revenue > 0)
+                ? productSummary.revenue
+                : localRevenueTotal;
+
+              // Compute local costs from local products
+              const localCostsTotal = bookingLocalProducts.reduce((s, lp) => 
+                s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+              const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
+                ? productSummary.costs
+                : localCostsTotal;
+
               const totalCost =
-                (productSummary?.costs || 0) +
+                displayProductCosts +
                 timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0) +
                 purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0) +
                 invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0) +
@@ -329,7 +402,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                       {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       <span className="font-medium text-sm">{getBookingName(bookingId)}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
-                        {fmt(productSummary?.revenue || 0)} intäkt
+                        {fmt(displayRevenue)} intäkt
                       </Badge>
                     </div>
                     <span className="text-sm font-semibold">{fmt(totalCost)} kostnad</span>
@@ -339,7 +412,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                     <div className="border-t border-border/40 p-3 space-y-4 bg-muted/20">
                       {/* Products — editable costs */}
                       {products.length > 0 && (
-                        <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={productSummary?.costs || 0}>
+                        <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -354,27 +427,47 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                             </TableHeader>
                             <TableBody>
                               {products.map((p: any, i: number) => {
-                                const assemblyCost = p.assembly_cost || 0;
-                                const handlingCost = p.handling_cost || 0;
-                                const purchaseCost = p.purchase_cost || 0;
-                                const totalPCost = p.total_cost ?? p.cost ?? (assemblyCost + handlingCost + purchaseCost);
+                                const productName = p.product_name || p.name || p.description || '—';
+                                const localMatch = findLocalProduct(bookingId, productName, p.sku);
+                                
+                                // Use local product data for revenue
+                                const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
+                                
+                                // Use local product data for costs (prefer local for editability)
+                                const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                                const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                                const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                                const totalPCost = assemblyCost + handlingCost + purchaseCost;
+                                
                                 return (
                                   <TableRow key={i}>
-                                    <TableCell className="text-xs font-medium">{p.product_name || p.name || p.description || '—'}</TableCell>
+                                    <TableCell className="text-xs font-medium">{productName}</TableCell>
                                     <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(p.total_revenue || p.revenue || p.total_price || 0)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(assemblyCost)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(handlingCost)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(purchaseCost)}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v)} />
+                                      ) : fmt(assemblyCost)}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v)} />
+                                      ) : fmt(handlingCost)}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v)} />
+                                      ) : fmt(purchaseCost)}
+                                    </TableCell>
                                     <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
                                   </TableRow>
                                 );
                               })}
                               <TableRow className="font-semibold border-t">
                                 <TableCell colSpan={2} className="text-xs">Summa</TableCell>
-                                <TableCell className="text-xs text-right">{fmt(productSummary?.revenue || 0)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
                                 <TableCell colSpan={3}></TableCell>
-                                <TableCell className="text-xs text-right">{fmt(productSummary?.costs || 0)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
                               </TableRow>
                             </TableBody>
                           </Table>
