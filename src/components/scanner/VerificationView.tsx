@@ -394,7 +394,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </Button>
         </div>
 
-        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} skipCamera={false} />
+        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
       </div>
     );
   }
@@ -571,7 +571,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
       )}
 
-      <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} skipCamera={false} />
+      <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
 
       {/* Kolli confirmation dialog */}
       <AlertDialog open={showKolliConfirm} onOpenChange={setShowKolliConfirm}>
