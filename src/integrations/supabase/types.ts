@@ -4146,6 +4146,7 @@ export type Database = {
           color: string | null
           created_at: string
           department: string | null
+          driver_license_url: string | null
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
@@ -4154,15 +4155,20 @@ export type Database = {
           hourly_rate: number | null
           id: string
           is_active: boolean
+          jacket_size: string | null
           name: string
           notes: string | null
           organization_id: string
           overtime_rate: number | null
+          pants_size: string | null
           phone: string | null
           postal_code: string | null
           role: string | null
           salary: number | null
+          shoe_size: string | null
+          sweater_size: string | null
           tags: string[]
+          tshirt_size: string | null
           user_id: string | null
         }
         Insert: {
@@ -4171,6 +4177,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           department?: string | null
+          driver_license_url?: string | null
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -4179,15 +4186,20 @@ export type Database = {
           hourly_rate?: number | null
           id: string
           is_active?: boolean
+          jacket_size?: string | null
           name: string
           notes?: string | null
           organization_id?: string
           overtime_rate?: number | null
+          pants_size?: string | null
           phone?: string | null
           postal_code?: string | null
           role?: string | null
           salary?: number | null
+          shoe_size?: string | null
+          sweater_size?: string | null
           tags?: string[]
+          tshirt_size?: string | null
           user_id?: string | null
         }
         Update: {
@@ -4196,6 +4208,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           department?: string | null
+          driver_license_url?: string | null
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -4204,15 +4217,20 @@ export type Database = {
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
+          jacket_size?: string | null
           name?: string
           notes?: string | null
           organization_id?: string
           overtime_rate?: number | null
+          pants_size?: string | null
           phone?: string | null
           postal_code?: string | null
           role?: string | null
           salary?: number | null
+          shoe_size?: string | null
+          sweater_size?: string | null
           tags?: string[]
+          tshirt_size?: string | null
           user_id?: string | null
         }
         Relationships: [

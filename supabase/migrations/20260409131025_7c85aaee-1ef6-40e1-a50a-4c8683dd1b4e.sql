@@ -1,0 +1,7 @@
+ALTER TABLE public.staff_members
+  ADD COLUMN IF NOT EXISTS shoe_size TEXT,
+  ADD COLUMN IF NOT EXISTS pants_size TEXT,
+  ADD COLUMN IF NOT EXISTS tshirt_size TEXT,
+  ADD COLUMN IF NOT EXISTS sweater_size TEXT,
+  ADD COLUMN IF NOT EXISTS jacket_size TEXT,
+  ADD COLUMN IF NOT EXISTS driver_license_url TEXT;
