@@ -5,16 +5,16 @@
  * Essential for testing on TC22 + RFD4030 hardware.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Bug, Wifi, WifiOff, Radio, Bluetooth, Smartphone, Monitor,
-  ChevronDown, ChevronUp, Zap, Tag, BarChart3 
+  Bug, Wifi, WifiOff, Smartphone, Monitor,
+  ChevronDown, ChevronUp, Zap, Tag
 } from 'lucide-react';
-import { ScanEvent, ScannerState } from '@/services/scanner/types';
+import { ScanEvent, ScannerState, DwCommandResultInfo } from '@/services/scanner/types';
 import { getState } from '@/services/scanner/ScannerService';
 import { simulateDataWedgeScan } from '@/services/scanner/DataWedgeBridge';
 import { simulateRfidTag, simulateReaderStatus } from '@/services/scanner/ZebraRfidBridge';
@@ -30,7 +30,6 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
   const [simBarcode, setSimBarcode] = useState('TEST-SKU-001');
   const [simEpc, setSimEpc] = useState('E200001234567890');
 
-  // Poll state from the singleton every 500ms for live updates
   useEffect(() => {
     const interval = setInterval(() => {
       setState(getState());
@@ -124,6 +123,9 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
             )}
           </div>
 
+          {/* DataWedge Init Results */}
+          <DwInitResultsSection results={debugInfo.dataWedgeInitResults} />
+
           {/* Scan Stats */}
           <div className="space-y-1">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Session</p>
@@ -190,7 +192,6 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               🧪 Simulering (test utan hårdvara)
             </p>
             
-            {/* Barcode simulation */}
             <div className="flex gap-1.5">
               <Input
                 value={simBarcode}
@@ -209,7 +210,6 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               </Button>
             </div>
 
-            {/* RFID simulation */}
             <div className="flex gap-1.5">
               <Input
                 value={simEpc}
@@ -228,7 +228,6 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               </Button>
             </div>
 
-            {/* Reader simulation */}
             <div className="flex gap-1.5">
               <Button
                 size="sm"
@@ -259,5 +258,44 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
         </CardContent>
       )}
     </Card>
+  );
+};
+
+// ── Sub-component: DataWedge Init Results ────────────────────────
+
+const DW_STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  success: { label: '✓ OK', className: 'text-green-600' },
+  failure: { label: '✗ FEL', className: 'text-destructive' },
+  pending: { label: '⏳ Väntar', className: 'text-amber-600' },
+  unknown: { label: '? Okänd', className: 'text-muted-foreground' },
+};
+
+const DwInitResultsSection: React.FC<{ results: DwCommandResultInfo[] }> = ({ results }) => {
+  if (!results || results.length === 0) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+        DW Init-resultat
+      </p>
+      <div className="bg-muted/50 rounded p-2 space-y-1">
+        {results.map((r) => {
+          const s = DW_STATUS_LABELS[r.status] || DW_STATUS_LABELS.unknown;
+          return (
+            <div key={r.commandName} className="text-[10px] font-mono">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">{r.commandName}</span>
+                <span className={s.className}>{s.label}</span>
+              </div>
+              {r.resultInfo && r.status !== 'success' && (
+                <p className="text-[9px] text-muted-foreground ml-2 break-all">
+                  {r.resultInfo}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };

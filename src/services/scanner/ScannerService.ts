@@ -20,6 +20,7 @@ import { detectPlatform } from './platform';
 import {
   startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount,
   wasInitCommandsSent, getInitErrors, getLastScanTimestamp, getLastScanValue,
+  getInitCommandResults, profileSwitchSucceeded, scannerInputEnabledSucceeded,
 } from './DataWedgeBridge';
 import {
   startRfidListener, stopRfidListener, isRfidListening,
@@ -49,11 +50,9 @@ const barcodeDedupMap = new Map<string, number>();
 
 function isDuplicate(scan: ScanEvent): boolean {
   if (scan.type === 'rfid') {
-    // RFID dedup handled in ZebraRfidBridge
     return scan.isDuplicate;
   }
 
-  // Barcode dedup
   const lastTime = barcodeDedupMap.get(scan.value);
   const now = Date.now();
   if (lastTime && (now - lastTime) < config.barcodeDedupWindowMs) {
@@ -68,10 +67,8 @@ function isDuplicate(scan: ScanEvent): boolean {
 function handleIncomingScan(scan: ScanEvent): void {
   scan.isDuplicate = isDuplicate(scan);
 
-  // Always queue for offline resilience
   enqueueScan(scan, 'received');
 
-  // Track
   scanCount++;
   lastScan = scan;
   recentScans.unshift(scan);
@@ -79,7 +76,6 @@ function handleIncomingScan(scan: ScanEvent): void {
     recentScans.pop();
   }
 
-  // Forward to consumer
   scanHandler?.(scan);
 }
 
@@ -106,20 +102,16 @@ export function initScanner(
     isZebra: platform.isZebraDevice,
   });
 
-  // Priority 1: Zebra DataWedge (on Android/Capacitor)
   if (platform.isCapacitor && platform.isAndroid) {
     if (config.autoStartDataWedge) {
       startDataWedgeListener(handleIncomingScan);
     }
   }
 
-  // Priority 2: RFID listener (always register on Android, no-op without hardware)
   if (platform.isCapacitor && platform.isAndroid) {
     startRfidListener(
       handleIncomingScan,
       (status) => {
-        // Status updates are now handled inside ZebraRfidBridge.
-        // This callback is still called for logging purposes.
         console.log('[ScannerService] RFID status update from bridge:', status);
       },
       (error) => {
@@ -128,7 +120,6 @@ export function initScanner(
       config.rfidDedupWindowMs
     );
 
-    // Auto-connect to RFID reader if available
     connectRfidReader()
       .then(result => {
         if (result.connected) {
@@ -140,7 +131,6 @@ export function initScanner(
       });
   }
 
-  // Priority 3: Keyboard fallback (web or non-Zebra Android)
   if (config.enableKeyboardFallback && (!platform.isZebraDevice || platform.isWeb)) {
     startKeyboardListener(handleIncomingScan);
   }
@@ -169,16 +159,11 @@ export function setMode(mode: ScanMode): void {
 export function getState(): ScannerState {
   const platform = detectPlatform();
 
-  // RFID readiness: listener must be active AND on native platform.
-  // On web, RFID is never "ready" (no hardware).
   const rfidListenerActive = isRfidListening();
   const rfidOnNative = isNativeRfidPlatform();
   const rfidReaderConnected = isReaderConnected();
   const rfidInventoryActive = isInventoryRunning();
 
-  // isRfidReady = RFID subsystem is available (native + listeners registered).
-  // This controls whether the RFID tab/button appears in UI.
-  // Does NOT mean reader is connected — that's isReaderConnected.
   const isRfidReady = rfidListenerActive && rfidOnNative;
 
   return {
@@ -220,7 +205,6 @@ function getWarning(platform: ReturnType<typeof detectPlatform>): string | null 
 
 function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebugInfo {
   const rfidReaderConnected = isReaderConnected();
-  const rfidInventoryActive = isInventoryRunning();
 
   return {
     platform: platform.isCapacitor && platform.isAndroid ? 'android_native' : platform.isWeb ? 'web' : 'unknown',
@@ -231,6 +215,9 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     dataWedgeInitErrors: getInitErrors(),
     dataWedgeLastScanTime: getLastScanTimestamp(),
     dataWedgeLastScanValue: getLastScanValue(),
+    dataWedgeInitResults: getInitCommandResults(),
+    dataWedgeProfileSwitchOk: profileSwitchSucceeded(),
+    dataWedgeScannerInputOk: scannerInputEnabledSucceeded(),
     rfidListenerActive: isRfidListening(),
     cameraAvailable: 'mediaDevices' in navigator,
     lastDataWedgeEvent: null,

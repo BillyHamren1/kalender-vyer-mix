@@ -76,6 +76,12 @@ export interface ScannerDebugInfo {
   dataWedgeInitErrors: string[];
   dataWedgeLastScanTime: number | null;
   dataWedgeLastScanValue: string | null;
+  /** Per-command init results from DataWedge result intents */
+  dataWedgeInitResults: DwCommandResultInfo[];
+  /** Whether SWITCH_TO_PROFILE got SUCCESS (true), FAILURE (false), or unknown (null) */
+  dataWedgeProfileSwitchOk: boolean | null;
+  /** Whether SCANNER_INPUT_PLUGIN got SUCCESS (true), FAILURE (false), or unknown (null) */
+  dataWedgeScannerInputOk: boolean | null;
   rfidListenerActive: boolean;
   cameraAvailable: boolean;
   lastDataWedgeEvent: string | null;
@@ -85,6 +91,16 @@ export interface ScannerDebugInfo {
   sessionScanCount: number;
   readerModel: string | null;
   readerConnectionStatus: 'connected' | 'disconnected' | 'connecting' | 'unknown';
+}
+
+/** Serializable version of DwCommandResult for debug info */
+export interface DwCommandResultInfo {
+  commandName: string;
+  commandIdentifier: string;
+  status: 'pending' | 'success' | 'failure' | 'unknown';
+  resultInfo: string;
+  sentAt: number;
+  receivedAt: number | null;
 }
 
 // ── RFID Specific ────────────────────────────────────────────────
