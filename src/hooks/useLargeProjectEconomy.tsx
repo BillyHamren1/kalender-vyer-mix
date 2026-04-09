@@ -10,6 +10,7 @@ import {
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AggregatedBookingEconomy {
   totalRevenue: number;
