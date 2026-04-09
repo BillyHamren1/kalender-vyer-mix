@@ -446,7 +446,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         onConnect={rfid.connect}
         onDisconnect={rfid.disconnect}
         onToggleInventory={rfid.toggleInventory}
-        onReset={rfid.resetSession}
+        onReset={rfidWithReset.resetSession}
       />
 
       {isMinusMode && (
