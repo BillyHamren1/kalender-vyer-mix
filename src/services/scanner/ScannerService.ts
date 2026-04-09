@@ -17,7 +17,10 @@
 
 import { ScanEvent, ScanMode, ScannerState, ScannerDebugInfo, ScannerConfig, DEFAULT_SCANNER_CONFIG } from './types';
 import { detectPlatform } from './platform';
-import { startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount } from './DataWedgeBridge';
+import {
+  startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount,
+  wasInitCommandsSent, getInitErrors, getLastScanTimestamp, getLastScanValue,
+} from './DataWedgeBridge';
 import {
   startRfidListener, stopRfidListener, isRfidListening,
   isNativeRfidPlatform, isReaderConnected, isInventoryRunning,
