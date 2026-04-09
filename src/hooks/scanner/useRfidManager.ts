@@ -20,6 +20,12 @@ import { scanLog } from './scanLog';
 
 export type RfidConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'inventory_active' | 'error';
 
+export interface RfidLastMatch {
+  productName: string;
+  sku: string;
+  timestamp: number;
+}
+
 export interface RfidManagerState {
   status: RfidConnectionStatus;
   readerModel: string | null;
@@ -29,11 +35,14 @@ export interface RfidManagerState {
   uniqueTagsRead: number;
   matchedCount: number;
   unmatchedCount: number;
+  lastMatchedProduct: RfidLastMatch | null;
 }
 
 interface UseRfidManagerOptions {
   /** Called when an RFID tag should be processed (routed to scan pipeline) */
   onRfidTag?: (epc: string) => void;
+  /** Called when session is reset (e.g. to clear scan dedup) */
+  onSessionReset?: () => void;
 }
 
 export function useRfidManager(options: UseRfidManagerOptions = {}) {
@@ -46,6 +55,7 @@ export function useRfidManager(options: UseRfidManagerOptions = {}) {
     uniqueTagsRead: 0,
     matchedCount: 0,
     unmatchedCount: 0,
+    lastMatchedProduct: null,
   });
 
   const optionsRef = useRef(options);
@@ -147,7 +157,7 @@ export function useRfidManager(options: UseRfidManagerOptions = {}) {
   }, [state.inventoryActive, startInventory, stopInventory]);
 
   // Record a tag match result (called from scan pipeline callback)
-  const recordTagResult = useCallback((epc: string, matched: boolean) => {
+  const recordTagResult = useCallback((epc: string, matched: boolean, productName?: string, sku?: string) => {
     if (matched) {
       matchedEpcs.current.add(epc);
       unmatchedEpcs.current.delete(epc);
@@ -160,6 +170,9 @@ export function useRfidManager(options: UseRfidManagerOptions = {}) {
       ...prev,
       matchedCount: matchedEpcs.current.size,
       unmatchedCount: unmatchedEpcs.current.size,
+      lastMatchedProduct: matched && productName
+        ? { productName, sku: sku || epc, timestamp: Date.now() }
+        : prev.lastMatchedProduct,
     }));
   }, []);
 
@@ -174,7 +187,12 @@ export function useRfidManager(options: UseRfidManagerOptions = {}) {
       uniqueTagsRead: 0,
       matchedCount: 0,
       unmatchedCount: 0,
+      lastMatchedProduct: null,
     }));
+    // Also clear scan processor dedup
+    if (optionsRef.current.onSessionReset) {
+      optionsRef.current.onSessionReset();
+    }
     scanLog('rfid_session_reset');
   }, []);
 

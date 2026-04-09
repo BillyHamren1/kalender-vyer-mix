@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RecentScanEntry } from '@/hooks/scanner/useScanProcessor';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -96,8 +100,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
-
-  const { enqueueScan, handleManualToggle, recentScans } = useScanProcessor({
+  const [showKolliConfirm, setShowKolliConfirm] = useState(false);
+  const { enqueueScan, handleManualToggle, recentScans, clearSessionDedup } = useScanProcessor({
     packingId,
     verifierName,
     getItems: () => itemsRef.current,
@@ -111,6 +115,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
+
+  // Override rfid to also clear scan dedup on session reset
+  const rfidWithReset = useMemo(() => ({
+    ...rfid,
+    resetSession: () => {
+      rfid.resetSession();
+      clearSessionDedup();
+    },
+  }), [rfid, clearSessionDedup]);
 
   const [showRecentScans, setShowRecentScans] = useState(false);
 
@@ -424,10 +437,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         uniqueTagsRead={rfid.uniqueTagsRead}
         matchedCount={rfid.matchedCount}
         unmatchedCount={rfid.unmatchedCount}
+        lastMatchedProduct={rfid.lastMatchedProduct}
         onConnect={rfid.connect}
         onDisconnect={rfid.disconnect}
         onToggleInventory={rfid.toggleInventory}
-        onReset={rfid.resetSession}
+        onReset={rfidWithReset.resetSession}
       />
 
       {isMinusMode && (
@@ -451,7 +465,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           {progress.percentage}%
         </span>
         <Button 
-          onClick={() => setIsMinusMode(prev => !prev)}
+          onClick={() => setIsMinusMode(prev => {
+            if (prev) clearSessionDedup(); // Clear dedup when exiting minus mode
+            return !prev;
+          })}
           size="sm"
           variant={isMinusMode ? "destructive" : "outline"}
           className="h-8 px-2.5 gap-1"
@@ -463,9 +480,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <Camera className="h-3.5 w-3.5" />
           <span className="text-xs">Kamera</span>
         </Button>
-        <Button onClick={() => startKolli(verifierName)} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
-          <Package className="h-3.5 w-3.5" />
-          <span className="text-xs">Kolli</span>
+        <Button onClick={() => setShowKolliConfirm(true)} size="sm" variant="secondary" className="h-8 px-3 gap-1.5 border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 font-semibold">
+          <Package className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs text-primary">Kolli</span>
+          {Object.keys(itemParcelMap).length > 0 && (
+            <span className="bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              {new Set(Object.values(itemParcelMap)).size}
+            </span>
+          )}
         </Button>
         <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
           <List className="h-3.5 w-3.5" />
@@ -550,6 +572,32 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       )}
 
       <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} skipCamera={false} />
+
+      {/* Kolli confirmation dialog */}
+      <AlertDialog open={showKolliConfirm} onOpenChange={setShowKolliConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              Starta nytt kolli?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {Object.keys(itemParcelMap).length > 0
+                ? `Du har redan ${new Set(Object.values(itemParcelMap)).size} kolli. Ett nytt kolli skapas och scannade produkter tilldelas dit.`
+                : 'Ett nytt kolli skapas. Produkter du scannar eller klickar på tilldelas automatiskt till detta kolli.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowKolliConfirm(false);
+              startKolli(verifierName);
+            }}>
+              Starta kolli
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
