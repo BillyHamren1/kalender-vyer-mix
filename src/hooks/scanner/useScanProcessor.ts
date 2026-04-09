@@ -227,5 +227,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     }
   }, []); // No deps — reads from optRef
 
-  return { enqueueScan, handleManualToggle, recentScans };
+  const clearSessionDedup = useCallback(() => {
+    scannedThisSessionRef.current.clear();
+    scanLog('session_dedup_cleared');
+  }, []);
+
+  return { enqueueScan, handleManualToggle, recentScans, clearSessionDedup };
 };
