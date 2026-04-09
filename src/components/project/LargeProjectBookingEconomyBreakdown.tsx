@@ -218,7 +218,7 @@ function EditableCell({ value, onSave }: { value: number; onSave: (v: number) =>
   );
 }
 
-export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId }: Props) => {
+export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId, localProducts = [] }: Props) => {
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
