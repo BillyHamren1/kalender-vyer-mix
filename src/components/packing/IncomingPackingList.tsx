@@ -278,7 +278,7 @@ export const IncomingPackingList: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleCreateAllPackings(row)}
+                    onClick={() => handleCreateCombinedPacking(row)}
                     disabled={isCreating}
                     className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
                   >
@@ -287,7 +287,7 @@ export const IncomingPackingList: React.FC = () => {
                     ) : (
                       <Package className="w-3.5 h-3.5" />
                     )}
-                    <span>Skapa alla packningar</span>
+                    <span>Skapa packning</span>
                   </Button>
                 </div>
               </div>
