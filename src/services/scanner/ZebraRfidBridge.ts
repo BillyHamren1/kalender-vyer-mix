@@ -278,7 +278,11 @@ function startWebFallbackListeners(): void {
     const detail = (event as CustomEvent<RfidReaderStatus>).detail;
     if (detail) {
       // Web simulation status events
-      applyStatusUpdate(detail.isConnected, inventoryRunning, detail.readerModel || null);
+      applyStatusUpdate(
+        detail.isConnected,
+        detail.inventoryRunning ?? inventoryRunning,
+        detail.readerModel || null
+      );
     }
   };
 

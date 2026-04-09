@@ -53,6 +53,8 @@ export interface ScannerState {
   isBarcodeReady: boolean;
   /** RFID subsystem available (native platform + listeners registered). NOT "reader connected". */
   isRfidReady: boolean;
+  /** Alias for isRfidReady with clearer semantics for new code */
+  isRfidSubsystemAvailable: boolean;
   /** RFID reader hardware is physically connected */
   isReaderConnected: boolean;
   /** RFID inventory is actively scanning tags */
@@ -162,6 +164,7 @@ export interface RfidReadEvent {
 /** RFID reader status from native bridge */
 export interface RfidReaderStatus {
   isConnected: boolean;
+  inventoryRunning?: boolean;
   readerModel?: string;
   firmwareVersion?: string;
   batteryLevel?: number;

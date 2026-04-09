@@ -154,13 +154,19 @@ export function getState(): ScannerState {
   const rfidReaderConnected = isReaderConnected();
   const rfidInventoryActive = isInventoryRunning();
 
-  const isRfidReady = rfidListenerActive && rfidOnNative;
+  // Detta betyder att RFID-subsystemet finns tillgängligt på native-nivå
+  // och att listenern är registrerad. Det betyder INTE att läsaren är ansluten
+  // eller att inventory faktiskt kör.
+  const isRfidSubsystemAvailable = rfidListenerActive && rfidOnNative;
 
   return {
     isInitialized: initialized,
     isScannerReady: initialized,
     isBarcodeReady: isDataWedgeActive() || isKeyboardListenerActive(),
-    isRfidReady,
+    // Bakåtkompatibilitet för befintlig UI/logik
+    isRfidReady: isRfidSubsystemAvailable,
+    // Tydligare semantik för ny kod
+    isRfidSubsystemAvailable,
     isReaderConnected: rfidReaderConnected,
     isInventoryRunning: rfidInventoryActive,
     currentMode,

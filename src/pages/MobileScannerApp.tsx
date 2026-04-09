@@ -402,11 +402,10 @@ const MobileScannerApp: React.FC = () => {
       </footer>
 
       {/* QR Scanner overlay (camera fallback) */}
-      <QRScanner 
+      <QRScanner
         isActive={isQRActive}
         onScan={handleHomeScan}
         onClose={() => setIsQRActive(false)}
-        skipCamera={false}
       />
     </div>
   );
