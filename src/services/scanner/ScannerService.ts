@@ -17,7 +17,10 @@
 
 import { ScanEvent, ScanMode, ScannerState, ScannerDebugInfo, ScannerConfig, DEFAULT_SCANNER_CONFIG } from './types';
 import { detectPlatform } from './platform';
-import { startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount } from './DataWedgeBridge';
+import {
+  startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount,
+  wasInitCommandsSent, getInitErrors, getLastScanTimestamp, getLastScanValue,
+} from './DataWedgeBridge';
 import {
   startRfidListener, stopRfidListener, isRfidListening,
   isNativeRfidPlatform, isReaderConnected, isInventoryRunning,
@@ -224,6 +227,10 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     isCapacitor: platform.isCapacitor,
     isZebraDevice: platform.isZebraDevice,
     dataWedgeListenerActive: isDataWedgeActive(),
+    dataWedgeInitSent: wasInitCommandsSent(),
+    dataWedgeInitErrors: getInitErrors(),
+    dataWedgeLastScanTime: getLastScanTimestamp(),
+    dataWedgeLastScanValue: getLastScanValue(),
     rfidListenerActive: isRfidListening(),
     cameraAvailable: 'mediaDevices' in navigator,
     lastDataWedgeEvent: null,
@@ -233,7 +240,7 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     sessionScanCount: scanCount,
     readerModel: getReaderModel(),
     readerConnectionStatus: rfidReaderConnected
-      ? (rfidInventoryActive ? 'connected' : 'connected')
+      ? 'connected'
       : 'disconnected',
   };
 }

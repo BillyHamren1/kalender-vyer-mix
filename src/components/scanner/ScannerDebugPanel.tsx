@@ -87,6 +87,10 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
                 <span>DataWedge</span>
               </div>
               <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.dataWedgeInitSent)}`} />
+                <span>DW Init</span>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.rfidListenerActive)}`} />
                 <span>RFID Listener</span>
               </div>
@@ -101,6 +105,22 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
             </div>
             {debugInfo.readerModel && (
               <p className="text-[10px] text-muted-foreground">Modell: {debugInfo.readerModel}</p>
+            )}
+            {debugInfo.dataWedgeInitErrors.length > 0 && (
+              <div className="text-[10px] text-destructive">
+                DW-fel: {debugInfo.dataWedgeInitErrors.join('; ')}
+              </div>
+            )}
+            {debugInfo.dataWedgeLastScanValue && (
+              <p className="text-[10px] text-muted-foreground">
+                Senaste DW: {debugInfo.dataWedgeLastScanValue}
+                {debugInfo.dataWedgeLastScanTime && (
+                  <> ({new Date(debugInfo.dataWedgeLastScanTime).toLocaleTimeString('sv-SE')})</>
+                )}
+              </p>
+            )}
+            {debugInfo.lastError && (
+              <p className="text-[10px] text-destructive">Fel: {debugInfo.lastError}</p>
             )}
           </div>
 

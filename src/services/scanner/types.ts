@@ -72,6 +72,10 @@ export interface ScannerDebugInfo {
   isCapacitor: boolean;
   isZebraDevice: boolean;
   dataWedgeListenerActive: boolean;
+  dataWedgeInitSent: boolean;
+  dataWedgeInitErrors: string[];
+  dataWedgeLastScanTime: number | null;
+  dataWedgeLastScanValue: string | null;
   rfidListenerActive: boolean;
   cameraAvailable: boolean;
   lastDataWedgeEvent: string | null;
