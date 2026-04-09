@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck, Key, Copy, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck, Key, Copy, Eye, EyeOff, Shirt, Upload, Trash2, Car } from 'lucide-react';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import StaffAvailabilityDialog from '@/components/staff/StaffAvailabilityDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -408,6 +408,117 @@ const StaffDetail: React.FC = () => {
                 <DirectEditField fieldName="city" value={staffMember.city} label="Stad" placeholder="Stad" />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Klädstorlekar */}
+        <Card className="bg-card shadow-sm border border-border">
+          <CardHeader className="pb-4 border-b border-border/50">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Shirt className="h-5 w-5 text-primary/60" />
+              Klädstorlekar
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <DirectEditField fieldName="shoe_size" value={(staffMember as any).shoe_size} label="Skor" placeholder="t.ex. 43" />
+              <DirectEditField fieldName="pants_size" value={(staffMember as any).pants_size} label="Byxor" placeholder="t.ex. M" />
+              <DirectEditField fieldName="tshirt_size" value={(staffMember as any).tshirt_size} label="T-shirt" placeholder="t.ex. L" />
+              <DirectEditField fieldName="sweater_size" value={(staffMember as any).sweater_size} label="Tröja" placeholder="t.ex. L" />
+              <DirectEditField fieldName="jacket_size" value={(staffMember as any).jacket_size} label="Jacka" placeholder="t.ex. XL" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Körkort */}
+        <Card className="bg-card shadow-sm border border-border">
+          <CardHeader className="pb-4 border-b border-border/50">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Car className="h-5 w-5 text-primary/60" />
+              Körkort
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {(staffMember as any).driver_license_url ? (
+              <div className="space-y-3">
+                <div className="relative group">
+                  <img
+                    src={(staffMember as any).driver_license_url}
+                    alt="Körkort"
+                    className="max-w-md rounded-lg border border-border shadow-sm cursor-pointer"
+                    onClick={() => window.open((staffMember as any).driver_license_url, '_blank')}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open((staffMember as any).driver_license_url, '_blank')}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Visa i fullstorlek
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const url = (staffMember as any).driver_license_url as string;
+                        const pathMatch = url.match(/project-files\/(.+)$/);
+                        if (pathMatch) {
+                          await supabase.storage.from('project-files').remove([pathMatch[1]]);
+                        }
+                        await supabase.from('staff_members').update({ driver_license_url: null } as any).eq('id', staffMember.id);
+                        await refetchStaff();
+                        toast.success('Körkort borttaget');
+                      } catch (err) {
+                        toast.error('Kunde inte ta bort körkortet');
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Ta bort
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg">
+                <Car className="h-10 w-10 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground mb-3">Inget körkort uppladdat</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*,.pdf';
+                    input.onchange = async (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (!file) return;
+                      try {
+                        const ext = file.name.split('.').pop();
+                        const filePath = `driver-licenses/${staffMember.id}/${Date.now()}.${ext}`;
+                        const { error: uploadError } = await supabase.storage
+                          .from('project-files')
+                          .upload(filePath, file, { upsert: true });
+                        if (uploadError) throw uploadError;
+                        const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+                        await supabase.from('staff_members').update({ driver_license_url: urlData.publicUrl } as any).eq('id', staffMember.id);
+                        await refetchStaff();
+                        toast.success('Körkort uppladdat');
+                      } catch (err) {
+                        console.error('Upload error:', err);
+                        toast.error('Kunde inte ladda upp körkortet');
+                      }
+                    };
+                    input.click();
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Ladda upp körkort
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
