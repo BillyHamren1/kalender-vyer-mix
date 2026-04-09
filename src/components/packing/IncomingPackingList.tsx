@@ -172,40 +172,52 @@ export const IncomingPackingList: React.FC = () => {
     }
   };
 
-  const handleCreateAllPackings = async (group: LargeProjectGroup) => {
+  const handleCreateCombinedPacking = async (group: LargeProjectGroup) => {
     setCreatingId(group.large_project_id);
     try {
-      let created = 0;
+      // Create ONE packing project for the entire large project
+      const { data: newPacking, error: createError } = await supabase
+        .from('packing_projects')
+        .insert({
+          name: group.project_name,
+          booking_id: group.bookings[0]?.id || null, // primary booking for backwards compat
+          large_project_id: group.large_project_id,
+          client_name: group.bookings[0]?.client || null,
+          delivery_address: group.bookings[0]?.deliveryaddress || null,
+          status: 'planning',
+          organization_id: group.bookings[0]?.organization_id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+
+      // Link all bookings via packing_project_bookings
+      const bookingLinks = group.bookings.map(b => ({
+        packing_id: newPacking.id,
+        booking_id: b.id,
+        organization_id: b.organization_id,
+      }));
+
+      const { error: linkError } = await supabase
+        .from('packing_project_bookings')
+        .insert(bookingLinks);
+
+      if (linkError) throw linkError;
+
+      // Sync products from all bookings into this packing
       for (const booking of group.bookings) {
-        const dateStr = booking.eventdate
-          ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
-          : '';
-        const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
-
-        const { error } = await supabase
-          .from('packing_projects')
-          .insert({
-            name: packingName,
-            booking_id: booking.id,
-            client_name: booking.client,
-            delivery_address: booking.deliveryaddress,
-            status: 'planning',
-            organization_id: booking.organization_id,
-          });
-
-        if (!error) {
-          syncBookingToPacking(booking.id, booking.organization_id);
-          created++;
-        }
+        syncBookingToPacking(booking.id, booking.organization_id);
       }
 
       await queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
       await queryClient.invalidateQueries({ queryKey: ['packings'] });
 
-      toast.success(`${created} packningar skapade för ${group.project_name}`);
+      toast.success(`Samlad packning skapad för ${group.project_name}`);
+      navigate(`/warehouse/packing/${newPacking.id}`);
     } catch (err) {
-      console.error('Error creating packings for large project:', err);
-      toast.error('Kunde inte skapa packningar');
+      console.error('Error creating combined packing:', err);
+      toast.error('Kunde inte skapa packning');
     } finally {
       setCreatingId(null);
     }
