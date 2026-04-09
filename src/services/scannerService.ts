@@ -195,3 +195,17 @@ export const getVerificationProgress = async (packingId: string) => {
 export const signPacking = async (packingId: string, signedBy: string): Promise<void> => {
   await callScannerApi('sign_packing', { packingId, signedBy });
 };
+
+// Identify a product by serial number or SKU (home screen lookup)
+export const identifyProduct = async (serialOrSku: string): Promise<{
+  found: boolean;
+  name?: string;
+  sku?: string;
+  status?: string;
+  currentBooking?: string;
+  client?: string;
+  location?: string;
+  error?: string;
+}> => {
+  return callScannerApi('identify_product', { serialNumber: serialOrSku });
+};
