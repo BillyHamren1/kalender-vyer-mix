@@ -276,15 +276,25 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
         }
         
-        const { data: existingJobs } = await supabase
+        // Check for active (non-completed/cancelled) jobs — block creation
+        const { data: activeJobs } = await supabase
           .from('jobs')
           .select('id')
           .eq('booking_id', bookingId)
+          .not('status', 'in', '("completed","cancelled")')
           .is('deleted_at', null);
         
-        if (existingJobs && existingJobs.length > 0) {
-          throw new Error('Bokningen har redan ett jobb (litet projekt). Använd det befintliga istället.');
+        if (activeJobs && activeJobs.length > 0) {
+          throw new Error('Bokningen har redan ett aktivt jobb (litet projekt). Använd det befintliga istället.');
         }
+
+        // Clean up old completed/cancelled jobs — soft-delete them so they don't linger
+        await supabase
+          .from('jobs')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('booking_id', bookingId)
+          .in('status', ['completed', 'cancelled'])
+          .is('deleted_at', null);
       }
       
       // Build project data
