@@ -412,7 +412,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                     <div className="border-t border-border/40 p-3 space-y-4 bg-muted/20">
                       {/* Products — editable costs */}
                       {products.length > 0 && (
-                        <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={productSummary?.costs || 0}>
+                        <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -427,27 +427,47 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                             </TableHeader>
                             <TableBody>
                               {products.map((p: any, i: number) => {
-                                const assemblyCost = p.assembly_cost || 0;
-                                const handlingCost = p.handling_cost || 0;
-                                const purchaseCost = p.purchase_cost || 0;
-                                const totalPCost = p.total_cost ?? p.cost ?? (assemblyCost + handlingCost + purchaseCost);
+                                const productName = p.product_name || p.name || p.description || '—';
+                                const localMatch = findLocalProduct(bookingId, productName, p.sku);
+                                
+                                // Use local product data for revenue
+                                const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
+                                
+                                // Use local product data for costs (prefer local for editability)
+                                const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                                const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                                const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                                const totalPCost = assemblyCost + handlingCost + purchaseCost;
+                                
                                 return (
                                   <TableRow key={i}>
-                                    <TableCell className="text-xs font-medium">{p.product_name || p.name || p.description || '—'}</TableCell>
+                                    <TableCell className="text-xs font-medium">{productName}</TableCell>
                                     <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(p.total_revenue || p.revenue || p.total_price || 0)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(assemblyCost)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(handlingCost)}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(purchaseCost)}</TableCell>
+                                    <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v)} />
+                                      ) : fmt(assemblyCost)}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v)} />
+                                      ) : fmt(handlingCost)}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {localMatch ? (
+                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v)} />
+                                      ) : fmt(purchaseCost)}
+                                    </TableCell>
                                     <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
                                   </TableRow>
                                 );
                               })}
                               <TableRow className="font-semibold border-t">
                                 <TableCell colSpan={2} className="text-xs">Summa</TableCell>
-                                <TableCell className="text-xs text-right">{fmt(productSummary?.revenue || 0)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
                                 <TableCell colSpan={3}></TableCell>
-                                <TableCell className="text-xs text-right">{fmt(productSummary?.costs || 0)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
                               </TableRow>
                             </TableBody>
                           </Table>
