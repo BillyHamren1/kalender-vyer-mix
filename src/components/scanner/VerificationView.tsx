@@ -470,7 +470,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           {progress.percentage}%
         </span>
         <Button 
-          onClick={() => setIsMinusMode(prev => !prev)}
+          onClick={() => setIsMinusMode(prev => {
+            if (prev) clearSessionDedup(); // Clear dedup when exiting minus mode
+            return !prev;
+          })}
           size="sm"
           variant={isMinusMode ? "destructive" : "outline"}
           className="h-8 px-2.5 gap-1"
