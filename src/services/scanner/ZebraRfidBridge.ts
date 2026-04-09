@@ -403,15 +403,17 @@ export async function disconnectRfidReader(): Promise<void> {
 /**
  * Start RFID inventory (continuous tag reading).
  */
+/**
+ * Start RFID inventory (continuous tag reading).
+ * Does NOT set inventoryRunning — that is set only by native rfid_status events.
+ */
 export async function startRfidInventory(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      console.log('[ZebraRFID] Starting inventory...');
+      console.log('[ZebraRFID] Requesting inventory start...');
       await ZebraRfid.startInventory();
-      console.log('[ZebraRFID] Inventory started');
-      // Native will send rfid_status event, but update immediately too
-      inventoryRunning = true;
-      statusCallback?.({ isConnected: readerConnected, readerModel: readerModel || undefined });
+      console.log('[ZebraRFID] Inventory start requested (awaiting native confirmation)');
+      // Do NOT set inventoryRunning here — wait for rfid_status event from native
     } catch (error: any) {
       console.error('[ZebraRFID] Start inventory failed:', error);
       applyError(error.message || 'Start inventory failed');
@@ -425,14 +427,17 @@ export async function startRfidInventory(): Promise<void> {
 /**
  * Stop RFID inventory.
  */
+/**
+ * Stop RFID inventory.
+ * Does NOT set inventoryRunning — that is set only by native rfid_status events.
+ */
 export async function stopRfidInventory(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      console.log('[ZebraRFID] Stopping inventory...');
+      console.log('[ZebraRFID] Requesting inventory stop...');
       await ZebraRfid.stopInventory();
-      console.log('[ZebraRFID] Inventory stopped');
-      inventoryRunning = false;
-      statusCallback?.({ isConnected: readerConnected, readerModel: readerModel || undefined });
+      console.log('[ZebraRFID] Inventory stop requested (awaiting native confirmation)');
+      // Do NOT set inventoryRunning here — wait for rfid_status event from native
     } catch (error: any) {
       console.error('[ZebraRFID] Stop inventory failed:', error);
       applyError(error.message || 'Stop inventory failed');
