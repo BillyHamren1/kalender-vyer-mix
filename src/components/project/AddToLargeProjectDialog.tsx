@@ -193,10 +193,10 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
                               {project.location}
                             </span>
                           )}
-                          {project.start_date && (
+                          {project.start_date?.length ? (
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {formatDate(project.start_date)}
+                              {formatDate(project.start_date[0])}
                             </span>
                           )}
                           <span>{project.bookingCount || 0} bokningar</span>
