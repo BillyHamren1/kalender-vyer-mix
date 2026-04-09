@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RecentScanEntry } from '@/hooks/scanner/useScanProcessor';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
