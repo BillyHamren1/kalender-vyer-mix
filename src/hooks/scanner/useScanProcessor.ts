@@ -29,7 +29,7 @@ interface UseScanProcessorOptions {
   onOptimisticDecrement: (itemId: string) => void;
   onAssignToKolli: (itemId: string) => Promise<void>;
   onTriggerSync: () => void;
-  onRfidTagResult?: (epc: string, matched: boolean) => void;
+  onRfidTagResult?: (epc: string, matched: boolean, productName?: string, sku?: string) => void;
 }
 
 export const useScanProcessor = (options: UseScanProcessorOptions) => {
@@ -70,10 +70,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
 
-    const notifyRfid = (value: string, matched: boolean) => {
+    const notifyRfid = (value: string, matched: boolean, productName?: string, sku?: string) => {
       const isRfid = value.length >= 20 && /^[0-9a-fA-F]+$/.test(value);
       if (isRfid && optRef.current.onRfidTagResult) {
-        optRef.current.onRfidTagResult(value, matched);
+        optRef.current.onRfidTagResult(value, matched, productName, sku);
       }
     };
 
@@ -105,7 +105,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
         addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
-        notifyRfid(scannedValue, true);
+        notifyRfid(scannedValue, true, productName, matchingItem.booking_products?.sku || undefined);
       } else {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
@@ -138,7 +138,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           }
           onTriggerSync();
           addRecentScan({ value: scannedValue, productName: result.productName || scannedValue, success: true, timestamp: Date.now() });
-          notifyRfid(scannedValue, true);
+          notifyRfid(scannedValue, true, result.productName || undefined, scannedValue);
         } else {
           if ((result as any).alreadyScanned) {
             // No toast — just show in feedback header
@@ -150,7 +150,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           } else {
             toast.error(result.error);
           }
-          notifyRfid(scannedValue, false);
+          notifyRfid(scannedValue, false, undefined, undefined);
         }
       }
     } catch (err: any) {
