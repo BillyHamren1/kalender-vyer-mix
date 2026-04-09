@@ -192,6 +192,7 @@ const LargeProjectEconomyPage = () => {
           bookingEconomyData={bookingEconomyData}
           bookings={bookings}
           largeProjectId={project.id}
+          localProducts={localProducts}
         />
       )}
 
