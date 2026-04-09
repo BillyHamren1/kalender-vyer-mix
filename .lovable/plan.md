@@ -1,73 +1,48 @@
 
 
-## Root Cause Analysis
+## Problem
+When scanning from the home screen, any non-packing-ID scan just shows "QR-koden innehåller inte en giltig packlista" — no useful info. The user wants a product lookup here. But inside a packing list (VerificationView), scanning a wrong product must still show an error like "Artikel ej i packlista" — no lookup.
 
-The bug is a **status filter mismatch** between two components:
+## Plan
 
-### The sequence of events
+### Scope
+- **Home screen scan** → non-UUID barcodes trigger product identification (new feature)
+- **Packing list scan** → wrong SKUs keep showing error as today (NO change)
 
-1. Booking originally CONFIRMED → a job (small project) was created → `assigned_to_project = true`
-2. Booking CANCELLED externally → `import-bookings` sets the job status to **`completed`** (line 1968), deletes calendar/packing/products
-3. Booking re-CONFIRMED externally → `import-bookings` correctly skips flag preservation (line 2621), resets `viewed = false` → booking appears in triage
+### Changes
 
-### Where the conflict lives
+**1. Edge function: add `identify_product` action**
+File: `supabase/functions/scanner-api/index.ts`
 
-**IncomingBookingsList** (line 55) filters correctly:
-```
-.not('status', 'in', '("completed","cancelled")')
-```
-The old job has status `completed`, so it's excluded → booking **appears in triage**. User sees it and clicks "Medel".
+Add a new case that calls the external inventory API to look up a product by serial/barcode (read-only, no allocation). Returns product name, SKU, status, current allocation. Falls back to local DB match if external API lacks a lookup endpoint.
 
-**CreateProjectWizard** (line 279-283) filters incorrectly:
-```sql
-SELECT id FROM jobs WHERE booking_id = ? AND deleted_at IS NULL
-```
-It checks for ANY job regardless of status. The old `completed` job still exists with `deleted_at IS NULL` → **blocks creation**.
-
-The user sees the booking, is invited to act on it, but then gets told they can't.
-
-### Why this will keep happening
-
-Every cancelled-then-re-confirmed booking that previously had a small project will hit this. The old job is `completed` but not soft-deleted, so the guard fires forever.
-
-## Fix
-
-### File: `src/components/project/CreateProjectWizard.tsx` (lines 279-287)
-
-**Option A (minimal):** Add the same status filter the triage list uses:
+**2. Service layer: add `identifyProduct` helper**
+File: `src/services/scannerService.ts`
 
 ```typescript
-const { data: existingJobs } = await supabase
-  .from('jobs')
-  .select('id')
-  .eq('booking_id', bookingId)
-  .not('status', 'in', '("completed","cancelled")')
-  .is('deleted_at', null);
+export const identifyProduct = async (serialOrSku: string) => {
+  return callScannerApi('identify_product', { serialNumber: serialOrSku });
+};
 ```
 
-This makes the guard consistent: completed/cancelled jobs don't block. But the old job lingers in the DB.
+**3. New component: ProductIdentifyCard**
+File: `src/components/scanner/ProductIdentifyCard.tsx`
 
-**Option B (clean):** Remove the job guard entirely and instead soft-delete any existing completed/cancelled job when creating the new project:
+Simple overlay card showing: product name, SKU, status, current booking (if allocated). Dismiss button to close.
 
-```typescript
-// Retire old completed/cancelled jobs for this booking
-await supabase
-  .from('jobs')
-  .update({ deleted_at: new Date().toISOString() })
-  .eq('booking_id', bookingId)
-  .in('status', ['completed', 'cancelled']);
-```
+**4. Update home screen scan handler only**
+File: `src/pages/MobileScannerApp.tsx`
 
-This cleans up properly — old deprecated jobs get retired, the new medium project takes over.
+Change `handleBarcodeScan` else-branch:
+- Before: `toast.error('QR-koden innehåller inte en giltig packlista')`
+- After: call `identifyProduct(scannedValue)` → show `ProductIdentifyCard` overlay with result, or toast if not found
 
-### Recommendation
+**No changes to:**
+- `useScanProcessor.ts` — packing list scanning stays exactly as-is
+- `VerificationView` — wrong SKUs still get "not found" error from `verify_product`
+- DataWedge/RFID bridge, Time app, kolli flow — untouched
 
-**Option B** — it cleans up the data and prevents the old job from confusing any future queries. The guard for active jobs (planned/in-progress) stays intact via the project-exists check that already exists.
-
-### What stays unchanged
-- `import-bookings` cancellation flow (sets job to `completed`) — correct
-- `import-bookings` re-confirmation flow (skips flag preservation) — correct
-- `IncomingBookingsList` triage filter — correct
-- `createJobFromBooking` reverse guard (blocks if project exists) — correct
-- Soft-delete/audit infrastructure — used, not changed
+### Technical notes
+- The `activeScanHandler` ref already switches between home handler and verification handler based on state, so the two contexts are cleanly separated
+- Need to check if external inventory API has a lookup endpoint; if not, fall back to matching SKU against `booking_products` table locally
 
