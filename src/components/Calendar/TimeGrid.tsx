@@ -239,7 +239,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Fixed column widths
   const timeColumnWidth = 50;
-  const availableColumnWidth = 70; // Staff column
+  // availableColumnWidth removed - staff shown in full-width row now
   const baseTeamColumnWidth = 73;
   const wideTeamColumnWidth = 140;
 
