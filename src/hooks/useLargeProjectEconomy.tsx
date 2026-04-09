@@ -50,6 +50,21 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
+  // Local booking products (for revenue data and editable costs)
+  const { data: localProducts = [] } = useQuery({
+    queryKey: ['large-project-local-products', bookingIds],
+    queryFn: async () => {
+      if (bookingIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('booking_products')
+        .select('id, booking_id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, parent_product_id, is_package_component, sku, sort_index')
+        .in('booking_id', bookingIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: bookingIds.length > 0,
+  });
+
   // Compute aggregated summary from booking economy
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
