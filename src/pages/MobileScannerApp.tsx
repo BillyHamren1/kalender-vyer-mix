@@ -10,7 +10,8 @@ import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
 import { QRScanner } from '@/components/scanner/QRScanner';
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
-import { parseScanResult, fetchActivePackings } from '@/services/scannerService';
+import { ProductIdentifyCard } from '@/components/scanner/ProductIdentifyCard';
+import { parseScanResult, fetchActivePackings, identifyProduct } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { useScannerController } from '@/hooks/scanner/useScannerController';
 import { ScanEvent } from '@/services/scanner/types';
@@ -32,6 +33,8 @@ const MobileScannerApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDebug, setShowDebug] = useState(false);
+  const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
+  const [isIdentifying, setIsIdentifying] = useState(false);
 
   // Active scan handler ref — points to the correct handler based on current state
   const activeScanHandler = useRef<(value: string) => void>(() => {});
@@ -50,8 +53,8 @@ const MobileScannerApp: React.FC = () => {
     autoInit: true, // Always active — no race conditions
   });
 
-  // Handle barcode scan on home screen — navigates to packing
-  const handleBarcodeScan = useCallback((scannedValue: string) => {
+  // Handle barcode scan on home screen — navigates to packing or identifies product
+  const handleBarcodeScan = useCallback(async (scannedValue: string) => {
     const result = parseScanResult(scannedValue);
     
     if (result.type === 'packing_id' && result.packingId) {
@@ -60,10 +63,26 @@ const MobileScannerApp: React.FC = () => {
       setIsQRActive(false);
       toast.success('Packlista hittad!');
     } else {
-      toast.error('QR-koden innehåller inte en giltig packlista');
+      // Product scan on home screen → identify it
+      if (isIdentifying) return;
+      setIsIdentifying(true);
+      toast.loading('Söker produkt...', { id: 'identify' });
+      try {
+        const productResult = await identifyProduct(scannedValue);
+        toast.dismiss('identify');
+        if (productResult.found) {
+          setIdentifiedProduct(productResult);
+        } else {
+          toast.error(productResult.error || `Produkt "${scannedValue}" hittades inte`);
+        }
+      } catch (err: any) {
+        toast.dismiss('identify');
+        toast.error(err.message || 'Kunde inte identifiera produkt');
+      } finally {
+        setIsIdentifying(false);
+      }
     }
-  }, []);
-
+  }, [isIdentifying]);
   // Update active scan handler when state changes
   useEffect(() => {
     if (state === 'home') {
@@ -407,6 +426,14 @@ const MobileScannerApp: React.FC = () => {
         onScan={handleHomeScan}
         onClose={() => setIsQRActive(false)}
       />
+
+      {/* Product identification overlay */}
+      {identifiedProduct && (
+        <ProductIdentifyCard
+          result={identifiedProduct}
+          onClose={() => setIdentifiedProduct(null)}
+        />
+      )}
     </div>
   );
 };
