@@ -1,34 +1,36 @@
 
 
-## Plan: Fix staff container alignment + click-to-assign workflow
+## Plan: Separate Warehouse Calendar Resources from Staff Calendar
 
-### Problem 1: Staff container looks broken on the left
-The "Personal" container above the day card spans the full width starting from the left edge, while the day card below has a TIME column (~60px) creating a visual misalignment. The staff pills should be offset to align with the team columns.
+### Problem
+The warehouse calendar reuses the same team resource IDs (`team-1`, `team-2`, etc.) from the staff calendar, just renaming them to "Lager 1", "Lager 2". This means booking events assigned to `team-1` in the staff calendar show up under "Lager 1" in the warehouse calendar. These should be **completely independent** systems.
 
-### Problem 2: New assignment flow
-Currently, clicking the "+" button on a team header opens a dropdown/curtain to select staff. Instead, the flow should be:
-1. User clicks "+" on a team header
-2. This activates a "selection mode" where the staff names in the container above become clickable
-3. User clicks a staff name above to assign them to the selected team
-4. Selection mode deactivates after assignment
+### Solution
+Give the warehouse calendar its own independent resource IDs (`lager-1`, `lager-2`, etc.) that are not coupled to the staff calendar's team resources.
 
 ### Changes
 
-**File: `src/components/Calendar/TimeGrid.tsx`**
-- Fix the staff container layout: add left padding equal to the TIME column width so pills align with team columns
-- Add state: `selectingForTeam: { resourceId, resourceTitle } | null`
-- When "+" is clicked, instead of calling `onOpenStaffSelection`, set `selectingForTeam`
-- Make staff pills clickable when `selectingForTeam` is active — clicking a pill calls `onStaffDrop(staffId, resourceId)` and clears selection mode
-- Visual feedback: highlight the active team header and make staff pills show a cursor pointer + hover effect when in selection mode
-- Add a subtle banner/indicator showing which team is being assigned to, with a cancel button
+**1. Create `src/hooks/useWarehouseResources.tsx`**
+- New hook that manages warehouse-specific resources with IDs like `lager-1`, `lager-2`, ..., `lager-10`, plus `Packning`
+- Own localStorage key (`warehouseResources`) separate from the staff calendar
+- Same add/remove/rename API as `useTeamResources` but for warehouse resources
 
-**File: `src/pages/CustomCalendarPage.tsx`** (and WarehouseCalendarPage)
-- No changes needed — the staff curtain logic can remain but won't be triggered from TimeGrid anymore (TimeGrid handles assignment internally via `onStaffDrop`)
+**2. Update `src/pages/WarehouseCalendarPage.tsx`**
+- Replace `useTeamResources()` with the new `useWarehouseResources()`
+- Resources already have correct names (`Lager 1`, etc.) — remove the mapping logic
+- Update default visible teams from `team-*` to `lager-*`
+- Update all hardcoded `team-*` references in `getVisibleTeamsForDay` and `handleToggleTeamForDay`
 
-### Technical details
-- The TIME column width is stored in `timeColumnWidth` variable (likely 60px)
-- Staff container gets `paddingLeft: timeColumnWidth` to align with team columns
-- Selection mode state lives in TimeGrid since it's purely UI interaction
-- Staff pills get `onClick` handler gated by `selectingForTeam !== null`
-- After successful assignment, clear `selectingForTeam` and the staff list refreshes automatically
+**3. Update `src/hooks/useUnifiedStaffOperations.ts`**
+- Ensure the warehouse variant (`'Lager'`) uses `lager-*` prefixed resource IDs for staff assignment storage, so warehouse staff assignments don't clash with staff calendar assignments
+
+**4. Update warehouse event display**
+- Calendar events from `useRealTimeCalendarEvents` (rig/event/rigDown) that have `resource_id: 'team-*'` should **not** be displayed in the warehouse calendar's `lager-*` columns
+- Warehouse-specific events from `useWarehouseCalendarEvents` already use `resource_id: 'warehouse'` — this stays unchanged
+- If warehouse events need to be assigned to specific lager columns, their `resource_id` should use `lager-*` IDs
+
+### Result
+- Staff calendar: `team-1` through `team-10` + `team-11` (Live)
+- Warehouse calendar: `lager-1` through `lager-10` + `Packning`
+- No shared resource IDs — events in one calendar never bleed into the other
 
