@@ -60,18 +60,21 @@ export const getItemParcels = async (packingId: string): Promise<Record<string, 
 // ============== EXISTING FUNCTIONS ==============
 
 // Parse a scanned value to determine what type it is (client-side only, no DB)
+// Always trims the input to handle trailing whitespace/newlines from hardware scanners.
 export const parseScanResult = (scannedValue: string): ScanResult => {
-  const packingUrlMatch = scannedValue.match(/\/warehouse\/packing\/([a-f0-9-]+)\/verify/);
+  const trimmed = scannedValue.trim();
+
+  const packingUrlMatch = trimmed.match(/\/warehouse\/packing\/([a-f0-9-]+)\/verify/);
   if (packingUrlMatch) {
     return { type: 'packing_id', value: packingUrlMatch[1], packingId: packingUrlMatch[1] };
   }
 
   const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-  if (uuidPattern.test(scannedValue)) {
-    return { type: 'packing_id', value: scannedValue, packingId: scannedValue };
+  if (uuidPattern.test(trimmed)) {
+    return { type: 'packing_id', value: trimmed, packingId: trimmed };
   }
 
-  return { type: 'product_sku', value: scannedValue };
+  return { type: 'product_sku', value: trimmed };
 };
 
 // Fetch active packing projects
