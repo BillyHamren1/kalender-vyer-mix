@@ -224,6 +224,10 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     isCapacitor: platform.isCapacitor,
     isZebraDevice: platform.isZebraDevice,
     dataWedgeListenerActive: isDataWedgeActive(),
+    dataWedgeInitSent: wasInitCommandsSent(),
+    dataWedgeInitErrors: getInitErrors(),
+    dataWedgeLastScanTime: getLastScanTimestamp(),
+    dataWedgeLastScanValue: getLastScanValue(),
     rfidListenerActive: isRfidListening(),
     cameraAvailable: 'mediaDevices' in navigator,
     lastDataWedgeEvent: null,
@@ -233,7 +237,7 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     sessionScanCount: scanCount,
     readerModel: getReaderModel(),
     readerConnectionStatus: rfidReaderConnected
-      ? (rfidInventoryActive ? 'connected' : 'connected')
+      ? 'connected'
       : 'disconnected',
   };
 }
