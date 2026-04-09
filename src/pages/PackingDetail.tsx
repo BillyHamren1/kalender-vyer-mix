@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist";
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
+import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import { ProductsList } from "@/components/booking/ProductsList";
@@ -41,6 +42,7 @@ interface ProductChanges {
 const PackingDetail = () => {
   const { packingId } = useParams<{ packingId: string }>();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -347,8 +349,14 @@ const PackingDetail = () => {
 
           {/* Tabs Content */}
           <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
-            <Tabs defaultValue="checklist" className="space-y-4">
+            <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="flex-wrap h-auto gap-1">
+                {isLargeProject && (
+                  <TabsTrigger value="overview" className="flex items-center gap-1">
+                    <LayoutList className="h-3.5 w-3.5" />
+                    Översikt
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="checklist" className="flex items-center gap-1">
                   <CheckSquare className="h-3.5 w-3.5" />
                   Checklista
@@ -368,6 +376,23 @@ const PackingDetail = () => {
                 <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
+
+              {isLargeProject && (
+                <TabsContent value="overview">
+                  <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
+                    <PackingProjectOverview
+                      packingId={packingId || ''}
+                      largeProjectId={packing.large_project_id || ''}
+                      onSyncComplete={() => {
+                        refetchAll();
+                        refetchItems();
+                        loadProducts(false);
+                      }}
+                      onNavigateToChecklist={() => setActiveTab('packlist')}
+                    />
+                  </div>
+                </TabsContent>
+              )}
 
               <TabsContent value="checklist">
                 <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
