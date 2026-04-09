@@ -43,29 +43,19 @@ let scanCount = 0;
 let lastScan: ScanEvent | null = null;
 const recentScans: ScanEvent[] = [];
 
-// Dedup tracking (barcode only — RFID dedup is in ZebraRfidBridge)
-const barcodeDedupMap = new Map<string, number>();
-
-// ── Dedup Logic ──────────────────────────────────────────────────
-
-function isDuplicate(scan: ScanEvent): boolean {
-  if (scan.type === 'rfid') {
-    return scan.isDuplicate;
-  }
-
-  const lastTime = barcodeDedupMap.get(scan.value);
-  const now = Date.now();
-  if (lastTime && (now - lastTime) < config.barcodeDedupWindowMs) {
-    return true;
-  }
-  barcodeDedupMap.set(scan.value, now);
-  return false;
-}
+// ── Dedup Ownership ──────────────────────────────────────────────
+//
+// This service does NOT perform dedup. Dedup responsibility:
+//   - RFID tags:  ZebraRfidBridge (hardware-level, time-window, sets isDuplicate on ScanEvent)
+//   - Barcodes:   useScanProcessor (session-level, blocks + shows user feedback)
+//
+// ScannerService is a passthrough: it records scans for debug/history
+// and forwards them to the registered handler. The isDuplicate flag
+// on ScanEvents is set by the source bridge, not here.
 
 // ── Unified Scan Handler ─────────────────────────────────────────
 
 function handleIncomingScan(scan: ScanEvent): void {
-  scan.isDuplicate = isDuplicate(scan);
 
   enqueueScan(scan, 'received');
 
@@ -147,7 +137,7 @@ export function destroyScanner(): void {
   scanCount = 0;
   lastScan = null;
   recentScans.length = 0;
-  barcodeDedupMap.clear();
+  
   console.log('[ScannerService] Destroyed');
 }
 
