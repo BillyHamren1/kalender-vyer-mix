@@ -426,6 +426,14 @@ const MobileScannerApp: React.FC = () => {
         onScan={handleHomeScan}
         onClose={() => setIsQRActive(false)}
       />
+
+      {/* Product identification overlay */}
+      {identifiedProduct && (
+        <ProductIdentifyCard
+          result={identifiedProduct}
+          onClose={() => setIdentifiedProduct(null)}
+        />
+      )}
     </div>
   );
 };
