@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Radio, Wifi, WifiOff, Loader2, AlertCircle, 
-  Play, Square, RotateCcw, Zap 
+  Play, Square, RotateCcw, Zap, Tag
 } from 'lucide-react';
-import { RfidConnectionStatus } from '@/hooks/scanner/useRfidManager';
+import { RfidConnectionStatus, RfidLastMatch } from '@/hooks/scanner/useRfidManager';
 
 interface RfidStatusBarProps {
   status: RfidConnectionStatus;
@@ -21,6 +21,7 @@ interface RfidStatusBarProps {
   uniqueTagsRead: number;
   matchedCount: number;
   unmatchedCount: number;
+  lastMatchedProduct: RfidLastMatch | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onToggleInventory: () => void;
@@ -64,6 +65,7 @@ export const RfidStatusBar: React.FC<RfidStatusBarProps> = ({
   uniqueTagsRead,
   matchedCount,
   unmatchedCount,
+  lastMatchedProduct,
   onConnect,
   onDisconnect,
   onToggleInventory,
@@ -133,6 +135,15 @@ export const RfidStatusBar: React.FC<RfidStatusBarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Last matched product */}
+      {lastMatchedProduct && (
+        <div className="flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded text-[11px]">
+          <Tag className="h-3 w-3 text-green-600 shrink-0" />
+          <span className="font-semibold text-green-800 truncate">{lastMatchedProduct.productName}</span>
+          <span className="text-green-600 text-[10px] shrink-0">{lastMatchedProduct.sku}</span>
+        </div>
+      )}
 
       {/* Stats row (only when inventory active or has results) */}
       {(inventoryActive || totalTagsRead > 0) && (
