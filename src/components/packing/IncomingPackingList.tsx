@@ -175,17 +175,30 @@ export const IncomingPackingList: React.FC = () => {
   const handleCreateCombinedPacking = async (group: LargeProjectGroup) => {
     setCreatingId(group.large_project_id);
     try {
+      // Calculate date range from all bookings
+      const { data: dateRange } = await supabase
+        .from('bookings')
+        .select('rigdaydate, rigdowndate')
+        .in('id', group.bookings.map(b => b.id));
+
+      const rigDates = (dateRange || []).map(d => d.rigdaydate).filter(Boolean) as string[];
+      const rigdownDates = (dateRange || []).map(d => d.rigdowndate).filter(Boolean) as string[];
+      const startDate = rigDates.length > 0 ? rigDates.sort()[0] : null;
+      const endDate = rigdownDates.length > 0 ? rigdownDates.sort().reverse()[0] : null;
+
       // Create ONE packing project for the entire large project
       const { data: newPacking, error: createError } = await supabase
         .from('packing_projects')
         .insert({
           name: group.project_name,
-          booking_id: group.bookings[0]?.id || null, // primary booking for backwards compat
+          booking_id: group.bookings[0]?.id || null,
           large_project_id: group.large_project_id,
           client_name: group.bookings[0]?.client || null,
           delivery_address: group.bookings[0]?.deliveryaddress || null,
           status: 'planning',
           organization_id: group.bookings[0]?.organization_id,
+          start_date: startDate,
+          end_date: endDate,
         })
         .select('id')
         .single();
