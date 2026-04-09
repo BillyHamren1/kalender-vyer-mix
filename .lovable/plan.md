@@ -1,54 +1,48 @@
 
 
-## Plan: Sätt stora projektets datum från första bokningen
+## Plan: Stöd för flera datum per typ i stora projekt
 
 ### Problem
-När ett stort projekt skapas och en bokning kopplas, hämtas aldrig bokningens datum (rigg/event/nedrigg) till projektets `start_date`, `event_date` och `end_date`. Projektet förblir utan datum.
+Datumväljaren (EditDateDialog) tillåter bara ett enda datum per typ (rigg/event/nedrivning). Stora projekt behöver kunna ha flera riggdagar, eventdagar och rivdagar.
 
-### Lösning
-Uppdatera `addBookingToLargeProject` i `src/services/largeProjectService.ts` så att den — **om projektet saknar datum** — automatiskt hämtar den tillagda bokningens datum och sätter dem på projektet.
+### Databasändring
+Migrera `large_projects`-tabellens datumkolumner till array-format:
+- `start_date` (date → text[])
+- `event_date` (text → text[])  
+- `end_date` (date → text[])
 
-### Steg
-
-**1. Uppdatera `addBookingToLargeProject` (largeProjectService.ts)**
-- Efter att bokningen länkats, kontrollera om projektet saknar `start_date`/`event_date`/`end_date`
-- Om ja: hämta bokningens `rigdaydate`, `eventdate`, `rigdowndate` och sätt dem som projektets datum
-- Detta gäller alltså bara om projektet är "tomt" på datum — befintliga datum rörs inte
-
-**2. Uppdatera `AddToLargeProjectDialog` (AddToLargeProjectDialog.tsx)**
-- När ett nytt projekt skapas med en bokning i samma flöde: skicka med bokningens datum direkt till `createLargeProject`
-
-### Teknisk detalj
-
-I `addBookingToLargeProject`, efter insert av länken:
-
-```typescript
-// If project has no dates, inherit from first booking
-const { data: project } = await supabase
-  .from('large_projects')
-  .select('start_date, event_date, end_date')
-  .eq('id', largeProjectId)
-  .single();
-
-if (project && !project.start_date && !project.event_date && !project.end_date) {
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select('rigdaydate, eventdate, rigdowndate')
-    .eq('id', bookingId)
-    .single();
-
-  if (booking) {
-    await supabase
-      .from('large_projects')
-      .update({
-        start_date: booking.rigdaydate || null,
-        event_date: booking.eventdate || null,
-        end_date: booking.rigdowndate || null,
-      })
-      .eq('id', largeProjectId);
-  }
-}
+Migration:
+```sql
+ALTER TABLE large_projects 
+  ALTER COLUMN start_date TYPE text[] USING CASE WHEN start_date IS NOT NULL THEN ARRAY[start_date::text] ELSE NULL END,
+  ALTER COLUMN event_date TYPE text[] USING CASE WHEN event_date IS NOT NULL THEN ARRAY[event_date] ELSE NULL END,
+  ALTER COLUMN end_date TYPE text[] USING CASE WHEN end_date IS NOT NULL THEN ARRAY[end_date::text] ELSE NULL END;
 ```
 
-Befintliga datum kan sedan justeras manuellt av användaren som vanligt.
+### Komponentändringar
+
+**1. EditDateDialog — lägg till multi-select-läge**
+- Ny prop `multiSelect?: boolean` och `dates?: string[]`
+- Byt Calendar `mode="single"` → `mode="multiple"` när `multiSelect=true`
+- Ny callback `onSaveMulti?: (dates: string[], startTime, endTime, eventType) => void`
+- Valda datum visas som sorterad lista under kalendern
+
+**2. LargeProjectScheduleEditable — visa flera datum**
+- Props ändras: `startDate` → `startDates?: string[] | null`
+- Varje datumkort visar antal dagar och datumspann (t.ex. "9–11 jun 2026, 3 dagar")
+- Klick öppnar EditDateDialog i multi-select-läge
+
+**3. LargeProjectLayout — uppdatera onUpdateSchedule**
+- Anpassa save-logiken för att spara datum-arrayer till `large_projects`
+- Propagering till bokningar: uppdatera första/sista bokningens datum baserat på projektets datumarray
+
+**4. largeProjectService — anpassa addBookingToLargeProject**
+- Hanterar array-format vid initial datuminheritance
+
+### Filer som ändras
+- `supabase/migrations/` — ny migration
+- `src/components/booking/EditDateDialog.tsx` — multi-select stöd
+- `src/components/project/LargeProjectScheduleEditable.tsx` — array-visning
+- `src/pages/project/LargeProjectLayout.tsx` — save-logik
+- `src/services/largeProjectService.ts` — array-hantering
 
