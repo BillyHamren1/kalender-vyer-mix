@@ -379,8 +379,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         <div className="day-header-teams" style={{ 
           gridColumn: '2 / -1',
-          width: fullWidth ? 'auto' : `${availableColumnWidth + totalTeamColumnsWidth}px`,
-          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + totalTeamColumnsWidth}px`
+          width: fullWidth ? 'auto' : `${totalTeamColumnsWidth}px`,
+          maxWidth: fullWidth ? 'none' : `${totalTeamColumnsWidth}px`
         }}>
           <div className="day-header-content">
             {/* Left nav arrow - only if carouselNav provided */}
