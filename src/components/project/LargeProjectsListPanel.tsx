@@ -202,7 +202,7 @@ const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externa
                           <Calendar className="w-3 h-3" />
                           {formatDate(project.start_date[0])}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 

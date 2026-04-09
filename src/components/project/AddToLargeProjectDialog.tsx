@@ -198,7 +198,7 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
                               <Calendar className="h-3 w-3" />
                               {formatDate(project.start_date[0])}
                             </span>
-                          )}
+                          ) : null}
                           <span>{project.bookingCount || 0} bokningar</span>
                         </div>
                       </div>
