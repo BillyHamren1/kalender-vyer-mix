@@ -19,6 +19,22 @@ import { useQueryClient } from '@tanstack/react-query';
 const fmt = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
+interface LocalProduct {
+  id: string;
+  booking_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number | null;
+  total_price: number | null;
+  assembly_cost: number | null;
+  handling_cost: number | null;
+  purchase_cost: number | null;
+  parent_product_id: string | null;
+  is_package_component: boolean | null;
+  sku: string | null;
+  sort_index: number | null;
+}
+
 interface BookingInfo {
   booking_id: string;
   display_name: string | null;
@@ -33,6 +49,7 @@ interface Props {
   bookingEconomyData: Record<string, BatchEconomyData>;
   bookings: BookingInfo[];
   largeProjectId?: string;
+  localProducts?: LocalProduct[];
 }
 
 /** Resolve a human-readable booking name. Always prefer real booking data over display_name. */
