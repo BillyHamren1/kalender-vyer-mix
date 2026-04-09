@@ -43,15 +43,19 @@ export const IncomingPackingList: React.FC = () => {
     queryKey: ['bookings-without-packing'],
     queryFn: async () => {
       // Fetch booking IDs from active projects
-      const [{ data: jobBookingIds }, { data: projectBookingIds }, { data: largeLinks }] = await Promise.all([
+      const [{ data: jobBookingIds }, { data: projectBookingIds }, { data: largeLinks }, { data: ppBookings }] = await Promise.all([
         supabase.from('jobs').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
         supabase.from('projects').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
         supabase.from('large_project_bookings').select('booking_id, large_project_id'),
+        supabase.from('packing_project_bookings').select('booking_id'),
       ]);
 
       const jobIds = new Set((jobBookingIds || []).map(j => j.booking_id).filter(Boolean));
       const projectIds = new Set((projectBookingIds || []).map(p => p.booking_id).filter(Boolean));
       
+      // Bookings already linked via packing_project_bookings (multi-booking packings)
+      const alreadyLinkedIds = new Set((ppBookings || []).map(p => p.booking_id).filter(Boolean));
+
       // Map booking_id -> large_project_id
       const largeProjectMap = new Map<string, string>();
       (largeLinks || []).forEach(l => {
@@ -71,7 +75,8 @@ export const IncomingPackingList: React.FC = () => {
         .in('booking_id', ids);
 
       const packedIds = new Set((existingPackings || []).map(p => p.booking_id).filter(Boolean));
-      const missingIds = ids.filter(id => !packedIds.has(id));
+      // Filter out bookings that already have a packing OR are linked via packing_project_bookings
+      const missingIds = ids.filter(id => !packedIds.has(id) && !alreadyLinkedIds.has(id));
       if (missingIds.length === 0) return [];
 
       const { data: bookings, error } = await supabase
