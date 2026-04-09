@@ -1,44 +1,85 @@
 
 
-## Plan: Visa uppdaterade bokningar i triage-listan med ändringsdetaljer
+## Plan: Stort projekt = EN samlad packlista med bokningsgruppering
 
-### Problem
-När en bokning uppdateras (t.ex. 2603-126 fick nya internalnotes idag) syns det ingenstans i systemet. Uppdateringen sker tyst. Användaren måste aktivt bli meddelad om att en bokning har ändrats, och kunna se exakt vad som ändrats.
+### Sammanfattning
+Ett stort projekt kommer in som ETT packjobb. Packlistan visar en **sammanfattning med alla produkter** högst upp, följt av **sektioner per bokning** med respektive produkter. Användaren kan senare välja att **splitta** till separata packlistor.
 
-### Lösning
+### Databasändringar
 
-**1. Ny kolumn `needs_review` på `bookings`-tabellen (migration)**
-- Lägg till `needs_review BOOLEAN DEFAULT false`
-- Lägg till `needs_review_reason TEXT` (t.ex. "update", "status_change")
-- Uppdatera DB-triggern `track_booking_changes()`: när en bokning som har `assigned_to_project = true` får en **extern uppdatering** (change_type = 'update' eller 'status_change'), sätt `needs_review = true` och `needs_review_reason = change_type`
-- Undantag: ändringar av interna flaggor (`viewed`, `assigned_to_project`, `assigned_project_id`, `assigned_project_name`) ska INTE trigga `needs_review`
+**1. Ny kopplingstabell `packing_project_bookings`**
+Kopplar flera bokningar till en packlista:
+- `id` (uuid PK)
+- `packing_id` (uuid FK → packing_projects, ON DELETE CASCADE)
+- `booking_id` (text, NOT NULL)
+- `organization_id` (uuid)
+- UNIQUE(packing_id, booking_id)
+- RLS: org-filter
 
-**2. Uppdatera `IncomingBookingsList.tsx` (Projektsidan)**
-- Lägg till en andra query: hämta bokningar där `needs_review = true` OCH `assigned_to_project = true`
-- Visa dessa i en separat sektion under "Nya bokningar" med rubriken **"Uppdaterade bokningar"** (blå ikon istället för amber)
-- Varje rad visar klientnamn, bokningsnummer, och en kort sammanfattning av vad som ändrats
-- Knapp: "Visa ändringar" → öppnar en expanderbar panel / dialog
-- Knapp: "Godkänn" → sätter `needs_review = false`
+**2. Ny kolumn på `packing_projects`**
+- `large_project_id` (uuid, nullable) — markerar att det är en samlad packlista för ett stort projekt
 
-**3. Uppdatera `DashboardNewBookings.tsx` (Dashboarden)**
-- Samma tillägg: hämta `needs_review = true`-bokningar och visa dem i samma widget under de nya bokningarna
-- Badge visar totalen: "2 nya, 1 uppdaterad"
+### Inkorgen (`IncomingPackingList.tsx`)
 
-**4. Skapa `BookingChangesDetail.tsx` — ändringsvisning**
-- Ny komponent som visar diff från `booking_changes`-tabellen
-- Hämtar senaste ändringen med `previous_values` och `new_values`
-- Visar varje ändrat fält med "Före → Efter" i en tydlig lista
-- Fältnamn översätts till svenska (eventdate → "Eventdatum", internalnotes → "Interna anteckningar", etc.)
+- Stort projekt: knappen ändras från "Skapa alla packningar" till **"Skapa packning"**
+- Klick skapar EN `packing_project` med `large_project_id` satt och projektnamnet som namn
+- Alla boknings-ID:n sparas i `packing_project_bookings`
+- `syncBookingToPacking` anropas per bokning mot samma `packing_id` — alla produkter hamnar i samma lista
+- Inkorgens query uppdateras: filtrera bort bokningar som finns i `packing_project_bookings`
 
-### Filer att ändra
-- **Migration**: Lägg till `needs_review` + `needs_review_reason` på `bookings`, uppdatera `track_booking_changes()`
-- `src/components/project/IncomingBookingsList.tsx` — ny sektion för uppdaterade bokningar
-- `src/components/dashboard/DashboardNewBookings.tsx` — samma
-- `src/components/booking/BookingChangesDetail.tsx` — NY: diff-visning av ändringar
-- `src/integrations/supabase/types.ts` — uppdatera Bookings-typen
+### Packliste-hook (`usePackingList.tsx`)
 
-### Tekniska detaljer
-- Triggern kollar `OLD.assigned_to_project = true` innan den sätter `needs_review = true` — så att nya bokningar som ännu inte har projekt inte dubbelvisas
-- Interna flaggändringar (viewed, assigned_to_project, etc.) filtreras bort via en lista av "interna fält" i triggern
-- "Godkänn"-knappen gör `UPDATE bookings SET needs_review = false WHERE id = X`
+- Om packlistan har `large_project_id`: hämta alla `booking_id` från `packing_project_bookings`
+- Kör `fullSyncPackingListItems` per bokning (alla mot samma `packing_id`)
+- Hämta produkter och gruppera per `booking_id` (via `booking_products.booking_id`)
+
+### Packliste-UI (`PackingListTab.tsx`)
+
+Ny layout för stora projekt:
+
+```text
+┌─────────────────────────────────┐
+│ SAMMANFATTNING (alla produkter) │
+│ Progress: 45/120 artiklar (38%) │
+│ ┌─────────────────────────────┐ │
+│ │ Alla produkter i en lista   │ │
+│ │ (som idag, ihopslagen)      │ │
+│ └─────────────────────────────┘ │
+├─────────────────────────────────┤
+│ 📦 Bokning 1 — Klientnamn      │
+│   Produkt A  ☐ 5/10            │
+│   Produkt B  ☑ 3/3             │
+├─────────────────────────────────┤
+│ 📦 Bokning 2 — Klientnamn      │
+│   Produkt C  ☐ 0/8             │
+│   Produkt D  ☐ 2/5             │
+├─────────────────────────────────┤
+│ [Splitta till separata listor]  │
+└─────────────────────────────────┘
+```
+
+- Sammanfattningen visar total progress och alla produkter i en platt lista
+- Under: sektioner per bokning med rubrik (klientnamn + bokningsnummer)
+- Varje sektion visar bokningens produkter med pack-status
+
+### Splitta-funktion (i detaljvyn)
+
+Knapp "Splitta till separata packlistor":
+1. Skapar en ny `packing_project` per bokning (som `handleCreateAllPackings` gör idag)
+2. Flyttar relevanta `packing_list_items` till respektive ny packlista (baserat på `booking_product_id` → `booking_products.booking_id`)
+3. Tar bort den samlade packlistan
+4. Navigerar till packningslistan
+
+### Types (`packing.ts`)
+
+- Lägg till `large_project_id: string | null` på `Packing`-interfacet
+
+### Filer som ändras
+- **Ny migration**: `packing_project_bookings` + `large_project_id`-kolumn
+- `src/types/packing.ts` — `large_project_id`
+- `src/components/packing/IncomingPackingList.tsx` — en knapp "Skapa packning" för stora projekt
+- `src/hooks/usePackingList.tsx` — multi-booking sync + gruppering
+- `src/components/packing/PackingListTab.tsx` — sammanfattning + bokningssektioner
+- `src/pages/PackingDetail.tsx` — splitta-knapp + stort-projekt-badge
+- `src/integrations/supabase/types.ts` — ny tabell
 
