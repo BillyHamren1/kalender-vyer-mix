@@ -373,9 +373,10 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       toast.success('Projekt skapat med checklista');
       onSuccess();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating project:', error);
-      toast.error('Kunde inte skapa projekt');
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      toast.error(`Kunde inte skapa projekt: ${error?.message || error?.details || 'Okänt fel'}`);
     }
   });
 
