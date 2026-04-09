@@ -20,6 +20,10 @@ import com.getcapacitor.PluginMethod;
  * Receives barcode scan data via Android broadcast intents from DataWedge
  * and forwards them to the WebView as Capacitor plugin events.
  *
+ * Also listens for DataWedge RESULT intents so the frontend can verify
+ * whether init commands (ENABLE_DATAWEDGE, SWITCH_TO_PROFILE, etc.)
+ * succeeded or failed.
+ *
  * DataWedge must be configured on the Zebra device with:
  *   - Intent output enabled
  *   - Intent action: se.eventflow.scanner.SCAN
@@ -42,7 +46,17 @@ public class DataWedgePlugin extends Plugin {
     // DataWedge API action (for sending commands to DataWedge)
     private static final String DW_API_ACTION = "com.symbol.datawedge.api.ACTION";
 
+    // DataWedge result action (received after commands with SEND_RESULT)
+    private static final String DW_RESULT_ACTION = "com.symbol.datawedge.api.RESULT_ACTION";
+
+    // Standard DataWedge result extras
+    private static final String EXTRA_RESULT = "RESULT";
+    private static final String EXTRA_RESULT_INFO = "RESULT_INFO";
+    private static final String EXTRA_RESULT_CODE = "RESULT_CODE";
+    private static final String EXTRA_COMMAND_IDENTIFIER = "COMMAND_IDENTIFIER";
+
     private BroadcastReceiver scanReceiver;
+    private BroadcastReceiver resultReceiver;
     private boolean isListening = false;
 
     @Override
@@ -52,7 +66,7 @@ public class DataWedgePlugin extends Plugin {
     }
 
     /**
-     * Start listening for DataWedge scan broadcasts.
+     * Start listening for DataWedge scan broadcasts AND result broadcasts.
      */
     private void startListening() {
         if (isListening) {
@@ -60,11 +74,12 @@ public class DataWedgePlugin extends Plugin {
             return;
         }
 
+        // --- Scan receiver (barcode data) ---
         scanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
-                Log.d(TAG, "Broadcast received, action: " + action);
+                Log.d(TAG, "Scan broadcast received, action: " + action);
 
                 if (DW_SCAN_ACTION.equals(action)) {
                     handleScanIntent(intent);
@@ -72,19 +87,38 @@ public class DataWedgePlugin extends Plugin {
             }
         };
 
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(DW_SCAN_ACTION);
-        filter.addCategory(Intent.CATEGORY_DEFAULT);
+        IntentFilter scanFilter = new IntentFilter();
+        scanFilter.addAction(DW_SCAN_ACTION);
+        scanFilter.addCategory(Intent.CATEGORY_DEFAULT);
+
+        // --- Result receiver (command results) ---
+        resultReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                Log.d(TAG, "Result broadcast received, action: " + action);
+
+                if (DW_RESULT_ACTION.equals(action)) {
+                    handleResultIntent(intent);
+                }
+            }
+        };
+
+        IntentFilter resultFilter = new IntentFilter();
+        resultFilter.addAction(DW_RESULT_ACTION);
+        resultFilter.addCategory(Intent.CATEGORY_DEFAULT);
 
         Context ctx = getContext();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ctx.registerReceiver(scanReceiver, filter, Context.RECEIVER_EXPORTED);
+            ctx.registerReceiver(scanReceiver, scanFilter, Context.RECEIVER_EXPORTED);
+            ctx.registerReceiver(resultReceiver, resultFilter, Context.RECEIVER_EXPORTED);
         } else {
-            ctx.registerReceiver(scanReceiver, filter);
+            ctx.registerReceiver(scanReceiver, scanFilter);
+            ctx.registerReceiver(resultReceiver, resultFilter);
         }
 
         isListening = true;
-        Log.i(TAG, "DataWedge listener registered for action: " + DW_SCAN_ACTION);
+        Log.i(TAG, "DataWedge listeners registered (scan + result)");
     }
 
     /**
@@ -131,8 +165,111 @@ public class DataWedgePlugin extends Plugin {
     }
 
     /**
+     * Process a DataWedge RESULT intent (response to a command we sent).
+     *
+     * DataWedge result intents contain:
+     *   - RESULT: "SUCCESS" or "FAILURE"
+     *   - RESULT_INFO: Bundle with additional info/error details
+     *   - COMMAND_IDENTIFIER: the identifier we sent with the command
+     *   - The original command key as an extra with result value
+     *
+     * We detect which command was answered by checking known command keys
+     * in the extras.
+     */
+    private void handleResultIntent(Intent intent) {
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            Log.w(TAG, "Result intent has no extras");
+            return;
+        }
+
+        String commandIdentifier = extras.getString(EXTRA_COMMAND_IDENTIFIER, "");
+        String result = extras.getString(EXTRA_RESULT, "");
+
+        // Determine which command this result is for by checking known keys
+        String commandName = detectCommandName(extras);
+
+        Log.i(TAG, "DW result — command: " + commandName
+                + ", identifier: " + commandIdentifier
+                + ", result: " + result);
+
+        // Build result info string from RESULT_INFO bundle if present
+        String resultInfoStr = "";
+        Bundle resultInfo = extras.getBundle(EXTRA_RESULT_INFO);
+        if (resultInfo != null) {
+            StringBuilder sb = new StringBuilder();
+            for (String key : resultInfo.keySet()) {
+                Object val = resultInfo.get(key);
+                if (val != null) {
+                    if (sb.length() > 0) sb.append("; ");
+                    sb.append(key).append("=").append(val.toString());
+                }
+            }
+            resultInfoStr = sb.toString();
+            Log.d(TAG, "DW result info: " + resultInfoStr);
+        }
+
+        // Forward to WebView
+        JSObject payload = new JSObject();
+        payload.put("commandIdentifier", commandIdentifier);
+        payload.put("commandName", commandName);
+        payload.put("result", result); // "SUCCESS", "FAILURE", or ""
+        payload.put("resultInfo", resultInfoStr);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        // Include raw extras for debugging
+        JSObject rawExtras = new JSObject();
+        for (String key : extras.keySet()) {
+            Object val = extras.get(key);
+            if (val != null) {
+                rawExtras.put(key, val.toString());
+            }
+        }
+        payload.put("rawExtras", rawExtras);
+
+        notifyListeners("datawedge_result", payload);
+        Log.d(TAG, "Event 'datawedge_result' sent to WebView");
+    }
+
+    /**
+     * Detect which DataWedge API command this result corresponds to.
+     * DataWedge puts the command name as an extra key with the result value.
+     */
+    private String detectCommandName(Bundle extras) {
+        // Known DataWedge API command prefixes
+        String[] knownCommands = {
+            "com.symbol.datawedge.api.ENABLE_DATAWEDGE",
+            "com.symbol.datawedge.api.SWITCH_TO_PROFILE",
+            "com.symbol.datawedge.api.SCANNER_INPUT_PLUGIN",
+            "com.symbol.datawedge.api.SET_CONFIG",
+            "com.symbol.datawedge.api.GET_VERSION_INFO",
+            "com.symbol.datawedge.api.GET_ACTIVE_PROFILE",
+            "com.symbol.datawedge.api.GET_PROFILES_LIST",
+        };
+
+        for (String cmd : knownCommands) {
+            if (extras.containsKey(cmd)) {
+                // Return the short name (after last dot)
+                int lastDot = cmd.lastIndexOf('.');
+                return lastDot >= 0 ? cmd.substring(lastDot + 1) : cmd;
+            }
+        }
+
+        // Fallback: list all keys for debugging
+        StringBuilder keys = new StringBuilder();
+        for (String key : extras.keySet()) {
+            if (keys.length() > 0) keys.append(", ");
+            keys.append(key);
+        }
+        Log.w(TAG, "Unknown DW result command. Keys: " + keys.toString());
+        return "UNKNOWN";
+    }
+
+    /**
      * Send a command to DataWedge API via broadcast intent.
      * Called from JavaScript: DataWedge.sendCommand({ command, parameter })
+     *
+     * Uses the full API key format: com.symbol.datawedge.api.{COMMAND}
      */
     @PluginMethod
     public void sendCommand(PluginCall call) {
@@ -144,16 +281,28 @@ public class DataWedgePlugin extends Plugin {
             return;
         }
 
+        // Build the full API extra key if not already prefixed
+        String apiKey = command;
+        if (!command.startsWith("com.symbol.datawedge.api.")) {
+            apiKey = "com.symbol.datawedge.api." + command;
+        }
+
+        String identifier = "eventflow_" + command + "_" + System.currentTimeMillis();
+
         Intent intent = new Intent();
         intent.setAction(DW_API_ACTION);
-        intent.putExtra(command, parameter);
+        intent.putExtra(apiKey, parameter);
         intent.putExtra("SEND_RESULT", "LAST_RESULT");
-        intent.putExtra("COMMAND_IDENTIFIER", "eventflow_scanner_" + System.currentTimeMillis());
+        intent.putExtra("COMMAND_IDENTIFIER", identifier);
 
         getContext().sendBroadcast(intent);
-        Log.d(TAG, "DataWedge command sent: " + command + " = " + parameter);
+        Log.d(TAG, "DataWedge command sent: " + apiKey + " = " + parameter
+                + " (id: " + identifier + ")");
 
-        call.resolve();
+        // Return the identifier so frontend can correlate results
+        JSObject ret = new JSObject();
+        ret.put("commandIdentifier", identifier);
+        call.resolve(ret);
     }
 
     /**
@@ -168,15 +317,25 @@ public class DataWedgePlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        Context ctx = getContext();
         if (scanReceiver != null && isListening) {
             try {
-                getContext().unregisterReceiver(scanReceiver);
-                Log.i(TAG, "DataWedge listener unregistered");
+                ctx.unregisterReceiver(scanReceiver);
+                Log.i(TAG, "DataWedge scan listener unregistered");
             } catch (Exception e) {
-                Log.w(TAG, "Error unregistering receiver: " + e.getMessage());
+                Log.w(TAG, "Error unregistering scan receiver: " + e.getMessage());
             }
             scanReceiver = null;
-            isListening = false;
         }
+        if (resultReceiver != null) {
+            try {
+                ctx.unregisterReceiver(resultReceiver);
+                Log.i(TAG, "DataWedge result listener unregistered");
+            } catch (Exception e) {
+                Log.w(TAG, "Error unregistering result receiver: " + e.getMessage());
+            }
+            resultReceiver = null;
+        }
+        isListening = false;
     }
 }
