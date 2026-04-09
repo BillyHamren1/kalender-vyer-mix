@@ -118,7 +118,8 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   const timeoutMs = (action === 'login' || action === 'me') ? 30000 : 15000;
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms)`);
+  const isNative = typeof (window as any)?.Capacitor !== 'undefined';
+  console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms, native: ${isNative}, url: ${FUNCTION_URL})`);
 
   try {
     const res = await fetch(FUNCTION_URL, {
@@ -148,7 +149,7 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     return json as T;
   } catch (error: any) {
-    console.error(`[mobileApi] ✗ ${action}:`, error?.name, error?.message);
+    console.error(`[mobileApi] ✗ ${action}:`, error?.name, error?.message, error?.cause, 'constructor:', error?.constructor?.name, 'stack:', error?.stack?.substring?.(0, 300));
     if (error?.name === 'AbortError') {
       throw new Error('Anropet tog för lång tid – kontrollera din anslutning och försök igen.');
     }
