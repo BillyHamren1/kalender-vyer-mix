@@ -373,7 +373,7 @@ const PackingDetail = () => {
                     </TabsTrigger>
                   </>
                 )}
-                <TabsContent value="files">Filer ({files.length})</TabsContent>
+                <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
 
