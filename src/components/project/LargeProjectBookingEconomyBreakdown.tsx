@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import type { BatchEconomyData } from '@/services/planningApiService';
 import { createPurchase, updatePurchase, deletePurchase } from '@/services/planningApiService';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
