@@ -178,7 +178,7 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
       type: 'large',
       status: project.status,
       clientName: null,
-      eventDate: project.start_date || null,
+      eventDate: project.start_date?.[0] || null,
       totalTasks: total,
       completedTasks: completed,
       nextDeadline: upcoming[0] || null,
