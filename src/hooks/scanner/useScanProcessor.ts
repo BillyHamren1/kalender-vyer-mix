@@ -15,6 +15,8 @@ export interface RecentScanEntry {
   productName: string;
   success: boolean;
   timestamp: number;
+  /** Why this scan was ignored (if not successful) */
+  reason?: 'duplicate' | 'packing_id' | 'error' | 'not_found' | 'overscan';
 }
 
 interface UseScanProcessorOptions {
@@ -50,12 +52,33 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     if (isProcessingRef.current || queueRef.current.length === 0) return;
     isProcessingRef.current = true;
 
-    const scannedValue = queueRef.current.shift()!;
+    const rawValue = queueRef.current.shift()!;
+    // Normalize: trim whitespace/control chars that hardware scanners may append
+    const scannedValue = rawValue.trim();
 
-    // Session dedup: silently ignore repeated scans of the same value
-    const normalised = scannedValue.toLowerCase();
+    if (!scannedValue) {
+      scanLog('scan_ignored_empty_after_trim', { rawValue });
+      isProcessingRef.current = false;
+      if (queueRef.current.length > 0) processNext();
+      return;
+    }
+
+    // Session dedup — give visible feedback instead of silently ignoring
+    const normalised = scannedValue.trim().toLowerCase();
     if (scannedThisSessionRef.current.has(normalised)) {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+      optRef.current.onScanResult({
+        value: scannedValue,
+        result: `Redan scannad denna session`,
+        success: false,
+      });
+      addRecentScan({
+        value: scannedValue,
+        productName: scannedValue,
+        success: false,
+        timestamp: Date.now(),
+        reason: 'duplicate',
+      });
       isProcessingRef.current = false;
       if (queueRef.current.length > 0) processNext();
       return;
@@ -80,7 +103,19 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     try {
       const scanResult = parseScanResult(scannedValue);
       if (scanResult.type === 'packing_id') {
-        scanLog('scan_ignored_packing_id', { value: scannedValue });
+        scanLog('scan_ignored_packing_id', { value: scannedValue, packingId: scanResult.packingId });
+        onScanResult({
+          value: scannedValue,
+          result: 'Packnings-ID scannat — inte en produktkod',
+          success: false,
+        });
+        addRecentScan({
+          value: scannedValue,
+          productName: `Packnings-ID: ${scanResult.packingId?.slice(0, 8) || scannedValue}`,
+          success: false,
+          timestamp: Date.now(),
+          reason: 'packing_id',
+        });
         return;
       }
 
@@ -88,7 +123,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // === MINUS MODE ===
         const items = getItems();
         const matchingItem = items.find(
-          item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase() && (item.quantity_packed || 0) > 0
+          item => item.booking_products?.sku?.trim().toLowerCase() === normalised && (item.quantity_packed || 0) > 0
         );
 
         if (!matchingItem) {
@@ -133,11 +168,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             }
           } else {
             const items = getItems();
-            const fallback = items.find(i => i.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase());
+            const fallback = items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
             if (fallback) onOptimisticIncrement(fallback.id);
           }
           onTriggerSync();
-          addRecentScan({ value: scannedValue, productName: result.productName || scannedValue, success: true, timestamp: Date.now() });
+          addRecentScan({
+            value: scannedValue,
+            productName: result.productName || scannedValue,
+            success: true,
+            timestamp: Date.now(),
+            reason: result.overscan ? 'overscan' : undefined,
+          });
           notifyRfid(scannedValue, true, result.productName || undefined, scannedValue);
         } else {
           if ((result as any).alreadyScanned) {
@@ -150,6 +191,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           } else {
             toast.error(result.error);
           }
+          addRecentScan({
+            value: scannedValue,
+            productName: scannedValue,
+            success: false,
+            timestamp: Date.now(),
+            reason: 'not_found',
+          });
           notifyRfid(scannedValue, false, undefined, undefined);
         }
       }
@@ -160,6 +208,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         value: scannedValue,
         result: err.message || 'Okänt fel vid scanning',
         success: false,
+      });
+      addRecentScan({
+        value: scannedValue,
+        productName: scannedValue,
+        success: false,
+        timestamp: Date.now(),
+        reason: 'error',
       });
     } finally {
       isProcessingRef.current = false;
