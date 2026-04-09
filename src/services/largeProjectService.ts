@@ -30,6 +30,7 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
         created_at
       )
     `)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -141,40 +142,65 @@ export async function updateLargeProject(id: string, updates: Partial<LargeProje
   };
 }
 
-export async function deleteLargeProject(id: string): Promise<{ bookingIds: string[] }> {
-  // Get all linked booking IDs before deleting
+export async function deleteLargeProject(id: string, performedBy?: string): Promise<{ bookingIds: string[] }> {
   const { data: linkedBookings } = await supabase
     .from('large_project_bookings')
     .select('booking_id')
     .eq('large_project_id', id);
 
-  // Also find bookings referencing this large_project_id directly
   const { data: directBookings } = await supabase
     .from('bookings')
     .select('id')
     .eq('large_project_id', id);
 
-  // Collect all unique booking IDs
   const allBookingIds = [
     ...(linkedBookings || []).map(b => b.booking_id),
     ...(directBookings || []).map(b => b.id),
   ];
   const uniqueBookingIds = [...new Set(allBookingIds)];
 
-  // Delete the large project (cascade should handle large_project_bookings)
+  const { data: project } = await supabase.from('large_projects').select('name').eq('id', id).single();
+
+  // Soft-delete
   const { error } = await supabase
     .from('large_projects')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) throw new Error(`Kunde inte radera stort projekt: ${error.message}`);
 
-  // Recompute assignment for each affected booking
+  await supabase.from('project_audit_log').insert({
+    project_id: id, project_type: 'large', action: 'soft_delete',
+    booking_id: uniqueBookingIds[0] || null,
+    performed_by: performedBy || null,
+    details: { name: project?.name, bookingIds: uniqueBookingIds },
+  });
+
   for (const bookingId of uniqueBookingIds) {
     await recomputeBookingAssignment(bookingId);
   }
 
   return { bookingIds: uniqueBookingIds };
+}
+
+export async function restoreLargeProject(id: string): Promise<void> {
+  const { error } = await supabase.from('large_projects').update({ deleted_at: null }).eq('id', id);
+  if (error) throw error;
+
+  await supabase.from('project_audit_log').insert({
+    project_id: id, project_type: 'large', action: 'restore',
+    details: {},
+  });
+}
+
+export async function fetchDeletedLargeProjects() {
+  const { data, error } = await supabase
+    .from('large_projects')
+    .select('id, name, deleted_at')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
 // ============================================
