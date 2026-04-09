@@ -214,7 +214,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
+  const staffContainerRef = useRef<HTMLDivElement>(null);
   const { handleEventClick } = useEventNavigation();
+
+  // Close staff selection when clicking outside the staff container
+  useEffect(() => {
+    if (!selectingForTeam) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (staffContainerRef.current && !staffContainerRef.current.contains(e.target as Node)) {
+        setSelectingForTeam(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectingForTeam]);
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
   const generateTimeSlots = () => {
     const slots = [];
