@@ -358,6 +358,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     <>
       {/* Available Staff - rendered ABOVE the day card */}
       <div 
+        className="rounded-t-2xl"
         style={{ 
           background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
           borderBottom: '1px solid hsl(var(--border) / 0.6)',
