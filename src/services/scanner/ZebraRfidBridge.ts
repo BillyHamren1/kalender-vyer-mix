@@ -15,6 +15,18 @@
  * 
  * Web fallback:
  *   simulateRfidTag() → window CustomEvent → ZebraRfidBridge listeners
+ * 
+ * === STATE MODEL ===
+ * 
+ * This bridge maintains authoritative RFID state derived from native events:
+ *   - listenerActive: event listeners registered (bridge is initialized)
+ *   - readerConnected: native reader hardware is connected
+ *   - inventoryRunning: native inventory is actively scanning
+ *   - readerModel: model string from native
+ *   - lastError: last error from native
+ *   - usingNativePlatform: true if running on Capacitor native (not web fallback)
+ * 
+ * ScannerService and UI should use getters from this bridge as source of truth.
  */
 
 import { ScanEvent, RfidReadEvent, RfidReaderStatus, RfidTag } from './types';
@@ -72,13 +84,22 @@ const RFID_TAG_EVENT = 'zebra-rfid:tag-read';
 const RFID_STATUS_EVENT = 'zebra-rfid:status';
 const RFID_ERROR_EVENT = 'zebra-rfid:error';
 
-// ── State ────────────────────────────────────────────────────────
+// ── Authoritative Bridge State ───────────────────────────────────
+// This is the single source of truth for RFID hardware state.
+
+let listenerActive = false;
+let usingNativePlatform = false;
+let readerConnected = false;
+let inventoryRunning = false;
+let readerModel: string | null = null;
+let lastError: string | null = null;
+
+// ── Callback State ───────────────────────────────────────────────
 
 type RfidScanCallback = (scan: ScanEvent) => void;
 type RfidStatusCallback = (status: RfidReaderStatus) => void;
 type RfidErrorCallback = (error: string) => void;
 
-let isListening = false;
 let scanCallback: RfidScanCallback | null = null;
 let statusCallback: RfidStatusCallback | null = null;
 let errorCallback: RfidErrorCallback | null = null;
@@ -101,6 +122,41 @@ let dedupWindowMs = 5000;
 
 // Recent tags for inventory display
 const recentTags = new Map<string, RfidTag>();
+
+// ── Internal State Update ────────────────────────────────────────
+
+/**
+ * Update bridge state from a native status event.
+ * This is the ONLY place readerConnected/inventoryRunning should be set
+ * from external events (besides explicit connect/disconnect calls).
+ */
+function applyStatusUpdate(connected: boolean, running: boolean, model: string | null): void {
+  const changed = readerConnected !== connected || inventoryRunning !== running || readerModel !== model;
+  readerConnected = connected;
+  inventoryRunning = running;
+  if (model) readerModel = model;
+
+  // Clear error on successful connection
+  if (connected && lastError) {
+    lastError = null;
+  }
+
+  if (changed) {
+    console.log('[ZebraRFID] State updated: connected=' + connected + ', inventory=' + running + ', model=' + (model || 'n/a'));
+  }
+
+  // Forward to ScannerService status callback
+  statusCallback?.({
+    isConnected: connected,
+    readerModel: model || undefined,
+  });
+}
+
+function applyError(error: string): void {
+  lastError = error;
+  console.error('[ZebraRFID] Error state:', error);
+  errorCallback?.(error);
+}
 
 // ── Core Tag Processing ──────────────────────────────────────────
 
@@ -147,7 +203,7 @@ function processTagRead(
     rawData: rawData || undefined,
     rssi,
     antennaId,
-    deviceInfo: 'Zebra RFD4030',
+    deviceInfo: readerModel || 'Zebra RFID',
     isDuplicate,
   };
 
@@ -162,7 +218,7 @@ export function startRfidListener(
   onError?: RfidErrorCallback,
   dedupWindow?: number
 ): void {
-  if (isListening) {
+  if (listenerActive) {
     console.warn('[ZebraRFID] Already listening, stopping first');
     stopRfidListener();
   }
@@ -172,9 +228,10 @@ export function startRfidListener(
   errorCallback = onError || null;
   if (dedupWindow !== undefined) dedupWindowMs = dedupWindow;
 
-  isListening = true;
+  listenerActive = true;
+  usingNativePlatform = Capacitor.isNativePlatform();
 
-  if (Capacitor.isNativePlatform()) {
+  if (usingNativePlatform) {
     startNativeListeners();
   } else {
     startWebFallbackListeners();
@@ -189,22 +246,19 @@ async function startNativeListeners(): Promise<void> {
     });
 
     nativeStatusListener = await ZebraRfid.addListener('rfid_status', (payload: NativeStatusPayload) => {
-      console.log('[ZebraRFID] Native status:', payload);
-      statusCallback?.({
-        isConnected: payload.connected,
-        readerModel: payload.model || undefined,
-      });
+      console.log('[ZebraRFID] Native status event:', payload);
+      applyStatusUpdate(payload.connected, payload.inventoryRunning, payload.model || null);
     });
 
     nativeErrorListener = await ZebraRfid.addListener('rfid_error', (payload) => {
-      console.error('[ZebraRFID] Native error:', payload.error);
-      errorCallback?.(payload.error);
+      applyError(payload.error);
     });
 
     console.log('[ZebraRFID] Native Capacitor plugin listeners registered');
   } catch (error) {
     console.error('[ZebraRFID] Failed to register native listeners:', error);
     console.log('[ZebraRFID] Falling back to web event listeners');
+    usingNativePlatform = false;
     startWebFallbackListeners();
   }
 }
@@ -222,19 +276,22 @@ function startWebFallbackListeners(): void {
 
   webStatusListener = (event: Event) => {
     const detail = (event as CustomEvent<RfidReaderStatus>).detail;
-    if (detail) statusCallback?.(detail);
+    if (detail) {
+      // Web simulation status events
+      applyStatusUpdate(detail.isConnected, inventoryRunning, detail.readerModel || null);
+    }
   };
 
   webErrorListener = (event: Event) => {
     const detail = (event as CustomEvent<{ message: string }>).detail;
-    if (detail?.message) errorCallback?.(detail.message);
+    if (detail?.message) applyError(detail.message);
   };
 
   window.addEventListener(RFID_TAG_EVENT, webTagListener);
   window.addEventListener(RFID_STATUS_EVENT, webStatusListener);
   window.addEventListener(RFID_ERROR_EVENT, webErrorListener);
 
-  console.log('[ZebraRFID] Web fallback listeners registered');
+  console.log('[ZebraRFID] Web fallback listeners registered (no hardware RFID available)');
 }
 
 export function stopRfidListener(): void {
@@ -251,13 +308,48 @@ export function stopRfidListener(): void {
   scanCallback = null;
   statusCallback = null;
   errorCallback = null;
-  isListening = false;
 
-  console.log('[ZebraRFID] All listeners removed');
+  // Reset all state
+  listenerActive = false;
+  usingNativePlatform = false;
+  readerConnected = false;
+  inventoryRunning = false;
+  readerModel = null;
+  lastError = null;
+
+  console.log('[ZebraRFID] All listeners removed, state reset');
 }
 
+// ── State Getters (source of truth for ScannerService) ───────────
+
+/** Whether RFID event listeners are registered */
 export function isRfidListening(): boolean {
-  return isListening;
+  return listenerActive;
+}
+
+/** Whether running on native platform with potential RFID hardware */
+export function isNativeRfidPlatform(): boolean {
+  return usingNativePlatform;
+}
+
+/** Whether the RFID reader hardware is actually connected (from native status) */
+export function isReaderConnected(): boolean {
+  return readerConnected;
+}
+
+/** Whether RFID inventory is actively running (from native status) */
+export function isInventoryRunning(): boolean {
+  return inventoryRunning;
+}
+
+/** Connected reader model name */
+export function getReaderModel(): string | null {
+  return readerModel;
+}
+
+/** Last error message from native bridge */
+export function getLastRfidError(): string | null {
+  return lastError;
 }
 
 // ── Inventory / Reader Commands ──────────────────────────────────
@@ -271,9 +363,14 @@ export async function connectRfidReader(): Promise<{ connected: boolean; model?:
       console.log('[ZebraRFID] Connecting to reader...');
       const result = await ZebraRfid.connectReader();
       console.log('[ZebraRFID] Connected:', result);
+      // State will be updated via the rfid_status event from native,
+      // but also set it here for immediate availability
+      applyStatusUpdate(result.connected, false, result.model || null);
       return { connected: result.connected, model: result.model };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ZebraRFID] Connect failed:', error);
+      applyError(error.message || 'Connect failed');
+      applyStatusUpdate(false, false, null);
       throw error;
     }
   }
@@ -290,12 +387,16 @@ export async function disconnectRfidReader(): Promise<void> {
       console.log('[ZebraRFID] Disconnecting reader...');
       await ZebraRfid.disconnectReader();
       console.log('[ZebraRFID] Disconnected');
-    } catch (error) {
+      // State will also be updated via rfid_status event
+      applyStatusUpdate(false, false, null);
+    } catch (error: any) {
       console.error('[ZebraRFID] Disconnect failed:', error);
+      applyError(error.message || 'Disconnect failed');
       throw error;
     }
   } else {
     console.log('[ZebraRFID] disconnectReader (web no-op)');
+    applyStatusUpdate(false, false, null);
   }
 }
 
@@ -308,8 +409,12 @@ export async function startRfidInventory(): Promise<void> {
       console.log('[ZebraRFID] Starting inventory...');
       await ZebraRfid.startInventory();
       console.log('[ZebraRFID] Inventory started');
-    } catch (error) {
+      // Native will send rfid_status event, but update immediately too
+      inventoryRunning = true;
+      statusCallback?.({ isConnected: readerConnected, readerModel: readerModel || undefined });
+    } catch (error: any) {
       console.error('[ZebraRFID] Start inventory failed:', error);
+      applyError(error.message || 'Start inventory failed');
       throw error;
     }
   } else {
@@ -326,8 +431,11 @@ export async function stopRfidInventory(): Promise<void> {
       console.log('[ZebraRFID] Stopping inventory...');
       await ZebraRfid.stopInventory();
       console.log('[ZebraRFID] Inventory stopped');
-    } catch (error) {
+      inventoryRunning = false;
+      statusCallback?.({ isConnected: readerConnected, readerModel: readerModel || undefined });
+    } catch (error: any) {
       console.error('[ZebraRFID] Stop inventory failed:', error);
+      applyError(error.message || 'Stop inventory failed');
       throw error;
     }
   } else {
@@ -346,11 +454,14 @@ export async function triggerRfidRead(): Promise<void> {
 
 /**
  * Get current reader status from native plugin.
+ * Also refreshes bridge state from native.
  */
 export async function getRfidReaderStatus(): Promise<RfidReaderStatus> {
   if (Capacitor.isNativePlatform()) {
     try {
       const status = await ZebraRfid.getStatus();
+      // Update bridge state from native poll
+      applyStatusUpdate(status.connected, status.inventoryRunning, status.model || null);
       return {
         isConnected: status.connected,
         readerModel: status.model || undefined,
@@ -385,6 +496,16 @@ export function getTagReadCount(): number {
 
 export function resetTagCounter(): void {
   tagCounter = 0;
+}
+
+// ── Dedup Management ─────────────────────────────────────────────
+
+export function clearDedupForEpc(epc: string): void {
+  tagDedupMap.delete(epc.toUpperCase().replace(/\s/g, ''));
+}
+
+export function clearAllDedup(): void {
+  tagDedupMap.clear();
 }
 
 // ── Simulation (for testing without hardware) ────────────────────

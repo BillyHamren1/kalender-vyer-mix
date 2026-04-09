@@ -3,12 +3,27 @@
  * 
  * Manages all scan sources and provides a unified event stream.
  * Handles initialization, mode switching, deduplication, and cleanup.
+ * 
+ * === STATE MODEL ===
+ * 
+ * This service aggregates state from multiple bridges:
+ * - DataWedgeBridge: barcode scanning
+ * - ZebraRfidBridge: RFID scanning (source of truth for RFID hardware state)
+ * - KeyboardFallbackBridge: web/dev keyboard input
+ * 
+ * RFID state (connected, inventory, model) comes from ZebraRfidBridge getters,
+ * NOT from local variables in this file. This prevents double/conflicting state.
  */
 
-import { ScanEvent, ScanMode, ScannerState, ScannerDebugInfo, ScannerConfig, DEFAULT_SCANNER_CONFIG, RfidReaderStatus } from './types';
+import { ScanEvent, ScanMode, ScannerState, ScannerDebugInfo, ScannerConfig, DEFAULT_SCANNER_CONFIG } from './types';
 import { detectPlatform } from './platform';
 import { startDataWedgeListener, stopDataWedgeListener, isDataWedgeActive, getDataWedgeScanCount } from './DataWedgeBridge';
-import { startRfidListener, stopRfidListener, isRfidListening, connectRfidReader, getRecentTags, getUniqueTagCount, getTagReadCount } from './ZebraRfidBridge';
+import {
+  startRfidListener, stopRfidListener, isRfidListening,
+  isNativeRfidPlatform, isReaderConnected, isInventoryRunning,
+  getReaderModel, getLastRfidError,
+  connectRfidReader, getRecentTags,
+} from './ZebraRfidBridge';
 import { startKeyboardListener, stopKeyboardListener, isKeyboardListenerActive } from './KeyboardFallbackBridge';
 import { enqueueScan } from './ScanQueue';
 
@@ -24,11 +39,8 @@ let scanCount = 0;
 let lastScan: ScanEvent | null = null;
 const recentScans: ScanEvent[] = [];
 
-// Dedup tracking
+// Dedup tracking (barcode only — RFID dedup is in ZebraRfidBridge)
 const barcodeDedupMap = new Map<string, number>();
-
-// Reader status
-let readerStatus: RfidReaderStatus = { isConnected: false };
 
 // ── Dedup Logic ──────────────────────────────────────────────────
 
@@ -103,11 +115,12 @@ export function initScanner(
     startRfidListener(
       handleIncomingScan,
       (status) => {
-        readerStatus = status;
-        console.log('[ScannerService] Reader status:', status);
+        // Status updates are now handled inside ZebraRfidBridge.
+        // This callback is still called for logging purposes.
+        console.log('[ScannerService] RFID status update from bridge:', status);
       },
       (error) => {
-        console.error('[ScannerService] RFID error:', error);
+        console.error('[ScannerService] RFID error from bridge:', error);
       },
       config.rfidDedupWindowMs
     );
@@ -116,7 +129,6 @@ export function initScanner(
     connectRfidReader()
       .then(result => {
         if (result.connected) {
-          readerStatus = { isConnected: true, readerModel: result.model };
           console.log('[ScannerService] RFID reader auto-connected:', result.model);
         }
       })
@@ -153,13 +165,26 @@ export function setMode(mode: ScanMode): void {
 
 export function getState(): ScannerState {
   const platform = detectPlatform();
-  
+
+  // RFID readiness: listener must be active AND on native platform.
+  // On web, RFID is never "ready" (no hardware).
+  const rfidListenerActive = isRfidListening();
+  const rfidOnNative = isNativeRfidPlatform();
+  const rfidReaderConnected = isReaderConnected();
+  const rfidInventoryActive = isInventoryRunning();
+
+  // isRfidReady = RFID subsystem is available (native + listeners registered).
+  // This controls whether the RFID tab/button appears in UI.
+  // Does NOT mean reader is connected — that's isReaderConnected.
+  const isRfidReady = rfidListenerActive && rfidOnNative;
+
   return {
     isInitialized: initialized,
     isScannerReady: initialized,
     isBarcodeReady: isDataWedgeActive() || isKeyboardListenerActive(),
-    isRfidReady: isRfidListening(),
-    isReaderConnected: readerStatus.isConnected,
+    isRfidReady,
+    isReaderConnected: rfidReaderConnected,
+    isInventoryRunning: rfidInventoryActive,
     currentMode,
     lastScan,
     scanCount,
@@ -174,7 +199,7 @@ export function getState(): ScannerState {
       antennaId: tag.antennaId,
       isDuplicate: false,
     })),
-    error: null,
+    error: getLastRfidError(),
     warning: getWarning(platform),
     debugInfo: getDebugInfo(platform),
   };
@@ -191,6 +216,9 @@ function getWarning(platform: ReturnType<typeof detectPlatform>): string | null 
 }
 
 function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebugInfo {
+  const rfidReaderConnected = isReaderConnected();
+  const rfidInventoryActive = isInventoryRunning();
+
   return {
     platform: platform.isCapacitor && platform.isAndroid ? 'android_native' : platform.isWeb ? 'web' : 'unknown',
     isCapacitor: platform.isCapacitor,
@@ -198,13 +226,15 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     dataWedgeListenerActive: isDataWedgeActive(),
     rfidListenerActive: isRfidListening(),
     cameraAvailable: 'mediaDevices' in navigator,
-    lastDataWedgeEvent: null, // TODO: track from bridge
+    lastDataWedgeEvent: null,
     lastRfidEvent: null,
-    lastError: null,
+    lastError: getLastRfidError(),
     lastNativePayload: lastScan?.rawData || null,
     sessionScanCount: scanCount,
-    readerModel: readerStatus.readerModel || null,
-    readerConnectionStatus: readerStatus.isConnected ? 'connected' : 'disconnected',
+    readerModel: getReaderModel(),
+    readerConnectionStatus: rfidReaderConnected
+      ? (rfidInventoryActive ? 'connected' : 'connected')
+      : 'disconnected',
   };
 }
 
