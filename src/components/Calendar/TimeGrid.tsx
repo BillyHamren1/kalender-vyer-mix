@@ -325,7 +325,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const handleAvailableStaffClick = async (staffId: string) => {
     if (!selectingForTeam || !onStaffDrop) return;
     await onStaffDrop(staffId, selectingForTeam.id, day);
-    setSelectingForTeam(null);
+    // Don't close selection — user can assign multiple staff, then click outside to dismiss
   };
 
   const handleStaffRemoval = async (staffId: string, teamId: string) => {
