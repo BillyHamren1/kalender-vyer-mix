@@ -63,7 +63,7 @@ export interface PackingFile {
 export interface PackingListItem {
   id: string;
   packing_id: string;
-  booking_product_id: string;
+  booking_product_id: string | null;
   quantity_to_pack: number;
   quantity_packed: number;
   packed_by: string | null;
@@ -71,6 +71,8 @@ export interface PackingListItem {
   verified_by: string | null;
   verified_at: string | null;
   notes: string | null;
+  excluded: boolean;
+  manual_name: string | null;
   created_at: string;
   // Joined product info
   product?: {
