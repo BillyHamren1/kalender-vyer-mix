@@ -2494,6 +2494,8 @@ async function handleGetLocationTimeEntries(supabase: any, staffId: string, data
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+async function handleStartTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
   const { from_address, from_latitude, from_longitude, description, auto_detected } = data || {}
 
   const { data: log, error } = await supabase
