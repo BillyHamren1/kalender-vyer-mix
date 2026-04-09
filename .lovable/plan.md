@@ -1,60 +1,16 @@
 
 
-## Plan: Implementera Capacitor Background Geolocation
+## Plan: Fixa saknad/felaktig ikonstorlek i iOS
 
-### Bakgrund
-Nuvarande `useBackgroundLocationReporter` använder `@capacitor/geolocation` som bara fungerar när appen är i förgrunden. iOS och Android dödar bakgrundsprocesser, vilket gör att GPS-rapporteringen tystnar efter kort tid. Därför syns personalen som "offline" och ingen tid loggas i `location_time_entries`.
+### Problem
+Filen `AppIcon-512@2x.png` finns i icon-mappen men saknas i `Contents.json`. Xcode visar den med en varningssymbol. Denna fil hör inte till det moderna "universal iOS"-formatet — Xcode förväntar sig bara 1024x1024@1x som App Store-ikon (vilken redan finns).
 
 ### Lösning
-Installera **`@capgo/background-geolocation`** — ett Capacitor-plugin som fortsätter spåra position även när appen är minimerad eller skärmen är låst. Det är gratis, aktivt underhållet och kompatibelt med Capacitor 8.
+1. **Ta bort `AppIcon-512@2x.png`** från `ios/App/App/Assets.xcassets/AppIcon.appiconset/` — den är en kvarleva som inte behövs och orsakar varningen i Xcode.
 
-### Steg
-
-**1. Installera pluginet**
-- Lägg till `@capgo/background-geolocation` i `package.json`
-
-**2. Uppdatera `useBackgroundLocationReporter.ts`**
-- Ersätt `@capacitor/geolocation` med `BackgroundGeolocation.start()` på native-plattformar
-- Pluginet ger en callback vid varje positionsändring, även i bakgrunden
-- Behåll web-fallback med `navigator.geolocation.watchPosition`
-- Behåll 30-sekunders throttling via `lastReportRef`
-
-**3. iOS-konfiguration (Info.plist)**
-- `NSLocationAlwaysAndWhenInUseUsageDescription` finns redan
-- Säkerställ att `UIBackgroundModes` inkluderar `location`
-
-**4. Android-konfiguration**
-- Pluginet hanterar foreground service automatiskt
-- Bakgrundsmeddelande visas i notifikationsfältet
+Det är allt som behövs. Alla korrekta storlekar (20pt–1024pt) finns redan definierade i `Contents.json` och genereras av `generate-icons.js`.
 
 ### Teknisk detalj
-
-```typescript
-// Ny native-implementering i useBackgroundLocationReporter
-import { BackgroundGeolocation } from "@capgo/background-geolocation";
-
-BackgroundGeolocation.start(
-  {
-    backgroundMessage: "EventFlow spårar din position",
-    backgroundTitle: "EventFlow Time",
-    requestPermissions: true,
-    stale: false,
-    distanceFilter: 20, // meters
-  },
-  (location, error) => {
-    if (location) {
-      reportPosition(location.latitude, location.longitude, 
-                     location.accuracy, location.speed);
-    }
-  }
-);
-
-// Cleanup
-BackgroundGeolocation.stop();
-```
-
-### Vad användaren behöver göra efter implementation
-- Dra ner koden (`git pull`)
-- Kör `npm install && npx cap sync`
-- Bygg och installera appen på nytt på personalens telefoner
+- Filen `AppIcon-512@2x.png` (1024px) är redundant eftersom `AppIcon-1024x1024@1x.png` redan täcker App Store-ikonen
+- `Contents.json` refererar inte till 512-filen, vilket gör att Xcode flaggar den som oregistrerad
 
