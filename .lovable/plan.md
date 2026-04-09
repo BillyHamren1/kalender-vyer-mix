@@ -1,48 +1,60 @@
 
+Mål: isolera varför scanner-appen inte kan logga in, utan att röra annan funktionalitet.
 
-## Problem
-When scanning from the home screen, any non-packing-ID scan just shows "QR-koden innehåller inte en giltig packlista" — no useful info. The user wants a product lookup here. But inside a packing list (VerificationView), scanning a wrong product must still show an error like "Artikel ej i packlista" — no lookup.
+Vad jag hittade
+- `src/services/mobileApiService.ts` gör login via vanlig `fetch()` till `https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mobile-app-api`.
+- `supabase/functions/mobile-app-api/index.ts` har fungerande login-path för `action === 'login'` och kräver ingen token där.
+- Previewen visar aktiv trafik mot `scanner-api` med giltig scanner-token, så backend/Supabase är inte generellt nere.
+- Android-konfigurationen har `network_security_config.xml`, men det finns ingen extra native loggning eller diagnostik kring WebView/fetch/TLS-fel.
+- Tidigare minnesinfo säger att scanner-appen haft problem med WebView-nätverk/SSL/systemtid tidigare, vilket stämmer bättre med “fungerar inte i appen” än med ett rent backend-fel.
 
-## Plan
+Mest sannolik orsak
+- Felet sitter troligen inte i själva login-logiken i edge function, utan i native Android/WebView-nätverkslaget för just scanner-appen:
+  1. gammal native build som inte innehåller senaste web-koden
+  2. fel app-mode/build synkad till Android
+  3. SSL/certifikat/systemtid-problem i WebView
+  4. fetch-fel i appen som idag maskeras till ett generellt “Kunde inte nå servern”
 
-### Scope
-- **Home screen scan** → non-UUID barcodes trigger product identification (new feature)
-- **Packing list scan** → wrong SKUs keep showing error as today (NO change)
+Plan för fix
+1. Lägg till strikt, minimal diagnostik endast för scanner-login-flödet:
+   - i `src/services/mobileApiService.ts`: logga action, URL, native/web, feltyp, `error.message`, samt om det är `TypeError`/timeout.
+   - i `src/pages/scanner/ScannerLogin.tsx`: logga när submit startar/slutar och exakt felmeddelande som visas.
+   - inga funktionsändringar, bara debug-output.
 
-### Changes
+2. Lägg till native Android-loggning för WebView-nätverk/TLS:
+   - i `android/app/src/main/java/se/eventflow/scanner/MainActivity.java`
+   - behåll nuvarande plugin- och bridge-struktur
+   - lägg bara till en `WebViewClient`-hook för att logga:
+     - `onReceivedError`
+     - `onReceivedHttpError`
+     - `onReceivedSslError`
+   - detta gör att vi kan se om appen fastnar på certifikat, DNS, timeout eller annan WebView-nivå.
 
-**1. Edge function: add `identify_product` action**
-File: `supabase/functions/scanner-api/index.ts`
+3. Kontrollera scanner native build-pathen:
+   - verifiera att scanner-appen verkligen byggs med scanner-konfiguration (`capacitor.scanner.config.ts`, `build:scanner`, `android:scanner`)
+   - om implementationen godkänns: ingen refaktor, bara säkerställ att appen kör senaste scanner-build innan felsökning fortsätter.
 
-Add a new case that calls the external inventory API to look up a product by serial/barcode (read-only, no allocation). Returns product name, SKU, status, current allocation. Falls back to local DB match if external API lacks a lookup endpoint.
+4. Kontrollcheck efter implementation
+   - loginförsök i scanner-app
+   - verifiera att minst ett av följande syns:
+     - frontend-logg för `mobileApi → login`
+     - Android-logg för requestfel/SSL-fel
+     - edge-function-logg för `incoming action=login`
+   - om edge-function-logg aldrig syns vid loginförsök är felet före backend, alltså native nätverk/WebView.
+   - om edge-function-logg syns men svar blir 401/403/500, då går vi vidare i backendspåret.
 
-**2. Service layer: add `identifyProduct` helper**
-File: `src/services/scannerService.ts`
+Förväntat utfall
+- Vi får ett exakt svar på om login-förfrågan:
+  - aldrig lämnar appen
+  - blockeras av SSL/WebView
+  - når edge function men fallerar där
+- Därefter kan jag göra en riktad fix istället för att gissa.
 
-```typescript
-export const identifyProduct = async (serialOrSku: string) => {
-  return callScannerApi('identify_product', { serialNumber: serialOrSku });
-};
-```
+Tekniska filer som påverkas
+- `src/services/mobileApiService.ts`
+- `src/pages/scanner/ScannerLogin.tsx`
+- `android/app/src/main/java/se/eventflow/scanner/MainActivity.java`
 
-**3. New component: ProductIdentifyCard**
-File: `src/components/scanner/ProductIdentifyCard.tsx`
-
-Simple overlay card showing: product name, SKU, status, current booking (if allocated). Dismiss button to close.
-
-**4. Update home screen scan handler only**
-File: `src/pages/MobileScannerApp.tsx`
-
-Change `handleBarcodeScan` else-branch:
-- Before: `toast.error('QR-koden innehåller inte en giltig packlista')`
-- After: call `identifyProduct(scannedValue)` → show `ProductIdentifyCard` overlay with result, or toast if not found
-
-**No changes to:**
-- `useScanProcessor.ts` — packing list scanning stays exactly as-is
-- `VerificationView` — wrong SKUs still get "not found" error from `verify_product`
-- DataWedge/RFID bridge, Time app, kolli flow — untouched
-
-### Technical notes
-- The `activeScanHandler` ref already switches between home handler and verification handler based on state, so the two contexts are cleanly separated
-- Need to check if external inventory API has a lookup endpoint; if not, fall back to matching SKU against `booking_products` table locally
-
+Viktigt
+- Jag planerar inte att ändra auth-logik, token-format, Supabase-konfiguration eller edge-function-beteende i detta steg.
+- Jag planerar inte heller att röra DataWedge eller annan scannerfunktionalitet.
