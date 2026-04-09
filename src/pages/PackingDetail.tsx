@@ -42,6 +42,7 @@ interface ProductChanges {
 const PackingDetail = () => {
   const { packingId } = useParams<{ packingId: string }>();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
