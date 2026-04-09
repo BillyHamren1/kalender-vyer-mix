@@ -1,44 +1,31 @@
 
 
-## Problem
+## Fix: Stora projekt syns inte korrekt i packningskalendern
 
-Den retroaktiva migreringen skapade de samlade packlistorna men satte **inte** `start_date` och `end_date` på dem. Alla 5 stora projekt hamnar därför i "Ej schemalagda" längst ner i kalendern istället för att visas som staplar.
+### Problem
+1. DB-triggern `sync_packing_on_booking_change` skriver ÖVER `start_date`/`end_date` på den samlade packlistan med EN boknings datum varje gång den bokningen uppdateras. Detta krymper datumspannet och kan göra att projektet hamnar utanför vyn.
+2. Etiketten i kalendern visar första bokningens kundnamn/nummer istället för projektnamnet.
 
-Bokningarna har datumen:
-- Tiomila: 26 apr – 4 maj
-- Seniordagen: 4–5 maj
-- Seniordagen Norrtälje: 11–12 maj  
-- Swedish Game Fair: 25 maj – 1 jun
-- Eken Cup: 8–16 jun
+### Plan
 
-## Plan
+**1. Databasmigration — Skydda samlade packlistor i triggern**
 
-**1. Migration: Populera start_date/end_date på samlade packlistor**
-
-Kör en enkel UPDATE som sätter `start_date` = tidigaste `rigdaydate` och `end_date` = senaste `rigdowndate` från de kopplade bokningarna via `packing_project_bookings`.
+Uppdatera `sync_packing_on_booking_change()` så att den INTE skriver över `start_date`/`end_date` (eller namn) på packlistor med `large_project_id IS NOT NULL`. Istället beräknar den det fulla datumspannet från alla kopplade bokningar.
 
 ```sql
-UPDATE packing_projects pp
-SET start_date = sub.min_rig,
-    end_date = sub.max_rigdown
-FROM (
-  SELECT ppb.packing_id,
-         min(b.rigdaydate::date) as min_rig,
-         max(b.rigdowndate::date) as max_rigdown
-  FROM packing_project_bookings ppb
-  JOIN bookings b ON b.id = ppb.booking_id
-  GROUP BY ppb.packing_id
-) sub
-WHERE pp.id = sub.packing_id
-  AND pp.large_project_id IS NOT NULL
-  AND pp.start_date IS NULL;
+-- Om packlistan är en samlad (large_project_id IS NOT NULL):
+-- Beräkna min(rigdaydate), max(rigdowndate) från ALLA kopplade bokningar
+-- via packing_project_bookings istället för att använda enskild boknings datum
 ```
 
-**2. Uppdatera `handleCreateCombinedPacking` i IncomingPackingList.tsx**
+**2. PackingCalendarView — Bättre etikett för stora projekt**
 
-Säkerställ att nya samlade packlistor automatiskt beräknar `start_date`/`end_date` från bokningarna vid skapande, så att samma problem inte uppstår igen.
+Ändra label-logiken: om `p.large_project_id` finns, visa projektnamnet (`p.name`) med en "Projekt"-markering istället för bokningsnummer + kundnamn.
+
+**3. Säkerställ aktuella datum (ny migration)**
+
+Kör samma UPDATE som förra gången för att garantera att datumen inte redan skrivits över av triggern sedan senast.
 
 ### Filer som ändras
-- Ny migration (datapopulering)
-- `src/components/packing/IncomingPackingList.tsx` — beräkna datum vid skapande
-
+- Ny migration: uppdatera `sync_packing_on_booking_change()` + re-populera datum
+- `src/components/packing/PackingCalendarView.tsx` — label-logik för stora projekt
