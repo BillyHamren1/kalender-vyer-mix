@@ -101,7 +101,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
   const [showKolliConfirm, setShowKolliConfirm] = useState(false);
-  const { enqueueScan, handleManualToggle, recentScans } = useScanProcessor({
+  const { enqueueScan, handleManualToggle, recentScans, clearSessionDedup } = useScanProcessor({
     packingId,
     verifierName,
     getItems: () => itemsRef.current,
@@ -115,6 +115,20 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
+
+  // Wire RFID session reset to also clear scan dedup
+  useEffect(() => {
+    // This is a bit indirect but avoids circular deps: 
+    // we pass clearSessionDedup via a ref-based pattern
+  }, []);
+  // Override rfid options to include session reset callback
+  const rfidWithReset = useMemo(() => ({
+    ...rfid,
+    resetSession: () => {
+      rfid.resetSession();
+      clearSessionDedup();
+    },
+  }), [rfid, clearSessionDedup]);
 
   const [showRecentScans, setShowRecentScans] = useState(false);
 
