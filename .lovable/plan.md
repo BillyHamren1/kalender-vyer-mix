@@ -1,36 +1,47 @@
 
 
-## Plan: Separate Warehouse Calendar Resources from Staff Calendar
+## Plan: Skydda projekt från tyst radering + skapa saknat projekt
 
 ### Problem
-The warehouse calendar reuses the same team resource IDs (`team-1`, `team-2`, etc.) from the staff calendar, just renaming them to "Lager 1", "Lager 2". This means booking events assigned to `team-1` in the staff calendar show up under "Lager 1" in the warehouse calendar. These should be **completely independent** systems.
+1. Bokning 2603-126 har aldrig fått ett projekt skapat — den borde ha fångats i triage-listan
+2. Det finns ingen skyddsmekanism mot att projekt raderas tyst — `deleteProject` gör en hård DELETE utan historik
+3. Ingen audit trail för projektborttagningar
 
-### Solution
-Give the warehouse calendar its own independent resource IDs (`lager-1`, `lager-2`, etc.) that are not coupled to the staff calendar's team resources.
+### Lösning
 
-### Changes
+**1. Soft-delete för projekt (database migration)**
+- Lägg till kolumn `deleted_at TIMESTAMPTZ DEFAULT NULL` på `projects`-tabellen
+- Ändra `deleteProject` i `projectService.ts` till att sätta `deleted_at = now()` istället för att göra `DELETE`
+- Uppdatera alla projekt-queries att filtrera `deleted_at IS NULL`
+- Samma mönster för `jobs` och `large_projects`-tabellerna
 
-**1. Create `src/hooks/useWarehouseResources.tsx`**
-- New hook that manages warehouse-specific resources with IDs like `lager-1`, `lager-2`, ..., `lager-10`, plus `Packning`
-- Own localStorage key (`warehouseResources`) separate from the staff calendar
-- Same add/remove/rename API as `useTeamResources` but for warehouse resources
+**2. Audit trail vid radering**
+- Skapa en `project_audit_log`-tabell: `id, project_id, action, booking_id, performed_by, details JSONB, created_at`
+- Logga alla raderingar (soft-delete) med vem som utförde dem
+- RLS-policy: bara admins kan läsa audit-loggen
 
-**2. Update `src/pages/WarehouseCalendarPage.tsx`**
-- Replace `useTeamResources()` with the new `useWarehouseResources()`
-- Resources already have correct names (`Lager 1`, etc.) — remove the mapping logic
-- Update default visible teams from `team-*` to `lager-*`
-- Update all hardcoded `team-*` references in `getVisibleTeamsForDay` and `handleToggleTeamForDay`
+**3. Skyddad radering med bekräftelse**
+- I `ProjectManagement.tsx` och alla ställen som anropar `deleteProject`: kräv extra bekräftelse med projektnamn + bokningsnummer
+- Visa tydligt varning: "Detta projekt är kopplat till bokning X — det kommer att avkopplas"
 
-**3. Update `src/hooks/useUnifiedStaffOperations.ts`**
-- Ensure the warehouse variant (`'Lager'`) uses `lager-*` prefixed resource IDs for staff assignment storage, so warehouse staff assignments don't clash with staff calendar assignments
+**4. Återställningsfunktion**
+- Lägg till "Papperskorgen" i arkivvyn som visar soft-deleted projekt
+- Möjlighet att återställa (sätt `deleted_at = NULL`)
 
-**4. Update warehouse event display**
-- Calendar events from `useRealTimeCalendarEvents` (rig/event/rigDown) that have `resource_id: 'team-*'` should **not** be displayed in the warehouse calendar's `lager-*` columns
-- Warehouse-specific events from `useWarehouseCalendarEvents` already use `resource_id: 'warehouse'` — this stays unchanged
-- If warehouse events need to be assigned to specific lager columns, their `resource_id` should use `lager-*` IDs
+**5. "Orphan booking" varning**
+- Lägg till en periodisk kontroll: om en CONFIRMED-bokning saknar projekt efter X dagar, visa en varning i dashboard-widgeten
+- Förhindrar att bokningar som 2603-126 faller mellan stolarna
 
-### Result
-- Staff calendar: `team-1` through `team-10` + `team-11` (Live)
-- Warehouse calendar: `lager-1` through `lager-10` + `Packning`
-- No shared resource IDs — events in one calendar never bleed into the other
+### Filer att ändra
+- **Migration**: `projects` + `jobs` + `large_projects` → `deleted_at`-kolumn, `project_audit_log`-tabell
+- `src/services/projectService.ts` — soft-delete istället för DELETE
+- `src/services/jobService.ts` — samma soft-delete
+- `src/services/largeProjectService.ts` — samma soft-delete  
+- `src/services/projectConversionService.ts` — uppdatera raderingslogik
+- `src/hooks/useProjects.ts` (eller motsvarande) — filtrera `deleted_at IS NULL`
+- `src/components/project/ProjectDashboardWidgets.tsx` — orphan-bokning-varning
+- `src/pages/ProjectArchive.tsx` — visa papperskorg med soft-deleted projekt
+
+### Omedelbar åtgärd
+- Bokning 2603-126 saknar projekt — den borde dyka upp i "Nya bokningar" (viewed=false). Om den inte syns beror det troligen på att `viewed` sattes till `true` vid en tidigare import. Kan behöva nollställas.
 
