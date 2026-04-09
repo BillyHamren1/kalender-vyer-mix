@@ -24,12 +24,14 @@ const ScannerLogin = () => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    const isNative = typeof (window as any)?.Capacitor !== 'undefined';
+    console.log('[ScannerLogin] Submit started', { email: email?.substring(0, 3) + '***', isNative, userAgent: navigator.userAgent?.substring(0, 80) });
     try {
-
       await login(email, password);
+      console.log('[ScannerLogin] Login succeeded');
       navigate('/scanner', { replace: true });
     } catch (err: any) {
-      console.error('[ScannerLogin] Login error:', err?.name, err?.message, err);
+      console.error('[ScannerLogin] Login error:', err?.name, err?.message, err?.cause, err?.stack?.substring?.(0, 300));
       setError(err.message || 'Inloggningen misslyckades');
     } finally {
       setIsLoading(false);

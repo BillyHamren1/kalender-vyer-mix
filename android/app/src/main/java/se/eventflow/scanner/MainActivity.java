@@ -3,9 +3,16 @@ package se.eventflow.scanner;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebView;
+import android.net.http.SslError;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
+import com.getcapacitor.BridgeWebViewClient;
 
 /**
  * MainActivity for EventFlow Scanner app.
@@ -14,13 +21,8 @@ import com.getcapacitor.BridgeWebChromeClient;
  * the default BridgeWebChromeClient to grant WebView media permissions
  * (camera) needed by getUserMedia() for QR/barcode camera fallback.
  *
- * We extend BridgeWebChromeClient instead of replacing with a bare
- * WebChromeClient to preserve all Capacitor-managed behaviors:
- *   - Console message forwarding
- *   - File chooser (input[type=file])
- *   - JS alert/confirm/prompt dialogs
- *   - Geolocation permissions
- *   - Any future Capacitor WebChromeClient logic
+ * Also adds a diagnostic BridgeWebViewClient to log network/SSL errors
+ * from the WebView layer for troubleshooting login and fetch issues.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -40,21 +42,41 @@ public class MainActivity extends BridgeActivity {
             new BridgeWebChromeClient(this.bridge) {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
-                    // Log which resources are being requested for diagnostics
                     String[] resources = request.getResources();
                     for (String res : resources) {
                         Log.d(TAG, "WebView permission requested: " + res);
                     }
-
-                    // Grant all requested resources (VIDEO_CAPTURE for camera,
-                    // AUDIO_CAPTURE if ever needed). In a WebView context these
-                    // are already gated by the Android CAMERA permission in
-                    // AndroidManifest.xml, so granting here is safe.
                     runOnUiThread(() -> request.grant(resources));
                 }
             }
         );
 
-        Log.d(TAG, "MainActivity created with custom BridgeWebChromeClient");
+        // Add diagnostic WebViewClient to log network/SSL errors
+        this.bridge.getWebView().setWebViewClient(
+            new BridgeWebViewClient(this.bridge) {
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    Log.e(TAG, "WebView error: " + error.getErrorCode() + " " + error.getDescription()
+                        + " url=" + request.getUrl());
+                    super.onReceivedError(view, request, error);
+                }
+
+                @Override
+                public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                    Log.e(TAG, "WebView HTTP error: " + errorResponse.getStatusCode()
+                        + " url=" + request.getUrl());
+                    super.onReceivedHttpError(view, request, errorResponse);
+                }
+
+                @Override
+                public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                    Log.e(TAG, "WebView SSL error: " + error.toString()
+                        + " url=" + error.getUrl());
+                    super.onReceivedSslError(view, handler, error);
+                }
+            }
+        );
+
+        Log.d(TAG, "MainActivity created with diagnostic WebViewClient");
     }
 }
