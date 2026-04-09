@@ -16,6 +16,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import DashboardUpdatedBookings from "@/components/dashboard/DashboardUpdatedBookings";
 import DashboardCancelledBookings from "@/components/dashboard/DashboardCancelledBookings";
 import DashboardAllProjects from "@/components/dashboard/DashboardAllProjects";
 
@@ -116,6 +117,11 @@ const PlanningDashboard = () => {
               onCreateProject={handleCreateProject}
               onCreateLargeProject={handleCreateLargeProject}
             />
+          </div>
+
+          {/* Updated Bookings */}
+          <div className="mb-4">
+            <DashboardUpdatedBookings />
           </div>
 
           {/* Calendar View */}

@@ -1,0 +1,172 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, Calendar, ChevronRight, ChevronDown, CheckCircle2, ArrowUpRight, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
+import BookingChangesDetail from '@/components/booking/BookingChangesDetail';
+
+const DashboardUpdatedBookings: React.FC = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const { data: bookings = [], isLoading } = useQuery({
+    queryKey: ['bookings-needs-review'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, client, booking_number, eventdate, deliveryaddress, needs_review_reason')
+        .eq('needs_review', true)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching updated bookings:', error);
+        return [];
+      }
+      return data || [];
+    },
+    placeholderData: [],
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ needs_review: false, needs_review_reason: null })
+        .eq('id', bookingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings-needs-review'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success('Ändring godkänd');
+    },
+    onError: () => {
+      toast.error('Kunde inte godkänna ändringen');
+    },
+  });
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    try {
+      return format(new Date(dateStr), 'd MMM yyyy', { locale: sv });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (isLoading || bookings.length === 0) return null;
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%)',
+        boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px hsl(var(--border) / 0.5)',
+      }}
+    >
+      <div className="h-1.5 bg-gradient-to-r from-blue-400/60 via-blue-500 to-blue-400/60" />
+
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 ring-1 ring-blue-500/20">
+              <RefreshCw className="h-5 w-5 text-blue-600" />
+              <Sparkles className="absolute -top-1 -right-1 h-3.5 w-3.5 text-blue-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg text-foreground">Uppdaterade bokningar</h3>
+              <p className="text-xs text-muted-foreground">Bokningar som ändrats sedan de tilldelades</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="h-7 px-3 text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-100">
+            {bookings.length} uppdaterade
+          </Badge>
+        </div>
+
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+          {bookings.map(booking => {
+            const isExpanded = expandedId === booking.id;
+            return (
+              <div
+                key={booking.id}
+                className="group relative rounded-xl border border-blue-200/50 bg-gradient-to-br from-background to-blue-50/20 hover:shadow-sm transition-all duration-200 hover:border-blue-300/60"
+              >
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => setExpandedId(isExpanded ? null : booking.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-sm leading-tight truncate group-hover:text-primary transition-colors text-foreground">
+                        {booking.client}
+                      </h4>
+                      <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-medium shrink-0 border-blue-300 text-blue-700 bg-blue-50">
+                        Ändrad
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      {booking.booking_number && (
+                        <Badge variant="outline" className="text-xs shrink-0 font-mono h-5 px-1.5">
+                          #{booking.booking_number}
+                        </Badge>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-muted-foreground/60" />
+                        {formatDate(booking.eventdate || '')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpandedId(isExpanded ? null : booking.id)}
+                      className="gap-1 h-7 px-2 text-xs rounded-lg border-blue-200/60 hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                      Visa
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => approveMutation.mutate(booking.id)}
+                      disabled={approveMutation.isPending}
+                      className="gap-1 h-7 px-2 text-xs rounded-lg border-green-200/60 text-green-700 hover:border-green-300 hover:bg-green-50"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      Godkänn
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/booking/${booking.id}`)}
+                      className="h-7 w-7 p-0 rounded-lg text-muted-foreground/40 hover:text-muted-foreground"
+                      title="Öppna bokning"
+                    >
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-3 pb-3 border-t border-blue-100/50">
+                    <BookingChangesDetail bookingId={booking.id} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DashboardUpdatedBookings;
