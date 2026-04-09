@@ -116,12 +116,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onRfidTagResult: rfid.recordTagResult,
   });
 
-  // Wire RFID session reset to also clear scan dedup
-  useEffect(() => {
-    // This is a bit indirect but avoids circular deps: 
-    // we pass clearSessionDedup via a ref-based pattern
-  }, []);
-  // Override rfid options to include session reset callback
+  // Override rfid to also clear scan dedup on session reset
   const rfidWithReset = useMemo(() => ({
     ...rfid,
     resetSession: () => {
