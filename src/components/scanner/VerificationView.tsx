@@ -96,7 +96,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
-
+  const [showKolliConfirm, setShowKolliConfirm] = useState(false);
   const { enqueueScan, handleManualToggle, recentScans } = useScanProcessor({
     packingId,
     verifierName,
@@ -424,6 +424,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         uniqueTagsRead={rfid.uniqueTagsRead}
         matchedCount={rfid.matchedCount}
         unmatchedCount={rfid.unmatchedCount}
+        lastMatchedProduct={rfid.lastMatchedProduct}
         onConnect={rfid.connect}
         onDisconnect={rfid.disconnect}
         onToggleInventory={rfid.toggleInventory}
@@ -463,9 +464,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <Camera className="h-3.5 w-3.5" />
           <span className="text-xs">Kamera</span>
         </Button>
-        <Button onClick={() => startKolli(verifierName)} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
-          <Package className="h-3.5 w-3.5" />
-          <span className="text-xs">Kolli</span>
+        <Button onClick={() => setShowKolliConfirm(true)} size="sm" variant="secondary" className="h-8 px-3 gap-1.5 border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 font-semibold">
+          <Package className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs text-primary">Kolli</span>
+          {Object.keys(itemParcelMap).length > 0 && (
+            <span className="bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              {new Set(Object.values(itemParcelMap)).size}
+            </span>
+          )}
         </Button>
         <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
           <List className="h-3.5 w-3.5" />
