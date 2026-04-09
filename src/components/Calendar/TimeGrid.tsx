@@ -502,7 +502,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               className="staff-assignment-header-row"
               style={{ 
                 gridColumn: index + 2,
-                gridRow: 4,
+                gridRow: 3,
                 width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
                 minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
@@ -609,6 +609,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         })}
       </div>
     </div>
+    </>
   );
 };
 
