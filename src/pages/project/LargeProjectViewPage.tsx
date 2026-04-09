@@ -6,6 +6,7 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
 
@@ -69,6 +70,9 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="products" className={tabTriggerClass}>
+              Produkter
+            </TabsTrigger>
             <TabsTrigger value="transport" className={tabTriggerClass}>
               Transport
               {transportAssignments.length > 0 && (
@@ -124,6 +128,10 @@ const LargeProjectViewPage = () => {
 
         <TabsContent value="comments">
           <ProjectComments comments={comments} onAddComment={detail.addComment} />
+        </TabsContent>
+
+        <TabsContent value="products">
+          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} />
         </TabsContent>
 
         <TabsContent value="transport">
