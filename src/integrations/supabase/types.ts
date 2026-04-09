@@ -2368,9 +2368,11 @@ export type Database = {
       }
       packing_list_items: {
         Row: {
-          booking_product_id: string
+          booking_product_id: string | null
           created_at: string
+          excluded: boolean
           id: string
+          manual_name: string | null
           notes: string | null
           organization_id: string
           packed_at: string | null
@@ -2383,9 +2385,11 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
-          booking_product_id: string
+          booking_product_id?: string | null
           created_at?: string
+          excluded?: boolean
           id?: string
+          manual_name?: string | null
           notes?: string | null
           organization_id?: string
           packed_at?: string | null
@@ -2398,9 +2402,11 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
-          booking_product_id?: string
+          booking_product_id?: string | null
           created_at?: string
+          excluded?: boolean
           id?: string
+          manual_name?: string | null
           notes?: string | null
           organization_id?: string
           packed_at?: string | null
