@@ -25,19 +25,6 @@ const ScannerLogin = () => {
     setError('');
     setIsLoading(true);
     try {
-      // Pre-flight connectivity check
-      console.log('[ScannerLogin] Testing connectivity...');
-      try {
-        const pingRes = await fetch('https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mobile-app-api', {
-          method: 'OPTIONS',
-        });
-        console.log('[ScannerLogin] Connectivity OK, status:', pingRes.status);
-      } catch (pingErr: any) {
-        console.error('[ScannerLogin] Connectivity test failed:', pingErr?.name, pingErr?.message, pingErr);
-        setError(`Nätverksfel: ${pingErr?.message || 'Kan inte nå servern'}. Kontrollera att du har internetåtkomst.`);
-        setIsLoading(false);
-        return;
-      }
 
       await login(email, password);
       navigate('/scanner', { replace: true });
