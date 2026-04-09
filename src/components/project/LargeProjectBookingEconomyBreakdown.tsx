@@ -232,8 +232,47 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const getBookingName = (id: string) => resolveBookingName(id, bookings);
 
+  // Build lookup: booking_id -> local products for that booking
+  const localProductsByBooking = useMemo(() => {
+    const map: Record<string, LocalProduct[]> = {};
+    localProducts.forEach(lp => {
+      if (!map[lp.booking_id]) map[lp.booking_id] = [];
+      map[lp.booking_id].push(lp);
+    });
+    return map;
+  }, [localProducts]);
+
+  // Find matching local product by name + booking_id
+  const findLocalProduct = useCallback((bookingId: string, productName: string, sku?: string): LocalProduct | undefined => {
+    const candidates = localProductsByBooking[bookingId] || [];
+    // Try SKU match first
+    if (sku) {
+      const bysku = candidates.find(c => c.sku === sku);
+      if (bysku) return bysku;
+    }
+    // Then name match (trimmed)
+    const trimName = (productName || '').replace(/^[↳└]\s*/, '').trim().toLowerCase();
+    return candidates.find(c => c.name.trim().toLowerCase() === trimName);
+  }, [localProductsByBooking]);
+
+  const handleUpdateProductCost = useCallback(async (productId: string, field: string, value: number) => {
+    try {
+      const { error } = await supabase
+        .from('booking_products')
+        .update({ [field]: value })
+        .eq('id', productId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
+      queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+      toast.success('Kostnad uppdaterad');
+    } catch {
+      toast.error('Kunde inte uppdatera kostnad');
+    }
+  }, [queryClient]);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+    queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
   };
 
   // Build merged list of all costs across bookings
