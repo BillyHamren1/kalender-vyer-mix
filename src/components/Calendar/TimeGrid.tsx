@@ -376,6 +376,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     <>
       {/* Available Staff - rendered ABOVE the day card */}
       <div 
+        ref={staffContainerRef}
         className="rounded-t-2xl"
         style={{ 
           background: selectingForTeam 
