@@ -364,7 +364,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         style={{
           display: 'grid',
           gridTemplateColumns: getGridTemplateColumns(),
-          gridTemplateRows: 'auto auto auto',
+          gridTemplateRows: 'auto auto auto auto',
           width: getTotalWidth(),
           flexShrink: 0
         }}
@@ -502,8 +502,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               key={`staff-${resource.id}`}
               className="staff-assignment-header-row"
               style={{ 
-                gridColumn: index + 3,
-                gridRow: 3,
+                gridColumn: index + 2,
+                gridRow: 4,
                 width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
                 minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
@@ -555,24 +555,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
-        {/* Empty column under "Personal" header */}
-        <div 
-          className="time-slots-column available-staff-time-column"
-          style={{ 
-            gridColumn: 2,
-            width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
-            minWidth: `${availableColumnWidth}px`,
-            background: 'hsl(var(--muted) / 0.3)',
-            borderRight: '1px solid hsl(var(--foreground) / 0.2)'
-          }}
-        >
-          <div className="time-slots-grid">
-            {timeSlots.map((slot) => (
-              <div key={slot.time} className="time-slot-cell">&nbsp;</div>
-            ))}
-          </div>
-        </div>
-
         {/* Time Slot Columns */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
@@ -588,7 +570,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               <div 
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
-                  gridColumn: index + 3,
+                  gridColumn: index + 2,
                   width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
                   minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
                   position: 'relative'
