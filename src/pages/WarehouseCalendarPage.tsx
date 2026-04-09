@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
-import { useTeamResources } from '@/hooks/useTeamResources';
+import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
@@ -251,20 +251,7 @@ const WarehouseCalendarPage = () => {
     return eventType === 'rig' || eventType === 'event' || eventType === 'rigDown';
   };
 
-  const { teamResources } = useTeamResources();
-  
-  // Map team resources to warehouse-specific names (Lager 1, Lager 2, etc.)
-  const warehouseTeamResources = teamResources.map(team => {
-    if (team.id === 'team-11') {
-      return { ...team, title: 'Live' }; // Keep Live as-is
-    }
-    // Extract team number and rename to "Lager X"
-    const match = team.id.match(/team-(\d+)/);
-    if (match) {
-      return { ...team, title: `Lager ${match[1]}` };
-    }
-    return team;
-  });
+  const { teamResources: warehouseTeamResources } = useWarehouseResources();
   
   // Add warehouse resource to the resources list
   const warehouseResource = {
@@ -301,19 +288,19 @@ const WarehouseCalendarPage = () => {
       // Ensure warehouse is always included
       return stored.includes('warehouse') ? stored : [...stored, 'warehouse'];
     }
-    // Default: team-1 to team-4, team-11 (Live), and warehouse
-    return ['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'];
+    // Default: lager-1 to lager-4 and warehouse (Packning)
+    return ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Team 1-4, Live, and Warehouse
-        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'].includes(teamId)) {
+        // Don't allow hiding Lager 1-4 and Warehouse
+        if (['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'].includes(teamId)) {
           return prev;
         }
         return {

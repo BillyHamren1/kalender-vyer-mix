@@ -176,7 +176,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const assignmentsForDate = assignments.filter(a => a.date === dateStr);
     const assignmentMap = new Map<string, { teamId: string; teamName: string }>();
     assignmentsForDate.forEach(a => {
-      let teamName = a.teamId === 'team-11' ? 'Live' : a.teamId.startsWith('team-') ? 'Team ' + a.teamId.replace('team-', '') : a.teamId;
+      let teamName = a.teamId === 'team-11' ? 'Live' : a.teamId.startsWith('team-') ? 'Team ' + a.teamId.replace('team-', '') : a.teamId.startsWith('lager-') ? 'Lager ' + a.teamId.replace('lager-', '') : a.teamId;
       assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
     });
 
