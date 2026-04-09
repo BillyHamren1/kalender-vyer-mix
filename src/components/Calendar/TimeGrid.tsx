@@ -318,10 +318,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return Array.isArray(staff) ? staff : [];
   };
 
-  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    if (onOpenStaffSelection) {
-      onOpenStaffSelection(resourceId, resourceTitle, day, event.currentTarget);
-    }
+  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
+    setSelectingForTeam(prev => prev?.id === resourceId ? null : { id: resourceId, title: resourceTitle });
+  };
+
+  const handleAvailableStaffClick = async (staffId: string) => {
+    if (!selectingForTeam || !onStaffDrop) return;
+    await onStaffDrop(staffId, selectingForTeam.id, day);
+    setSelectingForTeam(null);
   };
 
   const handleStaffRemoval = async (staffId: string, teamId: string) => {
