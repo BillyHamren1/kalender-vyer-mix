@@ -21,6 +21,7 @@ export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
         status
       )
     `)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -136,23 +137,33 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
   }
 };
 
-export const deleteProject = async (id: string): Promise<{ bookingId: string | null }> => {
-  // First, fetch the project to get the booking_id
+export const deleteProject = async (id: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
+  // First, fetch the project to get the booking_id and name
   const { data: project, error: fetchError } = await supabase
     .from('projects')
-    .select('booking_id')
+    .select('booking_id, name')
     .eq('id', id)
     .single();
 
   if (fetchError) throw new Error(`Kunde inte hämta projekt: ${fetchError.message}`);
 
-  // Delete the project
+  // Soft-delete the project
   const { error } = await supabase
     .from('projects')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) throw new Error(`Kunde inte radera projekt: ${error.message}`);
+
+  // Log to audit trail
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: id,
+    project_type: 'medium',
+    action: 'soft_delete',
+    booking_id: project?.booking_id || null,
+    performed_by: performedBy || null,
+    details: { name: project?.name },
+  });
 
   // Recompute booking assignment based on remaining relations
   const bookingId = project?.booking_id || null;
@@ -161,6 +172,42 @@ export const deleteProject = async (id: string): Promise<{ bookingId: string | n
   }
 
   return { bookingId };
+};
+
+export const restoreProject = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('projects')
+    .update({ deleted_at: null })
+    .eq('id', id);
+  if (error) throw error;
+
+  // Re-assign booking
+  const { data: project } = await supabase.from('projects').select('booking_id, name').eq('id', id).single();
+  if (project?.booking_id) {
+    await supabase.from('bookings').update({
+      assigned_to_project: true,
+      assigned_project_id: id,
+      assigned_project_name: `Projekt: ${project.name}`,
+    }).eq('id', project.booking_id);
+  }
+
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: id,
+    project_type: 'medium',
+    action: 'restore',
+    booking_id: project?.booking_id || null,
+    details: { name: project?.name },
+  });
+};
+
+export const fetchDeletedProjects = async () => {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, name, booking_id, deleted_at')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 };
 
 // Tasks

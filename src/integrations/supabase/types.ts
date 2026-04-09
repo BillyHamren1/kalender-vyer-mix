@@ -1480,6 +1480,7 @@ export type Database = {
         Row: {
           booking_id: string | null
           created_at: string
+          deleted_at: string | null
           id: string
           name: string
           organization_id: string
@@ -1489,6 +1490,7 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name: string
           organization_id?: string
@@ -1498,6 +1500,7 @@ export type Database = {
         Update: {
           booking_id?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name?: string
           organization_id?: string
@@ -1907,6 +1910,7 @@ export type Database = {
       large_projects: {
         Row: {
           created_at: string
+          deleted_at: string | null
           description: string | null
           end_date: string[] | null
           event_date: string[] | null
@@ -1922,6 +1926,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date?: string[] | null
           event_date?: string[] | null
@@ -1937,6 +1942,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date?: string[] | null
           event_date?: string[] | null
@@ -2965,6 +2971,42 @@ export type Database = {
           },
         ]
       }
+      project_audit_log: {
+        Row: {
+          action: string
+          booking_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          organization_id: string
+          performed_by: string | null
+          project_id: string
+          project_type: string
+        }
+        Insert: {
+          action: string
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id: string
+          performed_by?: string | null
+          project_id: string
+          project_type: string
+        }
+        Update: {
+          action?: string
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string
+          performed_by?: string | null
+          project_id?: string
+          project_type?: string
+        }
+        Relationships: []
+      }
       project_billing: {
         Row: {
           approved_by: string | null
@@ -3761,6 +3803,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          deleted_at: string | null
           delivery_city: string | null
           delivery_latitude: number | null
           delivery_longitude: number | null
@@ -3790,6 +3833,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          deleted_at?: string | null
           delivery_city?: string | null
           delivery_latitude?: number | null
           delivery_longitude?: number | null
@@ -3819,6 +3863,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          deleted_at?: string | null
           delivery_city?: string | null
           delivery_latitude?: number | null
           delivery_longitude?: number | null

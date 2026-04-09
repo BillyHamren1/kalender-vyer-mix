@@ -35,6 +35,7 @@ export const fetchJobs = async (): Promise<Job[]> => {
   const { data: jobs, error } = await supabase
     .from('jobs')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -329,30 +330,67 @@ export const removeStaffFromJob = async (assignmentId: string): Promise<void> =>
   if (error) throw error;
 };
 
-// Delete job
-export const deleteJob = async (jobId: string): Promise<{ bookingId: string | null }> => {
-  // Get booking_id first
+// Delete job (soft-delete)
+export const deleteJob = async (jobId: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
   const { data: job, error: fetchError } = await supabase
     .from('jobs')
-    .select('booking_id')
+    .select('booking_id, name')
     .eq('id', jobId)
     .single();
 
   if (fetchError) throw new Error(`Kunde inte hämta jobb: ${fetchError.message}`);
 
-  // Delete the job first
+  // Soft-delete
   const { error } = await supabase
     .from('jobs')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', jobId);
 
   if (error) throw new Error(`Kunde inte radera jobb: ${error.message}`);
 
-  // Recompute booking assignment based on remaining relations
+  // Audit log
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: jobId,
+    project_type: 'small',
+    action: 'soft_delete',
+    booking_id: job?.booking_id || null,
+    performed_by: performedBy || null,
+    details: { name: job?.name },
+  });
+
   const bookingId = job?.booking_id || null;
   if (bookingId) {
     await recomputeBookingAssignment(bookingId);
   }
 
   return { bookingId };
+};
+
+export const restoreJob = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('jobs').update({ deleted_at: null }).eq('id', id);
+  if (error) throw error;
+
+  const { data: job } = await supabase.from('jobs').select('booking_id, name').eq('id', id).single();
+  if (job?.booking_id) {
+    await supabase.from('bookings').update({
+      assigned_to_project: true,
+      assigned_project_id: id,
+      assigned_project_name: `Jobb: ${job.name}`,
+    }).eq('id', job.booking_id);
+  }
+
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: id, project_type: 'small', action: 'restore',
+    booking_id: job?.booking_id || null, details: { name: job?.name },
+  });
+};
+
+export const fetchDeletedJobs = async () => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id, name, booking_id, deleted_at')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 };
