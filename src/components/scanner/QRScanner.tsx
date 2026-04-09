@@ -21,9 +21,15 @@ interface QRScannerProps {
  * 
  * In other modes: Uses BarcodeDetector API with jsQR fallback + manual input.
  * On native Capacitor platforms, uses getUserMedia with special handling.
+ * 
+ * skipCamera logic:
+ *   - undefined → auto-detect (true for isScannerApp, false otherwise)
+ *   - true → always skip camera
+ *   - false → always try camera (use only when camera is explicitly desired)
  */
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
-  const shouldSkipCamera = skipCamera === false ? false : (skipCamera ?? isScannerApp);
+  // Default: skip camera on scanner app (Zebra uses DataWedge), allow on web/other
+  const shouldSkipCamera = skipCamera ?? isScannerApp;
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +41,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
   const mountedRef = useRef(true);
+  const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check BarcodeDetector support on mount
   useEffect(() => {
@@ -67,6 +74,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   // Stop camera — stable, no deps
   const stopCamera = useCallback(() => {
+    if (startingTimeoutRef.current) {
+      clearTimeout(startingTimeoutRef.current);
+      startingTimeoutRef.current = null;
+    }
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -136,6 +147,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       setCameraState('starting');
       console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
 
+      // Safety net: if we're still in 'starting' after 15s, force error state.
+      // This catches any edge case where getUserMedia/play hangs beyond individual timeouts.
+      if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
+      startingTimeoutRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          console.warn('[QRScanner] Safety timeout: still starting after 15s, forcing error');
+          setCameraState(prev => {
+            if (prev === 'starting') {
+              setError('Kameran svarade inte. Använd hårdvaruscan eller manuell inmatning.');
+              // Clean up any partial stream
+              if (streamRef.current) {
+                streamRef.current.getTracks().forEach(t => t.stop());
+                streamRef.current = null;
+              }
+              return 'error';
+            }
+            return prev;
+          });
+        }
+      }, 15000);
+
       // On native platforms, try to check/request permission via Web API
       // (NOT @capacitor/camera which is for photo capture, not getUserMedia)
       // On Android, try Web Permissions API (skip on iOS — it can hang in WKWebView)
@@ -150,6 +182,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             ]);
             if (status && status.state === 'denied') {
               console.log('[QRScanner] Web permission denied');
+              if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
               setCameraState('error');
               setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
               return;
@@ -223,13 +256,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
         if (!mountedRef.current) return;
 
+        // Clear safety timeout — we made it
+        if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
+
         setCameraState('running');
         console.log('[QRScanner] Camera started successfully, videoWidth:', video.videoWidth);
         runScanLoop();
       }
     } catch (err: any) {
       console.error('[QRScanner] Camera error:', err);
+      if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
       if (!mountedRef.current) return;
+
+      // Clean up partial stream on error
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
       setCameraState('error');
       if (err.name === 'NotAllowedError') {
         setError('Kameratillstånd nekades. Tillåt kamera i enhetens inställningar.');
@@ -308,6 +355,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             <div className="flex flex-col items-center justify-center h-full text-white p-6">
               <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
               <p className="text-center text-base">Startar kameran...</p>
+              <p className="text-center text-xs text-white/40 mt-2">Om inget händer, tryck stäng och använd hårdvaruscan.</p>
             </div>
           ) : (
             <>
