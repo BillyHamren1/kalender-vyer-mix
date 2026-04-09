@@ -10,6 +10,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
+import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
 import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidgets";
@@ -125,11 +126,12 @@ const ProjectManagement = () => {
 
         {!globalSearch.trim() && (
           <>
-            <div className="mb-6">
+            <div className="mb-6 space-y-4">
               <IncomingBookingsList 
                 onCreateProject={handleCreateProject}
                 onCreateLargeProject={handleCreateLargeProject}
               />
+              <UpdatedBookingsList />
             </div>
 
             <div className="mb-6">
