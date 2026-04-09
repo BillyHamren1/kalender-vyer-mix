@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
@@ -214,7 +214,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
+  const staffContainerRef = useRef<HTMLDivElement>(null);
   const { handleEventClick } = useEventNavigation();
+
+  // Close staff selection when clicking outside the staff container
+  useEffect(() => {
+    if (!selectingForTeam) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (staffContainerRef.current && !staffContainerRef.current.contains(e.target as Node)) {
+        setSelectingForTeam(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectingForTeam]);
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
   const generateTimeSlots = () => {
     const slots = [];
@@ -325,7 +338,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const handleAvailableStaffClick = async (staffId: string) => {
     if (!selectingForTeam || !onStaffDrop) return;
     await onStaffDrop(staffId, selectingForTeam.id, day);
-    setSelectingForTeam(null);
+    // Don't close selection — user can assign multiple staff, then click outside to dismiss
   };
 
   const handleStaffRemoval = async (staffId: string, teamId: string) => {
@@ -363,6 +376,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     <>
       {/* Available Staff - rendered ABOVE the day card */}
       <div 
+        ref={staffContainerRef}
         className="rounded-t-2xl"
         style={{ 
           background: selectingForTeam 
