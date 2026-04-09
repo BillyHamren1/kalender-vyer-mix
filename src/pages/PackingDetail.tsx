@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist";
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
+import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import { ProductsList } from "@/components/booking/ProductsList";
