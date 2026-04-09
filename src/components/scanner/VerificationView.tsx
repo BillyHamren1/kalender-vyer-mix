@@ -577,6 +577,32 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       )}
 
       <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} skipCamera={false} />
+
+      {/* Kolli confirmation dialog */}
+      <AlertDialog open={showKolliConfirm} onOpenChange={setShowKolliConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              Starta nytt kolli?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {Object.keys(itemParcelMap).length > 0
+                ? `Du har redan ${new Set(Object.values(itemParcelMap)).size} kolli. Ett nytt kolli skapas och scannade produkter tilldelas dit.`
+                : 'Ett nytt kolli skapas. Produkter du scannar eller klickar på tilldelas automatiskt till detta kolli.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowKolliConfirm(false);
+              startKolli(verifierName);
+            }}>
+              Starta kolli
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
