@@ -1,86 +1,73 @@
 
 
-## Problem
+## Root Cause Analysis
 
-Swedish Game Fair har 26 bokningar och 278 produkter men **0 artiklar i packlistan** (`packing_list_items`). DesktopChecklistView (fliken "Packlista") visar bara "Inga produkter" eftersom den inte triggar synkronisering -- bara `usePackingList`-hooken gör det, och den körs bara i den oanvända `PackingListTab`.
+The bug is a **status filter mismatch** between two components:
 
-Användaren behöver ett helt nytt arbetsflöde för stora projekt:
+### The sequence of events
 
-1. **Översikt av alla bokningar** direkt på packningssidan
-2. **Bryta ut enskilda bokningar** till separata packlistor
-3. **Skapa EN samlad packlista** av kvarvarande bokningar med tydliga sektioner per bokning
-4. **Välja bort produkter** från packlistan (alla packningar)
-5. **Lägga till artiklar från inventarie-API:t** från packningsvyn
-6. **Skapa manuella packningsrader**
+1. Booking originally CONFIRMED → a job (small project) was created → `assigned_to_project = true`
+2. Booking CANCELLED externally → `import-bookings` sets the job status to **`completed`** (line 1968), deletes calendar/packing/products
+3. Booking re-CONFIRMED externally → `import-bookings` correctly skips flag preservation (line 2621), resets `viewed = false` → booking appears in triage
 
----
+### Where the conflict lives
 
-## Plan
+**IncomingBookingsList** (line 55) filters correctly:
+```
+.not('status', 'in', '("completed","cancelled")')
+```
+The old job has status `completed`, so it's excluded → booking **appears in triage**. User sees it and clicks "Medel".
 
-### 1. Ny "Bokningsöversikt" som startsida för stora projekt
+**CreateProjectWizard** (line 279-283) filters incorrectly:
+```sql
+SELECT id FROM jobs WHERE booking_id = ? AND deleted_at IS NULL
+```
+It checks for ANY job regardless of status. The old `completed` job still exists with `deleted_at IS NULL` → **blocks creation**.
 
-Ersätt den nuvarande vyn med en **översiktspanel** som visas när `large_project_id` finns. Visar alla 26 bokningar i en lista med:
-- Kund, bokningsnummer, datum, antal produkter
-- Kryssruta för att välja bokningar
-- **"Bryt ut"**-knapp: skapar en separat packlista för valda bokningar och tar bort dem från den samlade
-- **"Generera packlista"**-knapp: triggar synk av `packing_list_items` för alla kvarvarande bokningar
+The user sees the booking, is invited to act on it, but then gets told they can't.
 
-**Ny komponent**: `PackingProjectOverview.tsx`
-**Ändring**: `PackingDetail.tsx` -- visa översikten som default-vy för stora projekt
+### Why this will keep happening
 
-### 2. Splitta enskilda bokningar (förbättra befintlig split)
+Every cancelled-then-re-confirmed booking that previously had a small project will hit this. The old job is `completed` but not soft-deleted, so the guard fires forever.
 
-Nuvarande `handleSplitPacking` splittar ALLA bokningar. Refaktorera till att stödja **selektiv utbrytning**:
-- Ta bort valda bokningar från `packing_project_bookings`
-- Skapa nya individuella packlistor för dem
-- Behåll den samlade packlistan med resterande bokningar
-- Uppdatera `booking_id` om bara en bokning kvarstår
+## Fix
 
-### 3. DesktopChecklistView: synka items + gruppera per bokning
+### File: `src/components/project/CreateProjectWizard.tsx` (lines 279-287)
 
-- Vid laddning: kör `fullSyncMultiBooking` (från `usePackingList`) om inga items finns
-- Gruppera produktlistan per bokning med collapsible-sektioner (liknande `BookingSection` i `PackingListTab`)
-- Visa bokningsnamn/nummer som rubrik per sektion
+**Option A (minimal):** Add the same status filter the triage list uses:
 
-### 4. Exkludera produkter från packlistan
+```typescript
+const { data: existingJobs } = await supabase
+  .from('jobs')
+  .select('id')
+  .eq('booking_id', bookingId)
+  .not('status', 'in', '("completed","cancelled")')
+  .is('deleted_at', null);
+```
 
-**Databasändring**: Lägg till kolumn `excluded boolean DEFAULT false` på `packing_list_items`.
+This makes the guard consistent: completed/cancelled jobs don't block. But the old job lingers in the DB.
 
-- I DesktopChecklistView: lägg till "X"-knapp eller swipe-to-exclude per rad
-- Exkluderade produkter döljs från huvudlistan men visas i en hopfällbar "Exkluderade"-sektion
-- Exkluderade räknas inte i progress
+**Option B (clean):** Remove the job guard entirely and instead soft-delete any existing completed/cancelled job when creating the new project:
 
-### 5. Manuella packningsrader
+```typescript
+// Retire old completed/cancelled jobs for this booking
+await supabase
+  .from('jobs')
+  .update({ deleted_at: new Date().toISOString() })
+  .eq('booking_id', bookingId)
+  .in('status', ['completed', 'cancelled']);
+```
 
-**Databasändring**: Gör `booking_product_id` nullable på `packing_list_items`. Lägg till kolumn `manual_name text`.
+This cleans up properly — old deprecated jobs get retired, the new medium project takes over.
 
-- I DesktopChecklistView: "Lägg till rad"-knapp som öppnar ett formulär med namn + antal
-- Manuella rader visas i en egen sektion "Manuellt tillagda"
-- Fungerar med +/- och kolli precis som vanliga rader
+### Recommendation
 
-### 6. Lägg till artiklar från inventarie-API
+**Option B** — it cleans up the data and prevents the old job from confusing any future queries. The guard for active jobs (planned/in-progress) stays intact via the project-exists check that already exists.
 
-- I DesktopChecklistView: "Lägg till från lager"-knapp
-- Sökfält som söker i inventarie-API:t (befintlig pricelist-integration)
-- Välj artikel → skapar en manuell packningsrad med namn/SKU från API:t
-
----
-
-### Filer som ändras/skapas
-
-| Fil | Ändring |
-|-----|---------|
-| `src/components/packing/PackingProjectOverview.tsx` | **NY** -- bokningsöversikt för stora projekt |
-| `src/pages/PackingDetail.tsx` | Visa översikt som standard-flik, selektiv split |
-| `src/components/packing/DesktopChecklistView.tsx` | Synk vid laddning, bokningssektioner, exkludera/manuella rader, lägg till från lager |
-| `src/services/desktopPackingService.ts` | Nya funktioner: syncMultiBooking, excludeItem, addManualRow, searchInventory |
-| `src/hooks/usePackingList.tsx` | Exportera `fullSyncMultiBooking` för återanvändning |
-| `src/types/packing.ts` | Uppdatera `PackingListItem` med `excluded`, `manual_name` |
-| **Migration** | `excluded` kolumn, `booking_product_id` nullable, `manual_name` kolumn |
-
-### Prioritetsordning
-1. Bokningsöversikt + selektiv utbrytning (kritiskt för kontroll)
-2. Synk + bokningssektioner i DesktopChecklistView (löser "Inga produkter")
-3. Exkludera produkter
-4. Manuella rader + inventarie-API-sökning
+### What stays unchanged
+- `import-bookings` cancellation flow (sets job to `completed`) — correct
+- `import-bookings` re-confirmation flow (skips flag preservation) — correct
+- `IncomingBookingsList` triage filter — correct
+- `createJobFromBooking` reverse guard (blocks if project exists) — correct
+- Soft-delete/audit infrastructure — used, not changed
 
