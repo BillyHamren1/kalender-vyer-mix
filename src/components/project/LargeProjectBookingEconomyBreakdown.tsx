@@ -367,8 +367,24 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
               const invoices = Array.isArray(data.invoices) ? data.invoices : [];
               const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
 
+              // Compute local revenue per booking from local booking_products
+              const bookingLocalProducts = localProductsByBooking[bookingId] || [];
+              const localRevenueTotal = bookingLocalProducts
+                .filter(lp => !lp.is_package_component && !lp.parent_product_id)
+                .reduce((s, lp) => s + (lp.total_price || 0), 0);
+              const displayRevenue = (productSummary?.revenue && productSummary.revenue > 0)
+                ? productSummary.revenue
+                : localRevenueTotal;
+
+              // Compute local costs from local products
+              const localCostsTotal = bookingLocalProducts.reduce((s, lp) => 
+                s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+              const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
+                ? productSummary.costs
+                : localCostsTotal;
+
               const totalCost =
-                (productSummary?.costs || 0) +
+                displayProductCosts +
                 timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0) +
                 purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0) +
                 invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0) +
@@ -386,7 +402,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                       {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       <span className="font-medium text-sm">{getBookingName(bookingId)}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
-                        {fmt(productSummary?.revenue || 0)} intäkt
+                        {fmt(displayRevenue)} intäkt
                       </Badge>
                     </div>
                     <span className="text-sm font-semibold">{fmt(totalCost)} kostnad</span>
