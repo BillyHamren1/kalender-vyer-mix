@@ -484,6 +484,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }}></div>
 
         {resources.map((resource, index) => {
+          const isActiveTeam = selectingForTeam?.id === resource.id;
           return (
             <div 
               key={`header-${resource.id}`}
@@ -492,9 +493,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 gridColumn: index + 2,
                 gridRow: 2,
                 width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
-                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
+                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
+                ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {})
               }}
-              onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e as unknown as React.MouseEvent<HTMLButtonElement>)}
+              onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
               title={`Assign staff to ${resource.title}`}
             >
               <div className="team-header-content">
@@ -503,7 +505,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   className="add-staff-button-header"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleStaffSelectionClick(resource.id, resource.title, e);
+                    handleStaffSelectionClick(resource.id, resource.title);
                   }}
                   title={`Assign staff to ${resource.title}`}
                 >
