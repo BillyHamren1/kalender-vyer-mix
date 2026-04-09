@@ -57,6 +57,81 @@ public class ZebraRfidPlugin extends Plugin {
         }
     }
 
+    // ── Internal inventory control (single source of truth) ─────────
+
+    /**
+     * Starts RFID inventory. Returns true if inventory was successfully started.
+     * Safe to call when already running (no-op, returns true).
+     */
+    private boolean startInventoryInternal(String caller) {
+        if (inventoryRunning) {
+            Log.d(TAG, "[" + caller + "] Inventory already running, ignoring");
+            return true;
+        }
+
+        if (!readerConnected || rfidReader == null) {
+            Log.w(TAG, "[" + caller + "] Cannot start inventory: reader not connected");
+            return false;
+        }
+
+        try {
+            rfidReader.Actions.Inventory.perform();
+            inventoryRunning = true;
+            Log.i(TAG, "[" + caller + "] Inventory STARTED");
+            notifyStatus();
+            return true;
+        } catch (InvalidUsageException | OperationFailureException e) {
+            Log.e(TAG, "[" + caller + "] Start inventory failed: " + e.getMessage(), e);
+            notifyError("[" + caller + "] Start inventory failed: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "[" + caller + "] Unexpected start inventory error: " + e.getMessage(), e);
+            notifyError("[" + caller + "] Start inventory error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Stops RFID inventory. Returns true if inventory was successfully stopped.
+     * Safe to call when already stopped (no-op, returns true).
+     */
+    private boolean stopInventoryInternal(String caller) {
+        if (!inventoryRunning) {
+            Log.d(TAG, "[" + caller + "] Inventory already stopped, ignoring");
+            return true;
+        }
+
+        if (rfidReader == null) {
+            Log.w(TAG, "[" + caller + "] Reader is null, forcing inventoryRunning=false");
+            inventoryRunning = false;
+            notifyStatus();
+            return true;
+        }
+
+        try {
+            rfidReader.Actions.Inventory.stop();
+            inventoryRunning = false;
+            Log.i(TAG, "[" + caller + "] Inventory STOPPED");
+            notifyStatus();
+            return true;
+        } catch (InvalidUsageException | OperationFailureException e) {
+            Log.e(TAG, "[" + caller + "] Stop inventory failed: " + e.getMessage(), e);
+            // Force state consistent even if SDK call failed
+            inventoryRunning = false;
+            notifyStatus();
+            notifyError("[" + caller + "] Stop inventory failed: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "[" + caller + "] Unexpected stop inventory error: " + e.getMessage(), e);
+            inventoryRunning = false;
+            notifyStatus();
+            notifyError("[" + caller + "] Stop inventory error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // ── Plugin Methods ──────────────────────────────────────────────
+
     @PluginMethod
     public void connectReader(PluginCall call) {
         Log.i(TAG, "connectReader() called");
@@ -135,13 +210,7 @@ public class ZebraRfidPlugin extends Plugin {
 
         try {
             if (rfidReader != null) {
-                if (inventoryRunning) {
-                    try {
-                        rfidReader.Actions.Inventory.stop();
-                    } catch (Exception ignored) {
-                    }
-                    inventoryRunning = false;
-                }
+                stopInventoryInternal("disconnectReader");
 
                 if (rfidEventHandler != null) {
                     try {
@@ -175,58 +244,28 @@ public class ZebraRfidPlugin extends Plugin {
 
     @PluginMethod
     public void startInventory(PluginCall call) {
-        Log.i(TAG, "startInventory() called");
+        Log.i(TAG, "startInventory() called via JS");
 
         if (!readerConnected || rfidReader == null) {
             call.reject("Reader not connected");
             return;
         }
 
-        if (inventoryRunning) {
-            Log.w(TAG, "Inventory already running");
+        if (startInventoryInternal("startInventory")) {
             call.resolve();
-            return;
-        }
-
-        try {
-            rfidReader.Actions.Inventory.perform();
-            inventoryRunning = true;
-            Log.i(TAG, "Inventory started");
-            notifyStatus();
-            call.resolve();
-        } catch (InvalidUsageException | OperationFailureException e) {
-            Log.e(TAG, "Start inventory failed: " + e.getMessage(), e);
-            call.reject("Start inventory failed: " + e.getMessage());
-            notifyError("Start inventory failed: " + e.getMessage());
-        } catch (Exception e) {
-            Log.e(TAG, "Unexpected start inventory error: " + e.getMessage(), e);
-            call.reject("Unexpected start inventory error: " + e.getMessage());
-            notifyError("Unexpected start inventory error: " + e.getMessage());
+        } else {
+            call.reject("Failed to start inventory");
         }
     }
 
     @PluginMethod
     public void stopInventory(PluginCall call) {
-        Log.i(TAG, "stopInventory() called");
+        Log.i(TAG, "stopInventory() called via JS");
 
-        if (!inventoryRunning || rfidReader == null) {
-            inventoryRunning = false;
+        if (stopInventoryInternal("stopInventory")) {
             call.resolve();
-            return;
-        }
-
-        try {
-            rfidReader.Actions.Inventory.stop();
-            inventoryRunning = false;
-            Log.i(TAG, "Inventory stopped");
-            notifyStatus();
-            call.resolve();
-        } catch (InvalidUsageException | OperationFailureException e) {
-            Log.e(TAG, "Stop inventory failed: " + e.getMessage(), e);
-            call.reject("Stop inventory failed: " + e.getMessage());
-        } catch (Exception e) {
-            Log.e(TAG, "Unexpected stop inventory error: " + e.getMessage(), e);
-            call.reject("Unexpected stop inventory error: " + e.getMessage());
+        } else {
+            call.reject("Failed to stop inventory");
         }
     }
 
@@ -239,6 +278,8 @@ public class ZebraRfidPlugin extends Plugin {
         ret.put("source", "zebra_rfid");
         call.resolve(ret);
     }
+
+    // ── Reader Configuration ────────────────────────────────────────
 
     private void configureReader() throws InvalidUsageException, OperationFailureException {
         if (rfidReader == null) return;
@@ -253,9 +294,10 @@ public class ZebraRfidPlugin extends Plugin {
         try {
             rfidReader.Config.setUniqueTagReport(false);
         } catch (Exception ignored) {
-            // Some SDK/device combos may not expose this cleanly.
         }
     }
+
+    // ── Event Notifications ─────────────────────────────────────────
 
     private void notifyTagRead(String epc, int rssi, int antennaId, String rawData) {
         JSObject payload = new JSObject();
@@ -291,6 +333,8 @@ public class ZebraRfidPlugin extends Plugin {
         Log.e(TAG, "Error event sent: " + message);
     }
 
+    // ── RFID Event Listener ─────────────────────────────────────────
+
     private class RfidEventHandler implements RfidEventsListener {
 
         @Override
@@ -323,9 +367,11 @@ public class ZebraRfidPlugin extends Plugin {
                             e.StatusEventData.HandheldTriggerEventData.getHandheldEvent();
 
                     if (triggerEvent == HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_PRESSED) {
-                        Log.d(TAG, "Trigger pressed");
+                        Log.i(TAG, "Trigger PRESSED → starting inventory");
+                        mainHandler.post(() -> startInventoryInternal("trigger_pressed"));
                     } else if (triggerEvent == HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED) {
-                        Log.d(TAG, "Trigger released");
+                        Log.i(TAG, "Trigger RELEASED → stopping inventory");
+                        mainHandler.post(() -> stopInventoryInternal("trigger_released"));
                     }
                 }
 
@@ -345,17 +391,14 @@ public class ZebraRfidPlugin extends Plugin {
         }
     }
 
+    // ── Lifecycle ───────────────────────────────────────────────────
+
     @Override
     protected void handleOnDestroy() {
         Log.i(TAG, "Plugin destroying, cleaning up");
 
         if (readerConnected && rfidReader != null) {
-            try {
-                if (inventoryRunning) {
-                    rfidReader.Actions.Inventory.stop();
-                }
-            } catch (Exception ignored) {
-            }
+            stopInventoryInternal("onDestroy");
 
             try {
                 if (rfidEventHandler != null) {
