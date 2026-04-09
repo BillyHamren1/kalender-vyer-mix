@@ -355,19 +355,54 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   return (
-    <div 
-      className={`time-grid-with-staff-header ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
-    >
-      {/* Fixed Header Section */}
+    <>
+      {/* Available Staff - rendered ABOVE the day card */}
       <div 
-        className="time-grid-fixed-header"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: getGridTemplateColumns(),
-          gridTemplateRows: 'auto auto auto auto',
-          width: getTotalWidth(),
-          flexShrink: 0
+        className="rounded-t-2xl"
+        style={{ 
+          background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
+          borderBottom: '1px solid hsl(var(--border) / 0.6)',
+          padding: '6px 10px',
         }}
+      >
+        <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1">Personal</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+          {getUnassignedAvailableStaff().map((staff) => {
+            const firstName = staff.name.trim().split(' ')[0];
+            return (
+              <div 
+                key={staff.id}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                style={{ 
+                  backgroundColor: staff.color || 'hsl(var(--muted))',
+                  color: '#000'
+                }}
+                title={staff.name}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
+                <span>{firstName}</span>
+              </div>
+            );
+          })}
+        </div>
+        {getUnassignedAvailableStaff().length === 0 && (
+          <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
+        )}
+      </div>
+
+      <div 
+        className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+      >
+        {/* Fixed Header Section */}
+        <div 
+          className="time-grid-fixed-header"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: getGridTemplateColumns(),
+            gridTemplateRows: 'auto auto auto',
+            width: getTotalWidth(),
+            flexShrink: 0
+          }}
       >
         {/* Header row background (spans TIME + day header) */}
         <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
@@ -457,43 +492,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           );
         })}
 
-        {/* Row 3: Available Staff - full width, 4-column grid */}
-        <div 
-          style={{ 
-            gridColumn: '1 / -1',
-            gridRow: 3,
-            background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
-            borderBottom: '1px solid hsl(var(--border) / 0.6)',
-            padding: '6px 10px',
-          }}
-        >
-          <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1">Personal</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-            {getUnassignedAvailableStaff().map((staff) => {
-              const firstName = staff.name.trim().split(' ')[0];
-              return (
-                <div 
-                  key={staff.id}
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
-                  style={{ 
-                    backgroundColor: staff.color || 'hsl(var(--muted))',
-                    color: '#000'
-                  }}
-                  title={staff.name}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
-                  <span>{firstName}</span>
-                </div>
-              );
-            })}
-          </div>
-          {getUnassignedAvailableStaff().length === 0 && (
-            <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
-          )}
-        </div>
-
-        {/* Row 4: Staff Assignment Areas per team */}
-        <div className="staff-row-time-cell" style={{ gridRow: 4, gridColumn: 1 }}></div>
+        {/* Row 3: Staff Assignment Areas per team */}
+        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1 }}></div>
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
@@ -503,7 +503,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               className="staff-assignment-header-row"
               style={{ 
                 gridColumn: index + 2,
-                gridRow: 4,
+                gridRow: 3,
                 width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
                 minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
               }}
@@ -610,6 +610,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         })}
       </div>
     </div>
+    </>
   );
 };
 

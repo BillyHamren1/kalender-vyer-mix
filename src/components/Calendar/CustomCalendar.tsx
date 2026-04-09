@@ -175,11 +175,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                   onDragLeave={(e) => handleDragLeave(e, dateStr)}
                   onDrop={(e) => handleDrop(e, dateStr)}
                 >
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}
-                    style={isDropTarget ? { transition: 'all 150ms ease' } : undefined}
-                  >
-                    <TimeGrid {...buildTimeGridProps(date, false)} />
-                  </div>
+                  <TimeGrid {...buildTimeGridProps(date, false)} />
                 </div>
               );
             })}
@@ -217,9 +213,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                       onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
                     />
                   )}
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}>
-                    <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
-                  </div>
+                  <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
                 </div>
               );
             })}
