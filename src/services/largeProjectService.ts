@@ -27,7 +27,11 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
         booking_id,
         display_name,
         sort_order,
-        created_at
+        created_at,
+        bookings:booking_id (
+          booking_number,
+          client
+        )
       )
     `)
     .is('deleted_at', null)

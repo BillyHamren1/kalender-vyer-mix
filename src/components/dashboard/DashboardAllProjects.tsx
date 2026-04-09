@@ -30,6 +30,7 @@ interface UnifiedProject {
   status: string;
   subtitle: string | null;
   navigateTo: string;
+  bookingNumbers?: string[];
 }
 
 const TYPE_LABELS: Record<UnifiedProject['type'], string> = {
@@ -102,15 +103,21 @@ const DashboardAllProjects: React.FC = () => {
       navigateTo: `/project/${p.id}`,
     }));
 
-    largeProjects.forEach(lp => items.push({
-      id: lp.id,
-      name: lp.name,
-      type: 'large',
-      date: lp.start_date?.[0] ?? null,
-      status: lp.status,
-      subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
-      navigateTo: `/large-project/${lp.id}`,
-    }));
+    largeProjects.forEach(lp => {
+      const bookingNumbers = (lp.bookings || [])
+        .map((b: any) => b.bookings?.booking_number)
+        .filter(Boolean) as string[];
+      items.push({
+        id: lp.id,
+        name: lp.name,
+        type: 'large',
+        date: lp.start_date?.[0] ?? null,
+        status: lp.status,
+        subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
+        navigateTo: `/large-project/${lp.id}`,
+        bookingNumbers,
+      });
+    });
 
     return items;
   }, [jobs, projects, largeProjects]);
@@ -119,7 +126,7 @@ const DashboardAllProjects: React.FC = () => {
     const q = search.toLowerCase().trim();
     return unified
       .filter(p => {
-        if (q && !p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q))) return false;
+        if (q && !p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q)) && !(p.bookingNumbers?.some(bn => bn.toLowerCase().includes(q)))) return false;
         if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
         if (dateFrom && p.date && new Date(p.date) < dateFrom) return false;
         if (dateTo && p.date) {
