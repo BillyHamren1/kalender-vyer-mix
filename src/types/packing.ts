@@ -3,6 +3,7 @@ export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' 
 export interface Packing {
   id: string;
   booking_id: string | null;
+  large_project_id: string | null;
   name: string;
   status: PackingStatus;
   project_leader: string | null;

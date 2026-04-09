@@ -2485,6 +2485,38 @@ export type Database = {
           },
         ]
       }
+      packing_project_bookings: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          packing_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          packing_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          packing_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_project_bookings_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_projects: {
         Row: {
           booking_id: string | null
@@ -2493,6 +2525,7 @@ export type Database = {
           delivery_address: string | null
           end_date: string | null
           id: string
+          large_project_id: string | null
           name: string
           notes: string | null
           organization_id: string
@@ -2510,6 +2543,7 @@ export type Database = {
           delivery_address?: string | null
           end_date?: string | null
           id?: string
+          large_project_id?: string | null
           name: string
           notes?: string | null
           organization_id?: string
@@ -2527,6 +2561,7 @@ export type Database = {
           delivery_address?: string | null
           end_date?: string | null
           id?: string
+          large_project_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string
@@ -2538,6 +2573,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_projects_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_projects_organization_id_fkey"
             columns: ["organization_id"]

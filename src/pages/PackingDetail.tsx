@@ -1,22 +1,36 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist";
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
-import PackingListTab from "@/components/packing/PackingListTab";
+
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
 import { fetchPackingProducts } from "@/services/packingService";
+import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 import { BookingProduct } from "@/types/booking";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ProductChanges {
   added: string[];
@@ -30,6 +44,7 @@ const PackingDetail = () => {
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSplitting, setIsSplitting] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
   const loadRequestIdRef = useRef(0);
   const lastNotifiedSignatureRef = useRef<string | null>(null);
@@ -49,6 +64,9 @@ const PackingDetail = () => {
 
   const {
     items: packingListItems,
+    bookingGroups,
+    isMultiBooking,
+    linkedBookingIds,
     isLoading: isLoadingPackingList,
     updateItem: updatePackingListItem,
     markAllPacked,
@@ -82,27 +100,37 @@ const PackingDetail = () => {
     const requestId = ++loadRequestIdRef.current;
     setIsLoadingProducts(true);
     try {
-      const productsData = await fetchPackingProducts(packing.booking_id);
+      // For multi-booking, load products from all linked bookings
+      const bookingIdsToLoad = isMultiBooking && linkedBookingIds.length > 0
+        ? linkedBookingIds
+        : [packing.booking_id];
+
+      const allProducts: BookingProduct[] = [];
+      for (const bId of bookingIdsToLoad) {
+        const productsData = await fetchPackingProducts(bId);
+        allProducts.push(...productsData);
+      }
+
       if (requestId !== loadRequestIdRef.current) return;
       if (showChanges && previousProductsRef.current.length > 0) {
-        const changes = detectProductChanges(previousProductsRef.current, productsData);
-        const newSignature = makeProductsSignature(productsData);
+        const changes = detectProductChanges(previousProductsRef.current, allProducts);
+        const newSignature = makeProductsSignature(allProducts);
         if (changes && newSignature !== lastNotifiedSignatureRef.current) {
           lastNotifiedSignatureRef.current = newSignature;
           toast.info(`Produktlistan uppdaterad`, { duration: 5000 });
           syncPackingList();
         }
       }
-      previousProductsRef.current = productsData;
-      setProducts(productsData);
+      previousProductsRef.current = allProducts;
+      setProducts(allProducts);
     } catch (error) {
       console.error("Error loading products:", error);
     } finally {
       if (requestId === loadRequestIdRef.current) setIsLoadingProducts(false);
     }
-  }, [detectProductChanges, makeProductsSignature, packing?.booking_id, syncPackingList]);
+  }, [detectProductChanges, makeProductsSignature, packing?.booking_id, syncPackingList, isMultiBooking, linkedBookingIds]);
 
-  useEffect(() => { loadProducts(false); }, [packing?.booking_id]);
+  useEffect(() => { loadProducts(false); }, [packing?.booking_id, linkedBookingIds.length]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -126,6 +154,54 @@ const PackingDetail = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [packingId, refetchAll, refetchItems, loadProducts]);
+
+  const handleSplitPacking = async () => {
+    if (!packing || !isMultiBooking || linkedBookingIds.length === 0) return;
+    setIsSplitting(true);
+    try {
+      // Create individual packings per booking
+      for (const bookingId of linkedBookingIds) {
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('client, eventdate, deliveryaddress, organization_id')
+          .eq('id', bookingId)
+          .maybeSingle();
+
+        if (!bookingData) continue;
+
+        const dateStr = bookingData.eventdate
+          ? format(new Date(bookingData.eventdate), 'd MMMM yyyy', { locale: sv })
+          : '';
+        const packingName = `${bookingData.client}${dateStr ? ` - ${dateStr}` : ''}`;
+
+        const { error } = await supabase
+          .from('packing_projects')
+          .insert({
+            name: packingName,
+            booking_id: bookingId,
+            client_name: bookingData.client,
+            delivery_address: bookingData.deliveryaddress,
+            status: 'planning',
+            organization_id: bookingData.organization_id,
+          });
+
+        if (!error) {
+          syncBookingToPacking(bookingId, bookingData.organization_id);
+        }
+      }
+
+      // Delete the combined packing project (cascade deletes items + links)
+      await supabase.from('packing_projects').delete().eq('id', packing.id);
+
+      toast.success(`Packlistan splittad till ${linkedBookingIds.length} separata packlistor`);
+      navigate('/warehouse/packing');
+    } catch (err) {
+      console.error('Error splitting packing:', err);
+      toast.error('Kunde inte splitta packlistan');
+    } finally {
+      setIsSplitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -157,6 +233,7 @@ const PackingDetail = () => {
   }
 
   const booking = packing.booking;
+  const isLargeProject = !!packing.large_project_id;
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
@@ -177,10 +254,23 @@ const PackingDetail = () => {
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[hsl(var(--heading))]">{packing.name}</h1>
-                {booking && (
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight text-[hsl(var(--heading))]">{packing.name}</h1>
+                  {isLargeProject && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <Layers className="h-3 w-3" />
+                      Stort projekt
+                    </Badge>
+                  )}
+                </div>
+                {booking && !isLargeProject && (
                   <p className="text-muted-foreground text-[0.925rem]">
                     Kopplat till bokning: {booking.booking_number || booking.id}
+                  </p>
+                )}
+                {isMultiBooking && (
+                  <p className="text-muted-foreground text-[0.925rem]">
+                    {linkedBookingIds.length} bokningar samlade
                   </p>
                 )}
               </div>
@@ -190,6 +280,30 @@ const PackingDetail = () => {
                 <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Uppdatera
               </Button>
+              {isMultiBooking && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="border-border/60">
+                      <Scissors className="h-4 w-4 mr-1.5" />
+                      Splitta
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Splitta till separata packlistor?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Detta skapar {linkedBookingIds.length} separata packlistor (en per bokning) och tar bort den samlade packlistan. Packstatus nollställs.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleSplitPacking} disabled={isSplitting}>
+                        {isSplitting ? 'Splittar...' : 'Splitta'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${PACKING_STATUS_COLORS[packing.status] || 'bg-muted text-muted-foreground'}`}>
                 {PACKING_STATUS_LABELS[packing.status] || packing.status}
               </span>
@@ -197,7 +311,7 @@ const PackingDetail = () => {
           </div>
 
           {/* Compact Booking Info */}
-          {booking && (
+          {booking && !isLargeProject && (
             <div className="mb-4 px-5 py-3.5 bg-background/60 backdrop-blur-sm rounded-xl border border-border/30">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
@@ -239,7 +353,7 @@ const PackingDetail = () => {
                   <CheckSquare className="h-3.5 w-3.5" />
                   Checklista
                 </TabsTrigger>
-                {booking && (
+                {(booking || isMultiBooking) && (
                   <>
                     <TabsTrigger value="packlist" className="flex items-center gap-1">
                       <ClipboardList className="h-3.5 w-3.5" />
@@ -262,7 +376,7 @@ const PackingDetail = () => {
                 </div>
               </TabsContent>
 
-              {booking && (
+              {(booking || isMultiBooking) && (
                 <>
                   <TabsContent value="packlist">
                     <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">

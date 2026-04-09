@@ -43,15 +43,19 @@ export const IncomingPackingList: React.FC = () => {
     queryKey: ['bookings-without-packing'],
     queryFn: async () => {
       // Fetch booking IDs from active projects
-      const [{ data: jobBookingIds }, { data: projectBookingIds }, { data: largeLinks }] = await Promise.all([
+      const [{ data: jobBookingIds }, { data: projectBookingIds }, { data: largeLinks }, { data: ppBookings }] = await Promise.all([
         supabase.from('jobs').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
         supabase.from('projects').select('booking_id').not('status', 'in', '("completed","cancelled")').not('booking_id', 'is', null),
         supabase.from('large_project_bookings').select('booking_id, large_project_id'),
+        supabase.from('packing_project_bookings').select('booking_id'),
       ]);
 
       const jobIds = new Set((jobBookingIds || []).map(j => j.booking_id).filter(Boolean));
       const projectIds = new Set((projectBookingIds || []).map(p => p.booking_id).filter(Boolean));
       
+      // Bookings already linked via packing_project_bookings (multi-booking packings)
+      const alreadyLinkedIds = new Set((ppBookings || []).map(p => p.booking_id).filter(Boolean));
+
       // Map booking_id -> large_project_id
       const largeProjectMap = new Map<string, string>();
       (largeLinks || []).forEach(l => {
@@ -71,7 +75,8 @@ export const IncomingPackingList: React.FC = () => {
         .in('booking_id', ids);
 
       const packedIds = new Set((existingPackings || []).map(p => p.booking_id).filter(Boolean));
-      const missingIds = ids.filter(id => !packedIds.has(id));
+      // Filter out bookings that already have a packing OR are linked via packing_project_bookings
+      const missingIds = ids.filter(id => !packedIds.has(id) && !alreadyLinkedIds.has(id));
       if (missingIds.length === 0) return [];
 
       const { data: bookings, error } = await supabase
@@ -167,40 +172,52 @@ export const IncomingPackingList: React.FC = () => {
     }
   };
 
-  const handleCreateAllPackings = async (group: LargeProjectGroup) => {
+  const handleCreateCombinedPacking = async (group: LargeProjectGroup) => {
     setCreatingId(group.large_project_id);
     try {
-      let created = 0;
+      // Create ONE packing project for the entire large project
+      const { data: newPacking, error: createError } = await supabase
+        .from('packing_projects')
+        .insert({
+          name: group.project_name,
+          booking_id: group.bookings[0]?.id || null, // primary booking for backwards compat
+          large_project_id: group.large_project_id,
+          client_name: group.bookings[0]?.client || null,
+          delivery_address: group.bookings[0]?.deliveryaddress || null,
+          status: 'planning',
+          organization_id: group.bookings[0]?.organization_id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+
+      // Link all bookings via packing_project_bookings
+      const bookingLinks = group.bookings.map(b => ({
+        packing_id: newPacking.id,
+        booking_id: b.id,
+        organization_id: b.organization_id,
+      }));
+
+      const { error: linkError } = await supabase
+        .from('packing_project_bookings')
+        .insert(bookingLinks);
+
+      if (linkError) throw linkError;
+
+      // Sync products from all bookings into this packing
       for (const booking of group.bookings) {
-        const dateStr = booking.eventdate
-          ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
-          : '';
-        const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
-
-        const { error } = await supabase
-          .from('packing_projects')
-          .insert({
-            name: packingName,
-            booking_id: booking.id,
-            client_name: booking.client,
-            delivery_address: booking.deliveryaddress,
-            status: 'planning',
-            organization_id: booking.organization_id,
-          });
-
-        if (!error) {
-          syncBookingToPacking(booking.id, booking.organization_id);
-          created++;
-        }
+        syncBookingToPacking(booking.id, booking.organization_id);
       }
 
       await queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
       await queryClient.invalidateQueries({ queryKey: ['packings'] });
 
-      toast.success(`${created} packningar skapade för ${group.project_name}`);
+      toast.success(`Samlad packning skapad för ${group.project_name}`);
+      navigate(`/warehouse/packing/${newPacking.id}`);
     } catch (err) {
-      console.error('Error creating packings for large project:', err);
-      toast.error('Kunde inte skapa packningar');
+      console.error('Error creating combined packing:', err);
+      toast.error('Kunde inte skapa packning');
     } finally {
       setCreatingId(null);
     }
@@ -261,7 +278,7 @@ export const IncomingPackingList: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleCreateAllPackings(row)}
+                    onClick={() => handleCreateCombinedPacking(row)}
                     disabled={isCreating}
                     className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
                   >
@@ -270,7 +287,7 @@ export const IncomingPackingList: React.FC = () => {
                     ) : (
                       <Package className="w-3.5 h-3.5" />
                     )}
-                    <span>Skapa alla packningar</span>
+                    <span>Skapa packning</span>
                   </Button>
                 </div>
               </div>
