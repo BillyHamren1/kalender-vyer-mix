@@ -468,7 +468,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           }}
         >
           <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1">Personal</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+          <div style={{ display: 'grid', <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>, gap: '4px' }}>
             {getUnassignedAvailableStaff().map((staff) => {
               const firstName = staff.name.trim().split(' ')[0];
               return (
