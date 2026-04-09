@@ -213,6 +213,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   carouselNav,
   setEvents
 }) => {
+  const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
   const generateTimeSlots = () => {
