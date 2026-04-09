@@ -66,17 +66,19 @@ export const ScannerModeIndicator: React.FC<ScannerModeIndicatorProps> = ({
             {currentMode === 'barcode' ? 'Streckkod' : currentMode === 'rfid_inventory' ? 'RFID Inventering' : currentMode === 'rfid_locate' ? 'RFID Sök' : 'Blandat läge'}
           </Badge>
         )}
-        {isReaderConnected ? (
-          <span className="flex items-center gap-1 text-primary">
-            <Wifi className="h-3 w-3" />
-            RFD
-          </span>
-        ) : isRfidReady ? (
-          <span className="flex items-center gap-1 text-destructive">
-            <WifiOff className="h-3 w-3" />
-            Ej ansluten
-          </span>
-        ) : null}
+        {isRfidReady && (
+          isReaderConnected ? (
+            <span className="flex items-center gap-1 text-primary">
+              <Wifi className="h-3 w-3" />
+              RFD
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-destructive">
+              <WifiOff className="h-3 w-3" />
+              Ej ansluten
+            </span>
+          )
+        )}
       </div>
       <div className="flex items-center gap-1 text-muted-foreground">
         <BarChart3 className="h-3 w-3" />
