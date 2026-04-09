@@ -13,6 +13,7 @@ import { IncomingBookingsList } from "@/components/project/IncomingBookingsList"
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
 import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidgets";
+import OrphanBookingsWarning from "@/components/project/OrphanBookingsWarning";
 import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { toast } from "sonner";
@@ -133,6 +134,10 @@ const ProjectManagement = () => {
 
             <div className="mb-6">
               <ProjectDashboardWidgets />
+            </div>
+
+            <div className="mb-6">
+              <OrphanBookingsWarning />
             </div>
           </>
         )}

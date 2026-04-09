@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import JobsListPanel from "@/components/project/JobsListPanel";
 import LargeProjectsListPanel from "@/components/project/LargeProjectsListPanel";
 import MediumProjectsListPanel from "@/components/project/MediumProjectsListPanel";
+import ProjectTrashPanel from "@/components/project/ProjectTrashPanel";
 
 const ProjectArchive = () => {
   const navigate = useNavigate();
@@ -34,6 +35,11 @@ const ProjectArchive = () => {
         <JobsListPanel completedOnly />
         <MediumProjectsListPanel completedOnly />
         <LargeProjectsListPanel completedOnly />
+      </div>
+
+      {/* Trash / Papperskorg */}
+      <div className="mt-6">
+        <ProjectTrashPanel />
       </div>
     </PageContainer>
   );
