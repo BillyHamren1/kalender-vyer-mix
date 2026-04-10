@@ -34,6 +34,7 @@ import com.getcapacitor.PluginMethod;
 public class DataWedgePlugin extends Plugin {
 
     private static final String TAG = "DataWedgePlugin";
+    private static final String MARKER = "### ";
 
     // Intent action configured in DataWedge profile
     private static final String DW_SCAN_ACTION = "se.eventflow.scanner.SCAN";
@@ -58,19 +59,60 @@ public class DataWedgePlugin extends Plugin {
     private BroadcastReceiver scanReceiver;
     private BroadcastReceiver resultReceiver;
     private boolean isListening = false;
+    private Context receiverContext;
 
     @Override
     public void load() {
-        Log.d(TAG, "DataWedgePlugin loaded");
-        startListening();
+        super.load();
+        Log.i(TAG, MARKER + "DATAWEDGE PLUGIN LOADED");
+        logBridgeState("load()");
+        startListening("load()");
+    }
+
+    @Override
+    protected void handleOnStart() {
+        Log.i(TAG, MARKER + "DATAWEDGE handleOnStart");
+        logBridgeState("handleOnStart()");
+        startListening("handleOnStart()");
+    }
+
+    @Override
+    protected void handleOnResume() {
+        Log.i(TAG, MARKER + "DATAWEDGE handleOnResume");
+        logBridgeState("handleOnResume()");
+        startListening("handleOnResume()");
+    }
+
+    @Override
+    protected void handleOnPause() {
+        Log.i(TAG, MARKER + "DATAWEDGE handleOnPause listening=" + isListening);
+    }
+
+    @Override
+    protected void handleOnStop() {
+        Log.i(TAG, MARKER + "DATAWEDGE handleOnStop listening=" + isListening);
     }
 
     /**
      * Start listening for DataWedge scan broadcasts AND result broadcasts.
      */
-    private void startListening() {
+    private synchronized void startListening(String reason) {
+        Log.i(TAG, MARKER + "START LISTENING requested from " + reason);
+
+        if (isListening && scanReceiver != null && resultReceiver != null && receiverContext != null) {
+            Log.i(TAG, MARKER + "RECEIVERS ALREADY REGISTERED reason=" + reason
+                    + " context=" + receiverContext.getClass().getName());
+            return;
+        }
+
         if (isListening) {
-            Log.w(TAG, "Already listening for DataWedge intents");
+            Log.w(TAG, MARKER + "LISTENING FLAG WAS TRUE BUT RECEIVERS WERE NOT FULLY READY; resetting state");
+            stopListening("reset-before-" + reason);
+        }
+
+        final Context ctx = resolveReceiverContext(reason);
+        if (ctx == null) {
+            Log.e(TAG, MARKER + "FAILED TO RESOLVE RECEIVER CONTEXT reason=" + reason);
             return;
         }
 
@@ -78,37 +120,47 @@ public class DataWedgePlugin extends Plugin {
         scanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                Log.d(TAG, "Scan broadcast received");
-                Log.d(TAG, "Action: " + intent.getAction());
-
-                Bundle extras = intent.getExtras();
-                if (extras != null) {
-                    for (String key : extras.keySet()) {
-                        Log.d(TAG, "Extra: " + key + " = " + extras.get(key));
-                    }
-                } else {
-                    Log.d(TAG, "No extras received");
+                Log.i(TAG, MARKER + "SCAN RECEIVER FIRED");
+                if (intent == null) {
+                    Log.e(TAG, MARKER + "SCAN RECEIVER GOT NULL INTENT");
+                    return;
                 }
+
+                Log.i(TAG, MARKER + "SCAN RECEIVER ACTION=" + intent.getAction());
+                Log.i(TAG, MARKER + "SCAN RECEIVER CATEGORIES=" + intent.getCategories());
+                dumpExtras("SCAN", intent.getExtras());
 
                 if (DW_SCAN_ACTION.equals(intent.getAction())) {
                     handleScanIntent(intent);
+                } else {
+                    Log.w(TAG, MARKER + "SCAN RECEIVER IGNORED ACTION=" + intent.getAction());
                 }
             }
         };
 
         IntentFilter scanFilter = new IntentFilter();
         scanFilter.addAction(DW_SCAN_ACTION);
-        // IMPORTANT: REMOVE category restriction (DataWedge scan intents may not include it)
+        Log.i(TAG, MARKER + "REGISTERING SCAN RECEIVER action=" + DW_SCAN_ACTION
+                + " reason=" + reason + " context=" + ctx.getClass().getName());
 
         // --- Result receiver (command results) ---
         resultReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, MARKER + "RESULT RECEIVER FIRED");
+                if (intent == null) {
+                    Log.e(TAG, MARKER + "RESULT RECEIVER GOT NULL INTENT");
+                    return;
+                }
+
                 String action = intent.getAction();
-                Log.d(TAG, "Result broadcast received, action: " + action);
+                Log.i(TAG, MARKER + "RESULT RECEIVER ACTION=" + action);
+                dumpExtras("RESULT", intent.getExtras());
 
                 if (DW_RESULT_ACTION.equals(action)) {
                     handleResultIntent(intent);
+                } else {
+                    Log.w(TAG, MARKER + "RESULT RECEIVER IGNORED ACTION=" + action);
                 }
             }
         };
@@ -117,17 +169,44 @@ public class DataWedgePlugin extends Plugin {
         resultFilter.addAction(DW_RESULT_ACTION);
         resultFilter.addCategory(Intent.CATEGORY_DEFAULT);
 
-        Context ctx = getContext();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ctx.registerReceiver(scanReceiver, scanFilter, Context.RECEIVER_EXPORTED);
-            ctx.registerReceiver(resultReceiver, resultFilter, Context.RECEIVER_EXPORTED);
-        } else {
-            ctx.registerReceiver(scanReceiver, scanFilter);
-            ctx.registerReceiver(resultReceiver, resultFilter);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ctx.registerReceiver(scanReceiver, scanFilter, Context.RECEIVER_EXPORTED);
+            } else {
+                ctx.registerReceiver(scanReceiver, scanFilter);
+            }
+            Log.i(TAG, MARKER + "SCAN RECEIVER REGISTERED");
+        } catch (Exception e) {
+            Log.e(TAG, MARKER + "FAILED TO REGISTER SCAN RECEIVER: " + e.getMessage(), e);
+            scanReceiver = null;
+            return;
         }
 
+        try {
+            Log.i(TAG, MARKER + "REGISTERING RESULT RECEIVER action=" + DW_RESULT_ACTION
+                    + " reason=" + reason + " context=" + ctx.getClass().getName());
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ctx.registerReceiver(resultReceiver, resultFilter, Context.RECEIVER_EXPORTED);
+            } else {
+                ctx.registerReceiver(resultReceiver, resultFilter);
+            }
+            Log.i(TAG, MARKER + "RESULT RECEIVER REGISTERED");
+        } catch (Exception e) {
+            Log.e(TAG, MARKER + "FAILED TO REGISTER RESULT RECEIVER: " + e.getMessage(), e);
+            try {
+                ctx.unregisterReceiver(scanReceiver);
+            } catch (Exception unregisterError) {
+                Log.w(TAG, MARKER + "FAILED TO ROLLBACK SCAN RECEIVER AFTER RESULT REGISTER FAILURE: "
+                        + unregisterError.getMessage());
+            }
+            scanReceiver = null;
+            resultReceiver = null;
+            return;
+        }
+
+        receiverContext = ctx;
         isListening = true;
-        Log.i(TAG, "DataWedge listeners registered (scan + result)");
+        Log.i(TAG, MARKER + "DATAWEDGE LISTENERS REGISTERED (scan + result)");
     }
 
     /**
@@ -136,16 +215,18 @@ public class DataWedgePlugin extends Plugin {
     private void handleScanIntent(Intent intent) {
         Bundle extras = intent.getExtras();
         if (extras == null) {
-            Log.w(TAG, "Scan intent has no extras");
+            Log.w(TAG, MARKER + "SCAN INTENT HAS NO EXTRAS");
             return;
         }
 
-        String barcode = extras.getString(EXTRA_DATA_STRING, "");
-        String labelType = extras.getString(EXTRA_LABEL_TYPE, "UNKNOWN");
-        String source = extras.getString(EXTRA_SOURCE, "scanner");
+        String barcode = getFirstString(extras, "", EXTRA_DATA_STRING, "data_string");
+        String labelType = getFirstString(extras, "UNKNOWN", EXTRA_LABEL_TYPE, "label_type");
+        String source = getFirstString(extras, "scanner", EXTRA_SOURCE, "source");
+
+        Log.i(TAG, MARKER + "SCAN PAYLOAD barcode=" + barcode + " symbology=" + labelType + " source=" + source);
 
         if (barcode.isEmpty()) {
-            Log.w(TAG, "Scan intent has empty barcode data");
+            Log.w(TAG, MARKER + "SCAN INTENT HAS EMPTY BARCODE DATA");
             return;
         }
 
@@ -155,6 +236,7 @@ public class DataWedgePlugin extends Plugin {
         payload.put("data", barcode);
         payload.put("symbology", labelType);
         payload.put("source", "zebra_datawedge");
+        payload.put("nativeSource", source);
         payload.put("timestamp", System.currentTimeMillis());
 
         // Log full extras for debugging
@@ -169,8 +251,21 @@ public class DataWedgePlugin extends Plugin {
             payload.put("rawExtras", rawExtras);
         }
 
-        notifyListeners("datawedge_scan", payload);
-        Log.d(TAG, "Event 'datawedge_scan' sent to WebView");
+        boolean bridgeReady = bridge != null;
+        boolean webViewReady = bridgeReady && bridge.getWebView() != null;
+        boolean hasScanListeners = hasListeners("datawedge_scan");
+
+        Log.i(TAG, MARKER + "SENDING EVENT TO WEBVIEW event=datawedge_scan"
+                + " bridgeReady=" + bridgeReady
+                + " webViewReady=" + webViewReady
+                + " hasListeners=" + hasScanListeners);
+
+        if (!bridgeReady || !webViewReady) {
+            Log.w(TAG, MARKER + "WEBVIEW/BRIDGE NOT READY WHEN SCAN ARRIVED");
+        }
+
+        notifyListeners("datawedge_scan", payload, true);
+        Log.i(TAG, MARKER + "EVENT SENT TO WEBVIEW event=datawedge_scan barcode=" + barcode);
     }
 
     /**
@@ -188,7 +283,7 @@ public class DataWedgePlugin extends Plugin {
     private void handleResultIntent(Intent intent) {
         Bundle extras = intent.getExtras();
         if (extras == null) {
-            Log.w(TAG, "Result intent has no extras");
+            Log.w(TAG, MARKER + "RESULT INTENT HAS NO EXTRAS");
             return;
         }
 
@@ -236,8 +331,17 @@ public class DataWedgePlugin extends Plugin {
         }
         payload.put("rawExtras", rawExtras);
 
-        notifyListeners("datawedge_result", payload);
-        Log.d(TAG, "Event 'datawedge_result' sent to WebView");
+        boolean bridgeReady = bridge != null;
+        boolean webViewReady = bridgeReady && bridge.getWebView() != null;
+        boolean hasResultListeners = hasListeners("datawedge_result");
+
+        Log.i(TAG, MARKER + "SENDING EVENT TO WEBVIEW event=datawedge_result"
+                + " bridgeReady=" + bridgeReady
+                + " webViewReady=" + webViewReady
+                + " hasListeners=" + hasResultListeners);
+
+        notifyListeners("datawedge_result", payload, true);
+        Log.i(TAG, MARKER + "EVENT SENT TO WEBVIEW event=datawedge_result command=" + commandName);
     }
 
     /**
@@ -305,6 +409,8 @@ public class DataWedgePlugin extends Plugin {
         intent.putExtra("COMMAND_IDENTIFIER", identifier);
 
         getContext().sendBroadcast(intent);
+        Log.i(TAG, MARKER + "DATAWEDGE COMMAND BROADCAST SENT apiKey=" + apiKey
+                + " parameter=" + parameter + " id=" + identifier);
         Log.d(TAG, "DataWedge command sent: " + apiKey + " = " + parameter
                 + " (id: " + identifier + ")");
 
@@ -326,25 +432,123 @@ public class DataWedgePlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        Context ctx = getContext();
+        Log.i(TAG, MARKER + "DATAWEDGE handleOnDestroy");
+        stopListening("handleOnDestroy");
+    }
+
+    private synchronized void stopListening(String reason) {
+        Context ctx = receiverContext;
+
+        if (ctx == null && bridge != null) {
+            ctx = resolveReceiverContext(reason);
+        }
+
+        if (ctx == null) {
+            Log.w(TAG, MARKER + "STOP LISTENING skipped because receiver context was null reason=" + reason);
+            scanReceiver = null;
+            resultReceiver = null;
+            receiverContext = null;
+            isListening = false;
+            return;
+        }
+
+        Log.i(TAG, MARKER + "UNREGISTERING DATAWEDGE RECEIVERS reason=" + reason);
+
         if (scanReceiver != null && isListening) {
             try {
                 ctx.unregisterReceiver(scanReceiver);
-                Log.i(TAG, "DataWedge scan listener unregistered");
+                Log.i(TAG, MARKER + "SCAN RECEIVER UNREGISTERED");
             } catch (Exception e) {
-                Log.w(TAG, "Error unregistering scan receiver: " + e.getMessage());
+                Log.w(TAG, MARKER + "ERROR UNREGISTERING SCAN RECEIVER: " + e.getMessage());
             }
             scanReceiver = null;
         }
+
         if (resultReceiver != null) {
             try {
                 ctx.unregisterReceiver(resultReceiver);
-                Log.i(TAG, "DataWedge result listener unregistered");
+                Log.i(TAG, MARKER + "RESULT RECEIVER UNREGISTERED");
             } catch (Exception e) {
-                Log.w(TAG, "Error unregistering result receiver: " + e.getMessage());
+                Log.w(TAG, MARKER + "ERROR UNREGISTERING RESULT RECEIVER: " + e.getMessage());
             }
             resultReceiver = null;
         }
+
+        receiverContext = null;
         isListening = false;
+        Log.i(TAG, MARKER + "DATAWEDGE RECEIVERS FULLY STOPPED");
+    }
+
+    private Context resolveReceiverContext(String reason) {
+        if (bridge == null) {
+            Log.e(TAG, MARKER + "BRIDGE IS NULL while resolving receiver context reason=" + reason);
+            return null;
+        }
+
+        Context baseContext = bridge.getContext();
+        Context appContext = baseContext != null ? baseContext.getApplicationContext() : null;
+        Context resolvedContext = appContext != null ? appContext : baseContext;
+
+        Log.i(TAG, MARKER + "RESOLVED RECEIVER CONTEXT reason=" + reason
+                + " base=" + (baseContext != null ? baseContext.getClass().getName() : "null")
+                + " resolved=" + (resolvedContext != null ? resolvedContext.getClass().getName() : "null"));
+
+        return resolvedContext;
+    }
+
+    private void logBridgeState(String origin) {
+        boolean bridgeReady = bridge != null;
+        boolean webViewReady = bridgeReady && bridge.getWebView() != null;
+        String contextName = bridgeReady && bridge.getContext() != null
+                ? bridge.getContext().getClass().getName()
+                : "null";
+        String activityName = bridgeReady && bridge.getActivity() != null
+                ? bridge.getActivity().getClass().getName()
+                : "null";
+
+        Log.i(TAG, MARKER + "BRIDGE STATE @" + origin
+                + " bridgeReady=" + bridgeReady
+                + " webViewReady=" + webViewReady
+                + " activity=" + activityName
+                + " context=" + contextName
+                + " listening=" + isListening);
+    }
+
+    private void dumpExtras(String prefix, Bundle extras) {
+        if (extras == null) {
+            Log.i(TAG, MARKER + prefix + " EXTRAS: <none>");
+            return;
+        }
+
+        for (String key : extras.keySet()) {
+            Object value = extras.get(key);
+            Log.i(TAG, MARKER + prefix + " EXTRA " + key + " = " + value);
+        }
+    }
+
+    private String getFirstString(Bundle extras, String fallback, String... keys) {
+        if (extras == null || keys == null) {
+            return fallback;
+        }
+
+        for (String key : keys) {
+            if (key == null || !extras.containsKey(key)) {
+                continue;
+            }
+
+            Object value = extras.get(key);
+            if (value instanceof String && !((String) value).isEmpty()) {
+                return (String) value;
+            }
+
+            if (value != null) {
+                String asString = value.toString();
+                if (!asString.isEmpty()) {
+                    return asString;
+                }
+            }
+        }
+
+        return fallback;
     }
 }

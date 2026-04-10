@@ -13,6 +13,7 @@ import android.net.http.SslError;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
+import com.getcapacitor.PluginHandle;
 
 /**
  * MainActivity for EventFlow Scanner app.
@@ -30,11 +31,15 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "### MAINACTIVITY onCreate: registering native plugins");
+
         // Register custom Capacitor plugins before super.onCreate
         registerPlugin(DataWedgePlugin.class);
         registerPlugin(ZebraRfidPlugin.class);
 
         super.onCreate(savedInstanceState);
+
+        ensureDataWedgePluginReady("onCreate");
 
         // Extend (not replace) Capacitor's BridgeWebChromeClient
         // to handle WebView permission requests for getUserMedia().
@@ -77,6 +82,44 @@ public class MainActivity extends BridgeActivity {
             }
         );
 
-        Log.d(TAG, "MainActivity created with diagnostic WebViewClient");
+        Log.i(TAG, "### MAINACTIVITY created with diagnostic WebViewClient");
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        ensureDataWedgePluginReady("onStart");
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        ensureDataWedgePluginReady("onResume");
+    }
+
+    private void ensureDataWedgePluginReady(String origin) {
+        if (this.bridge == null) {
+            Log.e(TAG, "### MAINACTIVITY bridge is NULL during " + origin);
+            return;
+        }
+
+        PluginHandle pluginHandle = this.bridge.getPlugin("DataWedge");
+        if (pluginHandle == null) {
+            Log.e(TAG, "### MAINACTIVITY DataWedge plugin handle is NULL during " + origin);
+            return;
+        }
+
+        try {
+            if (pluginHandle.getInstance() == null) {
+                Log.w(TAG, "### MAINACTIVITY DataWedge plugin instance was null, forcing load during " + origin);
+                pluginHandle.load();
+            }
+
+            Log.i(TAG, "### MAINACTIVITY DataWedge plugin ready during " + origin
+                + " instance=" + (pluginHandle.getInstance() != null)
+                + " webView=" + (this.bridge.getWebView() != null));
+        } catch (Exception e) {
+            Log.e(TAG, "### MAINACTIVITY failed to prepare DataWedge plugin during " + origin + ": " + e.getMessage(), e);
+        }
     }
 }
