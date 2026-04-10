@@ -140,6 +140,7 @@ public class DataWedgePlugin extends Plugin {
 
         IntentFilter scanFilter = new IntentFilter();
         scanFilter.addAction(DW_SCAN_ACTION);
+        scanFilter.addCategory(Intent.CATEGORY_DEFAULT);
         Log.i(TAG, MARKER + "REGISTERING SCAN RECEIVER action=" + DW_SCAN_ACTION
                 + " reason=" + reason + " context=" + ctx.getClass().getName());
 

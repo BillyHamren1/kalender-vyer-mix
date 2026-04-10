@@ -149,7 +149,7 @@ public class MainActivity extends BridgeActivity {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(DW_SCAN_ACTION);
-        // NO category — most permissive
+        filter.addCategory(Intent.CATEGORY_DEFAULT);
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
