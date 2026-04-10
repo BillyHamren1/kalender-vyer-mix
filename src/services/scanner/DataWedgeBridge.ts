@@ -284,28 +284,12 @@ function startWebFallbackListener(): void {
  * Results are tracked via the result listener.
  */
 async function runDataWedgeInitSequence(): Promise<void> {
-  console.log('[DataWedge] Running init sequence...');
-
-  await sendInitCommand('ENABLE_DATAWEDGE', 'true', 'Enable DataWedge');
-
-  await delay(100);
-  await sendInitCommand('SWITCH_TO_PROFILE', DATAWEDGE_PROFILE_NAME, `Switch to profile "${DATAWEDGE_PROFILE_NAME}"`);
-
-  await delay(100);
-  await sendInitCommand('SCANNER_INPUT_PLUGIN', 'ENABLE_PLUGIN', 'Enable scanner input');
-
+  // Passive mode: do NOT send ENABLE_DATAWEDGE, SWITCH_TO_PROFILE, or
+  // SCANNER_INPUT_PLUGIN on startup. The Zebra device is already configured
+  // with the correct DataWedge profile. Sending these commands causes
+  // FAILURE results and unnecessary noise.
+  console.log('[DataWedge] Init sequence SKIPPED (passive mode — device already configured)');
   initCommandsSent = true;
-
-  // Allow time for results to arrive, then check
-  setTimeout(() => {
-    markStaleCommandsAsUnknown();
-  }, 3000);
-
-  if (initErrors.length === 0) {
-    console.log('[DataWedge] Init sequence completed (waiting for results...)');
-  } else {
-    console.warn('[DataWedge] Init sequence completed with send errors:', initErrors);
-  }
 }
 
 async function sendInitCommand(command: string, parameter: string, description: string): Promise<void> {
