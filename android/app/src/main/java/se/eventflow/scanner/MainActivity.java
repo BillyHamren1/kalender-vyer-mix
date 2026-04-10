@@ -1,5 +1,10 @@
 package se.eventflow.scanner;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.PermissionRequest;
@@ -19,15 +24,18 @@ import com.getcapacitor.PluginHandle;
  * MainActivity for EventFlow Scanner app.
  *
  * Registers custom Capacitor plugins (DataWedge, ZebraRfid) and extends
- * the default BridgeWebChromeClient to grant WebView media permissions
- * (camera) needed by getUserMedia() for QR/barcode camera fallback.
+ * the default BridgeWebChromeClient to grant WebView media permissions.
  *
- * Also adds a diagnostic BridgeWebViewClient to log network/SSL errors
- * from the WebView layer for troubleshooting login and fetch issues.
+ * Also registers a DIAGNOSTIC BroadcastReceiver for the scan action
+ * directly on the Activity to isolate whether plugin receiver registration
+ * is the problem.
  */
 public class MainActivity extends BridgeActivity {
 
     private static final String TAG = "MainActivity";
+    private static final String DW_SCAN_ACTION = "se.eventflow.scanner.SCAN";
+
+    private BroadcastReceiver diagnosticScanReceiver;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -41,8 +49,10 @@ public class MainActivity extends BridgeActivity {
 
         ensureDataWedgePluginReady("onCreate");
 
-        // Extend (not replace) Capacitor's BridgeWebChromeClient
-        // to handle WebView permission requests for getUserMedia().
+        // --- DIAGNOSTIC: register a scan receiver directly on the Activity ---
+        registerDiagnosticScanReceiver("onCreate");
+
+        // Extend Capacitor's BridgeWebChromeClient for getUserMedia() permissions
         this.bridge.getWebView().setWebChromeClient(
             new BridgeWebChromeClient(this.bridge) {
                 @Override
@@ -95,6 +105,79 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         ensureDataWedgePluginReady("onResume");
+        // Re-register diagnostic receiver in case it was lost
+        registerDiagnosticScanReceiver("onResume");
+    }
+
+    @Override
+    public void onDestroy() {
+        unregisterDiagnosticScanReceiver();
+        super.onDestroy();
+    }
+
+    /**
+     * Register a DIAGNOSTIC BroadcastReceiver directly on the Activity context
+     * for se.eventflow.scanner.SCAN. This bypasses the Capacitor plugin entirely.
+     *
+     * If this receiver fires but the plugin receiver does not, the bug is in
+     * plugin receiver registration. If neither fires, the issue is system-level.
+     */
+    private void registerDiagnosticScanReceiver(String origin) {
+        if (diagnosticScanReceiver != null) {
+            Log.i(TAG, "### MAINACTIVITY DIAGNOSTIC SCAN RECEIVER already registered, skipping (" + origin + ")");
+            return;
+        }
+
+        diagnosticScanReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, "### MAINACTIVITY SCAN RECEIVER FIRED ###");
+                Log.i(TAG, "### MAINACTIVITY SCAN ACTION=" + (intent != null ? intent.getAction() : "null"));
+                Log.i(TAG, "### MAINACTIVITY SCAN CATEGORIES=" + (intent != null ? intent.getCategories() : "null"));
+
+                if (intent != null && intent.getExtras() != null) {
+                    Bundle extras = intent.getExtras();
+                    for (String key : extras.keySet()) {
+                        Object value = extras.get(key);
+                        Log.i(TAG, "### MAINACTIVITY SCAN EXTRA " + key + " = " + value);
+                    }
+                } else {
+                    Log.i(TAG, "### MAINACTIVITY SCAN EXTRAS: <none>");
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(DW_SCAN_ACTION);
+        // NO category — most permissive
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // API 33+: must specify RECEIVER_EXPORTED for external broadcasts
+                this.registerReceiver(diagnosticScanReceiver, filter, Context.RECEIVER_EXPORTED);
+                Log.i(TAG, "### MAINACTIVITY DIAGNOSTIC SCAN RECEIVER REGISTERED (EXPORTED, Activity context, API 33+) action="
+                    + DW_SCAN_ACTION + " origin=" + origin);
+            } else {
+                this.registerReceiver(diagnosticScanReceiver, filter);
+                Log.i(TAG, "### MAINACTIVITY DIAGNOSTIC SCAN RECEIVER REGISTERED (Activity context, pre-API33) action="
+                    + DW_SCAN_ACTION + " origin=" + origin);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "### MAINACTIVITY FAILED TO REGISTER DIAGNOSTIC SCAN RECEIVER: " + e.getMessage(), e);
+            diagnosticScanReceiver = null;
+        }
+    }
+
+    private void unregisterDiagnosticScanReceiver() {
+        if (diagnosticScanReceiver != null) {
+            try {
+                this.unregisterReceiver(diagnosticScanReceiver);
+                Log.i(TAG, "### MAINACTIVITY DIAGNOSTIC SCAN RECEIVER UNREGISTERED");
+            } catch (Exception e) {
+                Log.w(TAG, "### MAINACTIVITY error unregistering diagnostic receiver: " + e.getMessage());
+            }
+            diagnosticScanReceiver = null;
+        }
     }
 
     private void ensureDataWedgePluginReady(String origin) {
