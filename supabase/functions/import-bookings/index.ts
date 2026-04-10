@@ -1527,6 +1527,7 @@ serve(async (req) => {
       endDate,
       booking_id: singleBookingId = null,
       event_type: webhookEventType = null,
+      localOnly = false,
     } = body;
 
     const importStartedAt = new Date().toISOString();
@@ -1594,6 +1595,65 @@ serve(async (req) => {
 
     if (syncStateError) {
       console.error('Error updating sync state:', syncStateError)
+    }
+
+    // ── LOCAL-ONLY MODE ─────────────────────────────────────────────────
+    // When localOnly=true and this is a single-booking refresh, skip the
+    // external API entirely and jump straight to the local-data fallback.
+    // This is used after local date edits (e.g. large-project schedule)
+    // to prevent the external API from overwriting locally-saved dates.
+    if (localOnly && isSingleBookingRefresh && normalizedSingleBookingId) {
+      console.log(`[LocalOnly] Skipping external API for ${normalizedSingleBookingId}, reconciling from local DB`);
+      const { data: localBooking, error: localErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', normalizedSingleBookingId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (localErr) {
+        console.error(`[LocalOnly] Error fetching local booking:`, localErr.message);
+        return new Response(JSON.stringify({ error: `Local booking fetch failed: ${localErr.message}` }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
+        });
+      }
+
+      if (localBooking) {
+        const fallbackResults = {
+          calendar_events_created: 0,
+          team_distribution: { 'team-1': 0, 'team-2': 0, 'team-3': 0, 'team-4': 0, 'team-5': 0, 'team-11': 0 },
+        };
+        const localBookingData: BookingData = {
+          id: localBooking.id,
+          client: localBooking.client,
+          rigdaydate: localBooking.rigdaydate,
+          eventdate: localBooking.eventdate,
+          rigdowndate: localBooking.rigdowndate,
+          rig_start_time: localBooking.rig_start_time,
+          rig_end_time: localBooking.rig_end_time,
+          event_start_time: localBooking.event_start_time,
+          event_end_time: localBooking.event_end_time,
+          rigdown_start_time: localBooking.rigdown_start_time,
+          rigdown_end_time: localBooking.rigdown_end_time,
+          deliveryaddress: localBooking.deliveryaddress,
+          status: localBooking.status,
+          booking_number: localBooking.booking_number,
+          organization_id: localBooking.organization_id,
+        };
+        await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        console.log(`[LocalOnly] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
+        return new Response(JSON.stringify({
+          success: true,
+          results: {
+            total: 1, imported: 0, failed: 0,
+            calendar_events_created: fallbackResults.calendar_events_created,
+            local_only: true,
+          },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+
+      // No local booking found — fall through to normal flow
+      console.log(`[LocalOnly] No local booking found for ${normalizedSingleBookingId}, falling through to external API`);
     }
 
     // Build API URL - always include organization_id
