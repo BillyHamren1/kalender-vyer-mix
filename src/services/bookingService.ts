@@ -10,10 +10,6 @@ export {
 export {
   markBookingAsViewed,
   updateBookingStatus,
-  updateBookingDates,
-  updateBookingDateWithTimes,
-  updateBookingLogistics,
-  updateDeliveryDetails
 } from './booking/bookingMutationService';
 
 export {
