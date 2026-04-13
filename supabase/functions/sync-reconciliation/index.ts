@@ -496,29 +496,33 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Auto-delete extra local products (not in Booking = should not exist locally)
+        // Auto-delete extra local products (and their child/package rows) so they disappear from Planning
         for (const [name, localP] of localProductNames) {
           if (!extProductNames.has(name)) {
-            const productId = localP.id;
-            if (productId) {
+            const bookingProducts = allLocalProductsByBooking.get(bookingId) || [];
+            const idsToDelete = bookingProducts
+              .filter((p: any) => p.id === localP.id || p.parent_product_id === localP.id || p.parent_package_id === localP.id)
+              .map((p: any) => p.id)
+              .filter(Boolean);
+
+            if (idsToDelete.length > 0) {
               const { error: delErr } = await supabase
                 .from('booking_products')
                 .delete()
-                .eq('id', productId);
-              
+                .in('id', idsToDelete);
+
               if (delErr) {
-                console.error(`[sync-recon] Failed to delete extra local product "${name}" (${productId}):`, delErr.message);
+                console.error(`[sync-recon] Failed to delete extra local product tree "${name}" for booking ${bookingId}:`, delErr.message);
+                discrepancies.push({
+                  bookingId, bookingNumber, client: clientName, bookingStatus,
+                  field: `_product_extra:${name}`, category: 'products',
+                  localValue: `${name} finns lokalt`, externalValue: null,
+                  label: `Extra lokal produkt: ${name}`
+                });
               } else {
-                console.log(`[sync-recon] 🗑️ Deleted extra local product "${name}" (${productId}) from booking ${bookingId}`);
+                console.log(`[sync-recon] 🗑️ Deleted extra local product tree "${name}" (${idsToDelete.length} rows) from booking ${bookingId}`);
               }
             }
-            
-            discrepancies.push({
-              bookingId, bookingNumber, client: clientName, bookingStatus,
-              field: `_product_extra:${name}`, category: 'products',
-              localValue: `${name} raderad`, externalValue: null,
-              label: `Extra lokal produkt raderad: ${name}`
-            });
           }
         }
 
