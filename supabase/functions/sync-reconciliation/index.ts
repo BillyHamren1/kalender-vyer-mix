@@ -252,26 +252,43 @@ Deno.serve(async (req) => {
     const action = body.action || 'compare';
 
     if (action === 'compare') {
-      // Fetch external bookings
-      const apiParams = new URLSearchParams();
-      apiParams.append('organization_id', organizationId);
+      // Fetch ALL external bookings with pagination
+      const requestHeaders = {
+        'Authorization': `Bearer ${importApiKey}`,
+        'x-api-key': importApiKey,
+        'Content-Type': 'application/json'
+      };
       
-      const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
+      let rawExternalBookings: any[] = [];
+      let page = 1;
+      const pageSize = 500;
       
-      const externalResponse = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${importApiKey}`,
-          'x-api-key': importApiKey,
-          'Content-Type': 'application/json'
+      while (true) {
+        const apiParams = new URLSearchParams();
+        apiParams.append('organization_id', organizationId);
+        apiParams.append('page', String(page));
+        apiParams.append('limit', String(pageSize));
+        
+        const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
+        
+        const externalResponse = await fetch(apiUrl, { headers: requestHeaders });
+        if (!externalResponse.ok) {
+          throw new Error(`External API error: ${externalResponse.status}`);
         }
-      });
-
-      if (!externalResponse.ok) {
-        throw new Error(`External API error: ${externalResponse.status}`);
+        
+        const externalData = await externalResponse.json();
+        const batch = externalData.data || [];
+        rawExternalBookings = rawExternalBookings.concat(batch);
+        
+        console.log(`[sync-recon] Page ${page}: fetched ${batch.length} bookings (total so far: ${rawExternalBookings.length})`);
+        
+        // Stop if we got fewer than requested (last page) or empty
+        if (batch.length < pageSize) break;
+        page++;
       }
-
-      const externalData = await externalResponse.json();
-      const rawExternalBookings = externalData.data || [];
+      
+      console.log(`[sync-recon] Total external bookings fetched: ${rawExternalBookings.length} across ${page} page(s)`);
+      
       // Normalize external field names to match local schema
       const externalBookings = rawExternalBookings.map(normalizeExternalBooking);
       // Debug: log first booking's raw vs normalized products
@@ -281,23 +298,29 @@ Deno.serve(async (req) => {
         console.log('[sync-recon] NORMALIZED products sample:', JSON.stringify((externalBookings[0].products || []).slice(0, 2)));
       }
 
-      // Fetch local bookings
-      const { data: localBookings } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('organization_id', organizationId);
+      // Helper to fetch all rows with pagination (Supabase default limit is 1000)
+      const fetchAll = async (table: string, orgId: string): Promise<any[]> => {
+        const PAGE_SIZE = 1000;
+        let allRows: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('organization_id', orgId)
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          allRows = allRows.concat(data || []);
+          if (!data || data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        return allRows;
+      };
 
-      // Fetch local products
-      const { data: localProducts } = await supabase
-        .from('booking_products')
-        .select('*')
-        .eq('organization_id', organizationId);
-
-      // Fetch local attachments
-      const { data: localAttachments } = await supabase
-        .from('booking_attachments')
-        .select('*')
-        .eq('organization_id', organizationId);
+      // Fetch local data with pagination
+      const localBookings = await fetchAll('bookings', organizationId);
+      const localProducts = await fetchAll('booking_products', organizationId);
+      const localAttachments = await fetchAll('booking_attachments', organizationId);
 
       // Build local maps
       const localBookingMap = new Map((localBookings || []).map(b => [b.id, b]));
