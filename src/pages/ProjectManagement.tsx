@@ -40,6 +40,72 @@ const ProjectManagement = () => {
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncBookings = async () => {
+    setIsSyncing(true);
+    const t0 = performance.now();
+    console.group('[ProjectSync] Starting incremental sync');
+    try {
+      const { data, error } = await supabase.functions.invoke('import-bookings', {
+        body: { syncMode: 'incremental' },
+      });
+
+      const elapsed = Math.round(performance.now() - t0);
+
+      if (error) {
+        console.error('[ProjectSync] Edge function error:', error);
+        toast.error('Synkronisering misslyckades');
+        return;
+      }
+
+      console.log('[ProjectSync] Response:', JSON.stringify(data, null, 2));
+      console.log(`[ProjectSync] Completed in ${elapsed}ms`);
+
+      const processed = data?.processed ?? 0;
+      const created = data?.created ?? 0;
+      const updated = data?.updated ?? 0;
+      const failed = data?.failed ?? 0;
+      const skipped = data?.skipped ?? 0;
+      const mode = data?.mode ?? 'unknown';
+
+      console.table({
+        mode,
+        processed,
+        created,
+        updated,
+        skipped,
+        failed,
+        elapsed_ms: elapsed,
+        errors: data?.errors?.length ?? 0,
+      });
+
+      if (data?.errors?.length > 0) {
+        console.warn('[ProjectSync] Errors:', data.errors);
+      }
+
+      // Invalidate all relevant queries
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['orphan-bookings'] });
+
+      if (failed > 0) {
+        toast.warning(`Synkroniserad med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
+      } else if (processed === 0) {
+        toast.info('Inga nya ändringar att synka');
+      } else {
+        toast.success(`Synkroniserad: ${updated} uppdaterade, ${created} nya`);
+      }
+    } catch (err) {
+      console.error('[ProjectSync] Unexpected error:', err);
+      toast.error('Kunde inte synkronisera');
+    } finally {
+      console.groupEnd();
+      setIsSyncing(false);
+    }
+  };
 
   useRealtimeInvalidation({
     channelName: 'project-mgmt-bookings',
