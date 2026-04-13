@@ -2851,24 +2851,36 @@ serve(async (req) => {
         if (needsProductUpdate || !existingBooking) {
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
-          // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
+          // DEDUPLICATE: merge only true duplicate component rows, never collapse repeated parent packages
           const deduplicatedProducts: any[] = [];
           const productKeyMap = new Map<string, number>(); // key -> index in deduplicatedProducts
+          const shouldMergeDuplicateProduct = (product: any) => {
+            const productName = (product.name || product.product_name || '').trim();
+            const isPkgComponent = product.is_package_component === true;
+            const hasExplicitParent = Boolean(product.parent_product_id || product.parent_package_id || product.inventory_package_id);
+            const hasPackageComponents = Array.isArray(product.package_components) && product.package_components.length > 0;
+            const isAccessory = isAccessoryProduct(productName);
+
+            return isPkgComponent || isAccessory || hasExplicitParent || !hasPackageComponents;
+          };
           
           for (const product of externalBooking.products) {
             const name = (product.name || product.product_name || '').trim();
             const parentId = product.parent_product_id || product.parent_package_id || product.inventory_package_id || 'root';
             const isPkg = product.is_package_component === true;
             const key = `${name}::${parentId}::${isPkg}`;
+            const shouldMerge = shouldMergeDuplicateProduct(product);
             
-            if (productKeyMap.has(key)) {
+            if (shouldMerge && productKeyMap.has(key)) {
               // Merge: add quantities
               const existingIdx = productKeyMap.get(key)!;
               deduplicatedProducts[existingIdx].quantity = 
                 (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
               console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
             } else {
-              productKeyMap.set(key, deduplicatedProducts.length);
+              if (shouldMerge) {
+                productKeyMap.set(key, deduplicatedProducts.length);
+              }
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
             }
           }
@@ -2876,13 +2888,21 @@ serve(async (req) => {
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
 
           // ── MERGE STRATEGY ──────────────────────────────────────────────────────
-          // Build a lookup of existing products by normalised name so we can
-          // UPDATE in-place instead of DELETE + INSERT.  This eliminates the
-          // race-condition window where the table is momentarily empty.
-          const existingProductsByName = new Map<string, { id: string; name: string }>();
+          // Build a lookup of existing products by a stable composite key so we can
+          // UPDATE in-place without collapsing repeated package parents with same name.
+          const existingProductsByKey = new Map<string, Array<{ id: string; name: string; parent_product_id?: string | null; is_package_component?: boolean | null }>>();
+          const buildExistingProductKey = (product: any) => {
+            const normalizedName = (product.name || '').trim().toLowerCase();
+            const parentKey = product.parent_product_id || '__root__';
+            const typeKey = product.is_package_component === true ? 'pkg' : 'item';
+            return `${normalizedName}::${parentKey}::${typeKey}`;
+          };
           if (oldProducts) {
             for (const ep of oldProducts) {
-              existingProductsByName.set((ep.name || '').trim().toLowerCase(), ep);
+              const bucketKey = buildExistingProductKey(ep);
+              const bucket = existingProductsByKey.get(bucketKey) || [];
+              bucket.push(ep);
+              existingProductsByKey.set(bucketKey, bucket);
             }
           }
           // ────────────────────────────────────────────────────────────────────────
