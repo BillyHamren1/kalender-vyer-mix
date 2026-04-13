@@ -24,11 +24,11 @@ const config: CapacitorConfig = {
     backgroundColor: '#0A0A0B',
     allowsLinkPreview: false,
     infoPlist: {
-      NSCameraUsageDescription: 'EventFlow uses the camera to scan barcodes, QR codes, and capture images for work-related tasks.',
-      NSPhotoLibraryUsageDescription: 'EventFlow uses the photo library when selecting or attaching images related to work tasks.',
-      NSPhotoLibraryAddUsageDescription: 'EventFlow may save images to your photo library when handling work-related media.',
-      NSLocationWhenInUseUsageDescription: 'EventFlow uses your location to show nearby delivery addresses and optimize route planning.',
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'EventFlow uses your location to show nearby delivery addresses and optimize route planning.',
+      NSCameraUsageDescription: 'EventFlow Scanner uses the camera to scan barcodes and QR codes for packing and warehouse workflows.',
+      NSPhotoLibraryUsageDescription: 'EventFlow Scanner may access the photo library when selecting images related to scanning workflows.',
+      NSPhotoLibraryAddUsageDescription: 'EventFlow Scanner may save images related to scanning workflows.',
+      NSLocationWhenInUseUsageDescription: 'EventFlow Scanner uses your location to show nearby delivery addresses and optimize route planning.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'EventFlow Scanner uses your location to show nearby delivery addresses and optimize route planning.',
     },
   },
   plugins: {
