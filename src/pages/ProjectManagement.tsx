@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Archive, Search } from "lucide-react";
+import { Plus, FolderKanban, Archive, Search, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +17,7 @@ import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidget
 import OrphanBookingsWarning from "@/components/project/OrphanBookingsWarning";
 import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'all';
