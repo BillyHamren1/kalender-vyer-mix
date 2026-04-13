@@ -1321,10 +1321,13 @@ const expandPackageComponents = async (
   bookingId: string,
   orgId?: string
 ): Promise<number> => {
+  const normalizeComponentName = (value: string | null | undefined) =>
+    (value || '').replace(/^\s*--\s*/, '').trim().toLowerCase();
+
   // Fetch all products for this booking
   const { data: products, error } = await supabase
     .from('booking_products')
-    .select('id, name, package_components, sort_index, inventory_package_id, is_package_component')
+    .select('id, name, quantity, package_components, sort_index, inventory_package_id, is_package_component, parent_product_id')
     .eq('booking_id', bookingId);
 
   if (error || !products || products.length === 0) return 0;
@@ -1336,41 +1339,35 @@ const expandPackageComponents = async (
 
   if (parentsWithComponents.length === 0) return 0;
 
-  // Collect names of already-expanded components (strip leading "  -- " prefix)
-  const existingComponentNames = new Set(
-    products
-      .filter((p: any) => p.is_package_component === true)
-      .map((c: any) => (c.name || '').replace(/^\s*--\s*/, '').trim().toLowerCase())
-  );
-
   let totalExpanded = 0;
 
   for (const parent of parentsWithComponents) {
     const parentId = parent.id;
     const parentInventoryPackageId = parent.inventory_package_id || null;
     const parentSortIndex = parent.sort_index ?? 0;
+    const parentQuantity = Math.max(Number(parent.quantity) || 1, 1);
 
-    const componentsToExpand = parent.package_components.filter((comp: any) => {
-      const compName = (comp.name || '').trim().toLowerCase();
-      return !existingComponentNames.has(compName);
-    });
+    const existingComponentsForParent = new Map(
+      products
+        .filter((p: any) => p.is_package_component === true && p.parent_product_id === parentId)
+        .map((p: any) => [normalizeComponentName(p.name), p])
+    );
 
-    if (componentsToExpand.length === 0) {
-      console.log(`[Package Expand] All components for "${parent.name}" already exist as rows`);
-      continue;
-    }
+    console.log(`[Package Expand] Reconciling ${parent.package_components.length} components for parent "${parent.name}" (ID: ${parentId}, qty: ${parentQuantity})`);
 
-    console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name}" (ID: ${parentId})`);
-
-    for (let i = 0; i < componentsToExpand.length; i++) {
-      const comp = componentsToExpand[i];
+    for (let i = 0; i < parent.package_components.length; i++) {
+      const comp = parent.package_components[i];
+      const componentName = comp.name || 'Okänd komponent';
+      const componentKey = normalizeComponentName(componentName);
       const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
+      const desiredQuantity = (Number(comp.quantity) || 1) * parentQuantity;
+      const existingComponent = existingComponentsForParent.get(componentKey);
 
       const componentData: ProductData = {
         booking_id: bookingId,
         organization_id: orgId || '',
-        name: `  -- ${comp.name || 'Okänd komponent'}`,
-        quantity: comp.quantity || 1,
+        name: `  -- ${componentName}`,
+        quantity: desiredQuantity,
         unit_price: 0,
         total_price: 0,
         parent_product_id: parentId,
@@ -1391,16 +1388,42 @@ const expandPackageComponents = async (
         vat_rate: 0,
       };
 
+      if (existingComponent) {
+        if (
+          Number(existingComponent.quantity) !== desiredQuantity ||
+          existingComponent.parent_product_id !== parentId
+        ) {
+          const { error: updateError } = await supabase
+            .from('booking_products')
+            .update({
+              quantity: desiredQuantity,
+              parent_product_id: parentId,
+              parent_package_id: parentInventoryPackageId,
+              inventory_package_id: parentInventoryPackageId,
+              sort_index: componentSortIndex,
+            })
+            .eq('id', existingComponent.id);
+
+          if (updateError) {
+            console.error(`[Package Expand] Error updating component "${componentName}":`, updateError);
+          } else {
+            totalExpanded++;
+            console.log(`[Package Expand] Updated component "${componentName}" to qty ${desiredQuantity} for parent "${parent.name}"`);
+          }
+        }
+
+        continue;
+      }
+
       const { error: compError } = await supabase
         .from('booking_products')
         .insert(componentData);
 
       if (compError) {
-        console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+        console.error(`[Package Expand] Error inserting component "${componentName}":`, compError);
       } else {
         totalExpanded++;
-        existingComponentNames.add((comp.name || '').trim().toLowerCase());
-        console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name}"`);
+        console.log(`[Package Expand] Inserted component "${componentName}" (qty: ${desiredQuantity}) for parent "${parent.name}"`);
       }
     }
   }
