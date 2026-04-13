@@ -152,7 +152,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       console.log('[QRScanner] Starting camera, platform:', Capacitor.getPlatform());
 
       // Safety net: if we're still in 'starting' after 15s, force error state.
-      // This catches any edge case where getUserMedia/play hangs beyond individual timeouts.
       if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
       startingTimeoutRef.current = setTimeout(() => {
         if (mountedRef.current) {
@@ -160,7 +159,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           setCameraState(prev => {
             if (prev === 'starting') {
               setError('Kameran svarade inte. Använd hårdvaruscan eller manuell inmatning.');
-              // Clean up any partial stream
               if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
                 streamRef.current = null;
@@ -173,7 +171,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }, 15000);
 
       // On native platforms, try to check/request permission via Web API
-      // (NOT @capacitor/camera which is for photo capture, not getUserMedia)
       // On Android, try Web Permissions API (skip on iOS — it can hang in WKWebView)
       const isIosNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
       if (Capacitor.isNativePlatform() && !isIosNative) {
@@ -198,24 +195,55 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       }
 
-      // Use simpler constraints on iOS to avoid hanging
+      // --- getUserMedia with iOS fallback ---
       const isIos = isIosNative || /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const constraints: MediaStreamConstraints = {
+
+      const preferredConstraints: MediaStreamConstraints = {
         video: isIos
-          ? { facingMode: 'environment' }
-          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          ? { facingMode: { ideal: 'environment' } }
+          : {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
         audio: false,
       };
 
-      console.log('[QRScanner] Requesting getUserMedia, iOS:', isIos);
-      
-      // Wrap getUserMedia in a timeout — on some Android WebViews it hangs forever
-      const stream = await Promise.race([
-        navigator.mediaDevices.getUserMedia(constraints),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('getUserMedia timeout efter 10s — kameran svarar inte.')), 10000)
-        ),
-      ]);
+      const fallbackConstraints: MediaStreamConstraints = {
+        video: true,
+        audio: false,
+      };
+
+      const getUserMediaWithTimeout = async (
+        mediaConstraints: MediaStreamConstraints
+      ): Promise<MediaStream> => {
+        return await Promise.race([
+          navigator.mediaDevices.getUserMedia(mediaConstraints),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    'getUserMedia timeout efter 10s — kameran svarar inte.'
+                  )
+                ),
+              10000
+            )
+          ),
+        ]);
+      };
+
+      let stream: MediaStream;
+
+      try {
+        console.log('[QRScanner] Requesting preferred getUserMedia constraints, iOS:', isIos);
+        stream = await getUserMediaWithTimeout(preferredConstraints);
+      } catch (primaryError) {
+        if (!isIos) throw primaryError;
+        console.warn('[QRScanner] Preferred iOS constraints failed, retrying with fallback video:true', primaryError);
+        stream = await getUserMediaWithTimeout(fallbackConstraints);
+      }
+
       console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
 
       if (!mountedRef.current) {
@@ -229,33 +257,94 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         const video = videoRef.current;
         video.srcObject = stream;
 
-        // Wait for video to be ready with event-based detection + timeout
+        // --- Robust video start: listen for multiple readiness signals ---
+        // WKWebView on iOS may not fire 'playing' reliably after play().
+        // We accept any of: playing, loadedmetadata, canplay, or already-ready state.
         await new Promise<void>((resolve, reject) => {
+          let settled = false;
+
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+          };
+
+          const fail = (message: string) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error(message));
+          };
+
+          const cleanup = () => {
+            clearTimeout(timeout);
+            video.removeEventListener('playing', onPlaying);
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('canplay', onCanPlay);
+          };
+
           const timeout = setTimeout(() => {
-            console.warn('[QRScanner] Video start timeout after 8s');
-            if (!video.paused && video.readyState >= video.HAVE_CURRENT_DATA) {
-              console.log('[QRScanner] Video appears to be playing despite timeout');
-              resolve();
+            console.warn('[QRScanner] Video start timeout after 8s', {
+              readyState: video.readyState,
+              paused: video.paused,
+              videoWidth: video.videoWidth,
+              videoHeight: video.videoHeight,
+            });
+
+            if (
+              video.readyState >= HTMLMediaElement.HAVE_METADATA ||
+              video.videoWidth > 0 ||
+              video.videoHeight > 0 ||
+              !video.paused
+            ) {
+              console.log('[QRScanner] Video appears ready despite missing playing event');
+              finish();
             } else {
-              reject(new Error('Kameran svarade inte i tid. Försök igen.'));
+              fail('Kameran svarade inte i tid. Försök igen.');
             }
           }, 8000);
 
           const onPlaying = () => {
-            clearTimeout(timeout);
-            video.removeEventListener('playing', onPlaying);
             console.log('[QRScanner] Video playing event fired');
-            resolve();
+            finish();
           };
-          video.addEventListener('playing', onPlaying);
 
-          // Trigger play
-          video.play().catch((e: any) => {
-            clearTimeout(timeout);
-            video.removeEventListener('playing', onPlaying);
-            console.warn('[QRScanner] play() rejected:', e);
-            reject(new Error('Kameran kunde inte startas: ' + (e.message || e)));
-          });
+          const onLoadedMetadata = () => {
+            console.log('[QRScanner] Video loadedmetadata fired');
+            if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+              finish();
+            }
+          };
+
+          const onCanPlay = () => {
+            console.log('[QRScanner] Video canplay fired');
+            finish();
+          };
+
+          video.addEventListener('playing', onPlaying);
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          video.addEventListener('canplay', onCanPlay);
+
+          // Ensure attributes are set for iOS WKWebView
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('autoplay', 'true');
+          video.muted = true;
+
+          const playResult = video.play();
+
+          if (playResult && typeof playResult.catch === 'function') {
+            playResult.catch((e: any) => {
+              console.warn('[QRScanner] play() rejected:', e);
+              fail('Kameran kunde inte startas: ' + (e.message || e));
+            });
+          }
+
+          // If video already has metadata (e.g. from a previous stream), resolve immediately
+          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            console.log('[QRScanner] Video already had metadata immediately');
+            finish();
+          }
         });
 
         if (!mountedRef.current) return;
