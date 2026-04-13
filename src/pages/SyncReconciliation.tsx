@@ -597,14 +597,14 @@ const ScheduleAuditTab = () => {
 
       if (localErr) throw localErr;
 
-      // Fetch external data via sync-reconciliation raw
+      // Fetch external data via sync-reconciliation raw-dump
       const { data: extData, error: extErr } = await supabase.functions.invoke('sync-reconciliation', {
-        body: { action: 'raw-bookings' }
+        body: { action: 'raw-dump' }
       });
       if (extErr) throw extErr;
 
-      const extBookings: RawBooking[] = extData?.bookings || [];
-      const extMap = new Map<string, RawBooking>();
+      const extBookings: any[] = extData?.bookings || [];
+      const extMap = new Map<string, any>();
       for (const eb of extBookings) {
         extMap.set(eb.id, eb);
       }
