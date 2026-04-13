@@ -615,16 +615,30 @@ const RawDataTab = () => {
     enabled: false,
   });
 
+  const [showOnlyWithTimes, setShowOnlyWithTimes] = useState(false);
+
   const bookings = data?.bookings || [];
+
+  const hasCustomTimes = (b: RawBooking) =>
+    !!(b.rig_start_time || b.rig_end_time || b.event_start_time || b.event_end_time || b.rigdown_start_time || b.rigdown_end_time);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return bookings;
-    const q = search.toLowerCase();
-    return bookings.filter(b =>
-      (b.booking_number || '').toLowerCase().includes(q) ||
-      (b.client || '').toLowerCase().includes(q) ||
-      (b.id || '').toLowerCase().includes(q)
-    );
-  }, [bookings, search]);
+    let result = bookings;
+    if (showOnlyWithTimes) {
+      result = result.filter(hasCustomTimes);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(b =>
+        (b.booking_number || '').toLowerCase().includes(q) ||
+        (b.client || '').toLowerCase().includes(q) ||
+        (b.id || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [bookings, search, showOnlyWithTimes]);
+
+  const withTimesCount = useMemo(() => bookings.filter(hasCustomTimes).length, [bookings]);
 
   return (
     <div className="space-y-4">
