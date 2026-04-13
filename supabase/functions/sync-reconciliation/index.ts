@@ -591,11 +591,7 @@ Deno.serve(async (req) => {
             normLocal = normalizeStatus(normLocal as string);
           }
 
-          // If local is empty/null, treat as match (Planning hasn't stored a value yet)
-          // BUT never skip status — it must always be compared
-          if (
-            key !== "status" && (normLocal === null || normLocal === undefined)
-          ) continue;
+          // Compare ALL fields — if local is null but external has a value, flag it
 
           // For time fields: if Booking has no value but Planning does,
           // it means Planning assigned the time locally — skip comparison
