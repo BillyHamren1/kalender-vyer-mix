@@ -689,11 +689,22 @@ Deno.serve(async (req) => {
           }
         }
 
-        // STEP 2: Compare only products that exist on BOTH sides
+        // STEP 2: Compare products — flag missing local products too
         for (const [name, extP] of extProductNames) {
           const localP = localProductNames.get(name);
           if (!localP) {
-            continue; // Planning saknar produkten = räkna som match
+            discrepancies.push({
+              bookingId,
+              bookingNumber,
+              client: clientName,
+              bookingStatus,
+              field: `_product_missing:${name}`,
+              category: "products",
+              localValue: null,
+              externalValue: `${name} (antal: ${extP.quantity || 1})`,
+              label: `Produkt saknas lokalt: ${name}`,
+            });
+            continue;
           }
           // Compare each product field
           for (const { key, label } of productFields) {
