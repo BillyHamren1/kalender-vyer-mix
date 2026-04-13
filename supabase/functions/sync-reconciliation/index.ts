@@ -491,13 +491,28 @@ Deno.serve(async (req) => {
           }
         }
 
-        for (const [name] of localProductNames) {
+        // Auto-delete extra local products (not in Booking = should not exist locally)
+        for (const [name, localP] of localProductNames) {
           if (!extProductNames.has(name)) {
+            const productId = localP.id;
+            if (productId) {
+              const { error: delErr } = await supabase
+                .from('booking_products')
+                .delete()
+                .eq('id', productId);
+              
+              if (delErr) {
+                console.error(`[sync-recon] Failed to delete extra local product "${name}" (${productId}):`, delErr.message);
+              } else {
+                console.log(`[sync-recon] 🗑️ Deleted extra local product "${name}" (${productId}) from booking ${bookingId}`);
+              }
+            }
+            
             discrepancies.push({
               bookingId, bookingNumber, client: clientName, bookingStatus,
               field: `_product_extra:${name}`, category: 'products',
-              localValue: `${name} finns lokalt`, externalValue: null,
-              label: `Extra lokal produkt: ${name}`
+              localValue: `${name} raderad`, externalValue: null,
+              label: `Extra lokal produkt raderad: ${name}`
             });
           }
         }
