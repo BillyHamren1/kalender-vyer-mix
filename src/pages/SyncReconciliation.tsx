@@ -542,6 +542,321 @@ const DetailedReconciliationTab = () => {
   );
 };
 
+// ── Schedule Audit Tab ────────────────────────────────────────────────────
+
+interface ScheduleRow {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string;
+  localRigdaydate: string | null;
+  localEventdate: string | null;
+  localRigdowndate: string | null;
+  localRigStart: string | null;
+  localRigEnd: string | null;
+  localEventStart: string | null;
+  localEventEnd: string | null;
+  localRigdownStart: string | null;
+  localRigdownEnd: string | null;
+  extRigdaydate: string | null;
+  extEventdate: string | null;
+  extRigdowndate: string | null;
+  extRigStart: string | null;
+  extRigEnd: string | null;
+  extEventStart: string | null;
+  extEventEnd: string | null;
+  extRigdownStart: string | null;
+  extRigdownEnd: string | null;
+  hasDiscrepancy: boolean;
+  discrepancyFields: string[];
+}
+
+const normalizeDate = (d: string | null): string | null => {
+  if (!d) return null;
+  return d.substring(0, 10);
+};
+
+const normalizeTime = (t: string | null): string | null => {
+  if (!t) return null;
+  // Strip to HH:MM
+  const match = t.match(/(\d{2}:\d{2})/);
+  return match ? match[1] : t;
+};
+
+const ScheduleAuditTab = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const { data, isLoading, refetch, isFetching } = useQuery<ScheduleRow[]>({
+    queryKey: ['schedule-audit'],
+    queryFn: async () => {
+      // Fetch local bookings (confirmed)
+      const { data: localBookings, error: localErr } = await supabase
+        .from('bookings')
+        .select('id, booking_number, client, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+        .eq('status', 'CONFIRMED')
+        .order('eventdate', { ascending: true });
+
+      if (localErr) throw localErr;
+
+      // Fetch external data via sync-reconciliation raw
+      const { data: extData, error: extErr } = await supabase.functions.invoke('sync-reconciliation', {
+        body: { action: 'raw-bookings' }
+      });
+      if (extErr) throw extErr;
+
+      const extBookings: RawBooking[] = extData?.bookings || [];
+      const extMap = new Map<string, RawBooking>();
+      for (const eb of extBookings) {
+        extMap.set(eb.id, eb);
+      }
+
+      const rows: ScheduleRow[] = (localBookings || []).map((lb) => {
+        const ext = extMap.get(lb.id);
+        const discFields: string[] = [];
+
+        const cmpDate = (field: string, local: string | null, external: string | null) => {
+          const nl = normalizeDate(local);
+          const ne = normalizeDate(external);
+          if (nl !== ne) discFields.push(field);
+        };
+        const cmpTime = (field: string, local: string | null, external: string | null) => {
+          const nl = normalizeTime(local);
+          const ne = normalizeTime(external);
+          // Only flag if both have values and differ
+          if (nl && ne && nl !== ne) discFields.push(field);
+        };
+
+        if (ext) {
+          cmpDate('rigdaydate', lb.rigdaydate, ext.rigdaydate);
+          cmpDate('eventdate', lb.eventdate, ext.eventdate);
+          cmpDate('rigdowndate', lb.rigdowndate, ext.rigdowndate);
+          cmpTime('rig_start', lb.rig_start_time, ext.rig_start_time);
+          cmpTime('rig_end', lb.rig_end_time, ext.rig_end_time);
+          cmpTime('event_start', lb.event_start_time, ext.event_start_time);
+          cmpTime('event_end', lb.event_end_time, ext.event_end_time);
+          cmpTime('rigdown_start', lb.rigdown_start_time, ext.rigdown_start_time);
+          cmpTime('rigdown_end', lb.rigdown_end_time, ext.rigdown_end_time);
+        }
+
+        return {
+          bookingId: lb.id,
+          bookingNumber: lb.booking_number,
+          client: lb.client,
+          localRigdaydate: lb.rigdaydate,
+          localEventdate: lb.eventdate,
+          localRigdowndate: lb.rigdowndate,
+          localRigStart: lb.rig_start_time,
+          localRigEnd: lb.rig_end_time,
+          localEventStart: lb.event_start_time,
+          localEventEnd: lb.event_end_time,
+          localRigdownStart: lb.rigdown_start_time,
+          localRigdownEnd: lb.rigdown_end_time,
+          extRigdaydate: ext?.rigdaydate || null,
+          extEventdate: ext?.eventdate || null,
+          extRigdowndate: ext?.rigdowndate || null,
+          extRigStart: ext?.rig_start_time || null,
+          extRigEnd: ext?.rig_end_time || null,
+          extEventStart: ext?.event_start_time || null,
+          extEventEnd: ext?.event_end_time || null,
+          extRigdownStart: ext?.rigdown_start_time || null,
+          extRigdownEnd: ext?.rigdown_end_time || null,
+          hasDiscrepancy: discFields.length > 0,
+          discrepancyFields: discFields,
+        };
+      });
+
+      // Sort: discrepancies first, then by event date
+      rows.sort((a, b) => {
+        if (a.hasDiscrepancy && !b.hasDiscrepancy) return -1;
+        if (!a.hasDiscrepancy && b.hasDiscrepancy) return 1;
+        return (a.localEventdate || '').localeCompare(b.localEventdate || '');
+      });
+
+      return rows;
+    },
+    enabled: false,
+  });
+
+  const rows = data || [];
+  const filtered = searchTerm.trim()
+    ? rows.filter(r =>
+        (r.bookingNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.client.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : rows;
+  const discCount = rows.filter(r => r.hasDiscrepancy).length;
+
+  const DateCell = ({ local, ext, field, discFields }: { local: string | null; ext: string | null; field: string; discFields: string[] }) => {
+    const isDiff = discFields.includes(field);
+    const localVal = normalizeDate(local) || '—';
+    const extVal = normalizeDate(ext) || '—';
+
+    if (isDiff) {
+      return (
+        <div className="space-y-0.5">
+          <div className="text-xs text-red-600 font-medium line-through">{extVal} <span className="text-muted-foreground font-normal">(Booking)</span></div>
+          <div className="text-xs font-semibold">{localVal} <span className="text-muted-foreground font-normal">(Planning)</span></div>
+        </div>
+      );
+    }
+    return <span className="text-xs">{localVal}</span>;
+  };
+
+  const TimeCell = ({ local, ext, field, discFields }: { local: string | null; ext: string | null; field: string; discFields: string[] }) => {
+    const isDiff = discFields.includes(field);
+    const localVal = normalizeTime(local) || '—';
+    const extVal = normalizeTime(ext) || '—';
+
+    if (isDiff) {
+      return (
+        <div className="space-y-0.5">
+          <div className="text-xs text-red-600 font-medium line-through">{extVal}</div>
+          <div className="text-xs font-semibold">{localVal}</div>
+        </div>
+      );
+    }
+    return <span className="text-xs text-muted-foreground">{localVal}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Datumöversikt — CONFIRMED</h2>
+          <p className="text-sm text-muted-foreground">Alla bokningars rigg-, event- och nedriggdatum jämfört med Booking-systemet</p>
+        </div>
+        <Button onClick={() => refetch()} disabled={isFetching} size="lg">
+          {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          {data ? 'Uppdatera' : 'Hämta datumdata'}
+        </Button>
+      </div>
+
+      {isLoading || isFetching ? (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Hämtar datum från båda system...</p>
+          </CardContent>
+        </Card>
+      ) : data ? (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <Card>
+              <CardContent className="py-3 px-4 text-center">
+                <p className="text-2xl font-bold">{rows.length}</p>
+                <p className="text-xs text-muted-foreground">Totalt</p>
+              </CardContent>
+            </Card>
+            <Card className={discCount > 0 ? 'border-red-300' : ''}>
+              <CardContent className="py-3 px-4 text-center">
+                <p className={`text-2xl font-bold ${discCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{discCount}</p>
+                <p className="text-xs text-muted-foreground">Avvikelser</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-3 px-4 text-center">
+                <p className="text-2xl font-bold text-green-600">{rows.length - discCount}</p>
+                <p className="text-xs text-muted-foreground">OK</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+            <Input
+              placeholder="Sök bokning..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs w-[80px]">Bokning</TableHead>
+                      <TableHead className="text-xs w-[120px]">Kund</TableHead>
+                      <TableHead className="text-xs text-center" colSpan={2}>Rigg</TableHead>
+                      <TableHead className="text-xs text-center" colSpan={2}>Event</TableHead>
+                      <TableHead className="text-xs text-center" colSpan={2}>Nedrigg</TableHead>
+                      <TableHead className="text-xs w-[60px]">Status</TableHead>
+                    </TableRow>
+                    <TableRow className="border-b-2">
+                      <TableHead />
+                      <TableHead />
+                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
+                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
+                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
+                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
+                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
+                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((row) => (
+                      <TableRow key={row.bookingId} className={row.hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                        <TableCell className="font-mono text-xs font-medium">
+                          {row.bookingNumber || row.bookingId.substring(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-xs truncate max-w-[120px]">{row.client}</TableCell>
+                        <TableCell>
+                          <DateCell local={row.localRigdaydate} ext={row.extRigdaydate} field="rigdaydate" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          <TimeCell local={row.localRigStart} ext={row.extRigStart} field="rig_start" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell local={row.localEventdate} ext={row.extEventdate} field="eventdate" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          <TimeCell local={row.localEventStart} ext={row.extEventStart} field="event_start" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell local={row.localRigdowndate} ext={row.extRigdowndate} field="rigdowndate" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          <TimeCell local={row.localRigdownStart} ext={row.extRigdownStart} field="rigdown_start" discFields={row.discrepancyFields} />
+                        </TableCell>
+                        <TableCell>
+                          {row.hasDiscrepancy ? (
+                            <Badge variant="destructive" className="text-[10px] px-1.5">
+                              {row.discrepancyFields.length} avv.
+                            </Badge>
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filtered.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          Inga bokningar matchar sökningen
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
+            <RefreshCw className="h-12 w-12 text-muted-foreground" />
+            <p className="text-lg font-semibold">Redo att hämta</p>
+            <p className="text-muted-foreground text-sm">Klicka "Hämta datumdata" för att jämföra datum mot bokningssystemet</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
 // ── Raw Data Tab ─────────────────────────────────────────────────────────
 
 interface RawBooking {
