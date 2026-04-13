@@ -47,8 +47,20 @@ const ProjectManagement = () => {
     const t0 = performance.now();
     console.group('[ProjectSync] Starting incremental sync');
     try {
+      // Resolve organization_id (same pattern as useRefreshBooking)
+      const { data: { user } } = await supabase.auth.getUser();
+      let orgId: string | undefined;
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single();
+        orgId = profile?.organization_id ?? undefined;
+      }
+
       const { data, error } = await supabase.functions.invoke('import-bookings', {
-        body: { syncMode: 'incremental' },
+        body: { syncMode: 'incremental', organization_id: orgId },
       });
 
       const elapsed = Math.round(performance.now() - t0);
