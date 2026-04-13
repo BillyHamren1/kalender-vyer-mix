@@ -329,9 +329,10 @@ Deno.serve(async (req) => {
         page++;
       }
 
-      const bookings = rawExternalBookings.map((ext: any) => {
-        const normalized = normalizeExternalBooking(ext);
-        return {
+      const bookings = rawExternalBookings
+        .map((ext: any) => ({ ext, normalized: normalizeExternalBooking(ext) }))
+        .filter(({ normalized }) => normalized.status === "CONFIRMED")
+        .map(({ ext, normalized }) => ({
           id: ext.id,
           booking_number: normalized.booking_number,
           client: normalized.client,
@@ -375,8 +376,7 @@ Deno.serve(async (req) => {
             file_name: a.file_name || a.fileName || a.name || '',
             file_type: a.file_type || a.fileType || a.type || '',
           })),
-        };
-      });
+        }));
 
       return new Response(
         JSON.stringify({ bookings, total: bookings.length }),
