@@ -1735,7 +1735,36 @@ serve(async (req) => {
       return payload;
     };
 
-    let externalData = await fetchExternalData(apiUrl);
+    // Paginated fetch for full-sync mode (not single-booking or incremental)
+    const isFullSync = !isSingleBookingRefresh && syncMode !== 'incremental';
+    let externalData: { data: any[] };
+    
+    if (isFullSync) {
+      // Fetch ALL bookings with pagination
+      let allBookings: any[] = [];
+      let page = 1;
+      const pageSize = 500;
+      
+      while (true) {
+        const pageParams = new URLSearchParams(apiParams.toString());
+        pageParams.set('page', String(page));
+        pageParams.set('limit', String(pageSize));
+        
+        const pageUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${pageParams.toString()}`;
+        const pageData = await fetchExternalData(pageUrl);
+        allBookings = allBookings.concat(pageData.data);
+        
+        console.log(`[import] Page ${page}: fetched ${pageData.data.length} bookings (total so far: ${allBookings.length})`);
+        
+        if (pageData.data.length < pageSize) break;
+        page++;
+      }
+      
+      console.log(`[import] Total external bookings fetched: ${allBookings.length} across ${page} page(s)`);
+      externalData = { data: allBookings };
+    } else {
+      externalData = await fetchExternalData(apiUrl);
+    }
 
     // For booking-specific syncs: poll using booking_id (never timestamp-only) before giving up.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {

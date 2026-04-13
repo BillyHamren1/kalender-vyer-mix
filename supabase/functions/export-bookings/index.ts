@@ -135,40 +135,71 @@ function getFiltersFromUrl(url: string) {
     startDate: urlObj.searchParams.get('startDate'),
     endDate: urlObj.searchParams.get('endDate'),
     clientName: urlObj.searchParams.get('client'),
-    timestamp: urlObj.searchParams.get('timestamp') // New timestamp parameter
+    timestamp: urlObj.searchParams.get('timestamp'),
+    page: urlObj.searchParams.get('page') ? parseInt(urlObj.searchParams.get('page')!) : null,
+    limit: urlObj.searchParams.get('limit') ? parseInt(urlObj.searchParams.get('limit')!) : null,
   }
 }
 
 // Fetch CONFIRMED bookings with filters applied (for full exports only)
+// Supports pagination via page/limit params and handles Supabase's 1000-row default limit
 async function fetchFilteredConfirmedBookings(supabase, filters) {
-  // Build base query for CONFIRMED bookings only
-  let query = supabase
-    .from('bookings')
-    .select()
-    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings for full exports
-    .order('eventdate', { ascending: true })
-  
-  // Apply filters
-  if (filters.startDate) {
-    query = query.gte('eventdate', filters.startDate)
+  // If page/limit provided, use range-based pagination
+  if (filters.page && filters.limit) {
+    const from = (filters.page - 1) * filters.limit;
+    const to = from + filters.limit - 1;
+    
+    let query = supabase
+      .from('bookings')
+      .select()
+      .eq('status', 'CONFIRMED')
+      .order('eventdate', { ascending: true })
+      .range(from, to)
+    
+    if (filters.startDate) query = query.gte('eventdate', filters.startDate)
+    if (filters.endDate) query = query.lte('eventdate', filters.endDate)
+    if (filters.clientName) query = query.ilike('client', `%${filters.clientName}%`)
+    
+    const { data, error } = await query
+    if (error) {
+      console.error('Error fetching CONFIRMED bookings:', error)
+      throw new Error(`Failed to fetch CONFIRMED bookings: ${error.message}`)
+    }
+    
+    console.log(`📄 Page ${filters.page} (limit ${filters.limit}): returned ${(data || []).length} bookings`)
+    return data
   }
   
-  if (filters.endDate) {
-    query = query.lte('eventdate', filters.endDate)
+  // No pagination params: fetch ALL rows using internal pagination to avoid 1000-row limit
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  
+  while (true) {
+    let query = supabase
+      .from('bookings')
+      .select()
+      .eq('status', 'CONFIRMED')
+      .order('eventdate', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+    
+    if (filters.startDate) query = query.gte('eventdate', filters.startDate)
+    if (filters.endDate) query = query.lte('eventdate', filters.endDate)
+    if (filters.clientName) query = query.ilike('client', `%${filters.clientName}%`)
+    
+    const { data, error } = await query
+    if (error) {
+      console.error('Error fetching CONFIRMED bookings:', error)
+      throw new Error(`Failed to fetch CONFIRMED bookings: ${error.message}`)
+    }
+    
+    allData = allData.concat(data || [])
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
   }
   
-  if (filters.clientName) {
-    query = query.ilike('client', `%${filters.clientName}%`)
-  }
-  
-  const { data, error } = await query
-  
-  if (error) {
-    console.error('Error fetching CONFIRMED bookings:', error)
-    throw new Error(`Failed to fetch CONFIRMED bookings: ${error.message}`)
-  }
-  
-  return data
+  console.log(`📄 Fetched all ${allData.length} CONFIRMED bookings (no pagination params, ${Math.ceil(allData.length / PAGE_SIZE)} internal page(s))`)
+  return allData
 }
 
 // Fetch ALL bookings updated since a specific timestamp (for incremental updates - includes ALL statuses)
