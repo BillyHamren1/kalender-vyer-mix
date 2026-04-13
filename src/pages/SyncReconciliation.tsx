@@ -770,7 +770,6 @@ const RawDataTab = () => {
                       </div>
                       {!local && <p className="text-xs text-muted-foreground mt-1 italic">Ej hittad i Planning</p>}
                     </div>
-                    </div>
 
                     {/* Contact & Address */}
                     <div>
@@ -851,6 +850,8 @@ const RawDataTab = () => {
 
                   <div className="mt-3 text-xs text-muted-foreground">ID: {b.id}</div>
                 </AccordionContent>
+                    );
+                  })()}
               </AccordionItem>
               );
             })}
