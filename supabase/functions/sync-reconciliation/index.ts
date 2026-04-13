@@ -128,11 +128,24 @@ function normalizeExternalBooking(ext: any): any {
   const status = normalizeStatus(ext.status);
 
   // Products — normalize field names
-  const products = (ext.products || []).map((p: any) => ({
-    ...p,
-    name: p.name || p.product_name || p.productName || '',
-    sku: p.sku || p.article_number || null,
-  }));
+  const products = (ext.products || []).map((p: any) => {
+    const unitPrice = p.price ?? p.unit_price ?? p.rental_price ?? p.cost ?? null;
+    const quantity = p.quantity || 1;
+    const totalPrice = p.total ?? p.total_price ?? (unitPrice != null ? unitPrice * quantity : null);
+
+    return {
+      ...p,
+      name: p.name || p.product_name || p.productName || '',
+      sku: p.sku || p.article_number || null,
+      quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice,
+      discount: p.discount ?? 0,
+      assembly_cost: p.assembly_cost ?? p.labor_cost ?? p.work_cost ?? p.setup_cost ?? 0,
+      handling_cost: p.handling_cost ?? p.material_cost ?? 0,
+      purchase_cost: p.purchase_cost ?? p.external_cost ?? p.subrent_cost ?? 0,
+    };
+  });
 
   return {
     ...ext,
@@ -261,6 +274,12 @@ Deno.serve(async (req) => {
       const rawExternalBookings = externalData.data || [];
       // Normalize external field names to match local schema
       const externalBookings = rawExternalBookings.map(normalizeExternalBooking);
+      // Debug: log first booking's raw vs normalized products
+      if (rawExternalBookings.length > 0) {
+        const first = rawExternalBookings[0];
+        console.log('[sync-recon] RAW products sample:', JSON.stringify((first.products || []).slice(0, 2)));
+        console.log('[sync-recon] NORMALIZED products sample:', JSON.stringify((externalBookings[0].products || []).slice(0, 2)));
+      }
 
       // Fetch local bookings
       const { data: localBookings } = await supabase
