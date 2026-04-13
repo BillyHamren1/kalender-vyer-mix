@@ -542,6 +542,10 @@ Deno.serve(async (req) => {
         const rigDate = ext.rigdaydate || ext.eventdate;
         if (rigDate && rigDate < cutoffDate) continue;
 
+        // Only compare CONFIRMED bookings — OFFER/CANCELLED/etc should not be in Planning
+        const extStatus = normalizeStatus(ext.status);
+        if (extStatus !== "CONFIRMED") continue;
+
         const local = localBookingMap.get(bookingId);
         const bookingNumber = ext.booking_number || local?.booking_number ||
           null;
