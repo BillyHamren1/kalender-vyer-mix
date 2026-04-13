@@ -376,8 +376,7 @@ Deno.serve(async (req) => {
             file_name: a.file_name || a.fileName || a.name || '',
             file_type: a.file_type || a.fileType || a.type || '',
           })),
-        };
-      });
+        }));
 
       return new Response(
         JSON.stringify({ bookings, total: bookings.length }),
