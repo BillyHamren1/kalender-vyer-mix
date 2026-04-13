@@ -584,10 +584,12 @@ const normalizeTimeStr = (t: string | null | undefined): string | null => {
   return match ? match[1] : t;
 };
 
-const datesArraysMatch = (a: string[], b: string[]): boolean => {
-  if (a.length !== b.length) return false;
-  const sa = [...a].sort();
-  const sb = [...b].sort();
+const datesArraysMatch = (a?: string[], b?: string[]): boolean => {
+  const aa = a ?? [];
+  const bb = b ?? [];
+  if (aa.length !== bb.length) return false;
+  const sa = [...aa].sort();
+  const sb = [...bb].sort();
   return sa.every((v, i) => v === sb[i]);
 };
 
