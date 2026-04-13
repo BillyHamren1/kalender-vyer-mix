@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
 import { updateBookingDates, updateBookingDateWithTimes } from '@/services/bookingService';
-import { supabase } from '@/integrations/supabase/client';
 
 export const useBookingDates = (
   id: string | undefined,
@@ -183,17 +182,6 @@ export const useBookingDates = (
 
       // Update the booking in DB with date + times
       await updateBookingDateWithTimes(id, dateType, newDate, startTime, endTime);
-
-      // Sync calendar events via import-bookings (localOnly to avoid external API overwrite)
-      const { data: { user } } = await supabase.auth.getUser();
-      let orgId: string | undefined;
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('organization_id').eq('user_id', user.id).single();
-        orgId = profile?.organization_id ?? undefined;
-      }
-      await supabase.functions.invoke('import-bookings', {
-        body: { booking_id: id, syncMode: 'single', organization_id: orgId, localOnly: true },
-      });
 
       // Update local booking state
       const timeFieldMap = {

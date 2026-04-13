@@ -4,7 +4,6 @@ import { sv } from "date-fns/locale";
 import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react";
 import { EditDateDialog } from "@/components/booking/EditDateDialog";
 import { updateBookingDateWithTimes } from "@/services/bookingService";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface ProjectScheduleEditableProps {
@@ -85,18 +84,6 @@ const ProjectScheduleEditable = ({
   ) => {
     try {
       await updateBookingDateWithTimes(bookingId, eventType, newDate, startTime, endTime);
-
-      // Sync calendar events via import-bookings (localOnly to avoid external API overwrite)
-      const { data: { user } } = await supabase.auth.getUser();
-      let orgId: string | undefined;
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('organization_id').eq('user_id', user.id).single();
-        orgId = profile?.organization_id ?? undefined;
-      }
-      await supabase.functions.invoke('import-bookings', {
-        body: { booking_id: bookingId, syncMode: 'single', organization_id: orgId, localOnly: true },
-      });
-
       toast.success('Datum uppdaterat');
       onUpdated?.();
     } catch (error) {
