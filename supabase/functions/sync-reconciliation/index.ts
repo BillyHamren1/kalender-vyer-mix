@@ -366,10 +366,11 @@ Deno.serve(async (req) => {
         const local = localBookingMap.get(bookingId);
         const bookingNumber = ext.booking_number || local?.booking_number || null;
         const clientName = ext.client || local?.client || 'Okänd';
+        const bookingStatus = normalizeStatus(ext.status) || 'UNKNOWN';
 
         if (!local) {
           discrepancies.push({
-            bookingId, bookingNumber, client: clientName,
+            bookingId, bookingNumber, client: clientName, bookingStatus,
             field: '_missing_local', category: 'metadata',
             localValue: null, externalValue: 'exists',
             label: 'Bokning saknas lokalt'
@@ -425,7 +426,7 @@ Deno.serve(async (req) => {
               : label;
 
             discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
+              bookingId, bookingNumber, client: clientName, bookingStatus,
               field: key, category: 'metadata',
               localValue: normLocal, externalValue: normExt,
               label: effectiveLabel
@@ -457,7 +458,7 @@ Deno.serve(async (req) => {
               
               if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
                 discrepancies.push({
-                  bookingId, bookingNumber, client: clientName,
+                  bookingId, bookingNumber, client: clientName, bookingStatus,
                   field: `_product_field:${name}:${key}`, category: 'products',
                   localValue: normLocal, externalValue: normExt,
                   label: `${name} — ${label}`
@@ -470,7 +471,7 @@ Deno.serve(async (req) => {
         for (const [name] of localProductNames) {
           if (!extProductNames.has(name)) {
             discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
+              bookingId, bookingNumber, client: clientName, bookingStatus,
               field: `_product_extra:${name}`, category: 'products',
               localValue: `${name} finns lokalt`, externalValue: null,
               label: `Extra lokal produkt: ${name}`
@@ -549,7 +550,7 @@ Deno.serve(async (req) => {
             // Skip import-created attachments — only flag user-uploaded ones
             if (locAttachment?.source === 'import') continue;
             discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
+              bookingId, bookingNumber, client: clientName, bookingStatus,
               field: `_attachment_extra:${locEntry.displayName}`, category: 'attachments',
               localValue: locEntry.displayName, externalValue: null,
               label: `Extra lokal bilaga: ${locEntry.displayName}`
