@@ -2,60 +2,40 @@
 
 ## Problem
 
-`booking_attachments` has **9,092 rows but only 687 unique URLs** — massive duplication from repeated imports. The reconciliation tool currently only compares attachment counts, not actual content. The user wants:
-
-1. **Same attachment on both sides** → keep one copy, delete duplicates
-2. **Different attachments** → keep all (merge both sides)
+2,190 package component rows (`is_package_component = true`) in `booking_products` are showing as "Extra lokal produkt" in the reconciliation view. These are sub-components of packages (e.g., "-- M Krysstag", "-- M Snabblås") that don't exist as separate products in the external Booking API. They were created during import as package breakdowns and should be deleted.
 
 ## Plan
 
-### Step 1: Clean up existing duplicates in `booking_attachments`
+### Step 1: Delete all package component rows from the database
 
-Run a data operation to deduplicate — for each `(booking_id, url)` combo, keep one row, delete the rest. This alone should reduce ~9,092 rows to ~687.
-
-```sql
-DELETE FROM booking_attachments
-WHERE id NOT IN (
-  SELECT DISTINCT ON (booking_id, split_part(url, '?', 1)) id
-  FROM booking_attachments
-  ORDER BY booking_id, split_part(url, '?', 1), uploaded_at ASC
-);
-```
-
-### Step 2: Update `sync-reconciliation` attachment comparison
-
-Replace the simple count comparison (lines 453-468) with URL-based comparison:
-
-- Normalize URLs by stripping query params (same logic as `import-bookings`)
-- Identify attachments **only in Booking** (external) → flag for import
-- Identify attachments **only in Planning** (local) → flag as extra local
-- Identify attachments **in both** (same URL base) → mark as synced, no action needed
-- Report individual missing/extra attachments instead of just count differences
-
-### Step 3: Update `sync-reconciliation` apply logic
-
-For attachment corrections:
-- **Missing locally (exists in Booking only)**: trigger `import-bookings` for that booking to pull them in (already does this)
-- **Extra locally (exists in Planning only)**: keep them — they may be map snapshots or manually uploaded files
-- **Duplicates**: the dedup in Step 1 handles historical mess; prevent future dupes by ensuring `import-bookings` dedup logic (which already exists via `seenUrls` set) works correctly
-
-### Step 4: Add unique constraint to prevent future duplicates
-
-Add a migration with a unique index on `(booking_id, url_base)` or use a partial unique index to prevent the same URL from being inserted twice per booking.
+Create a migration that removes all rows where `is_package_component = true`:
 
 ```sql
-CREATE UNIQUE INDEX IF NOT EXISTS booking_attachments_booking_url_unique 
-ON booking_attachments (booking_id, split_part(url, '?', 1));
+DELETE FROM booking_products WHERE is_package_component = true;
 ```
+
+This removes ~2,190 rows, leaving ~1,613 actual products.
+
+### Step 2: Filter package components in reconciliation comparison
+
+Update `sync-reconciliation/index.ts` (line ~305) to exclude `is_package_component` products from the local comparison set so they never appear as "extra local" even if re-imported:
+
+```typescript
+for (const p of (localProducts || [])) {
+  if (p.is_package_component) continue;  // skip package components
+  const arr = localProductsByBooking.get(p.booking_id) || [];
+  arr.push(p);
+  localProductsByBooking.set(p.booking_id, arr);
+}
+```
+
+### Step 3: Also ensure the "Alla" view shows metadata and attachments
+
+The user also complained that ONLY products are shown, not metadata or attachments. I will verify the UI renders all three categories and fix if the discrepancies for metadata/attachments are being filtered out or not generated.
 
 ### Files changed
 
-1. **`supabase/functions/sync-reconciliation/index.ts`** — Enhanced attachment comparison (URL-based) and apply logic
-2. **Database migration** — Dedup existing rows + unique index
+1. **Database migration** -- delete package component rows
+2. **`supabase/functions/sync-reconciliation/index.ts`** -- filter out package components from local product comparison
 3. Deploy edge function
-
-### Technical detail
-
-- URL normalization strips `?query` params for comparison (cache-busting tokens differ between imports)
-- The `import-bookings` function already has `seenUrls` dedup logic but it only prevents dupes within a single import run — not across runs. The unique index fixes this permanently.
 
