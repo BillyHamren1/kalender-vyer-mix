@@ -1,3 +1,15 @@
+/**
+ * Booking mutation service — ONLY for Planning-owned fields.
+ * 
+ * IMPORTANT: Shared booking fields (dates, delivery, logistics, notes, products)
+ * must NOT be written locally. Use planningApiService.ts instead, which routes
+ * all writes through the Booking API (source of truth).
+ * 
+ * The functions below are ONLY for fields that Planning owns locally:
+ * - viewed (read receipt)
+ * - status (Planning-side status management)
+ * - assigned_project_* (project assignment)
+ */
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,138 +33,6 @@ export const updateBookingStatus = async (id: string, status: string): Promise<v
 
   if (error) {
     console.error('Error updating booking status:', error);
-    throw error;
-  }
-};
-
-export const updateBookingDates = async (
-  id: string, 
-  dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate', 
-  date: string | null
-): Promise<void> => {
-  const columnMap = {
-    rigDayDate: 'rigdaydate',
-    eventDate: 'eventdate',
-    rigDownDate: 'rigdowndate'
-  };
-
-  const { error } = await supabase
-    .from('bookings')
-    .update({ [columnMap[dateType]]: date })
-    .eq('id', id);
-
-  if (error) {
-    console.error(`Error updating ${dateType}:`, error);
-    throw error;
-  }
-};
-
-export const updateBookingDateWithTimes = async (
-  id: string,
-  dateType: 'rig' | 'event' | 'rigDown',
-  date: string,
-  startTime: string,
-  endTime: string
-): Promise<void> => {
-  const fieldMap = {
-    rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-    event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-    rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-  };
-
-  const fields = fieldMap[dateType];
-  const updateData: Record<string, string | null> = {
-    [fields.date]: date,
-  };
-
-  // Build ISO timestamps if times provided
-  if (startTime) {
-    updateData[fields.start] = `${date}T${startTime}:00Z`;
-  }
-  if (endTime) {
-    updateData[fields.end] = `${date}T${endTime}:00Z`;
-  }
-
-  const { error } = await supabase
-    .from('bookings')
-    .update(updateData)
-    .eq('id', id);
-
-  if (error) {
-    console.error(`Error updating ${dateType} date with times:`, error);
-    throw error;
-  }
-};
-
-export const updateBookingLogistics = async (
-  id: string, 
-  logisticsData: {
-    carryMoreThan10m: boolean;
-    groundNailsAllowed: boolean;
-    exactTimeNeeded: boolean;
-    exactTimeInfo: string;
-  }
-): Promise<void> => {
-  const { error } = await supabase
-    .from('bookings')
-    .update({
-      carry_more_than_10m: logisticsData.carryMoreThan10m,
-      ground_nails_allowed: logisticsData.groundNailsAllowed,
-      exact_time_needed: logisticsData.exactTimeNeeded,
-      exact_time_info: logisticsData.exactTimeInfo
-    })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating logistics information:', error);
-    throw error;
-  }
-};
-
-export const updateDeliveryDetails = async (
-  id: string, 
-  deliveryData: {
-    deliveryAddress: string;
-    deliveryCity: string;
-    deliveryPostalCode: string;
-    deliveryLatitude?: number;
-    deliveryLongitude?: number;
-    contactName: string;
-    contactPhone: string;
-    contactEmail: string;
-  }
-): Promise<void> => {
-  const { error } = await supabase
-    .from('bookings')
-    .update({
-      deliveryaddress: deliveryData.deliveryAddress,
-      delivery_city: deliveryData.deliveryCity,
-      delivery_postal_code: deliveryData.deliveryPostalCode,
-      delivery_latitude: deliveryData.deliveryLatitude,
-      delivery_longitude: deliveryData.deliveryLongitude,
-      contact_name: deliveryData.contactName,
-      contact_phone: deliveryData.contactPhone,
-      contact_email: deliveryData.contactEmail
-    })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating delivery details:', error);
-    throw error;
-  }
-};
-
-export const updateInternalNotes = async (
-  id: string, 
-  notes: string
-): Promise<void> => {
-  const { error } = await supabase
-    .from('bookings')
-    .update({ internalnotes: notes })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating internal notes:', error);
     throw error;
   }
 };

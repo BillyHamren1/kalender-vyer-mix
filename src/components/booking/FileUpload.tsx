@@ -64,17 +64,19 @@ export const FileUpload: React.FC<FileUploadProps> = ({ bookingId, onFileUploade
 
       console.log('🔗 Public URL generated:', urlData.publicUrl);
 
-      // Save attachment record to database
-      const { data: attachmentData, error: dbError } = await supabase
-        .from('booking_attachments')
-        .insert({
-          booking_id: bookingId,
+      // Save attachment record via Booking API (source of truth)
+      const { createAttachmentViaApi } = await import('@/services/planningApiService');
+      let attachmentData: any;
+      let dbError: any = null;
+      try {
+        attachmentData = await createAttachmentViaApi(bookingId, {
           file_name: file.name,
           file_type: file.type,
           url: urlData.publicUrl
-        })
-        .select()
-        .single();
+        });
+      } catch (e) {
+        dbError = e;
+      }
 
       if (dbError) {
         console.error('❌ Database error:', dbError);

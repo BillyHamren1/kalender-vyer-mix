@@ -257,11 +257,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const handleUpdateProductCost = useCallback(async (productId: string, field: string, value: number) => {
     try {
-      const { error } = await supabase
-        .from('booking_products')
-        .update({ [field]: value })
-        .eq('id', productId);
-      if (error) throw error;
+      const { updateProductViaApi } = await import('@/services/planningApiService');
+      await updateProductViaApi(productId, { [field]: value });
       queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
       queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
       toast.success('Kostnad uppdaterad');

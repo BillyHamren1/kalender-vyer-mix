@@ -3,7 +3,7 @@ import { format, differenceInDays, isPast, isToday } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Truck, PartyPopper, ArrowDownToLine, Pencil, Plus } from "lucide-react";
 import { EditDateDialog } from "@/components/booking/EditDateDialog";
-import { updateBookingDateWithTimes } from "@/services/bookingService";
+import { updateBookingDatesViaApi } from "@/services/planningApiService";
 import { toast } from "sonner";
 
 interface ProjectScheduleEditableProps {
@@ -83,7 +83,16 @@ const ProjectScheduleEditable = ({
     eventType: DateType
   ) => {
     try {
-      await updateBookingDateWithTimes(bookingId, eventType, newDate, startTime, endTime);
+      const fieldMap = {
+        rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+        event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+        rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+      };
+      const fields = fieldMap[eventType];
+      const updateData: Record<string, string | null> = { [fields.date]: newDate };
+      if (startTime) updateData[fields.start] = `${newDate}T${startTime}:00Z`;
+      if (endTime) updateData[fields.end] = `${newDate}T${endTime}:00Z`;
+      await updateBookingDatesViaApi(bookingId, updateData);
       toast.success('Datum uppdaterat');
       onUpdated?.();
     } catch (error) {
