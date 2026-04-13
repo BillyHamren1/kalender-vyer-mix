@@ -11,6 +11,7 @@ interface Discrepancy {
   bookingId: string;
   bookingNumber: string | null;
   client: string;
+  bookingStatus?: string;
   field: string;
   category: 'metadata' | 'products' | 'attachments';
   localValue: any;
