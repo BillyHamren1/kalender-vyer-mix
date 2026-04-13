@@ -366,6 +366,7 @@ Deno.serve(async (req) => {
         const local = localBookingMap.get(bookingId);
         const bookingNumber = ext.booking_number || local?.booking_number || null;
         const clientName = ext.client || local?.client || 'Okänd';
+        const bookingStatus = normalizeStatus(ext.status) || 'UNKNOWN';
 
         if (!local) {
           discrepancies.push({
