@@ -2752,6 +2752,23 @@ serve(async (req) => {
             // Do NOT auto-reactivate projects/jobs — let booking appear in triage for manual assignment
           }
 
+          // Preserve and merge internal notes — both sources coexist
+          const externalNotes = (bookingData.internalnotes || '').trim();
+          const localNotes = (existingBooking.internalnotes || '').trim();
+
+          if (externalNotes && localNotes && externalNotes !== localNotes) {
+            if (!localNotes.includes(externalNotes)) {
+              updateData.internalnotes = `${externalNotes}\n---\n${localNotes}`;
+              console.log(`[Notes Merge] Booking ${bookingData.id}: merged external + local notes`);
+            } else {
+              updateData.internalnotes = localNotes; // already merged
+            }
+          } else if (!externalNotes && localNotes) {
+            updateData.internalnotes = localNotes; // preserve local
+            console.log(`[Notes Preserve] Booking ${bookingData.id}: kept local notes (external empty)`);
+          }
+          // else: external only or both identical — bookingData value is fine
+
           // Update existing booking
           const { error: updateError } = await supabase
             .from('bookings')
