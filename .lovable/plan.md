@@ -1,28 +1,34 @@
 
 
-## Plan: Rensa alla icke-bekräftade bokningar från Planning
+## Plan: Visa ALL rådata från Booking (read-only, ingen jämförelse)
 
-### Problem
-Det finns 12 lokala bokningar som inte är CONFIRMED (10 DRAFT + 2 CANCELLED). Dessa ska bort.
+### Vad vi gör
+En ny action `raw-dump` i edge-funktionen som hämtar ALLA bekräftade bokningar från Booking-API:t och returnerar ALL data rakt av — datum, tider, produkter, kontakt, adress, allt. Ingen jämförelse mot lokalt, ingen skrivning, ingen radering.
 
-### Approach
-En enkel approach: radera alla lokala bokningar som INTE har status CONFIRMED. Inget behov av att hämta från Booking — vi vet redan att bara CONFIRMED ska finnas lokalt.
+En ny flik "Booking Rådata" på admin/sync-sidan som visar allt i en expanderbar lista.
 
 ### Steg
 
-**1. Migration: Radera alla icke-CONFIRMED bokningar**
-- Disable triggers (samma mönster som tidigare)
-- Radera booking_changes som refererar dessa bokningar
-- `DELETE FROM bookings WHERE UPPER(status) != 'CONFIRMED' AND organization_id = 'f5e5cade-...'`
-- Re-enable triggers
+**1. Edge function: Ny `raw-dump` action**
+- Hämtar alla confirmed bokningar från `export_bookings` (paginerat)
+- Normaliserar fältnamn (samma `normalizeExternalBooking`)
+- Returnerar hela arrayen direkt — inga DB-anrop, inga jämförelser, inga skrivningar
+- Response: `{ bookings: [...all normalized booking objects with products, dates, times, contact, address, notes, attachments, status] }`
 
-Detta tar bort alla 12 bokningar (10 DRAFT, 2 CANCELLED).
+**2. Frontend: Ny "Booking Rådata" tab**
+- Knapp "Hämta all data från Booking"
+- Expanderbar lista per bokning som visar:
+  - Bokningsnummer, klient, status
+  - Alla datum (rigg, event, nedrigg)
+  - Alla tider (start/slut för varje fas)
+  - Adress, kontakt
+  - Interna noter
+  - Produktlista (namn, antal, pris)
+  - Bilagor
+- Sökfält för att filtrera på bokningsnummer/klient
+- Sammanfattning: totalt antal bokningar
 
-**2. Verifiera**
-- Kör `SELECT UPPER(status), COUNT(*) FROM bookings GROUP BY UPPER(status)` — ska bara visa CONFIRMED.
-
-### Men du sa "mappas mot bekräftad i Booking"?
-Om du även vill att vi kollar att varje lokal CONFIRMED-bokning faktiskt finns som CONFIRMED i Booking (och tar bort de som inte gör det), behöver vi köra en sync mot det externa API:t. Det är ett extra steg — säg till om du vill ha det också, men det kräver att vi anropar edge-funktionen.
-
-Enklaste första steget: radera de 12 icke-CONFIRMED nu.
+### Filer som ändras
+- `supabase/functions/sync-reconciliation/index.ts` — ny `raw-dump` action block (~30 rader)
+- `src/pages/SyncReconciliation.tsx` — ny tab + komponent för att visa rådata
 
