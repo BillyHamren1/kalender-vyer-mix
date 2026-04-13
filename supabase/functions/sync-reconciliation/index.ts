@@ -510,13 +510,16 @@ Deno.serve(async (req) => {
 
         const hasKeyOverlap = (a: Set<string>, b: Set<string>) => [...a].some(key => b.has(key));
         const matchedExternalIds = new Set<string>();
-        const matchedLocalIds = new Set<string>();
+        const matchedLocalIndexes = new Set<number>();
 
         for (const extEntry of extEntries) {
-          const localMatch = locEntries.find(locEntry => hasKeyOverlap(extEntry.keys, locEntry.keys));
-          if (localMatch) {
+          const localMatchIndex = locEntries.findIndex((locEntry, index) => (
+            !matchedLocalIndexes.has(index) && hasKeyOverlap(extEntry.keys, locEntry.keys)
+          ));
+
+          if (localMatchIndex >= 0) {
             matchedExternalIds.add(extEntry.id);
-            matchedLocalIds.add(localMatch.id);
+            matchedLocalIndexes.add(localMatchIndex);
           }
         }
 
@@ -533,8 +536,8 @@ Deno.serve(async (req) => {
         }
 
         // Attachments only in Planning (extra locally)
-        for (const locEntry of locEntries) {
-          if (!matchedLocalIds.has(locEntry.id)) {
+        for (const [index, locEntry] of locEntries.entries()) {
+          if (!matchedLocalIndexes.has(index)) {
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
               field: `_attachment_extra:${locEntry.displayName}`, category: 'attachments',
