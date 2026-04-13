@@ -675,12 +675,21 @@ const RawDataTab = () => {
                 className="pl-9"
               />
             </div>
+            <Button
+              variant={showOnlyWithTimes ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowOnlyWithTimes(!showOnlyWithTimes)}
+            >
+              Särskild tid ({withTimesCount})
+            </Button>
             <Badge variant="secondary">{filtered.length} / {bookings.length} bokningar</Badge>
           </div>
 
           <Accordion type="multiple" className="space-y-2">
-            {filtered.map(b => (
-              <AccordionItem key={b.id} value={b.id} className="border rounded-lg px-4">
+            {filtered.map(b => {
+              const hasTimes = hasCustomTimes(b);
+              return (
+              <AccordionItem key={b.id} value={b.id} className={`border rounded-lg px-4 ${hasTimes ? 'border-primary/40 bg-primary/5' : ''}`}>
                 <AccordionTrigger className="hover:no-underline py-3">
                   <div className="flex items-center gap-3 text-left">
                     <Badge variant="outline" className="font-mono text-xs">{b.booking_number || '—'}</Badge>
@@ -690,6 +699,7 @@ const RawDataTab = () => {
                       b.status === 'CANCELLED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
                       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                     }>{b.status}</Badge>
+                    {hasTimes && <Badge className="bg-primary/20 text-primary text-[10px]">Särskild tid</Badge>}
                     {b.eventdate && <span className="text-muted-foreground text-xs">{b.eventdate}</span>}
                   </div>
                 </AccordionTrigger>
