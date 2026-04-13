@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
-import { updateBookingDates, updateBookingDateWithTimes } from '@/services/bookingService';
+import { updateBookingDatesViaApi } from '@/services/planningApiService';
 
 export const useBookingDates = (
   id: string | undefined,
@@ -22,6 +22,17 @@ export const useBookingDates = (
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  // Map date type to Booking API field names
+  const getApiFieldName = (dateType: 'rig' | 'event' | 'rigDown') => {
+    const map = { rig: 'rigdaydate', event: 'eventdate', rigDown: 'rigdowndate' };
+    return map[dateType];
+  };
+
+  const getLegacyFieldName = (dateType: 'rig' | 'event' | 'rigDown') => {
+    const map = { rig: 'rigDayDate', event: 'eventDate', rigDown: 'rigDownDate' } as const;
+    return map[dateType];
   };
 
   // Add a date to a specific type (rig, event, rigDown)
@@ -47,13 +58,13 @@ export const useBookingDates = (
         return;
       }
       
-      const legacyFieldName = dateType === 'rig' ? 'rigDayDate' : 
-                            dateType === 'event' ? 'eventDate' : 'rigDownDate';
+      // Write to Booking API (source of truth)
+      await updateBookingDatesViaApi(id, { [getApiFieldName(dateType)]: formattedDate });
+      console.log(`Updated ${dateType} date in Booking API to:`, formattedDate);
       
-      await updateBookingDates(id, legacyFieldName, formattedDate);
-      console.log(`Updated ${legacyFieldName} in database to:`, formattedDate);
-      
-      setBooking({ ...booking, [legacyFieldName]: formattedDate });
+      // Update local state to reflect the change
+      const legacyField = getLegacyFieldName(dateType);
+      setBooking({ ...booking, [legacyField]: formattedDate });
       
       switch (dateType) {
         case 'rig':
@@ -70,7 +81,7 @@ export const useBookingDates = (
       // Calendar sync is handled by the backend when booking dates change
     } catch (err) {
       console.error(`Error adding ${dateType} date:`, err);
-      toast.error(`Failed to add ${dateType === 'rig' ? 'rig day' : dateType === 'event' ? 'event day' : 'rig down day'}`);
+      toast.error(`Kunde inte lägga till ${dateType === 'rig' ? 'riggdag' : dateType === 'event' ? 'eventdag' : 'nedrivningsdag'}`);
     } finally {
       setIsSaving(false);
     }
@@ -103,19 +114,19 @@ export const useBookingDates = (
           break;
       }
       
-      const legacyFieldName = dateType === 'rig' ? 'rigDayDate' : 
-                            dateType === 'event' ? 'eventDate' : 'rigDownDate';
+      const legacyField = getLegacyFieldName(dateType);
       
-      if (booking[legacyFieldName] === date) {
+      if (booking[legacyField] === date) {
         const newLegacyDate = updatedDates.length > 0 ? updatedDates[0] : null;
-        await updateBookingDates(id, legacyFieldName, newLegacyDate);
-        setBooking({ ...booking, [legacyFieldName]: newLegacyDate });
+        // Write to Booking API (source of truth)
+        await updateBookingDatesViaApi(id, { [getApiFieldName(dateType)]: newLegacyDate });
+        setBooking({ ...booking, [legacyField]: newLegacyDate });
       }
       
-      // Calendar events are managed by the backend — no frontend deletion/recreation
+      // Calendar events are managed by the backend
     } catch (err) {
       console.error(`Error removing ${dateType} date:`, err);
-      toast.error(`Failed to remove ${dateType === 'rig' ? 'rig day' : dateType === 'event' ? 'event day' : 'rig down day'}`);
+      toast.error(`Kunde inte ta bort ${dateType === 'rig' ? 'riggdag' : dateType === 'event' ? 'eventdag' : 'nedrivningsdag'}`);
     } finally {
       setIsSaving(false);
     }
@@ -129,7 +140,10 @@ export const useBookingDates = (
       setIsSaving(true);
       
       const formattedDate = formatDateToLocalString(date);
-      await updateBookingDates(id, dateType, formattedDate);
+      const apiFieldMap = { rigDayDate: 'rigdaydate', eventDate: 'eventdate', rigDownDate: 'rigdowndate' } as const;
+      
+      // Write to Booking API (source of truth)
+      await updateBookingDatesViaApi(id, { [apiFieldMap[dateType]]: formattedDate });
       
       setBooking({ ...booking, [dateType]: formattedDate });
       
@@ -144,7 +158,7 @@ export const useBookingDates = (
       // Calendar sync is handled by the backend
     } catch (err) {
       console.error(`Error updating ${dateType}:`, err);
-      toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
+      toast.error(`Kunde inte uppdatera ${dateType === 'rigDayDate' ? 'riggdag' : dateType === 'eventDate' ? 'eventdag' : 'nedrivningsdag'}`);
     } finally {
       setIsSaving(false);
     }
@@ -180,21 +194,39 @@ export const useBookingDates = (
           break;
       }
 
-      // Update the booking in DB with date + times
-      await updateBookingDateWithTimes(id, dateType, newDate, startTime, endTime);
+      // Build the update payload for the Booking API
+      const timeFieldMap = {
+        rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+        event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+        rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+      };
+      const fields = timeFieldMap[dateType];
+
+      const updateData: Record<string, string | null> = {
+        [fields.date]: newDate,
+      };
+      if (startTime) {
+        updateData[fields.start] = `${newDate}T${startTime}:00Z`;
+      }
+      if (endTime) {
+        updateData[fields.end] = `${newDate}T${endTime}:00Z`;
+      }
+
+      // Write to Booking API (source of truth)
+      await updateBookingDatesViaApi(id, updateData);
 
       // Update local booking state
-      const timeFieldMap = {
+      const localFieldMap = {
         rig: { date: 'rigDayDate', start: 'rigStartTime', end: 'rigEndTime' },
         event: { date: 'eventDate', start: 'eventStartTime', end: 'eventEndTime' },
         rigDown: { date: 'rigDownDate', start: 'rigDownStartTime', end: 'rigDownEndTime' },
       };
-      const fields = timeFieldMap[dateType];
+      const localFields = localFieldMap[dateType];
       setBooking({
         ...booking,
-        [fields.date]: newDate,
-        [fields.start]: startTime ? `${newDate}T${startTime}:00Z` : null,
-        [fields.end]: endTime ? `${newDate}T${endTime}:00Z` : null,
+        [localFields.date]: newDate,
+        [localFields.start]: startTime ? `${newDate}T${startTime}:00Z` : null,
+        [localFields.end]: endTime ? `${newDate}T${endTime}:00Z` : null,
       });
 
       console.log(`Edited ${dateType} date: ${oldDate} → ${newDate}, time: ${startTime}–${endTime}`);

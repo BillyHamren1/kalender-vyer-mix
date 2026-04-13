@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
 import { Booking } from '@/types/booking';
-import { updateInternalNotes } from '@/services/booking/bookingMutationService';
+import { updateInternalNotesViaApi } from '@/services/planningApiService';
+import { toast } from 'sonner';
 
 export const useBookingInternalNotes = (
   id: string | undefined,
@@ -15,7 +16,8 @@ export const useBookingInternalNotes = (
 
     setIsSaving(true);
     try {
-      await updateInternalNotes(id, notes);
+      // Write to Booking API (source of truth)
+      await updateInternalNotesViaApi(id, notes);
       
       // Update local booking state
       setBooking({
@@ -23,9 +25,10 @@ export const useBookingInternalNotes = (
         internalNotes: notes
       });
       
-      console.log('Internal notes updated successfully');
+      console.log('Internal notes updated via Booking API');
     } catch (error) {
-      console.error('Error updating internal notes:', error);
+      console.error('Error updating internal notes via Booking API:', error);
+      toast.error('Kunde inte spara interna anteckningar. Försök igen.');
       throw error;
     } finally {
       setIsSaving(false);

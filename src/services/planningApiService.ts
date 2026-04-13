@@ -116,3 +116,75 @@ export const fetchAllEconomyData = (bookingId: string): Promise<BatchEconomyData
 
 export const fetchAllEconomyDataMulti = (bookingIds: string[]): Promise<Record<string, BatchEconomyData>> =>
   callPlanningApi<Record<string, BatchEconomyData>>({ type: 'multi_batch', booking_ids: bookingIds } as any);
+
+// =============================================================================
+// ===== BOOKING WRITE OPERATIONS (Source of Truth: Booking system) ============
+// =============================================================================
+
+/**
+ * Update booking dates via the Booking system.
+ * Planning never writes dates locally — all changes go through this API.
+ */
+export const updateBookingDatesViaApi = (bookingId: string, data: {
+  rigdaydate?: string | null;
+  eventdate?: string | null;
+  rigdowndate?: string | null;
+  rig_start_time?: string | null;
+  rig_end_time?: string | null;
+  event_start_time?: string | null;
+  event_end_time?: string | null;
+  rigdown_start_time?: string | null;
+  rigdown_end_time?: string | null;
+}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+
+/**
+ * Update delivery details via the Booking system.
+ */
+export const updateDeliveryViaApi = (bookingId: string, data: {
+  deliveryaddress?: string;
+  delivery_city?: string;
+  delivery_postal_code?: string;
+  delivery_latitude?: number;
+  delivery_longitude?: number;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
+}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+
+/**
+ * Update internal notes via the Booking system.
+ */
+export const updateInternalNotesViaApi = (bookingId: string, notes: string) =>
+  callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { internalnotes: notes } });
+
+/**
+ * Update logistics fields via the Booking system.
+ */
+export const updateLogisticsViaApi = (bookingId: string, data: {
+  carry_more_than_10m?: boolean;
+  ground_nails_allowed?: boolean;
+  exact_time_needed?: boolean;
+  exact_time_info?: string;
+}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+
+// ===== Product CRUD via Booking API =====
+
+export const createProductViaApi = (bookingId: string, product: Record<string, any>) =>
+  callPlanningApi({ type: 'booking_products', method: 'POST', booking_id: bookingId, data: product });
+
+export const updateProductViaApi = (productId: string, updates: Record<string, any>) =>
+  callPlanningApi({ type: 'booking_products', method: 'PUT', id: productId, data: updates });
+
+export const deleteProductViaApi = (productId: string) =>
+  callPlanningApi({ type: 'booking_products', method: 'DELETE', id: productId });
+
+// ===== Attachment CRUD via Booking API =====
+
+export const createAttachmentViaApi = (bookingId: string, attachment: Record<string, any>) =>
+  callPlanningApi({ type: 'booking_attachments', method: 'POST', booking_id: bookingId, data: attachment });
+
+export const deleteAttachmentViaApi = (attachmentId: string) =>
+  callPlanningApi({ type: 'booking_attachments', method: 'DELETE', id: attachmentId });
+
+export const renameAttachmentViaApi = (attachmentId: string, newName: string) =>
+  callPlanningApi({ type: 'booking_attachments', method: 'PUT', id: attachmentId, data: { file_name: newName } });
