@@ -1201,6 +1201,7 @@ const SyncReconciliation = () => {
         <TabsList>
           <TabsTrigger value="overview">Bokningsöversikt</TabsTrigger>
           <TabsTrigger value="detailed">Detaljerad avstämning</TabsTrigger>
+          <TabsTrigger value="schedule">Datumöversikt</TabsTrigger>
           <TabsTrigger value="rawdata">Booking Rådata</TabsTrigger>
         </TabsList>
 
@@ -1210,6 +1211,10 @@ const SyncReconciliation = () => {
 
         <TabsContent value="detailed">
           <DetailedReconciliationTab />
+        </TabsContent>
+
+        <TabsContent value="schedule">
+          <ScheduleAuditTab />
         </TabsContent>
 
         <TabsContent value="rawdata">
