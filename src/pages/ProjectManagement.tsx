@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Archive, Search } from "lucide-react";
+import { Plus, FolderKanban, Archive, Search, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +17,7 @@ import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidget
 import OrphanBookingsWarning from "@/components/project/OrphanBookingsWarning";
 import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'all';
@@ -39,6 +40,72 @@ const ProjectManagement = () => {
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncBookings = async () => {
+    setIsSyncing(true);
+    const t0 = performance.now();
+    console.group('[ProjectSync] Starting incremental sync');
+    try {
+      const { data, error } = await supabase.functions.invoke('import-bookings', {
+        body: { syncMode: 'incremental' },
+      });
+
+      const elapsed = Math.round(performance.now() - t0);
+
+      if (error) {
+        console.error('[ProjectSync] Edge function error:', error);
+        toast.error('Synkronisering misslyckades');
+        return;
+      }
+
+      console.log('[ProjectSync] Response:', JSON.stringify(data, null, 2));
+      console.log(`[ProjectSync] Completed in ${elapsed}ms`);
+
+      const processed = data?.processed ?? 0;
+      const created = data?.created ?? 0;
+      const updated = data?.updated ?? 0;
+      const failed = data?.failed ?? 0;
+      const skipped = data?.skipped ?? 0;
+      const mode = data?.mode ?? 'unknown';
+
+      console.table({
+        mode,
+        processed,
+        created,
+        updated,
+        skipped,
+        failed,
+        elapsed_ms: elapsed,
+        errors: data?.errors?.length ?? 0,
+      });
+
+      if (data?.errors?.length > 0) {
+        console.warn('[ProjectSync] Errors:', data.errors);
+      }
+
+      // Invalidate all relevant queries
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['orphan-bookings'] });
+
+      if (failed > 0) {
+        toast.warning(`Synkroniserad med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
+      } else if (processed === 0) {
+        toast.info('Inga nya ändringar att synka');
+      } else {
+        toast.success(`Synkroniserad: ${updated} uppdaterade, ${created} nya`);
+      }
+    } catch (err) {
+      console.error('[ProjectSync] Unexpected error:', err);
+      toast.error('Kunde inte synkronisera');
+    } finally {
+      console.groupEnd();
+      setIsSyncing(false);
+    }
+  };
 
   useRealtimeInvalidation({
     channelName: 'project-mgmt-bookings',
@@ -72,6 +139,16 @@ const ProjectManagement = () => {
           subtitle="Hantera små, medelstora och stora projekt"
           variant="purple"
         >
+          <Button
+            onClick={handleSyncBookings}
+            variant="outline"
+            size="sm"
+            disabled={isSyncing}
+            className="rounded-lg h-8"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            Uppdatera
+          </Button>
           <Button 
             onClick={() => navigate('/projects/archive')}
             variant="outline"
