@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { RefreshCw, AlertTriangle, CheckCircle2, Package, FileText, Database, Loader2 } from 'lucide-react';
+import { RefreshCw, AlertTriangle, CheckCircle2, Package, FileText, Database, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Discrepancy {
@@ -17,6 +16,7 @@ interface Discrepancy {
   localValue: any;
   externalValue: any;
   label: string;
+  chosenSource?: 'booking' | 'planning';
 }
 
 interface SyncResult {
@@ -29,6 +29,8 @@ interface SyncResult {
     byCategory: { metadata: number; products: number; attachments: number };
   };
 }
+
+type ChoiceMap = Record<string, 'booking' | 'planning'>;
 
 const categoryIcons: Record<string, React.ReactNode> = {
   metadata: <Database className="h-4 w-4" />,
@@ -48,8 +50,10 @@ const categoryColors: Record<string, string> = {
   attachments: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
 };
 
+const getDiscKey = (d: Discrepancy) => `${d.bookingId}::${d.field}`;
+
 const SyncReconciliation = () => {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [choices, setChoices] = useState<ChoiceMap>({});
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<SyncResult>({
@@ -64,6 +68,22 @@ const SyncReconciliation = () => {
     enabled: false,
   });
 
+  // Auto-select when one side is empty
+  const autoChoices = useMemo(() => {
+    if (!data?.discrepancies) return {};
+    const auto: ChoiceMap = {};
+    for (const d of data.discrepancies) {
+      const key = getDiscKey(d);
+      const extEmpty = d.externalValue === null || d.externalValue === undefined || d.externalValue === '';
+      const locEmpty = d.localValue === null || d.localValue === undefined || d.localValue === '';
+      if (extEmpty && !locEmpty) auto[key] = 'planning';
+      else if (locEmpty && !extEmpty) auto[key] = 'booking';
+    }
+    return auto;
+  }, [data?.discrepancies]);
+
+  const effectiveChoices = useMemo(() => ({ ...autoChoices, ...choices }), [autoChoices, choices]);
+
   const applyMutation = useMutation({
     mutationFn: async (corrections: Discrepancy[]) => {
       const { data, error } = await supabase.functions.invoke('sync-reconciliation', {
@@ -73,13 +93,13 @@ const SyncReconciliation = () => {
       return data;
     },
     onSuccess: (result) => {
-      toast.success(`${result.applied} korrigeringar genomförda`);
+      toast.success(`${result.applied} korrigeringar genomförda via Booking API`);
       if (result.errors?.length) {
         toast.error(`${result.errors.length} fel uppstod`, {
           description: result.errors.join(', ').substring(0, 200),
         });
       }
-      setSelected(new Set());
+      setChoices({});
       refetch();
     },
     onError: (err: Error) => {
@@ -92,37 +112,49 @@ const SyncReconciliation = () => {
     ? discrepancies.filter(d => d.category === filterCategory) 
     : discrepancies;
 
-  // Group by booking
-  const groupedByBooking = new Map<string, Discrepancy[]>();
-  for (const d of filtered) {
-    const key = d.bookingId;
-    const arr = groupedByBooking.get(key) || [];
-    arr.push(d);
-    groupedByBooking.set(key, arr);
-  }
+  const groupedByBooking = useMemo(() => {
+    const map = new Map<string, Discrepancy[]>();
+    for (const d of filtered) {
+      const arr = map.get(d.bookingId) || [];
+      arr.push(d);
+      map.set(d.bookingId, arr);
+    }
+    return map;
+  }, [filtered]);
 
-  const toggleItem = (id: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const setChoice = (key: string, source: 'booking' | 'planning') => {
+    setChoices(prev => ({ ...prev, [key]: source }));
   };
 
-  const getDiscKey = (d: Discrepancy) => `${d.bookingId}::${d.field}`;
-
-  const selectAll = () => {
-    const allKeys = filtered.map(d => getDiscKey(d));
-    setSelected(new Set(allKeys));
+  const chooseAllBooking = () => {
+    const newChoices: ChoiceMap = {};
+    for (const d of filtered) {
+      newChoices[getDiscKey(d)] = 'booking';
+    }
+    setChoices(prev => ({ ...prev, ...newChoices }));
   };
 
-  const deselectAll = () => setSelected(new Set());
+  const chooseAllPlanning = () => {
+    const newChoices: ChoiceMap = {};
+    for (const d of filtered) {
+      newChoices[getDiscKey(d)] = 'planning';
+    }
+    setChoices(prev => ({ ...prev, ...newChoices }));
+  };
+
+  const resolvedCount = filtered.filter(d => effectiveChoices[getDiscKey(d)]).length;
 
   const handleApply = () => {
-    const corrections = discrepancies.filter(d => selected.has(getDiscKey(d)));
+    const corrections: Discrepancy[] = [];
+    for (const d of discrepancies) {
+      const key = getDiscKey(d);
+      const source = effectiveChoices[key];
+      if (source) {
+        corrections.push({ ...d, chosenSource: source });
+      }
+    }
     if (!corrections.length) {
-      toast.warning('Inga avvikelser valda');
+      toast.warning('Inga avvikelser har ett valt värde');
       return;
     }
     applyMutation.mutate(corrections);
@@ -132,7 +164,8 @@ const SyncReconciliation = () => {
     if (val === null || val === undefined) return <span className="text-muted-foreground italic">tom</span>;
     if (typeof val === 'boolean') return val ? 'Ja' : 'Nej';
     if (typeof val === 'object') return String(JSON.stringify(val));
-    return String(val);
+    const str = String(val);
+    return str.length > 60 ? str.substring(0, 57) + '…' : str;
   };
 
   const safeClientName = (client: any): string => {
@@ -143,12 +176,12 @@ const SyncReconciliation = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Synk-avstämning</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Jämför lokal data mot bokningssystemet och korrigera avvikelser
+            Jämför Planning mot Booking — välj rätt värde per fält — allt sparas via Booking API
           </p>
         </div>
         <Button onClick={() => refetch()} disabled={isFetching} size="lg">
@@ -171,13 +204,13 @@ const SyncReconciliation = () => {
             <Card>
               <CardContent className="py-3 px-4 text-center">
                 <p className="text-2xl font-bold">{data.summary.totalExternal}</p>
-                <p className="text-xs text-muted-foreground">Externa bokningar</p>
+                <p className="text-xs text-muted-foreground">Booking</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-3 px-4 text-center">
                 <p className="text-2xl font-bold">{data.summary.totalLocal}</p>
-                <p className="text-xs text-muted-foreground">Lokala bokningar</p>
+                <p className="text-xs text-muted-foreground">Planning (lokal cache)</p>
               </CardContent>
             </Card>
             <Card className="cursor-pointer hover:ring-2 ring-primary" onClick={() => setFilterCategory(filterCategory === 'metadata' ? null : 'metadata')}>
@@ -212,29 +245,36 @@ const SyncReconciliation = () => {
               <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
                 <CheckCircle2 className="h-12 w-12 text-green-500" />
                 <p className="text-lg font-semibold">Inga avvikelser</p>
-                <p className="text-muted-foreground">Lokal data stämmer överens med bokningssystemet</p>
+                <p className="text-muted-foreground">Data stämmer överens mellan systemen</p>
               </CardContent>
             </Card>
           ) : (
             <>
               {/* Actions bar */}
-              <div className="flex items-center justify-between mb-4 bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={selectAll}>Markera alla ({filtered.length})</Button>
-                  <Button variant="ghost" size="sm" onClick={deselectAll}>Avmarkera</Button>
-                  <span className="text-sm text-muted-foreground">{selected.size} valda</span>
+              <div className="flex flex-wrap items-center justify-between mb-4 bg-muted/50 rounded-lg p-3 gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={chooseAllBooking} className="gap-1">
+                    <ArrowLeft className="h-3 w-3" /> Välj alla Booking
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={chooseAllPlanning} className="gap-1">
+                    Välj alla Planning <ArrowRight className="h-3 w-3" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {resolvedCount}/{filtered.length} valda
+                  </span>
                 </div>
                 <Button
                   onClick={handleApply}
-                  disabled={selected.size === 0 || applyMutation.isPending}
+                  disabled={resolvedCount === 0 || applyMutation.isPending}
                   variant="default"
+                  className="gap-1"
                 >
                   {applyMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    <CheckCircle2 className="h-4 w-4" />
                   )}
-                  Korrigera valda ({selected.size})
+                  Applicera via Booking API ({resolvedCount})
                 </Button>
               </div>
 
@@ -242,8 +282,8 @@ const SyncReconciliation = () => {
               <div className="space-y-4">
                 {[...groupedByBooking.entries()].map(([bookingId, items]) => {
                   const first = items[0];
-                  const allSelected = items.every(d => selected.has(getDiscKey(d)));
-                  
+                  const bookingItemsResolved = items.filter(d => effectiveChoices[getDiscKey(d)]).length;
+
                   return (
                     <Card key={bookingId}>
                       <CardHeader className="py-3 px-4">
@@ -257,25 +297,28 @@ const SyncReconciliation = () => {
                             <span className="text-xs text-muted-foreground font-mono">{bookingId.substring(0, 8)}…</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">{items.length} avvikelser</Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {bookingItemsResolved}/{items.length} valda
+                            </Badge>
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs"
+                              variant="ghost" size="sm" className="text-xs"
                               onClick={() => {
-                                const keys = items.map(d => getDiscKey(d));
-                                setSelected(prev => {
-                                  const next = new Set(prev);
-                                  if (allSelected) {
-                                    keys.forEach(k => next.delete(k));
-                                  } else {
-                                    keys.forEach(k => next.add(k));
-                                  }
-                                  return next;
-                                });
+                                const newChoices: ChoiceMap = {};
+                                items.forEach(d => { newChoices[getDiscKey(d)] = 'booking'; });
+                                setChoices(prev => ({ ...prev, ...newChoices }));
                               }}
                             >
-                              {allSelected ? 'Avmarkera alla' : 'Markera alla'}
+                              Alla → Booking
+                            </Button>
+                            <Button
+                              variant="ghost" size="sm" className="text-xs"
+                              onClick={() => {
+                                const newChoices: ChoiceMap = {};
+                                items.forEach(d => { newChoices[getDiscKey(d)] = 'planning'; });
+                                setChoices(prev => ({ ...prev, ...newChoices }));
+                              }}
+                            >
+                              Alla → Planning
                             </Button>
                           </div>
                         </CardTitle>
@@ -284,32 +327,57 @@ const SyncReconciliation = () => {
                         <div className="divide-y divide-border">
                           {items.map((d) => {
                             const key = getDiscKey(d);
+                            const chosen = effectiveChoices[key];
+                            const isAutoSelected = autoChoices[key] && !choices[key];
+
                             return (
-                              <div key={key} className="flex items-start gap-3 py-2.5">
-                                <Checkbox
-                                  checked={selected.has(key)}
-                                  onCheckedChange={() => toggleItem(key)}
-                                  className="mt-0.5"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${categoryColors[d.category]}`}>
-                                      {categoryIcons[d.category]}
-                                      {categoryLabels[d.category]}
-                                    </span>
-                                    <span className="text-sm font-medium">{d.label}</span>
-                                  </div>
-                                  <div className="flex gap-4 text-xs">
-                                    <div>
-                                      <span className="text-muted-foreground">Lokalt: </span>
-                                      <span className="font-mono">{formatValue(d.localValue)}</span>
+                              <div key={key} className="py-2.5">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${categoryColors[d.category]}`}>
+                                    {categoryIcons[d.category]}
+                                    {categoryLabels[d.category]}
+                                  </span>
+                                  <span className="text-sm font-medium">{d.label}</span>
+                                  {isAutoSelected && (
+                                    <Badge variant="outline" className="text-xs text-green-600 border-green-300">auto</Badge>
+                                  )}
+                                </div>
+                                
+                                {/* Side-by-side value chooser */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {/* Booking value */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setChoice(key, 'booking')}
+                                    className={`text-left p-2 rounded-md border text-xs transition-all ${
+                                      chosen === 'booking'
+                                        ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
+                                        : 'border-border hover:border-primary/50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <span className="font-semibold text-muted-foreground">Booking</span>
+                                      {chosen === 'booking' && <CheckCircle2 className="h-3 w-3 text-primary" />}
                                     </div>
-                                    <span className="text-muted-foreground">→</span>
-                                    <div>
-                                      <span className="text-muted-foreground">Booking: </span>
-                                      <span className="font-mono font-semibold">{formatValue(d.externalValue)}</span>
+                                    <div className="font-mono break-all">{formatValue(d.externalValue)}</div>
+                                  </button>
+
+                                  {/* Planning value */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setChoice(key, 'planning')}
+                                    className={`text-left p-2 rounded-md border text-xs transition-all ${
+                                      chosen === 'planning'
+                                        ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
+                                        : 'border-border hover:border-primary/50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <span className="font-semibold text-muted-foreground">Planning</span>
+                                      {chosen === 'planning' && <CheckCircle2 className="h-3 w-3 text-primary" />}
                                     </div>
-                                  </div>
+                                    <div className="font-mono break-all">{formatValue(d.localValue)}</div>
+                                  </button>
                                 </div>
                               </div>
                             );
@@ -329,7 +397,7 @@ const SyncReconciliation = () => {
             <RefreshCw className="h-12 w-12 text-muted-foreground" />
             <p className="text-lg font-semibold">Redo att jämföra</p>
             <p className="text-muted-foreground text-sm">
-              Klicka "Starta jämförelse" för att hämta data från bokningssystemet och jämföra med lokal data
+              Klicka "Starta jämförelse" för att hämta data från bokningssystemet och jämföra med Planning
             </p>
           </CardContent>
         </Card>

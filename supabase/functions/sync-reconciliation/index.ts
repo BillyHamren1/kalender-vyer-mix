@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -15,9 +14,50 @@ interface Discrepancy {
   localValue: any;
   externalValue: any;
   label: string;
+  // Which value the user chose: 'booking' or 'planning'
+  chosenSource?: 'booking' | 'planning';
 }
 
-serve(async (req) => {
+interface ProductComparison {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string;
+  productName: string;
+  field: string;
+  localValue: any;
+  externalValue: any;
+  label: string;
+}
+
+/**
+ * Send a write to the external Booking API via the planning-api edge function.
+ */
+async function writeToBookingApi(
+  efUrl: string,
+  planningApiKey: string,
+  bookingId: string,
+  data: Record<string, any>
+): Promise<void> {
+  const qs = new URLSearchParams({
+    type: 'update_booking',
+    method: 'POST',
+    booking_id: bookingId,
+  });
+  const res = await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': planningApiKey,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Booking API error ${res.status}: ${body.substring(0, 300)}`);
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -26,6 +66,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const importApiKey = Deno.env.get('IMPORT_API_KEY')!;
+    const efUrl = Deno.env.get('EF_SUPABASE_URL')!;
+    const planningApiKey = Deno.env.get('PLANNING_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Authenticate the calling user via JWT
@@ -126,6 +168,12 @@ serve(async (req) => {
         { key: 'rigdaydate', label: 'Riggdatum' },
         { key: 'eventdate', label: 'Eventdatum' },
         { key: 'rigdowndate', label: 'Nedriggdatum' },
+        { key: 'rig_start_time', label: 'Rigg starttid' },
+        { key: 'rig_end_time', label: 'Rigg sluttid' },
+        { key: 'event_start_time', label: 'Event starttid' },
+        { key: 'event_end_time', label: 'Event sluttid' },
+        { key: 'rigdown_start_time', label: 'Nedrigg starttid' },
+        { key: 'rigdown_end_time', label: 'Nedrigg sluttid' },
         { key: 'status', label: 'Status' },
         { key: 'internalnotes', label: 'Interna anteckningar' },
         { key: 'contact_name', label: 'Kontaktperson' },
@@ -136,6 +184,17 @@ serve(async (req) => {
         { key: 'exact_time_needed', label: 'Exakt tid krävs' },
         { key: 'exact_time_info', label: 'Tidinfo' },
         { key: 'booking_number', label: 'Bokningsnummer' },
+      ];
+
+      const productFields = [
+        { key: 'quantity', label: 'Antal' },
+        { key: 'unit_price', label: 'Styckpris' },
+        { key: 'total_price', label: 'Totalpris' },
+        { key: 'discount', label: 'Rabatt' },
+        { key: 'assembly_cost', label: 'Montagekostnad' },
+        { key: 'handling_cost', label: 'Hanteringskostnad' },
+        { key: 'purchase_cost', label: 'Inköpskostnad' },
+        { key: 'sku', label: 'SKU' },
       ];
 
       // Filter out historical bookings before 2026-01-01
@@ -167,7 +226,6 @@ serve(async (req) => {
           const extVal = ext[key] ?? null;
           const localVal = local[key] ?? null;
           
-          // Normalize for comparison
           const normExt = extVal === '' ? null : extVal;
           const normLocal = localVal === '' ? null : localVal;
           
@@ -181,7 +239,7 @@ serve(async (req) => {
           }
         }
 
-        // Compare products
+        // Compare products — detailed field-level comparison
         const extProducts = ext.products || [];
         const locProducts = localProductsByBooking.get(bookingId) || [];
 
@@ -194,7 +252,6 @@ serve(async (req) => {
           });
         }
 
-        // Compare individual products by name
         const extProductNames = new Map(extProducts.map((p: any) => [p.name?.trim(), p]));
         const localProductNames = new Map(locProducts.map((p: any) => [p.name?.trim(), p]));
 
@@ -207,13 +264,23 @@ serve(async (req) => {
               localValue: null, externalValue: `${name} (${extP.quantity} st)`,
               label: `Produkt saknas lokalt: ${name}`
             });
-          } else if (extP.quantity !== localP.quantity) {
-            discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
-              field: `_product_qty:${name}`, category: 'products',
-              localValue: localP.quantity, externalValue: extP.quantity,
-              label: `Antal ${name}`
-            });
+          } else {
+            // Compare each product field
+            for (const { key, label } of productFields) {
+              const extVal = extP[key] ?? null;
+              const localVal = localP[key] ?? null;
+              const normExt = extVal === '' ? null : (typeof extVal === 'number' ? extVal : extVal);
+              const normLocal = localVal === '' ? null : (typeof localVal === 'number' ? localVal : localVal);
+              
+              if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
+                discrepancies.push({
+                  bookingId, bookingNumber, client: clientName,
+                  field: `_product_field:${name}:${key}`, category: 'products',
+                  localValue: normLocal, externalValue: normExt,
+                  label: `${name} — ${label}`
+                });
+              }
+            }
           }
         }
 
@@ -236,13 +303,12 @@ serve(async (req) => {
         ];
         const locAttachments = localAttachmentsByBooking.get(bookingId) || [];
         
-        // Only flag if external has MORE than local (since local can have uploads)
-        if (extAttachments.length > locAttachments.length) {
+        if (extAttachments.length !== locAttachments.length) {
           discrepancies.push({
             bookingId, bookingNumber, client: clientName,
             field: '_attachment_count', category: 'attachments',
             localValue: locAttachments.length, externalValue: extAttachments.length,
-            label: 'Bilagor (externa > lokala)'
+            label: 'Antal bilagor'
           });
         }
       }
@@ -283,7 +349,11 @@ serve(async (req) => {
       });
 
     } else if (action === 'apply') {
-      // Apply selected corrections
+      // ─── Apply corrections ───────────────────────────────────────────────
+      // ALL writes go through Booking API. NOTHING is written locally.
+      // After Booking API confirms, we trigger import-bookings to refresh
+      // Planning's local cache from the canonical Booking source.
+      // ─────────────────────────────────────────────────────────────────────
       const corrections: Discrepancy[] = body.corrections || [];
       
       if (!corrections.length) {
@@ -293,7 +363,7 @@ serve(async (req) => {
       }
 
       let applied = 0;
-      let errors: string[] = [];
+      const errors: string[] = [];
 
       // Group corrections by booking
       const byBooking = new Map<string, Discrepancy[]>();
@@ -304,13 +374,12 @@ serve(async (req) => {
       }
 
       for (const [bookingId, bookingCorrections] of byBooking) {
-        // Handle missing local booking — trigger full import
+        // Handle missing local booking — trigger import from Booking
         if (bookingCorrections.some(c => c.field === '_missing_local')) {
           try {
-            const { error } = await supabase.functions.invoke('import-bookings', {
+            await supabase.functions.invoke('import-bookings', {
               body: { booking_id: bookingId, syncMode: 'single', organization_id: organizationId }
             });
-            if (error) throw error;
             applied++;
           } catch (e) {
             errors.push(`Import ${bookingId}: ${e.message}`);
@@ -318,53 +387,50 @@ serve(async (req) => {
           continue;
         }
 
-        // Handle metadata corrections
+        // ── Metadata corrections → write chosen value to Booking API ──
         const metadataUpdates: Record<string, any> = {};
         for (const c of bookingCorrections) {
           if (c.category === 'metadata' && !c.field.startsWith('_')) {
-            metadataUpdates[c.field] = c.externalValue;
+            // chosenSource tells us which value the user picked
+            const chosenValue = c.chosenSource === 'planning' ? c.localValue : c.externalValue;
+            metadataUpdates[c.field] = chosenValue;
           }
         }
 
         if (Object.keys(metadataUpdates).length > 0) {
-          const { error } = await supabase
-            .from('bookings')
-            .update(metadataUpdates)
-            .eq('id', bookingId)
-            .eq('organization_id', organizationId);
-          
-          if (error) {
-            errors.push(`Update ${bookingId}: ${error.message}`);
-          } else {
+          try {
+            await writeToBookingApi(efUrl, planningApiKey, bookingId, metadataUpdates);
             applied += Object.keys(metadataUpdates).length;
+          } catch (e) {
+            errors.push(`Booking API update ${bookingId}: ${e.message}`);
           }
         }
 
-        // Handle product corrections — re-import the booking
-        const hasProductCorrections = bookingCorrections.some(c => c.category === 'products');
-        if (hasProductCorrections) {
+        // ── Product/attachment corrections → re-import from Booking ──
+        const hasProductOrAttachmentCorrections = bookingCorrections.some(
+          c => c.category === 'products' || c.category === 'attachments'
+        );
+        if (hasProductOrAttachmentCorrections) {
           try {
-            const { error } = await supabase.functions.invoke('import-bookings', {
+            await supabase.functions.invoke('import-bookings', {
               body: { booking_id: bookingId, syncMode: 'single', organization_id: organizationId }
             });
-            if (error) throw error;
             applied++;
           } catch (e) {
-            errors.push(`Product re-import ${bookingId}: ${e.message}`);
+            errors.push(`Re-import ${bookingId}: ${e.message}`);
           }
         }
 
-        // Handle attachment corrections — re-import the booking
-        const hasAttachmentCorrections = bookingCorrections.some(c => c.category === 'attachments');
-        if (hasAttachmentCorrections) {
+        // ── Always re-import after corrections to sync Planning cache ──
+        if (Object.keys(metadataUpdates).length > 0) {
           try {
-            const { error } = await supabase.functions.invoke('import-bookings', {
+            // Small delay to let Booking API process the write
+            await new Promise(r => setTimeout(r, 500));
+            await supabase.functions.invoke('import-bookings', {
               body: { booking_id: bookingId, syncMode: 'single', organization_id: organizationId }
             });
-            if (error) throw error;
-            applied++;
           } catch (e) {
-            errors.push(`Attachment re-import ${bookingId}: ${e.message}`);
+            console.error(`Post-correction re-import failed for ${bookingId}:`, e.message);
           }
         }
       }
