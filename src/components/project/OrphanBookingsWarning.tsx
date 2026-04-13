@@ -13,6 +13,7 @@ const fetchOrphanBookings = async () => {
     .select('id, client, booking_number, eventdate, created_at')
     .eq('status', 'CONFIRMED')
     .or('assigned_to_project.is.null,assigned_to_project.eq.false')
+    .is('large_project_id', null)
     .eq('viewed', true)
     .lt('created_at', sevenDaysAgo.toISOString())
     .order('eventdate', { ascending: true })
