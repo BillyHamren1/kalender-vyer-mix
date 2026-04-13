@@ -16,20 +16,24 @@ interface QRScannerProps {
 /**
  * QRScanner — Hybrid scanner component
  * 
- * In scanner mode (Zebra devices): Skips camera entirely, shows only manual input.
+ * In Android scanner mode (Zebra devices): Skips camera entirely, shows only manual input.
  * DataWedge handles all hardware scanning — no camera permission needed.
  * 
- * In other modes: Uses BarcodeDetector API with jsQR fallback + manual input.
+ * In iOS scanner mode: Uses the device camera (no Zebra/DataWedge hardware).
+ * 
+ * In web/other modes: Uses BarcodeDetector API with jsQR fallback + manual input.
  * On native Capacitor platforms, uses getUserMedia with special handling.
  * 
  * skipCamera logic:
- *   - undefined → auto-detect (true for isScannerApp, false otherwise)
+ *   - undefined → auto-detect (true only for Android scanner app, false otherwise)
  *   - true → always skip camera
  *   - false → always try camera (use only when camera is explicitly desired)
  */
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
-  // Default: skip camera on scanner app (Zebra uses DataWedge), allow on web/other
-  const shouldSkipCamera = skipCamera ?? isScannerApp;
+  // Skip camera only on Android scanner builds (Zebra/DataWedge handles scanning).
+  // iOS scanner builds and web must use the camera.
+  const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
+  const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
