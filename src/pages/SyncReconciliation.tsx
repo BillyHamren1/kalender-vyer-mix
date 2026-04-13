@@ -600,6 +600,44 @@ const FieldRow = ({ label, value }: { label: string; value: any }) => {
   );
 };
 
+const TimeComparisonTable = ({ booking, local }: { booking: RawBooking; local: any }) => {
+  const fields = [
+    { label: 'Riggdatum', ext: booking.rigdaydate, loc: local?.rigdaydate },
+    { label: 'Rigg start', ext: booking.rig_start_time, loc: local?.rig_start_time },
+    { label: 'Rigg slut', ext: booking.rig_end_time, loc: local?.rig_end_time },
+    { label: 'Eventdatum', ext: booking.eventdate, loc: local?.eventdate },
+    { label: 'Event start', ext: booking.event_start_time, loc: local?.event_start_time },
+    { label: 'Event slut', ext: booking.event_end_time, loc: local?.event_end_time },
+    { label: 'Nedriggdatum', ext: booking.rigdowndate, loc: local?.rigdowndate },
+    { label: 'Nedrigg start', ext: booking.rigdown_start_time, loc: local?.rigdown_start_time },
+    { label: 'Nedrigg slut', ext: booking.rigdown_end_time, loc: local?.rigdown_end_time },
+  ];
+  return (
+    <>
+      <div className="border rounded overflow-hidden">
+        <div className="grid grid-cols-3 gap-0 bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+          <span>Fält</span>
+          <span>Booking</span>
+          <span>Planning</span>
+        </div>
+        {fields.map(({ label, ext, loc }) => {
+          const extVal = ext || '—';
+          const locVal = loc || '—';
+          const mismatch = ext && loc && ext !== loc;
+          return (
+            <div key={label} className={`grid grid-cols-3 gap-0 px-2 py-1 text-xs border-t ${mismatch ? 'bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-mono">{extVal}</span>
+              <span className={`font-mono ${mismatch ? 'text-amber-700 dark:text-amber-400 font-bold' : ''}`}>{locVal}</span>
+            </div>
+          );
+        })}
+      </div>
+      {!local && <p className="text-xs text-muted-foreground mt-1 italic">Ej hittad i Planning</p>}
+    </>
+  );
+};
+
 const RawDataTab = () => {
   const [search, setSearch] = useState('');
 
