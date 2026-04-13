@@ -139,6 +139,16 @@ const ProjectManagement = () => {
           subtitle="Hantera små, medelstora och stora projekt"
           variant="purple"
         >
+          <Button
+            onClick={handleSyncBookings}
+            variant="outline"
+            size="sm"
+            disabled={isSyncing}
+            className="rounded-lg h-8"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            Uppdatera
+          </Button>
           <Button 
             onClick={() => navigate('/projects/archive')}
             variant="outline"
