@@ -236,7 +236,10 @@ async function syncAllAttachments(
     seenUrls.add(baseUrl);
     const { error } = await supabase
       .from('booking_attachments')
-      .insert({ booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId });
+      .upsert(
+        { booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId },
+        { onConflict: 'booking_id,file_name', ignoreDuplicates: true }
+      );
     if (error) {
       console.error(`[Attachments] Error inserting "${fileName}" for booking ${bookingId}:`, error.message);
     } else {
