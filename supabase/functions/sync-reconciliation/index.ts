@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
       const localBookingMap = new Map((localBookings || []).map(b => [b.id, b]));
       const localProductsByBooking = new Map<string, any[]>();
       for (const p of (localProducts || [])) {
-        if (p.is_package_component) continue; // skip package components
+        if (p.is_package_component || p.parent_product_id) continue; // skip package components and child products
         const arr = localProductsByBooking.get(p.booking_id) || [];
         arr.push(p);
         localProductsByBooking.set(p.booking_id, arr);
@@ -417,8 +417,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Compare products — treat missing local products as match
-        const extProducts = ext.products || [];
+        // Compare products — only top-level (non-child) products
+        const extProducts = (ext.products || []).filter((p: any) => !p.parent_product_id && !p.is_package_component);
         const locProducts = localProductsByBooking.get(bookingId) || [];
 
         const extProductNames = new Map(extProducts.map((p: any) => [p.name?.trim(), p]));
