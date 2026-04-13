@@ -417,8 +417,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Compare products — treat missing local products as match
-        const extProducts = ext.products || [];
+        // Compare products — only top-level (non-child) products
+        const extProducts = (ext.products || []).filter((p: any) => !p.parent_product_id && !p.is_package_component);
         const locProducts = localProductsByBooking.get(bookingId) || [];
 
         const extProductNames = new Map(extProducts.map((p: any) => [p.name?.trim(), p]));
