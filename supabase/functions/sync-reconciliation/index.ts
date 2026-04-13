@@ -398,18 +398,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Compare products — detailed field-level comparison
+        // Compare products — treat missing local products as match
         const extProducts = ext.products || [];
         const locProducts = localProductsByBooking.get(bookingId) || [];
-
-        if (extProducts.length !== locProducts.length) {
-          discrepancies.push({
-            bookingId, bookingNumber, client: clientName,
-            field: '_product_count', category: 'products',
-            localValue: locProducts.length, externalValue: extProducts.length,
-            label: 'Antal produkter'
-          });
-        }
 
         const extProductNames = new Map(extProducts.map((p: any) => [p.name?.trim(), p]));
         const localProductNames = new Map(locProducts.map((p: any) => [p.name?.trim(), p]));
@@ -417,12 +408,7 @@ Deno.serve(async (req) => {
         for (const [name, extP] of extProductNames) {
           const localP = localProductNames.get(name);
           if (!localP) {
-            discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
-              field: `_product_missing:${name}`, category: 'products',
-              localValue: null, externalValue: `${name} (${extP.quantity} st)`,
-              label: `Produkt saknas lokalt: ${name}`
-            });
+            continue; // Planning saknar produkten = räkna som match
           } else {
             // Compare each product field
             for (const { key, label } of productFields) {
