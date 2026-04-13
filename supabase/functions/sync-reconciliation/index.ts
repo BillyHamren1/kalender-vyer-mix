@@ -385,6 +385,9 @@ Deno.serve(async (req) => {
           const normExt = extVal === '' ? null : extVal;
           const normLocal = localVal === '' ? null : localVal;
           
+          // If local is empty/null, treat as match (Planning hasn't stored a value yet)
+          if (normLocal === null || normLocal === undefined) continue;
+          
           if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
@@ -427,6 +430,9 @@ Deno.serve(async (req) => {
               const localVal = localP[key] ?? null;
               const normExt = extVal === '' ? null : (typeof extVal === 'number' ? extVal : extVal);
               const normLocal = localVal === '' ? null : (typeof localVal === 'number' ? localVal : localVal);
+              
+              // If local is empty/null/0, treat as match
+              if (normLocal === null || normLocal === undefined || normLocal === 0) continue;
               
               if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
                 discrepancies.push({
