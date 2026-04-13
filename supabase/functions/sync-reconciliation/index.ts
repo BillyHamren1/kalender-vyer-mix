@@ -535,9 +535,12 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Attachments only in Planning (extra locally)
+        // Attachments only in Planning (extra locally) — only flag user-uploaded ones
         for (const [index, locEntry] of locEntries.entries()) {
           if (!matchedLocalIndexes.has(index)) {
+            const locAttachment = locAttachments[index];
+            // Skip import-created attachments — only flag user-uploaded ones
+            if (locAttachment?.source === 'import') continue;
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
               field: `_attachment_extra:${locEntry.displayName}`, category: 'attachments',

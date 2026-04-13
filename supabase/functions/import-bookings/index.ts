@@ -237,7 +237,7 @@ async function syncAllAttachments(
     const { error } = await supabase
       .from('booking_attachments')
       .upsert(
-        { booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId },
+        { booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId, source: 'import' },
         { onConflict: 'booking_id,file_name', ignoreDuplicates: true }
       );
     if (error) {
@@ -3135,7 +3135,8 @@ serve(async (req) => {
                 booking_id: bookingData.id,
                 url: attUrl,
                 file_name: attFileName,
-                file_type: attachment.file_type || attachment.type || 'unknown'
+                file_type: attachment.file_type || attachment.type || 'unknown',
+                source: 'import'
               }
 
               const { error: attachmentError } = await supabase
