@@ -693,7 +693,6 @@ Deno.serve(async (req) => {
         for (const [name, extP] of extProductNames) {
           const localP = localProductNames.get(name);
           if (!localP) {
-          if (!localP) {
             continue; // Product missing locally — not flagged per user request
           }
           // Compare each product field
