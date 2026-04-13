@@ -1,50 +1,38 @@
 
-## Plan
 
-Jag har hittat att stödet redan finns i koden för exakt det du vill göra:
+## Plan: Fixa QRScanner kamera-deadlock
 
-- `import-bookings` stödjer redan `historicalMode` / `forceHistoricalImport`
-- `src/services/importService.ts` har redan `forceHistoricalSync()`
-- problemet är att `/projects` fortfarande kör edge-funktionen direkt i **incremental**-läge
+### Problemet
+I `QRScanner.tsx` rad 447-462 finns ett klassiskt render-deadlock:
+- `startCamera()` sätter state till `'starting'`
+- I `'starting'`-läget renderas **bara en spinner** (rad 447-452)
+- `<video ref={videoRef}>` renderas **bara** i `else`-grenen (rad 454+), dvs `'running'`
+- `startCamera()` försöker sätta `videoRef.current.srcObject = stream` (rad 258), men elementet finns inte i DOM
+- State går aldrig till `'running'` → evig spinner
 
-## Det jag bygger
+### Fix
+**En ändring i `src/components/scanner/QRScanner.tsx`:**
 
-### 1. Byt `/projects` från inkrementell sync till full engångssync
-I `src/pages/ProjectManagement.tsx` ändrar jag `handleSyncBookings` så att den använder den redan befintliga full-sync-pathen i stället för:
-- nuvarande: `syncMode: 'incremental'`
-- nytt: full historisk sync av alla bokningar oavsett senaste timestamp
+1. **Rendera `<video>` och `<canvas>` ALLTID** (inte bara i `running`-state) — gör dem dolda visuellt under `starting` men närvarande i DOM så att `videoRef.current` finns
+2. **Visa spinner som overlay** ovanpå video-elementet under `starting`, istället för att ersätta det
+3. **Lägg till diagnostiska logs** vid varje nyckelsteg: overlay öppnad, `videoRef.current` status, före/efter `getUserMedia`, stream-resultat, `srcObject`-tilldelning
 
-Det kan göras på två likvärdiga sätt:
-- anropa `forceHistoricalSync()`, eller
-- fortsätta anropa edge-funktionen direkt men med `historicalMode: true` + `forceHistoricalImport: true`
+### Konkret renderändring
+```
+{/* Video + canvas ALLTID i DOM */}
+<video ref={videoRef} className={cameraState === 'running' ? 'visible' : 'invisible absolute'} ... />
+<canvas ref={canvasRef} className="hidden" />
 
-Jag följer befintligt mönster och väljer den väg som ger minst risk och tydligast resultat.
+{/* Overlay: spinner under starting, scanning-ram under running */}
+{cameraState === 'starting' && <SpinnerOverlay />}
+{cameraState === 'running' && <ScanningOverlay />}
+{cameraState === 'error' && <ErrorView />}
+```
 
-### 2. Behåll nuvarande query refresh efter sync
-Efter körningen invalidateras samma queries som idag så att projektsidan laddar om:
-- `projects`
-- `bookings`
-- `bookings-without-project`
-- `dashboard-stats`
-- `orphan-bookings`
+### Vad som INTE ändras
+- Ingen Android/Zebra/DataWedge-påverkan
+- Ingen iOS native-kod
+- Ingen backend/edge function
+- Alla befintliga timeouts, fallbacks och felhantering behålls
+- `skipCamera`-logiken orörd
 
-### 3. Förtydliga feedback i UI
-Nuvarande toast “Inga nya ändringar att synka” är missvisande för detta läge. Jag byter till meddelanden som passar full sync, t.ex.:
-- “Full synk slutförd”
-- antal uppdaterade/skapade/fel
-- tydlig feltoast om edge-funktionen returnerar fel
-
-### 4. Ingen ny reconciliation-logik nu
-Jag bygger inte om sync-flödet igen här.
-Detta blir bara att använda **den edge vi redan byggt** för att köra en full import av alla bokningar en gång från `/projects`.
-
-## Tekniska detaljer
-
-- Fil som ändras: `src/pages/ProjectManagement.tsx`
-- Möjligen även återanvändning/import från: `src/services/importService.ts`
-- Ingen ny databasändring
-- Ingen ny edge function
-- Ingen migration
-
-## Resultat
-När du klickar på uppdatera på projektsidan kommer appen att köra en **full sync av alla bokningar**, inte bara ändringar sedan senaste sync.
