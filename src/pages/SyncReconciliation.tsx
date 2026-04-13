@@ -281,12 +281,23 @@ const SyncReconciliation = () => {
 
               {/* Discrepancy list grouped by booking */}
               <div className="space-y-4">
-                {[...groupedByBooking.entries()].map(([bookingId, items]) => {
+              {[...groupedByBooking.entries()].map(([bookingId, items]) => {
                   const first = items[0];
                   const bookingItemsResolved = items.filter(d => effectiveChoices[getDiscKey(d)]).length;
+                  const extStatus = first.bookingStatus?.toUpperCase() || 'UNKNOWN';
+                  const isNonConfirmed = extStatus !== 'CONFIRMED';
+                  const statusStyle = extStatus === 'OFFER' || extStatus === 'DRAFT' || extStatus === 'UTKAST'
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'
+                    : extStatus === 'CANCELLED' || extStatus === 'AVBOKAD'
+                    ? 'border-red-400 bg-red-50 dark:bg-red-950/30'
+                    : '';
+                  const statusLabel = extStatus === 'OFFER' ? 'OFFERT'
+                    : extStatus === 'DRAFT' || extStatus === 'UTKAST' ? 'UTKAST'
+                    : extStatus === 'CANCELLED' || extStatus === 'AVBOKAD' ? 'AVBOKAD'
+                    : extStatus;
 
                   return (
-                    <Card key={bookingId}>
+                    <Card key={bookingId} className={isNonConfirmed ? statusStyle : ''}>
                       <CardHeader className="py-3 px-4">
                         <CardTitle className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
@@ -294,6 +305,15 @@ const SyncReconciliation = () => {
                             <span className="font-semibold">{safeClientName(first.client)}</span>
                             {first.bookingNumber && (
                               <Badge variant="outline" className="text-xs">#{first.bookingNumber}</Badge>
+                            )}
+                            {isNonConfirmed && (
+                              <Badge className={`text-xs ${
+                                extStatus === 'CANCELLED' || extStatus === 'AVBOKAD'
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-amber-500 text-white'
+                              }`}>
+                                {statusLabel}
+                              </Badge>
                             )}
                             <span className="text-xs text-muted-foreground font-mono">{bookingId.substring(0, 8)}…</span>
                           </div>
