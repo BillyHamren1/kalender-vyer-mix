@@ -799,7 +799,8 @@ const RawDataTab = () => {
                   <div className="mt-3 text-xs text-muted-foreground">ID: {b.id}</div>
                 </AccordionContent>
               </AccordionItem>
-            ))}
+              );
+            })}
           </Accordion>
         </>
       ) : (
