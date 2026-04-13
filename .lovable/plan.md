@@ -1,44 +1,53 @@
 
 
-## iOS Scanner Camera Fix
+## Problem
 
-### Root Cause
-In `QRScanner.tsx` line 32:
-```ts
-const shouldSkipCamera = skipCamera ?? isScannerApp;
-```
-`isScannerApp` is `true` for **all** scanner builds (Android AND iOS). This incorrectly skips the camera on iOS, where there is no Zebra/DataWedge hardware — the camera is the primary scanning method.
+`sync-reconciliation` reads field names directly from the raw `export_bookings` API response (e.g. `ext.rigdaydate`, `ext.deliveryaddress`, `ext.client`), but the external API uses **different field names**:
 
-### Changes Required
+| sync-reconciliation expects | External API actually sends |
+|---|---|
+| `client` | `clientName` or `client.name` (object) |
+| `deliveryaddress` | `delivery_address` |
+| `rigdaydate` | `rig_up_dates` (array) or `rig_up_date` |
+| `eventdate` | `event_dates` (array) or `event_date` |
+| `rigdowndate` | `rig_down_dates` (array) or `rig_down_date` |
+| `internalnotes` | `internal_notes` |
+| `rig_start_time` | `rig_up_start_time` or combined `rig_up_time` |
+| `rigdown_start_time` | `rig_down_start_time` or combined `rig_down_time` |
+| `contact_name` | Unknown — needs check |
+| `status` | Needs normalization (BEKRÄFTAD → CONFIRMED) |
 
-**File 1: `src/components/scanner/QRScanner.tsx`**
-- Line 32: Replace `const shouldSkipCamera = skipCamera ?? isScannerApp;` with:
-```ts
-// Skip camera only on Android scanner builds (Zebra/DataWedge handles scanning).
-// iOS scanner builds and web must use the camera.
-const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
-const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
-```
-- Update the JSDoc comment (lines 19-29) to reflect the new logic.
-- No other changes needed — `Capacitor` is already imported on line 5.
+The `import-bookings` function already has all the correct mapping logic (lines 2080-2180). `sync-reconciliation` skips this mapping entirely, so every external field appears null/empty → false discrepancies everywhere.
 
-**File 2: `ios/App/App/Info.plist`**
-- Update three permission strings from "EventFlow Time" to "EventFlow Scanner" with scanner-relevant descriptions. The `capacitor.scanner.config.ts` already has correct `infoPlist` overrides, but the base Info.plist should also reflect the scanner app since it's the starting point for `cap sync`.
+## Solution
 
-**No changes needed in:**
-- `MobileScannerApp.tsx` — uses `<QRScanner>` without `skipCamera`, so it inherits the corrected default.
-- `VerificationView.tsx` — same, uses `<QRScanner>` at lines 397 and 574 without `skipCamera`. After the fix, iOS will show camera, Android will still skip it.
-- `capacitor.scanner.config.ts` — already has correct iOS permission strings.
+Add a **normalize function** in `sync-reconciliation` that applies the same field mapping as `import-bookings` to each external booking **before** comparison. This means:
 
-### Behavior After Fix
+1. **Normalize external bookings** after fetching from `export_bookings`:
+   - `clientName` / `client.name` → `client`
+   - `delivery_address` → `deliveryaddress`
+   - `rig_up_dates[0]` / `rig_up_date` → `rigdaydate`
+   - `event_dates[0]` / `event_date` → `eventdate`
+   - `rig_down_dates[0]` / `rig_down_date` → `rigdowndate`
+   - `internal_notes` → `internalnotes`
+   - Time fields: same priority chain as import-bookings (discrete → combined range → null)
+   - Status: normalize BEKRÄFTAD → CONFIRMED, AVBOKAD → CANCELLED
+   - Contact fields mapping
+   - Product field name alignment
 
-| Environment | `isScannerApp` | `Capacitor.getPlatform()` | `shouldSkipCamera` | Result |
-|---|---|---|---|---|
-| Android scanner (Zebra) | true | 'android' | true | Camera skipped, DataWedge used |
-| iOS scanner (iPhone) | true | 'ios' | false | Camera opens |
-| Web browser | false | 'web' | false | Camera opens |
-| Explicit `skipCamera={true}` | any | any | true | Camera skipped |
+2. **Single file change**: `supabase/functions/sync-reconciliation/index.ts` — add a `normalizeExternalBooking()` helper and call it on each booking before comparison.
 
-### Known WKWebView limitation
-`navigator.permissions.query({ name: 'camera' })` can hang in WKWebView — this is already handled in the existing code (line 174-175: skips permission query on iOS native). No changes needed there.
+3. **Deploy** the updated edge function.
+
+## Technical Detail
+
+The normalizer will mirror the exact logic from `import-bookings` lines 2080-2182, extracting:
+- Client name from `clientName` or `client.name`
+- Dates from array-first format with single-field fallbacks
+- Time fields with the same priority chain and `parseTimeRange` for combined fields
+- Address from `delivery_address`
+- Notes from `internal_notes`
+- Status normalization
+
+No other files need changes — the UI and apply logic remain the same.
 
