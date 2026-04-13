@@ -527,17 +527,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Attachments only in Booking (missing locally)
-        for (const extEntry of extEntries) {
-          if (!matchedExternalIds.has(extEntry.id)) {
-            discrepancies.push({
-              bookingId, bookingNumber, client: clientName,
-              field: `_attachment_missing:${extEntry.displayName}`, category: 'attachments',
-              localValue: null, externalValue: extEntry.displayName,
-              label: `Bilaga saknas lokalt: ${extEntry.displayName}`
-            });
-          }
-        }
+        // Attachments only in Booking (missing locally) — NOT a discrepancy
+        // Booking is source of truth; import-bookings will sync them eventually.
 
         // Attachments only in Planning (extra locally) — only flag user-uploaded ones
         for (const [index, locEntry] of locEntries.entries()) {
