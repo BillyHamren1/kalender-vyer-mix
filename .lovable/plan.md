@@ -2,52 +2,48 @@
 
 ## Problem
 
-`sync-reconciliation` reads field names directly from the raw `export_bookings` API response (e.g. `ext.rigdaydate`, `ext.deliveryaddress`, `ext.client`), but the external API uses **different field names**:
+The product normalization in `sync-reconciliation` only maps `name` and `sku`, but the external API uses different field names for price, quantity, and cost fields. Specifically:
 
-| sync-reconciliation expects | External API actually sends |
+| sync-reconciliation expects | External API sends |
 |---|---|
-| `client` | `clientName` or `client.name` (object) |
-| `deliveryaddress` | `delivery_address` |
-| `rigdaydate` | `rig_up_dates` (array) or `rig_up_date` |
-| `eventdate` | `event_dates` (array) or `event_date` |
-| `rigdowndate` | `rig_down_dates` (array) or `rig_down_date` |
-| `internalnotes` | `internal_notes` |
-| `rig_start_time` | `rig_up_start_time` or combined `rig_up_time` |
-| `rigdown_start_time` | `rig_down_start_time` or combined `rig_down_time` |
-| `contact_name` | Unknown — needs check |
-| `status` | Needs normalization (BEKRÄFTAD → CONFIRMED) |
+| `unit_price` | `price`, `unit_price`, `rental_price`, `cost` |
+| `total_price` | `total`, computed |
+| `quantity` | `quantity` (sometimes missing, defaults to 1) |
+| `discount` | `discount` (sometimes missing) |
+| `assembly_cost` | Not mapped |
+| `handling_cost` | Not mapped |
+| `purchase_cost` | Not mapped |
 
-The `import-bookings` function already has all the correct mapping logic (lines 2080-2180). `sync-reconciliation` skips this mapping entirely, so every external field appears null/empty → false discrepancies everywhere.
+So when comparing `extP.unit_price`, it's `undefined` because the external has `price`. Same for other cost fields. Products also may not match by name if `product_name` normalization fails in edge cases.
 
-## Solution
+## Fix
 
-Add a **normalize function** in `sync-reconciliation` that applies the same field mapping as `import-bookings` to each external booking **before** comparison. This means:
+**Single file**: `supabase/functions/sync-reconciliation/index.ts`
 
-1. **Normalize external bookings** after fetching from `export_bookings`:
-   - `clientName` / `client.name` → `client`
-   - `delivery_address` → `deliveryaddress`
-   - `rig_up_dates[0]` / `rig_up_date` → `rigdaydate`
-   - `event_dates[0]` / `event_date` → `eventdate`
-   - `rig_down_dates[0]` / `rig_down_date` → `rigdowndate`
-   - `internal_notes` → `internalnotes`
-   - Time fields: same priority chain as import-bookings (discrete → combined range → null)
-   - Status: normalize BEKRÄFTAD → CONFIRMED, AVBOKAD → CANCELLED
-   - Contact fields mapping
-   - Product field name alignment
+Extend the product normalizer (lines 131-135) to map all product fields the same way `import-bookings` does:
 
-2. **Single file change**: `supabase/functions/sync-reconciliation/index.ts` — add a `normalizeExternalBooking()` helper and call it on each booking before comparison.
+```typescript
+const products = (ext.products || []).map((p: any) => {
+  const unitPrice = p.price || p.unit_price || p.rental_price || p.cost || null;
+  const quantity = p.quantity || 1;
+  const totalPrice = p.total ?? p.total_price ?? (unitPrice ? unitPrice * quantity : null);
+  
+  return {
+    ...p,
+    name: p.name || p.product_name || p.productName || '',
+    sku: p.sku || p.article_number || null,
+    quantity,
+    unit_price: unitPrice,
+    total_price: totalPrice,
+    discount: p.discount || 0,
+    assembly_cost: p.assembly_cost || p.labor_cost || p.work_cost || p.setup_cost || 0,
+    handling_cost: p.handling_cost || p.material_cost || 0,
+    purchase_cost: p.purchase_cost || p.external_cost || p.subrent_cost || 0,
+  };
+});
+```
 
-3. **Deploy** the updated edge function.
+Also add logging to the compare action so we can see what the external API returns for products (temporary debug aid).
 
-## Technical Detail
-
-The normalizer will mirror the exact logic from `import-bookings` lines 2080-2182, extracting:
-- Client name from `clientName` or `client.name`
-- Dates from array-first format with single-field fallbacks
-- Time fields with the same priority chain and `parseTimeRange` for combined fields
-- Address from `delivery_address`
-- Notes from `internal_notes`
-- Status normalization
-
-No other files need changes — the UI and apply logic remain the same.
+Deploy the updated edge function.
 
