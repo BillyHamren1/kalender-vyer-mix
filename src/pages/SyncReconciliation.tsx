@@ -89,7 +89,8 @@ const BookingOverviewTab = () => {
   const confirmed = bookings.filter(b => b.externalStatus === 'CONFIRMED');
   const issues = confirmed.filter(b => !b.existsLocally || !b.statusMatch);
   const matching = confirmed.filter(b => b.existsLocally && b.statusMatch);
-  const displayed = filter === 'issues' ? issues : confirmed;
+  const nonConfirmedInPlanning = bookings.filter(b => b.externalStatus !== 'CONFIRMED' && b.existsLocally);
+  const displayed = filter === 'issues' ? issues : filter === 'non-confirmed' ? nonConfirmedInPlanning : confirmed;
 
   const statusBadge = (status: string) => {
     if (status === 'CONFIRMED') return <Badge className="bg-green-600 text-white text-xs">{status}</Badge>;
