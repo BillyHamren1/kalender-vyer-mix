@@ -693,18 +693,7 @@ Deno.serve(async (req) => {
         for (const [name, extP] of extProductNames) {
           const localP = localProductNames.get(name);
           if (!localP) {
-            discrepancies.push({
-              bookingId,
-              bookingNumber,
-              client: clientName,
-              bookingStatus,
-              field: `_product_missing:${name}`,
-              category: "products",
-              localValue: null,
-              externalValue: `${name} (antal: ${extP.quantity || 1})`,
-              label: `Produkt saknas lokalt: ${name}`,
-            });
-            continue;
+            continue; // Product missing locally — not flagged per user request
           }
           // Compare each product field
           for (const { key, label } of productFields) {
@@ -717,7 +706,10 @@ Deno.serve(async (req) => {
               ? null
               : (typeof localVal === "number" ? localVal : localVal);
 
-            // Compare ALL product values — don't skip null/0
+            // Only flag if local has a value OR field is quantity (always compare quantity)
+            if (
+              key !== "quantity" && (normLocal === null || normLocal === undefined || normLocal === 0)
+            ) continue;
 
             if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
               discrepancies.push({
