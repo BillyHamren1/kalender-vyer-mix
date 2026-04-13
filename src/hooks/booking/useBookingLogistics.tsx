@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
-import { updateBookingLogistics } from '@/services/bookingService';
+import { updateLogisticsViaApi } from '@/services/planningApiService';
 
 export const useBookingLogistics = (
   id: string | undefined,
@@ -22,18 +22,22 @@ export const useBookingLogistics = (
     try {
       setIsSaving(true);
       
-      await updateBookingLogistics(id, logisticsData);
+      // Write to Booking API (source of truth) — map to Booking field names
+      await updateLogisticsViaApi(id, {
+        carry_more_than_10m: logisticsData.carryMoreThan10m,
+        ground_nails_allowed: logisticsData.groundNailsAllowed,
+        exact_time_needed: logisticsData.exactTimeNeeded,
+        exact_time_info: logisticsData.exactTimeInfo,
+      });
       
       // Update local state
       setBooking({
         ...booking,
         ...logisticsData
       });
-      
-      // Removed success toast - only show errors
     } catch (err) {
-      console.error('Error updating logistics information:', err);
-      toast.error('Failed to update logistics information');
+      console.error('Error updating logistics via Booking API:', err);
+      toast.error('Kunde inte uppdatera logistikinformation. Försök igen.');
     } finally {
       setIsSaving(false);
     }

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
-import { updateDeliveryDetails } from '@/services/bookingService';
+import { updateDeliveryViaApi } from '@/services/planningApiService';
 
 export const useBookingDelivery = (
   id: string | undefined,
@@ -26,11 +26,21 @@ export const useBookingDelivery = (
     try {
       setIsSaving(true);
       
-      console.log('Updating delivery details with data:', deliveryData);
+      console.log('Updating delivery details via Booking API:', deliveryData);
       
-      await updateDeliveryDetails(id, deliveryData);
+      // Write to Booking API (source of truth) — map to Booking field names
+      await updateDeliveryViaApi(id, {
+        deliveryaddress: deliveryData.deliveryAddress,
+        delivery_city: deliveryData.deliveryCity,
+        delivery_postal_code: deliveryData.deliveryPostalCode,
+        delivery_latitude: deliveryData.deliveryLatitude,
+        delivery_longitude: deliveryData.deliveryLongitude,
+        contact_name: deliveryData.contactName,
+        contact_phone: deliveryData.contactPhone,
+        contact_email: deliveryData.contactEmail,
+      });
       
-      // Update local state
+      // Update local state to reflect the change
       setBooking({
         ...booking,
         deliveryAddress: deliveryData.deliveryAddress,
@@ -42,11 +52,9 @@ export const useBookingDelivery = (
         contactPhone: deliveryData.contactPhone,
         contactEmail: deliveryData.contactEmail
       });
-      
-      // Removed success toast - only show errors
     } catch (err) {
-      console.error('Error updating delivery details:', err);
-      toast.error('Failed to update delivery details');
+      console.error('Error updating delivery details via Booking API:', err);
+      toast.error('Kunde inte uppdatera leveransinformation. Försök igen.');
     } finally {
       setIsSaving(false);
     }
