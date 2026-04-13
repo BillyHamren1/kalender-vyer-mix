@@ -391,9 +391,16 @@ Deno.serve(async (req) => {
           
           let normExt = extVal === '' ? null : extVal;
           let normLocal = localVal === '' ? null : localVal;
+
+          // Normalize status on both sides so CONFIRMED vs confirmed etc. match
+          if (key === 'status') {
+            normExt = normalizeStatus(normExt as string);
+            normLocal = normalizeStatus(normLocal as string);
+          }
           
           // If local is empty/null, treat as match (Planning hasn't stored a value yet)
-          if (normLocal === null || normLocal === undefined) continue;
+          // BUT never skip status — it must always be compared
+          if (key !== 'status' && (normLocal === null || normLocal === undefined)) continue;
           
           // For time fields: if Booking has no value but Planning does,
           // it means Planning assigned the time locally — skip comparison
@@ -412,11 +419,16 @@ Deno.serve(async (req) => {
           }
           
           if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
+            // For status: add helpful context in label
+            const effectiveLabel = key === 'status'
+              ? `Status (Booking: ${normExt}, Planning: ${normLocal})`
+              : label;
+
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
               field: key, category: 'metadata',
               localValue: normLocal, externalValue: normExt,
-              label
+              label: effectiveLabel
             });
           }
         }
