@@ -245,6 +245,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }
 
       console.log('[QRScanner] Got stream, tracks:', stream.getVideoTracks().length);
+      console.log('[QRScanner] videoRef.current exists:', !!videoRef.current);
 
       if (!mountedRef.current) {
         stream.getTracks().forEach(t => t.stop());
@@ -255,6 +256,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       if (videoRef.current) {
         const video = videoRef.current;
+        console.log('[QRScanner] Assigning srcObject to video element');
         video.srcObject = stream;
 
         // --- Robust video start: listen for multiple readiness signals ---
