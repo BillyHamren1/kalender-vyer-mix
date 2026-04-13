@@ -1,55 +1,43 @@
 
 
-## Plan: Fokuserad vy — bara CONFIRMED-bokningar med statusavvikelser
+## Plan: Visa OFFER-bokningar som finns i Planning
 
 ### Problem
-Användaren ser en massa avvikelser som inte är relevanta just nu. Det som behövs är en enkel lista: "Alla bokningar som är CONFIRMED i Booking — stämmer de överens med Planning?" Alla andra avvikelser (produkter, bilagor, metadata-fält) ska ignoreras i detta läge.
+Vyn visar bara CONFIRMED-bokningar från Booking. Men det finns bokningar med status OFFER i Booking som fortfarande finns i Planning-databasen. Dessa syns inte alls nu, trots att de kan vara ett problem (borde kanske inte finnas i Planning, eller borde ha annan status).
 
 ### Lösning
 
-**1. Ny flik/filter i `src/pages/SyncReconciliation.tsx`**
+**1. Utöka UI-filtren i `src/pages/SyncReconciliation.tsx`**
 
-Lägg till en ny standardvy (flik eller toggle) "Bokningsöversikt" som visar:
-- En tabell/lista med ALLA bekräftade bokningar från Booking-systemet
-- Kolumner: Bokningsnr, Klient, Eventdatum, Status i Booking, Status i Planning, Finns i Planning (ja/nej)
-- Markera rader som har problem: saknas i Planning, eller har annan status i Planning
-- Rader utan problem visas gröna/normala, problemrader markeras tydligt
+Lägg till en tredje filterknapp och sektion:
+- **Avvikelser** (nuvarande) — CONFIRMED som saknas/avviker i Planning
+- **Alla CONFIRMED** (nuvarande) — alla bekräftade
+- **Ej bekräftade i Planning** (ny) — bokningar som INTE är CONFIRMED i Booking men som ändå finns lokalt i Planning
 
-**2. Backend-stöd i `supabase/functions/sync-reconciliation/index.ts`**
+Visa dessa med tydlig markering: "Denna bokning är OFFER i Booking men finns i Planning med status X"
 
-Lägg till en ny action `"booking-overview"` som:
-- Hämtar alla externa bokningar (paginerat, samma som idag)
-- Hämtar alla lokala bokningar
-- Returnerar en enkel lista med varje bokning och dess status i båda system
-- Flaggar: `missingInPlanning`, `statusMismatch`, `localStatus`, `externalStatus`
-- Filtrerar bara CONFIRMED-bokningar från Booking (eller returnerar alla med status, låter UI filtrera)
+**2. Filtrera från befintlig data**
 
-**3. UI-struktur**
+Edge-funktionen `booking-overview` returnerar redan ALLA bokningar (inte bara CONFIRMED). Datan finns redan — vi behöver bara använda den i UI:t:
 
-Två flikar högst upp:
-- **Bokningsöversikt** (ny, default) — den enkla listan
-- **Detaljerad avstämning** — nuvarande vy med alla metadata/produkt/bilaga-avvikelser
+```
+const nonConfirmedInPlanning = bookings.filter(
+  b => b.externalStatus !== 'CONFIRMED' && b.existsLocally
+);
+```
 
-Bokningsöversikten visar:
-- Sammanfattning: X bekräftade i Booking, Y matchar Planning, Z avviker
-- Tabell med sortering/filtrering
-- Varje rad visar tydligt om bokningen finns och har rätt status i Planning
-- Knapp "Importera saknade" för bokningar som saknas lokalt
+**3. Uppdatera sammanfattningskorten**
+
+Lägg till ett femte kort: "Ej bekräftade i Planning" med antal och röd markering om > 0.
 
 ### Tekniska detaljer
 
-**Edge function** (`sync-reconciliation/index.ts`):
-- Ny action `"booking-overview"` runt rad 297
-- Återanvänder paginerad hämtning och `fetchAll`
-- Returnerar: `{ bookings: Array<{ id, bookingNumber, client, eventdate, externalStatus, localStatus, existsLocally, statusMatch }> }`
-
-**UI** (`src/pages/SyncReconciliation.tsx`):
-- Ny `useQuery` för `booking-overview`
-- Tabs-komponent med "Bokningsöversikt" och "Detaljerad avstämning"
-- Enkel tabellvy med statusikoner och färgkodning
+- Bara UI-ändring i `src/pages/SyncReconciliation.tsx`
+- Ingen backend-ändring behövs — datan finns redan
+- Ny filterknapp + ny tabell-filtrering
+- Samma tabellformat, men med extra varning-ikon för dessa rader
 
 ### Resultat
-- Användaren ser direkt vilka CONFIRMED-bokningar som saknas eller har fel status i Planning
-- Inga andra avvikelser syns i denna vy
-- Befintlig detaljerad vy finns kvar under egen flik
+- Användaren ser direkt vilka OFFER/CANCELLED-bokningar som fortfarande ligger kvar i Planning
+- Kan agera på dem (radera, ändra status, etc.)
 
