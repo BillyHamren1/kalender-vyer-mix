@@ -1,21 +1,15 @@
 
 
-## Fix: OrphanBookingsWarning visar falska positiver
+## Problem
+The "Uppdatera" button calls `import-bookings` with only `{ syncMode: 'incremental' }`. The edge function now requires `organization_id` explicitly and rejects the request with a 500.
 
-### Problem
-Varningen "bekräftade bokningar saknar projekt" visar bokningar som faktiskt ÄR kopplade till stora projekt (via `large_project_bookings` och `large_project_id`). Queryn kollar bara `assigned_to_project = false` men ignorerar `large_project_id`.
+## Fix
+**File: `src/pages/ProjectManagement.tsx`** — Update `handleSyncBookings` to fetch the user's `organization_id` from their profile before invoking the edge function, matching the pattern already used in `useRefreshBooking.ts`.
 
-Alla 6 flaggade bokningar (2603-116, 2602-15, 2603-126, 2603-127, 2604-5, 2603-125) har `large_project_id` satt och finns i `large_project_bookings`.
+Changes:
+1. Before the `supabase.functions.invoke` call, get the current user via `supabase.auth.getUser()`
+2. Look up their `organization_id` from the `profiles` table
+3. Include `organization_id` in the request body: `{ syncMode: 'incremental', organization_id: orgId }`
 
-### Lösning
-Uppdatera queryn i `OrphanBookingsWarning.tsx` för att också exkludera bokningar med `large_project_id`:
-
-**`src/components/project/OrphanBookingsWarning.tsx`** — lägg till `.is('large_project_id', null)` i queryn (rad 15-16):
-
-```typescript
-.or('assigned_to_project.is.null,assigned_to_project.eq.false')
-.is('large_project_id', null)
-```
-
-Detta gör att bokningar kopplade till stora projekt inte längre visas som "orphans". En rad ändras, inget annat påverkas.
+This is a single-file, ~10-line change. No database or edge function changes needed.
 
