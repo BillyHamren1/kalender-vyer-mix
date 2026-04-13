@@ -124,18 +124,10 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
     }
 
     try {
-      console.log('✏️ Renaming attachment:', attachmentId, 'to:', newName);
+      console.log('✏️ Renaming attachment via Booking API:', attachmentId, 'to:', newName);
 
-      const { error } = await supabase
-        .from('booking_attachments')
-        .update({ file_name: newName.trim() })
-        .eq('id', attachmentId);
-
-      if (error) {
-        console.error('❌ Error renaming attachment:', error);
-        toast.error('Misslyckades att byta namn på bilagan');
-        return;
-      }
+      const { renameAttachmentViaApi } = await import('@/services/planningApiService');
+      await renameAttachmentViaApi(attachmentId, newName.trim());
 
       console.log('✅ Attachment renamed successfully');
       toast.success('Bilaga omdöpt');

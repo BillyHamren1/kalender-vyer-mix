@@ -2,7 +2,7 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { updateBookingDateWithTimes } from "@/services/bookingService";
+import { updateBookingDatesViaApi } from "@/services/planningApiService";
 import { toast } from "sonner";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -298,8 +298,19 @@ const LargeProjectLayout = () => {
                   return;
                 }
                 try {
+                  const fieldMap = {
+                    rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+                    event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+                    rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+                  };
+                  const fields = fieldMap[dateType];
                   await Promise.all(
-                    bookingIds.map(bid => updateBookingDateWithTimes(bid, dateType, firstDate, startTime, endTime))
+                    bookingIds.map(bid => {
+                      const updateData: Record<string, string | null> = { [fields.date]: firstDate };
+                      if (startTime) updateData[fields.start] = `${firstDate}T${startTime}:00Z`;
+                      if (endTime) updateData[fields.end] = `${firstDate}T${endTime}:00Z`;
+                      return updateBookingDatesViaApi(bid, updateData);
+                    })
                   );
 
                   // 3. Trigger calendar sync per booking
