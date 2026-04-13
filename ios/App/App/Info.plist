@@ -50,11 +50,11 @@
 		<string>location</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>EventFlow Time uses the camera to capture images related to work tasks.</string>
+	<string>EventFlow Scanner uses the camera to scan barcodes and QR codes for packing and warehouse workflows.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>EventFlow Time uses the photo library when selecting or attaching images related to work tasks.</string>
+	<string>EventFlow Scanner may access the photo library when selecting images related to scanning workflows.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>EventFlow Time may save images to your photo library when handling work-related media.</string>
+	<string>EventFlow Scanner may save images related to scanning workflows.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>EventFlow Time uses your location to verify work site attendance and log time accurately.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
