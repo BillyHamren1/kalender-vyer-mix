@@ -128,11 +128,24 @@ function normalizeExternalBooking(ext: any): any {
   const status = normalizeStatus(ext.status);
 
   // Products — normalize field names
-  const products = (ext.products || []).map((p: any) => ({
-    ...p,
-    name: p.name || p.product_name || p.productName || '',
-    sku: p.sku || p.article_number || null,
-  }));
+  const products = (ext.products || []).map((p: any) => {
+    const unitPrice = p.price ?? p.unit_price ?? p.rental_price ?? p.cost ?? null;
+    const quantity = p.quantity || 1;
+    const totalPrice = p.total ?? p.total_price ?? (unitPrice != null ? unitPrice * quantity : null);
+
+    return {
+      ...p,
+      name: p.name || p.product_name || p.productName || '',
+      sku: p.sku || p.article_number || null,
+      quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice,
+      discount: p.discount ?? 0,
+      assembly_cost: p.assembly_cost ?? p.labor_cost ?? p.work_cost ?? p.setup_cost ?? 0,
+      handling_cost: p.handling_cost ?? p.material_cost ?? 0,
+      purchase_cost: p.purchase_cost ?? p.external_cost ?? p.subrent_cost ?? 0,
+    };
+  });
 
   return {
     ...ext,
