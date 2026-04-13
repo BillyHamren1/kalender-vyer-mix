@@ -294,6 +294,94 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action || "compare";
 
+    // ── BOOKING OVERVIEW ─────────────────────────────────────────────────
+    if (action === "booking-overview") {
+      const requestHeaders = {
+        "Authorization": `Bearer ${importApiKey}`,
+        "x-api-key": importApiKey,
+        "Content-Type": "application/json",
+      };
+
+      let rawExternalBookings: any[] = [];
+      let page = 1;
+      const pageSize = 500;
+
+      while (true) {
+        const apiParams = new URLSearchParams();
+        apiParams.append("organization_id", organizationId);
+        apiParams.append("page", String(page));
+        apiParams.append("limit", String(pageSize));
+
+        const apiUrl =
+          `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
+
+        const externalResponse = await fetch(apiUrl, {
+          headers: requestHeaders,
+        });
+        if (!externalResponse.ok) {
+          throw new Error(`External API error: ${externalResponse.status}`);
+        }
+
+        const externalData = await externalResponse.json();
+        const batch = externalData.data || [];
+        rawExternalBookings = rawExternalBookings.concat(batch);
+        if (batch.length < pageSize) break;
+        page++;
+      }
+
+      const externalBookings = rawExternalBookings.map(normalizeExternalBooking);
+
+      // Fetch all local bookings
+      const fetchAll = async (table: string, orgId: string): Promise<any[]> => {
+        const PAGE_SIZE = 1000;
+        let allRows: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from(table)
+            .select("id, booking_number, client, eventdate, status")
+            .eq("organization_id", orgId)
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          allRows = allRows.concat(data || []);
+          if (!data || data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        return allRows;
+      };
+
+      const localBookings = await fetchAll("bookings", organizationId);
+      const localMap = new Map(localBookings.map((b: any) => [b.id, b]));
+
+      const cutoffDate = "2026-01-01";
+
+      const bookings = externalBookings
+        .filter((ext: any) => {
+          const rigDate = ext.rigdaydate || ext.eventdate;
+          return !rigDate || rigDate >= cutoffDate;
+        })
+        .map((ext: any) => {
+          const local = localMap.get(ext.id);
+          const externalStatus = normalizeStatus(ext.status);
+          const localStatus = local ? normalizeStatus(local.status) : null;
+          return {
+            id: ext.id,
+            bookingNumber: ext.booking_number || null,
+            client: ext.client || "",
+            eventdate: ext.eventdate || null,
+            externalStatus,
+            localStatus: localStatus || "SAKNAS",
+            existsLocally: !!local,
+            statusMatch: !!local && externalStatus === localStatus,
+          };
+        });
+
+      return new Response(
+        JSON.stringify({ bookings }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (action === "compare") {
       // Fetch ALL external bookings with pagination
       const requestHeaders = {
