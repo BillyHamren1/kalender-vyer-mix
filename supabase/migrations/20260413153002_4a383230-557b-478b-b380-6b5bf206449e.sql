@@ -1,0 +1,1 @@
+DELETE FROM booking_products WHERE is_package_component = true;

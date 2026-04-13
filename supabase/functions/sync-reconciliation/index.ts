@@ -303,6 +303,7 @@ Deno.serve(async (req) => {
       const localBookingMap = new Map((localBookings || []).map(b => [b.id, b]));
       const localProductsByBooking = new Map<string, any[]>();
       for (const p of (localProducts || [])) {
+        if (p.is_package_component) continue; // skip package components
         const arr = localProductsByBooking.get(p.booking_id) || [];
         arr.push(p);
         localProductsByBooking.set(p.booking_id, arr);
