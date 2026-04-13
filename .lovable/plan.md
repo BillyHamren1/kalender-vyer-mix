@@ -2,48 +2,60 @@
 
 ## Problem
 
-The product normalization in `sync-reconciliation` only maps `name` and `sku`, but the external API uses different field names for price, quantity, and cost fields. Specifically:
+`booking_attachments` has **9,092 rows but only 687 unique URLs** — massive duplication from repeated imports. The reconciliation tool currently only compares attachment counts, not actual content. The user wants:
 
-| sync-reconciliation expects | External API sends |
-|---|---|
-| `unit_price` | `price`, `unit_price`, `rental_price`, `cost` |
-| `total_price` | `total`, computed |
-| `quantity` | `quantity` (sometimes missing, defaults to 1) |
-| `discount` | `discount` (sometimes missing) |
-| `assembly_cost` | Not mapped |
-| `handling_cost` | Not mapped |
-| `purchase_cost` | Not mapped |
+1. **Same attachment on both sides** → keep one copy, delete duplicates
+2. **Different attachments** → keep all (merge both sides)
 
-So when comparing `extP.unit_price`, it's `undefined` because the external has `price`. Same for other cost fields. Products also may not match by name if `product_name` normalization fails in edge cases.
+## Plan
 
-## Fix
+### Step 1: Clean up existing duplicates in `booking_attachments`
 
-**Single file**: `supabase/functions/sync-reconciliation/index.ts`
+Run a data operation to deduplicate — for each `(booking_id, url)` combo, keep one row, delete the rest. This alone should reduce ~9,092 rows to ~687.
 
-Extend the product normalizer (lines 131-135) to map all product fields the same way `import-bookings` does:
-
-```typescript
-const products = (ext.products || []).map((p: any) => {
-  const unitPrice = p.price || p.unit_price || p.rental_price || p.cost || null;
-  const quantity = p.quantity || 1;
-  const totalPrice = p.total ?? p.total_price ?? (unitPrice ? unitPrice * quantity : null);
-  
-  return {
-    ...p,
-    name: p.name || p.product_name || p.productName || '',
-    sku: p.sku || p.article_number || null,
-    quantity,
-    unit_price: unitPrice,
-    total_price: totalPrice,
-    discount: p.discount || 0,
-    assembly_cost: p.assembly_cost || p.labor_cost || p.work_cost || p.setup_cost || 0,
-    handling_cost: p.handling_cost || p.material_cost || 0,
-    purchase_cost: p.purchase_cost || p.external_cost || p.subrent_cost || 0,
-  };
-});
+```sql
+DELETE FROM booking_attachments
+WHERE id NOT IN (
+  SELECT DISTINCT ON (booking_id, split_part(url, '?', 1)) id
+  FROM booking_attachments
+  ORDER BY booking_id, split_part(url, '?', 1), uploaded_at ASC
+);
 ```
 
-Also add logging to the compare action so we can see what the external API returns for products (temporary debug aid).
+### Step 2: Update `sync-reconciliation` attachment comparison
 
-Deploy the updated edge function.
+Replace the simple count comparison (lines 453-468) with URL-based comparison:
+
+- Normalize URLs by stripping query params (same logic as `import-bookings`)
+- Identify attachments **only in Booking** (external) → flag for import
+- Identify attachments **only in Planning** (local) → flag as extra local
+- Identify attachments **in both** (same URL base) → mark as synced, no action needed
+- Report individual missing/extra attachments instead of just count differences
+
+### Step 3: Update `sync-reconciliation` apply logic
+
+For attachment corrections:
+- **Missing locally (exists in Booking only)**: trigger `import-bookings` for that booking to pull them in (already does this)
+- **Extra locally (exists in Planning only)**: keep them — they may be map snapshots or manually uploaded files
+- **Duplicates**: the dedup in Step 1 handles historical mess; prevent future dupes by ensuring `import-bookings` dedup logic (which already exists via `seenUrls` set) works correctly
+
+### Step 4: Add unique constraint to prevent future duplicates
+
+Add a migration with a unique index on `(booking_id, url_base)` or use a partial unique index to prevent the same URL from being inserted twice per booking.
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS booking_attachments_booking_url_unique 
+ON booking_attachments (booking_id, split_part(url, '?', 1));
+```
+
+### Files changed
+
+1. **`supabase/functions/sync-reconciliation/index.ts`** — Enhanced attachment comparison (URL-based) and apply logic
+2. **Database migration** — Dedup existing rows + unique index
+3. Deploy edge function
+
+### Technical detail
+
+- URL normalization strips `?query` params for comparison (cache-busting tokens differ between imports)
+- The `import-bookings` function already has `seenUrls` dedup logic but it only prevents dupes within a single import run — not across runs. The unique index fixes this permanently.
 
