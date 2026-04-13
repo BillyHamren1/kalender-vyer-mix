@@ -557,9 +557,12 @@ interface ScheduleRow {
   localEventEnd: string | null;
   localRigdownStart: string | null;
   localRigdownEnd: string | null;
-  extRigdaydate: string | null;
-  extEventdate: string | null;
-  extRigdowndate: string | null;
+  localCalRigDates: string[];
+  localCalEventDates: string[];
+  localCalRigdownDates: string[];
+  extRigDates: string[];
+  extEventDates: string[];
+  extRigdownDates: string[];
   extRigStart: string | null;
   extRigEnd: string | null;
   extEventStart: string | null;
@@ -567,19 +570,25 @@ interface ScheduleRow {
   extRigdownStart: string | null;
   extRigdownEnd: string | null;
   hasDiscrepancy: boolean;
-  discrepancyFields: string[];
+  discrepancyDetails: string[];
 }
 
-const normalizeDate = (d: string | null): string | null => {
+const normalizeDateStr = (d: string | null | undefined): string | null => {
   if (!d) return null;
   return d.substring(0, 10);
 };
 
-const normalizeTime = (t: string | null): string | null => {
+const normalizeTimeStr = (t: string | null | undefined): string | null => {
   if (!t) return null;
-  // Strip to HH:MM
   const match = t.match(/(\d{2}:\d{2})/);
   return match ? match[1] : t;
+};
+
+const datesArraysMatch = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
 };
 
 const ScheduleAuditTab = () => {
@@ -588,7 +597,6 @@ const ScheduleAuditTab = () => {
   const { data, isLoading, refetch, isFetching } = useQuery<ScheduleRow[]>({
     queryKey: ['schedule-audit'],
     queryFn: async () => {
-      // Fetch local bookings (confirmed)
       const { data: localBookings, error: localErr } = await supabase
         .from('bookings')
         .select('id, booking_number, client, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
@@ -597,7 +605,32 @@ const ScheduleAuditTab = () => {
 
       if (localErr) throw localErr;
 
-      // Fetch external data via sync-reconciliation raw-dump
+      // Fetch local calendar events for multi-day data
+      const bookingIds = (localBookings || []).map(b => b.id);
+      let calEvents: any[] = [];
+      for (let i = 0; i < bookingIds.length; i += 200) {
+        const chunk = bookingIds.slice(i, i + 200);
+        const { data: ce } = await supabase
+          .from('calendar_events')
+          .select('booking_id, event_type, start_time, source_date')
+          .in('booking_id', chunk);
+        if (ce) calEvents = calEvents.concat(ce);
+      }
+
+      const calMap = new Map<string, { rig: string[]; event: string[]; rigdown: string[] }>();
+      for (const ce of calEvents) {
+        if (!ce.booking_id) continue;
+        const entry = calMap.get(ce.booking_id) || { rig: [], event: [], rigdown: [] };
+        const date = normalizeDateStr(ce.source_date) || normalizeDateStr(ce.start_time);
+        if (!date) continue;
+        const type = ce.event_type as string;
+        if (type === 'rig' && !entry.rig.includes(date)) entry.rig.push(date);
+        if (type === 'event' && !entry.event.includes(date)) entry.event.push(date);
+        if ((type === 'rigdown' || type === 'teardown') && !entry.rigdown.includes(date)) entry.rigdown.push(date);
+        calMap.set(ce.booking_id, entry);
+      }
+
+      // Fetch external data
       const { data: extData, error: extErr } = await supabase.functions.invoke('sync-reconciliation', {
         body: { action: 'raw-dump' }
       });
@@ -605,66 +638,60 @@ const ScheduleAuditTab = () => {
 
       const extBookings: any[] = extData?.bookings || [];
       const extMap = new Map<string, any>();
-      for (const eb of extBookings) {
-        extMap.set(eb.id, eb);
-      }
+      for (const eb of extBookings) extMap.set(eb.id, eb);
 
       const rows: ScheduleRow[] = (localBookings || []).map((lb) => {
         const ext = extMap.get(lb.id);
-        const discFields: string[] = [];
+        const cal = calMap.get(lb.id) || { rig: [], event: [], rigdown: [] };
+        const discDetails: string[] = [];
 
-        const cmpDate = (field: string, local: string | null, external: string | null) => {
-          const nl = normalizeDate(local);
-          const ne = normalizeDate(external);
-          if (nl !== ne) discFields.push(field);
-        };
-        const cmpTime = (field: string, local: string | null, external: string | null) => {
-          const nl = normalizeTime(local);
-          const ne = normalizeTime(external);
-          // Only flag if both have values and differ
-          if (nl && ne && nl !== ne) discFields.push(field);
-        };
+        const extRigDates = ((ext?.rig_dates?.length ? ext.rig_dates : (ext?.rigdaydate ? [ext.rigdaydate] : [])) as string[]).map(d => normalizeDateStr(d)).filter(Boolean) as string[];
+        const extEventDates = ((ext?.event_dates?.length ? ext.event_dates : (ext?.eventdate ? [ext.eventdate] : [])) as string[]).map(d => normalizeDateStr(d)).filter(Boolean) as string[];
+        const extRigdownDates = ((ext?.rigdown_dates?.length ? ext.rigdown_dates : (ext?.rigdowndate ? [ext.rigdowndate] : [])) as string[]).map(d => normalizeDateStr(d)).filter(Boolean) as string[];
 
+        const localRigDates = cal.rig.length > 0 ? cal.rig : (lb.rigdaydate ? [normalizeDateStr(lb.rigdaydate)!] : []);
+        const localEventDates = cal.event.length > 0 ? cal.event : (lb.eventdate ? [normalizeDateStr(lb.eventdate)!] : []);
+        const localRigdownDates = cal.rigdown.length > 0 ? cal.rigdown : (lb.rigdowndate ? [normalizeDateStr(lb.rigdowndate)!] : []);
+
+        if (!datesArraysMatch(localRigDates, extRigDates)) {
+          discDetails.push(`Rigg: [${localRigDates.join(', ') || 'inga'}] ≠ [${extRigDates.join(', ') || 'inga'}]`);
+        }
+        if (!datesArraysMatch(localEventDates, extEventDates)) {
+          discDetails.push(`Event: [${localEventDates.join(', ') || 'inga'}] ≠ [${extEventDates.join(', ') || 'inga'}]`);
+        }
+        if (!datesArraysMatch(localRigdownDates, extRigdownDates)) {
+          discDetails.push(`Nedrigg: [${localRigdownDates.join(', ') || 'inga'}] ≠ [${extRigdownDates.join(', ') || 'inga'}]`);
+        }
+
+        const cmpTime = (label: string, local: string | null, external: string | null) => {
+          const nl = normalizeTimeStr(local);
+          const ne = normalizeTimeStr(external);
+          if (nl && ne && nl !== ne) discDetails.push(`${label}: ${nl} ≠ ${ne}`);
+        };
         if (ext) {
-          cmpDate('rigdaydate', lb.rigdaydate, ext.rigdaydate);
-          cmpDate('eventdate', lb.eventdate, ext.eventdate);
-          cmpDate('rigdowndate', lb.rigdowndate, ext.rigdowndate);
-          cmpTime('rig_start', lb.rig_start_time, ext.rig_start_time);
-          cmpTime('rig_end', lb.rig_end_time, ext.rig_end_time);
-          cmpTime('event_start', lb.event_start_time, ext.event_start_time);
-          cmpTime('event_end', lb.event_end_time, ext.event_end_time);
-          cmpTime('rigdown_start', lb.rigdown_start_time, ext.rigdown_start_time);
-          cmpTime('rigdown_end', lb.rigdown_end_time, ext.rigdown_end_time);
+          cmpTime('Rigg start', lb.rig_start_time, ext.rig_start_time);
+          cmpTime('Rigg slut', lb.rig_end_time, ext.rig_end_time);
+          cmpTime('Event start', lb.event_start_time, ext.event_start_time);
+          cmpTime('Event slut', lb.event_end_time, ext.event_end_time);
+          cmpTime('Nedrigg start', lb.rigdown_start_time, ext.rigdown_start_time);
+          cmpTime('Nedrigg slut', lb.rigdown_end_time, ext.rigdown_end_time);
         }
 
         return {
-          bookingId: lb.id,
-          bookingNumber: lb.booking_number,
-          client: lb.client,
-          localRigdaydate: lb.rigdaydate,
-          localEventdate: lb.eventdate,
-          localRigdowndate: lb.rigdowndate,
-          localRigStart: lb.rig_start_time,
-          localRigEnd: lb.rig_end_time,
-          localEventStart: lb.event_start_time,
-          localEventEnd: lb.event_end_time,
-          localRigdownStart: lb.rigdown_start_time,
-          localRigdownEnd: lb.rigdown_end_time,
-          extRigdaydate: ext?.rigdaydate || null,
-          extEventdate: ext?.eventdate || null,
-          extRigdowndate: ext?.rigdowndate || null,
-          extRigStart: ext?.rig_start_time || null,
-          extRigEnd: ext?.rig_end_time || null,
-          extEventStart: ext?.event_start_time || null,
-          extEventEnd: ext?.event_end_time || null,
-          extRigdownStart: ext?.rigdown_start_time || null,
-          extRigdownEnd: ext?.rigdown_end_time || null,
-          hasDiscrepancy: discFields.length > 0,
-          discrepancyFields: discFields,
+          bookingId: lb.id, bookingNumber: lb.booking_number, client: lb.client,
+          localRigdaydate: lb.rigdaydate, localEventdate: lb.eventdate, localRigdowndate: lb.rigdowndate,
+          localRigStart: lb.rig_start_time, localRigEnd: lb.rig_end_time,
+          localEventStart: lb.event_start_time, localEventEnd: lb.event_end_time,
+          localRigdownStart: lb.rigdown_start_time, localRigdownEnd: lb.rigdown_end_time,
+          localCalRigDates: localRigDates.sort(), localCalEventDates: localEventDates.sort(), localCalRigdownDates: localRigdownDates.sort(),
+          extRigDates: extRigDates.sort(), extEventDates: extEventDates.sort(), extRigdownDates: extRigdownDates.sort(),
+          extRigStart: ext?.rig_start_time || null, extRigEnd: ext?.rig_end_time || null,
+          extEventStart: ext?.event_start_time || null, extEventEnd: ext?.event_end_time || null,
+          extRigdownStart: ext?.rigdown_start_time || null, extRigdownEnd: ext?.rigdown_end_time || null,
+          hasDiscrepancy: discDetails.length > 0, discrepancyDetails: discDetails,
         };
       });
 
-      // Sort: discrepancies first, then by event date
       rows.sort((a, b) => {
         if (a.hasDiscrepancy && !b.hasDiscrepancy) return -1;
         if (!a.hasDiscrepancy && b.hasDiscrepancy) return 1;
@@ -685,36 +712,44 @@ const ScheduleAuditTab = () => {
     : rows;
   const discCount = rows.filter(r => r.hasDiscrepancy).length;
 
-  const DateCell = ({ local, ext, field, discFields }: { local: string | null; ext: string | null; field: string; discFields: string[] }) => {
-    const isDiff = discFields.includes(field);
-    const localVal = normalizeDate(local) || '—';
-    const extVal = normalizeDate(ext) || '—';
-
-    if (isDiff) {
+  const DatesCell = ({ localDates, extDates, hasDisc }: { localDates: string[]; extDates: string[]; hasDisc: boolean }) => {
+    if (!hasDisc) {
       return (
         <div className="space-y-0.5">
-          <div className="text-xs text-red-600 font-medium line-through">{extVal} <span className="text-muted-foreground font-normal">(Booking)</span></div>
-          <div className="text-xs font-semibold">{localVal} <span className="text-muted-foreground font-normal">(Planning)</span></div>
+          {localDates.length === 0 ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : localDates.map(d => (
+            <div key={d} className="text-xs">{d}</div>
+          ))}
         </div>
       );
     }
-    return <span className="text-xs">{localVal}</span>;
+    const allDates = [...new Set([...localDates, ...extDates])].sort();
+    return (
+      <div className="space-y-0.5">
+        {allDates.map(d => {
+          const inLocal = localDates.includes(d);
+          const inExt = extDates.includes(d);
+          if (inLocal && inExt) return <div key={d} className="text-xs">{d}</div>;
+          if (inLocal && !inExt) return <div key={d} className="text-xs font-semibold text-amber-600">+{d} <span className="font-normal text-muted-foreground">(bara lokal)</span></div>;
+          return <div key={d} className="text-xs text-red-600 line-through">{d} <span className="font-normal text-muted-foreground">(bara extern)</span></div>;
+        })}
+      </div>
+    );
   };
 
-  const TimeCell = ({ local, ext, field, discFields }: { local: string | null; ext: string | null; field: string; discFields: string[] }) => {
-    const isDiff = discFields.includes(field);
-    const localVal = normalizeTime(local) || '—';
-    const extVal = normalizeTime(ext) || '—';
-
-    if (isDiff) {
+  const TimesCell = ({ local, ext }: { local: string | null; ext: string | null }) => {
+    const nl = normalizeTimeStr(local) || '—';
+    const ne = normalizeTimeStr(ext) || '—';
+    if (nl !== ne && nl !== '—' && ne !== '—') {
       return (
         <div className="space-y-0.5">
-          <div className="text-xs text-red-600 font-medium line-through">{extVal}</div>
-          <div className="text-xs font-semibold">{localVal}</div>
+          <div className="text-xs text-red-600 line-through">{ne}</div>
+          <div className="text-xs font-semibold">{nl}</div>
         </div>
       );
     }
-    return <span className="text-xs text-muted-foreground">{localVal}</span>;
+    return <span className="text-xs text-muted-foreground">{nl}</span>;
   };
 
   return (
@@ -722,7 +757,7 @@ const ScheduleAuditTab = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Datumöversikt — CONFIRMED</h2>
-          <p className="text-sm text-muted-foreground">Alla bokningars rigg-, event- och nedriggdatum jämfört med Booking-systemet</p>
+          <p className="text-sm text-muted-foreground">Alla bokningars rigg-, event- och nedriggdagar (inkl. flerdagars) jämfört med Booking-systemet</p>
         </div>
         <Button onClick={() => refetch()} disabled={isFetching} size="lg">
           {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
@@ -778,59 +813,57 @@ const ScheduleAuditTab = () => {
                     <TableRow>
                       <TableHead className="text-xs w-[80px]">Bokning</TableHead>
                       <TableHead className="text-xs w-[120px]">Kund</TableHead>
-                      <TableHead className="text-xs text-center" colSpan={2}>Rigg</TableHead>
-                      <TableHead className="text-xs text-center" colSpan={2}>Event</TableHead>
-                      <TableHead className="text-xs text-center" colSpan={2}>Nedrigg</TableHead>
-                      <TableHead className="text-xs w-[60px]">Status</TableHead>
-                    </TableRow>
-                    <TableRow className="border-b-2">
-                      <TableHead />
-                      <TableHead />
-                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
-                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
-                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
-                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
-                      <TableHead className="text-[10px] text-muted-foreground">Datum</TableHead>
-                      <TableHead className="text-[10px] text-muted-foreground">Tid</TableHead>
-                      <TableHead />
+                      <TableHead className="text-xs">Riggdagar</TableHead>
+                      <TableHead className="text-xs w-[60px]">Tid</TableHead>
+                      <TableHead className="text-xs">Eventdagar</TableHead>
+                      <TableHead className="text-xs w-[60px]">Tid</TableHead>
+                      <TableHead className="text-xs">Nedriggdagar</TableHead>
+                      <TableHead className="text-xs w-[60px]">Tid</TableHead>
+                      <TableHead className="text-xs w-[70px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((row) => (
-                      <TableRow key={row.bookingId} className={row.hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20' : ''}>
-                        <TableCell className="font-mono text-xs font-medium">
-                          {row.bookingNumber || row.bookingId.substring(0, 8)}
-                        </TableCell>
-                        <TableCell className="text-xs truncate max-w-[120px]">{row.client}</TableCell>
-                        <TableCell>
-                          <DateCell local={row.localRigdaydate} ext={row.extRigdaydate} field="rigdaydate" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          <TimeCell local={row.localRigStart} ext={row.extRigStart} field="rig_start" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          <DateCell local={row.localEventdate} ext={row.extEventdate} field="eventdate" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          <TimeCell local={row.localEventStart} ext={row.extEventStart} field="event_start" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          <DateCell local={row.localRigdowndate} ext={row.extRigdowndate} field="rigdowndate" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          <TimeCell local={row.localRigdownStart} ext={row.extRigdownStart} field="rigdown_start" discFields={row.discrepancyFields} />
-                        </TableCell>
-                        <TableCell>
-                          {row.hasDiscrepancy ? (
-                            <Badge variant="destructive" className="text-[10px] px-1.5">
-                              {row.discrepancyFields.length} avv.
-                            </Badge>
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filtered.map((row) => {
+                      const rigDisc = !datesArraysMatch(row.localCalRigDates, row.extRigDates);
+                      const eventDisc = !datesArraysMatch(row.localCalEventDates, row.extEventDates);
+                      const rigdownDisc = !datesArraysMatch(row.localCalRigdownDates, row.extRigdownDates);
+
+                      return (
+                        <TableRow key={row.bookingId} className={row.hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                          <TableCell className="font-mono text-xs font-medium">
+                            {row.bookingNumber || row.bookingId.substring(0, 8)}
+                          </TableCell>
+                          <TableCell className="text-xs truncate max-w-[120px]">{row.client}</TableCell>
+                          <TableCell>
+                            <DatesCell localDates={row.localCalRigDates} extDates={row.extRigDates} hasDisc={rigDisc} />
+                          </TableCell>
+                          <TableCell>
+                            <TimesCell local={row.localRigStart} ext={row.extRigStart} />
+                          </TableCell>
+                          <TableCell>
+                            <DatesCell localDates={row.localCalEventDates} extDates={row.extEventDates} hasDisc={eventDisc} />
+                          </TableCell>
+                          <TableCell>
+                            <TimesCell local={row.localEventStart} ext={row.extEventStart} />
+                          </TableCell>
+                          <TableCell>
+                            <DatesCell localDates={row.localCalRigdownDates} extDates={row.extRigdownDates} hasDisc={rigdownDisc} />
+                          </TableCell>
+                          <TableCell>
+                            <TimesCell local={row.localRigdownStart} ext={row.extRigdownStart} />
+                          </TableCell>
+                          <TableCell>
+                            {row.hasDiscrepancy ? (
+                              <Badge variant="destructive" className="text-[10px] px-1.5">
+                                {row.discrepancyDetails.length} avv.
+                              </Badge>
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {filtered.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
