@@ -591,11 +591,7 @@ Deno.serve(async (req) => {
             normLocal = normalizeStatus(normLocal as string);
           }
 
-          // If local is empty/null, treat as match (Planning hasn't stored a value yet)
-          // BUT never skip status — it must always be compared
-          if (
-            key !== "status" && (normLocal === null || normLocal === undefined)
-          ) continue;
+          // Compare ALL fields — if local is null but external has a value, flag it
 
           // For time fields: if Booking has no value but Planning does,
           // it means Planning assigned the time locally — skip comparison
@@ -693,11 +689,22 @@ Deno.serve(async (req) => {
           }
         }
 
-        // STEP 2: Compare only products that exist on BOTH sides
+        // STEP 2: Compare products — flag missing local products too
         for (const [name, extP] of extProductNames) {
           const localP = localProductNames.get(name);
           if (!localP) {
-            continue; // Planning saknar produkten = räkna som match
+            discrepancies.push({
+              bookingId,
+              bookingNumber,
+              client: clientName,
+              bookingStatus,
+              field: `_product_missing:${name}`,
+              category: "products",
+              localValue: null,
+              externalValue: `${name} (antal: ${extP.quantity || 1})`,
+              label: `Produkt saknas lokalt: ${name}`,
+            });
+            continue;
           }
           // Compare each product field
           for (const { key, label } of productFields) {
@@ -710,10 +717,7 @@ Deno.serve(async (req) => {
               ? null
               : (typeof localVal === "number" ? localVal : localVal);
 
-            // If local is empty/null/0, treat as match
-            if (
-              normLocal === null || normLocal === undefined || normLocal === 0
-            ) continue;
+            // Compare ALL product values — don't skip null/0
 
             if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
               discrepancies.push({
