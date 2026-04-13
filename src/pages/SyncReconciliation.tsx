@@ -600,6 +600,44 @@ const FieldRow = ({ label, value }: { label: string; value: any }) => {
   );
 };
 
+const TimeComparisonTable = ({ booking, local }: { booking: RawBooking; local: any }) => {
+  const fields = [
+    { label: 'Riggdatum', ext: booking.rigdaydate, loc: local?.rigdaydate },
+    { label: 'Rigg start', ext: booking.rig_start_time, loc: local?.rig_start_time },
+    { label: 'Rigg slut', ext: booking.rig_end_time, loc: local?.rig_end_time },
+    { label: 'Eventdatum', ext: booking.eventdate, loc: local?.eventdate },
+    { label: 'Event start', ext: booking.event_start_time, loc: local?.event_start_time },
+    { label: 'Event slut', ext: booking.event_end_time, loc: local?.event_end_time },
+    { label: 'Nedriggdatum', ext: booking.rigdowndate, loc: local?.rigdowndate },
+    { label: 'Nedrigg start', ext: booking.rigdown_start_time, loc: local?.rigdown_start_time },
+    { label: 'Nedrigg slut', ext: booking.rigdown_end_time, loc: local?.rigdown_end_time },
+  ];
+  return (
+    <>
+      <div className="border rounded overflow-hidden">
+        <div className="grid grid-cols-3 gap-0 bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+          <span>Fält</span>
+          <span>Booking</span>
+          <span>Planning</span>
+        </div>
+        {fields.map(({ label, ext, loc }) => {
+          const extVal = ext || '—';
+          const locVal = loc || '—';
+          const mismatch = ext && loc && ext !== loc;
+          return (
+            <div key={label} className={`grid grid-cols-3 gap-0 px-2 py-1 text-xs border-t ${mismatch ? 'bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-mono">{extVal}</span>
+              <span className={`font-mono ${mismatch ? 'text-amber-700 dark:text-amber-400 font-bold' : ''}`}>{locVal}</span>
+            </div>
+          );
+        })}
+      </div>
+      {!local && <p className="text-xs text-muted-foreground mt-1 italic">Ej hittad i Planning</p>}
+    </>
+  );
+};
+
 const RawDataTab = () => {
   const [search, setSearch] = useState('');
 
@@ -614,6 +652,33 @@ const RawDataTab = () => {
     },
     enabled: false,
   });
+
+  // Fetch local times from Planning DB for all bookings
+  const bookingIds = useMemo(() => (data?.bookings || []).map(b => b.id), [data]);
+  const { data: localBookings } = useQuery({
+    queryKey: ['local-booking-times', bookingIds],
+    queryFn: async () => {
+      if (!bookingIds.length) return [];
+      // Fetch in chunks of 100
+      const all: any[] = [];
+      for (let i = 0; i < bookingIds.length; i += 100) {
+        const chunk = bookingIds.slice(i, i + 100);
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+          .in('id', chunk);
+        if (data) all.push(...data);
+      }
+      return all;
+    },
+    enabled: bookingIds.length > 0,
+  });
+
+  const localTimesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (localBookings || []).forEach(b => map.set(b.id, b));
+    return map;
+  }, [localBookings]);
 
   const [showOnlyWithTimes, setShowOnlyWithTimes] = useState(false);
 
@@ -705,18 +770,10 @@ const RawDataTab = () => {
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
-                    {/* Dates & Times */}
+                    {/* Dates & Times - Side by side */}
                     <div>
                       <h4 className="font-semibold text-sm mb-2">Datum & Tider</h4>
-                      <FieldRow label="Riggdatum" value={b.rigdaydate} />
-                      <FieldRow label="Rigg start" value={b.rig_start_time} />
-                      <FieldRow label="Rigg slut" value={b.rig_end_time} />
-                      <FieldRow label="Eventdatum" value={b.eventdate} />
-                      <FieldRow label="Event start" value={b.event_start_time} />
-                      <FieldRow label="Event slut" value={b.event_end_time} />
-                      <FieldRow label="Nedriggdatum" value={b.rigdowndate} />
-                      <FieldRow label="Nedrigg start" value={b.rigdown_start_time} />
-                      <FieldRow label="Nedrigg slut" value={b.rigdown_end_time} />
+                      <TimeComparisonTable booking={b} local={localTimesMap.get(b.id)} />
                     </div>
 
                     {/* Contact & Address */}
@@ -735,7 +792,6 @@ const RawDataTab = () => {
                     </div>
                   </div>
 
-                  {/* Internal notes */}
                   {b.internalnotes && (
                     <div className="mt-3">
                       <h4 className="font-semibold text-sm mb-1">Interna noter</h4>
@@ -743,7 +799,6 @@ const RawDataTab = () => {
                     </div>
                   )}
 
-                  {/* Products */}
                   {b.products && b.products.length > 0 && (
                     <div className="mt-4">
                       <h4 className="font-semibold text-sm mb-2">Produkter ({b.products.length})</h4>
@@ -778,7 +833,6 @@ const RawDataTab = () => {
                     </div>
                   )}
 
-                  {/* Attachments */}
                   {b.attachments && b.attachments.length > 0 && (
                     <div className="mt-4">
                       <h4 className="font-semibold text-sm mb-2">Bilagor ({b.attachments.length})</h4>
