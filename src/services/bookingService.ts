@@ -9,7 +9,6 @@ export {
 
 export {
   markBookingAsViewed,
-  updateBookingStatus,
 } from './booking/bookingMutationService';
 
 export {

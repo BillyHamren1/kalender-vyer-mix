@@ -158,6 +158,12 @@ export const updateInternalNotesViaApi = (bookingId: string, notes: string) =>
   callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { internalnotes: notes } });
 
 /**
+ * Update booking status via the Booking system.
+ */
+export const updateBookingStatusViaApi = (bookingId: string, status: string) =>
+  callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { status } });
+
+/**
  * Update logistics fields via the Booking system.
  */
 export const updateLogisticsViaApi = (bookingId: string, data: {
