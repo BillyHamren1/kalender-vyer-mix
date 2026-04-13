@@ -123,7 +123,7 @@ const BookingOverviewTab = () => {
       ) : data ? (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card>
               <CardContent className="py-3 px-4 text-center">
                 <p className="text-2xl font-bold">{bookings.length}</p>
@@ -146,6 +146,12 @@ const BookingOverviewTab = () => {
               <CardContent className="py-3 px-4 text-center">
                 <p className={`text-2xl font-bold ${issues.length > 0 ? 'text-red-600' : 'text-green-600'}`}>{issues.length}</p>
                 <p className="text-xs text-muted-foreground">Avviker / Saknas</p>
+              </CardContent>
+            </Card>
+            <Card className={nonConfirmedInPlanning.length > 0 ? 'ring-2 ring-amber-400' : ''}>
+              <CardContent className="py-3 px-4 text-center">
+                <p className={`text-2xl font-bold ${nonConfirmedInPlanning.length > 0 ? 'text-amber-600' : 'text-green-600'}`}>{nonConfirmedInPlanning.length}</p>
+                <p className="text-xs text-muted-foreground">Ej bekräftade i Planning</p>
               </CardContent>
             </Card>
           </div>
