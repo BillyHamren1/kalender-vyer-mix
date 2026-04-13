@@ -29,6 +29,140 @@ interface ProductComparison {
   label: string;
 }
 
+// ── Helpers mirrored from import-bookings ──────────────────────────────
+
+const normalizeDateOnly = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+  const dateMatch = asString.match(/\d{4}-\d{2}-\d{2}/);
+  return dateMatch ? dateMatch[0] : undefined;
+};
+
+const normalizeDateArray = (...candidates: unknown[]): string[] => {
+  const dates: string[] = [];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      for (const value of candidate) {
+        const normalized = normalizeDateOnly(value);
+        if (normalized && !dates.includes(normalized)) dates.push(normalized);
+      }
+      continue;
+    }
+    const normalized = normalizeDateOnly(candidate);
+    if (normalized && !dates.includes(normalized)) dates.push(normalized);
+  }
+  return dates;
+};
+
+const parseTimeRange = (value: unknown): { start: string; end: string } | undefined => {
+  if (!value) return undefined;
+  const asString = String(value).trim();
+  if (!asString) return undefined;
+  const rangeMatch = asString.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/);
+  if (!rangeMatch) return undefined;
+  const norm = (t: string): string => {
+    const p = t.split(':');
+    return `${p[0].padStart(2, '0')}:${p[1] || '00'}:${p[2] || '00'}`;
+  };
+  return { start: norm(rangeMatch[1]), end: norm(rangeMatch[2]) };
+};
+
+const extractTimePart = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  const s = String(value).trim();
+  if (!s) return undefined;
+  const hhmmss = s.match(/(\d{2}:\d{2}:\d{2})/);
+  if (hhmmss) return hhmmss[1];
+  const hhmm = s.match(/(\d{2}:\d{2})/);
+  if (hhmm) return `${hhmm[1]}:00`;
+  return undefined;
+};
+
+const normalizeStatus = (status: string | null | undefined): string => {
+  const s = (status || 'PENDING').toString().trim().toUpperCase();
+  if (s === 'BEKRÄFTAD' || s === 'CONFIRMED') return 'CONFIRMED';
+  if (s === 'AVBOKAD' || s === 'CANCELLED') return 'CANCELLED';
+  if (s === 'DRAFT' || s === 'UTKAST') return 'OFFER';
+  return s;
+};
+
+/**
+ * Normalize an external booking from export_bookings API format
+ * to match the local Planning field names (same mapping as import-bookings).
+ */
+function normalizeExternalBooking(ext: any): any {
+  // Client name
+  let client = ext.clientName;
+  if (!client && ext.client?.name) client = ext.client.name;
+  if (!client && typeof ext.client === 'string') client = ext.client;
+  if (!client) client = '';
+
+  // Dates
+  const rigDates = normalizeDateArray(ext.rig_up_dates, ext.rigdaydate, ext.rig_up_date, ext.rig_date);
+  const eventDates = normalizeDateArray(ext.event_dates, ext.eventdate, ext.event_date);
+  const rigdownDates = normalizeDateArray(ext.rig_down_dates, ext.rigdowndate, ext.rig_down_date);
+
+  const rigdaydate = rigDates[0] || null;
+  const eventdate = eventDates[0] || null;
+  const rigdowndate = rigdownDates[0] || null;
+
+  // Time fields — discrete first, then combined range fallback
+  const parsedRigUpRange = parseTimeRange(ext.rig_up_time);
+  const parsedRigDownRange = parseTimeRange(ext.rig_down_time);
+  const parsedEventRange = parseTimeRange(ext.event_time);
+
+  const rig_start_time = extractTimePart(ext.rig_start_time ?? ext.rig_up_start_time ?? parsedRigUpRange?.start) || null;
+  const rig_end_time = extractTimePart(ext.rig_end_time ?? ext.rig_up_end_time ?? parsedRigUpRange?.end) || null;
+  const event_start_time = extractTimePart(ext.event_start_time ?? ext.event_start ?? parsedEventRange?.start) || null;
+  const event_end_time = extractTimePart(ext.event_end_time ?? ext.event_end ?? parsedEventRange?.end) || null;
+  const rigdown_start_time = extractTimePart(ext.rigdown_start_time ?? ext.rig_down_start_time ?? parsedRigDownRange?.start) || null;
+  const rigdown_end_time = extractTimePart(ext.rigdown_end_time ?? ext.rig_down_end_time ?? parsedRigDownRange?.end) || null;
+
+  // Contact
+  const contact_name = ext.contact_name ?? ext.contact_person ?? ext.contact?.name ?? null;
+  const contact_email = ext.contact_email ?? ext.contact?.email ?? null;
+  const contact_phone = ext.contact_phone ?? ext.contact?.phone ?? null;
+
+  // Status
+  const status = normalizeStatus(ext.status);
+
+  // Products — normalize field names
+  const products = (ext.products || []).map((p: any) => ({
+    ...p,
+    name: p.name || p.product_name || p.productName || '',
+    sku: p.sku || p.article_number || null,
+  }));
+
+  return {
+    ...ext,
+    client,
+    rigdaydate,
+    eventdate,
+    rigdowndate,
+    rig_start_time,
+    rig_end_time,
+    event_start_time,
+    event_end_time,
+    rigdown_start_time,
+    rigdown_end_time,
+    deliveryaddress: ext.delivery_address ?? ext.deliveryaddress ?? null,
+    delivery_city: ext.delivery_city ?? null,
+    delivery_postal_code: ext.delivery_postal_code ?? null,
+    internalnotes: ext.internal_notes ?? ext.internalnotes ?? null,
+    contact_name,
+    contact_email,
+    contact_phone,
+    carry_more_than_10m: ext.carry_more_than_10m ?? false,
+    ground_nails_allowed: ext.ground_nails_allowed ?? false,
+    exact_time_needed: ext.exact_time_needed ?? false,
+    exact_time_info: ext.exact_time_info ?? null,
+    booking_number: ext.booking_number ?? null,
+    status,
+    products,
+  };
+}
+
 /**
  * Send a write to the external Booking API via the planning-api edge function.
  */
