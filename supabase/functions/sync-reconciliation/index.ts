@@ -556,45 +556,7 @@ Deno.serve(async (req) => {
           locProducts.map((p: any) => [p.name?.trim(), p]),
         );
 
-        for (const [name, extP] of extProductNames) {
-          const localP = localProductNames.get(name);
-          if (!localP) {
-            continue; // Planning saknar produkten = räkna som match
-          } else {
-            // Compare each product field
-            for (const { key, label } of productFields) {
-              const extVal = extP[key] ?? null;
-              const localVal = localP[key] ?? null;
-              const normExt = extVal === ""
-                ? null
-                : (typeof extVal === "number" ? extVal : extVal);
-              const normLocal = localVal === ""
-                ? null
-                : (typeof localVal === "number" ? localVal : localVal);
-
-              // If local is empty/null/0, treat as match
-              if (
-                normLocal === null || normLocal === undefined || normLocal === 0
-              ) continue;
-
-              if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
-                discrepancies.push({
-                  bookingId,
-                  bookingNumber,
-                  client: clientName,
-                  bookingStatus,
-                  field: `_product_field:${name}:${key}`,
-                  category: "products",
-                  localValue: normLocal,
-                  externalValue: normExt,
-                  label: `${name} — ${label}`,
-                });
-              }
-            }
-          }
-        }
-
-        // Auto-delete extra local products (and their child/package rows) so they disappear from Planning
+        // STEP 1: Delete extra local products FIRST (before comparison)
         for (const [name, localP] of localProductNames) {
           if (!extProductNames.has(name)) {
             const bookingProducts = allLocalProductsByBooking.get(bookingId) ||
@@ -627,13 +589,52 @@ Deno.serve(async (req) => {
                   category: "products",
                   localValue: `${name} finns lokalt`,
                   externalValue: null,
-                  label: `Extra lokal produkt: ${name}`,
+                  label: `Extra lokal produkt: ${name} (radering misslyckades)`,
                 });
               } else {
                 console.log(
                   `[sync-recon] 🗑️ Deleted extra local product tree "${name}" (${idsToDelete.length} rows) from booking ${bookingId}`,
                 );
+                // Successfully deleted — NO discrepancy added
               }
+            }
+          }
+        }
+
+        // STEP 2: Compare only products that exist on BOTH sides
+        for (const [name, extP] of extProductNames) {
+          const localP = localProductNames.get(name);
+          if (!localP) {
+            continue; // Planning saknar produkten = räkna som match
+          }
+          // Compare each product field
+          for (const { key, label } of productFields) {
+            const extVal = extP[key] ?? null;
+            const localVal = localP[key] ?? null;
+            const normExt = extVal === ""
+              ? null
+              : (typeof extVal === "number" ? extVal : extVal);
+            const normLocal = localVal === ""
+              ? null
+              : (typeof localVal === "number" ? localVal : localVal);
+
+            // If local is empty/null/0, treat as match
+            if (
+              normLocal === null || normLocal === undefined || normLocal === 0
+            ) continue;
+
+            if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
+              discrepancies.push({
+                bookingId,
+                bookingNumber,
+                client: clientName,
+                bookingStatus,
+                field: `_product_field:${name}:${key}`,
+                category: "products",
+                localValue: normLocal,
+                externalValue: normExt,
+                label: `${name} — ${label}`,
+              });
             }
           }
         }
