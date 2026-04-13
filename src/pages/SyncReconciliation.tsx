@@ -352,8 +352,8 @@ const DetailedReconciliationTab = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Detaljerad avstämning</h2>
-          <p className="text-sm text-muted-foreground">Jämför alla fält — metadata, produkter, bilagor</p>
+          <h2 className="text-lg font-semibold">Detaljerad avstämning — CONFIRMED</h2>
+          <p className="text-sm text-muted-foreground">Jämför alla bekräftade bokningar fält för fält — metadata, produkter, bilagor</p>
         </div>
         <Button onClick={() => refetch()} disabled={isFetching} size="lg">
           {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
