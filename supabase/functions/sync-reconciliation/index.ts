@@ -566,10 +566,15 @@ Deno.serve(async (req) => {
           const rigDate = local.rigdaydate || local.eventdate;
           if (rigDate && rigDate < cutoffDate) continue;
           
+          // Skip non-confirmed bookings — the external API may not export them
+          const localStatus = normalizeStatus(local.status);
+          if (localStatus === 'CANCELLED' || localStatus === 'OFFER' || localStatus === 'DRAFT') continue;
+          
           discrepancies.push({
             bookingId: id,
             bookingNumber: local.booking_number,
             client: local.client,
+            bookingStatus: localStatus || 'UNKNOWN',
             field: '_missing_external', category: 'metadata',
             localValue: 'exists', externalValue: null,
             label: 'Bokning saknas i bokningssystemet'
