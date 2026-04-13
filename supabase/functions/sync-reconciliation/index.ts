@@ -274,6 +274,12 @@ Deno.serve(async (req) => {
       const rawExternalBookings = externalData.data || [];
       // Normalize external field names to match local schema
       const externalBookings = rawExternalBookings.map(normalizeExternalBooking);
+      // Debug: log first booking's raw vs normalized products
+      if (rawExternalBookings.length > 0) {
+        const first = rawExternalBookings[0];
+        console.log('[sync-recon] RAW products sample:', JSON.stringify((first.products || []).slice(0, 2)));
+        console.log('[sync-recon] NORMALIZED products sample:', JSON.stringify((externalBookings[0].products || []).slice(0, 2)));
+      }
 
       // Fetch local bookings
       const { data: localBookings } = await supabase
