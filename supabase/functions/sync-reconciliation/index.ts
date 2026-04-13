@@ -535,6 +535,27 @@ Deno.serve(async (req) => {
       // Filter out historical bookings before 2026-01-01
       const cutoffDate = "2026-01-01";
 
+      // DEBUG: log a sample booking with times to verify comparison
+      const sampleWithTimes = externalBookings.find((b: any) => b.rig_start_time || b.event_start_time);
+      if (sampleWithTimes) {
+        const sampleLocal = localBookingMap.get(sampleWithTimes.id);
+        console.log("[sync-recon] DEBUG time comparison sample:", JSON.stringify({
+          bookingNumber: sampleWithTimes.booking_number,
+          ext_rigdaydate: sampleWithTimes.rigdaydate,
+          ext_eventdate: sampleWithTimes.eventdate,
+          ext_rig_start_time: sampleWithTimes.rig_start_time,
+          ext_rig_end_time: sampleWithTimes.rig_end_time,
+          ext_event_start_time: sampleWithTimes.event_start_time,
+          ext_event_end_time: sampleWithTimes.event_end_time,
+          local_rigdaydate: sampleLocal?.rigdaydate,
+          local_eventdate: sampleLocal?.eventdate,
+          local_rig_start_time: sampleLocal?.rig_start_time,
+          local_rig_end_time: sampleLocal?.rig_end_time,
+          local_event_start_time: sampleLocal?.event_start_time,
+          local_event_end_time: sampleLocal?.event_end_time,
+        }));
+      }
+
       for (const ext of externalBookings) {
         const bookingId = ext.id;
 
