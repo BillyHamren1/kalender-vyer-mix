@@ -714,30 +714,27 @@ const ScheduleAuditTab = () => {
     : rows;
   const discCount = rows.filter(r => r.hasDiscrepancy).length;
 
-  const DatesCell = ({ localDates: _ld, extDates: _ed, hasDisc }: { localDates?: string[]; extDates?: string[]; hasDisc: boolean }) => {
-    const localDates = _ld ?? [];
-    const extDates = _ed ?? [];
-    if (!hasDisc) {
-      return (
-        <div className="space-y-0.5">
-          {localDates.length === 0 ? (
-            <span className="text-xs text-muted-foreground">—</span>
-          ) : localDates.map(d => (
-            <div key={d} className="text-xs">{d}</div>
-          ))}
-        </div>
-      );
-    }
-    const allDates = [...new Set([...localDates, ...extDates])].sort();
-    return (
+  const DataBlock = ({ label, values, emphasize }: { label: string; values: string[]; emphasize?: boolean }) => (
+    <div className="space-y-1">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="space-y-0.5">
-        {allDates.map(d => {
-          const inLocal = localDates.includes(d);
-          const inExt = extDates.includes(d);
-          if (inLocal && inExt) return <div key={d} className="text-xs">{d}</div>;
-          if (inLocal && !inExt) return <div key={d} className="text-xs font-semibold text-amber-600">+{d} <span className="font-normal text-muted-foreground">(bara lokal)</span></div>;
-          return <div key={d} className="text-xs text-red-600 line-through">{d} <span className="font-normal text-muted-foreground">(bara extern)</span></div>;
-        })}
+        {values.length === 0 ? (
+          <div className="text-xs text-muted-foreground">—</div>
+        ) : values.map((value) => (
+          <div key={`${label}-${value}`} className={`text-xs ${emphasize ? 'font-semibold' : ''}`}>{value}</div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const DatesCell = ({ localDates: _ld, extDates: _ed, hasDisc }: { localDates?: string[]; extDates?: string[]; hasDisc: boolean }) => {
+    const localDates = (_ld ?? []).slice().sort();
+    const extDates = (_ed ?? []).slice().sort();
+
+    return (
+      <div className={`space-y-2 rounded-md border p-2 ${hasDisc ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-background'}`}>
+        <DataBlock label="Planning" values={localDates} emphasize={hasDisc} />
+        <DataBlock label="Booking" values={extDates} />
       </div>
     );
   };
@@ -745,15 +742,20 @@ const ScheduleAuditTab = () => {
   const TimesCell = ({ local, ext }: { local: string | null; ext: string | null }) => {
     const nl = normalizeTimeStr(local) || '—';
     const ne = normalizeTimeStr(ext) || '—';
-    if (nl !== ne && nl !== '—' && ne !== '—') {
-      return (
-        <div className="space-y-0.5">
-          <div className="text-xs text-red-600 line-through">{ne}</div>
-          <div className="text-xs font-semibold">{nl}</div>
+    const hasDisc = nl !== ne;
+
+    return (
+      <div className={`space-y-2 rounded-md border p-2 ${hasDisc ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-background'}`}>
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Planning</div>
+          <div className={`text-xs ${hasDisc ? 'font-semibold' : 'text-muted-foreground'}`}>{nl}</div>
         </div>
-      );
-    }
-    return <span className="text-xs text-muted-foreground">{nl}</span>;
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Booking</div>
+          <div className="text-xs text-muted-foreground">{ne}</div>
+        </div>
+      </div>
+    );
   };
 
   return (
