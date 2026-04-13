@@ -71,7 +71,7 @@ const getDiscKey = (d: Discrepancy) => `${d.bookingId}::${d.field}`;
 // ── Booking Overview Tab ─────────────────────────────────────────────────
 
 const BookingOverviewTab = () => {
-  const [filter, setFilter] = useState<'all' | 'issues'>('issues');
+  const [filter, setFilter] = useState<'all' | 'issues' | 'non-confirmed'>('issues');
 
   const { data, isLoading, refetch, isFetching } = useQuery<{ bookings: BookingOverviewItem[] }>({
     queryKey: ['booking-overview'],
