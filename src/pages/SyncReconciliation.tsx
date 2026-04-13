@@ -71,7 +71,7 @@ const getDiscKey = (d: Discrepancy) => `${d.bookingId}::${d.field}`;
 // ── Booking Overview Tab ─────────────────────────────────────────────────
 
 const BookingOverviewTab = () => {
-  const [filter, setFilter] = useState<'all' | 'issues'>('issues');
+  const [filter, setFilter] = useState<'all' | 'issues' | 'non-confirmed'>('issues');
 
   const { data, isLoading, refetch, isFetching } = useQuery<{ bookings: BookingOverviewItem[] }>({
     queryKey: ['booking-overview'],
@@ -89,7 +89,8 @@ const BookingOverviewTab = () => {
   const confirmed = bookings.filter(b => b.externalStatus === 'CONFIRMED');
   const issues = confirmed.filter(b => !b.existsLocally || !b.statusMatch);
   const matching = confirmed.filter(b => b.existsLocally && b.statusMatch);
-  const displayed = filter === 'issues' ? issues : confirmed;
+  const nonConfirmedInPlanning = bookings.filter(b => b.externalStatus !== 'CONFIRMED' && b.existsLocally);
+  const displayed = filter === 'issues' ? issues : filter === 'non-confirmed' ? nonConfirmedInPlanning : confirmed;
 
   const statusBadge = (status: string) => {
     if (status === 'CONFIRMED') return <Badge className="bg-green-600 text-white text-xs">{status}</Badge>;
@@ -122,7 +123,7 @@ const BookingOverviewTab = () => {
       ) : data ? (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card>
               <CardContent className="py-3 px-4 text-center">
                 <p className="text-2xl font-bold">{bookings.length}</p>
@@ -147,6 +148,12 @@ const BookingOverviewTab = () => {
                 <p className="text-xs text-muted-foreground">Avviker / Saknas</p>
               </CardContent>
             </Card>
+            <Card className={nonConfirmedInPlanning.length > 0 ? 'ring-2 ring-amber-400' : ''}>
+              <CardContent className="py-3 px-4 text-center">
+                <p className={`text-2xl font-bold ${nonConfirmedInPlanning.length > 0 ? 'text-amber-600' : 'text-green-600'}`}>{nonConfirmedInPlanning.length}</p>
+                <p className="text-xs text-muted-foreground">Ej bekräftade i Planning</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Filter toggle */}
@@ -156,6 +163,10 @@ const BookingOverviewTab = () => {
             </Button>
             <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>
               Alla CONFIRMED ({confirmed.length})
+            </Button>
+            <Button variant={filter === 'non-confirmed' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('non-confirmed')}>
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Ej bekräftade i Planning ({nonConfirmedInPlanning.length})
             </Button>
           </div>
 
