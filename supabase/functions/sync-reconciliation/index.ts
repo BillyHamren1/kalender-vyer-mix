@@ -450,7 +450,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Compare attachments count
+        // Compare attachments by URL (normalized, stripping query params)
+        const stripQuery = (url: string) => url?.split('?')[0] || '';
         const extAttachments = [
           ...(ext.attachments || []),
           ...(ext.files_metadata || []),
@@ -458,13 +459,33 @@ Deno.serve(async (req) => {
         ];
         const locAttachments = localAttachmentsByBooking.get(bookingId) || [];
         
-        if (extAttachments.length !== locAttachments.length) {
-          discrepancies.push({
-            bookingId, bookingNumber, client: clientName,
-            field: '_attachment_count', category: 'attachments',
-            localValue: locAttachments.length, externalValue: extAttachments.length,
-            label: 'Antal bilagor'
-          });
+        const extUrlSet = new Set(extAttachments.map((a: any) => stripQuery(a.url || a.file_url || '')).filter(Boolean));
+        const locUrlSet = new Set(locAttachments.map((a: any) => stripQuery(a.url || '')).filter(Boolean));
+        
+        // Attachments only in Booking (missing locally)
+        for (const extUrl of extUrlSet) {
+          if (!locUrlSet.has(extUrl)) {
+            const fileName = extUrl.split('/').pop() || extUrl;
+            discrepancies.push({
+              bookingId, bookingNumber, client: clientName,
+              field: `_attachment_missing:${extUrl}`, category: 'attachments',
+              localValue: null, externalValue: fileName,
+              label: `Bilaga saknas lokalt: ${fileName}`
+            });
+          }
+        }
+        
+        // Attachments only in Planning (extra locally) — keep them, but show info
+        for (const locUrl of locUrlSet) {
+          if (!extUrlSet.has(locUrl)) {
+            const fileName = locUrl.split('/').pop() || locUrl;
+            discrepancies.push({
+              bookingId, bookingNumber, client: clientName,
+              field: `_attachment_extra:${locUrl}`, category: 'attachments',
+              localValue: fileName, externalValue: null,
+              label: `Extra lokal bilaga: ${fileName}`
+            });
+          }
         }
       }
 
