@@ -294,6 +294,96 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action || "compare";
 
+    // ── RAW DUMP (read-only, no DB interaction) ────────────────────────
+    if (action === "raw-dump") {
+      const requestHeaders = {
+        "Authorization": `Bearer ${importApiKey}`,
+        "x-api-key": importApiKey,
+        "Content-Type": "application/json",
+      };
+
+      let rawExternalBookings: any[] = [];
+      let page = 1;
+      const pageSize = 500;
+
+      while (true) {
+        const apiParams = new URLSearchParams();
+        apiParams.append("organization_id", organizationId);
+        apiParams.append("page", String(page));
+        apiParams.append("limit", String(pageSize));
+
+        const apiUrl =
+          `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
+
+        const externalResponse = await fetch(apiUrl, {
+          headers: requestHeaders,
+        });
+        if (!externalResponse.ok) {
+          throw new Error(`External API error: ${externalResponse.status}`);
+        }
+
+        const externalData = await externalResponse.json();
+        const batch = externalData.data || [];
+        rawExternalBookings = rawExternalBookings.concat(batch);
+        if (batch.length < pageSize) break;
+        page++;
+      }
+
+      const bookings = rawExternalBookings.map((ext: any) => {
+        const normalized = normalizeExternalBooking(ext);
+        return {
+          id: ext.id,
+          booking_number: normalized.booking_number,
+          client: normalized.client,
+          status: normalized.status,
+          rigdaydate: normalized.rigdaydate,
+          eventdate: normalized.eventdate,
+          rigdowndate: normalized.rigdowndate,
+          rig_start_time: normalized.rig_start_time,
+          rig_end_time: normalized.rig_end_time,
+          event_start_time: normalized.event_start_time,
+          event_end_time: normalized.event_end_time,
+          rigdown_start_time: normalized.rigdown_start_time,
+          rigdown_end_time: normalized.rigdown_end_time,
+          deliveryaddress: normalized.deliveryaddress,
+          delivery_city: normalized.delivery_city,
+          delivery_postal_code: normalized.delivery_postal_code,
+          contact_name: normalized.contact_name,
+          contact_email: normalized.contact_email,
+          contact_phone: normalized.contact_phone,
+          internalnotes: normalized.internalnotes,
+          carry_more_than_10m: normalized.carry_more_than_10m,
+          ground_nails_allowed: normalized.ground_nails_allowed,
+          exact_time_needed: normalized.exact_time_needed,
+          exact_time_info: normalized.exact_time_info,
+          products: (normalized.products || []).map((p: any) => ({
+            name: p.name,
+            sku: p.sku,
+            quantity: p.quantity,
+            unit_price: p.unit_price,
+            total_price: p.total_price,
+            discount: p.discount,
+            assembly_cost: p.assembly_cost,
+            handling_cost: p.handling_cost,
+            purchase_cost: p.purchase_cost,
+            notes: p.notes || null,
+            is_package_component: p.is_package_component || false,
+            parent_package_id: p.parent_package_id || null,
+          })),
+          attachments: (ext.attachments || ext.documents || []).map((a: any) => ({
+            url: a.url || a.file_url || '',
+            file_name: a.file_name || a.fileName || a.name || '',
+            file_type: a.file_type || a.fileType || a.type || '',
+          })),
+        };
+      });
+
+      return new Response(
+        JSON.stringify({ bookings, total: bookings.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── BOOKING OVERVIEW ─────────────────────────────────────────────────
     if (action === "booking-overview") {
       const requestHeaders = {
