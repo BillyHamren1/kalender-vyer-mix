@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, AlertTriangle, CheckCircle2, Package, FileText, Database, Loader2, ArrowRight, ArrowLeft, XCircle, MinusCircle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, CheckCircle2, Package, FileText, Database, Loader2, ArrowRight, ArrowLeft, XCircle, MinusCircle, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 
 // ── Types ────────────────────────────────────────────────────────────────
