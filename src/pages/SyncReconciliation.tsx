@@ -714,7 +714,9 @@ const ScheduleAuditTab = () => {
     : rows;
   const discCount = rows.filter(r => r.hasDiscrepancy).length;
 
-  const DatesCell = ({ localDates, extDates, hasDisc }: { localDates: string[]; extDates: string[]; hasDisc: boolean }) => {
+  const DatesCell = ({ localDates: _ld, extDates: _ed, hasDisc }: { localDates?: string[]; extDates?: string[]; hasDisc: boolean }) => {
+    const localDates = _ld ?? [];
+    const extDates = _ed ?? [];
     if (!hasDisc) {
       return (
         <div className="space-y-0.5">
