@@ -707,7 +707,10 @@ Deno.serve(async (req) => {
               ? null
               : (typeof localVal === "number" ? localVal : localVal);
 
-            // Compare ALL product values — don't skip null/0
+            // Only flag if local has a value OR field is quantity (always compare quantity)
+            if (
+              key !== "quantity" && (normLocal === null || normLocal === undefined || normLocal === 0)
+            ) continue;
 
             if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
               discrepancies.push({
