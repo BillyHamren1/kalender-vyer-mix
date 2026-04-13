@@ -258,7 +258,9 @@ Deno.serve(async (req) => {
       }
 
       const externalData = await externalResponse.json();
-      const externalBookings = externalData.data || [];
+      const rawExternalBookings = externalData.data || [];
+      // Normalize external field names to match local schema
+      const externalBookings = rawExternalBookings.map(normalizeExternalBooking);
 
       // Fetch local bookings
       const { data: localBookings } = await supabase
