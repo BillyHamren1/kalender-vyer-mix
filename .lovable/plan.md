@@ -1,63 +1,33 @@
 
 
-## Problem Analysis
+## Re-import historical bookings with incorrect package components
 
-When dates are changed in a large project ("Projekt stort"), the booking disappears from the calendar. Here's what happens:
+### Problem
+The fix to `import-bookings` (multiplying component quantities by parent package quantity) only applies to future imports. There are **27 existing bookings** in the database where packages with `quantity > 1` have under-counted components (e.g., 3x "Apro 5x5" but only 1 set of components).
 
-1. User changes dates in `LargeProjectLayout.tsx`
-2. `updateBookingDateWithTimes()` updates the **local** `bookings` table with new dates
-3. Immediately after, `import-bookings` edge function is called with `syncMode: 'single'`
-4. `import-bookings` fetches the booking from the **external API** — which still has the **old** dates
-5. The external data overwrites the locally-changed dates back to old values (line 2610-2667)
-6. `reconcileCalendarEvents` runs with the **old** dates from the external API
-7. If the old dates differed from what was already in the calendar (because the user just changed them), the reconciler marks the calendar events with new dates as "stale" and deletes them
+### Solution
+Create a one-off edge function `reprocess-packages` that:
 
-**Result**: The calendar events created with the new dates are deleted, and the old dates are restored on the booking. The project "disappears" because the calendar now shows events on the old dates (or the events were deleted as stale).
+1. Queries all `booking_products` rows where `parent_product_id IS NULL`, `package_components IS NOT NULL`, and `quantity > 1` to get the list of affected booking IDs
+2. For each affected booking, calls `import-bookings` with `syncMode: 'single'` and the booking ID — this triggers the updated deduplication and component-expansion logic
+3. Returns a summary of how many bookings were re-processed and any errors
 
-## Root Cause
+### File to create
+**`supabase/functions/reprocess-packages/index.ts`**
+- Authenticates the calling user (same pattern as other edge functions)
+- Gets the user's `organization_id` from profiles
+- Queries affected booking IDs from `booking_products`
+- Loops through each booking and invokes `import-bookings` with `syncMode: 'single'`
+- Returns `{ success: true, processed: N, errors: [...] }`
 
-The `LargeProjectLayout.tsx` date update flow (lines 288-327) is fundamentally broken:
-- It first writes new dates to the local DB
-- Then calls `import-bookings`, which fetches from the external system and **overwrites** local dates
+### How to run
+After deploying, call it once from the browser console or via the Supabase curl tool. After confirming all bookings are fixed, the function can be deleted.
 
-The external system is the source of truth for `import-bookings`, but for locally-initiated date changes, **the local DB should be the source of truth**.
+### What stays the same
+- No changes to `import-bookings` (the fix is already deployed)
+- No database schema changes
+- No UI changes needed
 
-## Solution
-
-**Stop calling `import-bookings` after local date changes in large projects.** Instead, use the **local fallback reconciliation** path directly — or better yet, call a dedicated calendar reconciliation that reads from the local DB.
-
-### Changes
-
-**File: `src/pages/project/LargeProjectLayout.tsx`** (lines 305-318)
-
-Replace the `import-bookings` edge function call with a direct call to reconcile calendar events using **local booking data**. Two approaches:
-
-**Option A (Recommended — minimal change):** After `updateBookingDateWithTimes`, skip the `import-bookings` call entirely. Instead, call `import-bookings` with a new flag `localOnly: true` that tells it to skip the external API fetch and go straight to the local fallback path.
-
-**File: `supabase/functions/import-bookings/index.ts`**
-
-Add support for a `localOnly` flag in the request body. When `localOnly: true` AND `booking_id` is provided:
-- Skip the external API fetch entirely
-- Go directly to the local fallback path (lines 1698-1736) which reads from the local `bookings` table
-- This ensures calendar reconciliation uses the dates the user just saved
-
-### Specific code changes:
-
-1. **`supabase/functions/import-bookings/index.ts`** — around line 1521, read `localOnly` from body. Around line 1598, if `localOnly && isSingleBookingRefresh`, skip the external API fetch and jump directly to the local fallback block.
-
-2. **`src/pages/project/LargeProjectLayout.tsx`** — line 315, add `localOnly: true` to the `import-bookings` call body:
-```typescript
-body: { booking_id: bid, syncMode: 'single', organization_id: orgId, localOnly: true }
-```
-
-### Why this works
-- The user just wrote the correct dates to the `bookings` table
-- The local fallback path in `import-bookings` reads from that table
-- `reconcileCalendarEvents` then computes desired events from the correct (new) dates
-- No external API fetch = no date overwrite
-
-### Files to change
-- `supabase/functions/import-bookings/index.ts` — add `localOnly` support
-- `src/pages/project/LargeProjectLayout.tsx` — pass `localOnly: true`
-- `src/components/project/ProjectScheduleEditable.tsx` — also needs `localOnly: true` if it calls import-bookings (check needed)
+### Affected bookings (27 total)
+Clients include: Stockholm Pride (8 package types), Tiomila 2026, Westmans Uthyrning, Robot Event AB, and others.
 
