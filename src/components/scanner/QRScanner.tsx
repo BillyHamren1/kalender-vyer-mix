@@ -431,8 +431,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       {/* Camera view */}
       {!shouldSkipCamera && (
         <div className="flex-1 relative overflow-hidden">
-          {cameraState === 'error' ? (
-            <div className="flex flex-col items-center justify-center h-full text-white p-6">
+          {/* Video + canvas ALWAYS in DOM so videoRef is available during 'starting' */}
+          <video
+            ref={videoRef}
+            className={`w-full h-full object-cover ${cameraState === 'running' ? '' : 'invisible absolute inset-0'}`}
+            autoPlay
+            playsInline
+            muted
+          />
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Error overlay */}
+          {cameraState === 'error' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Camera className="h-16 w-16 mb-4 opacity-50" />
               <p className="text-center mb-2 text-base">
                 {error || 'Kameran kunde inte startas'}
@@ -444,42 +455,34 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 Försök igen
               </Button>
             </div>
-          ) : cameraState === 'starting' ? (
-            <div className="flex flex-col items-center justify-center h-full text-white p-6">
+          )}
+
+          {/* Starting spinner overlay */}
+          {cameraState === 'starting' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
               <p className="text-center text-base">Startar kameran...</p>
               <p className="text-center text-xs text-white/40 mt-2">Om inget händer, tryck stäng och använd hårdvaruscan.</p>
             </div>
-          ) : (
-            <>
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                autoPlay
-                playsInline
-                muted
-              />
-              {/* Hidden canvas for jsQR fallback */}
-              <canvas ref={canvasRef} className="hidden" />
+          )}
 
-              {/* Scanning overlay */}
+          {/* Scanning overlay — visible when running */}
+          {(cameraState === 'running') && (
+            <>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-lg" />
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-lg" />
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-lg" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-lg" />
-
-                  {cameraState === 'running' && (
-                    <div
-                      className="absolute left-2 right-2 h-0.5 bg-primary"
-                      style={{ animation: 'scan-line 2s ease-in-out infinite' }}
-                    />
-                  )}
+                  <div
+                    className="absolute left-2 right-2 h-0.5 bg-primary"
+                    style={{ animation: 'scan-line 2s ease-in-out infinite' }}
+                  />
                 </div>
               </div>
 
-              {cameraState === 'running' && !hasBarcodeDetector && (
+              {!hasBarcodeDetector && (
                 <div className="absolute top-4 left-4 right-4 bg-black/70 text-white text-xs text-center py-2 px-3 rounded-lg">
                   Använder jsQR-fallback för avkodning
                 </div>
