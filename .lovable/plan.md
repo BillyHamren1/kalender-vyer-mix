@@ -1,43 +1,28 @@
 
 
-## Plan: Visa OFFER-bokningar som finns i Planning
+## Plan: Rensa alla icke-bekräftade bokningar från Planning
 
 ### Problem
-Vyn visar bara CONFIRMED-bokningar från Booking. Men det finns bokningar med status OFFER i Booking som fortfarande finns i Planning-databasen. Dessa syns inte alls nu, trots att de kan vara ett problem (borde kanske inte finnas i Planning, eller borde ha annan status).
+Det finns 12 lokala bokningar som inte är CONFIRMED (10 DRAFT + 2 CANCELLED). Dessa ska bort.
 
-### Lösning
+### Approach
+En enkel approach: radera alla lokala bokningar som INTE har status CONFIRMED. Inget behov av att hämta från Booking — vi vet redan att bara CONFIRMED ska finnas lokalt.
 
-**1. Utöka UI-filtren i `src/pages/SyncReconciliation.tsx`**
+### Steg
 
-Lägg till en tredje filterknapp och sektion:
-- **Avvikelser** (nuvarande) — CONFIRMED som saknas/avviker i Planning
-- **Alla CONFIRMED** (nuvarande) — alla bekräftade
-- **Ej bekräftade i Planning** (ny) — bokningar som INTE är CONFIRMED i Booking men som ändå finns lokalt i Planning
+**1. Migration: Radera alla icke-CONFIRMED bokningar**
+- Disable triggers (samma mönster som tidigare)
+- Radera booking_changes som refererar dessa bokningar
+- `DELETE FROM bookings WHERE UPPER(status) != 'CONFIRMED' AND organization_id = 'f5e5cade-...'`
+- Re-enable triggers
 
-Visa dessa med tydlig markering: "Denna bokning är OFFER i Booking men finns i Planning med status X"
+Detta tar bort alla 12 bokningar (10 DRAFT, 2 CANCELLED).
 
-**2. Filtrera från befintlig data**
+**2. Verifiera**
+- Kör `SELECT UPPER(status), COUNT(*) FROM bookings GROUP BY UPPER(status)` — ska bara visa CONFIRMED.
 
-Edge-funktionen `booking-overview` returnerar redan ALLA bokningar (inte bara CONFIRMED). Datan finns redan — vi behöver bara använda den i UI:t:
+### Men du sa "mappas mot bekräftad i Booking"?
+Om du även vill att vi kollar att varje lokal CONFIRMED-bokning faktiskt finns som CONFIRMED i Booking (och tar bort de som inte gör det), behöver vi köra en sync mot det externa API:t. Det är ett extra steg — säg till om du vill ha det också, men det kräver att vi anropar edge-funktionen.
 
-```
-const nonConfirmedInPlanning = bookings.filter(
-  b => b.externalStatus !== 'CONFIRMED' && b.existsLocally
-);
-```
-
-**3. Uppdatera sammanfattningskorten**
-
-Lägg till ett femte kort: "Ej bekräftade i Planning" med antal och röd markering om > 0.
-
-### Tekniska detaljer
-
-- Bara UI-ändring i `src/pages/SyncReconciliation.tsx`
-- Ingen backend-ändring behövs — datan finns redan
-- Ny filterknapp + ny tabell-filtrering
-- Samma tabellformat, men med extra varning-ikon för dessa rader
-
-### Resultat
-- Användaren ser direkt vilka OFFER/CANCELLED-bokningar som fortfarande ligger kvar i Planning
-- Kan agera på dem (radera, ändra status, etc.)
+Enklaste första steget: radera de 12 icke-CONFIRMED nu.
 
