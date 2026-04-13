@@ -164,6 +164,10 @@ const BookingOverviewTab = () => {
             <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>
               Alla CONFIRMED ({confirmed.length})
             </Button>
+            <Button variant={filter === 'non-confirmed' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('non-confirmed')}>
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Ej bekräftade i Planning ({nonConfirmedInPlanning.length})
+            </Button>
           </div>
 
           {displayed.length === 0 ? (
