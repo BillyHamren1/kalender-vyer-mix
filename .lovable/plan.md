@@ -1,43 +1,55 @@
 
-Problem:
-UI:n visar fortfarande produktavvikelser trots att produkten redan har raderats lokalt. Koden i `sync-reconciliation` raderar produkten under `compare`, men samma körning kan fortfarande bygga eller returnera avvikelse-data från en tidigare/stale snapshot. Det gör att användaren ser “raderad”/kvarvarande produktkort trots att raden inte längre finns i databasen.
 
-Vad jag hittade:
-- `supabase/functions/sync-reconciliation/index.ts` raderar extra lokala produkter direkt i `compare` (`booking_products.delete().in('id', idsToDelete)`).
-- UI:n på `src/pages/SyncReconciliation.tsx` visar bara det som edge-funktionen returnerar i `discrepancies`.
-- Om compare-körningen bygger avvikelselistan från data som hämtades före raderingen, eller om svaret innehåller historiska/stale items, så ligger kortet kvar tills nästa rena jämförelse.
-- Det finns idag ingen garanti att en produkt som just raderats filtreras bort från det svar som skickas tillbaka samma körning.
+## Plan: Fokuserad vy — bara CONFIRMED-bokningar med statusavvikelser
 
-Lösning:
-1. Gör `compare` deterministisk:
-   - Samla extra lokala produkter först
-   - Radera dem
-   - Bygg sedan avvikelselistan från ett “rent” läge där de borttagna produkterna inte längre får delta
-   - Alternativt: filtrera bort alla produkter vars id finns i `idsToDelete` innan discrepancy-arrayen returneras
+### Problem
+Användaren ser en massa avvikelser som inte är relevanta just nu. Det som behövs är en enkel lista: "Alla bokningar som är CONFIRMED i Booking — stämmer de överens med Planning?" Alla andra avvikelser (produkter, bilagor, metadata-fält) ska ignoreras i detta läge.
 
-2. Ta bort “success state” som ser ut som aktiv avvikelse:
-   - Om vi vill visa att något raderades ska det vara separat info, inte en kvarvarande discrepancy-rad
-   - Standardbeteendet bör vara: raderad produkt = ingen avvikelse längre
+### Lösning
 
-3. Säkerställ att UI alltid visar ny jämförelse:
-   - Efter compare/apply ska sidan bara rendera färska `discrepancies`
-   - Ingen lokal återanvändning av tidigare avvikelseobjekt för produkter som redan är borttagna
+**1. Ny flik/filter i `src/pages/SyncReconciliation.tsx`**
 
-4. Verifiering efter implementation:
-   - Kör compare på en bokning med extra lokal produkt
-   - Bekräfta att produkten raderas ur `booking_products`
-   - Bekräfta att samma compare-svar inte längre innehåller den produkten
-   - Bekräfta att kortet försvinner direkt i `/admin/sync`
+Lägg till en ny standardvy (flik eller toggle) "Bokningsöversikt" som visar:
+- En tabell/lista med ALLA bekräftade bokningar från Booking-systemet
+- Kolumner: Bokningsnr, Klient, Eventdatum, Status i Booking, Status i Planning, Finns i Planning (ja/nej)
+- Markera rader som har problem: saknas i Planning, eller har annan status i Planning
+- Rader utan problem visas gröna/normala, problemrader markeras tydligt
 
-Tekniska detaljer:
-- Fil att ändra: `supabase/functions/sync-reconciliation/index.ts`
-- Trolig implementation:
-  - bygg en `Set` med deleted product ids
-  - exkludera dessa ids från `allLocalProductsByBooking` / `localProductsByBooking` innan produktjämförelsen avslutas
-  - returnera inte `_product_extra:*` om delete lyckades
-- Möjligen även liten UI-justering i `src/pages/SyncReconciliation.tsx` om någon “deleted” rad fortfarande behandlas som vanlig discrepancy
+**2. Backend-stöd i `supabase/functions/sync-reconciliation/index.ts`**
 
-Förväntat resultat:
-- Finns produkten inte längre i Planning-databasen, så visas ingen produktavvikelse för den
-- `/admin/sync` speglar faktiskt aktuellt DB-läge direkt efter körningen
-- Inga fler “spökavvikelser” för redan raderade extra lokala produkter
+Lägg till en ny action `"booking-overview"` som:
+- Hämtar alla externa bokningar (paginerat, samma som idag)
+- Hämtar alla lokala bokningar
+- Returnerar en enkel lista med varje bokning och dess status i båda system
+- Flaggar: `missingInPlanning`, `statusMismatch`, `localStatus`, `externalStatus`
+- Filtrerar bara CONFIRMED-bokningar från Booking (eller returnerar alla med status, låter UI filtrera)
+
+**3. UI-struktur**
+
+Två flikar högst upp:
+- **Bokningsöversikt** (ny, default) — den enkla listan
+- **Detaljerad avstämning** — nuvarande vy med alla metadata/produkt/bilaga-avvikelser
+
+Bokningsöversikten visar:
+- Sammanfattning: X bekräftade i Booking, Y matchar Planning, Z avviker
+- Tabell med sortering/filtrering
+- Varje rad visar tydligt om bokningen finns och har rätt status i Planning
+- Knapp "Importera saknade" för bokningar som saknas lokalt
+
+### Tekniska detaljer
+
+**Edge function** (`sync-reconciliation/index.ts`):
+- Ny action `"booking-overview"` runt rad 297
+- Återanvänder paginerad hämtning och `fetchAll`
+- Returnerar: `{ bookings: Array<{ id, bookingNumber, client, eventdate, externalStatus, localStatus, existsLocally, statusMatch }> }`
+
+**UI** (`src/pages/SyncReconciliation.tsx`):
+- Ny `useQuery` för `booking-overview`
+- Tabs-komponent med "Bokningsöversikt" och "Detaljerad avstämning"
+- Enkel tabellvy med statusikoner och färgkodning
+
+### Resultat
+- Användaren ser direkt vilka CONFIRMED-bokningar som saknas eller har fel status i Planning
+- Inga andra avvikelser syns i denna vy
+- Befintlig detaljerad vy finns kvar under egen flik
+
