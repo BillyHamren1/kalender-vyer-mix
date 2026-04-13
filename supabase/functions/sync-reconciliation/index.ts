@@ -507,6 +507,14 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Debug: log first 5 discrepancies
+      console.log('[sync-recon] Sample discrepancies:', JSON.stringify(discrepancies.slice(0, 5)));
+      console.log('[sync-recon] Total discrepancies:', discrepancies.length, 'by category:', {
+        metadata: discrepancies.filter(d => d.category === 'metadata').length,
+        products: discrepancies.filter(d => d.category === 'products').length,
+        attachments: discrepancies.filter(d => d.category === 'attachments').length,
+      });
+
       return new Response(JSON.stringify({
         success: true,
         discrepancies,
