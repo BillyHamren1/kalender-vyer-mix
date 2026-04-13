@@ -60,7 +60,7 @@ const ProjectManagement = () => {
       }
 
       const { data, error } = await supabase.functions.invoke('import-bookings', {
-        body: { syncMode: 'incremental', organization_id: orgId },
+        body: { historicalMode: true, forceHistoricalImport: true, organization_id: orgId },
       });
 
       const elapsed = Math.round(performance.now() - t0);
@@ -104,11 +104,9 @@ const ProjectManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['orphan-bookings'] });
 
       if (failed > 0) {
-        toast.warning(`Synkroniserad med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
-      } else if (processed === 0) {
-        toast.info('Inga nya ändringar att synka');
+        toast.warning(`Full synk klar med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
       } else {
-        toast.success(`Synkroniserad: ${updated} uppdaterade, ${created} nya`);
+        toast.success(`Full synk klar: ${updated} uppdaterade, ${created} nya, ${processed} behandlade`);
       }
     } catch (err) {
       console.error('[ProjectSync] Unexpected error:', err);
