@@ -542,6 +542,255 @@ const DetailedReconciliationTab = () => {
   );
 };
 
+// ── Raw Data Tab ─────────────────────────────────────────────────────────
+
+interface RawBooking {
+  id: string;
+  booking_number: string | null;
+  client: string;
+  status: string;
+  rigdaydate: string | null;
+  eventdate: string | null;
+  rigdowndate: string | null;
+  rig_start_time: string | null;
+  rig_end_time: string | null;
+  event_start_time: string | null;
+  event_end_time: string | null;
+  rigdown_start_time: string | null;
+  rigdown_end_time: string | null;
+  deliveryaddress: string | null;
+  delivery_city: string | null;
+  delivery_postal_code: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  internalnotes: string | null;
+  carry_more_than_10m: boolean;
+  ground_nails_allowed: boolean;
+  exact_time_needed: boolean;
+  exact_time_info: string | null;
+  products: Array<{
+    name: string;
+    sku: string | null;
+    quantity: number;
+    unit_price: number | null;
+    total_price: number | null;
+    discount: number;
+    assembly_cost: number;
+    handling_cost: number;
+    purchase_cost: number;
+    notes: string | null;
+    is_package_component: boolean;
+    parent_package_id: string | null;
+  }>;
+  attachments: Array<{
+    url: string;
+    file_name: string;
+    file_type: string;
+  }>;
+}
+
+const FieldRow = ({ label, value }: { label: string; value: any }) => {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <div className="flex gap-2 py-0.5">
+      <span className="text-muted-foreground text-sm min-w-[140px]">{label}:</span>
+      <span className="text-sm font-medium">{String(value)}</span>
+    </div>
+  );
+};
+
+const RawDataTab = () => {
+  const [search, setSearch] = useState('');
+
+  const { data, isLoading, refetch, isFetching } = useQuery<{ bookings: RawBooking[]; total: number }>({
+    queryKey: ['raw-dump'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-reconciliation', {
+        body: { action: 'raw-dump' }
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: false,
+  });
+
+  const bookings = data?.bookings || [];
+  const filtered = useMemo(() => {
+    if (!search.trim()) return bookings;
+    const q = search.toLowerCase();
+    return bookings.filter(b =>
+      (b.booking_number || '').toLowerCase().includes(q) ||
+      (b.client || '').toLowerCase().includes(q) ||
+      (b.id || '').toLowerCase().includes(q)
+    );
+  }, [bookings, search]);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Booking Rådata</CardTitle>
+              <p className="text-muted-foreground text-sm mt-1">
+                Hämtar ALL data direkt från Booking-systemet (read-only, ingen skrivning)
+              </p>
+            </div>
+            <Button onClick={() => refetch()} disabled={isFetching}>
+              {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Hämta all data från Booking
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {isLoading || isFetching ? (
+        <Card><CardContent className="py-12 flex items-center justify-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" /><span>Hämtar bokningar från Booking...</span>
+        </CardContent></Card>
+      ) : bookings.length > 0 ? (
+        <>
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Sök bokningsnummer, klient..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Badge variant="secondary">{filtered.length} / {bookings.length} bokningar</Badge>
+          </div>
+
+          <Accordion type="multiple" className="space-y-2">
+            {filtered.map(b => (
+              <AccordionItem key={b.id} value={b.id} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline py-3">
+                  <div className="flex items-center gap-3 text-left">
+                    <Badge variant="outline" className="font-mono text-xs">{b.booking_number || '—'}</Badge>
+                    <span className="font-medium">{b.client || 'Okänd kund'}</span>
+                    <Badge className={
+                      b.status === 'CONFIRMED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                      b.status === 'CANCELLED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                    }>{b.status}</Badge>
+                    {b.eventdate && <span className="text-muted-foreground text-xs">{b.eventdate}</span>}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
+                    {/* Dates & Times */}
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Datum & Tider</h4>
+                      <FieldRow label="Riggdatum" value={b.rigdaydate} />
+                      <FieldRow label="Rigg start" value={b.rig_start_time} />
+                      <FieldRow label="Rigg slut" value={b.rig_end_time} />
+                      <FieldRow label="Eventdatum" value={b.eventdate} />
+                      <FieldRow label="Event start" value={b.event_start_time} />
+                      <FieldRow label="Event slut" value={b.event_end_time} />
+                      <FieldRow label="Nedriggdatum" value={b.rigdowndate} />
+                      <FieldRow label="Nedrigg start" value={b.rigdown_start_time} />
+                      <FieldRow label="Nedrigg slut" value={b.rigdown_end_time} />
+                    </div>
+
+                    {/* Contact & Address */}
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Kontakt & Adress</h4>
+                      <FieldRow label="Kontaktperson" value={b.contact_name} />
+                      <FieldRow label="Telefon" value={b.contact_phone} />
+                      <FieldRow label="E-post" value={b.contact_email} />
+                      <FieldRow label="Adress" value={b.deliveryaddress} />
+                      <FieldRow label="Stad" value={b.delivery_city} />
+                      <FieldRow label="Postnr" value={b.delivery_postal_code} />
+                      <FieldRow label="Bära >10m" value={b.carry_more_than_10m ? 'Ja' : 'Nej'} />
+                      <FieldRow label="Markspik OK" value={b.ground_nails_allowed ? 'Ja' : 'Nej'} />
+                      <FieldRow label="Exakt tid" value={b.exact_time_needed ? 'Ja' : 'Nej'} />
+                      <FieldRow label="Tidsinfo" value={b.exact_time_info} />
+                    </div>
+                  </div>
+
+                  {/* Internal notes */}
+                  {b.internalnotes && (
+                    <div className="mt-3">
+                      <h4 className="font-semibold text-sm mb-1">Interna noter</h4>
+                      <p className="text-sm bg-muted p-2 rounded whitespace-pre-wrap">{b.internalnotes}</p>
+                    </div>
+                  )}
+
+                  {/* Products */}
+                  {b.products && b.products.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-sm mb-2">Produkter ({b.products.length})</h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Namn</TableHead>
+                            <TableHead>SKU</TableHead>
+                            <TableHead className="text-right">Antal</TableHead>
+                            <TableHead className="text-right">À-pris</TableHead>
+                            <TableHead className="text-right">Totalt</TableHead>
+                            <TableHead className="text-right">Assembly</TableHead>
+                            <TableHead className="text-right">Handling</TableHead>
+                            <TableHead className="text-right">Purchase</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {b.products.map((p, i) => (
+                            <TableRow key={i} className={p.is_package_component ? 'opacity-60 text-xs' : ''}>
+                              <TableCell>{p.is_package_component ? '  ↳ ' : ''}{p.name}</TableCell>
+                              <TableCell className="font-mono text-xs">{p.sku || '—'}</TableCell>
+                              <TableCell className="text-right">{p.quantity}</TableCell>
+                              <TableCell className="text-right">{p.unit_price ?? '—'}</TableCell>
+                              <TableCell className="text-right">{p.total_price ?? '—'}</TableCell>
+                              <TableCell className="text-right">{p.assembly_cost || '—'}</TableCell>
+                              <TableCell className="text-right">{p.handling_cost || '—'}</TableCell>
+                              <TableCell className="text-right">{p.purchase_cost || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {/* Attachments */}
+                  {b.attachments && b.attachments.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-sm mb-2">Bilagor ({b.attachments.length})</h4>
+                      <div className="space-y-1">
+                        {b.attachments.map((a, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            <FileText className="h-3 w-3" />
+                            <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                              {a.file_name || 'Bilaga'}
+                            </a>
+                            <span className="text-muted-foreground text-xs">({a.file_type})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-3 text-xs text-muted-foreground">ID: {b.id}</div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </>
+      ) : (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
+            <Database className="h-12 w-12 text-muted-foreground" />
+            <p className="text-lg font-semibold">Booking Rådata</p>
+            <p className="text-muted-foreground text-sm">Klicka "Hämta all data" för att visa ALL bokningsdata direkt från Booking</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
 // ── Main Page ────────────────────────────────────────────────────────────
 
 const SyncReconciliation = () => {
@@ -558,6 +807,7 @@ const SyncReconciliation = () => {
         <TabsList>
           <TabsTrigger value="overview">Bokningsöversikt</TabsTrigger>
           <TabsTrigger value="detailed">Detaljerad avstämning</TabsTrigger>
+          <TabsTrigger value="rawdata">Booking Rådata</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -566,6 +816,10 @@ const SyncReconciliation = () => {
 
         <TabsContent value="detailed">
           <DetailedReconciliationTab />
+        </TabsContent>
+
+        <TabsContent value="rawdata">
+          <RawDataTab />
         </TabsContent>
       </Tabs>
     </div>
