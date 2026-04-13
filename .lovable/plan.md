@@ -1,51 +1,57 @@
 
 
-## Problem
+## Plan: Paginera hämtning från externa Booking-API:t
 
-Bokningar som finns i Booking-systemet (med status CANCELLED, DRAFT, OFFER, eller till och med CONFIRMED) flaggas felaktigt som "Bokning saknas i bokningssystemet". Orsaken är att det externa API:t (`export_bookings`) inte returnerar alla bokningar — troligen filtrerar det bort avbokade, utkast, eller offerter. Reconciliation-logiken tolkar då avsaknaden som att bokningen inte finns.
+### Problem
+`sync-reconciliation` gör ett enda anrop till `export_bookings` utan paginering. Om det externa API:t har en radgräns (t.ex. 100 eller 1000 bokningar) kommer inte alla bokningar att hämtas, vilket orsakar falska "saknas"-avvikelser.
 
-97 av 100 avvikelser är metadata-avvikelser, och en stor del av dessa är sannolikt falska "saknas"-flaggningar.
+Samma risk finns i `import-bookings` vid full-sync (ej single-booking).
 
-## Lösning
+### Lösning
 
-### 1. Backend: `supabase/functions/sync-reconciliation/index.ts`
+**`supabase/functions/sync-reconciliation/index.ts`** — Paginerad hämtning:
 
-**Ändra logiken för "missing external"-kontrollen (rad 562-578):**
-- Om en lokal bokning inte hittas i det externa svaret, kontrollera dess lokala status innan den flaggas.
-- **CANCELLED-bokningar**: Hoppa över helt — de ska inte flaggas som avvikelse. En avbokad bokning som inte returneras av API:t är förväntat beteende.
-- **DRAFT/OFFER-bokningar**: Hoppa över, eller visa som informationsrad (inte som avvikelse) — dessa kanske inte exporteras av Booking-systemet.
-- **CONFIRMED-bokningar**: Behåll flaggningen — om en bekräftad bokning saknas i exportdatan är det en verklig avvikelse.
-
-**Konkret kodändring:**
 ```typescript
-for (const [id, local] of localBookingMap) {
-  if (!externalIds.has(id)) {
-    const rigDate = local.rigdaydate || local.eventdate;
-    if (rigDate && rigDate < cutoffDate) continue;
-    
-    // Skip non-confirmed bookings — the external API may not export them
-    const localStatus = normalizeStatus(local.status);
-    if (localStatus === 'CANCELLED' || localStatus === 'OFFER' || localStatus === 'DRAFT') continue;
-    
-    discrepancies.push({
-      bookingId: id,
-      bookingNumber: local.booking_number,
-      client: local.client,
-      bookingStatus: localStatus || 'UNKNOWN',
-      field: '_missing_external', category: 'metadata',
-      localValue: 'exists', externalValue: null,
-      label: 'Bokning saknas i bokningssystemet'
-    });
-  }
+// Fetch ALL external bookings with pagination
+let allExternalBookings: any[] = [];
+let page = 1;
+const pageSize = 500;
+
+while (true) {
+  const pageParams = new URLSearchParams(apiParams);
+  pageParams.set('page', String(page));
+  pageParams.set('limit', String(pageSize));
+  
+  const url = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${pageParams}`;
+  const resp = await fetch(url, { headers: requestHeaders });
+  if (!resp.ok) throw new Error(`External API error: ${resp.status}`);
+  
+  const payload = await resp.json();
+  const batch = payload.data || [];
+  allExternalBookings = allExternalBookings.concat(batch);
+  
+  // Stop if we got fewer than requested (last page)
+  if (batch.length < pageSize) break;
+  page++;
 }
 ```
 
-### 2. Deploy
+- Ersätter det nuvarande enskilda `fetch`-anropet (rad ~256-276)
+- Använder `page` och `limit` query-parametrar
+- Loopar tills en sida returnerar färre än `pageSize` poster
+- Om API:t inte stöder `page`/`limit`, returnerar det allt på första sidan och loopen avslutas direkt — ingen regression
 
-Deploya `sync-reconciliation` edge function.
+**Samma ändring görs i `import-bookings/index.ts`** för full-sync-läget (ej single-booking eller incremental).
+
+### Lokala Supabase-frågor
+
+Dessa är redan under 196 rader idag, men för framtidssäkring: lägg till `.range()`-paginering på de tre lokala frågorna (bookings, booking_products, booking_attachments) med en `fetchAll`-helper.
+
+### Deploy
+
+Deploya `sync-reconciliation` efter ändringarna.
 
 ### Resultat
-- CANCELLED, OFFER och DRAFT-bokningar som inte finns i exportdatan ignoreras (inte flaggas)
-- Bara CONFIRMED-bokningar som saknas i exportdatan flaggas som verkliga avvikelser
-- Antalet falska avvikelser minskar drastiskt
-
+- Alla bokningar från Booking-systemet hämtas oavsett antal
+- Inga falska "saknas"-avvikelser p.g.a. trunkerad data
+- Bakåtkompatibelt — om API:t ignorerar `page`/`limit` fungerar det som idag
