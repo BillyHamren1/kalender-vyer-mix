@@ -1321,10 +1321,13 @@ const expandPackageComponents = async (
   bookingId: string,
   orgId?: string
 ): Promise<number> => {
+  const normalizeComponentName = (value: string | null | undefined) =>
+    (value || '').replace(/^\s*--\s*/, '').trim().toLowerCase();
+
   // Fetch all products for this booking
   const { data: products, error } = await supabase
     .from('booking_products')
-    .select('id, name, package_components, sort_index, inventory_package_id, is_package_component')
+    .select('id, name, quantity, package_components, sort_index, inventory_package_id, is_package_component, parent_product_id')
     .eq('booking_id', bookingId);
 
   if (error || !products || products.length === 0) return 0;
@@ -1336,41 +1339,35 @@ const expandPackageComponents = async (
 
   if (parentsWithComponents.length === 0) return 0;
 
-  // Collect names of already-expanded components (strip leading "  -- " prefix)
-  const existingComponentNames = new Set(
-    products
-      .filter((p: any) => p.is_package_component === true)
-      .map((c: any) => (c.name || '').replace(/^\s*--\s*/, '').trim().toLowerCase())
-  );
-
   let totalExpanded = 0;
 
   for (const parent of parentsWithComponents) {
     const parentId = parent.id;
     const parentInventoryPackageId = parent.inventory_package_id || null;
     const parentSortIndex = parent.sort_index ?? 0;
+    const parentQuantity = Math.max(Number(parent.quantity) || 1, 1);
 
-    const componentsToExpand = parent.package_components.filter((comp: any) => {
-      const compName = (comp.name || '').trim().toLowerCase();
-      return !existingComponentNames.has(compName);
-    });
+    const existingComponentsForParent = new Map(
+      products
+        .filter((p: any) => p.is_package_component === true && p.parent_product_id === parentId)
+        .map((p: any) => [normalizeComponentName(p.name), p])
+    );
 
-    if (componentsToExpand.length === 0) {
-      console.log(`[Package Expand] All components for "${parent.name}" already exist as rows`);
-      continue;
-    }
+    console.log(`[Package Expand] Reconciling ${parent.package_components.length} components for parent "${parent.name}" (ID: ${parentId}, qty: ${parentQuantity})`);
 
-    console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name}" (ID: ${parentId})`);
-
-    for (let i = 0; i < componentsToExpand.length; i++) {
-      const comp = componentsToExpand[i];
+    for (let i = 0; i < parent.package_components.length; i++) {
+      const comp = parent.package_components[i];
+      const componentName = comp.name || 'Okänd komponent';
+      const componentKey = normalizeComponentName(componentName);
       const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
+      const desiredQuantity = (Number(comp.quantity) || 1) * parentQuantity;
+      const existingComponent = existingComponentsForParent.get(componentKey);
 
       const componentData: ProductData = {
         booking_id: bookingId,
         organization_id: orgId || '',
-        name: `  -- ${comp.name || 'Okänd komponent'}`,
-        quantity: comp.quantity || 1,
+        name: `  -- ${componentName}`,
+        quantity: desiredQuantity,
         unit_price: 0,
         total_price: 0,
         parent_product_id: parentId,
@@ -1391,16 +1388,42 @@ const expandPackageComponents = async (
         vat_rate: 0,
       };
 
+      if (existingComponent) {
+        if (
+          Number(existingComponent.quantity) !== desiredQuantity ||
+          existingComponent.parent_product_id !== parentId
+        ) {
+          const { error: updateError } = await supabase
+            .from('booking_products')
+            .update({
+              quantity: desiredQuantity,
+              parent_product_id: parentId,
+              parent_package_id: parentInventoryPackageId,
+              inventory_package_id: parentInventoryPackageId,
+              sort_index: componentSortIndex,
+            })
+            .eq('id', existingComponent.id);
+
+          if (updateError) {
+            console.error(`[Package Expand] Error updating component "${componentName}":`, updateError);
+          } else {
+            totalExpanded++;
+            console.log(`[Package Expand] Updated component "${componentName}" to qty ${desiredQuantity} for parent "${parent.name}"`);
+          }
+        }
+
+        continue;
+      }
+
       const { error: compError } = await supabase
         .from('booking_products')
         .insert(componentData);
 
       if (compError) {
-        console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+        console.error(`[Package Expand] Error inserting component "${componentName}":`, compError);
       } else {
         totalExpanded++;
-        existingComponentNames.add((comp.name || '').trim().toLowerCase());
-        console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name}"`);
+        console.log(`[Package Expand] Inserted component "${componentName}" (qty: ${desiredQuantity}) for parent "${parent.name}"`);
       }
     }
   }
@@ -2828,24 +2851,36 @@ serve(async (req) => {
         if (needsProductUpdate || !existingBooking) {
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
-          // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
+          // DEDUPLICATE: merge only true duplicate component rows, never collapse repeated parent packages
           const deduplicatedProducts: any[] = [];
           const productKeyMap = new Map<string, number>(); // key -> index in deduplicatedProducts
+          const shouldMergeDuplicateProduct = (product: any) => {
+            const productName = (product.name || product.product_name || '').trim();
+            const isPkgComponent = product.is_package_component === true;
+            const hasExplicitParent = Boolean(product.parent_product_id || product.parent_package_id || product.inventory_package_id);
+            const hasPackageComponents = Array.isArray(product.package_components) && product.package_components.length > 0;
+            const isAccessory = isAccessoryProduct(productName);
+
+            return isPkgComponent || isAccessory || hasExplicitParent || !hasPackageComponents;
+          };
           
           for (const product of externalBooking.products) {
             const name = (product.name || product.product_name || '').trim();
             const parentId = product.parent_product_id || product.parent_package_id || product.inventory_package_id || 'root';
             const isPkg = product.is_package_component === true;
             const key = `${name}::${parentId}::${isPkg}`;
+            const shouldMerge = shouldMergeDuplicateProduct(product);
             
-            if (productKeyMap.has(key)) {
+            if (shouldMerge && productKeyMap.has(key)) {
               // Merge: add quantities
               const existingIdx = productKeyMap.get(key)!;
               deduplicatedProducts[existingIdx].quantity = 
                 (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
               console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
             } else {
-              productKeyMap.set(key, deduplicatedProducts.length);
+              if (shouldMerge) {
+                productKeyMap.set(key, deduplicatedProducts.length);
+              }
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
             }
           }
@@ -2853,13 +2888,21 @@ serve(async (req) => {
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
 
           // ── MERGE STRATEGY ──────────────────────────────────────────────────────
-          // Build a lookup of existing products by normalised name so we can
-          // UPDATE in-place instead of DELETE + INSERT.  This eliminates the
-          // race-condition window where the table is momentarily empty.
-          const existingProductsByName = new Map<string, { id: string; name: string }>();
+          // Build a lookup of existing products by a stable composite key so we can
+          // UPDATE in-place without collapsing repeated package parents with same name.
+          const existingProductsByKey = new Map<string, Array<{ id: string; name: string; parent_product_id?: string | null; is_package_component?: boolean | null }>>();
+          const buildExistingProductKey = (product: any) => {
+            const normalizedName = (product.name || '').trim().toLowerCase();
+            const parentKey = product.parent_product_id || '__root__';
+            const typeKey = product.is_package_component === true ? 'pkg' : 'item';
+            return `${normalizedName}::${parentKey}::${typeKey}`;
+          };
           if (oldProducts) {
             for (const ep of oldProducts) {
-              existingProductsByName.set((ep.name || '').trim().toLowerCase(), ep);
+              const bucketKey = buildExistingProductKey(ep);
+              const bucket = existingProductsByKey.get(bucketKey) || [];
+              bucket.push(ep);
+              existingProductsByKey.set(bucketKey, bucket);
             }
           }
           // ────────────────────────────────────────────────────────────────────────
@@ -2942,8 +2985,14 @@ serve(async (req) => {
               }
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
-              const nameKey = productName.trim().toLowerCase();
-              const existingMatch = existingProductsByName.get(nameKey);
+              const existingProductKey = `${productName.trim().toLowerCase()}::${resolvedParentId || '__root__'}::${isPkgComponent ? 'pkg' : 'item'}`;
+              const existingBucket = existingProductsByKey.get(existingProductKey) || [];
+              const existingMatch = existingBucket.shift();
+              if (existingBucket.length > 0) {
+                existingProductsByKey.set(existingProductKey, existingBucket);
+              } else {
+                existingProductsByKey.delete(existingProductKey);
+              }
               
               let upsertedProductId: string | null = null;
               let productError: any = null;
