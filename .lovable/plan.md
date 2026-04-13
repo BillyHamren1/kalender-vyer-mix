@@ -1,26 +1,51 @@
 
 
-## Plan: Highlight non-CONFIRMED bookings in sync reconciliation
+## Problem
 
-### Problem
-Bookings with status OFFER or DRAFT in the external Booking system still appear in the reconciliation list on `/admin/sync`. They need to be visually highlighted so it's immediately clear they are not confirmed.
+Bokningar som finns i Booking-systemet (med status CANCELLED, DRAFT, OFFER, eller till och med CONFIRMED) flaggas felaktigt som "Bokning saknas i bokningssystemet". Orsaken är att det externa API:t (`export_bookings`) inte returnerar alla bokningar — troligen filtrerar det bort avbokade, utkast, eller offerter. Reconciliation-logiken tolkar då avsaknaden som att bokningen inte finns.
 
-### Changes
+97 av 100 avvikelser är metadata-avvikelser, och en stor del av dessa är sannolikt falska "saknas"-flaggningar.
 
-**1. Backend: `supabase/functions/sync-reconciliation/index.ts`**
-- Include the external booking status in the discrepancy data returned to the frontend. Add a `bookingStatus` field to each discrepancy object so the UI knows the external status of each booking.
+## Lösning
 
-**2. Frontend: `src/pages/SyncReconciliation.tsx`**
-- Update the `Discrepancy` interface to include `bookingStatus?: string`.
-- In the grouped booking card rendering (line ~288), check if the booking's external status is not `CONFIRMED`. If so:
-  - Add a colored warning banner/badge on the card header (e.g., orange for OFFER, gray for DRAFT)
-  - Apply a distinct border/background color to the card (e.g., `border-orange-400 bg-orange-50`)
-  - Show a clear status badge like "OFFERT" or "UTKAST" next to the booking number
-- This makes it immediately visible which bookings are not confirmed without needing to find the status discrepancy row.
+### 1. Backend: `supabase/functions/sync-reconciliation/index.ts`
 
-### Visual result
-- CONFIRMED bookings: normal card appearance (as today)
-- OFFER bookings: orange-tinted card with "OFFERT" badge
-- DRAFT bookings: gray-tinted card with "UTKAST" badge
-- CANCELLED bookings: red-tinted card with "AVBOKAD" badge
+**Ändra logiken för "missing external"-kontrollen (rad 562-578):**
+- Om en lokal bokning inte hittas i det externa svaret, kontrollera dess lokala status innan den flaggas.
+- **CANCELLED-bokningar**: Hoppa över helt — de ska inte flaggas som avvikelse. En avbokad bokning som inte returneras av API:t är förväntat beteende.
+- **DRAFT/OFFER-bokningar**: Hoppa över, eller visa som informationsrad (inte som avvikelse) — dessa kanske inte exporteras av Booking-systemet.
+- **CONFIRMED-bokningar**: Behåll flaggningen — om en bekräftad bokning saknas i exportdatan är det en verklig avvikelse.
+
+**Konkret kodändring:**
+```typescript
+for (const [id, local] of localBookingMap) {
+  if (!externalIds.has(id)) {
+    const rigDate = local.rigdaydate || local.eventdate;
+    if (rigDate && rigDate < cutoffDate) continue;
+    
+    // Skip non-confirmed bookings — the external API may not export them
+    const localStatus = normalizeStatus(local.status);
+    if (localStatus === 'CANCELLED' || localStatus === 'OFFER' || localStatus === 'DRAFT') continue;
+    
+    discrepancies.push({
+      bookingId: id,
+      bookingNumber: local.booking_number,
+      client: local.client,
+      bookingStatus: localStatus || 'UNKNOWN',
+      field: '_missing_external', category: 'metadata',
+      localValue: 'exists', externalValue: null,
+      label: 'Bokning saknas i bokningssystemet'
+    });
+  }
+}
+```
+
+### 2. Deploy
+
+Deploya `sync-reconciliation` edge function.
+
+### Resultat
+- CANCELLED, OFFER och DRAFT-bokningar som inte finns i exportdatan ignoreras (inte flaggas)
+- Bara CONFIRMED-bokningar som saknas i exportdatan flaggas som verkliga avvikelser
+- Antalet falska avvikelser minskar drastiskt
 
