@@ -2985,8 +2985,14 @@ serve(async (req) => {
               }
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
-              const nameKey = productName.trim().toLowerCase();
-              const existingMatch = existingProductsByName.get(nameKey);
+              const existingProductKey = `${productName.trim().toLowerCase()}::${resolvedParentId || '__root__'}::${isPkgComponent ? 'pkg' : 'item'}`;
+              const existingBucket = existingProductsByKey.get(existingProductKey) || [];
+              const existingMatch = existingBucket.shift();
+              if (existingBucket.length > 0) {
+                existingProductsByKey.set(existingProductKey, existingBucket);
+              } else {
+                existingProductsByKey.delete(existingProductKey);
+              }
               
               let upsertedProductId: string | null = null;
               let productError: any = null;
