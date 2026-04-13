@@ -395,6 +395,10 @@ Deno.serve(async (req) => {
           // If local is empty/null, treat as match (Planning hasn't stored a value yet)
           if (normLocal === null || normLocal === undefined) continue;
           
+          // For time fields: if Booking has no value but Planning does,
+          // it means Planning assigned the time locally — skip comparison
+          if (timeFields.has(key) && (normExt === null || normExt === undefined)) continue;
+          
           // For time fields: extract just HH:MM:SS from local timestamps
           if (timeFields.has(key)) {
             if (normLocal && typeof normLocal === 'string') {
