@@ -462,40 +462,84 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Compare attachments by URL (normalized, stripping query params)
-        const stripQuery = (url: string) => url?.split('?')[0] || '';
+        // Compare attachments by identity (URL + filename fallback)
+        const normalizeAttachmentValue = (value: unknown): string | null => {
+          if (!value) return null;
+          const normalized = decodeURIComponent(String(value).trim())
+            .split('?')[0]
+            .split('#')[0]
+            .toLowerCase();
+          return normalized || null;
+        };
+
+        const getBaseName = (value: string) => value.split('/').pop() || value;
+
+        const toAttachmentEntry = (attachment: any) => {
+          const url = normalizeAttachmentValue(attachment.url || attachment.file_url || attachment.public_url || '');
+          const fileName = normalizeAttachmentValue(attachment.file_name || attachment.name || attachment.filename || '');
+          const keys = new Set<string>();
+
+          if (url) {
+            keys.add(url);
+            keys.add(getBaseName(url));
+          }
+
+          if (fileName) {
+            keys.add(fileName);
+            keys.add(getBaseName(fileName));
+          }
+
+          if (keys.size === 0) return null;
+
+          return {
+            id: `${fileName || ''}::${url || ''}`,
+            keys,
+            displayName: attachment.file_name || attachment.name || (url ? getBaseName(url) : 'Bilaga'),
+          };
+        };
+
         const extAttachments = [
           ...(ext.attachments || []),
           ...(ext.files_metadata || []),
           ...(ext.tent_images || [])
         ];
         const locAttachments = localAttachmentsByBooking.get(bookingId) || [];
-        
-        const extUrlSet = new Set(extAttachments.map((a: any) => stripQuery(a.url || a.file_url || '')).filter(Boolean));
-        const locUrlSet = new Set(locAttachments.map((a: any) => stripQuery(a.url || '')).filter(Boolean));
-        
+
+        const extEntries = extAttachments.map(toAttachmentEntry).filter(Boolean) as Array<{ id: string; keys: Set<string>; displayName: string }>;
+        const locEntries = locAttachments.map(toAttachmentEntry).filter(Boolean) as Array<{ id: string; keys: Set<string>; displayName: string }>;
+
+        const hasKeyOverlap = (a: Set<string>, b: Set<string>) => [...a].some(key => b.has(key));
+        const matchedExternalIds = new Set<string>();
+        const matchedLocalIds = new Set<string>();
+
+        for (const extEntry of extEntries) {
+          const localMatch = locEntries.find(locEntry => hasKeyOverlap(extEntry.keys, locEntry.keys));
+          if (localMatch) {
+            matchedExternalIds.add(extEntry.id);
+            matchedLocalIds.add(localMatch.id);
+          }
+        }
+
         // Attachments only in Booking (missing locally)
-        for (const extUrl of extUrlSet) {
-          if (!locUrlSet.has(extUrl)) {
-            const fileName = extUrl.split('/').pop() || extUrl;
+        for (const extEntry of extEntries) {
+          if (!matchedExternalIds.has(extEntry.id)) {
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
-              field: `_attachment_missing:${extUrl}`, category: 'attachments',
-              localValue: null, externalValue: fileName,
-              label: `Bilaga saknas lokalt: ${fileName}`
+              field: `_attachment_missing:${extEntry.displayName}`, category: 'attachments',
+              localValue: null, externalValue: extEntry.displayName,
+              label: `Bilaga saknas lokalt: ${extEntry.displayName}`
             });
           }
         }
-        
-        // Attachments only in Planning (extra locally) — keep them, but show info
-        for (const locUrl of locUrlSet) {
-          if (!extUrlSet.has(locUrl)) {
-            const fileName = locUrl.split('/').pop() || locUrl;
+
+        // Attachments only in Planning (extra locally)
+        for (const locEntry of locEntries) {
+          if (!matchedLocalIds.has(locEntry.id)) {
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
-              field: `_attachment_extra:${locUrl}`, category: 'attachments',
-              localValue: fileName, externalValue: null,
-              label: `Extra lokal bilaga: ${fileName}`
+              field: `_attachment_extra:${locEntry.displayName}`, category: 'attachments',
+              localValue: locEntry.displayName, externalValue: null,
+              label: `Extra lokal bilaga: ${locEntry.displayName}`
             });
           }
         }
