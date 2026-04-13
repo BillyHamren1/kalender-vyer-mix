@@ -332,51 +332,61 @@ Deno.serve(async (req) => {
       const bookings = rawExternalBookings
         .map((ext: any) => ({ ext, normalized: normalizeExternalBooking(ext) }))
         .filter(({ normalized }) => normalized.status === "CONFIRMED")
-        .map(({ ext, normalized }) => ({
-          id: ext.id,
-          booking_number: normalized.booking_number,
-          client: normalized.client,
-          status: normalized.status,
-          rigdaydate: normalized.rigdaydate,
-          eventdate: normalized.eventdate,
-          rigdowndate: normalized.rigdowndate,
-          rig_start_time: normalized.rig_start_time,
-          rig_end_time: normalized.rig_end_time,
-          event_start_time: normalized.event_start_time,
-          event_end_time: normalized.event_end_time,
-          rigdown_start_time: normalized.rigdown_start_time,
-          rigdown_end_time: normalized.rigdown_end_time,
-          deliveryaddress: normalized.deliveryaddress,
-          delivery_city: normalized.delivery_city,
-          delivery_postal_code: normalized.delivery_postal_code,
-          contact_name: normalized.contact_name,
-          contact_email: normalized.contact_email,
-          contact_phone: normalized.contact_phone,
-          internalnotes: normalized.internalnotes,
-          carry_more_than_10m: normalized.carry_more_than_10m,
-          ground_nails_allowed: normalized.ground_nails_allowed,
-          exact_time_needed: normalized.exact_time_needed,
-          exact_time_info: normalized.exact_time_info,
-          products: (normalized.products || []).map((p: any) => ({
-            name: p.name,
-            sku: p.sku,
-            quantity: p.quantity,
-            unit_price: p.unit_price,
-            total_price: p.total_price,
-            discount: p.discount,
-            assembly_cost: p.assembly_cost,
-            handling_cost: p.handling_cost,
-            purchase_cost: p.purchase_cost,
-            notes: p.notes || null,
-            is_package_component: p.is_package_component || false,
-            parent_package_id: p.parent_package_id || null,
-          })),
-          attachments: (ext.attachments || ext.documents || []).map((a: any) => ({
-            url: a.url || a.file_url || '',
-            file_name: a.file_name || a.fileName || a.name || '',
-            file_type: a.file_type || a.fileType || a.type || '',
-          })),
-        }));
+        .map(({ ext, normalized }) => {
+          // Get full date arrays from external raw data
+          const rigDates = normalizeDateArray(ext.rig_up_dates, ext.rigdaydate, ext.rig_up_date, ext.rig_date);
+          const eventDates = normalizeDateArray(ext.event_dates, ext.eventdate, ext.event_date);
+          const rigdownDates = normalizeDateArray(ext.rig_down_dates, ext.rigdowndate, ext.rig_down_date);
+
+          return {
+            id: ext.id,
+            booking_number: normalized.booking_number,
+            client: normalized.client,
+            status: normalized.status,
+            rigdaydate: normalized.rigdaydate,
+            eventdate: normalized.eventdate,
+            rigdowndate: normalized.rigdowndate,
+            rig_dates: rigDates,
+            event_dates: eventDates,
+            rigdown_dates: rigdownDates,
+            rig_start_time: normalized.rig_start_time,
+            rig_end_time: normalized.rig_end_time,
+            event_start_time: normalized.event_start_time,
+            event_end_time: normalized.event_end_time,
+            rigdown_start_time: normalized.rigdown_start_time,
+            rigdown_end_time: normalized.rigdown_end_time,
+            deliveryaddress: normalized.deliveryaddress,
+            delivery_city: normalized.delivery_city,
+            delivery_postal_code: normalized.delivery_postal_code,
+            contact_name: normalized.contact_name,
+            contact_email: normalized.contact_email,
+            contact_phone: normalized.contact_phone,
+            internalnotes: normalized.internalnotes,
+            carry_more_than_10m: normalized.carry_more_than_10m,
+            ground_nails_allowed: normalized.ground_nails_allowed,
+            exact_time_needed: normalized.exact_time_needed,
+            exact_time_info: normalized.exact_time_info,
+            products: (normalized.products || []).map((p: any) => ({
+              name: p.name,
+              sku: p.sku,
+              quantity: p.quantity,
+              unit_price: p.unit_price,
+              total_price: p.total_price,
+              discount: p.discount,
+              assembly_cost: p.assembly_cost,
+              handling_cost: p.handling_cost,
+              purchase_cost: p.purchase_cost,
+              notes: p.notes || null,
+              is_package_component: p.is_package_component || false,
+              parent_package_id: p.parent_package_id || null,
+            })),
+            attachments: (ext.attachments || ext.documents || []).map((a: any) => ({
+              url: a.url || a.file_url || '',
+              file_name: a.file_name || a.fileName || a.name || '',
+              file_type: a.file_type || a.fileType || a.type || '',
+            })),
+          };
+        });
 
       return new Response(
         JSON.stringify({ bookings, total: bookings.length }),
