@@ -377,22 +377,41 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Time fields that need special normalization (local stores full timestamps)
+        const timeFields = new Set([
+          'rig_start_time', 'rig_end_time',
+          'event_start_time', 'event_end_time',
+          'rigdown_start_time', 'rigdown_end_time',
+        ]);
+
         // Compare metadata
         for (const { key, label } of metadataFields) {
           const extVal = ext[key] ?? null;
-          const localVal = local[key] ?? null;
+          let localVal = local[key] ?? null;
           
-          const normExt = extVal === '' ? null : extVal;
-          const normLocal = localVal === '' ? null : localVal;
+          let normExt = extVal === '' ? null : extVal;
+          let normLocal = localVal === '' ? null : localVal;
           
           // If local is empty/null, treat as match (Planning hasn't stored a value yet)
           if (normLocal === null || normLocal === undefined) continue;
+          
+          // For time fields: extract just HH:MM:SS from local timestamps
+          if (timeFields.has(key)) {
+            if (normLocal && typeof normLocal === 'string') {
+              const timePart = extractTimePart(normLocal);
+              if (timePart) normLocal = timePart;
+            }
+            if (normExt && typeof normExt === 'string') {
+              const timePart = extractTimePart(normExt);
+              if (timePart) normExt = timePart;
+            }
+          }
           
           if (JSON.stringify(normExt) !== JSON.stringify(normLocal)) {
             discrepancies.push({
               bookingId, bookingNumber, client: clientName,
               field: key, category: 'metadata',
-              localValue: localVal, externalValue: extVal,
+              localValue: normLocal, externalValue: normExt,
               label
             });
           }
