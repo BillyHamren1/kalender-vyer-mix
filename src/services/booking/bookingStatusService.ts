@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
+import { updateBookingStatusViaApi } from "@/services/planningApiService";
 
 export type BookingStatus = 'OFFER' | 'CONFIRMED' | 'CANCELLED';
 
@@ -11,10 +12,10 @@ export const updateBookingStatusWithCalendarSync = async (
 ): Promise<void> => {
   console.log(`Updating booking ${id} status from ${previousStatus} to ${newStatus}`);
 
-  // Get the current booking data before update
+  // Get the current booking data before update (for side-effects)
   const { data: oldBooking, error: fetchError } = await supabase
     .from('bookings')
-    .select('*')
+    .select('organization_id')
     .eq('id', id)
     .single();
 
@@ -23,19 +24,9 @@ export const updateBookingStatusWithCalendarSync = async (
     throw fetchError;
   }
 
-  // Update the booking status in the database
-  const { error } = await supabase
-    .from('bookings')
-    .update({ status: newStatus })
-    .eq('id', id);
+  // Update status via Booking API (source of truth) — NOT locally
+  await updateBookingStatusViaApi(id, newStatus);
 
-  if (error) {
-    console.error('Error updating booking status:', error);
-    throw error;
-  }
-
-  // Calendar sync is handled by the backend (import-bookings) via booking change detection.
-  // No frontend calendar mutation needed.
   // Sync packing project (non-blocking - DB trigger handles name, this syncs list items)
   if (oldBooking?.organization_id) {
     syncBookingToPacking(id, oldBooking.organization_id);
