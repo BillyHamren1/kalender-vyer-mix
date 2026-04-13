@@ -325,8 +325,13 @@ Deno.serve(async (req) => {
       // Build local maps
       const localBookingMap = new Map((localBookings || []).map(b => [b.id, b]));
       const localProductsByBooking = new Map<string, any[]>();
+      const allLocalProductsByBooking = new Map<string, any[]>();
       for (const p of (localProducts || [])) {
-        if (p.is_package_component || p.parent_product_id) continue; // skip package components and child products
+        const allArr = allLocalProductsByBooking.get(p.booking_id) || [];
+        allArr.push(p);
+        allLocalProductsByBooking.set(p.booking_id, allArr);
+
+        if (p.is_package_component || p.parent_product_id) continue; // top-level only for comparison
         const arr = localProductsByBooking.get(p.booking_id) || [];
         arr.push(p);
         localProductsByBooking.set(p.booking_id, arr);
