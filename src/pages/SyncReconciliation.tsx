@@ -615,6 +615,33 @@ const RawDataTab = () => {
     enabled: false,
   });
 
+  // Fetch local times from Planning DB for all bookings
+  const bookingIds = useMemo(() => (data?.bookings || []).map(b => b.id), [data]);
+  const { data: localBookings } = useQuery({
+    queryKey: ['local-booking-times', bookingIds],
+    queryFn: async () => {
+      if (!bookingIds.length) return [];
+      // Fetch in chunks of 100
+      const all: any[] = [];
+      for (let i = 0; i < bookingIds.length; i += 100) {
+        const chunk = bookingIds.slice(i, i + 100);
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+          .in('id', chunk);
+        if (data) all.push(...data);
+      }
+      return all;
+    },
+    enabled: bookingIds.length > 0,
+  });
+
+  const localTimesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (localBookings || []).forEach(b => map.set(b.id, b));
+    return map;
+  }, [localBookings]);
+
   const [showOnlyWithTimes, setShowOnlyWithTimes] = useState(false);
 
   const bookings = data?.bookings || [];
