@@ -54,6 +54,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
+  const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
 
   const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
