@@ -177,6 +177,9 @@ const OrganizationLocationsManager = () => {
               <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] h-5">
                 {loc.radius_meters}m
               </Badge>
+              {loc.show_as_project && (
+                <Badge variant="outline" className="text-[10px] h-5 text-primary border-primary/30">Tidprojekt</Badge>
+              )}
               {!loc.is_active && (
                 <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">Inaktiv</Badge>
               )}
