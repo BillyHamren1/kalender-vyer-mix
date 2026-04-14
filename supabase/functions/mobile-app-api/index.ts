@@ -796,15 +796,18 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     )
   }
 
-  // Flatten large_project info for easier frontend consumption
-  const enriched = (reports || []).map((r: any) => ({
-    ...r,
-    large_project_name: r.large_projects?.name || null,
-    large_projects: undefined,
-  }))
+  // Fetch travel logs in parallel
+  const { data: travelLogs } = await supabase
+    .from('travel_time_logs')
+    .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, description')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .not('end_time', 'is', null)
+    .order('report_date', { ascending: false })
+    .limit(200)
 
   return new Response(
-    JSON.stringify({ time_reports: enriched }),
+    JSON.stringify({ time_reports: enriched, travel_logs: travelLogs || [] }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
@@ -3079,6 +3082,24 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
           break
         }
       }
+    }
+  }
+
+  // Fallback: if no GPS match, link to the most recent time report's booking for this staff today
+  if (!destinationBookingId) {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const { data: lastReport } = await supabase
+      .from('time_reports')
+      .select('booking_id')
+      .eq('staff_id', staffId)
+      .eq('report_date', todayStr)
+      .eq('organization_id', organizationId)
+      .order('end_time', { ascending: false })
+      .limit(1)
+      .single()
+    if (lastReport?.booking_id) {
+      destinationBookingId = lastReport.booking_id
+      console.log(`[StopTravel] Fallback: linked to last worked booking ${destinationBookingId}`)
     }
   }
 
