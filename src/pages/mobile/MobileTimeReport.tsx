@@ -142,7 +142,7 @@ const MobileTimeReport = () => {
                       toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
                     }
                   } else {
-                    // Booking timer — create time report
+                    // Booking or project timer — create time report
                     const stopTime = new Date();
                     const startTimeDate = parseISO(timer.startTime);
                     let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
@@ -162,6 +162,7 @@ const MobileTimeReport = () => {
                         break_time: breakDeduction,
                         description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
                         establishment_task_id: timer.establishmentTaskId,
+                        large_project_id: timer.largeProjectId,
                       });
                       toast.success(`Tidrapport sparad: ${hoursWorked}h`);
                     } catch (err: any) {

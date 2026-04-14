@@ -1,0 +1,1 @@
+ALTER TABLE public.time_reports ADD COLUMN large_project_id uuid REFERENCES public.large_projects(id) ON DELETE SET NULL;

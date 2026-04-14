@@ -59,8 +59,8 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
             {!isLocation && !isProject && event.booking?.deliveryaddress && (
               <p className="text-sm text-muted-foreground mt-1">{event.booking.deliveryaddress}</p>
             )}
-            {isProject && event.booking?.deliveryaddress && (
-              <p className="text-sm text-muted-foreground mt-1">{event.booking.deliveryaddress}</p>
+            {isProject && event.largeProjectAddress && (
+              <p className="text-sm text-muted-foreground mt-1">{event.largeProjectAddress}</p>
             )}
             {isLocation && event.locationAddress && (
               <p className="text-sm text-muted-foreground mt-1">{event.locationAddress}</p>

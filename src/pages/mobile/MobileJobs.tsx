@@ -37,7 +37,7 @@ const MobileJobs = () => {
     if (geofenceEvent.locationType === 'project' && geofenceEvent.largeProjectId) {
       const projectKey = `project-${geofenceEvent.largeProjectId}`;
       if (geofenceEvent.type === 'enter') {
-        startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true);
+        startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId);
         toast.success(`Timer startad: ${geofenceEvent.largeProjectName}`);
       } else {
         const stopped = stopTimer(projectKey);
