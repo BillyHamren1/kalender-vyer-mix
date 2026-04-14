@@ -143,6 +143,12 @@ const MobileTimeReport = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
+    if (activeTimers.size > 0) {
+      const msg = 'Du har en aktiv timer. Stoppa den innan du skapar en manuell rapport.';
+      setValidationError(msg);
+      toast.error(msg);
+      return;
+    }
     const error = getValidationError();
     if (error) {
       setValidationError(error);
