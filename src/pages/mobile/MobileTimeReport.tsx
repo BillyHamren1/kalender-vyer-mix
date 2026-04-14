@@ -397,7 +397,6 @@ const MobileTimeReport = () => {
 
         {/* Time reports list */}
         <div className="space-y-4">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Mina tidrapporter</h2>
 
           {loadingReports ? (
             <div className="flex justify-center py-8">
