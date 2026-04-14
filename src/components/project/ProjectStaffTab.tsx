@@ -6,13 +6,25 @@ import { LaborCostsSection } from './LaborCostsSection';
 import { StaffSummaryCard } from './StaffSummaryCard';
 import { AddLaborCostDialog } from './AddLaborCostDialog';
 import { AddTimeReportDialog } from './AddTimeReportDialog';
+import { LocationTimeSection } from './LocationTimeSection';
 
 interface ProjectStaffTabProps {
   projectId: string;
   bookingId: string | null;
+  isInternal?: boolean;
+  locationId?: string | null;
 }
 
-export const ProjectStaffTab = ({ projectId, bookingId }: ProjectStaffTabProps) => {
+export const ProjectStaffTab = ({ projectId, bookingId, isInternal, locationId }: ProjectStaffTabProps) => {
+  // For internal projects, show location time instead
+  if (isInternal && locationId) {
+    return <LocationTimeSection locationId={locationId} />;
+  }
+
+  return <ProjectStaffTabInner projectId={projectId} bookingId={bookingId} />;
+};
+
+const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; bookingId: string | null }) => {
   const [showLaborCostDialog, setShowLaborCostDialog] = useState(false);
   const [showTimeReportDialog, setShowTimeReportDialog] = useState(false);
 
