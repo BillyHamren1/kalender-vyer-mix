@@ -328,8 +328,13 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     setNearbyBookings(nearby);
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string) => {
+  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string): boolean => {
     const key = locationId ? `location-${locationId}` : bookingId;
+    // Block if another timer is already running (allow re-starting the same key)
+    const current = activeTimersRef.current;
+    if (current.size > 0 && !current.has(key)) {
+      return false;
+    }
     setActiveTimers(prev => {
       const next = new Map(prev);
       next.set(key, {
@@ -345,6 +350,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       });
       return next;
     });
+    return true;
     triggeredEnterRef.current.add(key);
 
     // If it's a fixed location manual start, call the API
