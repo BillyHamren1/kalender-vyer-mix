@@ -235,8 +235,13 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
         const projectKey = `project-${lpId}`;
         const hasTimer = activeTimers.has(projectKey);
+        const alreadyTriggered = triggeredEnterRef.current.has(projectKey);
 
-        if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(projectKey)) {
+        if (dist <= enterRadius) {
+          console.log(`[Geofence] Project "${lpName}" dist=${Math.round(dist)}m, hasTimer=${hasTimer}, alreadyTriggered=${alreadyTriggered}`);
+        }
+
+        if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           setGeofenceEvent({
