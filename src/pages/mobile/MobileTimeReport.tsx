@@ -268,7 +268,7 @@ const MobileTimeReport = () => {
                 return (
                   <button
                     key={loc.id}
-                    onClick={() => {
+                    onClick={async () => {
                       if (isActive) {
                         // Stop and create time report (same as active timer card)
                         const timer = activeTimers.get(locKey);
