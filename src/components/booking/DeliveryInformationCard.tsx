@@ -84,26 +84,33 @@ export const DeliveryInformationCard = ({
       const combined = [addressRef.current, cityRef.current, postalRef.current].filter(Boolean).join(', ');
       if (!combined || combined.length < 5) return;
       try {
-        const { data, error } = await supabase.functions.invoke('geocode-address', {
-          body: { address: combined }
-        });
-        if (error || !data?.latitude) {
-          console.warn('[DeliveryInfo] Geocoding failed:', error || data);
+        const tokenRes = await supabase.functions.invoke('mapbox-token');
+        const token = tokenRes.data?.token;
+        if (!token) { console.warn('[DeliveryInfo] No Mapbox token'); return; }
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(combined)}.json?access_token=${token}&country=se&language=sv&limit=1`
+        );
+        const json = await res.json();
+        const feature = json.features?.[0];
+        if (!feature) {
+          console.warn('[DeliveryInfo] Geocoding returned no results');
           return;
         }
-        setLatitude(data.latitude);
-        setLongitude(data.longitude);
+        const lat = feature.center[1];
+        const lng = feature.center[0];
+        setLatitude(lat);
+        setLongitude(lng);
         onSave({
           deliveryAddress: addressRef.current,
           deliveryCity: cityRef.current,
           deliveryPostalCode: postalRef.current,
-          deliveryLatitude: data.latitude,
-          deliveryLongitude: data.longitude,
+          deliveryLatitude: lat,
+          deliveryLongitude: lng,
           contactName: contactNameValue,
           contactPhone: contactPhoneValue,
           contactEmail: contactEmailValue
         });
-        console.log('[DeliveryInfo] Geocoded:', data.latitude, data.longitude);
+        console.log('[DeliveryInfo] Geocoded via Mapbox:', lat, lng);
       } catch (e) {
         console.warn('[DeliveryInfo] Geocode error:', e);
       }
