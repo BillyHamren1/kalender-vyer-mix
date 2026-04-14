@@ -440,14 +440,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       };
     }
 
-    if (isIos) {
-      stopCamera();
-      setError(null);
-      setCameraState('idle');
-      pushDebug('iOS waiting for user tap before getUserMedia');
-    } else {
-      void startCamera();
-    }
+    void startCamera();
 
     return () => {
       mountedRef.current = false;
@@ -477,22 +470,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           />
           <canvas ref={canvasRef} className="hidden" />
 
-          {cameraState === 'idle' && isIos && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
-              <Camera className="h-16 w-16 mb-4 opacity-60" />
-              <p className="text-center mb-2 text-base">Tryck för att starta kameran</p>
-              <p className="text-center text-sm text-white/60 mb-6">På iPhone måste kameran startas via ett tryck i appen.</p>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  pushDebug('User tapped Start Camera');
-                  void startCamera();
-                }}
-              >
-                Starta kameran
-              </Button>
-            </div>
-          )}
 
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
