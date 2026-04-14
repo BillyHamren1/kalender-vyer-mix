@@ -190,6 +190,8 @@ const MobileTimeReport = () => {
                       if (isActive) {
                         stopTimer(locKey);
                         toast.success(`Tid på ${loc.name} stoppad`);
+                      } else if (activeTimers.size > 0) {
+                        toast.error('Du har redan en aktiv timer. Stoppa den först.');
                       } else {
                         startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
                         toast.success(`Timer startad: ${loc.name}`);
