@@ -1,21 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { mobileApi } from '@/services/mobileApiService';
+import { GpsPosition } from '@/hooks/useGeofencing';
 
 /**
  * Continuously reports GPS position to staff_locations every 30s.
  * Uses @capgo/background-geolocation on native (works even when app is backgrounded/killed).
  * Falls back to navigator.geolocation on web.
+ *
+ * Also exposes `latestPosition` so other hooks (e.g. useTravelDetection)
+ * can consume GPS data without creating their own watcher.
  */
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
   const watchIdRef = useRef<number | null>(null);
+  const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
 
   useEffect(() => {
     if (!staffId) return;
 
-    const reportPosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+    const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+      // Always update latest position for consumers (travel detection etc.)
+      setLatestPosition({
+        lat: latitude,
+        lng: longitude,
+        accuracy,
+        speed,
+        timestamp: Date.now(),
+      });
+
+      // Throttle API reports to every 30s
       const now = Date.now();
       if (now - lastReportRef.current < 30000) return;
       lastReportRef.current = now;
@@ -48,7 +63,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
             return;
           }
           if (location) {
-            reportPosition(
+            handlePosition(
               location.latitude,
               location.longitude,
               location.accuracy ?? null,
@@ -71,7 +86,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       if (!navigator.geolocation) return;
 
       const onPosition = (pos: GeolocationPosition) => {
-        reportPosition(
+        handlePosition(
           pos.coords.latitude,
           pos.coords.longitude,
           pos.coords.accuracy ?? null,
@@ -95,4 +110,6 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       };
     }
   }, [staffId]);
+
+  return { latestPosition };
 };

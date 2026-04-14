@@ -1,7 +1,10 @@
 import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
+import TravelBanner from './TravelBanner';
+import TravelCompletedDialog from './TravelCompletedDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
+import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 
@@ -12,7 +15,11 @@ interface MobileAppLayoutProps {
 const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
-  useBackgroundLocationReporter(staff?.id);
+  const { latestPosition } = useBackgroundLocationReporter(staff?.id);
+
+  // Travel detection — runs globally regardless of active page
+  const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
+    useTravelDetection(!!staff, latestPosition);
 
   // Prefetch inbox data at app start so it's cached before user opens inbox
   useEffect(() => {
@@ -32,8 +39,17 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         className="flex-1 overflow-y-auto"
         style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}
       >
+        {/* Global travel banner — visible on all pages */}
+        <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
+
         {children}
       </div>
+
+      {/* Global travel completed dialog */}
+      {completedTravel && (
+        <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
+      )}
+
       <MobileBottomNav />
     </div>
   );
