@@ -16,6 +16,7 @@ import JobTeamTab from '@/components/mobile-app/job-tabs/JobTeamTab';
 import JobPhotosTab from '@/components/mobile-app/job-tabs/JobPhotosTab';
 import JobCostsTab from '@/components/mobile-app/job-tabs/JobCostsTab';
 import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
+import { CheckCircle2 } from 'lucide-react';
 
 const tabs = ['Info', 'Team', 'Bilder', 'Kostnader', 'Tid'] as const;
 type TabKey = typeof tabs[number];
@@ -267,6 +268,18 @@ const MobileJobDetail = () => {
         {activeTab === 'Bilder' && <JobPhotosTab bookingId={booking.id} />}
         {activeTab === 'Kostnader' && <JobCostsTab bookingId={booking.id} />}
         {activeTab === 'Tid' && <JobTimeTab bookingId={booking.id} timeReports={bookingData?.my_time_reports} />}
+      </div>
+
+      {/* Avsluta jobb button */}
+      <div className="px-4 pb-4">
+        <Button
+          onClick={() => navigate(`/m/job/${id}/complete`)}
+          variant="outline"
+          className="w-full h-12 rounded-xl border-primary text-primary font-semibold text-base"
+        >
+          <CheckCircle2 className="w-5 h-5 mr-2" />
+          Avsluta jobb
+        </Button>
       </div>
     </div>
   );
