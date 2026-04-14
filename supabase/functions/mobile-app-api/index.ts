@@ -210,9 +210,9 @@ Deno.serve(async (req) => {
 
 // ==================== HANDLERS ====================
 
-async function handleLogin(supabase: any, data: { username?: string; password: string; email?: string }) {
-  const { password } = data
-  const rawIdentifier = data.email || data.username
+async function handleLogin(supabase: any, data: { username?: string; password?: string; email?: string }) {
+  const password = data?.password
+  const rawIdentifier = data?.email || data?.username
 
   if (!rawIdentifier || !password) {
     return new Response(
