@@ -243,6 +243,13 @@ const OrganizationLocationsManager = () => {
               <Label className="text-xs">Radie (meter)</Label>
               <Input type="text" inputMode="numeric" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
             </div>
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <Label className="text-xs">Visa som projekt i tidappen</Label>
+                <p className="text-[10px] text-muted-foreground">Alla personal kan registrera tid här som ett vanligt jobb</p>
+              </div>
+              <Switch checked={form.show_as_project} onCheckedChange={v => setForm(f => ({ ...f, show_as_project: v }))} />
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>
               <Button size="sm" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
