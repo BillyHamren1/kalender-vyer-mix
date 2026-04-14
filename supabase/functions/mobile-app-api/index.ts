@@ -431,7 +431,8 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         rigdown_end_time,
         internalnotes,
         assigned_project_id,
-        assigned_project_name
+        assigned_project_name,
+        large_project_id
       `)
       .in('id', realBookingIds)
       .eq('status', 'CONFIRMED')
@@ -445,10 +446,24 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       )
     }
 
+    // Resolve large project names for bookings that belong to one
+    const largeProjectIds = [...new Set((bookings || []).map((b: any) => b.large_project_id).filter(Boolean))]
+    let largeProjectNameMap: Record<string, string> = {}
+    if (largeProjectIds.length > 0) {
+      const { data: lpData } = await supabase
+        .from('large_projects')
+        .select('id, name')
+        .in('id', largeProjectIds)
+      for (const lp of (lpData || [])) {
+        largeProjectNameMap[lp.id] = lp.name
+      }
+    }
+
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
       return {
         ...booking,
+        large_project_name: booking.large_project_id ? (largeProjectNameMap[booking.large_project_id] || null) : null,
         assignment_dates: bookingAssignments.map((a: any) => a.assignment_date)
       }
     })

@@ -669,3 +669,64 @@ export async function saveLargeProjectGanttSteps(
   if (error) throw error;
   return data || [];
 }
+
+// ============================================
+// LARGE PROJECT STAFF (Project Team)
+// ============================================
+
+export interface LargeProjectStaffMember {
+  id: string;
+  large_project_id: string;
+  staff_id: string;
+  role: string;
+  created_at: string;
+  organization_id: string;
+  staff_name?: string;
+}
+
+export async function fetchLargeProjectStaff(largeProjectId: string): Promise<LargeProjectStaffMember[]> {
+  const { data, error } = await supabase
+    .from('large_project_staff')
+    .select('*')
+    .eq('large_project_id', largeProjectId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  // Resolve staff names
+  const staffIds = (data || []).map(s => s.staff_id);
+  if (staffIds.length === 0) return [];
+
+  const { data: staffMembers } = await supabase
+    .from('staff_members' as any)
+    .select('id, name')
+    .in('id', staffIds);
+
+  const nameMap = new Map((staffMembers || []).map((s: any) => [s.id, s.name]));
+
+  return (data || []).map(s => ({
+    ...s,
+    staff_name: nameMap.get(s.staff_id) || s.staff_id,
+  }));
+}
+
+export async function addLargeProjectStaff(
+  largeProjectId: string,
+  staffId: string,
+  role: string = 'field'
+): Promise<void> {
+  const { error } = await supabase
+    .from('large_project_staff')
+    .insert({ large_project_id: largeProjectId, staff_id: staffId, role } as any);
+
+  if (error) throw error;
+}
+
+export async function removeLargeProjectStaff(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('large_project_staff')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}

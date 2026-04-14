@@ -12,7 +12,7 @@ import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -58,6 +58,7 @@ const MobileJobs = () => {
     dismissGeofenceEvent();
   };
 
+  // Group bookings by date, then within each date group by large project
   const groupedBookings = bookings.reduce<Record<string, { booking: MobileBooking; date: string }[]>>((acc, booking) => {
     for (const date of booking.assignment_dates) {
       if (!acc[date]) acc[date] = [];
@@ -65,6 +66,24 @@ const MobileJobs = () => {
     }
     return acc;
   }, {});
+
+  // Helper to group entries within a date by large_project_id
+  const groupByProject = (entries: { booking: MobileBooking; date: string }[]) => {
+    const projectGroups: Record<string, { name: string; entries: { booking: MobileBooking; date: string }[] }> = {};
+    const standalone: { booking: MobileBooking; date: string }[] = [];
+
+    for (const entry of entries) {
+      const lpId = entry.booking.large_project_id;
+      const lpName = entry.booking.large_project_name;
+      if (lpId && lpName) {
+        if (!projectGroups[lpId]) projectGroups[lpId] = { name: lpName, entries: [] };
+        projectGroups[lpId].entries.push(entry);
+      } else {
+        standalone.push(entry);
+      }
+    }
+    return { projectGroups, standalone };
+  };
 
   const sortedDates = Object.keys(groupedBookings).sort();
 
@@ -125,6 +144,67 @@ const MobileJobs = () => {
           sortedDates.map(dateStr => {
             const entries = groupedBookings[dateStr];
             const isDateToday = isToday(parseISO(dateStr));
+            const { projectGroups, standalone } = groupByProject(entries);
+
+            const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
+              const badge = eventTypeBadge(booking, date);
+              const hasTimer = activeTimers.has(booking.id);
+              const nearby = nearbyBookings.find(n => n.id === booking.id);
+
+              return (
+                <button
+                  key={`${booking.id}-${date}`}
+                  onClick={() => navigate(`/m/job/${booking.id}`)}
+                  className={cn(
+                    "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
+                    hasTimer
+                      ? "border-primary/30 shadow-md ring-1 ring-primary/10"
+                      : "border-primary/20 shadow-md",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
+                          badge.className
+                        )}>
+                          {badge.label}
+                        </span>
+                        {booking.booking_number && (
+                          <span className="text-[11px] font-mono text-muted-foreground/50">
+                            #{booking.booking_number}
+                          </span>
+                        )}
+                        {hasTimer && (
+                          <div className="flex items-center gap-1 ml-auto">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                            <span className="text-[10px] text-primary font-bold">AKTIV</span>
+                          </div>
+                        )}
+                      </div>
+                      <h3 className="font-bold text-foreground text-[15px] leading-snug mb-1">
+                        {booking.client}
+                      </h3>
+                      {booking.deliveryaddress && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
+                          <span className="truncate">{booking.deliveryaddress}</span>
+                        </div>
+                      )}
+                      {nearby && (
+                        <div className="flex items-center gap-1.5 text-xs text-primary font-semibold mt-1">
+                          <Navigation className="w-3 h-3" />
+                          <span>{nearby.distance}m bort</span>
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                  </div>
+                </button>
+              );
+            };
+
             return (
               <div key={dateStr}>
                 <div className="flex items-center gap-2 mb-2.5">
@@ -137,64 +217,21 @@ const MobileJobs = () => {
                   </h2>
                 </div>
                 <div className="space-y-2">
-                  {entries.map(({ booking, date }) => {
-                    const badge = eventTypeBadge(booking, date);
-                    const hasTimer = activeTimers.has(booking.id);
-                    const nearby = nearbyBookings.find(n => n.id === booking.id);
-
-                    return (
-                      <button
-                        key={`${booking.id}-${date}`}
-                        onClick={() => navigate(`/m/job/${booking.id}`)}
-                        className={cn(
-                          "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
-                          hasTimer
-                            ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                            : "border-primary/20 shadow-md",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={cn(
-                                "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
-                                badge.className
-                              )}>
-                                {badge.label}
-                              </span>
-                              {booking.booking_number && (
-                                <span className="text-[11px] font-mono text-muted-foreground/50">
-                                  #{booking.booking_number}
-                                </span>
-                              )}
-                              {hasTimer && (
-                                <div className="flex items-center gap-1 ml-auto">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                                  <span className="text-[10px] text-primary font-bold">AKTIV</span>
-                                </div>
-                              )}
-                            </div>
-                            <h3 className="font-bold text-foreground text-[15px] leading-snug mb-1">
-                              {booking.client}
-                            </h3>
-                            {booking.deliveryaddress && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
-                                <span className="truncate">{booking.deliveryaddress}</span>
-                              </div>
-                            )}
-                            {nearby && (
-                              <div className="flex items-center gap-1.5 text-xs text-primary font-semibold mt-1">
-                                <Navigation className="w-3 h-3" />
-                                <span>{nearby.distance}m bort</span>
-                              </div>
-                            )}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {/* Project-grouped bookings */}
+                  {Object.entries(projectGroups).map(([lpId, group]) => (
+                    <div key={lpId} className="rounded-2xl border border-primary/15 bg-primary/[0.02] overflow-hidden">
+                      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-primary/10">
+                        <FolderOpen className="w-3.5 h-3.5 text-primary/60" />
+                        <span className="text-xs font-bold text-primary uppercase tracking-wide">{group.name}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">{group.entries.length} jobb</span>
+                      </div>
+                      <div className="p-1.5 space-y-1.5">
+                        {group.entries.map(renderBookingCard)}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Standalone bookings */}
+                  {standalone.map(renderBookingCard)}
                 </div>
               </div>
             );
