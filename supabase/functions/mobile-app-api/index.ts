@@ -796,6 +796,13 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     )
   }
 
+  // Flatten large_project info for easier frontend consumption
+  const enriched = (reports || []).map((r: any) => ({
+    ...r,
+    large_project_name: r.large_projects?.name || null,
+    large_projects: undefined,
+  }))
+
   // Fetch travel logs in parallel
   const { data: travelLogs } = await supabase
     .from('travel_time_logs')
