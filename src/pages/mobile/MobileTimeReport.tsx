@@ -519,6 +519,7 @@ const MobileTimeReport = () => {
                           <Check className="w-3.5 h-3.5 text-primary inline-block" />
                         )}
                       </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                     </button>
                   ))}
                 </div>
