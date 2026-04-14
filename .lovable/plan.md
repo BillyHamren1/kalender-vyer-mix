@@ -1,57 +1,48 @@
 
 
-## Plan: Komplett avbokningsflöde för projekt
+## Plan: Lager som permanent projekt med tidregistrering
 
-### Nuläge — problem på flera ställen
+### Sammanfattning
+Skapa ett permanent "Lager"-projekt i projektlistan som visar tid registrerad via lagerplatsen. Lager ska alltid synas i tidappen (fungerar redan via "Fasta platser") och ska INTE synas i personalkalendern.
 
-1. **Edge function (`import-bookings`)** sätter avbokade projekt till `completed` (rad 2041-2048), inte `cancelled` — trots att `cancelled` finns som giltig `ProjectStatus` i typsystemet
-2. **`handleBookingLifecycleSideEffects`** sätter projekt till `cancelled` korrekt, men har ingen hantering för återaktivering (CANCELLED → CONFIRMED)
-3. **Projektlistan** (`UnifiedProjectList`) filtrerar INTE bort `cancelled` från `all_active` — avbokade syns bland aktiva
-4. **`GlobalStatusFilter`** saknar `cancelled` som alternativ — kan inte söka efter avbokade
-5. **Dashboard-widgeten** (`DashboardCancelledBookings`) erbjuder bara "Ta bort" — ingen möjlighet att återaktivera
+### Nuläge
+- `organization_locations` har redan en "Lager"-plats (id: `0b9d94df-...`)
+- Tidappen visar redan "Lager" under "Fasta platser" via `useGeofencing` → `orgLocations`
+- Det finns inget projekt kopplat till Lager i `projects`-tabellen
+- Tidsloggar från Lager sparas i `location_time_entries`, inte i `time_reports`
 
 ### Ändringar
 
-#### 1. Edge function: Använd `cancelled` istället för `completed`
-**Fil:** `supabase/functions/import-bookings/index.ts`
-- Rad 2045: Ändra `status: 'completed'` → `status: 'cancelled'` för projekt vid avbokning
-- Rad 2060: Ändra `status: 'completed'` → `status: 'cancelled'` för jobs vid avbokning
-- Lägg till logik: om en befintlig bokning går från CANCELLED → CONFIRMED, återaktivera länkade projekt (`cancelled` → `planning`) och jobs (`cancelled` → `planned`)
+#### 1. Databasändring: Lägg till `is_internal`-kolumn på `projects`
+Ny kolumn `is_internal BOOLEAN DEFAULT false` — markerar att projektet inte ska synkas till kalendern eller tas bort av sync-logik. Lagerprojektet ska inte kunna raderas.
 
-#### 2. Lifecycle side-effects: Lägg till återaktivering
-**Fil:** `src/services/booking/bookingStatusService.ts`
-- Ändra `handleBookingLifecycleSideEffects` att hantera `CONFIRMED`:
-  - Om länkat projekt har status `cancelled` → sätt till `planning`
-  - Om länkade jobs har status `cancelled` → sätt till `planned`
-- Ta bort early return på rad 57 som blockerar all annan status än CANCELLED/OFFER
+#### 2. Skapa Lager-projektet automatiskt
+En migration som skapar ett permanent "Lager"-projekt per organisation (med `is_internal = true`, `status = 'active'`, `client = 'Intern'`). Använder befintlig `organization_id` från `organization_locations`.
 
-#### 3. Projektlistan: Göm avbokade från standardvy, lägg till filter
-**Fil:** `src/pages/ProjectManagement.tsx`
-- Lägg till `'cancelled': 'Avbokade'` i `GLOBAL_STATUS_OPTIONS`
-- Uppdatera `GlobalStatusFilter`-typen med `'cancelled'`
+#### 3. Projektlistan: Visa Lager bland projekten
+**`src/components/project/UnifiedProjectList.tsx`**: Interna projekt visas i listan med en distinkt markering (t.ex. "Intern"-badge). De ska INTE filtreras bort av `all_active`.
 
-**Fil:** `src/components/project/UnifiedProjectList.tsx`
-- Rad 156: Ändra `all_active`-filtret: `p.status !== 'completed' && p.status !== 'cancelled'`
-- Lägg till: `if (statusFilter === 'cancelled') return p.status === 'cancelled';`
-- Rad 164 (default): exkludera även `cancelled`
+#### 4. Projektdetaljsidan: Visa lagertid
+**`src/pages/project/ProjectDetail.tsx`** (eller motsvarande): För interna projekt, hämta tid från `location_time_entries` istället för `time_reports` och visa det i en enkel tidöversikt.
 
-#### 4. Dashboard-widget: Behåll synlighet, förbättra åtgärder
-**Fil:** `src/components/dashboard/DashboardCancelledBookings.tsx`
-- Behålls som den är — ger synlig notifiering om avbokningar
-- "Ta bort"-knappen finns redan för permanent borttagning
+#### 5. Blockera kalendersynk för interna projekt
+**`src/services/calendarSyncService.ts`** (eller motsvarande): Kontrollera `is_internal` och hoppa över kalendersynk. Lagerprojektet ska aldrig generera kalenderhändelser i personalkalendern.
+
+#### 6. Skydda mot radering
+Interna projekt ska inte kunna tas bort via UI — göm "Ta bort"-knappen för `is_internal = true`.
 
 ### Filer som ändras
 
-| Fil | Vad |
-|-----|-----|
-| `supabase/functions/import-bookings/index.ts` | `cancelled` istället för `completed`, + återaktivering |
-| `src/services/booking/bookingStatusService.ts` | Hantera CONFIRMED för återaktivering |
-| `src/pages/ProjectManagement.tsx` | Nytt filteralternativ `cancelled` |
-| `src/components/project/UnifiedProjectList.tsx` | Exkludera `cancelled` från `all_active`, hantera filtret |
+| Fil | Ändring |
+|-----|---------|
+| Migration (ny) | `ALTER TABLE projects ADD COLUMN is_internal BOOLEAN DEFAULT false`, INSERT Lager-projekt |
+| `src/components/project/UnifiedProjectList.tsx` | Visa intern-badge, behåll i `all_active` |
+| `src/pages/project/ProjectDetail.tsx` | Hämta `location_time_entries` för interna projekt |
+| `src/services/projectService.ts` | Skydda mot radering av `is_internal`-projekt |
+| Kalendersynk-logik | Hoppa över `is_internal`-projekt |
 
-### Resultat
-- Avbokade projekt får rätt status (`cancelled`, inte `completed`)
-- Avbokade syns INTE i standardlistan — bara via filtret "Avbokade"
-- Dashboard-widgeten visar avbokningar direkt
-- Om en bokning bekräftas igen aktiveras projektet automatiskt med all historik
+### Vad som INTE ändras
+- Tidappen (Lager syns redan som fast plats)
+- Edge functions (ingen sync-påverkan)
+- Personalkalendern (Lager synkas inte dit)
 
