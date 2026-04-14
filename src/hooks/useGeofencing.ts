@@ -29,6 +29,7 @@ export interface GeofenceEvent {
   largeProjectId?: string;
   largeProjectName?: string;
   largeProjectAddress?: string;
+  arrivalTimestamp?: number;
 }
 
 export interface OrganizationLocationMobile {
@@ -257,6 +258,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             largeProjectId: lpId,
             largeProjectName: lpName,
             largeProjectAddress: booking.deliveryaddress || undefined,
+            arrivalTimestamp: Date.now(),
           });
         }
 
@@ -280,7 +282,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
-          setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking' });
+          setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking', arrivalTimestamp: Date.now() });
         }
 
         if (dist > exitRadius && hasTimer && activeTimers.get(booking.id)?.isAutoStarted && !triggeredExitRef.current.has(booking.id)) {
@@ -307,6 +309,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           locationId: loc.id,
           locationName: loc.name,
           locationAddress: loc.address || undefined,
+          arrivalTimestamp: Date.now(),
         });
       }
 
@@ -328,7 +331,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     setNearbyBookings(nearby);
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string): boolean => {
+  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
     const key = locationId ? `location-${locationId}` : bookingId;
     // Block if another timer is already running (allow re-starting the same key)
     const current = activeTimersRef.current;
@@ -340,7 +343,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       next.set(key, {
         bookingId: key,
         client,
-        startTime: new Date().toISOString(),
+        startTime: customStartTime || new Date().toISOString(),
         isAutoStarted: isAuto,
         establishmentTaskId: taskId,
         establishmentTaskTitle: taskTitle,
