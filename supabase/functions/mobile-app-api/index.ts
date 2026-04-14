@@ -64,13 +64,17 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const body = await req.json()
-    const { action, token, data } = body
+    const { action, token, data, ...legacyFields } = body
 
-    console.log(`[mobile-app-api] incoming action=${action}, hasToken=${!!token}, hasData=${!!data}`)
+    // Normalize: support both nested { data: {...} } and flat { email, password, ... } payloads
+    const requestData = data ?? (Object.keys(legacyFields).length > 0 ? legacyFields : undefined)
+
+    const safeKeys = Object.keys(body).filter(k => k !== 'password' && k !== 'token')
+    console.log(`[mobile-app-api] incoming action=${action}, hasToken=${!!token}, hasData=${!!data}, hasLegacy=${!data && !!requestData}, keys=[${safeKeys.join(',')}]`)
 
     // Actions that don't require authentication
     if (action === 'login') {
-      return await handleLogin(supabase, data)
+      return await handleLogin(supabase, requestData ?? {})
     }
 
     // All other actions require valid token
