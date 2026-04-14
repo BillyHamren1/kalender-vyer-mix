@@ -28,6 +28,8 @@ const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
+  const { t, locale } = useLanguage();
+  const dateFnsLocale = locale === 'en' ? enUS : sv;
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } = useTravelDetection(true, userPosition);
@@ -39,11 +41,11 @@ const MobileJobs = () => {
       const projectKey = `project-${geofenceEvent.largeProjectId}`;
       if (geofenceEvent.type === 'enter') {
         startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId);
-        toast.success(`Timer startad: ${geofenceEvent.largeProjectName}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
       } else {
         const stopped = stopTimer(projectKey);
         if (stopped) {
-          toast.success('Timer stoppad – skapa tidrapport');
+          toast.success(t('timer.stoppedCreateReport'));
           navigate('/m/report');
         }
       }
@@ -51,19 +53,19 @@ const MobileJobs = () => {
       const locKey = `location-${geofenceEvent.locationId}`;
       if (geofenceEvent.type === 'enter') {
         startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
-        toast.success(`Timer startad: ${geofenceEvent.locationName}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
       } else {
         stopTimer(locKey);
-        toast.success(`Timer stoppad: ${geofenceEvent.locationName}`);
+        toast.success(`${t('timer.stopped')}: ${geofenceEvent.locationName}`);
       }
     } else if (geofenceEvent.booking) {
       if (geofenceEvent.type === 'enter') {
         startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
-        toast.success(`Timer startad för ${geofenceEvent.booking.client}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
       } else {
         const stopped = stopTimer(geofenceEvent.booking.id);
         if (stopped) {
-          toast.success('Timer stoppad – skapa tidrapport');
+          toast.success(t('timer.stoppedCreateReport'));
           navigate('/m/report');
         }
       }
