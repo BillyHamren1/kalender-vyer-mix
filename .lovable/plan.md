@@ -1,84 +1,68 @@
 
+Mål: få scanner-inloggningen robust igen utan att behöva jaga “nätverksfel” i blindo.
 
-## Restid kopplad till destinationsprojekt i tidrapporter
+Vad jag ser nu
+- Edge function-loggarna visar tydligt: `incoming action=login, hasData=false`
+- Samma loggar visar kraschen: `Cannot destructure property 'password' of 'data' as it is undefined`
+- Alltså: anropet når faktiskt `mobile-app-api`, så detta är inte främst ett nätverks/ATS-problem. Felet är att backend får fel payload-shape för login och kraschar.
 
-### Regel
-- Resa från Lager → Projekt 1: restid tillhör **Projekt 1** (destination)
-- Resa från Projekt 2 → Projekt 3: restid tillhör **Projekt 3** (destination)  
-- Resa från Projekt 3 → Lager (dag slut): restid tillhör **Projekt 3** (senaste projektet, ingen ny destination)
+Do I know what the issue is?
+- Ja. Scannerappen skickar vid login ett request där `action=login` finns, men `data` saknas. Nuvarande backend förutsätter `data.password` och kastar därför 500. Det känns “som nätverksfel” i appen, men grundfelet är en backend-krasch på login.
 
-### Ändringar
+Plan
+1. Härda `mobile-app-api` mot gamla/avvikande login-payloads
+- Fil: `supabase/functions/mobile-app-api/index.ts`
+- Normalisera request body tidigt:
+  - stöd både nuvarande format: `{ action, token, data: {...} }`
+  - och legacy/flat format: `{ action, token, email, username, password, ... }`
+- Skapa en gemensam `requestData` från `body.data ?? legacyFields` och skicka den till handlers.
 
-| Fil | Ändring |
-|-----|---------|
-| **`mobile-app-api/index.ts`** (stopTravel) | Förbättra destination-matchning: om GPS-match hittas → `destination_booking_id` som idag. Om **ingen** match hittas (t.ex. åker hem/lager) → sätt `destination_booking_id` till den senast aktiva timerens `booking_id` för denna personal (hämta från `time_reports` senaste samma dag) |
-| **`StaffTimeReportDetail.tsx`** | Hämta `travel_time_logs` parallellt med `time_reports` för samma staff+månad. Joina med `bookings` via `destination_booking_id` för att visa kundnamn. Visa reserader med 🚗-ikon och blå "Resa"-badge. Summera i totalen med separat "varav restid"-rad |
-| **`StaffTimeReports.tsx`** (översikt) | Inkludera `travel_time_logs.hours_worked` i `total_hours_this_month` per personal |
-| **`mobile-app-api/index.ts`** (getTimeReports) | Returnera `travel_logs` parallellt med `time_reports` så mobilappen också kan visa restid |
+2. Gör `handleLogin` krocksäker
+- Fil: `supabase/functions/mobile-app-api/index.ts`
+- Ändra login-handlern så den aldrig destructurar från `undefined`
+- Om email/username/password saknas ska den returnera tydlig `400` istället för att krascha med `500`
 
-### Destinationslogik i backend (stopTravel)
+3. Behåll bakåtkompatibilitet för installerade scannerbyggen
+- Samma backend-fix gör att även äldre native builds som skickar flat payload kan logga in direkt
+- Det här är viktigt eftersom scannerappen kan köra ett äldre lokalt bundle än nuvarande kodbas
 
+4. Lägg in bättre diagnostik i edge function
+- Logga bara säkra metadata:
+  - `action`
+  - om `data` finns
+  - vilka body-nycklar som kom in
+- Aldrig lösenord eller andra hemliga värden
+- Det gör framtida loginfel mycket snabbare att felsöka
+
+5. Verifiering efter fix
+- Testa `/scanner/login` i webbläsaren
+- Testa den faktiska scannerappen igen
+- Bekräfta att edge-loggar nu visar `hasData=true` eller att legacy-payload normaliseras korrekt
+- Bekräfta att felmeddelande blir korrekt vid fel lösenord, istället för “Load failed”
+
+Teknisk riktning
 ```text
-1. GPS-match inom 300m → destination_booking_id = matchad bokning ✓ (redan idag)
-2. Ingen GPS-match → hämta senaste time_report samma dag för denna staff
-   → destination_booking_id = den bokningens booking_id
-   (= "sista projektet jag jobbade på innan jag åkte")
+Nu:
+const { action, token, data } = body
+if (action === 'login') return handleLogin(supabase, data)
+
+Efter fix:
+const { action, token, data, ...legacy } = body
+const requestData = data ?? legacy
+if (action === 'login') return handleLogin(supabase, requestData)
 ```
 
-### UI i admin-tidrapporter
+Berörda filer
+- `supabase/functions/mobile-app-api/index.ts`
 
-```text
-Datum       Kund/Typ              Start  Slut   Timmar
-mån 14 apr  Kund AB #2603         08:00  15:00  7:00
-mån 14 apr  🚗 Resa → Kund CD    15:05  15:45  0:40
-mån 14 apr  Kund CD #2604         16:00  20:00  4:00
-mån 14 apr  🚗 Resa → Kund CD    20:05  20:35  0:30
-            ─────────────────────────────────────
-            TOTALT                               12:10
-            varav restid                         1:10
-```
+Valfri men bra extra-säkring
+- Lägg till ett edge function-test för login med:
+  - nested `data`
+  - flat payload
+  - saknat password
+- Då fångar vi exakt den här regressionen nästa gång
 
-- Reserader visas med `Car`-ikon, blå badge, och "→ Kundnamn" som destination
-- Om ingen destination matchades visas "🚗 Resa" utan destination
-- Reserader har ingen övertid eller godkännande-status
-
-### Teknisk implementation
-
-**StaffTimeReportDetail.tsx** — utökad query:
-```typescript
-// Ny parallell query
-const { data: travelData } = await supabase
-  .from('travel_time_logs')
-  .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address')
-  .eq('staff_id', staffId)
-  .gte('report_date', monthStart)
-  .lte('report_date', monthEnd)
-  .not('end_time', 'is', null);
-
-// Hämta kundnamn för destinationer
-const bookingIds = travelData?.map(t => t.destination_booking_id).filter(Boolean);
-const { data: destBookings } = await supabase
-  .from('bookings')
-  .select('id, client')
-  .in('id', bookingIds);
-
-// Mappa till samma radformat med type: 'travel'
-// Merge + sortera på start_time
-```
-
-**StaffTimeReports.tsx** — summera restid i månadstotaler:
-```typescript
-const { data: travelReports } = await supabase
-  .from('travel_time_logs')
-  .select('staff_id, hours_worked')
-  .gte('report_date', monthStart)
-  .lte('report_date', monthEnd)
-  .not('end_time', 'is', null);
-// Addera till monthlyByStaff.totalHours
-```
-
-### Vad som INTE ändras
-- `travel_time_logs`-tabellen behålls som den är (har redan alla nödvändiga kolumner)
-- Restid räknas inte som övertid
-- Godkännande gäller bara vanliga tidrapporter
-
+Förväntat resultat
+- Scannerappen kan logga in igen
+- Backend blir robust även om en installerad app skickar äldre request-format
+- “Nätverksfel: Load failed” försvinner i detta flöde eftersom login inte längre kraschar server-side
