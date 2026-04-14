@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 
-const ENTER_RADIUS = 150; // meters
+export const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const GPS_SETTINGS_KEY = 'eventflow-mobile-gps-settings';
@@ -55,7 +55,7 @@ export interface GpsPosition {
 }
 
 // Haversine distance in meters
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
