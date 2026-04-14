@@ -2,53 +2,43 @@
 
 ## Problem
 
-`useTravelDetection` körs bara på `MobileJobs`-sidan (och på `MobileProfile` utan GPS-data). När användaren navigerar bort avmonteras hooken och travel detection slutar fungera.
+Platstimers (fasta platser som lager/kontor) och jobbtimers behandlas olika:
 
-Samtidigt kör `useBackgroundLocationReporter` redan i `MobileAppLayout` med kontinuerlig GPS — den har exakt den data som behövs, men exponerar den inte.
+- **Jobbtimer**: När den stoppas skapas en `time_report` i databasen (via `mobileApi.createTimeReport`)
+- **Platstimer**: När den stoppas skapas bara en `location_time_entry` — ingen `time_report` skapas, **utom** om platsen råkar matcha en `location-`-bokning i `bookings`-arrayen
 
-## Lösning — minsta möjliga ändring
+Detta innebär att arbetstid på fasta platser inte syns i tidrapporter, löneunderlag eller projektöversikter.
 
-Återanvänd befintlig GPS-källa från `useBackgroundLocationReporter` istället för att skapa en ny hook.
+## Lösning
+
+Gör att platstimers alltid skapar en `time_report` vid stopp, precis som jobbtimers.
 
 ### Ändringar
 
-**1. `src/hooks/useBackgroundLocationReporter.ts`** — Exponera senaste position
+**1. `src/pages/mobile/MobileTimeReport.tsx`** — Stoppa platstimer → skapa tidrapport
 
-- Lägg till en `useState<GpsPosition | null>` (importera `GpsPosition` från `useGeofencing`)
-- Uppdatera positionen i samma callback som redan anropas vid varje GPS-uppdatering (både native och web)
-- Returnera `{ latestPosition }` istället för `void`
+I `onStop`-callbacken (rad 228-256): ta bort if/else-grenen som skiljer på `isLocationProject` vs ej. **Alla** platstimers ska skapa en `time_report` med `booking_id: locKey` (t.ex. `location-{id}`). Samma logik som redan finns för `isLocationProject`-fallet — beräkna tid, rastavdrag, anropa `createTimeReport`.
 
-**2. `src/components/mobile-app/MobileAppLayout.tsx`** — Kör travel detection globalt
+Samma ändring för "Fasta platser"-knapparna (rad 301-303): när en platstimer stoppas via snabbknappen ska den också skapa en tidrapport istället för att bara visa toast.
 
-- Ta emot `latestPosition` från `useBackgroundLocationReporter`
-- Kör `useTravelDetection(!!staff, latestPosition)` i layouten
-- Rendera `TravelBanner` och `TravelCompletedDialog` direkt i layouten (ovanför `{children}`)
+**2. `src/pages/mobile/MobileJobs.tsx`** — Geofence-exit för fasta platser
 
-**3. `src/pages/mobile/MobileJobs.tsx`** — Ta bort lokal travel detection
+Rad 55-58: istället för att bara anropa `stopTimer(locKey)` och visa toast, navigera till `/m/report` (precis som för vanliga jobb-geofences), så att användaren ser sin aktiva timer i tidrapporten och kan stoppa den korrekt med tidrapport-skapande.
 
-- Ta bort `useTravelDetection`-anropet
-- Ta bort `TravelBanner` och `TravelCompletedDialog` (de renderas nu i layouten)
-- Behåll `useGeofencing` (den behövs fortfarande för geofencing/timers)
+**3. Backend — redan klart**
 
-**4. `src/pages/mobile/MobileProfile.tsx`** — Ta bort lokal travel detection
-
-- Ta bort `useTravelDetection`-anropet
-- Om travel state behövs för visning i profilen, antingen exponera via enkel context eller ta bort den visningen (det fungerar ändå inte idag)
+`handleCreateTimeReport` i `mobile-app-api` hanterar redan `location-`-prefix (rad 1199-1216). Den verifierar att platsen finns, är aktiv, och har `show_as_project: true`. Ingen backend-ändring krävs.
 
 ### Vad som bevaras
 
-- All travel detection-logik (trösklar, debounce, start/stop, API-anrop)
-- Geofencing per sida (oförändrat)
-- Background location reporting (samma hook, bara utökad med en return-value)
-- TravelBanner och TravelCompletedDialog (samma komponenter, bara flyttade till layouten)
-- Befintlig timer-logik och stoppflöde
+- `location_time_entries` fortsätter skapas parallellt (via `startLocationTimer`/`stopLocationTimer` i `useGeofencing`) — detta ger GPS-baserad närvarologg
+- All befintlig timer-logik, single-active-constraint, rastavdrag
+- Backend-validering och overlap-check
 
-### Filer som ändras
+### Sammanfattning av filer
 
-| Fil | Typ |
-|-----|-----|
-| `useBackgroundLocationReporter.ts` | Utöka — exponera position |
-| `MobileAppLayout.tsx` | Utöka — travel detection + UI |
-| `MobileJobs.tsx` | Rensa — ta bort lokal travel |
-| `MobileProfile.tsx` | Rensa — ta bort lokal travel |
+| Fil | Ändring |
+|-----|---------|
+| `MobileTimeReport.tsx` | Alla platstimer-stopp skapar `time_report` |
+| `MobileJobs.tsx` | Geofence-exit för platser navigerar till `/m/report` |
 
