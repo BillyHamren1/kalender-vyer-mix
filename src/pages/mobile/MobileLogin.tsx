@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, LogIn } from 'lucide-react';
 import AppLogo from '@/components/shared/AppLogo';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const MobileLogin = () => {
   const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
@@ -13,6 +14,7 @@ const MobileLogin = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { t } = useLanguage();
 
   if (authLoading) {
     return (
@@ -31,7 +33,7 @@ const MobileLogin = () => {
     setError('');
     
     if (!email.trim() || !password.trim()) {
-      setError('Fyll i e-postadress och lösenord');
+      setError(t('login.fillFields'));
       return;
     }
 
@@ -40,8 +42,8 @@ const MobileLogin = () => {
       await login(email.trim(), password);
     } catch (err: any) {
       setError(err.message === 'Invalid email or password' 
-        ? 'Fel e-postadress eller lösenord' 
-        : 'Inloggningen misslyckades');
+        ? t('login.wrongCredentials')
+        : t('login.failed'));
     } finally {
       setIsLoading(false);
     }
@@ -49,16 +51,13 @@ const MobileLogin = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Safe area top */}
       <div className="bg-background safe-area-top" style={{ minHeight: '44px' }} />
-      {/* Top section */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <AppLogo mode="time" size="lg" />
 
-        {/* Login form */}
         <form onSubmit={handleSubmit} className="w-full max-w-sm mt-10 space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">E-postadress</Label>
+            <Label htmlFor="email" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('login.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -74,7 +73,7 @@ const MobileLogin = () => {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Lösenord</Label>
+            <Label htmlFor="password" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('login.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -102,17 +101,16 @@ const MobileLogin = () => {
             ) : (
               <>
                 <LogIn className="w-4.5 h-4.5 mr-2" />
-                Logga in
+                {t('login.submit')}
               </>
             )}
           </Button>
         </form>
       </div>
 
-      {/* Footer */}
       <div className="text-center pb-10 px-6">
         <p className="text-[11px] text-muted-foreground/50">
-          Kontakta din administratör om du saknar inloggningsuppgifter
+          {t('login.contactAdmin')}
         </p>
       </div>
     </div>

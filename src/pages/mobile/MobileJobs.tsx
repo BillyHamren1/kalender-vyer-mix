@@ -11,22 +11,25 @@ import TravelBanner from '@/components/mobile-app/TravelBanner';
 import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
 import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n/LanguageContext';
 
-const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
-  if (dates.rigdaydate === assignmentDate) return { label: 'RIGG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
-  if (dates.eventdate === assignmentDate) return { label: 'EVENT', className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
-  if (dates.rigdowndate === assignmentDate) return { label: 'NEDMONT.', className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
-  return { label: 'JOBB', className: 'bg-muted text-foreground border-border' };
+const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string, t: (k: any) => string) => {
+  if (dates.rigdaydate === assignmentDate) return { label: t('jobs.rig'), className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
+  if (dates.eventdate === assignmentDate) return { label: t('jobs.event'), className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
+  if (dates.rigdowndate === assignmentDate) return { label: t('jobs.rigdown'), className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
+  return { label: t('jobs.job'), className: 'bg-muted text-foreground border-border' };
 };
 
 const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
+  const { t, locale } = useLanguage();
+  const dateFnsLocale = locale === 'en' ? enUS : sv;
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } = useTravelDetection(true, userPosition);
@@ -38,11 +41,11 @@ const MobileJobs = () => {
       const projectKey = `project-${geofenceEvent.largeProjectId}`;
       if (geofenceEvent.type === 'enter') {
         startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId);
-        toast.success(`Timer startad: ${geofenceEvent.largeProjectName}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
       } else {
         const stopped = stopTimer(projectKey);
         if (stopped) {
-          toast.success('Timer stoppad – skapa tidrapport');
+          toast.success(t('timer.stoppedCreateReport'));
           navigate('/m/report');
         }
       }
@@ -50,19 +53,19 @@ const MobileJobs = () => {
       const locKey = `location-${geofenceEvent.locationId}`;
       if (geofenceEvent.type === 'enter') {
         startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
-        toast.success(`Timer startad: ${geofenceEvent.locationName}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
       } else {
         stopTimer(locKey);
-        toast.success(`Timer stoppad: ${geofenceEvent.locationName}`);
+        toast.success(`${t('timer.stopped')}: ${geofenceEvent.locationName}`);
       }
     } else if (geofenceEvent.booking) {
       if (geofenceEvent.type === 'enter') {
         startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
-        toast.success(`Timer startad för ${geofenceEvent.booking.client}`);
+        toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
       } else {
         const stopped = stopTimer(geofenceEvent.booking.id);
         if (stopped) {
-          toast.success('Timer stoppad – skapa tidrapport');
+          toast.success(t('timer.stoppedCreateReport'));
           navigate('/m/report');
         }
       }
@@ -101,9 +104,9 @@ const MobileJobs = () => {
 
   const formatDateHeading = (dateStr: string) => {
     const d = parseISO(dateStr);
-    if (isToday(d)) return 'Idag';
-    if (isTomorrow(d)) return 'Imorgon';
-    return format(d, 'EEEE d MMMM', { locale: sv });
+    if (isToday(d)) return t('jobs.today');
+    if (isTomorrow(d)) return t('jobs.tomorrow');
+    return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
   };
 
   // Check if any timer is already running
@@ -115,16 +118,16 @@ const MobileJobs = () => {
     if (activeTimers.has(bookingId)) {
       const stopped = stopTimer(bookingId);
       if (stopped) {
-        toast.success('Timer stoppad – skapa tidrapport');
+        toast.success(t('timer.stoppedCreateReport'));
         navigate('/m/report');
       }
     } else {
       if (hasAnyTimer) {
-        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        toast.error(t('timer.alreadyActive'));
         return;
       }
       startTimer(bookingId, client, false);
-      toast.success(`Timer startad: ${client}`);
+      toast.success(`${t('timer.started')}: ${client}`);
     }
   };
 
@@ -135,16 +138,16 @@ const MobileJobs = () => {
     if (activeTimers.has(projectKey)) {
       const stopped = stopTimer(projectKey);
       if (stopped) {
-        toast.success('Timer stoppad – skapa tidrapport');
+        toast.success(t('timer.stoppedCreateReport'));
         navigate('/m/report');
       }
     } else {
       if (hasAnyTimer) {
-        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        toast.error(t('timer.alreadyActive'));
         return;
       }
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
-      toast.success(`Timer startad: ${name}`);
+      toast.success(`${t('timer.started')}: ${name}`);
     }
   };
 
@@ -167,9 +170,9 @@ const MobileJobs = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
-        eyebrow="MINA JOBB"
+        eyebrow={t('jobs.eyebrow')}
         title={staff?.name?.split(' ')[0] || 'Hej'}
-        subtitle="Dagens uppdrag"
+        subtitle={t('jobs.subtitle')}
         rightAction={
           <button
             onClick={() => refetch()}
@@ -185,7 +188,7 @@ const MobileJobs = () => {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-primary text-xs font-semibold">
-              {activeTimers.size} aktiv timer
+              {activeTimers.size} {t('jobs.activeTimer')}
             </span>
           </div>
         </div>
@@ -206,8 +209,8 @@ const MobileJobs = () => {
               <Calendar className="w-7 h-7 text-muted-foreground/40" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground/70">Inga kommande jobb</p>
-              <p className="text-xs text-muted-foreground mt-1">Dra ner för att uppdatera</p>
+              <p className="text-sm font-semibold text-foreground/70">{t('jobs.noJobs')}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('jobs.pullToRefresh')}</p>
             </div>
           </div>
         ) : (
@@ -217,7 +220,7 @@ const MobileJobs = () => {
             const { projectGroups, standalone } = groupByProject(entries);
 
             const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
-              const badge = eventTypeBadge(booking, date);
+              const badge = eventTypeBadge(booking, date, t);
               const hasTimer = activeTimers.has(booking.id);
               const timer = activeTimers.get(booking.id);
               const nearby = nearbyBookings.find(n => n.id === booking.id);
@@ -326,14 +329,14 @@ const MobileJobs = () => {
                             <div className="flex items-center gap-2 mb-1">
                               <FolderOpen className="w-3.5 h-3.5 text-primary/70" />
                               <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
-                                PROJEKT
+                                {t('jobs.project')}
                               </span>
                             </div>
                             <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
                               {group.name}
                             </h3>
                             <p className="text-xs text-muted-foreground">
-                              {group.entries.length} bokningar
+                              {group.entries.length} {t('jobs.bookings')}
                             </p>
                             {hasProjectTimer && projectTimer && (
                               <p className="text-xs font-mono text-primary font-bold mt-1">
