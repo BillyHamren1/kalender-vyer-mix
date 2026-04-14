@@ -71,7 +71,18 @@ function loadTimers(): Map<string, ActiveTimer> {
     const raw = localStorage.getItem(TIMERS_KEY);
     if (!raw) return new Map();
     const arr: [string, ActiveTimer][] = JSON.parse(raw);
-    return new Map(arr);
+    const map = new Map(arr);
+    
+    // Clean up stale timers older than 24 hours
+    const staleThreshold = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [key, timer] of map) {
+      if (new Date(timer.startTime).getTime() < staleThreshold) {
+        console.log('[Geofence] Removing stale timer:', key, timer.startTime);
+        map.delete(key);
+      }
+    }
+    
+    return map;
   } catch {
     return new Map();
   }
@@ -113,6 +124,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   // Keep refs in sync
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
   useEffect(() => { activeTimersRef.current = activeTimers; }, [activeTimers]);
+
+  // Reset triggered refs when staffId changes (new login session)
+  useEffect(() => {
+    if (staffId) {
+      console.log('[Geofence] New session for staff:', staffId, '— resetting triggered refs');
+      triggeredEnterRef.current.clear();
+      triggeredExitRef.current.clear();
+    }
+  }, [staffId]);
 
   // Persist timers on change
   useEffect(() => {
@@ -205,8 +225,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
 
       // If booking belongs to a large project, use project-level geofence
-      const lpId = (booking as any).large_project_id;
-      const lpName = (booking as any).large_project_name;
+      const lpId = booking.large_project_id;
+      const lpName = booking.large_project_name;
 
       if (lpId && lpName) {
         // Skip if we already triggered for this project in this cycle
@@ -215,8 +235,13 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
         const projectKey = `project-${lpId}`;
         const hasTimer = activeTimers.has(projectKey);
+        const alreadyTriggered = triggeredEnterRef.current.has(projectKey);
 
-        if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(projectKey)) {
+        if (dist <= enterRadius) {
+          console.log(`[Geofence] Project "${lpName}" dist=${Math.round(dist)}m, hasTimer=${hasTimer}, alreadyTriggered=${alreadyTriggered}`);
+        }
+
+        if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           setGeofenceEvent({
