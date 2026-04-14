@@ -1,0 +1,177 @@
+export type Locale = 'sv' | 'en';
+
+const translations = {
+  // Bottom nav
+  'nav.jobs': { sv: 'Jobb', en: 'Jobs' },
+  'nav.time': { sv: 'Tid', en: 'Time' },
+  'nav.messages': { sv: 'Meddelanden', en: 'Messages' },
+  'nav.expenses': { sv: 'Utlägg', en: 'Expenses' },
+  'nav.profile': { sv: 'Profil', en: 'Profile' },
+
+  // Jobs page
+  'jobs.eyebrow': { sv: 'MINA JOBB', en: 'MY JOBS' },
+  'jobs.subtitle': { sv: 'Dagens uppdrag', en: "Today's assignments" },
+  'jobs.noJobs': { sv: 'Inga kommande jobb', en: 'No upcoming jobs' },
+  'jobs.pullToRefresh': { sv: 'Dra ner för att uppdatera', en: 'Pull down to refresh' },
+  'jobs.today': { sv: 'Idag', en: 'Today' },
+  'jobs.tomorrow': { sv: 'Imorgon', en: 'Tomorrow' },
+  'jobs.project': { sv: 'PROJEKT', en: 'PROJECT' },
+  'jobs.bookings': { sv: 'bokningar', en: 'bookings' },
+  'jobs.activeTimer': { sv: 'aktiv timer', en: 'active timer' },
+  'jobs.awayMeters': { sv: 'bort', en: 'away' },
+  'jobs.rig': { sv: 'RIGG', en: 'RIG' },
+  'jobs.event': { sv: 'EVENT', en: 'EVENT' },
+  'jobs.rigdown': { sv: 'NEDMONT.', en: 'TEARDOWN' },
+  'jobs.job': { sv: 'JOBB', en: 'JOB' },
+
+  // Timer
+  'timer.started': { sv: 'Timer startad', en: 'Timer started' },
+  'timer.stopped': { sv: 'Timer stoppad', en: 'Timer stopped' },
+  'timer.stoppedCreateReport': { sv: 'Timer stoppad – skapa tidrapport', en: 'Timer stopped – create time report' },
+  'timer.alreadyActive': { sv: 'Du har redan en aktiv timer. Stoppa den först.', en: 'You already have an active timer. Stop it first.' },
+  'timer.active': { sv: 'Aktiv', en: 'Active' },
+  'timer.activeTimers': { sv: 'Aktiva timers', en: 'Active timers' },
+  'timer.stop': { sv: 'Stopp', en: 'Stop' },
+  'timer.startedAt': { sv: 'Startad', en: 'Started' },
+  'timer.auto': { sv: '(auto)', en: '(auto)' },
+
+  // Time report page
+  'time.eyebrow': { sv: 'TIDRAPPORT', en: 'TIME REPORT' },
+  'time.title': { sv: 'Tidrapportering', en: 'Time reporting' },
+  'time.subtitle': { sv: 'Rapportera arbetstid', en: 'Report working hours' },
+  'time.fixedLocations': { sv: 'Fasta platser', en: 'Fixed locations' },
+  'time.myReports': { sv: 'Mina tidrapporter', en: 'My time reports' },
+  'time.newTime': { sv: 'Ny tid', en: 'New' },
+  'time.newReport': { sv: 'Ny tidrapport', en: 'New time report' },
+  'time.cancel': { sv: 'Avbryt', en: 'Cancel' },
+  'time.selectJob': { sv: 'Välj jobb eller projekt...', en: 'Select job or project...' },
+  'time.job': { sv: 'Jobb', en: 'Job' },
+  'time.date': { sv: 'Datum', en: 'Date' },
+  'time.start': { sv: 'Start', en: 'Start' },
+  'time.end': { sv: 'Slut', en: 'End' },
+  'time.break': { sv: 'Rast', en: 'Break' },
+  'time.breakNone': { sv: 'Ingen', en: 'None' },
+  'time.overtime': { sv: 'Övertid (h)', en: 'Overtime (h)' },
+  'time.description': { sv: 'Beskrivning', en: 'Description' },
+  'time.descriptionPlaceholder': { sv: 'Vad gjorde du...', en: 'What did you do...' },
+  'time.nightShift': { sv: '⏰ Nattskift upptäckt – tid beräknas över midnatt', en: '⏰ Night shift detected – time calculated over midnight' },
+  'time.total': { sv: 'Totalt', en: 'Total' },
+  'time.save': { sv: 'Spara', en: 'Save' },
+  'time.saved': { sv: 'Tidrapport skapad!', en: 'Time report created!' },
+  'time.saveFailed': { sv: 'Kunde inte skapa tidrapport', en: 'Could not create time report' },
+  'time.selectJobError': { sv: 'Välj ett jobb', en: 'Select a job' },
+  'time.noReports': { sv: 'Inga tidrapporter ännu', en: 'No time reports yet' },
+  'time.today': { sv: 'Idag', en: 'Today' },
+  'time.unknownJob': { sv: 'Okänt jobb', en: 'Unknown job' },
+  'time.breakSuffix': { sv: 'rast', en: 'break' },
+  'time.overtimeSuffix': { sv: 'öt', en: 'ot' },
+  'time.reportSaved': { sv: 'Tidrapport sparad', en: 'Time report saved' },
+  'time.timeStopped': { sv: 'stoppad', en: 'stopped' },
+
+  // Login
+  'login.email': { sv: 'E-postadress', en: 'Email address' },
+  'login.password': { sv: 'Lösenord', en: 'Password' },
+  'login.submit': { sv: 'Logga in', en: 'Log in' },
+  'login.fillFields': { sv: 'Fyll i e-postadress och lösenord', en: 'Enter email and password' },
+  'login.wrongCredentials': { sv: 'Fel e-postadress eller lösenord', en: 'Wrong email or password' },
+  'login.failed': { sv: 'Inloggningen misslyckades', en: 'Login failed' },
+  'login.contactAdmin': { sv: 'Kontakta din administratör om du saknar inloggningsuppgifter', en: 'Contact your administrator if you lack login credentials' },
+
+  // Profile
+  'profile.contactInfo': { sv: 'Kontaktinfo', en: 'Contact info' },
+  'profile.email': { sv: 'E-post', en: 'Email' },
+  'profile.phone': { sv: 'Telefon', en: 'Phone' },
+  'profile.department': { sv: 'Avdelning', en: 'Department' },
+  'profile.timeReports': { sv: 'Tidrapporter', en: 'Time reports' },
+  'profile.loading': { sv: 'Laddar...', en: 'Loading...' },
+  'profile.totalSuffix': { sv: 'totalt', en: 'total' },
+  'profile.travel': { sv: 'Under förflyttning', en: 'In transit' },
+  'profile.trips': { sv: 'resor', en: 'trips' },
+  'profile.from': { sv: 'Från', en: 'From' },
+  'profile.to': { sv: 'Till', en: 'To' },
+  'profile.noTrips': { sv: 'Inga förflyttningar registrerade', en: 'No trips recorded' },
+  'profile.sendMessage': { sv: 'Skicka meddelande', en: 'Send message' },
+  'profile.toOffice': { sv: 'Till kontoret', en: 'To the office' },
+  'profile.gps': { sv: 'GPS & Geofencing', en: 'GPS & Geofencing' },
+  'profile.autoTime': { sv: 'Automatisk tidrapportering', en: 'Automatic time reporting' },
+  'profile.startTimerAt': { sv: 'Starta timer vid arbetsplatsen', en: 'Start timer at workplace' },
+  'profile.active': { sv: 'Aktiv', en: 'Active' },
+  'profile.off': { sv: 'Av', en: 'Off' },
+  'profile.radius': { sv: 'Radie', en: 'Radius' },
+  'profile.version': { sv: 'Version', en: 'Version' },
+  'profile.logout': { sv: 'Logga ut', en: 'Log out' },
+  'profile.language': { sv: 'Språk', en: 'Language' },
+  'profile.swedish': { sv: 'Svenska', en: 'Swedish' },
+  'profile.english': { sv: 'Engelska', en: 'English' },
+
+  // Inbox
+  'inbox.eyebrow': { sv: 'MEDDELANDEN', en: 'MESSAGES' },
+  'inbox.title': { sv: 'Inkorg', en: 'Inbox' },
+  'inbox.unread': { sv: 'olästa', en: 'unread' },
+  'inbox.noUnread': { sv: 'Inga olästa', en: 'No unread' },
+  'inbox.directMessages': { sv: 'Direktmeddelanden', en: 'Direct messages' },
+  'inbox.jobChat': { sv: 'Jobbchatt', en: 'Job chat' },
+  'inbox.openJobChat': { sv: 'Öppna jobbchatt', en: 'Open job chat' },
+  'inbox.archivedChats': { sv: 'Arkiverade jobbchattar', en: 'Archived job chats' },
+  'inbox.archivedJobChat': { sv: 'Arkiverad jobbchatt', en: 'Archived job chat' },
+  'inbox.noMessages': { sv: 'Inga meddelanden ännu', en: 'No messages yet' },
+  'inbox.sendFailed': { sv: 'Kunde inte skicka', en: 'Could not send' },
+  'inbox.from': { sv: 'Från', en: 'From' },
+  'inbox.newMessage': { sv: 'Nytt meddelande', en: 'New message' },
+  'inbox.searchContacts': { sv: 'Sök kontakt...', en: 'Search contact...' },
+  'inbox.noContacts': { sv: 'Inga kontakter hittades', en: 'No contacts found' },
+  'inbox.typeMessage': { sv: 'Skriv meddelande...', en: 'Type a message...' },
+
+  // Expenses
+  'expenses.eyebrow': { sv: 'UTLÄGG', en: 'EXPENSES' },
+  'expenses.title': { sv: 'Utlägg', en: 'Expenses' },
+  'expenses.subtitle': { sv: 'Kvitton & inköp', en: 'Receipts & purchases' },
+  'expenses.newExpense': { sv: 'Nytt utlägg', en: 'New expense' },
+  'expenses.savedExpenses': { sv: 'Sparade utlägg', en: 'Saved expenses' },
+  'expenses.selectJob': { sv: 'Välj jobb...', en: 'Select job...' },
+  'expenses.receipt': { sv: 'Kvitto', en: 'Receipt' },
+  'expenses.takePhoto': { sv: 'Ta foto av kvitto', en: 'Take photo of receipt' },
+  'expenses.remove': { sv: 'Ta bort', en: 'Remove' },
+  'expenses.description': { sv: 'Beskrivning', en: 'Description' },
+  'expenses.descriptionPlaceholder': { sv: 'Vad köpte du...', en: 'What did you buy...' },
+  'expenses.amount': { sv: 'Belopp (kr)', en: 'Amount (SEK)' },
+  'expenses.category': { sv: 'Kategori', en: 'Category' },
+  'expenses.selectCategory': { sv: 'Välj...', en: 'Select...' },
+  'expenses.supplier': { sv: 'Leverantör', en: 'Supplier' },
+  'expenses.supplierPlaceholder': { sv: 'Butik/företag', en: 'Store/company' },
+  'expenses.cancel': { sv: 'Avbryt', en: 'Cancel' },
+  'expenses.save': { sv: 'Spara', en: 'Save' },
+  'expenses.saved': { sv: 'Utlägg sparat!', en: 'Expense saved!' },
+  'expenses.saveFailed': { sv: 'Kunde inte spara utlägg', en: 'Could not save expense' },
+  'expenses.fillFields': { sv: 'Fyll i jobb, beskrivning och belopp', en: 'Fill in job, description, and amount' },
+  'expenses.noExpenses': { sv: 'Inga utlägg registrerade', en: 'No expenses registered' },
+  'expenses.createNew': { sv: 'Skapa ett nytt utlägg via fliken ovan', en: 'Create a new expense using the tab above' },
+
+  // Categories
+  'cat.Material': { sv: 'Material', en: 'Materials' },
+  'cat.Transport': { sv: 'Transport', en: 'Transport' },
+  'cat.Mat': { sv: 'Mat', en: 'Food' },
+  'cat.Verktyg': { sv: 'Verktyg', en: 'Tools' },
+  'cat.Övrigt': { sv: 'Övrigt', en: 'Other' },
+
+  // Broadcast categories
+  'broadcast.info': { sv: 'Information', en: 'Information' },
+  'broadcast.weather': { sv: 'Vädervarning', en: 'Weather alert' },
+  'broadcast.schedule': { sv: 'Schemaändring', en: 'Schedule change' },
+  'broadcast.logistics': { sv: 'Logistik', en: 'Logistics' },
+  'broadcast.urgent': { sv: 'Brådskande', en: 'Urgent' },
+
+  // Common
+  'common.loading': { sv: 'Laddar...', en: 'Loading...' },
+  'common.error': { sv: 'Fel', en: 'Error' },
+  'common.st': { sv: 'st', en: 'pcs' },
+} as const;
+
+export type TranslationKey = keyof typeof translations;
+
+export function t(key: TranslationKey, locale: Locale): string {
+  const entry = translations[key];
+  return entry?.[locale] || entry?.sv || key;
+}
+
+export default translations;
