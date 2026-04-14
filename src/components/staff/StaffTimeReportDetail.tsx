@@ -100,23 +100,31 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         to_longitude: t.to_longitude,
       }));
 
-      // Fetch destination booking names
-      const bookingIds = rawTravel.map(t => t.destination_booking_id).filter(Boolean) as string[];
+      // Fetch destination booking names + large project names
+      const travelBookingIds = rawTravel.map(t => t.destination_booking_id).filter(Boolean) as string[];
+      const lpIds = (timeResult.data || [])
+        .map((r: any) => r.bookings?.large_project_id)
+        .filter(Boolean) as string[];
+
       let destBookingMap = new Map<string, string>();
-      if (bookingIds.length > 0) {
-        const { data: destBookings } = await supabase
-          .from('bookings')
-          .select('id, client')
-          .in('id', bookingIds);
-        for (const b of destBookings || []) {
-          destBookingMap.set(b.id, b.client);
-        }
-      }
+      let lpNameMap = new Map<string, string>();
+
+      const [destRes, lpRes] = await Promise.all([
+        travelBookingIds.length > 0
+          ? supabase.from('bookings').select('id, client').in('id', travelBookingIds)
+          : null,
+        lpIds.length > 0
+          ? supabase.from('large_projects').select('id, name').in('id', [...new Set(lpIds)])
+          : null,
+      ]);
+
+      for (const b of destRes?.data || []) destBookingMap.set(b.id, b.client);
+      for (const lp of lpRes?.data || []) lpNameMap.set(lp.id, lp.name);
 
       // Map time reports
       const workRows: TimeReportRow[] = (timeResult.data || []).map((r: any) => {
         const lpName = r.bookings?.large_project_id
-          ? (r as any).large_projects?.large_projects?.name
+          ? lpNameMap.get(r.bookings.large_project_id)
           : null;
         return {
           id: r.id,
