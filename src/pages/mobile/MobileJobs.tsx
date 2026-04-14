@@ -4,11 +4,8 @@ import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useGeofencing } from '@/hooks/useGeofencing';
-import { useTravelDetection } from '@/hooks/useTravelDetection';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
-import TravelBanner from '@/components/mobile-app/TravelBanner';
-import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
@@ -32,7 +29,6 @@ const MobileJobs = () => {
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
-  const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } = useTravelDetection(true, userPosition);
 
   const handleGeofenceConfirm = () => {
     if (!geofenceEvent) return;
@@ -198,7 +194,6 @@ const MobileJobs = () => {
       )}
 
       <GeofenceStatusBar isTracking={isTracking} activeTimers={activeTimers} />
-      <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
@@ -382,12 +377,6 @@ const MobileJobs = () => {
         />
       )}
 
-      {completedTravel && (
-        <TravelCompletedDialog
-          info={completedTravel}
-          onDismiss={dismissCompletedTravel}
-        />
-      )}
     </div>
   );
 };

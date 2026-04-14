@@ -2,12 +2,10 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
 import { useMobileTimeReports, useMobileTravelLogs } from '@/hooks/useMobileData';
-import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare, Car, Globe } from 'lucide-react';
 import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
-import TravelBanner from '@/components/mobile-app/TravelBanner';
 import { format, parseISO } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
@@ -20,7 +18,6 @@ const MobileProfile = () => {
   const gps = getGpsSettings();
   const { data: timeReports = [], isLoading: isLoadingReports } = useMobileTimeReports();
   const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
-  const { travelState, elapsedSeconds, manualStopTravel } = useTravelDetection();
   const { t, locale, setLocale } = useLanguage();
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
@@ -51,9 +48,6 @@ const MobileProfile = () => {
       />
 
       <div className="flex-1 px-4 py-3 space-y-2.5 -mt-3">
-        {/* Active travel banner */}
-        <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
-
         {/* Contact info */}
         <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t('profile.contactInfo')}</h2>
