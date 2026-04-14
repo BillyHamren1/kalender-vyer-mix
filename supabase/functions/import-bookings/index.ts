@@ -2038,34 +2038,34 @@ serve(async (req) => {
                 console.log(`Removed warehouse events for CANCELLED booking ${existingBooking.id}`)
               }
               
-              // Handle linked project - set status to 'completed' (not 'cancelled' which is invalid)
+              // Handle linked project - set status to 'cancelled'
               const { error: projectUpdateError } = await supabase
                 .from('projects')
                 .update({ 
-                  status: 'completed',
+                  status: 'cancelled',
                   updated_at: new Date().toISOString()
                 })
                 .eq('booking_id', existingBooking.id);
               
               if (projectUpdateError) {
-                console.error(`Error updating project status to completed for CANCELLED booking:`, projectUpdateError);
+                console.error(`Error updating project status to cancelled for CANCELLED booking:`, projectUpdateError);
               } else {
-                console.log(`Updated projects for CANCELLED booking ${existingBooking.id} to completed`);
+                console.log(`Updated projects for CANCELLED booking ${existingBooking.id} to cancelled`);
               }
 
-              // Also complete linked jobs (small projects)
+              // Also cancel linked jobs (small projects)
               const { error: jobUpdateError } = await supabase
                 .from('jobs')
                 .update({ 
-                  status: 'completed',
+                  status: 'cancelled',
                   updated_at: new Date().toISOString()
                 })
                 .eq('booking_id', existingBooking.id);
               
               if (jobUpdateError) {
-                console.error(`Error updating jobs status to completed for CANCELLED booking:`, jobUpdateError);
+                console.error(`Error updating jobs status to cancelled for CANCELLED booking:`, jobUpdateError);
               } else {
-                console.log(`Updated jobs for CANCELLED booking ${existingBooking.id} to completed`);
+                console.log(`Updated jobs for CANCELLED booking ${existingBooking.id} to cancelled`);
               }
               
               // Remove packing projects for cancelled bookings
@@ -2691,6 +2691,32 @@ serve(async (req) => {
             // Also reset viewed flag so it appears as a new booking in the dashboard
             if (!wasConfirmed && isNowConfirmed) {
               console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created and viewed will be reset`);
+              
+              // Reactivate cancelled projects
+              const { error: reactivateProjErr } = await supabase
+                .from('projects')
+                .update({ status: 'planning', updated_at: new Date().toISOString() })
+                .eq('booking_id', existingBooking.id)
+                .eq('status', 'cancelled');
+              
+              if (reactivateProjErr) {
+                console.error(`Error reactivating projects for re-confirmed booking:`, reactivateProjErr);
+              } else {
+                console.log(`Reactivated cancelled projects for re-confirmed booking ${existingBooking.id}`);
+              }
+
+              // Reactivate cancelled jobs
+              const { error: reactivateJobErr } = await supabase
+                .from('jobs')
+                .update({ status: 'active', updated_at: new Date().toISOString() })
+                .eq('booking_id', existingBooking.id)
+                .eq('status', 'cancelled');
+              
+              if (reactivateJobErr) {
+                console.error(`Error reactivating jobs for re-confirmed booking:`, reactivateJobErr);
+              } else {
+                console.log(`Reactivated cancelled jobs for re-confirmed booking ${existingBooking.id}`);
+              }
             }
           } else {
             console.log(`Data changed for ${bookingData.id}, updating`)
