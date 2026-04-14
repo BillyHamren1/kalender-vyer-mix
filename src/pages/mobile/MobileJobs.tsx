@@ -11,16 +11,17 @@ import TravelBanner from '@/components/mobile-app/TravelBanner';
 import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
 import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n/LanguageContext';
 
-const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
-  if (dates.rigdaydate === assignmentDate) return { label: 'RIGG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
-  if (dates.eventdate === assignmentDate) return { label: 'EVENT', className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
-  if (dates.rigdowndate === assignmentDate) return { label: 'NEDMONT.', className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
-  return { label: 'JOBB', className: 'bg-muted text-foreground border-border' };
+const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string, t: (k: any) => string) => {
+  if (dates.rigdaydate === assignmentDate) return { label: t('jobs.rig'), className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
+  if (dates.eventdate === assignmentDate) return { label: t('jobs.event'), className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
+  if (dates.rigdowndate === assignmentDate) return { label: t('jobs.rigdown'), className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
+  return { label: t('jobs.job'), className: 'bg-muted text-foreground border-border' };
 };
 
 const MobileJobs = () => {
