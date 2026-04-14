@@ -220,7 +220,7 @@ const MobileJobs = () => {
             const { projectGroups, standalone } = groupByProject(entries);
 
             const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
-              const badge = eventTypeBadge(booking, date);
+              const badge = eventTypeBadge(booking, date, t);
               const hasTimer = activeTimers.has(booking.id);
               const timer = activeTimers.get(booking.id);
               const nearby = nearbyBookings.find(n => n.id === booking.id);
