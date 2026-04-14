@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { updateBookingDatesViaApi } from "@/services/planningApiService";
@@ -39,6 +39,9 @@ const LargeProjectLayout = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editAddress, setEditAddress] = useState("");
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
@@ -100,6 +103,61 @@ const LargeProjectLayout = () => {
       b.booking_number?.toLowerCase().includes(bookingSearch.toLowerCase()) ||
       b.deliveryaddress?.toLowerCase().includes(bookingSearch.toLowerCase())
   );
+
+  // Auto-inherit address from first booking if project has none
+  useEffect(() => {
+    if (!project || project.address || project.address_latitude) return;
+    const firstBooking = bookings.find(b => b.booking?.deliveryaddress);
+    if (!firstBooking?.booking) return;
+    const b = firstBooking.booking;
+    if (b.delivery_city || b.deliveryaddress) {
+      supabase.from('bookings')
+        .select('delivery_latitude, delivery_longitude, delivery_city, delivery_postal_code')
+        .eq('id', firstBooking.booking_id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            detail.updateProject({
+              address: b.deliveryaddress || null,
+              address_city: data.delivery_city || b.delivery_city || null,
+              address_postal_code: data.delivery_postal_code || b.delivery_postal_code || null,
+              address_latitude: data.delivery_latitude || null,
+              address_longitude: data.delivery_longitude || null,
+            } as any);
+          }
+        });
+    }
+  }, [project?.id, project?.address, bookings.length]);
+
+  const handleSaveAddress = async () => {
+    if (!editAddress.trim()) return;
+    setIsGeocodingAddress(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('geocode-address', {
+        body: { address: editAddress.trim() },
+      });
+      if (error || !data?.latitude) {
+        detail.updateProject({
+          address: editAddress.trim(),
+          address_latitude: null,
+          address_longitude: null,
+        } as any);
+        toast.info('Adress sparad utan koordinater');
+      } else {
+        detail.updateProject({
+          address: data.formatted_address || editAddress.trim(),
+          address_latitude: data.latitude,
+          address_longitude: data.longitude,
+        } as any);
+        toast.success('Adress och koordinater sparade');
+      }
+      setIsEditingAddress(false);
+    } catch {
+      toast.error('Kunde inte geokoda adressen');
+    } finally {
+      setIsGeocodingAddress(false);
+    }
+  };
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "-";
@@ -228,7 +286,7 @@ const LargeProjectLayout = () => {
               </div>
               <p className="text-sm text-muted-foreground">
                 {bookings.length} bokningar
-                {project.location ? ` • ${project.location}` : ""}
+                {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
               </p>
             </div>
           </div>
@@ -337,6 +395,56 @@ const LargeProjectLayout = () => {
                 }
               }}
             />
+
+            {/* Address card */}
+            <Card className="border-border/50 shadow-sm">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    {isEditingAddress ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          placeholder="Ange adress..."
+                          className="h-7 text-sm w-64"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveAddress();
+                            if (e.key === 'Escape') setIsEditingAddress(false);
+                          }}
+                          autoFocus
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveAddress} disabled={isGeocodingAddress}>
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingAddress(false)}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
+                        onClick={() => {
+                          setEditAddress(project.address || '');
+                          setIsEditingAddress(true);
+                        }}
+                      >
+                        <span className={project.address ? 'text-foreground' : 'text-muted-foreground italic'}>
+                          {project.address || 'Ingen adress'}
+                        </span>
+                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    )}
+                  </div>
+                  {project.address_latitude && project.address_longitude && (
+                    <Badge variant="secondary" className="text-xs">
+                      📍 {project.address_latitude.toFixed(4)}, {project.address_longitude.toFixed(4)}
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">

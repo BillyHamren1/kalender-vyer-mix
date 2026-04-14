@@ -13,6 +13,11 @@ export interface LargeProject {
   event_date: string[] | null;
   end_date: string[] | null;
   project_number: string | null;
+  address: string | null;
+  address_city: string | null;
+  address_postal_code: string | null;
+  address_latitude: number | null;
+  address_longitude: number | null;
   created_at: string;
   updated_at: string;
 }

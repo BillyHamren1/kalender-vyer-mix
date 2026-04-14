@@ -1953,6 +1953,11 @@ export type Database = {
       }
       large_projects: {
         Row: {
+          address: string | null
+          address_city: string | null
+          address_latitude: number | null
+          address_longitude: number | null
+          address_postal_code: string | null
           created_at: string
           deleted_at: string | null
           description: string | null
@@ -1969,6 +1974,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
+          address_city?: string | null
+          address_latitude?: number | null
+          address_longitude?: number | null
+          address_postal_code?: string | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
@@ -1985,6 +1995,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
+          address_city?: string | null
+          address_latitude?: number | null
+          address_longitude?: number | null
+          address_postal_code?: string | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
