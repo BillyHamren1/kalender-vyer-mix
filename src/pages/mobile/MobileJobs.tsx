@@ -9,7 +9,7 @@ import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Play, Square } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Clock, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -283,7 +283,7 @@ const MobileJobs = () => {
                             : "bg-primary/10 text-primary hover:bg-primary/20"
                         )}
                       >
-                        {hasTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                        {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                       </button>
                     )}
                   </div>
@@ -353,7 +353,7 @@ const MobileJobs = () => {
                                   : "bg-primary/10 text-primary hover:bg-primary/20"
                               )}
                             >
-                              {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                              {hasProjectTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                             </button>
                           )}
                         </div>
