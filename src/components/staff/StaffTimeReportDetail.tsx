@@ -451,7 +451,6 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Datum</TableHead>
                   <TableHead>Kund</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>Slut</TableHead>
@@ -461,74 +460,108 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reports.map(report => {
-                  const dateAnomalyCount = anomalyCountByDate.get(report.report_date) || 0;
-                  return (
-                    <TableRow key={report.id} className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          {format(new Date(report.report_date), 'EEE d MMM', { locale: sv })}
-                          {dateAnomalyCount > 0 && (
-                            <button
-                              onClick={() => setAnomalyDate(report.report_date)}
-                              className="ml-1 text-orange-500 hover:text-orange-600 transition-colors"
-                              title={`${dateAnomalyCount} avvikelse${dateAnomalyCount !== 1 ? 'r' : ''}`}
-                            >
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setDailyOverviewDate(report.report_date)}
-                            className="ml-1 text-muted-foreground hover:text-primary transition-colors"
-                            title="Visa dagöversikt"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="truncate max-w-[140px] flex items-center gap-1">
-                          {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
-                          <span>
-                            {report.booking_client}
-                            {report.booking_number && (
-                              <span className="text-muted-foreground text-xs ml-1">
-                                #{report.booking_number}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
-                      <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
-                      <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
-                      <TableCell className="text-right">
-                        {report.type === 'travel'
-                          ? '-'
-                          : (report.overtime_hours || 0) > 0
-                            ? formatHoursMinutes(report.overtime_hours!)
-                            : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {report.type === 'travel' ? (
-                          <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
-                            Resa
-                          </Badge>
-                        ) : report.approved ? (
-                          <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
-                            Godkänd
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">
-                            Väntande
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {(() => {
+                  // Group reports by date
+                  const grouped = new Map<string, TimeReportRow[]>();
+                  for (const r of reports) {
+                    if (!grouped.has(r.report_date)) grouped.set(r.report_date, []);
+                    grouped.get(r.report_date)!.push(r);
+                  }
+                  const sortedDates = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
+
+                  return sortedDates.map(date => {
+                    const dateRows = grouped.get(date)!;
+                    const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
+                    const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
+                    const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
+
+                    return (
+                      <React.Fragment key={date}>
+                        {/* Date header row — clickable to open daily overview */}
+                        <TableRow
+                          className="bg-muted/70 hover:bg-muted cursor-pointer border-t-2"
+                          onClick={() => setDailyOverviewDate(date)}
+                        >
+                          <TableCell colSpan={6}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-primary" />
+                                <span className="font-semibold text-sm capitalize">
+                                  {format(new Date(date), 'EEEE d MMMM', { locale: sv })}
+                                </span>
+                                {dateAnomalyCount > 0 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
+                                    className="text-orange-500 hover:text-orange-600 transition-colors"
+                                    title={`${dateAnomalyCount} avvikelse${dateAnomalyCount !== 1 ? 'r' : ''}`}
+                                  >
+                                    <AlertTriangle className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span>{formatHoursMinutes(dateTotalHours)}</span>
+                                {dateTravelHours > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
+                                  </span>
+                                )}
+                                <Badge variant="outline" className="text-[10px]">
+                                  Dagöversikt →
+                                </Badge>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {/* Individual rows for that date */}
+                        {dateRows.map(report => (
+                          <TableRow key={report.id} className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                            <TableCell>
+                              <div className="truncate max-w-[180px] flex items-center gap-1">
+                                {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                <span>
+                                  {report.booking_client}
+                                  {report.booking_number && (
+                                    <span className="text-muted-foreground text-xs ml-1">
+                                      #{report.booking_number}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
+                            <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
+                            <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
+                            <TableCell className="text-right">
+                              {report.type === 'travel'
+                                ? '-'
+                                : (report.overtime_hours || 0) > 0
+                                  ? formatHoursMinutes(report.overtime_hours!)
+                                  : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {report.type === 'travel' ? (
+                                <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
+                                  Resa
+                                </Badge>
+                              ) : report.approved ? (
+                                <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                  Godkänd
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Väntande
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
                 <TableRow className="font-semibold bg-muted/50">
-                  <TableCell colSpan={4}>TOTALT</TableCell>
+                  <TableCell colSpan={3}>TOTALT</TableCell>
                   <TableCell className="text-right">{formatHoursMinutes(totalHours)}</TableCell>
                   <TableCell className="text-right">
                     {totalOvertime > 0 ? formatHoursMinutes(totalOvertime) : '-'}
@@ -537,7 +570,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                 </TableRow>
                 {totalTravelHours > 0 && (
                   <TableRow className="text-xs text-muted-foreground">
-                    <TableCell colSpan={4} className="italic">varav restid</TableCell>
+                    <TableCell colSpan={3} className="italic">varav restid</TableCell>
                     <TableCell className="text-right italic">{formatHoursMinutes(totalTravelHours)}</TableCell>
                     <TableCell colSpan={2} />
                   </TableRow>
