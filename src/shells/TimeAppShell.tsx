@@ -17,6 +17,7 @@ import MobileExpenses from '@/pages/mobile/MobileExpenses';
 import MobileProfile from '@/pages/mobile/MobileProfile';
 import MobileTimeHistory from '@/pages/mobile/MobileTimeHistory';
 import MobileInbox from '@/pages/mobile/MobileInbox';
+import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
 
 const TimeAppShell: React.FC = () => {
   return (
@@ -27,6 +28,7 @@ const TimeAppShell: React.FC = () => {
           <Route path="/m/login" element={<MobileLogin />} />
           <Route path="/m" element={<MobileProtectedRoute><TimeAppLayout><MobileJobs /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/job/:id" element={<MobileProtectedRoute><TimeAppLayout><MobileJobDetail /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/job/:id/complete" element={<MobileProtectedRoute><TimeAppLayout><MobileCompleteJob /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/project/:projectId" element={<MobileProtectedRoute><TimeAppLayout><MobileProjectDetail /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/report" element={<MobileProtectedRoute><TimeAppLayout><MobileTimeReport /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/report/:id/edit" element={<MobileProtectedRoute><TimeAppLayout><MobileEditTimeReport /></TimeAppLayout></MobileProtectedRoute>} />

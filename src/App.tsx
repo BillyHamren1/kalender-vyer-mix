@@ -86,6 +86,7 @@ import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
 import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
 import MobileInbox from "./pages/mobile/MobileInbox";
+import MobileCompleteJob from "./pages/mobile/MobileCompleteJob";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
@@ -184,6 +185,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/login" element={<LanguageProvider><MobileAuthProvider><MobileLogin /></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/job/:id" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/job/:id/complete" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileCompleteJob /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/project/:projectId" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProjectDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/report" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/report/:id/edit" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileEditTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
