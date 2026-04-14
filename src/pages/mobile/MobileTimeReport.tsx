@@ -17,6 +17,7 @@ import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
 
 const MobileTimeReport = () => {
+  const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
@@ -488,9 +489,10 @@ const MobileTimeReport = () => {
                     <span className="text-xs text-muted-foreground">{formatHoursMinutes(totalHours)}</span>
                   </div>
                   {reports.map(r => (
-                    <div
+                    <button
                       key={r.id}
-                      className="flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-muted/20"
+                      onClick={() => navigate(`/m/report/${r.id}/edit`)}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-muted/20 text-left active:opacity-70 transition-opacity"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
