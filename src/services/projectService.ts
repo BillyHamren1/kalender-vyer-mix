@@ -138,10 +138,10 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
 };
 
 export const deleteProject = async (id: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
-  // First, fetch the project to get the booking_id and name
+  // First, fetch the project to get the booking_id, name, and is_internal flag
   const { data: project, error: fetchError } = await supabase
     .from('projects')
-    .select('booking_id, name')
+    .select('booking_id, name, is_internal')
     .eq('id', id)
     .single();
 

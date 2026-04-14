@@ -25,6 +25,8 @@ export interface Project {
   event_end_time: string | null;
   rigdown_start_time: string | null;
   rigdown_end_time: string | null;
+  is_internal: boolean;
+  location_id: string | null;
   created_at: string;
   updated_at: string;
 }
