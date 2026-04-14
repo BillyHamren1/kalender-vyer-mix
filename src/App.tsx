@@ -78,6 +78,7 @@ import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 import MobileLogin from "./pages/mobile/MobileLogin";
 import MobileJobs from "./pages/mobile/MobileJobs";
 import MobileJobDetail from "./pages/mobile/MobileJobDetail";
+import MobileProjectDetail from "./pages/mobile/MobileProjectDetail";
 import MobileTimeReport from "./pages/mobile/MobileTimeReport";
 import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
@@ -181,6 +182,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
       <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
       <Route path="/m/job/:id" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+      <Route path="/m/project/:projectId" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProjectDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
       <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
       <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
       <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
