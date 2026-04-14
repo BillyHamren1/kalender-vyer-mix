@@ -109,20 +109,20 @@ const BookingChangesDetail: React.FC<BookingChangesDetailProps> = ({ bookingId }
       <div className="text-[10px] text-muted-foreground/60 mb-1">
         Ändrad {format(new Date(change.changed_at), 'd MMM HH:mm', { locale: sv })}
       </div>
-      {displayFields.map(field => (
-        <div key={field} className="flex items-start gap-2 text-xs rounded-lg bg-muted/30 px-2.5 py-1.5">
-          <span className="font-medium text-foreground shrink-0 min-w-[100px]">
-            {FIELD_LABELS[field] || field}
-          </span>
-          <span className="text-muted-foreground truncate max-w-[120px]" title={formatValue(previousValues[field])}>
-            {formatValue(previousValues[field])}
-          </span>
-          <ArrowRight className="w-3 h-3 text-muted-foreground/50 shrink-0 mt-0.5" />
-          <span className="text-primary font-medium truncate max-w-[120px]" title={formatValue(newValues[field])}>
-            {formatValue(newValues[field])}
-          </span>
-        </div>
-      ))}
+      {displayFields.map(field => {
+        const prev = formatValue(previousValues[field], field);
+        const next = formatValue(newValues[field], field);
+        return (
+          <div key={field} className="flex items-baseline gap-2 text-xs rounded-lg bg-muted/30 px-2.5 py-1.5">
+            <span className="font-medium text-foreground shrink-0 w-[110px]">
+              {FIELD_LABELS[field] || field}
+            </span>
+            <span className="text-muted-foreground/60 shrink-0">{prev}</span>
+            <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+            <span className="text-primary font-medium shrink-0">{next}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
