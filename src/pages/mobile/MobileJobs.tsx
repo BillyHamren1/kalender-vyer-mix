@@ -308,7 +308,7 @@ const MobileJobs = () => {
                     {/* Timer toggle button — only show if this card has timer OR no timer is running */}
                     {(hasTimer || !hasAnyTimer) && (
                       <button
-                        onClick={(e) => handleTimerToggle(e, booking.id, booking.client)}
+                        onClick={(e) => handleTimerToggle(e, booking)}
                         className={cn(
                           "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
                           hasTimer
@@ -378,7 +378,7 @@ const MobileJobs = () => {
                           {/* Timer toggle button — only show if this project has timer OR no timer is running */}
                           {(hasProjectTimer || !hasAnyTimer) && (
                             <button
-                              onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
+                              onClick={(e) => handleProjectTimerToggle(e, lpId, group.name, group.entries)}
                               className={cn(
                                 "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
                                 hasProjectTimer
