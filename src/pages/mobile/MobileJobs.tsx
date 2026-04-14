@@ -329,14 +329,14 @@ const MobileJobs = () => {
                             <div className="flex items-center gap-2 mb-1">
                               <FolderOpen className="w-3.5 h-3.5 text-primary/70" />
                               <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
-                                PROJEKT
+                                {t('jobs.project')}
                               </span>
                             </div>
                             <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
                               {group.name}
                             </h3>
                             <p className="text-xs text-muted-foreground">
-                              {group.entries.length} bokningar
+                              {group.entries.length} {t('jobs.bookings')}
                             </p>
                             {hasProjectTimer && projectTimer && (
                               <p className="text-xs font-mono text-primary font-bold mt-1">
