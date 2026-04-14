@@ -150,6 +150,7 @@ const MobileJobs = () => {
               const badge = eventTypeBadge(booking, date);
               const hasTimer = activeTimers.has(booking.id);
               const nearby = nearbyBookings.find(n => n.id === booking.id);
+              const isProjectMember = booking.assignment_type === 'project_member';
 
               return (
                 <button
@@ -159,18 +160,26 @@ const MobileJobs = () => {
                     "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
                     hasTimer
                       ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                      : "border-primary/20 shadow-md",
+                      : isProjectMember
+                        ? "border-border/40 shadow-sm opacity-60"
+                        : "border-primary/20 shadow-md",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={cn(
-                          "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
-                          badge.className
-                        )}>
-                          {badge.label}
-                        </span>
+                        {isProjectMember ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-muted text-muted-foreground border-border">
+                            I PROJEKTET
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
+                            badge.className
+                          )}>
+                            {badge.label}
+                          </span>
+                        )}
                         {booking.booking_number && (
                           <span className="text-[11px] font-mono text-muted-foreground/50">
                             #{booking.booking_number}
@@ -199,7 +208,11 @@ const MobileJobs = () => {
                         </div>
                       )}
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                    {isProjectMember ? (
+                      <Eye className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                    )}
                   </div>
                 </button>
               );
