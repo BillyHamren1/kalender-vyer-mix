@@ -1,27 +1,68 @@
 
 
-## Plan: Retroaktiv synk av alla projekt
+## Plan: Direkt projektsynlighet via BSA — ingen large_project_staff
 
-### Åtgärd
+### Princip
 
-Kör en INSERT som täcker **alla** stora projekt — inte bara Swedish Game Fair. Queryn hittar alla personal som har BSA-rader mot bokningar i något stort projekt men saknas i `large_project_staff`, och lägger till dem.
+Om Billy har EN BSA-rad mot en bokning som tillhör ett stort projekt → han ser ALLA bokningar i det projektet. Ingen extra tabell behövs.
 
-### SQL som körs (via insert-verktyget)
+### Vad som ändras
 
-```sql
-INSERT INTO public.large_project_staff (large_project_id, staff_id, organization_id, role)
-SELECT DISTINCT lpb.large_project_id, bsa.staff_id, lpb.organization_id, 'field'
-FROM public.booking_staff_assignments bsa
-JOIN public.large_project_bookings lpb ON lpb.booking_id = bsa.booking_id
-ON CONFLICT (large_project_id, staff_id) DO NOTHING;
+**`supabase/functions/mobile-app-api/index.ts` — `handleGetBookings`**
+
+Byt ut steg 2 (large_project_staff-lookup) mot:
+
+1. Hämta BSA-bokningar som idag (oförändrat)
+2. **NYTT**: Kolla vilka av dessa BSA-bokningar som tillhör ett stort projekt via `large_project_bookings`
+3. **NYTT**: Hämta ALLA bokningar i de projekten
+4. Slå ihop och markera `assignment_type` som vanligt
+
+```text
+BSA → booking_id X
+  ↓
+large_project_bookings: booking X tillhör projekt "Swedish Game Fair"
+  ↓
+Hämta ALLA booking_ids i "Swedish Game Fair"
+  ↓
+Billy ser alla 29 bokningar
 ```
 
-### Nuläge
+### Vad som tas bort / kan ignoreras
 
-- 1 person behöver synkas (Swedish Game Fair)
-- Övriga 5 projekt har inga BSA-rader ännu — men queryn är generell och hanterar alla
+- Triggern `trg_auto_add_to_large_project_staff` och backfill-migrationen blir onödiga (kan lämnas kvar utan skada — de gör ingen skada men används inte längre av appen)
+- `large_project_staff`-tabellen används inte längre för mobilappen
 
 ### Filer som ändras
 
-Inga — enbart en datainsert. Triggern från förra steget hanterar alla framtida tilldelningar.
+| Fil | Ändring |
+|-----|---------|
+| `supabase/functions/mobile-app-api/index.ts` | Ändra `handleGetBookings` rad ~400-417: ersätt `large_project_staff`-query med BSA→project-chain |
+
+### Exakt logik (rad 400-417 ersätts)
+
+```typescript
+// 2. Check if any BSA bookings belong to a large project
+const bsaIds = (assignments || []).map(a => a.booking_id).filter(id => !id.startsWith('location-'))
+let projectBookingIds: string[] = []
+if (bsaIds.length > 0) {
+  const { data: lpLinks } = await supabase
+    .from('large_project_bookings')
+    .select('large_project_id')
+    .in('booking_id', bsaIds)
+    .eq('organization_id', organizationId)
+  
+  const projectIds = [...new Set((lpLinks || []).map(r => r.large_project_id))]
+  
+  if (projectIds.length > 0) {
+    const { data: allProjectBookings } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .in('large_project_id', projectIds)
+      .eq('organization_id', organizationId)
+    projectBookingIds = (allProjectBookings || []).map(r => r.booking_id)
+  }
+}
+```
+
+Resten av funktionen (merge, assignment_type-logik) förblir oförändrad.
 
