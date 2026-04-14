@@ -104,6 +104,61 @@ const LargeProjectLayout = () => {
       b.deliveryaddress?.toLowerCase().includes(bookingSearch.toLowerCase())
   );
 
+  // Auto-inherit address from first booking if project has none
+  useEffect(() => {
+    if (!project || project.address || project.address_latitude) return;
+    const firstBooking = bookings.find(b => b.booking?.deliveryaddress);
+    if (!firstBooking?.booking) return;
+    const b = firstBooking.booking;
+    if (b.delivery_city || b.deliveryaddress) {
+      supabase.from('bookings')
+        .select('delivery_latitude, delivery_longitude, delivery_city, delivery_postal_code')
+        .eq('id', firstBooking.booking_id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            detail.updateProject({
+              address: b.deliveryaddress || null,
+              address_city: data.delivery_city || b.delivery_city || null,
+              address_postal_code: data.delivery_postal_code || b.delivery_postal_code || null,
+              address_latitude: data.delivery_latitude || null,
+              address_longitude: data.delivery_longitude || null,
+            } as any);
+          }
+        });
+    }
+  }, [project?.id, project?.address, bookings.length]);
+
+  const handleSaveAddress = async () => {
+    if (!editAddress.trim()) return;
+    setIsGeocodingAddress(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('geocode-address', {
+        body: { address: editAddress.trim() },
+      });
+      if (error || !data?.latitude) {
+        detail.updateProject({
+          address: editAddress.trim(),
+          address_latitude: null,
+          address_longitude: null,
+        } as any);
+        toast.info('Adress sparad utan koordinater');
+      } else {
+        detail.updateProject({
+          address: data.formatted_address || editAddress.trim(),
+          address_latitude: data.latitude,
+          address_longitude: data.longitude,
+        } as any);
+        toast.success('Adress och koordinater sparade');
+      }
+      setIsEditingAddress(false);
+    } catch {
+      toast.error('Kunde inte geokoda adressen');
+    } finally {
+      setIsGeocodingAddress(false);
+    }
+  };
+
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "-";
     try {
