@@ -114,8 +114,35 @@ Deno.test("Non-base64 token is rejected", async () => {
 // ── 7. CORS preflight ──
 
 Deno.test("OPTIONS request returns CORS headers", async () => {
-  const res = await fetch(FUNCTION_URL, { method: "OPTIONS" });
+  const res = await fetch(FUNCTION_URL, {
+    method: "OPTIONS",
+    headers: {
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "content-type,authorization,apikey,x-client-info,x-supabase-client-platform,x-supabase-client-platform-version,x-supabase-client-runtime,x-supabase-client-runtime-version",
+    },
+  });
   await res.text(); // consume body
   assertEquals(res.status, 200);
   assertEquals(res.headers.get("access-control-allow-origin"), "*");
+  assertEquals(
+    res.headers.get("access-control-allow-headers")?.includes("x-supabase-client-runtime-version"),
+    true,
+  );
+});
+
+Deno.test("Login supports legacy flat payload", async () => {
+  const res = await fetch(FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "login",
+      email: "nonexistent-user@example.com",
+      password: "wrong-password",
+    }),
+  });
+  const body = await res.text();
+  let json: any;
+  try { json = JSON.parse(body); } catch { json = { raw: body }; }
+  assertEquals(res.status, 401);
+  assertExists(json.error);
 });
