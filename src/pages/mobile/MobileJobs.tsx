@@ -12,7 +12,7 @@ import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
