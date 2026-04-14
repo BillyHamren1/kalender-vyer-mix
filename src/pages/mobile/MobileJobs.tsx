@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencing } from '@/hooks/useGeofencing';
+import { useGeofencing, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
@@ -111,11 +112,31 @@ const MobileJobs = () => {
   // Check if any timer is already running
   const hasAnyTimer = activeTimers.size > 0;
 
+  // Distance warning state
+  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
+
+  const checkDistanceAndStart = (
+    coords: { lat: number; lng: number } | null,
+    placeName: string,
+    doStart: () => void
+  ) => {
+    if (!userPosition || !coords) {
+      doStart();
+      return;
+    }
+    const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
+    if (dist > ENTER_RADIUS) {
+      setDistanceWarning({ placeName, distance: dist, onConfirm: doStart });
+    } else {
+      doStart();
+    }
+  };
+
   // Timer toggle for standalone bookings
-  const handleTimerToggle = (e: React.MouseEvent, bookingId: string, client: string) => {
+  const handleTimerToggle = (e: React.MouseEvent, booking: MobileBooking) => {
     e.stopPropagation();
-    if (activeTimers.has(bookingId)) {
-      const stopped = stopTimer(bookingId);
+    if (activeTimers.has(booking.id)) {
+      const stopped = stopTimer(booking.id);
       if (stopped) {
         toast.success(t('timer.stoppedCreateReport'));
         navigate('/m/report');
@@ -125,13 +146,18 @@ const MobileJobs = () => {
         toast.error(t('timer.alreadyActive'));
         return;
       }
-      startTimer(bookingId, client, false);
-      toast.success(`${t('timer.started')}: ${client}`);
+      const coords = booking.delivery_latitude && booking.delivery_longitude
+        ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
+        : null;
+      checkDistanceAndStart(coords, booking.client, () => {
+        startTimer(booking.id, booking.client, false);
+        toast.success(`${t('timer.started')}: ${booking.client}`);
+      });
     }
   };
 
-  // Timer toggle for projects
-  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string) => {
+  // Timer toggle for projects — no coords readily available, start directly
+  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string, entries: { booking: MobileBooking }[]) => {
     e.stopPropagation();
     const projectKey = `project-${lpId}`;
     if (activeTimers.has(projectKey)) {
@@ -145,8 +171,15 @@ const MobileJobs = () => {
         toast.error(t('timer.alreadyActive'));
         return;
       }
-      startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
-      toast.success(`${t('timer.started')}: ${name}`);
+      // Use first booking with coordinates as project location
+      const withCoords = entries.find(e => e.booking.delivery_latitude && e.booking.delivery_longitude);
+      const coords = withCoords
+        ? { lat: withCoords.booking.delivery_latitude!, lng: withCoords.booking.delivery_longitude! }
+        : null;
+      checkDistanceAndStart(coords, name, () => {
+        startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
+        toast.success(`${t('timer.started')}: ${name}`);
+      });
     }
   };
 
