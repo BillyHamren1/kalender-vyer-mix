@@ -225,60 +225,29 @@ const MobileTimeReport = () => {
                 timer={timer}
                 isLocation={!!timer.locationId}
                 onStop={async () => {
-                  if (timer.locationId) {
-                    const isLocationProject = bookings.some(b => b.id === key);
-                    if (isLocationProject) {
-                      const stopTime = new Date();
-                      const startTimeDate = parseISO(timer.startTime);
-                      let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-                      if (totalHours < 0) totalHours += 24;
-                      const breakDeduction = totalHours > 5 ? 0.5 : 0;
-                      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
-                      stopTimer(key);
-                      try {
-                        await mobileApi.createTimeReport({
-                          booking_id: key,
-                          report_date: format(new Date(), 'yyyy-MM-dd'),
-                          start_time: format(startTimeDate, 'HH:mm'),
-                          end_time: format(stopTime, 'HH:mm'),
-                          hours_worked: hoursWorked,
-                          break_time: breakDeduction,
-                          description: `Timer: ${timer.locationName || timer.client}`,
-                        });
-                        toast.success(`Tidrapport sparad: ${hoursWorked}h`);
-                        fetchReports();
-                      } catch (err: any) {
-                        toast.error(err.message || 'Kunde inte spara tidrapport');
-                      }
-                    } else {
-                      stopTimer(key);
-                      toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
-                    }
-                  } else {
-                    const stopTime = new Date();
-                    const startTimeDate = parseISO(timer.startTime);
-                    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-                    if (totalHours < 0) totalHours += 24;
-                    const breakDeduction = totalHours > 5 ? 0.5 : 0;
-                    const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
-                    stopTimer(key);
-                    try {
-                      await mobileApi.createTimeReport({
-                        booking_id: key,
-                        report_date: format(new Date(), 'yyyy-MM-dd'),
-                        start_time: format(startTimeDate, 'HH:mm'),
-                        end_time: format(stopTime, 'HH:mm'),
-                        hours_worked: hoursWorked,
-                        break_time: breakDeduction,
-                        description: `Timer: ${timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
-                        establishment_task_id: timer.establishmentTaskId,
-                        large_project_id: timer.largeProjectId,
-                      });
-                      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
-                      fetchReports();
-                    } catch (err: any) {
-                      toast.error(err.message || 'Kunde inte spara tidrapport');
-                    }
+                  const stopTime = new Date();
+                  const startTimeDate = parseISO(timer.startTime);
+                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  if (totalHours < 0) totalHours += 24;
+                  const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                  const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+                  stopTimer(key);
+                  try {
+                    await mobileApi.createTimeReport({
+                      booking_id: key,
+                      report_date: format(new Date(), 'yyyy-MM-dd'),
+                      start_time: format(startTimeDate, 'HH:mm'),
+                      end_time: format(stopTime, 'HH:mm'),
+                      hours_worked: hoursWorked,
+                      break_time: breakDeduction,
+                      description: `Timer: ${timer.locationName || timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
+                      establishment_task_id: timer.establishmentTaskId,
+                      large_project_id: timer.largeProjectId,
+                    });
+                    toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                    fetchReports();
+                  } catch (err: any) {
+                    toast.error(err.message || 'Kunde inte spara tidrapport');
                   }
                 }}
               />
@@ -297,10 +266,36 @@ const MobileTimeReport = () => {
                 return (
                   <button
                     key={loc.id}
-                    onClick={() => {
+                    onClick={async () => {
                       if (isActive) {
-                        stopTimer(locKey);
-                        toast.success(`Tid på ${loc.name} stoppad`);
+                        // Stop and create time report (same as active timer card)
+                        const timer = activeTimers.get(locKey);
+                        if (timer) {
+                          const stopTime = new Date();
+                          const startTimeDate = parseISO(timer.startTime);
+                          let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                          if (totalHours < 0) totalHours += 24;
+                          const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                          const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+                          stopTimer(locKey);
+                          try {
+                            await mobileApi.createTimeReport({
+                              booking_id: locKey,
+                              report_date: format(new Date(), 'yyyy-MM-dd'),
+                              start_time: format(startTimeDate, 'HH:mm'),
+                              end_time: format(stopTime, 'HH:mm'),
+                              hours_worked: hoursWorked,
+                              break_time: breakDeduction,
+                              description: `Timer: ${loc.name}`,
+                            });
+                            toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                            fetchReports();
+                          } catch (err: any) {
+                            toast.error(err.message || 'Kunde inte spara tidrapport');
+                          }
+                        } else {
+                          stopTimer(locKey);
+                        }
                       } else if (activeTimers.size > 0) {
                         toast.error('Du har redan en aktiv timer. Stoppa den först.');
                       } else {

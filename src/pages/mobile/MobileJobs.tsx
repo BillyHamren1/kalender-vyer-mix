@@ -53,8 +53,8 @@ const MobileJobs = () => {
         if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
         else toast.error(t('timer.alreadyActive'));
       } else {
-        stopTimer(locKey);
-        toast.success(`${t('timer.stopped')}: ${geofenceEvent.locationName}`);
+        toast.success(t('timer.stoppedCreateReport'));
+        navigate('/m/report');
       }
     } else if (geofenceEvent.booking) {
       if (geofenceEvent.type === 'enter') {
