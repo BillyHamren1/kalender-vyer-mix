@@ -9,6 +9,7 @@ import { useSsoListener } from "@/hooks/useSsoListener";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 
 // ── App Shells (native-mode wrappers) ──────────────────────────────
 import TimeAppShell from "@/shells/TimeAppShell";
