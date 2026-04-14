@@ -502,12 +502,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
-      const isScheduled = bsaBookingIds.has(booking.id)
 
-      // For project-member-only bookings, use all booking dates as assignment_dates
+      // A booking is "scheduled" if:
+      //   - user is a member of the large project it belongs to (all bookings = theirs), OR
+      //   - user has a direct BSA entry for it (calendar assignment outside large projects)
+      const isProjectMember = booking.large_project_id && memberProjectIdSet.has(booking.large_project_id)
+      const isScheduled = isProjectMember || bsaBookingIds.has(booking.id)
+
+      // Build assignment_dates: from BSA rows if available, otherwise from booking dates
       let assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
-      if (!isScheduled && assignmentDates.length === 0) {
-        // Add all known dates so the booking appears grouped correctly
+      if (assignmentDates.length === 0) {
         const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
         assignmentDates = dates.length > 0 ? dates : [today]
       }
