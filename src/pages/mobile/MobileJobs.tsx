@@ -106,6 +106,9 @@ const MobileJobs = () => {
     return format(d, 'EEEE d MMMM', { locale: sv });
   };
 
+  // Check if any timer is already running
+  const hasAnyTimer = activeTimers.size > 0;
+
   // Timer toggle for standalone bookings
   const handleTimerToggle = (e: React.MouseEvent, bookingId: string, client: string) => {
     e.stopPropagation();
@@ -116,6 +119,10 @@ const MobileJobs = () => {
         navigate('/m/report');
       }
     } else {
+      if (hasAnyTimer) {
+        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        return;
+      }
       startTimer(bookingId, client, false);
       toast.success(`Timer startad: ${client}`);
     }
@@ -132,6 +139,10 @@ const MobileJobs = () => {
         navigate('/m/report');
       }
     } else {
+      if (hasAnyTimer) {
+        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        return;
+      }
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
       toast.success(`Timer startad: ${name}`);
     }
