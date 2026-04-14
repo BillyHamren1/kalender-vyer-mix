@@ -618,7 +618,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
             </div>
             <div>
               <label className="text-[10px] font-semibold text-muted-foreground">Övertid (h)</label>
-              <Input type="number" step="0.5" min="0" max="6" value={editOvertime} onChange={e => { setEditOvertime(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
+              <Input type="number" step="0.5" min="0" value={editOvertime} onChange={e => { setEditOvertime(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-muted-foreground">Beräknad tid</label>
