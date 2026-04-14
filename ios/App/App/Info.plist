@@ -56,8 +56,8 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>EventFlow Scanner may save images related to scanning workflows.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>EventFlow Time uses your location to verify work site attendance and log time accurately.</string>
+	<string>EventFlow Scanner uses your location to verify work site attendance and log time accurately.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>EventFlow Time uses your location to verify work site attendance and log time accurately.</string>
+	<string>EventFlow Scanner uses your location to verify work site attendance and log time accurately.</string>
 </dict>
 </plist>
