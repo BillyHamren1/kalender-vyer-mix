@@ -3871,6 +3871,8 @@ export type Database = {
           eventdate: string | null
           id: string
           internalnotes: string | null
+          is_internal: boolean
+          location_id: string | null
           name: string
           organization_id: string
           project_leader: string | null
@@ -3901,6 +3903,8 @@ export type Database = {
           eventdate?: string | null
           id?: string
           internalnotes?: string | null
+          is_internal?: boolean
+          location_id?: string | null
           name: string
           organization_id?: string
           project_leader?: string | null
@@ -3931,6 +3935,8 @@ export type Database = {
           eventdate?: string | null
           id?: string
           internalnotes?: string | null
+          is_internal?: boolean
+          location_id?: string | null
           name?: string
           organization_id?: string
           project_leader?: string | null
@@ -3956,6 +3962,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "organization_locations"
             referencedColumns: ["id"]
           },
           {
