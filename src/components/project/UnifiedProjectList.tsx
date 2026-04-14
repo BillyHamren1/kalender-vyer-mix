@@ -29,6 +29,7 @@ interface UnifiedProject {
   bookingCancelled?: boolean;
   bookingId?: string | null;
   projectNumber?: string | null;
+  isInternal?: boolean;
 }
 
 interface UnifiedProjectListProps {
@@ -101,24 +102,26 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     }));
 
     projects.forEach(p => {
+      const isInternal = (p as any).is_internal === true;
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
-      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      const displayName = isInternal ? p.name : (client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name);
       const addressParts = [p.booking?.deliveryaddress, p.booking?.delivery_city].filter(Boolean);
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({
         id: p.id,
         name: displayName,
         type: 'medium',
-        date: p.booking?.eventdate ?? null,
-        eventDate: p.booking?.eventdate ?? p.eventdate ?? null,
+        date: isInternal ? null : (p.booking?.eventdate ?? null),
+        eventDate: isInternal ? null : (p.booking?.eventdate ?? p.eventdate ?? null),
         status: p.status,
-        subtitle: fullAddress,
+        subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
         bookingId: p.booking_id,
         projectNumber: bookingNum || null,
+        isInternal,
       });
     });
 
@@ -264,8 +267,14 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
                 {TYPE_LABELS[project.type]}
               </Badge>
 
+              {project.isInternal && (
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent text-accent-foreground ring-1 ring-border flex items-center gap-1">
+                  Intern
+                </Badge>
+              )}
+
               {project.bookingCancelled && (
-                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700 flex items-center gap-1">
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   AVBOKAD
                 </Badge>
@@ -289,13 +298,15 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               </span>
 
               <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                <ProjectActionMenu
-                  currentType={project.type}
-                  onConvert={(targetType) => handleConvert(project, targetType)}
-                  onDelete={() => handleDelete(project)}
-                  triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
-                  disabled={isPending}
-                />
+                {!project.isInternal && (
+                  <ProjectActionMenu
+                    currentType={project.type}
+                    onConvert={(targetType) => handleConvert(project, targetType)}
+                    onDelete={() => handleDelete(project)}
+                    triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
+                    disabled={isPending}
+                  />
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/row:text-primary/50 transition-colors" />
               </div>
             </div>

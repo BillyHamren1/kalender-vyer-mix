@@ -110,6 +110,8 @@ const ProjectEconomyPage = () => {
           <ProjectStaffTab
             projectId={projectId || ""}
             bookingId={project.booking_id}
+            isInternal={(project as any).is_internal}
+            locationId={(project as any).location_id}
           />
         </TabsContent>
       </Tabs>
