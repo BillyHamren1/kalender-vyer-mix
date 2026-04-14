@@ -15,6 +15,7 @@ const tabs: { path: string; labelKey: TranslationKey; icon: typeof Briefcase; ex
 
 const MobileBottomNav = () => {
   const location = useLocation();
+  if (location.pathname.includes('/complete')) return null;
   const navigate = useNavigate();
   const { count: unreadCount } = useUnreadMessageCount();
   const { t } = useLanguage();
