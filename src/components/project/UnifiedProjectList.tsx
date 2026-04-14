@@ -267,8 +267,14 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
                 {TYPE_LABELS[project.type]}
               </Badge>
 
+              {project.isInternal && (
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent text-accent-foreground ring-1 ring-border flex items-center gap-1">
+                  Intern
+                </Badge>
+              )}
+
               {project.bookingCancelled && (
-                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700 flex items-center gap-1">
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   AVBOKAD
                 </Badge>
@@ -292,13 +298,15 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               </span>
 
               <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                <ProjectActionMenu
-                  currentType={project.type}
-                  onConvert={(targetType) => handleConvert(project, targetType)}
-                  onDelete={() => handleDelete(project)}
-                  triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
-                  disabled={isPending}
-                />
+                {!project.isInternal && (
+                  <ProjectActionMenu
+                    currentType={project.type}
+                    onConvert={(targetType) => handleConvert(project, targetType)}
+                    onDelete={() => handleDelete(project)}
+                    triggerClassName="p-1 h-7 w-7 rounded opacity-0 group-hover/row:opacity-100 transition-opacity"
+                    disabled={isPending}
+                  />
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/row:text-primary/50 transition-colors" />
               </div>
             </div>
