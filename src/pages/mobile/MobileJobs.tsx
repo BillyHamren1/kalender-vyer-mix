@@ -106,6 +106,53 @@ const MobileJobs = () => {
     return format(d, 'EEEE d MMMM', { locale: sv });
   };
 
+  // Timer toggle for standalone bookings
+  const handleTimerToggle = (e: React.MouseEvent, bookingId: string, client: string) => {
+    e.stopPropagation();
+    if (activeTimers.has(bookingId)) {
+      const stopped = stopTimer(bookingId);
+      if (stopped) {
+        toast.success('Timer stoppad – skapa tidrapport');
+        navigate('/m/report');
+      }
+    } else {
+      startTimer(bookingId, client, false);
+      toast.success(`Timer startad: ${client}`);
+    }
+  };
+
+  // Timer toggle for projects
+  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string) => {
+    e.stopPropagation();
+    const projectKey = `project-${lpId}`;
+    if (activeTimers.has(projectKey)) {
+      const stopped = stopTimer(projectKey);
+      if (stopped) {
+        toast.success('Timer stoppad – skapa tidrapport');
+        navigate('/m/report');
+      }
+    } else {
+      startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
+      toast.success(`Timer startad: ${name}`);
+    }
+  };
+
+  // Elapsed time display
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (activeTimers.size === 0) return;
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeTimers.size]);
+
+  const formatElapsed = (startIso: string) => {
+    const secs = Math.floor((Date.now() - new Date(startIso).getTime()) / 1000);
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
