@@ -40,8 +40,9 @@ const MobileJobs = () => {
     if (geofenceEvent.locationType === 'project' && geofenceEvent.largeProjectId) {
       const projectKey = `project-${geofenceEvent.largeProjectId}`;
       if (geofenceEvent.type === 'enter') {
-        startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId);
-        toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
+        const started = startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId);
+        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
+        else toast.error(t('timer.alreadyActive'));
       } else {
         const stopped = stopTimer(projectKey);
         if (stopped) {
@@ -52,16 +53,18 @@ const MobileJobs = () => {
     } else if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
       const locKey = `location-${geofenceEvent.locationId}`;
       if (geofenceEvent.type === 'enter') {
-        startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
-        toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
+        const started = startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
+        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
+        else toast.error(t('timer.alreadyActive'));
       } else {
         stopTimer(locKey);
         toast.success(`${t('timer.stopped')}: ${geofenceEvent.locationName}`);
       }
     } else if (geofenceEvent.booking) {
       if (geofenceEvent.type === 'enter') {
-        startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
-        toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
+        const started = startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true);
+        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
+        else toast.error(t('timer.alreadyActive'));
       } else {
         const stopped = stopTimer(geofenceEvent.booking.id);
         if (stopped) {
