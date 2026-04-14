@@ -54,18 +54,38 @@ export const handleBookingLifecycleSideEffects = async (
   bookingId: string,
   newStatus: BookingStatus
 ): Promise<void> => {
-  if (newStatus !== 'CANCELLED' && newStatus !== 'OFFER') return;
-
   console.log(`Running lifecycle side-effects for booking ${bookingId} → ${newStatus}`);
 
-  // 1. Mark linked jobs as completed/cancelled
+  // Handle reactivation: CONFIRMED after being cancelled
+  if (newStatus === 'CONFIRMED') {
+    // Reactivate cancelled projects
+    await supabase
+      .from('projects')
+      .update({ status: 'planning' })
+      .eq('booking_id', bookingId)
+      .eq('status', 'cancelled');
+
+    // Reactivate cancelled jobs
+    await supabase
+      .from('jobs')
+      .update({ status: 'active' })
+      .eq('booking_id', bookingId)
+      .eq('status', 'cancelled');
+
+    console.log(`Reactivated cancelled projects/jobs for booking ${bookingId}`);
+    return;
+  }
+
+  if (newStatus !== 'CANCELLED' && newStatus !== 'OFFER') return;
+
+  // 1. Cancel linked jobs
   await supabase
     .from('jobs')
-    .update({ status: newStatus === 'CANCELLED' ? 'cancelled' : 'completed' })
+    .update({ status: 'cancelled' })
     .eq('booking_id', bookingId)
     .not('status', 'in', '("completed","cancelled")');
 
-  // 2. Mark linked projects as cancelled
+  // 2. Cancel linked projects
   await supabase
     .from('projects')
     .update({ status: 'cancelled' })

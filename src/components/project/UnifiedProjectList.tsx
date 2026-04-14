@@ -153,15 +153,16 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
           if (!p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q))) return false;
         }
         if (statusFilter === 'all') return true;
-        if (statusFilter === 'all_active') return p.status !== 'completed';
+        if (statusFilter === 'all_active') return p.status !== 'completed' && p.status !== 'cancelled';
         if (statusFilter === 'planning') return p.status === 'planning';
         if (statusFilter === 'in_progress') return p.status === 'in_progress';
         if (statusFilter === 'closing') {
           // Projects past event date but not yet completed
-          return p.status !== 'completed' && p.eventDate && p.eventDate < today;
+          return p.status !== 'completed' && p.status !== 'cancelled' && p.eventDate && p.eventDate < today;
         }
         if (statusFilter === 'completed') return p.status === 'completed';
-        return p.status !== 'completed';
+        if (statusFilter === 'cancelled') return p.status === 'cancelled';
+        return p.status !== 'completed' && p.status !== 'cancelled';
       })
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;

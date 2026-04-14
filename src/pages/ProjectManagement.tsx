@@ -20,7 +20,7 @@ import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'all';
+export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'cancelled' | 'all';
 
 const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
   all_active: 'Alla aktiva',
@@ -28,6 +28,7 @@ const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
   in_progress: 'Pågående',
   closing: 'Under slutförande',
   completed: 'Avslutade',
+  cancelled: 'Avbokade',
   all: 'Alla inkl. gamla',
 };
 
