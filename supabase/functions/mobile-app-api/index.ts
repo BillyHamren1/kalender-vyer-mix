@@ -508,10 +508,17 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     if (largeProjectIds.length > 0) {
       const { data: lpData } = await supabase
         .from('large_projects')
-        .select('id, name')
+        .select('id, name, address, address_latitude, address_longitude')
         .in('id', largeProjectIds)
       for (const lp of (lpData || [])) {
         largeProjectNameMap[lp.id] = lp.name
+      }
+      // Build a map of project-level geocodes
+      const largeProjectGeoMap: Record<string, { address: string | null; lat: number | null; lng: number | null }> = {}
+      for (const lp of (lpData || [])) {
+        if (lp.address_latitude && lp.address_longitude) {
+          largeProjectGeoMap[lp.id] = { address: lp.address, lat: lp.address_latitude, lng: lp.address_longitude }
+        }
       }
     }
 
