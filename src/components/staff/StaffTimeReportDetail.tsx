@@ -97,19 +97,24 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
       }
 
       // Map time reports
-      const workRows: TimeReportRow[] = (timeResult.data || []).map((r: any) => ({
-        id: r.id,
-        report_date: r.report_date,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        hours_worked: r.hours_worked,
-        overtime_hours: r.overtime_hours,
-        description: r.description,
-        approved: r.approved,
-        booking_client: r.bookings?.client || '-',
-        booking_number: r.bookings?.booking_number || null,
-        type: 'work' as const,
-      }));
+      const workRows: TimeReportRow[] = (timeResult.data || []).map((r: any) => {
+        // Use large project name when available, otherwise booking client
+        const displayClient = r.large_projects?.name || r.bookings?.client || '-';
+        const displayNumber = r.large_project_id ? null : (r.bookings?.booking_number || null);
+        return {
+          id: r.id,
+          report_date: r.report_date,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          hours_worked: r.hours_worked,
+          overtime_hours: r.overtime_hours,
+          description: r.description,
+          approved: r.approved,
+          booking_client: displayClient,
+          booking_number: displayNumber,
+          type: 'work' as const,
+        };
+      });
 
       // Map travel logs
       const travelRows: TimeReportRow[] = (travelResult.data || []).map(t => {
