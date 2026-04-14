@@ -822,7 +822,7 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
   // Fetch existing report — must belong to staff and not be approved
   const { data: existing, error: fetchErr } = await supabase
     .from('time_reports')
-    .select('id, staff_id, approved, hours_worked, overtime_hours, break_time, start_time, end_time, description, organization_id')
+    .select('id, staff_id, approved, hours_worked, overtime_hours, break_time, start_time, end_time, description, organization_id, report_date')
     .eq('id', time_report_id)
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
@@ -883,6 +883,32 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
       JSON.stringify({ success: true, message: 'No changes' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // Overlap check for update — use final start/end times
+  const finalStartTime = updates.start_time !== undefined ? updates.start_time : existing.start_time
+  const finalEndTime = updates.end_time !== undefined ? updates.end_time : existing.end_time
+
+  if (finalStartTime && finalEndTime) {
+    const { data: overlapping } = await supabase
+      .from('time_reports')
+      .select('id, start_time, end_time')
+      .eq('staff_id', staffId)
+      .eq('report_date', existing.report_date)
+      .neq('id', time_report_id)
+      .not('start_time', 'is', null)
+      .not('end_time', 'is', null)
+
+    const hasOverlap = (overlapping || []).some((r: any) => {
+      return r.start_time < finalEndTime && r.end_time > finalStartTime
+    })
+
+    if (hasOverlap) {
+      return new Response(
+        JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
   }
 
   // Get staff name for log
@@ -1077,6 +1103,28 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       return new Response(
         JSON.stringify({ error: 'You are not assigned to this booking' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // Overlap check before creating
+  if (start_time && end_time) {
+    const { data: overlapping } = await supabase
+      .from('time_reports')
+      .select('id, start_time, end_time')
+      .eq('staff_id', staffId)
+      .eq('report_date', report_date)
+      .not('start_time', 'is', null)
+      .not('end_time', 'is', null)
+
+    const hasOverlap = (overlapping || []).some((r: any) => {
+      return r.start_time < end_time && r.end_time > start_time
+    })
+
+    if (hasOverlap) {
+      return new Response(
+        JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
   }
