@@ -102,24 +102,26 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     }));
 
     projects.forEach(p => {
+      const isInternal = (p as any).is_internal === true;
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
-      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      const displayName = isInternal ? p.name : (client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name);
       const addressParts = [p.booking?.deliveryaddress, p.booking?.delivery_city].filter(Boolean);
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({
         id: p.id,
         name: displayName,
         type: 'medium',
-        date: p.booking?.eventdate ?? null,
-        eventDate: p.booking?.eventdate ?? p.eventdate ?? null,
+        date: isInternal ? null : (p.booking?.eventdate ?? null),
+        eventDate: isInternal ? null : (p.booking?.eventdate ?? p.eventdate ?? null),
         status: p.status,
-        subtitle: fullAddress,
+        subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
         navigateTo: `/project/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
         bookingId: p.booking_id,
         projectNumber: bookingNum || null,
+        isInternal,
       });
     });
 
