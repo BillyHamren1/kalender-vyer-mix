@@ -55,8 +55,38 @@ const MobileTimeReport = () => {
     const [eh, em] = endTime.split(':').map(Number);
     let total = (eh + em / 60) - (sh + sm / 60);
     if (total < 0) total += 24;
-    total -= parseFloat(breakTime || '0');
+    const breakHours = parseFloat(breakTime || '0');
+    total -= breakHours;
     return Math.max(0, Math.round(total * 100) / 100);
+  };
+
+  const getValidationError = (): string | null => {
+    if (!selectedBookingId) return 'Välj ett jobb';
+    if (!startTime) return 'Starttid krävs';
+    if (!endTime) return 'Sluttid krävs';
+
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+
+    // Same time check (non-night-shift)
+    if (startMinutes === endMinutes) return 'Sluttid kan inte vara samma som starttid';
+
+    const breakHours = parseFloat(breakTime || '0');
+    const breakMinutes = breakHours * 60;
+    if (breakHours < 0) return 'Rast kan inte vara negativ';
+    if (breakMinutes > 240) return 'Rast kan inte överstiga 240 minuter';
+
+    const hours = calculateHours();
+    if (hours <= 0) return 'Arbetad tid efter rast måste vara mer än 0';
+    if (hours > 16) return 'Arbetad tid kan inte överstiga 16 timmar';
+
+    const ot = parseFloat(overtime || '0');
+    if (ot < 0) return 'Övertid kan inte vara negativ';
+    if (ot > 6) return 'Övertid kan inte överstiga 6 timmar';
+
+    return null;
   };
 
   const isNightShift = (() => {
@@ -110,11 +140,16 @@ const MobileTimeReport = () => {
     return options;
   })();
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const handleSubmit = async () => {
-    if (!selectedBookingId) {
-      toast.error('Välj ett jobb');
+    const error = getValidationError();
+    if (error) {
+      setValidationError(error);
+      toast.error(error);
       return;
     }
+    setValidationError(null);
 
     const selectedOption = jobOptions.find(o => o.value === selectedBookingId);
 
@@ -394,6 +429,12 @@ const MobileTimeReport = () => {
                 <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Nattskift upptäckt – tid beräknas över midnatt</p>
               </div>
             )}
+            {validationError && (
+              <div className="px-3 py-2 rounded-xl bg-destructive/10 border border-destructive/20">
+                <p className="text-xs font-medium text-destructive">{validationError}</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-3 border-t border-border/40">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xs text-muted-foreground">Totalt:</span>
@@ -401,7 +442,7 @@ const MobileTimeReport = () => {
               </div>
               <Button
                 onClick={handleSubmit}
-                disabled={isSaving}
+                disabled={isSaving || !startTime || !endTime}
                 className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
