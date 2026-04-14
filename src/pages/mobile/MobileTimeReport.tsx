@@ -273,16 +273,19 @@ const MobileTimeReport = () => {
           </div>
         )}
 
-        {/* New report button */}
-        {!showForm && (
-          <Button
-            onClick={() => setShowForm(true)}
-            className="w-full rounded-xl h-11 gap-2 text-sm font-semibold"
-          >
-            <Plus className="w-4 h-4" />
-            Ny tidrapport
-          </Button>
-        )}
+        {/* Header with small "new" button */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Mina tidrapporter</h2>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Ny
+            </button>
+          )}
+        </div>
 
         {/* Report form (collapsible) */}
         {showForm && (
