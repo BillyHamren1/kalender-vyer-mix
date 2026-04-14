@@ -38,6 +38,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
+  const [debugSteps, setDebugSteps] = useState<string[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -46,6 +47,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const lastScanRef = useRef<string>('');
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pushDebug = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const line = `${ts} ${msg}`;
+    console.log('[QRScanner][iOS Debug]', msg);
+    setDebugSteps(prev => [...prev.slice(-14), line]);
+  }, []);
 
   // Check BarcodeDetector support on mount
   useEffect(() => {
@@ -146,31 +154,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   // Start camera — stable deps via refs
   const startCamera = useCallback(async () => {
     const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    console.log('[QRScanner][iOS Debug] startCamera() BEGIN', { isIos, shouldSkipCamera, platform: Capacitor.getPlatform() });
+    pushDebug(`startCamera() BEGIN isIos=${isIos} skip=${shouldSkipCamera} platform=${Capacitor.getPlatform()}`);
 
     if (shouldSkipCamera) {
-      console.log('[QRScanner][iOS Debug] shouldSkipCamera=true, aborting startCamera');
+      pushDebug('shouldSkipCamera=true, aborting');
       return;
     }
     try {
       setError(null);
       setCameraState('starting');
-      console.log('[QRScanner][iOS Debug] setCameraState("starting")');
+      pushDebug('setCameraState("starting")');
 
       // Safety net timeout
       if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
       startingTimeoutRef.current = setTimeout(() => {
         if (mountedRef.current) {
-          console.warn('[QRScanner][iOS Debug] Safety timeout: still starting after 15s, forcing error');
           const video = videoRef.current;
-          if (video) {
-            console.warn('[QRScanner][iOS Debug] Timeout video state:', {
-              readyState: video.readyState,
-              paused: video.paused,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-            });
-          }
+          pushDebug(`SAFETY TIMEOUT 15s readyState=${video?.readyState} paused=${video?.paused} w=${video?.videoWidth} h=${video?.videoHeight}`);
           setCameraState(prev => {
             if (prev === 'starting') {
               setError('Kameran svarade inte. Använd hårdvaruscan eller manuell inmatning.');
@@ -190,31 +190,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       if (Capacitor.isNativePlatform() && !isIosNative) {
         try {
           if (navigator.permissions?.query) {
+            pushDebug('Checking permission...');
             const permPromise = navigator.permissions.query({ name: 'camera' as PermissionName });
             const status = await Promise.race([
               permPromise,
               new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
             ]);
             if (status && status.state === 'denied') {
-              console.error('[QRScanner][iOS Debug] Web permission denied');
+              pushDebug('Permission DENIED');
               if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
               setCameraState('error');
               setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
               return;
             }
-            console.log('[QRScanner][iOS Debug] Web permission status:', status?.state ?? 'timeout');
+            pushDebug(`Permission: ${status?.state ?? 'timeout'}`);
           }
         } catch (permErr) {
-          console.warn('[QRScanner][iOS Debug] Permission query not supported, proceeding:', permErr);
+          pushDebug(`Permission query error: ${permErr}`);
         }
+      } else {
+        pushDebug(`Skipping permission check (isIosNative=${isIosNative})`);
       }
 
       // Check navigator.mediaDevices
-      console.log('[QRScanner][iOS Debug] navigator.mediaDevices exists:', !!navigator.mediaDevices);
-      console.log('[QRScanner][iOS Debug] navigator.mediaDevices.getUserMedia exists:', !!(navigator.mediaDevices?.getUserMedia));
+      pushDebug(`mediaDevices=${!!navigator.mediaDevices} getUserMedia=${!!(navigator.mediaDevices?.getUserMedia)}`);
 
       if (!navigator.mediaDevices?.getUserMedia) {
-        console.error('[QRScanner][iOS Debug] getUserMedia NOT available');
+        pushDebug('getUserMedia NOT available!');
         if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
         setCameraState('error');
         setError('Kameran stöds inte i denna webbvy (getUserMedia saknas).');
@@ -255,26 +257,26 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       let stream: MediaStream;
 
       try {
-        console.log('[QRScanner][iOS Debug] Requesting preferred getUserMedia, constraints:', JSON.stringify(preferredConstraints));
+        pushDebug('Preferred getUserMedia start...');
         stream = await getUserMediaWithTimeout(preferredConstraints);
-        console.log('[QRScanner][iOS Debug] Preferred getUserMedia SUCCEEDED, tracks:', stream.getVideoTracks().length);
+        pushDebug(`Preferred SUCCESS tracks=${stream.getVideoTracks().length}`);
       } catch (primaryError: any) {
-        console.warn('[QRScanner][iOS Debug] Preferred getUserMedia FAILED:', primaryError?.name, primaryError?.message);
+        pushDebug(`Preferred FAILED: ${primaryError?.name} ${primaryError?.message}`);
         if (!isIos) throw primaryError;
-        console.log('[QRScanner][iOS Debug] Trying fallback video:true');
+        pushDebug('Trying fallback video:true...');
         try {
           stream = await getUserMediaWithTimeout(fallbackConstraints);
-          console.log('[QRScanner][iOS Debug] Fallback getUserMedia SUCCEEDED, tracks:', stream.getVideoTracks().length);
+          pushDebug(`Fallback SUCCESS tracks=${stream.getVideoTracks().length}`);
         } catch (fallbackError: any) {
-          console.error('[QRScanner][iOS Debug] Fallback getUserMedia FAILED:', fallbackError?.name, fallbackError?.message);
+          pushDebug(`Fallback FAILED: ${fallbackError?.name} ${fallbackError?.message}`);
           throw fallbackError;
         }
       }
 
-      console.log('[QRScanner][iOS Debug] videoRef.current exists:', !!videoRef.current);
+      pushDebug(`Stream obtained. videoRef=${!!videoRef.current}`);
 
       if (!mountedRef.current) {
-        console.warn('[QRScanner][iOS Debug] Component unmounted after getUserMedia, stopping stream');
+        pushDebug('Unmounted after getUserMedia, stopping');
         stream.getTracks().forEach(t => t.stop());
         return;
       }
@@ -283,7 +285,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       if (videoRef.current) {
         const video = videoRef.current;
-        console.log('[QRScanner][iOS Debug] Setting video.srcObject');
+        pushDebug('Setting video.srcObject');
         video.srcObject = stream;
 
         // --- Robust video start: listen for multiple readiness signals ---
@@ -294,12 +296,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             if (settled) return;
             settled = true;
             cleanup();
-            console.log('[QRScanner][iOS Debug] Video promise RESOLVED (ready)', {
-              readyState: video.readyState,
-              paused: video.paused,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-            });
+            pushDebug(`Video READY readyState=${video.readyState} paused=${video.paused} w=${video.videoWidth} h=${video.videoHeight}`);
             resolve();
           };
 
@@ -307,7 +304,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             if (settled) return;
             settled = true;
             cleanup();
-            console.error('[QRScanner][iOS Debug] Video promise REJECTED:', message);
+            pushDebug(`Video REJECTED: ${message}`);
             reject(new Error(message));
           };
 
@@ -319,12 +316,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           };
 
           const timeout = setTimeout(() => {
-            console.warn('[QRScanner][iOS Debug] Video start TIMEOUT after 8s', {
-              readyState: video.readyState,
-              paused: video.paused,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-            });
+            pushDebug(`Video TIMEOUT 8s readyState=${video.readyState} paused=${video.paused} w=${video.videoWidth} h=${video.videoHeight}`);
 
             if (
               video.readyState >= HTMLMediaElement.HAVE_METADATA ||
@@ -332,7 +324,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
               video.videoHeight > 0 ||
               !video.paused
             ) {
-              console.log('[QRScanner][iOS Debug] Video appears ready despite missing playing event');
+              pushDebug('Video appears ready despite timeout');
               finish();
             } else {
               fail('Kameran svarade inte i tid. Försök igen.');
@@ -340,23 +332,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           }, 8000);
 
           const onPlaying = () => {
-            console.log('[QRScanner][iOS Debug] Event: playing fired');
+            pushDebug('Event: playing fired');
             finish();
           };
 
           const onLoadedMetadata = () => {
-            console.log('[QRScanner][iOS Debug] Event: loadedmetadata fired', {
-              readyState: video.readyState,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-            });
+            pushDebug(`Event: loadedmetadata w=${video.videoWidth} h=${video.videoHeight} readyState=${video.readyState}`);
             if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
               finish();
             }
           };
 
           const onCanPlay = () => {
-            console.log('[QRScanner][iOS Debug] Event: canplay fired');
+            pushDebug('Event: canplay fired');
             finish();
           };
 
@@ -369,21 +357,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           video.setAttribute('autoplay', 'true');
           video.muted = true;
 
-          console.log('[QRScanner][iOS Debug] Calling video.play()');
+          pushDebug('Calling video.play()');
           const playResult = video.play();
 
           if (playResult && typeof playResult.catch === 'function') {
             playResult.then(() => {
-              console.log('[QRScanner][iOS Debug] video.play() promise resolved');
+              pushDebug('video.play() promise resolved');
             }).catch((e: any) => {
-              console.error('[QRScanner][iOS Debug] video.play() REJECTED:', e?.name, e?.message);
+              pushDebug(`video.play() REJECTED: ${e?.name} ${e?.message}`);
               fail('Kameran kunde inte startas: ' + (e.message || e));
             });
           }
 
           // If video already has metadata, resolve immediately
           if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            console.log('[QRScanner][iOS Debug] Video already had metadata immediately');
+            pushDebug('Video already had metadata immediately');
             finish();
           }
         });
@@ -394,16 +382,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
 
         setCameraState('running');
-        console.log('[QRScanner][iOS Debug] setCameraState("ready"/"running") SUCCESS', {
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          readyState: video.readyState,
-          paused: video.paused,
-        });
+        pushDebug(`setCameraState("running") SUCCESS w=${video.videoWidth} h=${video.videoHeight}`);
         runScanLoop();
       }
     } catch (err: any) {
-      console.error('[QRScanner][iOS Debug] startCamera CATCH block:', err?.name, err?.message, err);
+      pushDebug(`CATCH: ${err?.name} ${err?.message}`);
       if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
       if (!mountedRef.current) return;
 
@@ -417,7 +400,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }
 
       setCameraState('error');
-      console.error('[QRScanner][iOS Debug] setCameraState("error")', err?.name);
+      pushDebug(`setCameraState("error") ${err?.name}`);
       if (err.name === 'NotAllowedError') {
         setError('Kameratillstånd nekades. Tillåt kamera i enhetens inställningar.');
       } else if (err.name === 'NotFoundError') {
@@ -428,7 +411,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         setError(err.message || 'Kameran kunde inte startas.');
       }
     }
-  }, [shouldSkipCamera, runScanLoop]);
+  }, [shouldSkipCamera, runScanLoop, pushDebug]);
 
   // Manual input
   const [manualInput, setManualInput] = useState('');
@@ -570,6 +553,40 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           </Button>
         </div>
       </div>
+
+      {/* iOS Debug Panel — visible on-screen */}
+      {debugSteps.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 80,
+            left: 4,
+            right: 4,
+            maxHeight: 200,
+            overflow: 'auto',
+            background: 'rgba(0,0,0,0.85)',
+            borderRadius: 8,
+            padding: 8,
+            zIndex: 9999,
+            pointerEvents: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 'bold' }}>📱 iOS Camera Debug</span>
+            <button
+              onClick={() => setDebugSteps([])}
+              style={{ color: '#ef4444', fontSize: 10, background: 'none', border: 'none' }}
+            >
+              ✕ Rensa
+            </button>
+          </div>
+          {debugSteps.map((step, i) => (
+            <div key={i} style={{ color: '#e2e8f0', fontSize: 10, fontFamily: 'monospace', lineHeight: '14px' }}>
+              {step}
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @keyframes scan-line {
