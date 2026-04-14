@@ -950,9 +950,7 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Overlap check for update — use final start/end times
-  const finalStartTime = updates.start_time !== undefined ? updates.start_time : existing.start_time
-  const finalEndTime = updates.end_time !== undefined ? updates.end_time : existing.end_time
+  // Overlap check for update — use final start/end times (already computed above)
 
   if (finalStartTime && finalEndTime) {
     const { data: overlapping } = await supabase
