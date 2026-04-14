@@ -125,6 +125,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
   useEffect(() => { activeTimersRef.current = activeTimers; }, [activeTimers]);
 
+  // Reset triggered refs when staffId changes (new login session)
+  useEffect(() => {
+    if (staffId) {
+      console.log('[Geofence] New session for staff:', staffId, '— resetting triggered refs');
+      triggeredEnterRef.current.clear();
+      triggeredExitRef.current.clear();
+    }
+  }, [staffId]);
+
   // Persist timers on change
   useEffect(() => {
     saveTimers(activeTimers);
