@@ -1,59 +1,46 @@
 
 
-## Smart ankomsttid — GPS-baserad tidskorrigering
+## Varning vid manuell timerstart utanför geofence
 
-### Koncept
+### Problem
+När en användare manuellt startar en timer (utan geofence-prompt) finns ingen kontroll av om de faktiskt befinner sig nära arbetsplatsen. De kan av misstag starta timer för fel jobb.
 
-När användaren trycker "Starta" i geofence-prompten, men det har gått tid sedan GPS:en först detekterade att hen var inom radien, visas ett meddelande: *"Enligt GPS anlände du kl. 08:00. Vill du korrigera starttiden?"* med möjlighet att använda ankomsttiden eller nuvarande tid.
+### Lösning
+Innan `startTimer` anropas vid manuellt klick, kontrollera avståndet mellan `userPosition` och bokningens/projektets/platsens koordinater. Om avståndet överstiger geofence-radien (150m), visa en bekräftelsedialog:
 
-### Tekniska ändringar
+> *"Du verkar inte vara vid [Platsnamn]. Avståndet är ca [X] m. Vill du starta timern ändå?"*
 
-**1. `useGeofencing.ts` — Spara ankomsttid**
-- Lägg till `arrivalTimestamp?: number` i `GeofenceEvent`-interfacet
-- När en enter-event triggas (rad ~237), sätt `arrivalTimestamp: Date.now()` på eventet
-- Denna timestamp bevaras i state tills användaren agerar
+### Ändringar
 
-**2. `GeofencePrompt.tsx` — Visa tidsavvikelse**
-- Beräkna `timeSinceArrival = now - event.arrivalTimestamp`
-- Om > 5 minuter: visa ett info-meddelande med den formaterade ankomsttiden
-- Lägg till en tredje knapp/alternativ: "Starta från [08:00]" bredvid den vanliga "Starta"
-- Callback ändras från `onConfirm()` till `onConfirm(correctedStartTime?: string)` så att anroparen vet om användaren vill korrigera
-
-**3. `MobileJobs.tsx` — Hantera korrigerad tid**
-- `handleGeofenceConfirm` tar emot valfri `correctedStartTime`
-- Om korrigerad tid skickas: `startTimer(...)` anropas med den tiden som `startTime` istället för `new Date().toISOString()`
-
-**4. `useGeofencing.ts` — startTimer med valfri starttid**
-- Lägg till `customStartTime?: string` parameter i `startTimer`
-- Använd `customStartTime || new Date().toISOString()` som `startTime` i ActiveTimer
+| Fil | Ändring |
+|-----|---------|
+| `useGeofencing.ts` | Exportera `haversineDistance` och `ENTER_RADIUS` |
+| `MobileJobs.tsx` | I `handleTimerToggle` och `handleProjectTimerToggle`: beräkna avstånd, visa confirm-dialog om utanför radie |
+| `MobileJobDetail.tsx` | Samma check i `handleTimerToggle` för detaljvyn |
+| Ny: `DistanceWarningDialog.tsx` | Enkel bekräftelsedialog med avståndsinformation |
 
 ### UI-flöde
 
 ```text
-┌─────────────────────────────┐
-│  Du är vid projektet!       │
-│  141m från Swedish game fair│
-├─────────────────────────────┤
-│  Swedish game fair          │
-│  Venngarn D:38              │
-│                             │
-│  ⚠ Enligt GPS anlände du   │
-│  kl. 08:00 (för 2h sedan)  │
-│                             │
-│  ┌──────────┐ ┌───────────┐│
-│  │ Inte nu  │ │▼ Starta   ││
-│  └──────────┘ └───────────┘│
-│  ┌─────────────────────────┐│
-│  │ 🕐 Starta från 08:00   ││
-│  └─────────────────────────┘│
-└─────────────────────────────┘
+┌──────────────────────────────┐
+│  ⚠ Du verkar inte vara      │
+│  i närheten                  │
+├──────────────────────────────┤
+│                              │
+│  Enligt GPS befinner du dig  │
+│  ca 2.3 km från "Kund AB".  │
+│                              │
+│  Vill du starta timern ändå? │
+│                              │
+│  ┌──────────┐ ┌────────────┐ │
+│  │ Avbryt   │ │ Starta ändå│ │
+│  └──────────┘ └────────────┘ │
+└──────────────────────────────┘
 ```
 
-### Filer som ändras
-
-| Fil | Ändring |
-|-----|---------|
-| `useGeofencing.ts` | Lägg till `arrivalTimestamp` i GeofenceEvent, `customStartTime` i startTimer |
-| `GeofencePrompt.tsx` | Visa ankomsttid-meddelande + extra knapp om > 5 min skillnad |
-| `MobileJobs.tsx` | `handleGeofenceConfirm` hanterar korrigerad starttid |
+### Logik
+- Kräver att `userPosition` finns och att bokningen har koordinater
+- Om ingen GPS eller inga koordinater → inget hinder (starta direkt)
+- Tröskel: `ENTER_RADIUS` (150m) — samma som geofence
+- Dialogen visas bara vid **manuell** start, inte vid geofence-bekräftelse (den är redan platsbaserad)
 
