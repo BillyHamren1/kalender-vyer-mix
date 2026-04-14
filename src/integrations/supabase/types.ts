@@ -1846,6 +1846,41 @@ export type Database = {
           },
         ]
       }
+      large_project_staff: {
+        Row: {
+          created_at: string
+          id: string
+          large_project_id: string
+          organization_id: string
+          role: string
+          staff_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          large_project_id: string
+          organization_id: string
+          role?: string
+          staff_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          large_project_id?: string
+          organization_id?: string
+          role?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_staff_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       large_project_tasks: {
         Row: {
           assigned_to: string | null
