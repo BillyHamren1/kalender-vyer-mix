@@ -147,6 +147,11 @@ export const deleteProject = async (id: string, performedBy?: string): Promise<{
 
   if (fetchError) throw new Error(`Kunde inte hämta projekt: ${fetchError.message}`);
 
+  // Block deletion of internal projects
+  if (project?.is_internal) {
+    throw new Error('Interna projekt kan inte tas bort');
+  }
+
   // Soft-delete the project
   const { error } = await supabase
     .from('projects')

@@ -29,6 +29,7 @@ interface UnifiedProject {
   bookingCancelled?: boolean;
   bookingId?: string | null;
   projectNumber?: string | null;
+  isInternal?: boolean;
 }
 
 interface UnifiedProjectListProps {
