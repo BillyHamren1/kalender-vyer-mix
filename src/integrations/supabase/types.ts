@@ -2040,6 +2040,7 @@ export type Database = {
           name: string
           organization_id: string
           radius_meters: number
+          show_as_project: boolean
           updated_at: string | null
         }
         Insert: {
@@ -2052,6 +2053,7 @@ export type Database = {
           name: string
           organization_id: string
           radius_meters?: number
+          show_as_project?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -2064,6 +2066,7 @@ export type Database = {
           name?: string
           organization_id?: string
           radius_meters?: number
+          show_as_project?: boolean
           updated_at?: string | null
         }
         Relationships: [
