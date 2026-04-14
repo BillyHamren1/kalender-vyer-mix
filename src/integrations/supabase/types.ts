@@ -4675,6 +4675,7 @@ export type Database = {
           establishment_task_id: string | null
           hours_worked: number
           id: string
+          large_project_id: string | null
           organization_id: string
           overtime_hours: number | null
           report_date: string
@@ -4694,6 +4695,7 @@ export type Database = {
           establishment_task_id?: string | null
           hours_worked?: number
           id?: string
+          large_project_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
           report_date: string
@@ -4713,6 +4715,7 @@ export type Database = {
           establishment_task_id?: string | null
           hours_worked?: number
           id?: string
+          large_project_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
           report_date?: string
@@ -4740,6 +4743,13 @@ export type Database = {
             columns: ["establishment_task_id"]
             isOneToOne: false
             referencedRelation: "establishment_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_reports_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
             referencedColumns: ["id"]
           },
           {
