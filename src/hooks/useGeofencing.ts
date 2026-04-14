@@ -71,7 +71,18 @@ function loadTimers(): Map<string, ActiveTimer> {
     const raw = localStorage.getItem(TIMERS_KEY);
     if (!raw) return new Map();
     const arr: [string, ActiveTimer][] = JSON.parse(raw);
-    return new Map(arr);
+    const map = new Map(arr);
+    
+    // Clean up stale timers older than 24 hours
+    const staleThreshold = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [key, timer] of map) {
+      if (new Date(timer.startTime).getTime() < staleThreshold) {
+        console.log('[Geofence] Removing stale timer:', key, timer.startTime);
+        map.delete(key);
+      }
+    }
+    
+    return map;
   } catch {
     return new Map();
   }
