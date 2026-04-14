@@ -133,10 +133,15 @@ const LargeProjectLayout = () => {
     if (!editAddress.trim()) return;
     setIsGeocodingAddress(true);
     try {
-      const { data, error } = await supabase.functions.invoke('geocode-address', {
-        body: { address: editAddress.trim() },
-      });
-      if (error || !data?.latitude) {
+      const tokenRes = await supabase.functions.invoke('mapbox-token');
+      const token = tokenRes.data?.token;
+      if (!token) throw new Error('No Mapbox token');
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(editAddress.trim())}.json?access_token=${token}&country=se&language=sv&limit=1`
+      );
+      const json = await res.json();
+      const feature = json.features?.[0];
+      if (!feature) {
         detail.updateProject({
           address: editAddress.trim(),
           address_latitude: null,
@@ -145,9 +150,9 @@ const LargeProjectLayout = () => {
         toast.info('Adress sparad utan koordinater');
       } else {
         detail.updateProject({
-          address: data.formatted_address || editAddress.trim(),
-          address_latitude: data.latitude,
-          address_longitude: data.longitude,
+          address: feature.place_name || editAddress.trim(),
+          address_latitude: feature.center[1],
+          address_longitude: feature.center[0],
         } as any);
         toast.success('Adress och koordinater sparade');
       }
