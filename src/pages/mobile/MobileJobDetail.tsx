@@ -298,6 +298,17 @@ const MobileJobDetail = () => {
           Avsluta jobb
         </Button>
       </div>
+
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={() => {
+          distanceWarning?.onConfirm();
+          setDistanceWarning(null);
+        }}
+      />
     </div>
   );
 };
