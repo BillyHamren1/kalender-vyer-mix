@@ -349,16 +349,15 @@ const MobileTimeReport = () => {
           <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-[15px] text-foreground">Ny tidrapport</h2>
+              <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
+                Avbryt
+              </button>
             </div>
             <div className="flex gap-2.5 items-start rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Använd <span className="font-semibold text-foreground">timer</span> i första hand. Manuell rapport används bara när timer inte kunnat användas.
               </p>
-            </div>
-              <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
-                Avbryt
-              </button>
             </div>
 
             <div className="space-y-2">
