@@ -1,48 +1,72 @@
 
 
-## Plan: Lager som permanent projekt med tidregistrering
+## Plan: Platser som vanliga projekt i tidappen
 
-### Sammanfattning
-Skapa ett permanent "Lager"-projekt i projektlistan som visar tid registrerad via lagerplatsen. Lager ska alltid synas i tidappen (fungerar redan via "Fasta platser") och ska INTE synas i personalkalendern.
+### Koncept
+En `organization_location` med `show_as_project = true` ska bete sig som ett helt vanligt projekt/bokning i mobilappen — med timer, auto-start via geofence, manuell tidrapportering. Alla aktiva personal ska vara tilldelade. Det ska inte synas i personalkalendern.
 
-### Nuläge
-- `organization_locations` har redan en "Lager"-plats (id: `0b9d94df-...`)
-- Tidappen visar redan "Lager" under "Fasta platser" via `useGeofencing` → `orgLocations`
-- Det finns inget projekt kopplat till Lager i `projects`-tabellen
-- Tidsloggar från Lager sparas i `location_time_entries`, inte i `time_reports`
+### Databasändringar
 
-### Ändringar
+**1. Ny kolumn på `organization_locations`:**
+```sql
+ALTER TABLE organization_locations ADD COLUMN show_as_project BOOLEAN NOT NULL DEFAULT false;
+```
 
-#### 1. Databasändring: Lägg till `is_internal`-kolumn på `projects`
-Ny kolumn `is_internal BOOLEAN DEFAULT false` — markerar att projektet inte ska synkas till kalendern eller tas bort av sync-logik. Lagerprojektet ska inte kunna raderas.
+**2. Ny kolumn `booking_id` på `organization_locations`:**
+Varje plats med `show_as_project = true` behöver ett syntetiskt `booking_id` som kan användas i `time_reports` och `booking_staff_assignments`. Enklast: använd platsens ID direkt som `booking_id` med prefix `location-`.
 
-#### 2. Skapa Lager-projektet automatiskt
-En migration som skapar ett permanent "Lager"-projekt per organisation (med `is_internal = true`, `status = 'active'`, `client = 'Intern'`). Använder befintlig `organization_id` från `organization_locations`.
+**3. Auto-assign alla aktiva personal:**
+En DB-funktion + trigger som, när `show_as_project` sätts till `true`, skapar `booking_staff_assignments` för alla aktiva `staff_members` i organisationen. Samt en trigger på `staff_members` INSERT som lägger till nya medarbetare till alla `show_as_project`-platser.
 
-#### 3. Projektlistan: Visa Lager bland projekten
-**`src/components/project/UnifiedProjectList.tsx`**: Interna projekt visas i listan med en distinkt markering (t.ex. "Intern"-badge). De ska INTE filtreras bort av `all_active`.
+### Edge Function: `mobile-app-api`
 
-#### 4. Projektdetaljsidan: Visa lagertid
-**`src/pages/project/ProjectDetail.tsx`** (eller motsvarande): För interna projekt, hämta tid från `location_time_entries` istället för `time_reports` och visa det i en enkel tidöversikt.
+**`handleGetBookings`:** Utöka med en andra query som hämtar `organization_locations WHERE show_as_project = true` och returnerar dem som syntetiska "bookings" med:
+- `id` = `location-{location.id}` (matchar befintligt timer-format)
+- `client` = platsens namn (t.ex. "Lager")
+- Koordinater från platsen
+- `is_location_project = true` (markör)
+- Inga datum (alltid aktiv)
 
-#### 5. Blockera kalendersynk för interna projekt
-**`src/services/calendarSyncService.ts`** (eller motsvarande): Kontrollera `is_internal` och hoppa över kalendersynk. Lagerprojektet ska aldrig generera kalenderhändelser i personalkalendern.
+**`handleCreateTimeReport`:** Utöka validering — om `booking_id` startar med `location-`, verifiera att platsen finns och att `show_as_project = true` istället för att kolla `booking_staff_assignments`. Spara i `time_reports` som vanligt.
 
-#### 6. Skydda mot radering
-Interna projekt ska inte kunna tas bort via UI — göm "Ta bort"-knappen för `is_internal = true`.
+### Frontend: Mobilappen
+
+**`MobileTimeReport.tsx`:**
+- Dropdownen "Jobb" visar redan bokningar — location-projekt dyker upp automatiskt via det utökade API-svaret
+- Timer-logiken i `useGeofencing.ts` hanterar redan location-timers med key `location-{id}` — ändra `onStop`-hanteringen så att location-timers med `show_as_project` skapar `time_reports` (precis som boknings-timers), inte bara `location_time_entries`
+- Auto-start via geofence fungerar redan — men behöver kopplas till time report-flödet
+
+**`useGeofencing.ts`:**
+- Markera location-timers som har `show_as_project` så att stop-hanteringen i `MobileTimeReport` vet att skapa `time_report` istället för bara `location_time_entry`
+
+### Frontend: Platshantering (admin)
+
+**`OrganizationLocationsManager.tsx`:**
+- Lägg till en toggle/switch "Visa som projekt i tidappen" i plats-dialogen
+- Vid aktivering: trigger skapar BSA-rader automatiskt
+
+**`UnifiedProjectList.tsx`:**
+- Intern-projektet (skapat via migration) visas redan med "Intern"-badge
+- Behåll detta — men koppla till `show_as_project` så att alla platser med flaggan syns
+
+### Kalenderexkludering
+Inga ändringar behövs — platsprojekt saknar riktiga `booking_id` i `bookings`-tabellen och kommer aldrig att generera kalenderhändelser via `import-bookings`.
 
 ### Filer som ändras
 
 | Fil | Ändring |
 |-----|---------|
-| Migration (ny) | `ALTER TABLE projects ADD COLUMN is_internal BOOLEAN DEFAULT false`, INSERT Lager-projekt |
-| `src/components/project/UnifiedProjectList.tsx` | Visa intern-badge, behåll i `all_active` |
-| `src/pages/project/ProjectDetail.tsx` | Hämta `location_time_entries` för interna projekt |
-| `src/services/projectService.ts` | Skydda mot radering av `is_internal`-projekt |
-| Kalendersynk-logik | Hoppa över `is_internal`-projekt |
+| Migration (ny) | `show_as_project`-kolumn, trigger för auto-BSA |
+| `supabase/functions/mobile-app-api/index.ts` | `handleGetBookings` returnerar location-projekt, `handleCreateTimeReport` accepterar `location-*` booking_id |
+| `src/pages/mobile/MobileTimeReport.tsx` | Location-timer stop → skapar time_report |
+| `src/hooks/useGeofencing.ts` | Markera `showAsProject` på location-timers |
+| `src/components/ops-control/OrganizationLocationsManager.tsx` | Toggle "Visa som projekt" |
+| `src/services/organizationLocationService.ts` | Inkludera `show_as_project` i interface/anrop |
 
-### Vad som INTE ändras
-- Tidappen (Lager syns redan som fast plats)
-- Edge functions (ingen sync-påverkan)
-- Personalkalendern (Lager synkas inte dit)
+### Resultat
+- Admin skapar plats "Lager" och aktiverar "Visa som projekt"
+- Alla personal ser automatiskt "Lager" i sin tidapp-lista
+- Timer, auto-start, manuell tidrapportering fungerar exakt som för vanliga jobb
+- Lager syns INTE i personalkalendern
+- Tid sparas i `time_reports` med `booking_id = 'location-{id}'`
 
