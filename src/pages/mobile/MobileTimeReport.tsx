@@ -71,7 +71,7 @@ const MobileTimeReport = () => {
     const options: { value: string; label: string; isProject?: boolean; largeProjectId?: string }[] = [];
     const seenProjectIds = new Set<string>();
 
-    // Add large projects (deduplicated)
+    // Add large projects from bookings (deduplicated)
     for (const b of bookings) {
       if (b.large_project_id && b.large_project_name && !seenProjectIds.has(b.large_project_id)) {
         seenProjectIds.add(b.large_project_id);
@@ -80,6 +80,19 @@ const MobileTimeReport = () => {
           label: `📁 ${b.large_project_name}`,
           isProject: true,
           largeProjectId: b.large_project_id,
+        });
+      }
+    }
+
+    // Also add projects from recent time reports (covers past projects not in current bookings)
+    for (const r of timeReports) {
+      if (r.large_project_id && r.large_project_name && !seenProjectIds.has(r.large_project_id)) {
+        seenProjectIds.add(r.large_project_id);
+        options.push({
+          value: `project-${r.large_project_id}`,
+          label: `📁 ${r.large_project_name}`,
+          isProject: true,
+          largeProjectId: r.large_project_id,
         });
       }
     }
