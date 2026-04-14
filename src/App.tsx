@@ -81,6 +81,7 @@ import MobileJobs from "./pages/mobile/MobileJobs";
 import MobileJobDetail from "./pages/mobile/MobileJobDetail";
 import MobileProjectDetail from "./pages/mobile/MobileProjectDetail";
 import MobileTimeReport from "./pages/mobile/MobileTimeReport";
+import MobileEditTimeReport from "./pages/mobile/MobileEditTimeReport";
 import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
 import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
@@ -185,6 +186,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/job/:id" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/project/:projectId" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProjectDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/report" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/report/:id/edit" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileEditTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/expenses" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/profile" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/time-history" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
