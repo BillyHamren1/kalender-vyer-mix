@@ -27,7 +27,10 @@ const MobileProjectDetail = () => {
 
   // Split into scheduled (user is assigned) and project-member-only
   const scheduled = projectBookings.filter(b => b.assignment_type === 'scheduled');
-  const memberOnly = projectBookings.filter(b => b.assignment_type !== 'scheduled');
+  const memberOnly = projectBookings.filter(b => b.assignment_type === 'project_member');
+
+  // If all bookings are scheduled (project member), show them all in one list
+  const showSplit = memberOnly.length > 0;
 
   // Sort by earliest date
   const sortByDate = (a: MobileBooking, b: MobileBooking) => {
