@@ -1300,6 +1300,87 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     )
   }
 
+  // ── Handle synthetic location-project IDs (e.g. "location-{uuid}") ──
+  const locationMatch = booking_id.match(/^location-(.+)$/)
+  if (locationMatch) {
+    const locationId = locationMatch[1]
+    const { data: loc, error: locError } = await supabase
+      .from('organization_locations')
+      .select('id, name, address, latitude, longitude, radius_meters')
+      .eq('id', locationId)
+      .eq('organization_id', organizationId)
+      .single()
+
+    if (locError || !loc) {
+      return new Response(
+        JSON.stringify({ error: 'Location not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Fetch time reports for this synthetic booking
+    const { data: myTimeReports } = await supabase
+      .from('time_reports')
+      .select('id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description')
+      .eq('booking_id', booking_id)
+      .eq('staff_id', staffId)
+      .order('report_date', { ascending: false })
+
+    // Build synthetic booking response
+    const syntheticBooking = {
+      id: booking_id,
+      client: loc.name,
+      booking_number: null,
+      status: 'active',
+      deliveryaddress: loc.address,
+      delivery_city: null,
+      delivery_postal_code: null,
+      delivery_latitude: loc.latitude,
+      delivery_longitude: loc.longitude,
+      rigdaydate: null,
+      eventdate: null,
+      rigdowndate: null,
+      rig_start_time: null,
+      rig_end_time: null,
+      event_start_time: null,
+      event_end_time: null,
+      rigdown_start_time: null,
+      rigdown_end_time: null,
+      contact_name: null,
+      contact_phone: null,
+      contact_email: null,
+      carry_more_than_10m: null,
+      ground_nails_allowed: null,
+      exact_time_needed: null,
+      exact_time_info: null,
+      internalnotes: null,
+      assigned_project_id: null,
+      assigned_project_name: null,
+      assigned_to_project: false,
+      created_at: null,
+      updated_at: null,
+      products: [],
+      attachments: [],
+      is_location_project: true,
+      location_id: loc.id,
+    }
+
+    console.log(`Location-project details fetched: ${booking_id} (${loc.name}) for staff ${staffId}`)
+
+    return new Response(
+      JSON.stringify({
+        booking: syntheticBooking,
+        planning: { assigned_staff: [], calendar_events: [] },
+        project: null,
+        my_time_reports: myTimeReports || [],
+        establishment_tasks: [],
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // ── Regular booking flow ──
+
   // Verify staff is assigned to this booking
   const { data: assignment, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
