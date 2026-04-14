@@ -115,15 +115,30 @@ const MobileJobDetail = () => {
         toast.error(err.message || 'Kunde inte spara tidrapport');
       }
     } else {
-      // Start timer with selected task
-      startTimer(
-        id,
-        booking.client,
-        false,
-        selectedTaskId || undefined,
-        selectedTaskTitle || undefined
-      );
-      toast.success(selectedTaskTitle ? `Timer startad — ${selectedTaskTitle}` : 'Timer startad');
+      // Check distance before starting
+      const doStart = () => {
+        startTimer(
+          id,
+          booking.client,
+          false,
+          selectedTaskId || undefined,
+          selectedTaskTitle || undefined
+        );
+        toast.success(selectedTaskTitle ? `Timer startad — ${selectedTaskTitle}` : 'Timer startad');
+      };
+
+      const coords = booking.delivery_latitude && booking.delivery_longitude
+        ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
+        : null;
+
+      if (userPosition && coords) {
+        const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
+        if (dist > ENTER_RADIUS) {
+          setDistanceWarning({ placeName: booking.client, distance: dist, onConfirm: doStart });
+          return;
+        }
+      }
+      doStart();
     }
   };
 
