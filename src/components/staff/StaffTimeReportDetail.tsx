@@ -55,9 +55,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
             overtime_hours,
             description,
             approved,
-            bookings!inner (
+            large_project_id,
+            bookings (
               client,
               booking_number
+            ),
+            large_projects (
+              name
             )
           `)
           .eq('staff_id', staffId)
