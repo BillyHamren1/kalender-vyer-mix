@@ -228,7 +228,7 @@ const LargeProjectLayout = () => {
               </div>
               <p className="text-sm text-muted-foreground">
                 {bookings.length} bokningar
-                {project.location ? ` • ${project.location}` : ""}
+                {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
               </p>
             </div>
           </div>
