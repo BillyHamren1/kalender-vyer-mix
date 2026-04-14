@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,7 @@ interface TimeReportRow {
   approved: boolean | null;
   booking_client: string;
   booking_number: string | null;
+  type: 'work' | 'travel';
 }
 
 export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
@@ -41,30 +42,58 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['staff-time-reports-detail', staffId, monthStart],
     queryFn: async (): Promise<TimeReportRow[]> => {
-      const { data, error } = await supabase
-        .from('time_reports')
-        .select(`
-          id,
-          report_date,
-          start_time,
-          end_time,
-          hours_worked,
-          overtime_hours,
-          description,
-          approved,
-          bookings!inner (
-            client,
-            booking_number
-          )
-        `)
-        .eq('staff_id', staffId)
-        .gte('report_date', monthStart)
-        .lte('report_date', monthEnd)
-        .order('report_date', { ascending: false });
+      // Fetch time reports and travel logs in parallel
+      const [timeResult, travelResult] = await Promise.all([
+        supabase
+          .from('time_reports')
+          .select(`
+            id,
+            report_date,
+            start_time,
+            end_time,
+            hours_worked,
+            overtime_hours,
+            description,
+            approved,
+            bookings!inner (
+              client,
+              booking_number
+            )
+          `)
+          .eq('staff_id', staffId)
+          .gte('report_date', monthStart)
+          .lte('report_date', monthEnd)
+          .order('report_date', { ascending: false }),
+        supabase
+          .from('travel_time_logs')
+          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address')
+          .eq('staff_id', staffId)
+          .gte('report_date', monthStart)
+          .lte('report_date', monthEnd)
+          .not('end_time', 'is', null),
+      ]);
 
-      if (error) throw error;
+      if (timeResult.error) throw timeResult.error;
+      if (travelResult.error) throw travelResult.error;
 
-      return (data || []).map((r: any) => ({
+      // Fetch destination booking names for travel logs
+      const bookingIds = (travelResult.data || [])
+        .map(t => t.destination_booking_id)
+        .filter(Boolean) as string[];
+
+      let destBookingMap = new Map<string, string>();
+      if (bookingIds.length > 0) {
+        const { data: destBookings } = await supabase
+          .from('bookings')
+          .select('id, client')
+          .in('id', bookingIds);
+        for (const b of destBookings || []) {
+          destBookingMap.set(b.id, b.client);
+        }
+      }
+
+      // Map time reports
+      const workRows: TimeReportRow[] = (timeResult.data || []).map((r: any) => ({
         id: r.id,
         report_date: r.report_date,
         start_time: r.start_time,
@@ -75,12 +104,42 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         approved: r.approved,
         booking_client: r.bookings?.client || '-',
         booking_number: r.bookings?.booking_number || null,
+        type: 'work' as const,
       }));
+
+      // Map travel logs
+      const travelRows: TimeReportRow[] = (travelResult.data || []).map(t => {
+        const destClient = t.destination_booking_id
+          ? destBookingMap.get(t.destination_booking_id)
+          : null;
+        const clientLabel = destClient ? `Resa → ${destClient}` : 'Resa';
+        return {
+          id: t.id,
+          report_date: t.report_date,
+          start_time: t.start_time,
+          end_time: t.end_time,
+          hours_worked: t.hours_worked,
+          overtime_hours: null,
+          description: [t.from_address, t.to_address].filter(Boolean).join(' → ') || null,
+          approved: null,
+          booking_client: clientLabel,
+          booking_number: null,
+          type: 'travel' as const,
+        };
+      });
+
+      // Merge and sort by date + start_time
+      return [...workRows, ...travelRows].sort((a, b) => {
+        const dateComp = a.report_date.localeCompare(b.report_date);
+        if (dateComp !== 0) return -dateComp; // descending date
+        return (a.start_time || '').localeCompare(b.start_time || '');
+      });
     },
   });
 
   const totalHours = reports.reduce((sum, r) => sum + r.hours_worked, 0);
   const totalOvertime = reports.reduce((sum, r) => sum + (r.overtime_hours || 0), 0);
+  const totalTravelHours = reports.filter(r => r.type === 'travel').reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
     <PremiumCard
@@ -124,6 +183,12 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
             Övertid: {formatHoursMinutes(totalOvertime)}
           </Badge>
         )}
+        {totalTravelHours > 0 && (
+          <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+            <Car className="h-3 w-3 mr-1" />
+            Restid: {formatHoursMinutes(totalTravelHours)}
+          </Badge>
+        )}
         <Badge variant="outline" className="text-xs">
           {reports.length} rapporter
         </Badge>
@@ -155,30 +220,39 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
             </TableHeader>
             <TableBody>
               {reports.map(report => (
-                <TableRow key={report.id}>
+                <TableRow key={report.id} className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
                   <TableCell className="font-medium whitespace-nowrap">
                     {format(new Date(report.report_date), 'EEE d MMM', { locale: sv })}
                   </TableCell>
                   <TableCell>
-                    <div className="truncate max-w-[140px]">
-                      {report.booking_client}
-                      {report.booking_number && (
-                        <span className="text-muted-foreground text-xs ml-1">
-                          #{report.booking_number}
-                        </span>
-                      )}
+                    <div className="truncate max-w-[140px] flex items-center gap-1">
+                      {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                      <span>
+                        {report.booking_client}
+                        {report.booking_number && (
+                          <span className="text-muted-foreground text-xs ml-1">
+                            #{report.booking_number}
+                          </span>
+                        )}
+                      </span>
                     </div>
                   </TableCell>
-                  <TableCell>{report.start_time || '-'}</TableCell>
-                  <TableCell>{report.end_time || '-'}</TableCell>
+                  <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
+                  <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
                   <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
                   <TableCell className="text-right">
-                    {(report.overtime_hours || 0) > 0
-                      ? formatHoursMinutes(report.overtime_hours!)
-                      : '-'}
+                    {report.type === 'travel'
+                      ? '-'
+                      : (report.overtime_hours || 0) > 0
+                        ? formatHoursMinutes(report.overtime_hours!)
+                        : '-'}
                   </TableCell>
                   <TableCell>
-                    {report.approved ? (
+                    {report.type === 'travel' ? (
+                      <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
+                        Resa
+                      </Badge>
+                    ) : report.approved ? (
                       <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
                         Godkänd
                       </Badge>
@@ -198,6 +272,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                 </TableCell>
                 <TableCell />
               </TableRow>
+              {totalTravelHours > 0 && (
+                <TableRow className="text-xs text-muted-foreground">
+                  <TableCell colSpan={4} className="italic">varav restid</TableCell>
+                  <TableCell className="text-right italic">{formatHoursMinutes(totalTravelHours)}</TableCell>
+                  <TableCell colSpan={2} />
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

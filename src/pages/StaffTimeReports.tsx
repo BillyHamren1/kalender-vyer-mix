@@ -36,26 +36,34 @@ const StaffTimeReports: React.FC = () => {
       if (staffError) throw staffError;
       if (!staff) return [];
 
-      // Fetch latest time report per staff + this month's totals
+      // Fetch latest time report per staff + this month's totals + travel logs
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      const { data: reports, error: reportsError } = await supabase
-        .from('time_reports')
-        .select('staff_id, report_date, hours_worked')
-        .gte('report_date', monthStart)
-        .lte('report_date', monthEnd);
+      const [reportsRes, latestRes, travelRes] = await Promise.all([
+        supabase
+          .from('time_reports')
+          .select('staff_id, report_date, hours_worked')
+          .gte('report_date', monthStart)
+          .lte('report_date', monthEnd),
+        supabase
+          .from('time_reports')
+          .select('staff_id, report_date, hours_worked')
+          .order('report_date', { ascending: false }),
+        supabase
+          .from('travel_time_logs')
+          .select('staff_id, hours_worked')
+          .gte('report_date', monthStart)
+          .lte('report_date', monthEnd)
+          .not('end_time', 'is', null),
+      ]);
 
-      if (reportsError) throw reportsError;
-
-      // Also get the absolute latest report per staff (any month)
-      const { data: latestReports, error: latestError } = await supabase
-        .from('time_reports')
-        .select('staff_id, report_date, hours_worked')
-        .order('report_date', { ascending: false });
-
-      if (latestError) throw latestError;
+      if (reportsRes.error) throw reportsRes.error;
+      if (latestRes.error) throw latestRes.error;
+      const reports = reportsRes.data;
+      const latestReports = latestRes.data;
+      const travelReports = travelRes.data || [];
 
       // Build lookup maps
       const latestByStaff = new Map<string, { date: string; hours: number }>();
@@ -71,6 +79,12 @@ const StaffTimeReports: React.FC = () => {
         existing.totalHours += r.hours_worked;
         existing.count += 1;
         monthlyByStaff.set(r.staff_id, existing);
+      }
+      // Add travel hours to monthly totals
+      for (const t of travelReports) {
+        const existing = monthlyByStaff.get(t.staff_id) || { totalHours: 0, count: 0 };
+        existing.totalHours += t.hours_worked;
+        monthlyByStaff.set(t.staff_id, existing);
       }
 
       return staff.map(s => {
