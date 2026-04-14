@@ -1010,9 +1010,76 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
 
-  if (!booking_id || !report_date || hours_worked === undefined) {
+  if (!booking_id || !report_date) {
     return new Response(
-      JSON.stringify({ error: 'booking_id, report_date, and hours_worked are required' }),
+      JSON.stringify({ error: 'booking_id and report_date are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // --- Server-side time validation & calculation ---
+  if (!start_time || !end_time) {
+    return new Response(
+      JSON.stringify({ error: 'start_time och end_time krävs' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const [sh, sm] = start_time.split(':').map(Number)
+  const [eh, em] = end_time.split(':').map(Number)
+  const startMinutes = sh * 60 + sm
+  const endMinutes = eh * 60 + em
+
+  if (startMinutes === endMinutes) {
+    return new Response(
+      JSON.stringify({ error: 'Sluttid kan inte vara samma som starttid' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const breakHours = break_time ? parseFloat(break_time) : 0
+  const breakMinutes = breakHours * 60
+  if (breakHours < 0) {
+    return new Response(
+      JSON.stringify({ error: 'Rast kan inte vara negativ' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (breakMinutes > 240) {
+    return new Response(
+      JSON.stringify({ error: 'Rast kan inte överstiga 240 minuter' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const ot = overtime_hours ? parseFloat(overtime_hours) : 0
+  if (ot < 0) {
+    return new Response(
+      JSON.stringify({ error: 'Övertid kan inte vara negativ' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (ot > 6) {
+    return new Response(
+      JSON.stringify({ error: 'Övertid kan inte överstiga 6 timmar' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Calculate hours server-side — never trust client value
+  let rawHours = (eh + em / 60) - (sh + sm / 60)
+  if (rawHours < 0) rawHours += 24 // night shift
+  const calculatedHours = Math.round((rawHours - breakHours) * 100) / 100
+
+  if (calculatedHours <= 0) {
+    return new Response(
+      JSON.stringify({ error: 'Arbetad tid efter rast måste vara mer än 0' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (calculatedHours > 16) {
+    return new Response(
+      JSON.stringify({ error: 'Arbetad tid kan inte överstiga 16 timmar' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -1129,18 +1196,18 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     }
   }
 
-  // Create time report
+  // Create time report — use server-calculated hours
   const { data: report, error } = await supabase
     .from('time_reports')
     .insert({
       staff_id: staffId,
       booking_id: resolvedBookingId,
       report_date,
-      start_time: start_time || null,
-      end_time: end_time || null,
-      hours_worked: parseFloat(hours_worked),
-      overtime_hours: overtime_hours ? parseFloat(overtime_hours) : 0,
-      break_time: break_time ? parseFloat(break_time) : 0,
+      start_time,
+      end_time,
+      hours_worked: calculatedHours,
+      overtime_hours: ot,
+      break_time: breakHours,
       description: description || null,
       establishment_task_id: establishment_task_id || null,
       large_project_id: resolvedLargeProjectId,
