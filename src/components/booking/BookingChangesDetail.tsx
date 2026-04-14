@@ -31,17 +31,39 @@ const FIELD_LABELS: Record<string, string> = {
   contact_email: 'Kontaktemail',
 };
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return '(tomt)';
+// Time fields that store HH:mm or ISO datetime but represent a time-of-day
+const TIME_FIELDS = new Set([
+  'rig_start_time', 'rig_end_time',
+  'event_start_time', 'event_end_time',
+  'rigdown_start_time', 'rigdown_end_time',
+]);
+
+function formatValue(value: unknown, fieldName?: string): string {
+  if (value === null || value === undefined || value === '') return '–';
   if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
   if (typeof value === 'string') {
-    // Try to detect date strings
+    // Pure date: 2026-04-29
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       try {
         return format(new Date(value), 'd MMM yyyy', { locale: sv });
       } catch { /* fall through */ }
     }
-    return value || '(tomt)';
+    // ISO datetime: 2026-04-29T07:00:00...
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+      try {
+        const d = new Date(value);
+        // If this is a time field, show only HH:mm
+        if (fieldName && TIME_FIELDS.has(fieldName)) {
+          return format(d, 'HH:mm');
+        }
+        return format(d, 'd MMM yyyy HH:mm', { locale: sv });
+      } catch { /* fall through */ }
+    }
+    // HH:mm time string
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+      return value.slice(0, 5);
+    }
+    return value || '–';
   }
   return String(value);
 }
