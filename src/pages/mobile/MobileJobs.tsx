@@ -231,18 +231,34 @@ const MobileJobs = () => {
                 </div>
                 <div className="space-y-2">
                   {/* Project-grouped bookings */}
-                  {Object.entries(projectGroups).map(([lpId, group]) => (
-                    <div key={lpId} className="rounded-2xl border border-primary/15 bg-primary/[0.02] overflow-hidden">
-                      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-primary/10">
-                        <FolderOpen className="w-3.5 h-3.5 text-primary/60" />
-                        <span className="text-xs font-bold text-primary uppercase tracking-wide">{group.name}</span>
-                        <span className="text-[10px] text-muted-foreground ml-auto">{group.entries.length} jobb</span>
-                      </div>
-                      <div className="p-1.5 space-y-1.5">
-                        {group.entries.map(renderBookingCard)}
-                      </div>
-                    </div>
-                  ))}
+                  {Object.entries(projectGroups).map(([lpId, group]) => {
+                    const scheduledCount = group.entries.filter(e => e.booking.assignment_type === 'scheduled').length;
+                    return (
+                      <button
+                        key={lpId}
+                        onClick={() => navigate(`/m/project/${lpId}`)}
+                        className="w-full text-left rounded-2xl border border-primary/20 bg-card shadow-md p-3.5 transition-all duration-150 active:scale-[0.98]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FolderOpen className="w-3.5 h-3.5 text-primary/70" />
+                              <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
+                                PROJEKT
+                              </span>
+                            </div>
+                            <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
+                              {group.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {group.entries.length} bokningar · {scheduledCount} schemalagda för dig
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                        </div>
+                      </button>
+                    );
+                  })}
                   {/* Standalone bookings */}
                   {standalone.map(renderBookingCard)}
                 </div>
