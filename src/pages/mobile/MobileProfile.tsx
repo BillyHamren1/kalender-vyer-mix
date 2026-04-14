@@ -179,53 +179,6 @@ const MobileProfile = () => {
           )}
         </div>
 
-        {/* Send message */}
-        <SendMessageDialog
-          trigger={
-            <button className="w-full rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all">
-              <div className="p-1.5 rounded-lg bg-primary/8">
-                <MessageSquare className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-foreground">{t('profile.sendMessage')}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{t('profile.toOffice')}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </button>
-          }
-        />
-
-        {/* GPS Settings */}
-        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t('profile.gps')}</h2>
-          
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-lg bg-primary/8">
-              <MapPin className="w-4 h-4 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">{t('profile.autoTime')}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{t('profile.startTimerAt')}</p>
-            </div>
-            <div className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${gps.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-              {gps.enabled ? t('profile.active') : t('profile.off')}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 pl-10">
-            <Radar className="w-3.5 h-3.5 text-muted-foreground/40" />
-            <span className="text-[11px] text-muted-foreground">{t('profile.radius')}</span>
-            <span className="text-sm font-semibold text-foreground">{gps.radius} m</span>
-          </div>
-        </div>
-
-        {/* Version */}
-        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-2.5 shadow-md">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground font-medium">{t('profile.version')}</span>
-            <span className="font-mono text-[11px] text-muted-foreground/60">1.0.0</span>
-          </div>
-        </div>
 
         {/* Logout */}
         <Button
