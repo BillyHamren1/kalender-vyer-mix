@@ -236,11 +236,6 @@ const MobileJobs = () => {
               </div>
             );
           })
-                  })}
-                </div>
-              </div>
-            );
-          })
         )}
       </div>
 
