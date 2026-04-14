@@ -67,8 +67,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .select(`
             id, report_date, start_time, end_time, hours_worked,
             overtime_hours, description, approved, booking_id,
-            bookings (client, booking_number, large_project_id),
-            large_projects:bookings!inner(large_project_id, large_projects(name))
+            bookings (client, booking_number, large_project_id)
           `)
           .eq('staff_id', staffId)
           .gte('report_date', monthStart)
