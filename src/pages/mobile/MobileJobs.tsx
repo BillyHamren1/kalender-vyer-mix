@@ -341,18 +341,20 @@ const MobileJobs = () => {
                               </p>
                             )}
                           </button>
-                          {/* Timer toggle button */}
-                          <button
-                            onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
-                            className={cn(
-                              "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                              hasProjectTimer
-                                ? "bg-amber-500 text-white shadow-md"
-                                : "bg-primary/10 text-primary hover:bg-primary/20"
-                            )}
-                          >
-                            {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                          </button>
+                          {/* Timer toggle button — only show if this project has timer OR no timer is running */}
+                          {(hasProjectTimer || !hasAnyTimer) && (
+                            <button
+                              onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
+                              className={cn(
+                                "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                                hasProjectTimer
+                                  ? "bg-destructive text-destructive-foreground shadow-md"
+                                  : "bg-primary/10 text-primary hover:bg-primary/20"
+                              )}
+                            >
+                              {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
