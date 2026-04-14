@@ -505,6 +505,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     // Resolve large project names for bookings that belong to one
     const largeProjectIds = [...new Set((bookings || []).map((b: any) => b.large_project_id).filter(Boolean))]
     let largeProjectNameMap: Record<string, string> = {}
+    let largeProjectGeoMap: Record<string, { address: string | null; lat: number | null; lng: number | null }> = {}
     if (largeProjectIds.length > 0) {
       const { data: lpData } = await supabase
         .from('large_projects')
@@ -514,7 +515,6 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         largeProjectNameMap[lp.id] = lp.name
       }
       // Build a map of project-level geocodes
-      const largeProjectGeoMap: Record<string, { address: string | null; lat: number | null; lng: number | null }> = {}
       for (const lp of (lpData || [])) {
         if (lp.address_latitude && lp.address_longitude) {
           largeProjectGeoMap[lp.id] = { address: lp.address, lat: lp.address_latitude, lng: lp.address_longitude }
