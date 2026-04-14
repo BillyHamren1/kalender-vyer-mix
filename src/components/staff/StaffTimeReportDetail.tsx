@@ -30,6 +30,7 @@ interface TimeReportRow {
   approved: boolean | null;
   booking_client: string;
   booking_number: string | null;
+  booking_id: string | null;
   type: 'work' | 'travel';
 }
 
