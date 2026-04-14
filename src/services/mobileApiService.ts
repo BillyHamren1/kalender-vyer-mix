@@ -40,6 +40,7 @@ export interface MobileBooking {
   large_project_id: string | null;
   large_project_name: string | null;
   assignment_dates: string[];
+  assignment_type?: 'scheduled' | 'project_member';
 }
 
 export interface MobileTimeReport {

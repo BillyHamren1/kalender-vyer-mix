@@ -375,14 +375,13 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
 
 async function handleGetBookings(supabase: any, staffId: string, organizationId: string) {
   // ─── VISIBILITY RULE ───────────────────────────────────────────────
-  // booking_staff_assignments is the SINGLE source of truth for mobile
-  // job visibility. Rows are created via:
-  //   1. Team scheduling (staff_assignments + calendar_events trigger)
-  //   2. Activity assignment (auto-synced with team_id='activity')
-  // One table, one query, no fallbacks.
+  // Two sources of visibility:
+  //   1. booking_staff_assignments (BSA) → scheduled work
+  //   2. large_project_staff → project membership (all bookings visible)
   // ──────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
+  // 1. BSA-based assignments (calendar scheduling)
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
@@ -398,11 +397,31 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  const bookingIds = [...new Set((assignments || []).map((a: any) => a.booking_id))]
+  // 2. Project membership — find all large projects this staff belongs to
+  const { data: projectStaffRows } = await supabase
+    .from('large_project_staff')
+    .select('large_project_id')
+    .eq('staff_id', staffId)
+
+  const myProjectIds = (projectStaffRows || []).map((r: any) => r.large_project_id)
+
+  // Find all booking IDs belonging to those projects
+  let projectBookingIds: string[] = []
+  if (myProjectIds.length > 0) {
+    const { data: lpBookings } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .in('large_project_id', myProjectIds)
+      .eq('organization_id', organizationId)
+    projectBookingIds = (lpBookings || []).map((r: any) => r.booking_id)
+  }
+
+  const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
+  const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds])]
 
   // Separate location-based booking IDs from real booking IDs
-  const locationBookingIds = bookingIds.filter(id => id.startsWith('location-'))
-  const realBookingIds = bookingIds.filter(id => !id.startsWith('location-'))
+  const locationBookingIds = allBookingIds.filter(id => id.startsWith('location-'))
+  const realBookingIds = allBookingIds.filter(id => !id.startsWith('location-'))
 
   let bookingsWithAssignments: any[] = []
 
@@ -461,10 +480,21 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
+      const isScheduled = bsaBookingIds.has(booking.id)
+
+      // For project-member-only bookings, use all booking dates as assignment_dates
+      let assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
+      if (!isScheduled && assignmentDates.length === 0) {
+        // Add all known dates so the booking appears grouped correctly
+        const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
+        assignmentDates = dates.length > 0 ? dates : [today]
+      }
+
       return {
         ...booking,
         large_project_name: booking.large_project_id ? (largeProjectNameMap[booking.large_project_id] || null) : null,
-        assignment_dates: bookingAssignments.map((a: any) => a.assignment_date)
+        assignment_dates: assignmentDates,
+        assignment_type: isScheduled ? 'scheduled' : 'project_member',
       }
     })
   }
@@ -492,6 +522,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         is_location_project: true,
         location_id: loc.id,
         assignment_dates: [new Date().toISOString().split('T')[0]],
+        assignment_type: 'scheduled',
       })
     }
   }
