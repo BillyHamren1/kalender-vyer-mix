@@ -396,6 +396,56 @@ const LargeProjectLayout = () => {
               }}
             />
 
+            {/* Address card */}
+            <Card className="border-border/50 shadow-sm">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    {isEditingAddress ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          placeholder="Ange adress..."
+                          className="h-7 text-sm w-64"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveAddress();
+                            if (e.key === 'Escape') setIsEditingAddress(false);
+                          }}
+                          autoFocus
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveAddress} disabled={isGeocodingAddress}>
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingAddress(false)}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
+                        onClick={() => {
+                          setEditAddress(project.address || '');
+                          setIsEditingAddress(true);
+                        }}
+                      >
+                        <span className={project.address ? 'text-foreground' : 'text-muted-foreground italic'}>
+                          {project.address || 'Ingen adress'}
+                        </span>
+                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    )}
+                  </div>
+                  {project.address_latitude && project.address_longitude && (
+                    <Badge variant="secondary" className="text-xs">
+                      📍 {project.address_latitude.toFixed(4)}, {project.address_longitude.toFixed(4)}
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Kopplade bokningar ({bookings.length})
