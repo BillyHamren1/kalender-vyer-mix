@@ -549,11 +549,20 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         assignmentDates = dates.length > 0 ? dates : [today]
       }
 
+      // Override geocodes with large project's own address if available
+      const projectGeo = booking.large_project_id ? largeProjectGeoMap[booking.large_project_id] : null
+
       return {
         ...booking,
         large_project_name: booking.large_project_id ? (largeProjectNameMap[booking.large_project_id] || null) : null,
         assignment_dates: assignmentDates,
         assignment_type: 'scheduled',
+        // Project-level address overrides individual booking addresses
+        ...(projectGeo ? {
+          deliveryaddress: projectGeo.address || booking.deliveryaddress,
+          delivery_latitude: projectGeo.lat,
+          delivery_longitude: projectGeo.lng,
+        } : {}),
       }
     })
 
