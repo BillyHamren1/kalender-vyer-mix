@@ -1,43 +1,27 @@
 
 
-## Plan: Automatisk projekttilldelning vid kalenderbemanning
+## Plan: Retroaktiv synk av alla projekt
 
-### Vad som ska hända
+### Åtgärd
 
-1. Planeraren tilldelar Billy till Team 4 på en tisdag i kalendern (som idag)
-2. Triggern skapar BSA-rader som vanligt (oförändrat)
-3. **NYTT**: Systemet kontrollerar om bokningen tillhör ett stort projekt via `large_project_bookings`
-4. **NYTT**: Om ja → Billy läggs automatiskt till i `large_project_staff` (om han inte redan finns där)
-5. Billy ser nu ALLA bokningar i hela projektet i tidappen
+Kör en INSERT som täcker **alla** stora projekt — inte bara Swedish Game Fair. Queryn hittar alla personal som har BSA-rader mot bokningar i något stort projekt men saknas i `large_project_staff`, och lägger till dem.
 
-### Teknisk lösning
+### SQL som körs (via insert-verktyget)
 
-En ny trigger på `booking_staff_assignments` (AFTER INSERT) som:
-- Kollar om `booking_id` finns i `large_project_bookings`
-- Om ja, insertar en rad i `large_project_staff` med `role = 'field'`
-- `ON CONFLICT DO NOTHING` om personen redan är projektmedlem
+```sql
+INSERT INTO public.large_project_staff (large_project_id, staff_id, organization_id, role)
+SELECT DISTINCT lpb.large_project_id, bsa.staff_id, lpb.organization_id, 'field'
+FROM public.booking_staff_assignments bsa
+JOIN public.large_project_bookings lpb ON lpb.booking_id = bsa.booking_id
+ON CONFLICT (large_project_id, staff_id) DO NOTHING;
+```
+
+### Nuläge
+
+- 1 person behöver synkas (Swedish Game Fair)
+- Övriga 5 projekt har inga BSA-rader ännu — men queryn är generell och hanterar alla
 
 ### Filer som ändras
 
-| Fil | Ändring |
-|-----|---------|
-| Migration SQL | Ny trigger `auto_add_to_large_project_staff` på `booking_staff_assignments` |
-
-Ingen annan kodändring behövs — edge-funktionen hanterar redan `large_project_staff` för visning i appen.
-
-### Flöde
-
-```text
-Kalender: tilldela Billy → Team 4 → tisdag 10 juni
-  ↓
-Befintlig trigger: BSA-rad skapas (booking X, Billy, team-4, 2025-06-10)
-  ↓
-NY trigger: booking X finns i large_project_bookings → projekt "Swedish Game Fair"
-  ↓
-INSERT INTO large_project_staff (large_project_id, staff_id, role)
-VALUES ('sgf-id', 'billy-id', 'field')
-ON CONFLICT DO NOTHING
-  ↓
-Billy ser alla 29 bokningar i tidappen
-```
+Inga — enbart en datainsert. Triggern från förra steget hanterar alla framtida tilldelningar.
 
