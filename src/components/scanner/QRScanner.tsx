@@ -554,6 +554,40 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       </div>
 
+      {/* iOS Debug Panel — visible on-screen */}
+      {debugSteps.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 80,
+            left: 4,
+            right: 4,
+            maxHeight: 200,
+            overflow: 'auto',
+            background: 'rgba(0,0,0,0.85)',
+            borderRadius: 8,
+            padding: 8,
+            zIndex: 9999,
+            pointerEvents: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 'bold' }}>📱 iOS Camera Debug</span>
+            <button
+              onClick={() => setDebugSteps([])}
+              style={{ color: '#ef4444', fontSize: 10, background: 'none', border: 'none' }}
+            >
+              ✕ Rensa
+            </button>
+          </div>
+          {debugSteps.map((step, i) => (
+            <div key={i} style={{ color: '#e2e8f0', fontSize: 10, fontFamily: 'monospace', lineHeight: '14px' }}>
+              {step}
+            </div>
+          ))}
+        </div>
+      )}
+
       <style>{`
         @keyframes scan-line {
           0%, 100% { top: 10%; }
