@@ -2,19 +2,22 @@ import { Briefcase, Clock, Receipt, User, MessageCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
+import { useLanguage } from '@/i18n/LanguageContext';
+import type { TranslationKey } from '@/i18n/translations';
 
-const tabs = [
-  { path: '/m', label: 'Jobb', icon: Briefcase, exact: true },
-  { path: '/m/report', label: 'Tid', icon: Clock },
-  { path: '/m/inbox', label: 'Meddelanden', icon: MessageCircle, showBadge: true },
-  { path: '/m/expenses', label: 'Utlägg', icon: Receipt },
-  { path: '/m/profile', label: 'Profil', icon: User },
+const tabs: { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean }[] = [
+  { path: '/m', labelKey: 'nav.jobs', icon: Briefcase, exact: true },
+  { path: '/m/report', labelKey: 'nav.time', icon: Clock },
+  { path: '/m/inbox', labelKey: 'nav.messages', icon: MessageCircle, showBadge: true },
+  { path: '/m/expenses', labelKey: 'nav.expenses', icon: Receipt },
+  { path: '/m/profile', labelKey: 'nav.profile', icon: User },
 ];
 
 const MobileBottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { count: unreadCount } = useUnreadMessageCount();
+  const { t } = useLanguage();
 
   const isActive = (tab: typeof tabs[0]) => {
     if (tab.exact) return location.pathname === tab.path;
@@ -58,7 +61,7 @@ const MobileBottomNav = () => {
                 "text-[10px] leading-none transition-all",
                 active ? "font-bold text-primary" : "font-medium"
               )}>
-                {tab.label}
+                {t(tab.labelKey)}
               </span>
             </button>
           );
