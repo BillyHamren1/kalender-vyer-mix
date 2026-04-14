@@ -448,21 +448,61 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
   const [saving, setSaving] = useState(false);
   const [editStart, setEditStart] = useState(report.start_time?.slice(0, 5) || '');
   const [editEnd, setEditEnd] = useState(report.end_time?.slice(0, 5) || '');
-  const [editHours, setEditHours] = useState(String(report.hours_worked));
+  const [editBreak, setEditBreak] = useState(String(report.break_time || 0));
   const [editOvertime, setEditOvertime] = useState(String(report.overtime_hours || 0));
   const [editDesc, setEditDesc] = useState(report.description || '');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const { invalidateTimeReports } = useInvalidateMobileData();
   const isApproved = !!report.approved;
 
+  const calculateEditHours = (): number => {
+    if (!editStart || !editEnd) return 0;
+    const [sh, sm] = editStart.split(':').map(Number);
+    const [eh, em] = editEnd.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    if (endMin <= startMin) return 0;
+    const breakMin = Math.max(0, parseInt(editBreak) || 0);
+    return Math.round(((endMin - startMin - breakMin) / 60) * 100) / 100;
+  };
+
+  const getEditValidationError = (): string | null => {
+    if (!editStart) return 'Starttid krävs';
+    if (!editEnd) return 'Sluttid krävs';
+    const [sh, sm] = editStart.split(':').map(Number);
+    const [eh, em] = editEnd.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    if (endMin <= startMin) return 'Sluttid måste vara efter starttid';
+    const breakMin = parseInt(editBreak) || 0;
+    if (breakMin < 0) return 'Rast kan inte vara negativ';
+    if (breakMin > 240) return 'Rast kan inte överstiga 240 minuter';
+    const hours = calculateEditHours();
+    if (hours <= 0) return 'Arbetad tid efter rast måste vara mer än 0';
+    if (hours > 16) return 'Arbetad tid kan inte överstiga 16 timmar';
+    const ot = parseFloat(editOvertime) || 0;
+    if (ot < 0) return 'Övertid kan inte vara negativ';
+    if (ot > 6) return 'Övertid kan inte överstiga 6 timmar';
+    return null;
+  };
+
   const handleSave = async () => {
+    const error = getEditValidationError();
+    if (error) {
+      setValidationError(error);
+      return;
+    }
+    setValidationError(null);
     setSaving(true);
     try {
+      const calculatedHours = calculateEditHours();
       await mobileApi.updateTimeReport({
         time_report_id: report.id,
         start_time: editStart || undefined,
         end_time: editEnd || undefined,
-        hours_worked: parseFloat(editHours),
+        hours_worked: calculatedHours,
         overtime_hours: parseFloat(editOvertime) || 0,
+        break_time: parseInt(editBreak) || 0,
         description: editDesc || undefined,
       });
       toast.success('Tidrapport uppdaterad');
@@ -556,24 +596,35 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
       {/* Edit form */}
       {editing && (
         <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
+          {validationError && (
+            <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+              <p className="text-xs font-medium text-destructive">{validationError}</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] font-semibold text-muted-foreground">Start</label>
-              <Input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} className="h-9 text-sm rounded-lg" />
+              <Input type="time" value={editStart} onChange={e => { setEditStart(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-muted-foreground">Slut</label>
-              <Input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} className="h-9 text-sm rounded-lg" />
+              <Input type="time" value={editEnd} onChange={e => { setEditEnd(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Timmar</label>
-              <Input type="number" step="0.5" value={editHours} onChange={e => setEditHours(e.target.value)} className="h-9 text-sm rounded-lg" />
+              <label className="text-[10px] font-semibold text-muted-foreground">Rast (min)</label>
+              <Input type="number" min="0" max="240" value={editBreak} onChange={e => { setEditBreak(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Övertid</label>
-              <Input type="number" step="0.5" value={editOvertime} onChange={e => setEditOvertime(e.target.value)} className="h-9 text-sm rounded-lg" />
+              <label className="text-[10px] font-semibold text-muted-foreground">Övertid (h)</label>
+              <Input type="number" step="0.5" min="0" max="6" value={editOvertime} onChange={e => { setEditOvertime(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground">Beräknad tid</label>
+              <div className="h-9 flex items-center justify-center rounded-lg bg-muted text-sm font-bold text-foreground">
+                {calculateEditHours() > 0 ? `${calculateEditHours()}h` : '–'}
+              </div>
             </div>
           </div>
           <div>
@@ -581,7 +632,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
             <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="text-sm min-h-[48px] rounded-lg" />
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setEditing(false)} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-muted text-muted-foreground">
+            <button onClick={() => { setEditing(false); setValidationError(null); }} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-muted text-muted-foreground">
               Avbryt
             </button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground">
