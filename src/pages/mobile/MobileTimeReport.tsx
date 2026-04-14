@@ -519,7 +519,7 @@ const MobileTimeReport = () => {
                           <Check className="w-3.5 h-3.5 text-primary inline-block" />
                         )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               );
