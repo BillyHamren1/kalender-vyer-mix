@@ -21,10 +21,12 @@ export interface GeofenceEvent {
   type: 'enter' | 'exit';
   booking?: MobileBooking;
   distance: number;
-  locationType?: 'booking' | 'fixed';
+  locationType?: 'booking' | 'fixed' | 'project';
   locationId?: string;
   locationName?: string;
   locationAddress?: string;
+  largeProjectId?: string;
+  largeProjectName?: string;
 }
 
 export interface OrganizationLocationMobile {
@@ -185,7 +187,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     const nearby: (MobileBooking & { distance: number })[] = [];
 
-    // Check bookings
+    // Check bookings — consolidate large project bookings
+    const triggeredProjects = new Set<string>();
+
     for (const booking of bookings) {
       if (!booking.delivery_latitude || !booking.delivery_longitude) continue;
 
@@ -198,20 +202,58 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         nearby.push({ ...booking, distance: Math.round(dist) });
       }
 
-      const hasTimer = activeTimers.has(booking.id);
+      // If booking belongs to a large project, use project-level geofence
+      const lpId = (booking as any).large_project_id;
+      const lpName = (booking as any).large_project_name;
 
-      // ENTER geofence
-      if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
-        triggeredEnterRef.current.add(booking.id);
-        triggeredExitRef.current.delete(booking.id);
-        setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking' });
-      }
+      if (lpId && lpName) {
+        // Skip if we already triggered for this project in this cycle
+        if (triggeredProjects.has(lpId)) continue;
+        triggeredProjects.add(lpId);
 
-      // EXIT geofence
-      if (dist > exitRadius && hasTimer && activeTimers.get(booking.id)?.isAutoStarted && !triggeredExitRef.current.has(booking.id)) {
-        triggeredExitRef.current.add(booking.id);
-        triggeredEnterRef.current.delete(booking.id);
-        setGeofenceEvent({ type: 'exit', booking, distance: Math.round(dist), locationType: 'booking' });
+        const projectKey = `project-${lpId}`;
+        const hasTimer = activeTimers.has(projectKey);
+
+        if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(projectKey)) {
+          triggeredEnterRef.current.add(projectKey);
+          triggeredExitRef.current.delete(projectKey);
+          setGeofenceEvent({
+            type: 'enter',
+            booking,
+            distance: Math.round(dist),
+            locationType: 'project',
+            largeProjectId: lpId,
+            largeProjectName: lpName,
+          });
+        }
+
+        if (dist > exitRadius && hasTimer && activeTimers.get(projectKey)?.isAutoStarted && !triggeredExitRef.current.has(projectKey)) {
+          triggeredExitRef.current.add(projectKey);
+          triggeredEnterRef.current.delete(projectKey);
+          setGeofenceEvent({
+            type: 'exit',
+            booking,
+            distance: Math.round(dist),
+            locationType: 'project',
+            largeProjectId: lpId,
+            largeProjectName: lpName,
+          });
+        }
+      } else {
+        // Standalone booking
+        const hasTimer = activeTimers.has(booking.id);
+
+        if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
+          triggeredEnterRef.current.add(booking.id);
+          triggeredExitRef.current.delete(booking.id);
+          setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking' });
+        }
+
+        if (dist > exitRadius && hasTimer && activeTimers.get(booking.id)?.isAutoStarted && !triggeredExitRef.current.has(booking.id)) {
+          triggeredExitRef.current.add(booking.id);
+          triggeredEnterRef.current.delete(booking.id);
+          setGeofenceEvent({ type: 'exit', booking, distance: Math.round(dist), locationType: 'booking' });
+        }
       }
     }
 

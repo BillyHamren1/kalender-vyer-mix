@@ -34,7 +34,19 @@ const MobileJobs = () => {
   const handleGeofenceConfirm = () => {
     if (!geofenceEvent) return;
 
-    if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
+    if (geofenceEvent.locationType === 'project' && geofenceEvent.largeProjectId) {
+      const projectKey = `project-${geofenceEvent.largeProjectId}`;
+      if (geofenceEvent.type === 'enter') {
+        startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true);
+        toast.success(`Timer startad: ${geofenceEvent.largeProjectName}`);
+      } else {
+        const stopped = stopTimer(projectKey);
+        if (stopped) {
+          toast.success('Timer stoppad – skapa tidrapport');
+          navigate('/m/report');
+        }
+      }
+    } else if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
       const locKey = `location-${geofenceEvent.locationId}`;
       if (geofenceEvent.type === 'enter') {
         startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName);
