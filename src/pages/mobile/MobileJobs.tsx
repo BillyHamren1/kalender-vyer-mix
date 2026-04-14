@@ -58,6 +58,7 @@ const MobileJobs = () => {
     dismissGeofenceEvent();
   };
 
+  // Group bookings by date, then within each date group by large project
   const groupedBookings = bookings.reduce<Record<string, { booking: MobileBooking; date: string }[]>>((acc, booking) => {
     for (const date of booking.assignment_dates) {
       if (!acc[date]) acc[date] = [];
@@ -65,6 +66,24 @@ const MobileJobs = () => {
     }
     return acc;
   }, {});
+
+  // Helper to group entries within a date by large_project_id
+  const groupByProject = (entries: { booking: MobileBooking; date: string }[]) => {
+    const projectGroups: Record<string, { name: string; entries: { booking: MobileBooking; date: string }[] }> = {};
+    const standalone: { booking: MobileBooking; date: string }[] = [];
+
+    for (const entry of entries) {
+      const lpId = entry.booking.large_project_id;
+      const lpName = entry.booking.large_project_name;
+      if (lpId && lpName) {
+        if (!projectGroups[lpId]) projectGroups[lpId] = { name: lpName, entries: [] };
+        projectGroups[lpId].entries.push(entry);
+      } else {
+        standalone.push(entry);
+      }
+    }
+    return { projectGroups, standalone };
+  };
 
   const sortedDates = Object.keys(groupedBookings).sort();
 
