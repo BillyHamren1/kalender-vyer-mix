@@ -31,17 +31,39 @@ const FIELD_LABELS: Record<string, string> = {
   contact_email: 'Kontaktemail',
 };
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return '(tomt)';
+// Time fields that store HH:mm or ISO datetime but represent a time-of-day
+const TIME_FIELDS = new Set([
+  'rig_start_time', 'rig_end_time',
+  'event_start_time', 'event_end_time',
+  'rigdown_start_time', 'rigdown_end_time',
+]);
+
+function formatValue(value: unknown, fieldName?: string): string {
+  if (value === null || value === undefined || value === '') return '–';
   if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
   if (typeof value === 'string') {
-    // Try to detect date strings
+    // Pure date: 2026-04-29
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       try {
         return format(new Date(value), 'd MMM yyyy', { locale: sv });
       } catch { /* fall through */ }
     }
-    return value || '(tomt)';
+    // ISO datetime: 2026-04-29T07:00:00...
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+      try {
+        const d = new Date(value);
+        // If this is a time field, show only HH:mm
+        if (fieldName && TIME_FIELDS.has(fieldName)) {
+          return format(d, 'HH:mm');
+        }
+        return format(d, 'd MMM yyyy HH:mm', { locale: sv });
+      } catch { /* fall through */ }
+    }
+    // HH:mm time string
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+      return value.slice(0, 5);
+    }
+    return value || '–';
   }
   return String(value);
 }
@@ -87,20 +109,20 @@ const BookingChangesDetail: React.FC<BookingChangesDetailProps> = ({ bookingId }
       <div className="text-[10px] text-muted-foreground/60 mb-1">
         Ändrad {format(new Date(change.changed_at), 'd MMM HH:mm', { locale: sv })}
       </div>
-      {displayFields.map(field => (
-        <div key={field} className="flex items-start gap-2 text-xs rounded-lg bg-muted/30 px-2.5 py-1.5">
-          <span className="font-medium text-foreground shrink-0 min-w-[100px]">
-            {FIELD_LABELS[field] || field}
-          </span>
-          <span className="text-muted-foreground truncate max-w-[120px]" title={formatValue(previousValues[field])}>
-            {formatValue(previousValues[field])}
-          </span>
-          <ArrowRight className="w-3 h-3 text-muted-foreground/50 shrink-0 mt-0.5" />
-          <span className="text-primary font-medium truncate max-w-[120px]" title={formatValue(newValues[field])}>
-            {formatValue(newValues[field])}
-          </span>
-        </div>
-      ))}
+      {displayFields.map(field => {
+        const prev = formatValue(previousValues[field], field);
+        const next = formatValue(newValues[field], field);
+        return (
+          <div key={field} className="flex items-baseline gap-2 text-xs rounded-lg bg-muted/30 px-2.5 py-1.5">
+            <span className="font-medium text-foreground shrink-0 w-[110px]">
+              {FIELD_LABELS[field] || field}
+            </span>
+            <span className="text-muted-foreground/60 shrink-0">{prev}</span>
+            <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+            <span className="text-primary font-medium shrink-0">{next}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
