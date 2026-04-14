@@ -46,6 +46,8 @@ export interface MobileBooking {
 export interface MobileTimeReport {
   id: string;
   booking_id: string;
+  large_project_id: string | null;
+  large_project_name: string | null;
   report_date: string;
   start_time: string | null;
   end_time: string | null;

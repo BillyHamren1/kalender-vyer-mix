@@ -763,6 +763,7 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     .select(`
       id,
       booking_id,
+      large_project_id,
       report_date,
       start_time,
       end_time,
@@ -776,6 +777,10 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
         id,
         client,
         booking_number
+      ),
+      large_projects (
+        id,
+        name
       )
     `)
     .eq('staff_id', staffId)
@@ -791,8 +796,15 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     )
   }
 
+  // Flatten large_project info for easier frontend consumption
+  const enriched = (reports || []).map((r: any) => ({
+    ...r,
+    large_project_name: r.large_projects?.name || null,
+    large_projects: undefined,
+  }))
+
   return new Response(
-    JSON.stringify({ time_reports: reports || [] }),
+    JSON.stringify({ time_reports: enriched }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
