@@ -1,43 +1,43 @@
 
 
-## Plan: Visuell skillnad mellan projekttilldelning och bokningsschemaläggning
+## Plan: Automatisk projekttilldelning vid kalenderbemanning
 
-### Två nivåer i tidappen
+### Vad som ska hända
 
-| Nivå | Betydelse | Visuellt |
-|------|-----------|----------|
-| **Projektmedlem** | Du ser bokningen för att du tillhör projektet | Dämpad stil, ikon "öga" (👁), ingen tidrapportering direkt |
-| **Schemalagd** | Du är specifikt tilldelad att jobba denna bokning/dag | Full stil, tydlig badge "SCHEMALAGD", kan starta timer/tidrapport |
-
-### Hur personalen upplever det
-
-1. Billy öppnar "Mina jobb" och ser **Swedish Game Fair** som en grupp
-2. Bokningar där Billy är **schemalagd via kalendern** visas med full färg och en grön "SCHEMALAGD"-badge
-3. Övriga bokningar i projektet visas med dämpad stil och texten "I projektet" — Billy vet att de finns men är inte personligen inplanerad på dem ännu
-4. Billy kan trycka på alla bokningar för att se detaljer, men bara de schemalagda har snabbåtkomst till timer och tidrapport
+1. Planeraren tilldelar Billy till Team 4 på en tisdag i kalendern (som idag)
+2. Triggern skapar BSA-rader som vanligt (oförändrat)
+3. **NYTT**: Systemet kontrollerar om bokningen tillhör ett stort projekt via `large_project_bookings`
+4. **NYTT**: Om ja → Billy läggs automatiskt till i `large_project_staff` (om han inte redan finns där)
+5. Billy ser nu ALLA bokningar i hela projektet i tidappen
 
 ### Teknisk lösning
 
-**Edge-funktionen** (`handleGetBookings`):
-- För varje bokning, returnera ett nytt fält `assignment_type: 'scheduled' | 'project_member'`
-- `'scheduled'` = det finns en BSA-rad för denna staff + bokning
-- `'project_member'` = bokningen syns bara via `large_project_staff` (ingen BSA-rad)
-
-**MobileApiService** (`MobileBooking`-typen):
-- Lägg till `assignment_type?: 'scheduled' | 'project_member'`
-
-**MobileJobs.tsx**:
-- Bokningar med `assignment_type === 'project_member'` renderas med:
-  - Dämpad bakgrund (`opacity-60` eller liknande)
-  - Ögon-ikon istället för navigeringspil
-  - Texten "I projektet" istället för RIGG/EVENT-badge
-- Bokningar med `assignment_type === 'scheduled'` (eller inget värde) visas som idag, med tillägg av en liten grön markering
+En ny trigger på `booking_staff_assignments` (AFTER INSERT) som:
+- Kollar om `booking_id` finns i `large_project_bookings`
+- Om ja, insertar en rad i `large_project_staff` med `role = 'field'`
+- `ON CONFLICT DO NOTHING` om personen redan är projektmedlem
 
 ### Filer som ändras
 
 | Fil | Ändring |
 |-----|---------|
-| `supabase/functions/mobile-app-api/index.ts` | Sätt `assignment_type` per bokning baserat på BSA vs projekt-only |
-| `src/services/mobileApiService.ts` | Utöka `MobileBooking` med `assignment_type` |
-| `src/pages/mobile/MobileJobs.tsx` | Rendera olika stil baserat på `assignment_type` |
+| Migration SQL | Ny trigger `auto_add_to_large_project_staff` på `booking_staff_assignments` |
+
+Ingen annan kodändring behövs — edge-funktionen hanterar redan `large_project_staff` för visning i appen.
+
+### Flöde
+
+```text
+Kalender: tilldela Billy → Team 4 → tisdag 10 juni
+  ↓
+Befintlig trigger: BSA-rad skapas (booking X, Billy, team-4, 2025-06-10)
+  ↓
+NY trigger: booking X finns i large_project_bookings → projekt "Swedish Game Fair"
+  ↓
+INSERT INTO large_project_staff (large_project_id, staff_id, role)
+VALUES ('sgf-id', 'billy-id', 'field')
+ON CONFLICT DO NOTHING
+  ↓
+Billy ser alla 29 bokningar i tidappen
+```
 
