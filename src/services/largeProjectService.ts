@@ -717,7 +717,7 @@ export async function addLargeProjectStaff(
 ): Promise<void> {
   const { error } = await supabase
     .from('large_project_staff')
-    .insert({ large_project_id: largeProjectId, staff_id: staffId, role });
+    .insert({ large_project_id: largeProjectId, staff_id: staffId, role } as any);
 
   if (error) throw error;
 }

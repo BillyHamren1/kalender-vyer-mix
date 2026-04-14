@@ -49,7 +49,7 @@ const LargeProjectTeam = ({ largeProjectId }: Props) => {
         .select("id, name")
         .eq("is_active", true)
         .order("name");
-      return (data || []) as { id: string; name: string }[];
+      return (data || []) as unknown as { id: string; name: string }[];
     },
   });
 
