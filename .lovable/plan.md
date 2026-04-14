@@ -1,103 +1,54 @@
 
-Mest sannolika orsaken är att sparandet delvis fungerar rätt, men visningen får det att se fel ut.
 
-## Vad koden visar just nu
-- När en projekttimer stoppas från mobilen skickas:
-  - `booking_id: "project-{largeProjectId}"`
-  - `large_project_id: timer.largeProjectId`
-- I edge-funktionen `handleCreateTimeReport` översätts detta till:
-  - `large_project_id = projektets id`
-  - `booking_id = första länkade delbokningen` för bakåtkompatibilitet
+## Problem
 
-Det betyder:
-- databasen kan mycket väl spara rapporten på projektet via `large_project_id`
-- men samtidigt sätts `booking_id` till en enskild bokning
-- och listan på `/m/report` hämtar idag bara `bookings.client`, så den visar bokningsnamnet och får det att se ut som att tiden sparats på fel nivå
+`useTravelDetection` körs bara på `MobileJobs`-sidan (och på `MobileProfile` utan GPS-data). När användaren navigerar bort avmonteras hooken och travel detection slutar fungera.
 
-## Trolig buggbild
-Det här är sannolikt en kombination av två problem:
+Samtidigt kör `useBackgroundLocationReporter` redan i `MobileAppLayout` med kontinuerlig GPS — den har exakt den data som behövs, men exponerar den inte.
 
-1. Visningsbugg
-- `get_time_reports` returnerar inte projektinfo
-- mobilens lista visar bara `r.bookings?.client`
-- därför visas en delbokning även när `large_project_id` är satt
+## Lösning — minsta möjliga ändring
 
-2. Manuell ny tidrapport är fortfarande bokningsstyrd
-- formuläret i `MobileTimeReport.tsx` låter användaren välja en vanlig bokning
-- stora projekt visas inte som projektval i formuläret
-- där kan tid faktiskt fortfarande sparas mot en enskild bokning om användaren skapar rapport manuellt istället för via projekttimer
+Återanvänd befintlig GPS-källa från `useBackgroundLocationReporter` istället för att skapa en ny hook.
 
-## Plan
-### 1. Bekräfta datan i edge-funktionen och databasen
-- Kontrollera ett nyligen sparat exempel för Swedish Game Fair
-- Verifiera om raden i `time_reports` har:
-  - korrekt `large_project_id`
-  - ett fallback-`booking_id` till en delbokning
-- Detta avgör om buggen bara är visning eller även felaktigt sparande
+### Ändringar
 
-### 2. Uppgradera `get_time_reports` till projektnivå
-**Fil:** `supabase/functions/mobile-app-api/index.ts`
+**1. `src/hooks/useBackgroundLocationReporter.ts`** — Exponera senaste position
 
-- Utöka `handleGetTimeReports` så att den även returnerar:
-  - `large_project_id`
-  - projektets namn från `large_projects`
-- Om en rapport har `large_project_id` ska API-svaret innehålla projektlabel som förstahandskälla för visning
+- Lägg till en `useState<GpsPosition | null>` (importera `GpsPosition` från `useGeofencing`)
+- Uppdatera positionen i samma callback som redan anropas vid varje GPS-uppdatering (både native och web)
+- Returnera `{ latestPosition }` istället för `void`
 
-Exempel på önskat resultat:
-```text
-time_report
- ├─ large_project_id = xxx
- ├─ large_project = Swedish Game Fair
- └─ booking = fallback-underbokning
-```
+**2. `src/components/mobile-app/MobileAppLayout.tsx`** — Kör travel detection globalt
 
-### 3. Uppdatera mobiltyperna
-**Fil:** `src/services/mobileApiService.ts`
+- Ta emot `latestPosition` från `useBackgroundLocationReporter`
+- Kör `useTravelDetection(!!staff, latestPosition)` i layouten
+- Rendera `TravelBanner` och `TravelCompletedDialog` direkt i layouten (ovanför `{children}`)
 
-- Utöka `MobileTimeReport` med:
-  - `large_project_id`
-  - ev. `large_project` / `large_project_name`
-- Så frontend kan skilja projektrapporter från vanliga bokningsrapporter
+**3. `src/pages/mobile/MobileJobs.tsx`** — Ta bort lokal travel detection
 
-### 4. Visa projektnamn före bokningsnamn på tidrapportsidan
-**Fil:** `src/pages/mobile/MobileTimeReport.tsx`
+- Ta bort `useTravelDetection`-anropet
+- Ta bort `TravelBanner` och `TravelCompletedDialog` (de renderas nu i layouten)
+- Behåll `useGeofencing` (den behövs fortfarande för geofencing/timers)
 
-- I listan “Mina tidrapporter”:
-  - visa projektnamn om `large_project_id` finns
-  - annars visa bokningsnamn som idag
-- Justera även underraden/beskrivningen så användaren tydligt ser att rapporten tillhör projektet, inte en underbokning
+**4. `src/pages/mobile/MobileProfile.tsx`** — Ta bort lokal travel detection
 
-### 5. Gör “Skapa ny tidrapport” projektsäker
-**Fil:** `src/pages/mobile/MobileTimeReport.tsx`
+- Ta bort `useTravelDetection`-anropet
+- Om travel state behövs för visning i profilen, antingen exponera via enkel context eller ta bort den visningen (det fungerar ändå inte idag)
 
-- Ändra jobbväljaren så stora projekt presenteras som ett projektval, inte som enskilda delbokningar
-- När användaren väljer ett stort projekt ska formuläret skicka:
-  - `booking_id: "project-{id}"`
-  - `large_project_id: id`
-- Vanliga jobb fortsätter fungera som idag
+### Vad som bevaras
 
-### 6. Säkerställ konsekvens i hela mobilflödet
-Berörda filer:
-- `src/pages/mobile/MobileJobDetail.tsx`
-- ev. `src/pages/mobile/MobileProjectDetail.tsx`
+- All travel detection-logik (trösklar, debounce, start/stop, API-anrop)
+- Geofencing per sida (oförändrat)
+- Background location reporting (samma hook, bara utökad med en return-value)
+- TravelBanner och TravelCompletedDialog (samma komponenter, bara flyttade till layouten)
+- Befintlig timer-logik och stoppflöde
 
-- Säkerställ att alla projektstart/stopp-flöden använder samma projektnyckel och samma sparlogik
-- Undvik att någon vy råkar skapa rapport direkt mot en delbokning när användaren egentligen är inne i ett stort projekt
+### Filer som ändras
 
-## Förväntat resultat efter ändringen
-- Stoppar du tid på “Swedish Game Fair” ska rapporten synas som “Swedish Game Fair”
-- Under huven kan `booking_id` fortfarande vara en fallback för kompatibilitet
-- Men projektkopplingen ska vara tydlig och korrekt via `large_project_id`
-- Manuell “Skapa ny tidrapport” ska också kunna spara på projektnivå, inte bara timerstopp
+| Fil | Typ |
+|-----|-----|
+| `useBackgroundLocationReporter.ts` | Utöka — exponera position |
+| `MobileAppLayout.tsx` | Utöka — travel detection + UI |
+| `MobileJobs.tsx` | Rensa — ta bort lokal travel |
+| `MobileProfile.tsx` | Rensa — ta bort lokal travel |
 
-## Tekniska detaljer
-Berörda filer:
-- `supabase/functions/mobile-app-api/index.ts`
-- `src/services/mobileApiService.ts`
-- `src/pages/mobile/MobileTimeReport.tsx`
-- eventuellt `src/pages/mobile/MobileJobDetail.tsx`
-
-Viktig princip:
-- `large_project_id` ska vara sann källa för projekttid
-- `booking_id` får bara vara kompatibilitetspekare
-- UI får aldrig prioritera fallback-bokningen framför projektnamnet när `large_project_id` finns
