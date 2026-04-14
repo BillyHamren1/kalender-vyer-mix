@@ -31,39 +31,34 @@ const FIELD_LABELS: Record<string, string> = {
   contact_email: 'Kontaktemail',
 };
 
-// Time fields that store HH:mm or ISO datetime but represent a time-of-day
+const CHANGE_TYPE_LABELS: Record<string, string> = {
+  new: 'Ny bokning skapad',
+  update: 'Bokning uppdaterad',
+  status_change: 'Status ändrad',
+};
+
 const TIME_FIELDS = new Set([
   'rig_start_time', 'rig_end_time',
   'event_start_time', 'event_end_time',
   'rigdown_start_time', 'rigdown_end_time',
 ]);
 
-function formatValue(value: unknown, fieldName?: string): string {
-  if (value === null || value === undefined || value === '') return '–';
+function formatValue(value: unknown, fieldName?: string): string | null {
+  if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
   if (typeof value === 'string') {
-    // Pure date: 2026-04-29
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      try {
-        return format(new Date(value), 'd MMM yyyy', { locale: sv });
-      } catch { /* fall through */ }
+      try { return format(new Date(value), 'd MMM yyyy', { locale: sv }); } catch { /* fall through */ }
     }
-    // ISO datetime: 2026-04-29T07:00:00...
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
       try {
         const d = new Date(value);
-        // If this is a time field, show only HH:mm
-        if (fieldName && TIME_FIELDS.has(fieldName)) {
-          return format(d, 'HH:mm');
-        }
+        if (fieldName && TIME_FIELDS.has(fieldName)) return format(d, 'HH:mm');
         return format(d, 'd MMM yyyy HH:mm', { locale: sv });
       } catch { /* fall through */ }
     }
-    // HH:mm time string
-    if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
-      return value.slice(0, 5);
-    }
-    return value || '–';
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) return value.slice(0, 5);
+    return value || null;
   }
   return String(value);
 }
@@ -83,7 +78,6 @@ const BookingChangesDetail: React.FC<BookingChangesDetailProps> = ({ bookingId }
         .order('changed_at', { ascending: false })
         .limit(1)
         .single();
-
       if (error) return null;
       return data;
     },
@@ -95,8 +89,8 @@ const BookingChangesDetail: React.FC<BookingChangesDetailProps> = ({ bookingId }
   const changedFields = change.changed_fields as Record<string, boolean>;
   const previousValues = (change.previous_values || {}) as Record<string, unknown>;
   const newValues = (change.new_values || {}) as Record<string, unknown>;
+  const isNew = change.change_type === 'new';
 
-  // Filter out internal fields
   const internalFields = new Set(['assigned_to_project', 'assigned_project_id', 'assigned_project_name', 'viewed']);
   const displayFields = Object.keys(changedFields).filter(f => changedFields[f] && !internalFields.has(f));
 
@@ -104,25 +98,46 @@ const BookingChangesDetail: React.FC<BookingChangesDetailProps> = ({ bookingId }
     return <div className="text-xs text-muted-foreground p-2">Inga synliga ändringar</div>;
   }
 
+  const changeLabel = CHANGE_TYPE_LABELS[change.change_type] || 'Ändring';
+
   return (
-    <div className="space-y-1.5 p-2">
-      <div className="text-[10px] text-muted-foreground/60 mb-1">
-        Ändrad {format(new Date(change.changed_at), 'd MMM HH:mm', { locale: sv })}
+    <div className="space-y-2 p-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-foreground">{changeLabel}</span>
+        <span className="text-[10px] text-muted-foreground/60">
+          {format(new Date(change.changed_at), 'd MMM HH:mm', { locale: sv })}
+        </span>
       </div>
-      {displayFields.map(field => {
-        const prev = formatValue(previousValues[field], field);
-        const next = formatValue(newValues[field], field);
-        return (
-          <div key={field} className="flex items-baseline gap-2 text-xs rounded-lg bg-muted/30 px-2.5 py-1.5">
-            <span className="font-medium text-foreground shrink-0 w-[110px]">
-              {FIELD_LABELS[field] || field}
-            </span>
-            <span className="text-muted-foreground/60 shrink-0">{prev}</span>
-            <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-            <span className="text-primary font-medium shrink-0">{next}</span>
-          </div>
-        );
-      })}
+
+      <div className="space-y-1">
+        {displayFields.map(field => {
+          const prev = formatValue(previousValues[field], field);
+          const next = formatValue(newValues[field], field);
+          const hasPrev = prev !== null;
+
+          return (
+            <div key={field} className="rounded-lg bg-muted/30 px-2.5 py-1.5">
+              <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                {FIELD_LABELS[field] || field}
+              </div>
+              {isNew || !hasPrev ? (
+                <div className="text-xs">
+                  <span className="text-muted-foreground/50 mr-1">Satt till:</span>
+                  <span className="text-primary font-medium">{next ?? '–'}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground/60">Från:</span>
+                  <span className="text-muted-foreground">{prev}</span>
+                  <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                  <span className="text-muted-foreground/60">Till:</span>
+                  <span className="text-primary font-medium">{next ?? '–'}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
