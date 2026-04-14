@@ -397,23 +397,26 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // 2. Project membership — find all large projects this staff belongs to
-  const { data: projectStaffRows } = await supabase
-    .from('large_project_staff')
-    .select('large_project_id')
-    .eq('staff_id', staffId)
-
-  const myProjectIds = (projectStaffRows || []).map((r: any) => r.large_project_id)
-
-  // Find all booking IDs belonging to those projects
+  // 2. Check if any BSA bookings belong to a large project → show ALL bookings in that project
+  const bsaIds = (assignments || []).map((a: any) => a.booking_id).filter((id: string) => !id.startsWith('location-'))
   let projectBookingIds: string[] = []
-  if (myProjectIds.length > 0) {
-    const { data: lpBookings } = await supabase
+  if (bsaIds.length > 0) {
+    const { data: lpLinks } = await supabase
       .from('large_project_bookings')
-      .select('booking_id')
-      .in('large_project_id', myProjectIds)
+      .select('large_project_id')
+      .in('booking_id', bsaIds)
       .eq('organization_id', organizationId)
-    projectBookingIds = (lpBookings || []).map((r: any) => r.booking_id)
+
+    const projectIds = [...new Set((lpLinks || []).map((r: any) => r.large_project_id))]
+
+    if (projectIds.length > 0) {
+      const { data: allProjectBookings } = await supabase
+        .from('large_project_bookings')
+        .select('booking_id')
+        .in('large_project_id', projectIds)
+        .eq('organization_id', organizationId)
+      projectBookingIds = (allProjectBookings || []).map((r: any) => r.booking_id)
+    }
   }
 
   const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
