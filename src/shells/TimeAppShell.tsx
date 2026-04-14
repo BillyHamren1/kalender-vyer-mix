@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { MobileAuthProvider } from '@/contexts/MobileAuthContext';
 import MobileProtectedRoute from '@/components/mobile-app/MobileProtectedRoute';
 import { ShellProvider } from './ShellContext';
+import { LanguageProvider } from '@/i18n/LanguageContext';
 import TimeAppLayout from './time/TimeAppLayout';
 
 // Time app pages
@@ -19,6 +20,7 @@ import MobileInbox from '@/pages/mobile/MobileInbox';
 const TimeAppShell: React.FC = () => {
   return (
     <ShellProvider mode="time" appName="EventFlow Time" appTagline="Tidrapportering för fältpersonal">
+      <LanguageProvider>
       <MobileAuthProvider>
         <Routes>
           <Route path="/m/login" element={<MobileLogin />} />
@@ -40,6 +42,7 @@ const TimeAppShell: React.FC = () => {
           <Route path="*" element={<Navigate to="/m" replace />} />
         </Routes>
       </MobileAuthProvider>
+      </LanguageProvider>
     </ShellProvider>
   );
 };
