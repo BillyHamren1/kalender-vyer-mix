@@ -80,6 +80,12 @@ const StaffTimeReports: React.FC = () => {
         existing.count += 1;
         monthlyByStaff.set(r.staff_id, existing);
       }
+      // Add travel hours to monthly totals
+      for (const t of travelReports) {
+        const existing = monthlyByStaff.get(t.staff_id) || { totalHours: 0, count: 0 };
+        existing.totalHours += t.hours_worked;
+        monthlyByStaff.set(t.staff_id, existing);
+      }
 
       return staff.map(s => {
         const latest = latestByStaff.get(s.id);
