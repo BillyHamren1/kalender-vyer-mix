@@ -9,6 +9,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
+import LargeProjectTeam from "@/components/project/LargeProjectTeam";
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -31,13 +32,18 @@ const LargeProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Overview dashboard */}
-      <ProjectOverviewHeader
-        tasks={tasks}
-        filesCount={files.length}
-        commentsCount={comments.length}
-        activities={[]}
-      />
+      {/* Project team + Overview dashboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <ProjectOverviewHeader
+            tasks={tasks}
+            filesCount={files.length}
+            commentsCount={comments.length}
+            activities={[]}
+          />
+        </div>
+        <LargeProjectTeam largeProjectId={project.id} />
+      </div>
 
       {/* Tabbed content */}
       <Tabs defaultValue="tasks" className="space-y-6">
