@@ -84,7 +84,7 @@ const MobileTimeReport = () => {
 
     const ot = parseFloat(overtime || '0');
     if (ot < 0) return 'Övertid kan inte vara negativ';
-    if (ot > 6) return 'Övertid kan inte överstiga 6 timmar';
+    
 
     return null;
   };

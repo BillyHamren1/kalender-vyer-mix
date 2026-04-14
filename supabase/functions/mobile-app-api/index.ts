@@ -1122,12 +1122,6 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-  if (ot > 6) {
-    return new Response(
-      JSON.stringify({ error: 'Övertid kan inte överstiga 6 timmar' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
 
   // Calculate hours server-side — never trust client value
   let rawHours = (eh + em / 60) - (sh + sm / 60)
