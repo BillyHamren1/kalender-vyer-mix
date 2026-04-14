@@ -482,7 +482,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
     if (hours > 16) return 'Arbetad tid kan inte överstiga 16 timmar';
     const ot = parseFloat(editOvertime) || 0;
     if (ot < 0) return 'Övertid kan inte vara negativ';
-    if (ot > 6) return 'Övertid kan inte överstiga 6 timmar';
+    
     return null;
   };
 
