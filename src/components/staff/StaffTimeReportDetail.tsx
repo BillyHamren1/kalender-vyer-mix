@@ -477,6 +477,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                               <AlertTriangle className="h-3.5 w-3.5" />
                             </button>
                           )}
+                          <button
+                            onClick={() => setDailyOverviewDate(report.report_date)}
+                            className="ml-1 text-muted-foreground hover:text-primary transition-colors"
+                            title="Visa dagöversikt"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -547,6 +554,16 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         date={anomalyDate}
         anomalies={dialogAnomalies}
         travelRoutes={dialogTravelRoutes}
+      />
+
+      <DailyOverviewDialog
+        open={!!dailyOverviewDate}
+        onOpenChange={(open) => !open && setDailyOverviewDate(null)}
+        date={dailyOverviewDate}
+        staffId={staffId}
+        staffName={staffName}
+        travelSegments={dailyOverviewTravel}
+        workEntries={dailyOverviewWork}
       />
     </>
   );
