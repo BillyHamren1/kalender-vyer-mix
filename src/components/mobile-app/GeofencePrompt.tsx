@@ -1,4 +1,4 @@
-import { MapPin, Play, Square, X, Building2 } from 'lucide-react';
+import { MapPin, Play, Square, X, Building2, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GeofenceEvent } from '@/hooks/useGeofencing';
 import { cn } from '@/lib/utils';
@@ -12,8 +12,14 @@ interface GeofencePromptProps {
 const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) => {
   const isEnter = event.type === 'enter';
   const isLocation = event.locationType === 'fixed';
-  const Icon = isLocation ? Building2 : MapPin;
-  const label = isLocation ? event.locationName || 'Plats' : event.booking?.client || '';
+  const isProject = event.locationType === 'project';
+
+  const Icon = isProject ? FolderOpen : isLocation ? Building2 : MapPin;
+  const label = isProject
+    ? event.largeProjectName || 'Projekt'
+    : isLocation
+      ? event.locationName || 'Plats'
+      : event.booking?.client || '';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -31,8 +37,8 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
           <div className="flex-1">
             <p className="text-white font-semibold text-sm">
               {isEnter
-                ? (isLocation ? 'Du är på plats!' : 'Du är på plats!')
-                : (isLocation ? 'Du lämnar platsen' : 'Du lämnar arbetsplatsen')}
+                ? (isProject ? 'Du är vid projektet!' : isLocation ? 'Du är på plats!' : 'Du är på plats!')
+                : (isProject ? 'Du lämnar projektet' : isLocation ? 'Du lämnar platsen' : 'Du lämnar arbetsplatsen')}
             </p>
             <p className="text-white/80 text-xs">
               {event.distance}m från {label}
@@ -47,10 +53,13 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
         <div className="p-5 space-y-4">
           <div>
             <h3 className="font-bold text-foreground">{label}</h3>
-            {!isLocation && event.booking?.booking_number && (
+            {!isLocation && !isProject && event.booking?.booking_number && (
               <p className="text-xs text-muted-foreground font-mono">#{event.booking.booking_number}</p>
             )}
-            {!isLocation && event.booking?.deliveryaddress && (
+            {!isLocation && !isProject && event.booking?.deliveryaddress && (
+              <p className="text-sm text-muted-foreground mt-1">{event.booking.deliveryaddress}</p>
+            )}
+            {isProject && event.booking?.deliveryaddress && (
               <p className="text-sm text-muted-foreground mt-1">{event.booking.deliveryaddress}</p>
             )}
             {isLocation && event.locationAddress && (
@@ -60,8 +69,8 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
 
           <p className="text-sm text-muted-foreground">
             {isEnter
-              ? (isLocation ? 'Vill du starta tidregistrering för denna plats?' : 'Vill du starta tidrapporten för detta jobb?')
-              : (isLocation ? 'Vill du avsluta tidregistreringen?' : 'Vill du avsluta tidrapporten?')}
+              ? (isProject ? 'Vill du starta tidregistrering för detta projekt?' : isLocation ? 'Vill du starta tidregistrering för denna plats?' : 'Vill du starta tidrapporten för detta jobb?')
+              : (isProject ? 'Vill du avsluta tidregistreringen för projektet?' : isLocation ? 'Vill du avsluta tidregistreringen?' : 'Vill du avsluta tidrapporten?')}
           </p>
 
           <div className="flex gap-2">
