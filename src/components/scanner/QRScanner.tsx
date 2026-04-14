@@ -30,10 +30,9 @@ interface QRScannerProps {
  *   - false → always try camera (use only when camera is explicitly desired)
  */
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
-  // Skip camera only on Android scanner builds (Zebra/DataWedge handles scanning).
-  // iOS scanner builds and web must use the camera.
   const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
   const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
+  const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +51,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     const ts = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const line = `${ts} ${msg}`;
     console.log('[QRScanner][iOS Debug]', msg);
-    setDebugSteps(prev => [...prev.slice(-14), line]);
+    setDebugSteps((prev) => [...prev.slice(-14), line]);
   }, []);
 
   // Check BarcodeDetector support on mount
@@ -63,7 +62,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (supported) {
       try {
         detectorRef.current = new (window as any).BarcodeDetector({
-          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39']
+          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39'],
         });
       } catch (e) {
         console.warn('[QRScanner] BarcodeDetector init failed:', e);
@@ -80,11 +79,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (value && value !== lastScanRef.current) {
       lastScanRef.current = value;
       onScanRef.current(value);
-      setTimeout(() => { lastScanRef.current = ''; }, 3000);
+      setTimeout(() => {
+        lastScanRef.current = '';
+      }, 3000);
     }
   }, []);
 
-  // Stop camera — stable, no deps
   const stopCamera = useCallback(() => {
     if (startingTimeoutRef.current) {
       clearTimeout(startingTimeoutRef.current);
@@ -95,7 +95,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       animationFrameRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -105,7 +105,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     lastScanRef.current = '';
   }, []);
 
-  // Scan loop — uses refs to avoid dependency issues
   const runScanLoop = useCallback(() => {
     const scan = async () => {
       if (!mountedRef.current || !videoRef.current) return;
@@ -140,7 +139,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             }
           }
         }
-      } catch (e) {
+      } catch {
         // detect() can throw on some frames, ignore and retry
       }
 
@@ -148,34 +147,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         animationFrameRef.current = requestAnimationFrame(scan);
       }
     };
+
     animationFrameRef.current = requestAnimationFrame(scan);
   }, [handleDetected]);
 
-  // Start camera — stable deps via refs
   const startCamera = useCallback(async () => {
-    const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
     pushDebug(`startCamera() BEGIN isIos=${isIos} skip=${shouldSkipCamera} platform=${Capacitor.getPlatform()}`);
 
     if (shouldSkipCamera) {
       pushDebug('shouldSkipCamera=true, aborting');
       return;
     }
+
     try {
       setError(null);
       setCameraState('starting');
       pushDebug('setCameraState("starting")');
 
-      // Safety net timeout
       if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
       startingTimeoutRef.current = setTimeout(() => {
         if (mountedRef.current) {
           const video = videoRef.current;
           pushDebug(`SAFETY TIMEOUT 15s readyState=${video?.readyState} paused=${video?.paused} w=${video?.videoWidth} h=${video?.videoHeight}`);
-          setCameraState(prev => {
+          setCameraState((prev) => {
             if (prev === 'starting') {
               setError('Kameran svarade inte. Använd hårdvaruscan eller manuell inmatning.');
               if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
+                streamRef.current.getTracks().forEach((t) => t.stop());
                 streamRef.current = null;
               }
               return 'error';
@@ -185,7 +183,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       }, 15000);
 
-      // Permission check (skip on iOS — can hang in WKWebView)
       const isIosNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
       if (Capacitor.isNativePlatform() && !isIosNative) {
         try {
@@ -198,7 +195,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             ]);
             if (status && status.state === 'denied') {
               pushDebug('Permission DENIED');
-              if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
+              if (startingTimeoutRef.current) {
+                clearTimeout(startingTimeoutRef.current);
+                startingTimeoutRef.current = null;
+              }
               setCameraState('error');
               setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
               return;
@@ -212,18 +212,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         pushDebug(`Skipping permission check (isIosNative=${isIosNative})`);
       }
 
-      // Check navigator.mediaDevices
       pushDebug(`mediaDevices=${!!navigator.mediaDevices} getUserMedia=${!!(navigator.mediaDevices?.getUserMedia)}`);
 
       if (!navigator.mediaDevices?.getUserMedia) {
         pushDebug('getUserMedia NOT available!');
-        if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
+        if (startingTimeoutRef.current) {
+          clearTimeout(startingTimeoutRef.current);
+          startingTimeoutRef.current = null;
+        }
         setCameraState('error');
         setError('Kameran stöds inte i denna webbvy (getUserMedia saknas).');
         return;
       }
 
-      // --- getUserMedia with iOS fallback ---
       const preferredConstraints: MediaStreamConstraints = {
         video: isIos
           ? { facingMode: { ideal: 'environment' } }
@@ -240,16 +241,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         audio: false,
       };
 
-      const getUserMediaWithTimeout = async (
-        mediaConstraints: MediaStreamConstraints
-      ): Promise<MediaStream> => {
-        return await Promise.race([
+      const getUserMediaWithTimeout = async (mediaConstraints: MediaStreamConstraints): Promise<MediaStream> => {
+        return Promise.race([
           navigator.mediaDevices.getUserMedia(mediaConstraints),
           new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error('getUserMedia timeout efter 10s — kameran svarar inte.')),
-              10000
-            )
+            setTimeout(() => reject(new Error('getUserMedia timeout efter 10s — kameran svarar inte.')), 10000)
           ),
         ]);
       };
@@ -277,7 +273,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       if (!mountedRef.current) {
         pushDebug('Unmounted after getUserMedia, stopping');
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach((t) => t.stop());
         return;
       }
 
@@ -288,7 +284,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         pushDebug('Setting video.srcObject');
         video.srcObject = stream;
 
-        // --- Robust video start: listen for multiple readiness signals ---
         await new Promise<void>((resolve, reject) => {
           let settled = false;
 
@@ -317,7 +312,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
           const timeout = setTimeout(() => {
             pushDebug(`Video TIMEOUT 8s readyState=${video.readyState} paused=${video.paused} w=${video.videoWidth} h=${video.videoHeight}`);
-
             if (
               video.readyState >= HTMLMediaElement.HAVE_METADATA ||
               video.videoWidth > 0 ||
@@ -352,7 +346,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           video.addEventListener('loadedmetadata', onLoadedMetadata);
           video.addEventListener('canplay', onCanPlay);
 
-          // Ensure attributes are set for iOS WKWebView
           video.setAttribute('playsinline', 'true');
           video.setAttribute('autoplay', 'true');
           video.muted = true;
@@ -361,15 +354,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           const playResult = video.play();
 
           if (playResult && typeof playResult.catch === 'function') {
-            playResult.then(() => {
-              pushDebug('video.play() promise resolved');
-            }).catch((e: any) => {
-              pushDebug(`video.play() REJECTED: ${e?.name} ${e?.message}`);
-              fail('Kameran kunde inte startas: ' + (e.message || e));
-            });
+            playResult
+              .then(() => {
+                pushDebug('video.play() promise resolved');
+              })
+              .catch((e: any) => {
+                pushDebug(`video.play() REJECTED: ${e?.name} ${e?.message}`);
+                fail('Kameran kunde inte startas: ' + (e.message || e));
+              });
           }
 
-          // If video already has metadata, resolve immediately
           if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
             pushDebug('Video already had metadata immediately');
             finish();
@@ -378,8 +372,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
         if (!mountedRef.current) return;
 
-        // Clear safety timeout
-        if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
+        if (startingTimeoutRef.current) {
+          clearTimeout(startingTimeoutRef.current);
+          startingTimeoutRef.current = null;
+        }
 
         setCameraState('running');
         pushDebug(`setCameraState("running") SUCCESS w=${video.videoWidth} h=${video.videoHeight}`);
@@ -387,12 +383,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }
     } catch (err: any) {
       pushDebug(`CATCH: ${err?.name} ${err?.message}`);
-      if (startingTimeoutRef.current) { clearTimeout(startingTimeoutRef.current); startingTimeoutRef.current = null; }
+      if (startingTimeoutRef.current) {
+        clearTimeout(startingTimeoutRef.current);
+        startingTimeoutRef.current = null;
+      }
       if (!mountedRef.current) return;
 
-      // Clean up partial stream on error
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
       if (videoRef.current) {
@@ -411,9 +409,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         setError(err.message || 'Kameran kunde inte startas.');
       }
     }
-  }, [shouldSkipCamera, runScanLoop, pushDebug]);
+  }, [isIos, pushDebug, runScanLoop, shouldSkipCamera]);
 
-  // Manual input
   const [manualInput, setManualInput] = useState('');
 
   const handleManualSubmit = useCallback(() => {
@@ -423,45 +420,54 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [manualInput, onScan]);
 
-  // Lifecycle: start/stop camera based on isActive
   useEffect(() => {
     mountedRef.current = true;
 
-    if (isActive && !shouldSkipCamera) {
-      startCamera();
-    } else {
+    if (!isActive) {
+      setError(null);
       stopCamera();
+      return () => {
+        mountedRef.current = false;
+        stopCamera();
+      };
+    }
+
+    if (shouldSkipCamera) {
+      stopCamera();
+      return () => {
+        mountedRef.current = false;
+        stopCamera();
+      };
+    }
+
+    if (isIos) {
+      stopCamera();
+      setError(null);
+      setCameraState('idle');
+      pushDebug('iOS waiting for user tap before getUserMedia');
+    } else {
+      void startCamera();
     }
 
     return () => {
       mountedRef.current = false;
       stopCamera();
     };
-  }, [isActive, shouldSkipCamera]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive, isIos, pushDebug, shouldSkipCamera, startCamera, stopCamera]);
 
   if (!isActive) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
-        <h2 className="text-lg font-semibold">
-          {shouldSkipCamera ? 'Manuell inmatning' : 'QR-skanner'}
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="text-white hover:bg-white/20"
-        >
+        <h2 className="text-lg font-semibold">{shouldSkipCamera ? 'Manuell inmatning' : 'QR-skanner'}</h2>
+        <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
           <X className="h-6 w-6" />
         </Button>
       </div>
 
-      {/* Camera view */}
       {!shouldSkipCamera && (
         <div className="flex-1 relative overflow-hidden">
-          {/* Video + canvas ALWAYS in DOM so videoRef is available during 'starting' */}
           <video
             ref={videoRef}
             className={`w-full h-full object-cover ${cameraState === 'running' ? '' : 'invisible absolute inset-0'}`}
@@ -471,33 +477,49 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           />
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Error overlay */}
+          {cameraState === 'idle' && isIos && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
+              <Camera className="h-16 w-16 mb-4 opacity-60" />
+              <p className="text-center mb-2 text-base">Tryck för att starta kameran</p>
+              <p className="text-center text-sm text-white/60 mb-6">På iPhone måste kameran startas via ett tryck i appen.</p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  pushDebug('User tapped Start Camera');
+                  void startCamera();
+                }}
+              >
+                Starta kameran
+              </Button>
+            </div>
+          )}
+
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Camera className="h-16 w-16 mb-4 opacity-50" />
-              <p className="text-center mb-2 text-base">
-                {error || 'Kameran kunde inte startas'}
-              </p>
-              <p className="text-center text-sm text-white/60 mb-6">
-                Du kan ange kod manuellt nedan.
-              </p>
-              <Button onClick={startCamera} variant="secondary">
+              <p className="text-center mb-2 text-base">{error || 'Kameran kunde inte startas'}</p>
+              <p className="text-center text-sm text-white/60 mb-6">Du kan ange kod manuellt nedan.</p>
+              <Button
+                onClick={() => {
+                  pushDebug('User tapped Retry');
+                  void startCamera();
+                }}
+                variant="secondary"
+              >
                 Försök igen
               </Button>
             </div>
           )}
 
-          {/* Starting spinner overlay */}
           {cameraState === 'starting' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
               <p className="text-center text-base">Startar kameran...</p>
-              <p className="text-center text-xs text-white/40 mt-2">Om inget händer, tryck stäng och använd hårdvaruscan.</p>
+              <p className="text-center text-xs text-white/40 mt-2">Om inget händer, använd debugpanelen längst ner.</p>
             </div>
           )}
 
-          {/* Scanning overlay — visible when running */}
-          {(cameraState === 'running') && (
+          {cameraState === 'running' && (
             <>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
@@ -522,22 +544,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       )}
 
-      {/* Scanner mode info */}
       {shouldSkipCamera && (
         <div className="flex-1 flex flex-col items-center justify-center text-white p-6">
           <Radio className="h-16 w-16 mb-4 opacity-60" />
           <p className="text-center text-lg font-medium mb-2">Använd Zebra-skannern</p>
-          <p className="text-center text-sm text-white/60">
-            Tryck på skanningsknappen på enheten, eller ange kod manuellt nedan.
-          </p>
+          <p className="text-center text-sm text-white/60">Tryck på skanningsknappen på enheten, eller ange kod manuellt nedan.</p>
         </div>
       )}
 
-      {/* Manual input — always available */}
       <div className="p-4 bg-black/80 safe-area-bottom">
-        <p className="text-white text-sm text-center mb-2">
-          {shouldSkipCamera ? 'Ange kod manuellt:' : 'Eller ange kod manuellt:'}
-        </p>
+        <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Ange kod manuellt:' : 'Eller ange kod manuellt:'}</p>
         <div className="flex gap-2">
           <input
             type="text"
@@ -554,8 +570,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       </div>
 
-      {/* iOS Debug Panel — visible on-screen */}
-      {debugSteps.length > 0 && (
+      {isIos && debugSteps.length > 0 && (
         <div
           style={{
             position: 'absolute',
