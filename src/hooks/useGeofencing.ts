@@ -350,7 +350,6 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       });
       return next;
     });
-    return true;
     triggeredEnterRef.current.add(key);
 
     // If it's a fixed location manual start, call the API
@@ -359,6 +358,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         console.warn('Failed to start location timer on server:', err);
       });
     }
+    return true;
   }, []);
 
   const stopTimer = useCallback((bookingId: string): ActiveTimer | null => {
