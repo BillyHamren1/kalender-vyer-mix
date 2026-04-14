@@ -363,7 +363,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       return next;
     });
     triggeredExitRef.current.add(bookingId);
-    triggeredEnterRef.current.delete(bookingId);
+    // Keep bookingId in triggeredEnterRef so geofence doesn't re-trigger immediately
+    triggeredEnterRef.current.add(bookingId);
 
     // If it's a fixed location, stop on server
     if (stopped?.locationId) {
