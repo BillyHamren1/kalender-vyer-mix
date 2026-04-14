@@ -140,6 +140,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           approved: r.approved,
           booking_client: lpName || r.bookings?.client || '-',
           booking_number: lpName ? null : (r.bookings?.booking_number || null),
+          booking_id: r.booking_id || null,
           type: 'work' as const,
         };
       });
@@ -161,6 +162,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           approved: null,
           booking_client: clientLabel,
           booking_number: null,
+          booking_id: t.destination_booking_id || null,
           type: 'travel' as const,
         };
       });
