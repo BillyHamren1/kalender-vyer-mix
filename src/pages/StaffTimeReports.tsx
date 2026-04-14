@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
 
 interface StaffWithLatestReport {
   id: string;
@@ -22,11 +23,14 @@ interface StaffWithLatestReport {
 const StaffTimeReports: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+
+  const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
   const { data: staffList = [], isLoading } = useQuery({
-    queryKey: ['staff-time-reports-overview'],
+    queryKey: ['staff-time-reports-overview', monthStart],
     queryFn: async (): Promise<StaffWithLatestReport[]> => {
-      // Fetch all active staff
       const { data: staff, error: staffError } = await supabase
         .from('staff_members')
         .select('id, name, role, color')
@@ -35,11 +39,6 @@ const StaffTimeReports: React.FC = () => {
 
       if (staffError) throw staffError;
       if (!staff) return [];
-
-      // Fetch latest time report per staff + this month's totals + travel logs
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
       const [reportsRes, latestRes, travelRes] = await Promise.all([
         supabase
@@ -65,7 +64,6 @@ const StaffTimeReports: React.FC = () => {
       const latestReports = latestRes.data;
       const travelReports = travelRes.data || [];
 
-      // Build lookup maps
       const latestByStaff = new Map<string, { date: string; hours: number }>();
       for (const r of latestReports || []) {
         if (!latestByStaff.has(r.staff_id)) {
@@ -80,7 +78,6 @@ const StaffTimeReports: React.FC = () => {
         existing.count += 1;
         monthlyByStaff.set(r.staff_id, existing);
       }
-      // Add travel hours to monthly totals
       for (const t of travelReports) {
         const existing = monthlyByStaff.get(t.staff_id) || { totalHours: 0, count: 0 };
         existing.totalHours += t.hours_worked;
@@ -138,6 +135,8 @@ const StaffTimeReports: React.FC = () => {
           setSelectedStaffId(id);
           setSelectedStaffName(name);
         }}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
       />
     </PageContainer>
   );
