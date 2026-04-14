@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { updateBookingDatesViaApi } from "@/services/planningApiService";
