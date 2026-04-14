@@ -66,11 +66,44 @@ const MobileTimeReport = () => {
     return (eh + em / 60) < (sh + sm / 60);
   })();
 
+  // Build project-aware job options for the form
+  const jobOptions = (() => {
+    const options: { value: string; label: string; isProject?: boolean; largeProjectId?: string }[] = [];
+    const seenProjectIds = new Set<string>();
+
+    // Add large projects (deduplicated)
+    for (const b of bookings) {
+      if (b.large_project_id && b.large_project_name && !seenProjectIds.has(b.large_project_id)) {
+        seenProjectIds.add(b.large_project_id);
+        options.push({
+          value: `project-${b.large_project_id}`,
+          label: `📁 ${b.large_project_name}`,
+          isProject: true,
+          largeProjectId: b.large_project_id,
+        });
+      }
+    }
+
+    // Add standalone bookings (not part of a large project)
+    for (const b of bookings) {
+      if (!b.large_project_id) {
+        options.push({
+          value: b.id,
+          label: `${b.client}${b.booking_number ? ` #${b.booking_number}` : ''}`,
+        });
+      }
+    }
+
+    return options;
+  })();
+
   const handleSubmit = async () => {
     if (!selectedBookingId) {
       toast.error('Välj ett jobb');
       return;
     }
+
+    const selectedOption = jobOptions.find(o => o.value === selectedBookingId);
 
     setIsSaving(true);
     try {
@@ -83,6 +116,7 @@ const MobileTimeReport = () => {
         overtime_hours: parseFloat(overtime || '0'),
         break_time: parseFloat(breakTime || '0'),
         description: description || undefined,
+        large_project_id: selectedOption?.largeProjectId,
       });
       toast.success('Tidrapport skapad!');
       invalidateTimeReports();
@@ -264,12 +298,12 @@ const MobileTimeReport = () => {
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
                 <SelectTrigger className="h-12 rounded-xl text-sm bg-muted/40 border-border">
-                  <SelectValue placeholder="Välj jobb..." />
+                  <SelectValue placeholder="Välj jobb eller projekt..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {bookings.map(b => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.client} {b.booking_number ? `#${b.booking_number}` : ''}
+                  {jobOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -393,7 +427,7 @@ const MobileTimeReport = () => {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {r.bookings?.client || 'Okänt jobb'}
+                          {r.large_project_name || r.bookings?.client || 'Okänt jobb'}
                         </p>
                         {r.description && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>
