@@ -208,21 +208,24 @@ const MobileJobs = () => {
             const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
               const badge = eventTypeBadge(booking, date);
               const hasTimer = activeTimers.has(booking.id);
+              const timer = activeTimers.get(booking.id);
               const nearby = nearbyBookings.find(n => n.id === booking.id);
 
               return (
-                <button
+                <div
                   key={`${booking.id}-${date}`}
-                  onClick={() => navigate(`/m/job/${booking.id}`)}
                   className={cn(
-                    "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
+                    "w-full rounded-2xl border bg-card p-3.5 transition-all duration-150",
                     hasTimer
                       ? "border-primary/30 shadow-md ring-1 ring-primary/10"
                       : "border-primary/20 shadow-md",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => navigate(`/m/job/${booking.id}`)}
+                      className="flex-1 min-w-0 text-left active:opacity-70"
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <span className={cn(
                           "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
@@ -234,12 +237,6 @@ const MobileJobs = () => {
                           <span className="text-[11px] font-mono text-muted-foreground/50">
                             #{booking.booking_number}
                           </span>
-                        )}
-                        {hasTimer && (
-                          <div className="flex items-center gap-1 ml-auto">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                            <span className="text-[10px] text-primary font-bold">AKTIV</span>
-                          </div>
                         )}
                       </div>
                       <h3 className="font-bold text-foreground text-[15px] leading-snug mb-1">
@@ -257,10 +254,26 @@ const MobileJobs = () => {
                           <span>{nearby.distance}m bort</span>
                         </div>
                       )}
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                      {hasTimer && timer && (
+                        <p className="text-xs font-mono text-primary font-bold mt-1">
+                          ⏱ {formatElapsed(timer.startTime)}
+                        </p>
+                      )}
+                    </button>
+                    {/* Timer toggle button */}
+                    <button
+                      onClick={(e) => handleTimerToggle(e, booking.id, booking.client)}
+                      className={cn(
+                        "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                        hasTimer
+                          ? "bg-amber-500 text-white shadow-md"
+                          : "bg-primary/10 text-primary hover:bg-primary/20"
+                      )}
+                    >
+                      {hasTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             };
 
@@ -277,14 +290,26 @@ const MobileJobs = () => {
                 </div>
                 <div className="space-y-2">
                   {/* Project-grouped bookings */}
-                  {Object.entries(projectGroups).map(([lpId, group]) => (
-                      <button
+                  {Object.entries(projectGroups).map(([lpId, group]) => {
+                    const projectKey = `project-${lpId}`;
+                    const hasProjectTimer = activeTimers.has(projectKey);
+                    const projectTimer = activeTimers.get(projectKey);
+
+                    return (
+                      <div
                         key={lpId}
-                        onClick={() => navigate(`/m/project/${lpId}`)}
-                        className="w-full text-left rounded-2xl border border-primary/20 bg-card shadow-md p-3.5 transition-all duration-150 active:scale-[0.98]"
+                        className={cn(
+                          "w-full rounded-2xl border bg-card shadow-md p-3.5 transition-all duration-150",
+                          hasProjectTimer
+                            ? "border-primary/30 ring-1 ring-primary/10"
+                            : "border-primary/20",
+                        )}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() => navigate(`/m/project/${lpId}`)}
+                            className="flex-1 min-w-0 text-left active:opacity-70"
+                          >
                             <div className="flex items-center gap-2 mb-1">
                               <FolderOpen className="w-3.5 h-3.5 text-primary/70" />
                               <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
@@ -297,11 +322,28 @@ const MobileJobs = () => {
                             <p className="text-xs text-muted-foreground">
                               {group.entries.length} bokningar
                             </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
+                            {hasProjectTimer && projectTimer && (
+                              <p className="text-xs font-mono text-primary font-bold mt-1">
+                                ⏱ {formatElapsed(projectTimer.startTime)}
+                              </p>
+                            )}
+                          </button>
+                          {/* Timer toggle button */}
+                          <button
+                            onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
+                            className={cn(
+                              "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                              hasProjectTimer
+                                ? "bg-amber-500 text-white shadow-md"
+                                : "bg-primary/10 text-primary hover:bg-primary/20"
+                            )}
+                          >
+                            {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                          </button>
                         </div>
-                      </button>
-                  ))}
+                      </div>
+                    );
+                  })}
                   {/* Standalone bookings */}
                   {standalone.map(renderBookingCard)}
                 </div>
