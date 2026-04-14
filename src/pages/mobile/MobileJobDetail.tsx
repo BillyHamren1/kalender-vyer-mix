@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
-import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { useGeofencing, ActiveTimer, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
@@ -17,6 +17,7 @@ import JobPhotosTab from '@/components/mobile-app/job-tabs/JobPhotosTab';
 import JobCostsTab from '@/components/mobile-app/job-tabs/JobCostsTab';
 import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 import { CheckCircle2 } from 'lucide-react';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
 const tabs = ['Info', 'Team', 'Bilder', 'Kostnader', 'Tid'] as const;
 type TabKey = typeof tabs[number];
@@ -37,9 +38,10 @@ const MobileJobDetail = () => {
   const [timerElapsed, setTimerElapsed] = useState(0);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
+  const { activeTimers, userPosition, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
