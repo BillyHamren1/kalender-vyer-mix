@@ -12,7 +12,7 @@ import TravelCompletedDialog from '@/components/mobile-app/TravelCompletedDialog
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Eye } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -150,7 +150,6 @@ const MobileJobs = () => {
               const badge = eventTypeBadge(booking, date);
               const hasTimer = activeTimers.has(booking.id);
               const nearby = nearbyBookings.find(n => n.id === booking.id);
-              const isProjectMember = booking.assignment_type === 'project_member';
 
               return (
                 <button
@@ -160,26 +159,18 @@ const MobileJobs = () => {
                     "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
                     hasTimer
                       ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                      : isProjectMember
-                        ? "border-border/40 shadow-sm opacity-60"
-                        : "border-primary/20 shadow-md",
+                      : "border-primary/20 shadow-md",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        {isProjectMember ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-muted text-muted-foreground border-border">
-                            I PROJEKTET
-                          </span>
-                        ) : (
-                          <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
-                            badge.className
-                          )}>
-                            {badge.label}
-                          </span>
-                        )}
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
+                          badge.className
+                        )}>
+                          {badge.label}
+                        </span>
                         {booking.booking_number && (
                           <span className="text-[11px] font-mono text-muted-foreground/50">
                             #{booking.booking_number}
@@ -208,11 +199,7 @@ const MobileJobs = () => {
                         </div>
                       )}
                     </div>
-                    {isProjectMember ? (
-                      <Eye className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
-                    )}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
                   </div>
                 </button>
               );
@@ -231,9 +218,7 @@ const MobileJobs = () => {
                 </div>
                 <div className="space-y-2">
                   {/* Project-grouped bookings */}
-                  {Object.entries(projectGroups).map(([lpId, group]) => {
-                    const scheduledCount = group.entries.filter(e => e.booking.assignment_type === 'scheduled').length;
-                    return (
+                  {Object.entries(projectGroups).map(([lpId, group]) => (
                       <button
                         key={lpId}
                         onClick={() => navigate(`/m/project/${lpId}`)}
@@ -251,14 +236,13 @@ const MobileJobs = () => {
                               {group.name}
                             </h3>
                             <p className="text-xs text-muted-foreground">
-                              {group.entries.length} bokningar · {scheduledCount} schemalagda för dig
+                              {group.entries.length} bokningar
                             </p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
                         </div>
                       </button>
-                    );
-                  })}
+                  ))}
                   {/* Standalone bookings */}
                   {standalone.map(renderBookingCard)}
                 </div>

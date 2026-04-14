@@ -377,7 +377,12 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // ─── VISIBILITY RULE ───────────────────────────────────────────────
   // Two sources of visibility:
   //   1. booking_staff_assignments (BSA) → scheduled work
-  //   2. large_project_staff → project membership (all bookings visible)
+  // ──────────────────────────────────────────────────────────────────
+  // Visibility rule (date-driven):
+  //   - Only REAL team assignments (team_id not in 'project','location') count as "scheduled"
+  //   - If a user is scheduled on a project booking on date X,
+  //     they see ALL bookings in that project whose dates include X
+  //   - Project membership alone does NOT grant visibility
   // ──────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
@@ -397,46 +402,56 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // 2. Discover large projects via TWO paths:
-  //    a) BSA entries that link to a large project booking
-  //    b) Direct membership in large_project_staff (the authoritative source)
-  const bsaIds = (assignments || []).map((a: any) => a.booking_id).filter((id: string) => !id.startsWith('location-'))
+  // Separate real scheduling assignments from project-visibility-only ones
+  const realAssignments = (assignments || []).filter((a: any) => a.team_id !== 'project' && a.team_id !== 'location')
+  const realBsaBookingIds = new Set(realAssignments.map((a: any) => a.booking_id))
 
-  // Path A: BSA → large_project_bookings
-  let projectIdsFromBsa: string[] = []
-  if (bsaIds.length > 0) {
+  // Build a map of booking_id → Set of real scheduled dates
+  const bookingScheduledDates: Record<string, Set<string>> = {}
+  for (const a of realAssignments) {
+    if (!a.booking_id.startsWith('location-')) {
+      if (!bookingScheduledDates[a.booking_id]) bookingScheduledDates[a.booking_id] = new Set()
+      bookingScheduledDates[a.booking_id].add(a.assignment_date)
+    }
+  }
+
+  // Discover which large projects the user has REAL assignments in
+  const realBsaIds = [...realBsaBookingIds].filter((id: string) => !id.startsWith('location-'))
+  let scheduledProjectDates: Record<string, Set<string>> = {} // project_id → Set of dates
+
+  if (realBsaIds.length > 0) {
     const { data: lpLinks } = await supabase
       .from('large_project_bookings')
-      .select('large_project_id')
-      .in('booking_id', bsaIds)
+      .select('large_project_id, booking_id')
+      .in('booking_id', realBsaIds)
       .eq('organization_id', organizationId)
-    projectIdsFromBsa = (lpLinks || []).map((r: any) => r.large_project_id)
+
+    // For each project booking with a real assignment, record the scheduled dates
+    for (const link of (lpLinks || [])) {
+      const dates = bookingScheduledDates[link.booking_id]
+      if (dates) {
+        if (!scheduledProjectDates[link.large_project_id]) scheduledProjectDates[link.large_project_id] = new Set()
+        for (const d of dates) scheduledProjectDates[link.large_project_id].add(d)
+      }
+    }
   }
 
-  // Path B: Direct large_project_staff membership
-  const { data: staffProjects } = await supabase
-    .from('large_project_staff')
-    .select('large_project_id')
-    .eq('staff_id', staffId)
-    .eq('organization_id', organizationId)
-  const projectIdsFromStaff = (staffProjects || []).map((r: any) => r.large_project_id)
-
-  // Merge both paths — these are all projects the user belongs to
-  const memberProjectIds = [...new Set([...projectIdsFromBsa, ...projectIdsFromStaff])]
-
-  // Fetch ALL bookings in those projects
+  // For each project with scheduled dates, fetch ALL bookings in the project
+  const projectIds = Object.keys(scheduledProjectDates)
   let projectBookingIds: string[] = []
-  if (memberProjectIds.length > 0) {
+  let projectBookingToProject: Record<string, string> = {} // booking_id → project_id
+
+  if (projectIds.length > 0) {
     const { data: allProjectBookings } = await supabase
       .from('large_project_bookings')
-      .select('booking_id')
-      .in('large_project_id', memberProjectIds)
+      .select('booking_id, large_project_id')
+      .in('large_project_id', projectIds)
       .eq('organization_id', organizationId)
-    projectBookingIds = (allProjectBookings || []).map((r: any) => r.booking_id)
+    for (const pb of (allProjectBookings || [])) {
+      projectBookingIds.push(pb.booking_id)
+      projectBookingToProject[pb.booking_id] = pb.large_project_id
+    }
   }
-
-  // Track which project IDs the user is a member of (for assignment_type logic)
-  const memberProjectIdSet = new Set(memberProjectIds)
 
   const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
   const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds])]
@@ -502,15 +517,26 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
+      const hasRealAssignment = realBsaBookingIds.has(booking.id)
 
-      // A booking is "scheduled" if:
-      //   - user is a member of the large project it belongs to (all bookings = theirs), OR
-      //   - user has a direct BSA entry for it (calendar assignment outside large projects)
-      const isProjectMember = booking.large_project_id && memberProjectIdSet.has(booking.large_project_id)
-      const isScheduled = isProjectMember || bsaBookingIds.has(booking.id)
+      // For project bookings discovered via expansion: only include dates the user is actually scheduled on
+      let assignmentDates: string[] = []
+      if (hasRealAssignment) {
+        // Directly assigned: use real assignment dates
+        assignmentDates = bookingAssignments
+          .filter((a: any) => a.team_id !== 'project')
+          .map((a: any) => a.assignment_date)
+        if (assignmentDates.length === 0) {
+          assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
+        }
+      } else if (booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
+        // Project-expanded booking: intersect project scheduled dates with booking's own dates
+        const bookingDates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
+        const projectDates = scheduledProjectDates[booking.large_project_id]
+        assignmentDates = bookingDates.filter((d: string) => projectDates.has(d))
+      }
 
-      // Build assignment_dates: from BSA rows if available, otherwise from booking dates
-      let assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
+      // If no dates matched (shouldn't happen but safety), fall back
       if (assignmentDates.length === 0) {
         const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
         assignmentDates = dates.length > 0 ? dates : [today]
@@ -520,8 +546,18 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         ...booking,
         large_project_name: booking.large_project_id ? (largeProjectNameMap[booking.large_project_id] || null) : null,
         assignment_dates: assignmentDates,
-        assignment_type: isScheduled ? 'scheduled' : 'project_member',
+        assignment_type: 'scheduled',
       }
+    })
+
+    // Filter out project-expanded bookings that have no matching dates
+    // (booking dates don't overlap with the user's scheduled project dates)
+    bookingsWithAssignments = bookingsWithAssignments.filter((b: any) => {
+      if (!b.large_project_id || realBsaBookingIds.has(b.id)) return true
+      // For expanded bookings: only keep if at least one assignment date is a real scheduled project date
+      const projectDates = scheduledProjectDates[b.large_project_id]
+      if (!projectDates) return false
+      return b.assignment_dates.some((d: string) => projectDates.has(d))
     })
   }
 
