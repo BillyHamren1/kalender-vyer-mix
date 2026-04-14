@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
 import { AnomalyDialog } from './AnomalyDialog';
+import { DailyOverviewDialog } from './DailyOverviewDialog';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
