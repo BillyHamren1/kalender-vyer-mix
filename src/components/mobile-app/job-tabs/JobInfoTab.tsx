@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote, MessageSquare, Send, Loader2, Truck, Package, Users, CheckSquare } from 'lucide-react';
-import InspectionWizard from '@/components/mobile-app/inspection/InspectionWizard';
+import { Calendar, ChevronDown, ChevronRight, Clock, FileText, StickyNote, MessageSquare, Send, Loader2, Truck, Package, Users, CheckSquare } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -395,7 +394,6 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
 // --- Main component ---
 
 const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated, onTaskToggled }: JobInfoTabProps) => {
-  const [showInspection, setShowInspection] = useState(false);
   const products: ProductItem[] = booking.products || [];
   const groups = groupProducts(products);
   const comments = booking.project?.comments || [];
@@ -459,19 +457,6 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
             ))}
           </div>
         </div>
-      )}
-      {/* Inspection button */}
-      <button
-        type="button"
-        onClick={() => setShowInspection(true)}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-[0.98] transition-all shadow-md"
-      >
-        <ClipboardCheck className="w-4.5 h-4.5" />
-        Skapa besiktning
-      </button>
-
-      {showInspection && (
-        <InspectionWizard bookingId={bookingId} onClose={() => setShowInspection(false)} />
       )}
     </div>
   );
