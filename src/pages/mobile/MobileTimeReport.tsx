@@ -107,9 +107,40 @@ const MobileTimeReport = () => {
                 isLocation={!!timer.locationId}
                 onStop={async () => {
                   if (timer.locationId) {
-                    // Location timer — just stop, server handles time entry
-                    stopTimer(key);
-                    toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
+                    // Location timer — check if it's a project (id starts with location-)
+                    // For location projects, create a time report just like bookings
+                    const isLocationProject = bookings.some(b => b.id === key);
+                    
+                    if (isLocationProject) {
+                      // Location project — create time report
+                      const stopTime = new Date();
+                      const startTimeDate = parseISO(timer.startTime);
+                      let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                      if (totalHours < 0) totalHours += 24;
+                      const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
+                      stopTimer(key);
+
+                      try {
+                        await mobileApi.createTimeReport({
+                          booking_id: key,
+                          report_date: format(new Date(), 'yyyy-MM-dd'),
+                          start_time: format(startTimeDate, 'HH:mm'),
+                          end_time: format(stopTime, 'HH:mm'),
+                          hours_worked: hoursWorked,
+                          break_time: breakDeduction,
+                          description: `Timer: ${timer.locationName || timer.client}`,
+                        });
+                        toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                      } catch (err: any) {
+                        toast.error(err.message || 'Kunde inte spara tidrapport');
+                      }
+                    } else {
+                      // Regular location timer — just stop, server handles location_time_entry
+                      stopTimer(key);
+                      toast.success(`Tid på ${timer.locationName || timer.client} stoppad`);
+                    }
                   } else {
                     // Booking timer — create time report
                     const stopTime = new Date();

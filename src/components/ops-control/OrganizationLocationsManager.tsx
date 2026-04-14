@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -21,7 +22,7 @@ const OrganizationLocationsManager = () => {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100' });
+  const [form, setForm] = useState({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100', show_as_project: false });
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery({
@@ -61,7 +62,7 @@ const OrganizationLocationsManager = () => {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingId(null);
-    setForm({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100' });
+    setForm({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100', show_as_project: false });
   };
 
   const openEdit = (loc: OrganizationLocation) => {
@@ -72,6 +73,7 @@ const OrganizationLocationsManager = () => {
       latitude: String(loc.latitude),
       longitude: String(loc.longitude),
       radius_meters: String(loc.radius_meters),
+      show_as_project: loc.show_as_project || false,
     });
     setDialogOpen(true);
   };
@@ -134,6 +136,7 @@ const OrganizationLocationsManager = () => {
       latitude: lat,
       longitude: lng,
       radius_meters: parseInt(form.radius_meters.replace(',', '.')) || 100,
+      show_as_project: form.show_as_project,
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, updates: payload });
@@ -174,6 +177,9 @@ const OrganizationLocationsManager = () => {
               <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] h-5">
                 {loc.radius_meters}m
               </Badge>
+              {loc.show_as_project && (
+                <Badge variant="outline" className="text-[10px] h-5 text-primary border-primary/30">Tidprojekt</Badge>
+              )}
               {!loc.is_active && (
                 <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">Inaktiv</Badge>
               )}
@@ -236,6 +242,13 @@ const OrganizationLocationsManager = () => {
             <div>
               <Label className="text-xs">Radie (meter)</Label>
               <Input type="text" inputMode="numeric" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <Label className="text-xs">Visa som projekt i tidappen</Label>
+                <p className="text-[10px] text-muted-foreground">Alla personal kan registrera tid här som ett vanligt jobb</p>
+              </div>
+              <Switch checked={form.show_as_project} onCheckedChange={v => setForm(f => ({ ...f, show_as_project: v }))} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>

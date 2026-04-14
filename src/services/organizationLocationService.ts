@@ -9,6 +9,7 @@ export interface OrganizationLocation {
   longitude: number;
   radius_meters: number;
   is_active: boolean;
+  show_as_project: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +41,7 @@ export async function createOrganizationLocation(loc: {
   latitude: number;
   longitude: number;
   radius_meters?: number;
+  show_as_project?: boolean;
 }): Promise<OrganizationLocation> {
   const { data, error } = await supabase
     .from('organization_locations')
@@ -49,6 +51,7 @@ export async function createOrganizationLocation(loc: {
       latitude: loc.latitude,
       longitude: loc.longitude,
       radius_meters: loc.radius_meters || 100,
+      show_as_project: loc.show_as_project || false,
     } as any)
     .select()
     .single();
@@ -64,6 +67,7 @@ export async function updateOrganizationLocation(id: string, updates: {
   longitude?: number;
   radius_meters?: number;
   is_active?: boolean;
+  show_as_project?: boolean;
 }): Promise<OrganizationLocation> {
   const { data, error } = await supabase
     .from('organization_locations')

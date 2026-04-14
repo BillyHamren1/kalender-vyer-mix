@@ -400,60 +400,89 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
   const bookingIds = [...new Set((assignments || []).map((a: any) => a.booking_id))]
 
-  if (bookingIds.length === 0) {
-    return new Response(
-      JSON.stringify({ bookings: [] }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+  // Separate location-based booking IDs from real booking IDs
+  const locationBookingIds = bookingIds.filter(id => id.startsWith('location-'))
+  const realBookingIds = bookingIds.filter(id => !id.startsWith('location-'))
 
-  const { data: bookings, error: bookingsError } = await supabase
-    .from('bookings')
-    .select(`
-      id,
-      client,
-      booking_number,
-      status,
-      deliveryaddress,
-      delivery_city,
-      delivery_postal_code,
-      delivery_latitude,
-      delivery_longitude,
-      rigdaydate,
-      eventdate,
-      rigdowndate,
-      rig_start_time,
-      rig_end_time,
-      event_start_time,
-      event_end_time,
-      rigdown_start_time,
-      rigdown_end_time,
-      internalnotes,
-      assigned_project_id,
-      assigned_project_name
-    `)
-    .in('id', bookingIds)
-    .eq('status', 'CONFIRMED')
-    .order('rigdaydate', { ascending: true })
+  let bookingsWithAssignments: any[] = []
 
-  if (bookingsError) {
-    console.error('Bookings query error:', bookingsError)
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch bookings' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+  // Fetch real bookings
+  if (realBookingIds.length > 0) {
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        client,
+        booking_number,
+        status,
+        deliveryaddress,
+        delivery_city,
+        delivery_postal_code,
+        delivery_latitude,
+        delivery_longitude,
+        rigdaydate,
+        eventdate,
+        rigdowndate,
+        rig_start_time,
+        rig_end_time,
+        event_start_time,
+        event_end_time,
+        rigdown_start_time,
+        rigdown_end_time,
+        internalnotes,
+        assigned_project_id,
+        assigned_project_name
+      `)
+      .in('id', realBookingIds)
+      .eq('status', 'CONFIRMED')
+      .order('rigdaydate', { ascending: true })
 
-  const bookingsWithAssignments = bookings?.map((booking: any) => {
-    const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
-    return {
-      ...booking,
-      assignment_dates: bookingAssignments.map((a: any) => a.assignment_date)
+    if (bookingsError) {
+      console.error('Bookings query error:', bookingsError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch bookings' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-  })
+
+    bookingsWithAssignments = (bookings || []).map((booking: any) => {
+      const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
+      return {
+        ...booking,
+        assignment_dates: bookingAssignments.map((a: any) => a.assignment_date)
+      }
+    })
+  }
+
+  // Fetch location projects (show_as_project = true)
+  if (locationBookingIds.length > 0) {
+    const locationIds = locationBookingIds.map(id => id.replace('location-', ''))
+    const { data: locations } = await supabase
+      .from('organization_locations')
+      .select('id, name, address, latitude, longitude, radius_meters')
+      .in('id', locationIds)
+      .eq('is_active', true)
+      .eq('show_as_project', true)
+      .eq('organization_id', organizationId)
+
+    for (const loc of (locations || [])) {
+      bookingsWithAssignments.push({
+        id: `location-${loc.id}`,
+        client: loc.name,
+        booking_number: null,
+        status: 'CONFIRMED',
+        deliveryaddress: loc.address,
+        delivery_latitude: loc.latitude,
+        delivery_longitude: loc.longitude,
+        is_location_project: true,
+        location_id: loc.id,
+        assignment_dates: [new Date().toISOString().split('T')[0]],
+      })
+    }
+  }
 
   return new Response(
-    JSON.stringify({ bookings: bookingsWithAssignments || [] }),
+    JSON.stringify({ bookings: bookingsWithAssignments }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
@@ -826,19 +855,39 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Verify staff is assigned to this booking via booking_staff_assignments (single source of truth)
-  const { data: assignment } = await supabase
-    .from('booking_staff_assignments')
-    .select('id')
-    .eq('staff_id', staffId)
-    .eq('booking_id', booking_id)
-    .limit(1)
+  // Location projects: verify the location exists and show_as_project is true
+  if (booking_id.startsWith('location-')) {
+    const locationId = booking_id.replace('location-', '')
+    const { data: locData } = await supabase
+      .from('organization_locations')
+      .select('id')
+      .eq('id', locationId)
+      .eq('organization_id', organizationId)
+      .eq('show_as_project', true)
+      .eq('is_active', true)
+      .maybeSingle()
 
-  if (!assignment || assignment.length === 0) {
-    return new Response(
-      JSON.stringify({ error: 'You are not assigned to this booking' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    if (!locData) {
+      return new Response(
+        JSON.stringify({ error: 'Location project not found or not active' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  } else {
+    // Verify staff is assigned to this booking via booking_staff_assignments (single source of truth)
+    const { data: assignment } = await supabase
+      .from('booking_staff_assignments')
+      .select('id')
+      .eq('staff_id', staffId)
+      .eq('booking_id', booking_id)
+      .limit(1)
+
+    if (!assignment || assignment.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'You are not assigned to this booking' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
   }
 
   // Create time report — booking_id is always the primary link, establishment_task_id is optional traceability
