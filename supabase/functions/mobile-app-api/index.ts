@@ -397,27 +397,46 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     )
   }
 
-  // 2. Check if any BSA bookings belong to a large project → show ALL bookings in that project
+  // 2. Discover large projects via TWO paths:
+  //    a) BSA entries that link to a large project booking
+  //    b) Direct membership in large_project_staff (the authoritative source)
   const bsaIds = (assignments || []).map((a: any) => a.booking_id).filter((id: string) => !id.startsWith('location-'))
-  let projectBookingIds: string[] = []
+
+  // Path A: BSA → large_project_bookings
+  let projectIdsFromBsa: string[] = []
   if (bsaIds.length > 0) {
     const { data: lpLinks } = await supabase
       .from('large_project_bookings')
       .select('large_project_id')
       .in('booking_id', bsaIds)
       .eq('organization_id', organizationId)
-
-    const projectIds = [...new Set((lpLinks || []).map((r: any) => r.large_project_id))]
-
-    if (projectIds.length > 0) {
-      const { data: allProjectBookings } = await supabase
-        .from('large_project_bookings')
-        .select('booking_id')
-        .in('large_project_id', projectIds)
-        .eq('organization_id', organizationId)
-      projectBookingIds = (allProjectBookings || []).map((r: any) => r.booking_id)
-    }
+    projectIdsFromBsa = (lpLinks || []).map((r: any) => r.large_project_id)
   }
+
+  // Path B: Direct large_project_staff membership
+  const { data: staffProjects } = await supabase
+    .from('large_project_staff')
+    .select('large_project_id')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+  const projectIdsFromStaff = (staffProjects || []).map((r: any) => r.large_project_id)
+
+  // Merge both paths — these are all projects the user belongs to
+  const memberProjectIds = [...new Set([...projectIdsFromBsa, ...projectIdsFromStaff])]
+
+  // Fetch ALL bookings in those projects
+  let projectBookingIds: string[] = []
+  if (memberProjectIds.length > 0) {
+    const { data: allProjectBookings } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .in('large_project_id', memberProjectIds)
+      .eq('organization_id', organizationId)
+    projectBookingIds = (allProjectBookings || []).map((r: any) => r.booking_id)
+  }
+
+  // Track which project IDs the user is a member of (for assignment_type logic)
+  const memberProjectIdSet = new Set(memberProjectIds)
 
   const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
   const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds])]
@@ -483,12 +502,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
-      const isScheduled = bsaBookingIds.has(booking.id)
 
-      // For project-member-only bookings, use all booking dates as assignment_dates
+      // A booking is "scheduled" if:
+      //   - user is a member of the large project it belongs to (all bookings = theirs), OR
+      //   - user has a direct BSA entry for it (calendar assignment outside large projects)
+      const isProjectMember = booking.large_project_id && memberProjectIdSet.has(booking.large_project_id)
+      const isScheduled = isProjectMember || bsaBookingIds.has(booking.id)
+
+      // Build assignment_dates: from BSA rows if available, otherwise from booking dates
       let assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
-      if (!isScheduled && assignmentDates.length === 0) {
-        // Add all known dates so the booking appears grouped correctly
+      if (assignmentDates.length === 0) {
         const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
         assignmentDates = dates.length > 0 ? dates : [today]
       }
