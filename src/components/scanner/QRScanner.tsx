@@ -38,6 +38,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
+  const [debugSteps, setDebugSteps] = useState<string[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -46,6 +47,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const lastScanRef = useRef<string>('');
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pushDebug = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const line = `${ts} ${msg}`;
+    console.log('[QRScanner][iOS Debug]', msg);
+    setDebugSteps(prev => [...prev.slice(-14), line]);
+  }, []);
 
   // Check BarcodeDetector support on mount
   useEffect(() => {
