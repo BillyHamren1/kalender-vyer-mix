@@ -970,7 +970,7 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 }
 
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id } = data
+  const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
 
   if (!booking_id || !report_date || hours_worked === undefined) {
     return new Response(
@@ -979,8 +979,63 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Location projects: verify the location exists and show_as_project is true
-  if (booking_id.startsWith('location-')) {
+  let resolvedBookingId = booking_id
+  let resolvedLargeProjectId = large_project_id || null
+
+  // Large project timers: booking_id starts with "project-"
+  if (booking_id.startsWith('project-')) {
+    const projectId = booking_id.replace('project-', '')
+    resolvedLargeProjectId = projectId
+
+    // Verify the project exists and belongs to this org
+    const { data: projectData } = await supabase
+      .from('large_projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+
+    if (!projectData) {
+      return new Response(
+        JSON.stringify({ error: 'Project not found' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify staff is member of this project
+    const { data: membership } = await supabase
+      .from('large_project_staff')
+      .select('id')
+      .eq('large_project_id', projectId)
+      .eq('staff_id', staffId)
+      .limit(1)
+
+    if (!membership || membership.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'You are not a member of this project' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Pick one of the project's bookings as the booking_id for backwards compatibility
+    const { data: lpBooking } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .eq('large_project_id', projectId)
+      .eq('organization_id', organizationId)
+      .limit(1)
+      .maybeSingle()
+
+    if (lpBooking) {
+      resolvedBookingId = lpBooking.booking_id
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Project has no linked bookings' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  } else if (booking_id.startsWith('location-')) {
+    // Location projects: verify the location exists and show_as_project is true
     const locationId = booking_id.replace('location-', '')
     const { data: locData } = await supabase
       .from('organization_locations')
@@ -1014,12 +1069,12 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     }
   }
 
-  // Create time report — booking_id is always the primary link, establishment_task_id is optional traceability
+  // Create time report
   const { data: report, error } = await supabase
     .from('time_reports')
     .insert({
       staff_id: staffId,
-      booking_id,
+      booking_id: resolvedBookingId,
       report_date,
       start_time: start_time || null,
       end_time: end_time || null,
@@ -1028,6 +1083,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       break_time: break_time ? parseFloat(break_time) : 0,
       description: description || null,
       establishment_task_id: establishment_task_id || null,
+      large_project_id: resolvedLargeProjectId,
       organization_id: organizationId
     })
     .select()

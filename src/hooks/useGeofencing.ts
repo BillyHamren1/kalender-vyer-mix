@@ -15,6 +15,7 @@ export interface ActiveTimer {
   establishmentTaskTitle?: string;
   locationId?: string;       // if this is a fixed-location timer
   locationName?: string;
+  largeProjectId?: string;   // if this is a project timer
 }
 
 export interface GeofenceEvent {
@@ -27,6 +28,7 @@ export interface GeofenceEvent {
   locationAddress?: string;
   largeProjectId?: string;
   largeProjectName?: string;
+  largeProjectAddress?: string;
 }
 
 export interface OrganizationLocationMobile {
@@ -224,6 +226,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'project',
             largeProjectId: lpId,
             largeProjectName: lpName,
+            largeProjectAddress: booking.deliveryaddress || undefined,
           });
         }
 
@@ -237,6 +240,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'project',
             largeProjectId: lpId,
             largeProjectName: lpName,
+            largeProjectAddress: booking.deliveryaddress || undefined,
           });
         }
       } else {
@@ -294,7 +298,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     setNearbyBookings(nearby);
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string) => {
+  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string) => {
     const key = locationId ? `location-${locationId}` : bookingId;
     setActiveTimers(prev => {
       const next = new Map(prev);
@@ -307,6 +311,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         establishmentTaskTitle: taskTitle,
         locationId,
         locationName,
+        largeProjectId,
       });
       return next;
     });
