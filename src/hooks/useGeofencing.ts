@@ -165,6 +165,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           timestamp: Date.now(),
         };
         setUserPosition(gpsPos);
+        setIsTracking(true); // Restore tracking state on successful position
 
         // Throttled location report (max every 30s)
         const now = Date.now();
@@ -185,9 +186,13 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       },
       (err) => {
         console.warn('GPS error:', err.message);
-        setIsTracking(false);
+        // Only mark tracking as failed on permission denied (code 1)
+        // Timeout (code 3) and unavailable (code 2) are temporary
+        if (err.code === 1) {
+          setIsTracking(false);
+        }
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
     );
 
     return () => {
