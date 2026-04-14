@@ -216,8 +216,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
 
       // If booking belongs to a large project, use project-level geofence
-      const lpId = (booking as any).large_project_id;
-      const lpName = (booking as any).large_project_name;
+      const lpId = booking.large_project_id;
+      const lpName = booking.large_project_name;
 
       if (lpId && lpName) {
         // Skip if we already triggered for this project in this cycle
