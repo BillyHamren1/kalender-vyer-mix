@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
 import { AnomalyDialog } from './AnomalyDialog';
+import { DailyOverviewDialog } from './DailyOverviewDialog';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
@@ -29,6 +30,7 @@ interface TimeReportRow {
   approved: boolean | null;
   booking_client: string;
   booking_number: string | null;
+  booking_id: string | null;
   type: 'work' | 'travel';
 }
 
@@ -53,6 +55,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
+  const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
 
   const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
@@ -137,6 +140,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           approved: r.approved,
           booking_client: lpName || r.bookings?.client || '-',
           booking_number: lpName ? null : (r.bookings?.booking_number || null),
+          booking_id: r.booking_id || null,
           type: 'work' as const,
         };
       });
@@ -158,6 +162,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           approved: null,
           booking_client: clientLabel,
           booking_number: null,
+          booking_id: t.destination_booking_id || null,
           type: 'travel' as const,
         };
       });
@@ -230,6 +235,80 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
   const reports = queryData?.reports || [];
   const rawTravel = queryData?.rawTravel || [];
+
+  // Fetch booking geocodes for work entries (for daily overview map)
+  const bookingIdsInReports = useMemo(() => {
+    return [...new Set(reports.filter(r => r.booking_id).map(r => r.booking_id!))];
+  }, [reports]);
+
+  const { data: bookingGeoMap = new Map<string, { lat: number; lng: number }>() } = useQuery({
+    queryKey: ['booking-geocodes', bookingIdsInReports],
+    queryFn: async () => {
+      if (bookingIdsInReports.length === 0) return new Map<string, { lat: number; lng: number }>();
+      // Try bookings first
+      const { data: bookings } = await supabase
+        .from('bookings')
+        .select('id, delivery_latitude, delivery_longitude, large_project_id')
+        .in('id', bookingIdsInReports.slice(0, 50));
+
+      const geoMap = new Map<string, { lat: number; lng: number }>();
+      const lpIds: string[] = [];
+      for (const b of bookings || []) {
+        if (b.delivery_latitude && b.delivery_longitude) {
+          geoMap.set(b.id, { lat: b.delivery_latitude, lng: b.delivery_longitude });
+        } else if (b.large_project_id) {
+          lpIds.push(b.large_project_id);
+        }
+      }
+      // Fallback to large_project geocodes
+      if (lpIds.length > 0) {
+        const { data: lps } = await supabase
+          .from('large_projects')
+          .select('id, address_latitude, address_longitude')
+          .in('id', [...new Set(lpIds)]);
+        const lpGeo = new Map<string, { lat: number; lng: number }>();
+        for (const lp of lps || []) {
+          if (lp.address_latitude && lp.address_longitude) {
+            lpGeo.set(lp.id, { lat: lp.address_latitude, lng: lp.address_longitude });
+          }
+        }
+        for (const b of bookings || []) {
+          if (!geoMap.has(b.id) && b.large_project_id && lpGeo.has(b.large_project_id)) {
+            geoMap.set(b.id, lpGeo.get(b.large_project_id)!);
+          }
+        }
+      }
+      return geoMap;
+    },
+    enabled: bookingIdsInReports.length > 0,
+  });
+
+  // Daily overview data
+  const dailyOverviewTravel = useMemo(() => {
+    if (!dailyOverviewDate) return [];
+    return rawTravel.filter(t => t.report_date === dailyOverviewDate)
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+  }, [dailyOverviewDate, rawTravel]);
+
+  const dailyOverviewWork = useMemo(() => {
+    if (!dailyOverviewDate) return [];
+    return reports
+      .filter(r => r.report_date === dailyOverviewDate && r.type === 'work')
+      .map(r => {
+        const geo = r.booking_id ? bookingGeoMap.get(r.booking_id) : undefined;
+        return {
+          id: r.id,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          hours_worked: r.hours_worked,
+          booking_client: r.booking_client,
+          booking_number: r.booking_number,
+          description: r.description,
+          delivery_lat: geo?.lat || null,
+          delivery_lng: geo?.lng || null,
+        };
+      });
+  }, [dailyOverviewDate, reports, bookingGeoMap]);
 
   // Compute anomalies
   const anomalies = useMemo<Anomaly[]>(() => {
@@ -398,6 +477,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                               <AlertTriangle className="h-3.5 w-3.5" />
                             </button>
                           )}
+                          <button
+                            onClick={() => setDailyOverviewDate(report.report_date)}
+                            className="ml-1 text-muted-foreground hover:text-primary transition-colors"
+                            title="Visa dagöversikt"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -468,6 +554,16 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         date={anomalyDate}
         anomalies={dialogAnomalies}
         travelRoutes={dialogTravelRoutes}
+      />
+
+      <DailyOverviewDialog
+        open={!!dailyOverviewDate}
+        onOpenChange={(open) => !open && setDailyOverviewDate(null)}
+        date={dailyOverviewDate}
+        staffId={staffId}
+        staffName={staffName}
+        travelSegments={dailyOverviewTravel}
+        workEntries={dailyOverviewWork}
       />
     </>
   );
