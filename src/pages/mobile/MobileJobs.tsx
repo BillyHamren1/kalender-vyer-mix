@@ -106,6 +106,9 @@ const MobileJobs = () => {
     return format(d, 'EEEE d MMMM', { locale: sv });
   };
 
+  // Check if any timer is already running
+  const hasAnyTimer = activeTimers.size > 0;
+
   // Timer toggle for standalone bookings
   const handleTimerToggle = (e: React.MouseEvent, bookingId: string, client: string) => {
     e.stopPropagation();
@@ -116,6 +119,10 @@ const MobileJobs = () => {
         navigate('/m/report');
       }
     } else {
+      if (hasAnyTimer) {
+        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        return;
+      }
       startTimer(bookingId, client, false);
       toast.success(`Timer startad: ${client}`);
     }
@@ -132,6 +139,10 @@ const MobileJobs = () => {
         navigate('/m/report');
       }
     } else {
+      if (hasAnyTimer) {
+        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        return;
+      }
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
       toast.success(`Timer startad: ${name}`);
     }
@@ -260,18 +271,20 @@ const MobileJobs = () => {
                         </p>
                       )}
                     </button>
-                    {/* Timer toggle button */}
-                    <button
-                      onClick={(e) => handleTimerToggle(e, booking.id, booking.client)}
-                      className={cn(
-                        "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                        hasTimer
-                          ? "bg-amber-500 text-white shadow-md"
-                          : "bg-primary/10 text-primary hover:bg-primary/20"
-                      )}
-                    >
-                      {hasTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                    </button>
+                    {/* Timer toggle button — only show if this card has timer OR no timer is running */}
+                    {(hasTimer || !hasAnyTimer) && (
+                      <button
+                        onClick={(e) => handleTimerToggle(e, booking.id, booking.client)}
+                        className={cn(
+                          "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                          hasTimer
+                            ? "bg-destructive text-destructive-foreground shadow-md"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        )}
+                      >
+                        {hasTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -328,18 +341,20 @@ const MobileJobs = () => {
                               </p>
                             )}
                           </button>
-                          {/* Timer toggle button */}
-                          <button
-                            onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
-                            className={cn(
-                              "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                              hasProjectTimer
-                                ? "bg-amber-500 text-white shadow-md"
-                                : "bg-primary/10 text-primary hover:bg-primary/20"
-                            )}
-                          >
-                            {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                          </button>
+                          {/* Timer toggle button — only show if this project has timer OR no timer is running */}
+                          {(hasProjectTimer || !hasAnyTimer) && (
+                            <button
+                              onClick={(e) => handleProjectTimerToggle(e, lpId, group.name)}
+                              className={cn(
+                                "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                                hasProjectTimer
+                                  ? "bg-destructive text-destructive-foreground shadow-md"
+                                  : "bg-primary/10 text-primary hover:bg-primary/20"
+                              )}
+                            >
+                              {hasProjectTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
