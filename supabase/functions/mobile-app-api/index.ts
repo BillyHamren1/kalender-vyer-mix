@@ -842,25 +842,90 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
+  // Determine final values for validation
+  const finalStartTime = start_time !== undefined ? start_time : existing.start_time
+  const finalEndTime = end_time !== undefined ? end_time : existing.end_time
+  const finalBreak = break_time !== undefined ? parseInt(break_time) : (existing.break_time || 0)
+  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : (existing.overtime_hours || 0)
+
+  // Validate break
+  if (isNaN(finalBreak) || finalBreak < 0) {
+    return new Response(
+      JSON.stringify({ error: 'Rast kan inte vara negativ' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (finalBreak > 240) {
+    return new Response(
+      JSON.stringify({ error: 'Rast kan inte överstiga 240 minuter' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Validate overtime
+  if (isNaN(finalOvertime) || finalOvertime < 0) {
+    return new Response(
+      JSON.stringify({ error: 'Övertid kan inte vara negativ' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (finalOvertime > 6) {
+    return new Response(
+      JSON.stringify({ error: 'Övertid kan inte överstiga 6 timmar' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Server-side hours calculation when start/end are available
+  let calculatedHours: number | null = null
+  if (finalStartTime && finalEndTime) {
+    if (finalEndTime <= finalStartTime) {
+      return new Response(
+        JSON.stringify({ error: 'Sluttid måste vara efter starttid' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const [sh, sm] = finalStartTime.split(':').map(Number)
+    const [eh, em] = finalEndTime.split(':').map(Number)
+    let rawHours = (eh + em / 60) - (sh + sm / 60)
+    if (rawHours < 0) rawHours += 24
+    const breakHours = finalBreak / 60
+    calculatedHours = Math.round((rawHours - breakHours) * 100) / 100
+
+    if (calculatedHours <= 0) {
+      return new Response(
+        JSON.stringify({ error: 'Arbetad tid efter rast måste vara mer än 0' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (calculatedHours > 16) {
+      return new Response(
+        JSON.stringify({ error: 'Arbetad tid kan inte överstiga 16 timmar' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   // Build previous values for edit log
   const previousValues: Record<string, any> = {}
   const newValues: Record<string, any> = {}
   const updates: Record<string, any> = {}
 
-  if (hours_worked !== undefined && parseFloat(hours_worked) !== existing.hours_worked) {
+  // Always use server-calculated hours when available, ignore client hours_worked
+  if (calculatedHours !== null && calculatedHours !== existing.hours_worked) {
     previousValues.hours_worked = existing.hours_worked
-    newValues.hours_worked = parseFloat(hours_worked)
-    updates.hours_worked = parseFloat(hours_worked)
+    newValues.hours_worked = calculatedHours
+    updates.hours_worked = calculatedHours
   }
-  if (overtime_hours !== undefined && parseFloat(overtime_hours) !== (existing.overtime_hours || 0)) {
+  if (finalOvertime !== (existing.overtime_hours || 0)) {
     previousValues.overtime_hours = existing.overtime_hours || 0
-    newValues.overtime_hours = parseFloat(overtime_hours)
-    updates.overtime_hours = parseFloat(overtime_hours)
+    newValues.overtime_hours = finalOvertime
+    updates.overtime_hours = finalOvertime
   }
-  if (break_time !== undefined && parseFloat(break_time) !== (existing.break_time || 0)) {
+  if (finalBreak !== (existing.break_time || 0)) {
     previousValues.break_time = existing.break_time || 0
-    newValues.break_time = parseFloat(break_time)
-    updates.break_time = parseFloat(break_time)
+    newValues.break_time = finalBreak
+    updates.break_time = finalBreak
   }
   if (start_time !== undefined && start_time !== existing.start_time) {
     previousValues.start_time = existing.start_time
@@ -885,9 +950,7 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Overlap check for update — use final start/end times
-  const finalStartTime = updates.start_time !== undefined ? updates.start_time : existing.start_time
-  const finalEndTime = updates.end_time !== undefined ? updates.end_time : existing.end_time
+  // Overlap check for update — use final start/end times (already computed above)
 
   if (finalStartTime && finalEndTime) {
     const { data: overlapping } = await supabase
