@@ -104,9 +104,9 @@ const MobileJobs = () => {
 
   const formatDateHeading = (dateStr: string) => {
     const d = parseISO(dateStr);
-    if (isToday(d)) return 'Idag';
-    if (isTomorrow(d)) return 'Imorgon';
-    return format(d, 'EEEE d MMMM', { locale: sv });
+    if (isToday(d)) return t('jobs.today');
+    if (isTomorrow(d)) return t('jobs.tomorrow');
+    return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
   };
 
   // Check if any timer is already running
@@ -118,16 +118,16 @@ const MobileJobs = () => {
     if (activeTimers.has(bookingId)) {
       const stopped = stopTimer(bookingId);
       if (stopped) {
-        toast.success('Timer stoppad – skapa tidrapport');
+        toast.success(t('timer.stoppedCreateReport'));
         navigate('/m/report');
       }
     } else {
       if (hasAnyTimer) {
-        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        toast.error(t('timer.alreadyActive'));
         return;
       }
       startTimer(bookingId, client, false);
-      toast.success(`Timer startad: ${client}`);
+      toast.success(`${t('timer.started')}: ${client}`);
     }
   };
 
@@ -138,16 +138,16 @@ const MobileJobs = () => {
     if (activeTimers.has(projectKey)) {
       const stopped = stopTimer(projectKey);
       if (stopped) {
-        toast.success('Timer stoppad – skapa tidrapport');
+        toast.success(t('timer.stoppedCreateReport'));
         navigate('/m/report');
       }
     } else {
       if (hasAnyTimer) {
-        toast.error('Du har redan en aktiv timer. Stoppa den först.');
+        toast.error(t('timer.alreadyActive'));
         return;
       }
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
-      toast.success(`Timer startad: ${name}`);
+      toast.success(`${t('timer.started')}: ${name}`);
     }
   };
 
