@@ -21,29 +21,18 @@ const MobileProjectDetail = () => {
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
 
-  // Find all bookings belonging to this project
   const projectBookings = bookings.filter(b => b.large_project_id === projectId);
   const projectName = projectBookings[0]?.large_project_name || 'Projekt';
 
-  // Split into scheduled (user is assigned) and project-member-only
-  const scheduled = projectBookings.filter(b => b.assignment_type === 'scheduled');
-  const memberOnly = projectBookings.filter(b => b.assignment_type === 'project_member');
-
-  // If all bookings are scheduled (project member), show them all in one list
-  const showSplit = memberOnly.length > 0;
-
-  // Sort by earliest date
   const sortByDate = (a: MobileBooking, b: MobileBooking) => {
     const dateA = a.rigdaydate || a.eventdate || a.rigdowndate || '';
     const dateB = b.rigdaydate || b.eventdate || b.rigdowndate || '';
     return dateA.localeCompare(dateB);
   };
 
-  scheduled.sort(sortByDate);
-  memberOnly.sort(sortByDate);
+  const sorted = [...projectBookings].sort(sortByDate);
 
-  const renderBooking = (booking: MobileBooking, dimmed: boolean) => {
-    // Show the first relevant date
+  const renderBooking = (booking: MobileBooking) => {
     const dateStr = booking.rigdaydate || booking.eventdate || booking.rigdowndate;
     const badge = dateStr ? eventTypeBadge(booking, dateStr) : null;
 
@@ -51,28 +40,14 @@ const MobileProjectDetail = () => {
       <button
         key={booking.id}
         onClick={() => navigate(`/m/job/${booking.id}`)}
-        className={cn(
-          "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
-          dimmed
-            ? "border-border/40 shadow-sm opacity-50"
-            : "border-primary/20 shadow-md",
-        )}
+        className="w-full text-left rounded-2xl border border-primary/20 bg-card shadow-md p-3.5 transition-all duration-150 active:scale-[0.98]"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {dimmed ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-muted text-muted-foreground border-border">
-                  I PROJEKTET
-                </span>
-              ) : badge ? (
+              {badge && (
                 <span className={cn("px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border", badge.className)}>
                   {badge.label}
-                </span>
-              ) : null}
-              {dimmed ? null : (
-                <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
-                  SCHEMALAGD
                 </span>
               )}
               {booking.booking_number && (
@@ -115,7 +90,6 @@ const MobileProjectDetail = () => {
       <MobileBackHeader title={projectName} />
 
       <div className="flex-1 px-4 py-4 space-y-5">
-        {/* Summary */}
         <div className="flex items-center gap-3 px-1">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
             <FolderOpen className="w-5 h-5 text-primary" />
@@ -123,32 +97,14 @@ const MobileProjectDetail = () => {
           <div>
             <h2 className="text-base font-bold text-foreground">{projectName}</h2>
             <p className="text-xs text-muted-foreground">
-              {projectBookings.length} bokningar · {scheduled.length} schemalagda för dig
+              {projectBookings.length} bokningar
             </p>
           </div>
         </div>
 
-        {/* Scheduled bookings — full color */}
-        {scheduled.length > 0 && (
-          <div>
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2 px-1">
-              Dina schemalagda
-            </h3>
-            <div className="space-y-2">
-              {scheduled.map(b => renderBooking(b, false))}
-            </div>
-          </div>
-        )}
-
-        {/* Project member bookings — dimmed */}
-        {memberOnly.length > 0 && (
-          <div>
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-1">
-              Övriga i projektet
-            </h3>
-            <div className="space-y-2">
-              {memberOnly.map(b => renderBooking(b, true))}
-            </div>
+        {sorted.length > 0 && (
+          <div className="space-y-2">
+            {sorted.map(b => renderBooking(b))}
           </div>
         )}
 
