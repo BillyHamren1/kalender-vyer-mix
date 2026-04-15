@@ -187,7 +187,7 @@ export const mobileApi = {
   getTimeReports: () => callApi<{ time_reports: MobileTimeReport[] }>('get_time_reports'),
 
   createTimeReport: (data: {
-    booking_id: string;
+    booking_id?: string;
     report_date: string;
     start_time?: string;
     end_time?: string;
