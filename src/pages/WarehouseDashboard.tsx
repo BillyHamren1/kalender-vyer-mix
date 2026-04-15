@@ -35,10 +35,7 @@ const WarehouseDashboard = () => {
     channelName: 'warehouse-page-realtime',
     tables: ['packing_projects', 'packing_list_items', 'transport_assignments', 'bookings'],
     queryKeys: [
-      
-      ['warehouse-new-jobs'],
-      ['warehouse-active-packings'],
-      ['warehouse-completed-packings'],
+      ['warehouse-recent-packings'],
       ['warehouse-staff-utilization'],
       ['warehouse-transports'],
     ],
