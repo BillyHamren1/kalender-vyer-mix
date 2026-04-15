@@ -489,8 +489,8 @@ const PackingDetail = () => {
               <TabsContent value="comments">
                 <PackingComments comments={comments} onAddComment={addComment} />
               </TabsContent>
-            </Tabs>
-          </div>
+            </div>
+          </Tabs>
         </div>
       </div>
     </div>
