@@ -141,7 +141,7 @@ const WarehouseStaffActivationCard = () => {
   const NameRow = ({ staff }: { staff: WarehouseStaffMember }) => (
     <div
       onClick={() => handleClick(staff)}
-      className="flex items-center justify-between py-1.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group"
+      className="flex items-center justify-between py-0.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group"
     >
       <span className="text-sm truncate">{staff.name}</span>
       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
@@ -176,16 +176,16 @@ const WarehouseStaffActivationCard = () => {
           <>
             {active.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Aktiva</p>
-                <div className="divide-y divide-border/30">
+                <p className="text-xs font-semibold text-foreground tracking-wide mb-0.5">Aktiva</p>
+                <div>
                   {active.map(s => <NameRow key={s.id} staff={s} />)}
                 </div>
               </div>
             )}
             {inactive.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Inaktiva</p>
-                <div className="divide-y divide-border/30">
+                <p className="text-xs font-semibold text-muted-foreground tracking-wide mb-0.5">Inaktiva</p>
+                <div>
                   {inactive.map(s => <NameRow key={s.id} staff={s} />)}
                 </div>
               </div>
