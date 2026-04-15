@@ -114,23 +114,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           if (barcodes.length > 0) {
             handleDetected(barcodes[0].rawValue);
           }
-        } else {
-          const canvas = canvasRef.current;
-          if (canvas) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(video, 0, 0);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (code?.data) {
-                handleDetected(code.data);
-              }
-            }
-          }
         }
       } catch {
         // detect() can throw on some frames, ignore and retry
