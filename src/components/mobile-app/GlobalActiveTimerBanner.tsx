@@ -77,7 +77,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
 
     try {
       await mobileApi.createTimeReport({
-        booking_id: key,
+        booking_id: key.startsWith('location-') || key.startsWith('project-') ? undefined : key,
         report_date: format(new Date(), 'yyyy-MM-dd'),
         start_time: format(startTimeDate, 'HH:mm'),
         end_time: format(stopTime, 'HH:mm'),
