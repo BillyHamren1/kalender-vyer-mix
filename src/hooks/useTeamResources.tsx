@@ -172,9 +172,18 @@ export const useTeamResources = () => {
   };
 
   // Get only the team resources (not room resources) and sort them correctly
-  const teamResources = resources
-    .filter(resource => resource.id.startsWith('team-'))
-    .sort((a, b) => {
+  // Include the virtual 'transport' resource
+  const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
+  
+  const teamResources = [
+    ...resources.filter(resource => resource.id.startsWith('team-')),
+    transportResource,
+  ].sort((a, b) => {
+      // Transport always goes just before Live (team-11)
+      if (a.id === 'transport' && b.id === 'team-11') return -1;
+      if (a.id === 'team-11' && b.id === 'transport') return 1;
+      if (a.id === 'transport') return 1; // after all numbered teams
+      if (b.id === 'transport') return -1;
       // Special case for "Live" (team-11) - it should be last
       if (a.id === 'team-11') return 1;
       if (b.id === 'team-11') return -1;
