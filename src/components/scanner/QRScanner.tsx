@@ -46,20 +46,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check BarcodeDetector support on mount
+  // Initialize BarcodeDetector (native or polyfill) on mount
   useEffect(() => {
     if (shouldSkipCamera) return;
-    const supported = 'BarcodeDetector' in window;
-    setHasBarcodeDetector(supported);
-    if (supported) {
-      try {
-        detectorRef.current = new (window as any).BarcodeDetector({
-          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39'],
-        });
-      } catch (e) {
-        console.warn('[QRScanner] BarcodeDetector init failed:', e);
-        setHasBarcodeDetector(false);
-      }
+    const DetectorClass = ('BarcodeDetector' in window)
+      ? (window as any).BarcodeDetector
+      : BarcodeDetectorPolyfill;
+    try {
+      detectorRef.current = new DetectorClass({
+        formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'codabar'],
+      });
+      setHasBarcodeDetector(true);
+      console.log('[QRScanner] BarcodeDetector ready (native:', 'BarcodeDetector' in window, ')');
+    } catch (e) {
+      console.warn('[QRScanner] BarcodeDetector init failed:', e);
+      setHasBarcodeDetector(false);
     }
   }, [shouldSkipCamera]);
 
