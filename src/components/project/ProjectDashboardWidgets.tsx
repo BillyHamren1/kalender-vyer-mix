@@ -79,24 +79,25 @@ const ProjectDashboardWidgets = () => {
     return items;
   }, [jobs, projects, largeProjects]);
 
-  const activeCount = unified.filter(p => p.status !== 'completed').length;
-  const planningCount = unified.filter(p => p.status === 'planning').length;
-  const inProgressCount = unified.filter(p => p.status === 'in_progress').length;
-  const completedCount = unified.filter(p => p.status === 'completed').length;
+  const nonCancelled = unified.filter(p => p.status !== 'cancelled');
+  const activeCount = nonCancelled.filter(p => p.status !== 'completed').length;
+  const planningCount = nonCancelled.filter(p => p.status === 'planning').length;
+  const inProgressCount = nonCancelled.filter(p => p.status === 'in_progress').length;
+  const completedCount = nonCancelled.filter(p => p.status === 'completed').length;
   
   const today = new Date().toISOString().split('T')[0];
-  const closingCount = unified.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
+  const closingCount = nonCancelled.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
 
   const recentlyCreated = useMemo(() =>
-    [...unified].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
-    [unified]
+    [...nonCancelled].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
+    [nonCancelled]
   );
 
   const recentlyUpdated = useMemo(() =>
-    [...unified]
+    [...nonCancelled]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 6),
-    [unified]
+    [nonCancelled]
   );
 
   const statItems = [
