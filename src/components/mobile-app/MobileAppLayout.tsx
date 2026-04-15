@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
+import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
