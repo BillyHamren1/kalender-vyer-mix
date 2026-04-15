@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
