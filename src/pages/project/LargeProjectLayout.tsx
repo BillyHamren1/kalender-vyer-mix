@@ -386,7 +386,7 @@ const LargeProjectLayout = () => {
                   await Promise.all(
                     bookingIds.map(bid =>
                       supabase.functions.invoke('import-bookings', {
-                        body: { booking_id: bid, syncMode: 'single', organization_id: orgId, localOnly: true },
+                        body: { booking_id: bid, syncMode: 'single', organization_id: orgId, localOnly: true, skip_review: true },
                       })
                     )
                   );
