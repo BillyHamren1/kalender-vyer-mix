@@ -241,8 +241,10 @@ const WarehouseCalendarPage = () => {
   });
   
   // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
+  // Transport events are excluded from distribution — they already target resourceId 'transport'
   const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
-  const combinedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
+  const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
+  const combinedEvents: CalendarEvent[] = [...distributedEvents, ...transportEvents];
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
