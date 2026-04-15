@@ -116,32 +116,40 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       const newStart = new Date(`${eventDate}T${startTime}:00Z`);
       const newEnd = new Date(`${eventDate}T${endTime}:00Z`);
 
-      // Update calendar event in database
-      await updateCalendarEvent(event.id, {
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
-      });
+      if (isWarehouse) {
+        // Update warehouse_calendar_events table
+        await updateWarehouseCalendarEvent(event.id, {
+          start_time: newStart.toISOString(),
+          end_time: newEnd.toISOString()
+        });
+      } else {
+        // Update calendar event in database
+        await updateCalendarEvent(event.id, {
+          start: newStart.toISOString(),
+          end: newEnd.toISOString()
+        });
 
-      // CRITICAL: Also update the booking time fields
-      if (event.bookingId && event.eventType) {
-        const bookingTimeField = {
-          'rig': { start: 'rig_start_time', end: 'rig_end_time' },
-          'event': { start: 'event_start_time', end: 'event_end_time' },
-          'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
-        }[event.eventType];
+        // CRITICAL: Also update the booking time fields
+        if (event.bookingId && event.eventType) {
+          const bookingTimeField = {
+            'rig': { start: 'rig_start_time', end: 'rig_end_time' },
+            'event': { start: 'event_start_time', end: 'event_end_time' },
+            'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
+          }[event.eventType];
 
-        if (bookingTimeField) {
-          await supabase
-            .from('bookings')
-            .update({
-              [bookingTimeField.start]: newStart.toISOString(),
-              [bookingTimeField.end]: newEnd.toISOString()
-            })
-            .eq('id', event.bookingId);
+          if (bookingTimeField) {
+            await supabase
+              .from('bookings')
+              .update({
+                [bookingTimeField.start]: newStart.toISOString(),
+                [bookingTimeField.end]: newEnd.toISOString()
+              })
+              .eq('id', event.bookingId);
+          }
         }
       }
 
-      toast.success('Time updated');
+      toast.success('Tid uppdaterad');
       setOpen(false);
       
       // Trigger refresh
@@ -150,7 +158,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       }
     } catch (error) {
       console.error('Error updating event time:', error);
-      toast.error('Failed to update');
+      toast.error('Kunde inte uppdatera');
     } finally {
       setIsSubmitting(false);
     }
