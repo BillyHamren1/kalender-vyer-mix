@@ -229,8 +229,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     );
   }
 
-  return (
-    <>
   // Warehouse events: wrap in QuickTimeEditPopover for click-to-edit-time
   if (isWarehouseEvent && !readOnly) {
     return (
