@@ -100,12 +100,6 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
         {hasPackingDates && onPackingDateChange && (
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-3">
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
-              >
-                <Package className="h-4 w-4 text-white" />
-              </div>
               <span className="text-xs font-bold text-foreground uppercase tracking-wider">Packdatum</span>
             </div>
             <div className="flex items-center gap-3 w-full">
