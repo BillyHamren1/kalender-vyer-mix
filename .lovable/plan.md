@@ -1,41 +1,26 @@
 
 
-## Plan: Bakgrunds-geofence med korrekt ankomsttid och prompt vid appöppning
+## Plan: Lägg till "Skapa alla konton"-knapp
 
-### Problemet nu
-- `useBackgroundLocationReporter` skickar GPS var 30:e sekund även i bakgrunden, men gör **ingen geofence-check**
-- `useGeofencing` körs bara i förgrunden — `arrivalTimestamp` sätts till `Date.now()` när geofence-checken körs (dvs. när appen öppnas), inte när användaren faktiskt anlände
-- Resultat: om appen är stängd i 2 timmar och användaren öppnar den, ser den ut som att ankomsten skedde "just nu"
+### Problem
+Bulk-funktionen (`handleCreateAllAccounts`) finns redan i `StaffAccountsPanel.tsx` men exponeras inte i gränssnittet — det finns ingen knapp att klicka på.
 
-### Lösning
+### Åtgärd
+Lägg till en knapp i `StaffAccountsPanel.tsx` som syns när det finns personal utan konto (`staffWithoutAccounts.length > 0`). Knappen anropar `handleCreateAllAccounts`.
 
-**1. Bakgrunds-geofence-check i `useBackgroundLocationReporter.ts`**
-- Läs geofence-targets (org locations + bokningar med koordinater) från `localStorage` (key: `eventflow-geofence-targets`)
-- I varje `handlePosition`-callback: kör Haversine mot alla targets
-- Om position är innanför radius och ingen pending arrival finns → spara till `localStorage` key `eventflow-pending-arrivals`:
-  ```json
-  [{ "key": "location-xxx", "name": "Lager", "type": "fixed", "timestamp": 1713182400000, "locationId": "xxx" }]
-  ```
-- Ta bort pending arrival om positionen rör sig utanför radius (exit)
+### Teknisk detalj
 
-**2. Cacha geofence-targets i `useGeofencing.ts`**
-- Efter hämtning av `orgLocations` och vid ändring av `bookings`: skriv en kompakt lista med id, lat/lng, radius, namn, typ till `localStorage` key `eventflow-geofence-targets`
-- Bakgrundsreportern läser detta cache — inga API-anrop behövs
+**Fil:** `src/components/staff/StaffAccountsPanel.tsx`
 
-**3. Läs pending arrivals vid mount i `useGeofencing.ts`**
-- Vid start (staffId ändras): läs `eventflow-pending-arrivals` från localStorage
-- För varje pending arrival: skapa `GeofenceEvent` med `arrivalTimestamp` satt till den sparade tidsstämpeln (den faktiska ankomsttiden)
-- Queue:a dessa till `geofenceEvent` state → prompten visas
+- Direkt under stats-badgarna och texten "Konton skapas automatiskt…", lägg till en knapp:
+  - Text: `Skapa konton för alla ({staffWithoutAccounts.length} st)`
+  - Ikon: `UserPlus` (redan importerad)
+  - Villkor: visas bara om `staffWithoutAccounts.length > 0`
+  - Loading-state: disabled + spinner medan `isCreatingBulk` är true
+  - Anropar `handleCreateAllAccounts` vid klick
 
-**4. Uppdatera GeofencePrompt**
-- Prompten visar redan korrekt: "Enligt GPS anlände du kl. XX:XX (Xmin sedan)" + knappen "Starta från XX:XX"
-- Ingen ändring behövs i prompten — den använder redan `arrivalTimestamp` korrekt
-- Enda ändring: `arrivalTimestamp` kommer nu vara den riktiga bakgrunds-ankomsttiden istället för `Date.now()`
+- Valfritt: visa även en lista över vilka som saknar konto under knappen, så man ser vilka som kommer att få konton.
 
-### Filer som ändras
-- `src/hooks/useBackgroundLocationReporter.ts` — lägg till geofence-check mot localStorage-targets, spara pending arrivals
-- `src/hooks/useGeofencing.ts` — cacha targets till localStorage, läs pending arrivals vid mount
-
-### Begränsning
-Bakgrunds-geofence fungerar bara på native (Capacitor) — i webbläsaren körs geofence bara i förgrunden som idag.
+### Resultat
+En tydlig knapp i Personalkonton-panelen som skapar konton (mejl + Frasse123) för all personal som saknar konto, och visar inloggningsuppgifterna i dialogen efteråt.
 
