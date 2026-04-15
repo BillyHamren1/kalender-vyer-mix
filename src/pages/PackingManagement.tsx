@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
 import PackingDashboard from "@/components/packing/PackingDashboard";
+import PackingUpdatedBookings from "@/components/packing/PackingUpdatedBookings";
 import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
@@ -124,6 +125,9 @@ const PackingManagement = () => {
           <div className="mb-6">
             <PackingCalendarView packings={packings} />
           </div>
+
+          {/* Updated packings needing review */}
+          <PackingUpdatedBookings />
 
           {/* Dashboard */}
           <PackingDashboard packings={packings} onDelete={handleDelete} />
