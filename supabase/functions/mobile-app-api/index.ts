@@ -2896,7 +2896,7 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
   // Check no open entry already exists for this location
   const { data: existing } = await supabase
     .from('location_time_entries')
-    .select('id')
+    .select('*')
     .eq('staff_id', staffId)
     .eq('location_id', location_id)
     .is('exited_at', null)
@@ -2904,9 +2904,10 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     .maybeSingle()
 
   if (existing) {
+    // Return the existing entry so the client can restore the timer
     return new Response(
-      JSON.stringify({ error: 'Timer redan aktiv för denna plats' }),
-      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ already_active: true, entry: existing }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
