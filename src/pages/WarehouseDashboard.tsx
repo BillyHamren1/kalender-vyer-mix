@@ -328,52 +328,25 @@ const WarehouseDashboard = () => {
             <IncomingPackingList />
           </div>
 
-          {/* Staff Activation + Transport overview + Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-            {/* Staff activation card */}
-            <div className="lg:col-span-2">
-              <WarehouseStaffActivationCard />
-            </div>
+          {/* Recent packnings widgets */}
+          <div className="mb-6">
+            <WarehouseRecentPackingsWidgets />
+          </div>
 
-            {/* Transport card */}
-            <div className="lg:col-span-1">
-              <TodaysTransportsCard 
-                transports={transportsQuery.data || []}
-                isLoading={transportsQuery.isLoading}
-              />
-            </div>
+          {/* Staff Activation + Transport + Utilization */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <WarehouseStaffActivationCard />
 
-            {/* Existing cards */}
-            <div className="lg:col-span-1">
-              <NewPackingJobsCard 
-                jobs={newJobsQuery.data || []}
-                isLoading={newJobsQuery.isLoading}
-                onCreatePacking={handleCreatePacking}
-              />
-            </div>
+            <TodaysTransportsCard 
+              transports={transportsQuery.data || []}
+              isLoading={transportsQuery.isLoading}
+            />
 
-            <div className="lg:col-span-2">
-              <ActivePackingsCard 
-                packings={activePackingsQuery.data || []}
-                isLoading={activePackingsQuery.isLoading}
-              />
-            </div>
-
-            <div className="lg:col-span-1">
-              <WarehouseStaffUtilizationCard 
-                staff={staffUtilizationQuery.data || []}
-                isLoading={staffUtilizationQuery.isLoading}
-                weekNumber={format(currentWeekStart, 'w')}
-              />
-            </div>
-
-            <div className="lg:col-span-1">
-              <CompletedPackingsCard 
-                packings={completedPackingsQuery.data || []}
-                isLoading={completedPackingsQuery.isLoading}
-                weekNumber={format(currentWeekStart, 'w')}
-              />
-            </div>
+            <WarehouseStaffUtilizationCard 
+              staff={staffUtilizationQuery.data || []}
+              isLoading={staffUtilizationQuery.isLoading}
+              weekNumber={format(currentWeekStart, 'w')}
+            />
           </div>
         </div>
       </div>
