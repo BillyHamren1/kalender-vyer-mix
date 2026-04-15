@@ -319,32 +319,32 @@ const PackingDetail = () => {
           </div>
 
           <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
-            <div className="border-b border-border/40 bg-card/50 backdrop-blur-sm rounded-xl px-2 py-1">
-              <TabsList className="flex-wrap h-auto gap-1 bg-transparent p-0">
+            <div className="border-b border-border/40 overflow-x-auto">
+              <TabsList className="h-auto p-0 bg-transparent gap-0">
                 {isLargeProject && (
-                  <TabsTrigger value="overview" className="flex items-center gap-1">
-                    <LayoutList className="h-3.5 w-3.5" />
+                  <TabsTrigger value="overview" className={tabTriggerClass}>
+                    <LayoutList className="h-3.5 w-3.5 mr-1.5" />
                     Översikt
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="checklist" className="flex items-center gap-1">
-                  <CheckSquare className="h-3.5 w-3.5" />
+                <TabsTrigger value="checklist" className={tabTriggerClass}>
+                  <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
                   Checklista
                 </TabsTrigger>
                 {(booking || isMultiBooking) && (
                   <>
-                    <TabsTrigger value="packlist" className="flex items-center gap-1">
-                      <ClipboardList className="h-3.5 w-3.5" />
+                    <TabsTrigger value="packlist" className={tabTriggerClass}>
+                      <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
                       Packlista
                     </TabsTrigger>
-                    <TabsTrigger value="products" className="flex items-center gap-1">
-                      <Package className="h-3.5 w-3.5" />
+                    <TabsTrigger value="products" className={tabTriggerClass}>
+                      <Package className="h-3.5 w-3.5 mr-1.5" />
                       Produkter ({products.length})
                     </TabsTrigger>
                   </>
                 )}
-                <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
-                <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
+                <TabsTrigger value="files" className={tabTriggerClass}>Filer ({files.length})</TabsTrigger>
+                <TabsTrigger value="comments" className={tabTriggerClass}>Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
             </div>
 
