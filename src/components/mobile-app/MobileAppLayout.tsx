@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
+import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -39,6 +40,10 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         className="flex-1 overflow-y-auto"
         style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}
       >
+        {/* Global travel banner — visible on all pages */}
+        {/* Global active timer banner — visible on all pages except /m/report */}
+        <GlobalActiveTimerBanner />
+
         {/* Global travel banner — visible on all pages */}
         <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
 
