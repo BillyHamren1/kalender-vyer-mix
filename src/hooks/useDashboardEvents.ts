@@ -234,7 +234,7 @@ export function useDashboardStats() {
         rigsRes,
       ] = await Promise.all([
         supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('viewed', false).eq('status', 'CONFIRMED'),
-        supabase.from('projects').select('id', { count: 'exact', head: true }).neq('status', 'completed'),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).neq('status', 'completed').neq('status', 'cancelled'),
         supabase.from('packing_projects').select('id', { count: 'exact', head: true }).in('status', ['planning', 'in_progress']),
         supabase.from('transport_assignments').select('id', { count: 'exact', head: true }).eq('transport_date', today),
         supabase.from('staff_members').select('id', { count: 'exact', head: true }).eq('is_active', true),
