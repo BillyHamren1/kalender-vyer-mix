@@ -397,9 +397,14 @@ const WarehouseDashboard = () => {
             />
           </div>
 
-          {/* Transport overview + Main Grid */}
+          {/* Staff Activation + Transport overview + Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-            {/* Transport card - left column */}
+            {/* Staff activation card */}
+            <div className="lg:col-span-2">
+              <WarehouseStaffActivationCard />
+            </div>
+
+            {/* Transport card */}
             <div className="lg:col-span-1">
               <TodaysTransportsCard 
                 transports={transportsQuery.data || []}
