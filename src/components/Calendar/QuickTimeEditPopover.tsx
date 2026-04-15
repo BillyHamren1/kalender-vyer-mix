@@ -193,8 +193,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
 
           <div className="flex gap-4">
             {/* START TIME */}
-            <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-              <Label className="text-sm font-semibold text-green-700 flex items-center gap-1">
+            <div className={`space-y-2 p-3 rounded-lg border ${
+              isWarehouse 
+                ? 'bg-violet-50 border-violet-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <Label className={`text-sm font-semibold flex items-center gap-1 ${
+                isWarehouse ? 'text-violet-700' : 'text-green-700'
+              }`}>
                 ▶ Start: {startHour}:{startMinute}
               </Label>
               <div className="flex gap-2">
@@ -205,8 +211,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setStartHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         startHour === hour 
-                          ? 'bg-green-600 text-white font-medium' 
-                          : 'bg-white hover:bg-green-100 border border-green-200'
+                          ? isWarehouse
+                            ? 'bg-violet-600 text-white font-medium'
+                            : 'bg-green-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-violet-100 border border-violet-200'
+                            : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       {hour}
@@ -220,8 +230,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setStartMinute(min)}
                       className={`h-8 w-12 text-xs rounded transition-colors ${
                         startMinute === min 
-                          ? 'bg-green-600 text-white font-medium' 
-                          : 'bg-white hover:bg-green-100 border border-green-200'
+                          ? isWarehouse
+                            ? 'bg-violet-600 text-white font-medium'
+                            : 'bg-green-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-violet-100 border border-violet-200'
+                            : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       :{min}
@@ -232,9 +246,15 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             </div>
 
             {/* END TIME */}
-            <div className="space-y-2 p-3 bg-red-50 rounded-lg border border-red-200">
-              <Label className="text-sm font-semibold text-red-700 flex items-center gap-1">
-                ■ End: {endHour}:{endMinute}
+            <div className={`space-y-2 p-3 rounded-lg border ${
+              isWarehouse 
+                ? 'bg-indigo-50 border-indigo-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <Label className={`text-sm font-semibold flex items-center gap-1 ${
+                isWarehouse ? 'text-indigo-700' : 'text-red-700'
+              }`}>
+                ■ Slut: {endHour}:{endMinute}
               </Label>
               <div className="flex gap-2">
                 <div className="grid grid-cols-6 gap-1">
@@ -244,8 +264,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setEndHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         endHour === hour 
-                          ? 'bg-red-600 text-white font-medium' 
-                          : 'bg-white hover:bg-red-100 border border-red-200'
+                          ? isWarehouse
+                            ? 'bg-indigo-600 text-white font-medium'
+                            : 'bg-red-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-indigo-100 border border-indigo-200'
+                            : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       {hour}
@@ -259,8 +283,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setEndMinute(min)}
                       className={`h-8 w-12 text-xs rounded transition-colors ${
                         endMinute === min 
-                          ? 'bg-red-600 text-white font-medium' 
-                          : 'bg-white hover:bg-red-100 border border-red-200'
+                          ? isWarehouse
+                            ? 'bg-indigo-600 text-white font-medium'
+                            : 'bg-red-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-indigo-100 border border-indigo-200'
+                            : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       :{min}
@@ -278,7 +306,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
               onClick={handleSave}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {isSubmitting ? 'Sparar...' : 'Spara'}
             </Button>
             {onMoveDate && (
               <Button 
@@ -293,7 +321,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                 <CalendarIcon className="h-3 w-3" />
               </Button>
             )}
-            {event.bookingId && (
+            {event.bookingId && !isWarehouse && (
               <Button 
                 size="sm" 
                 variant="outline"
@@ -303,7 +331,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                   setShowAddRiggDay(true);
                 }}
               >
-                Add rig day
+                Lägg till riggdag
               </Button>
             )}
           </div>
