@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { updateWarehouseCalendarEvent } from '@/services/warehouseCalendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
