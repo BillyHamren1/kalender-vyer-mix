@@ -17,7 +17,7 @@ export const fetchPackings = async (): Promise<PackingWithBooking[]> => {
       if (packing.booking_id) {
         const { data: booking } = await supabase
           .from('bookings')
-          .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+          .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, contact_name, contact_phone, contact_email, booking_number, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
           .eq('id', packing.booking_id)
           .single();
         return { ...packing, booking } as PackingWithBooking;
@@ -43,7 +43,7 @@ export const fetchPacking = async (id: string): Promise<PackingWithBooking | nul
   if (packing.booking_id) {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, contact_name, contact_phone, contact_email, booking_number, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
       .eq('id', packing.booking_id)
       .single();
     return { ...packing, booking } as PackingWithBooking;

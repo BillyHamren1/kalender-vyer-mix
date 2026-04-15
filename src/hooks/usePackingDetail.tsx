@@ -43,6 +43,23 @@ export const usePackingDetail = (packingId: string) => {
     enabled: !!packingId
   });
 
+  const bookingId = packing?.booking_id || null;
+
+  const { data: bookingAttachments = [] } = useQuery({
+    queryKey: ['booking-attachments', bookingId],
+    queryFn: async () => {
+      if (!bookingId) return [];
+      const { data, error } = await supabase
+        .from('booking_attachments')
+        .select('*')
+        .eq('booking_id', bookingId)
+        .order('uploaded_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!bookingId
+  });
+
   // --- Optimistic mutations (no status mutation - status is backend-driven) ---
 
   const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }>({
@@ -182,6 +199,7 @@ export const usePackingDetail = (packingId: string) => {
     tasks,
     comments,
     files,
+    bookingAttachments,
     isLoading: isLoadingPacking || isLoadingTasks,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,

@@ -92,10 +92,23 @@ export interface PackingWithBooking extends Packing {
     rigdaydate: string | null;
     rigdowndate: string | null;
     deliveryaddress: string | null;
+    delivery_city?: string | null;
+    delivery_postal_code?: string | null;
     contact_name: string | null;
     contact_phone: string | null;
     contact_email: string | null;
     booking_number: string | null;
+    carry_more_than_10m?: boolean | null;
+    ground_nails_allowed?: boolean | null;
+    exact_time_needed?: boolean | null;
+    exact_time_info?: string | null;
+    internalnotes?: string | null;
+    rig_start_time?: string | null;
+    rig_end_time?: string | null;
+    event_start_time?: string | null;
+    event_end_time?: string | null;
+    rigdown_start_time?: string | null;
+    rigdown_end_time?: string | null;
   } | null;
 }
 
