@@ -1,34 +1,28 @@
 
 
-## Plan: Distribute warehouse events across Lager 1–N (round-robin)
+## Plan: Add "Event" column to warehouse calendar
 
 ### Problem
-All warehouse calendar events are hardcoded to `resource_id: 'warehouse'` (the "Packning" column). Events should instead be distributed across Lager 1, Lager 2, Lager 3, etc. — using the same round-robin collision-avoidance logic as the planning calendar's team assignment.
-
-### Approach
-Apply round-robin + sequential scheduling at the **frontend mapping layer** (not in the DB sync service), so existing warehouse events get distributed across lager resources dynamically based on time overlap — identical logic to `findAvailableTeam` in `teamAvailability.ts`.
+After removing the "Packning" column, there's a blank column. The user wants this column renamed to "Event" and used to display rig/event/rigdown events stacked vertically in 3h blocks — identical to how the "Live" column (team-11) works in the planning calendar.
 
 ### Changes
 
-**1. Create `src/utils/warehouseTeamAvailability.ts`**
-- New utility mirroring `findAvailableTeam` but for `lager-1` through `lager-N` resources
-- For each event: find the first lager resource with no time overlap on that day
-- If all are busy, assign to the lager with the fewest events (round-robin)
+**1. Add "Event" resource to `useWarehouseResources.tsx`**
+- Add `{ id: 'warehouse-event', title: 'Event', eventColor: '#f59e0b' }` as a permanent resource
+- Include it in the default visible teams alongside lager-1 through lager-4
 
-**2. Update `src/pages/WarehouseCalendarPage.tsx`**
-- In `mapWarehouseEventsToCalendarEvents`: instead of hardcoding `resourceId: 'warehouse'`, call the new warehouse team availability function to assign each event to a lager resource
-- Process events chronologically so earlier events get assigned first
-- Remove the static `warehouseResource` ("Packning" column) from the resources list since events will now live in lager columns
+**2. Update `distributeWarehouseEvents` in `warehouseTeamAvailability.ts`**
+- Before round-robin distribution, separate events by type:
+  - `rig`, `event`, `rigDown` → assigned to `warehouse-event` resource
+  - `packing_start`, `packing_end`, etc. → distributed across lager-1…N as before
+- For `warehouse-event` events: stack them in 3h blocks (08:00–11:00, 11:00–14:00, 14:00–17:00) per day, same sequential logic as team-11 in import-bookings
 
-**3. Update `src/services/warehouseCalendarService.ts`** (optional/future)
-- Optionally persist the computed `resource_id` to the DB so it's stable across reloads
-- For now, frontend-only distribution is simpler and allows dynamic recalculation
+**3. Update `WarehouseCalendarPage.tsx`**
+- Update default visible teams to include `warehouse-event`
+- Update toggle logic to make `warehouse-event` non-hideable (like lager-1–4)
+- Ensure the Event column events are read-only (already handled by `isEventReadOnly`)
 
-### Technical Detail
-The distribution algorithm:
-1. Sort all warehouse events for the day by start time
-2. For each event, iterate lager-1 → lager-N
-3. Pick the first lager with no time overlap (event_start < existing_end && event_end > existing_start)
-4. If all overlap, pick the lager with the fewest events (lowest number breaks ties)
-5. Standard booking events (rig/event/rigdown from planning calendar) that also appear in the warehouse view should be considered when checking overlaps
+### Result
+- Lager 1–4: packing events distributed via round-robin
+- Event column: rig/event/rigdown stacked vertically in 3h blocks, matching the Live column behavior
 
