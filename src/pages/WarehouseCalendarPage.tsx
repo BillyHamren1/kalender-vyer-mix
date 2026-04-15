@@ -5,6 +5,7 @@ import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouse
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
