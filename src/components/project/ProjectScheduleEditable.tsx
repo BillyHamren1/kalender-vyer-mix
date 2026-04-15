@@ -45,6 +45,7 @@ const ProjectScheduleEditable = ({
   eventStartTime, eventEndTime,
   rigdownStartTime, rigdownEndTime,
   onUpdated,
+  compact = false,
 }: ProjectScheduleEditableProps) => {
   const [editingType, setEditingType] = useState<DateType | null>(null);
   const [editDate, setEditDate] = useState('');
