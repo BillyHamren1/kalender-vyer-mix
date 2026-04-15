@@ -1212,21 +1212,41 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       )
     }
   } else if (booking_id.startsWith('location-')) {
-    // Location projects: verify the location exists and show_as_project is true
+    // Location timers: resolve to the internal project's booking_id
     const locationId = booking_id.replace('location-', '')
     const { data: locData } = await supabase
       .from('organization_locations')
       .select('id')
       .eq('id', locationId)
       .eq('organization_id', organizationId)
-      .eq('show_as_project', true)
       .eq('is_active', true)
       .maybeSingle()
 
     if (!locData) {
       return new Response(
-        JSON.stringify({ error: 'Location project not found or not active' }),
+        JSON.stringify({ error: 'Location not found or not active' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Find the internal project linked to this location
+    const { data: internalProject } = await supabase
+      .from('projects')
+      .select('id, booking_id')
+      .eq('location_id', locationId)
+      .eq('organization_id', organizationId)
+      .eq('is_internal', true)
+      .limit(1)
+      .maybeSingle()
+
+    if (internalProject?.booking_id) {
+      resolvedBookingId = internalProject.booking_id
+    } else {
+      // Fallback: keep location-{id} as booking_id — will fail FK but log clearly
+      console.error(`No internal project found for location ${locationId}`)
+      return new Response(
+        JSON.stringify({ error: 'Ingen intern bokning hittades för denna plats. Kontakta admin.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
   } else {
