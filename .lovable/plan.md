@@ -2,36 +2,54 @@
 
 ## Problem
 
-The `packing_projects` table has `start_date` and `end_date` columns, but there is no UI anywhere to edit them. The dates shown on the Warehouse Dashboard and PackingDetail come from the linked booking (`rigdaydate`, `eventdate`), and are read-only.
+The PackingDetail page currently shows only a compact one-line summary of booking info (client, date, address, contact) plus pack dates. The user wants it to match the project detail page style (image 2 / `BookingInfoExpanded`), showing:
+
+1. **RIGG / EVENT / NEDRIVNING date cards** with edit capability
+2. **Delivery address** section with full address
+3. **Logistics** info (carry distance, ground nails, exact time)
+4. **Internal notes** from the booking
+5. **Booking attachments (files)** from the booking — not just packing files
 
 ## Plan
 
-### 1. Add date editing to PackingDetail page
+### 1. Expand booking data fetched
 
-Add a date section in the booking info area (lines ~315-348 of `PackingDetail.tsx`) that shows the packing's own `start_date` and `end_date` with inline date pickers (Popover + Calendar). When changed, update `packing_projects` directly via Supabase.
+**`src/services/packingService.ts`** — Add missing fields to the booking select in `fetchPacking`:
+- `delivery_city`, `delivery_postal_code`, `carry_more_than_10m`, `ground_nails_allowed`, `exact_time_needed`, `exact_time_info`, `internalnotes`, `rig_start_time`, `rig_end_time`, `event_start_time`, `event_end_time`, `rigdown_start_time`, `rigdown_end_time`
 
-- Show two date pickers: "Startdatum" and "Slutdatum"
-- Use the existing `Calendar` component with `pointer-events-auto` class
-- On select, update `packing_projects.start_date` / `end_date` via Supabase
-- Invalidate the packing query on success
+**`src/types/packing.ts`** — Extend the `PackingWithBooking.booking` interface with all the new fields.
 
-### 2. Ensure `usePackingDetail` exposes start_date/end_date
+### 2. Fetch booking attachments in packing detail
 
-The `fetchPacking` service function likely already fetches all columns. Verify the packing object includes `start_date` and `end_date` from the query. If not, add them to the select.
+**`src/hooks/usePackingDetail.tsx`** — Add a query for `booking_attachments` when `packing.booking_id` is available, using `supabase.from('booking_attachments').select('*').eq('booking_id', bookingId)`. Expose as `bookingAttachments`.
 
-### 3. Update TypeScript types
+### 3. Replace compact booking info with expanded card
 
-Ensure the `Packing` type in `src/types/packing.ts` already has `start_date` and `end_date` — it does (lines 10-11).
+**`src/pages/PackingDetail.tsx`** — Replace the current compact booking info strip (lines 319-351) with a new component that reuses the same layout as `BookingInfoExpanded`:
+
+- **Client + booking number header** with icon (warehouse orange gradient instead of teal)
+- **Schedule cards** (RIGG / EVENT / NEDRIVNING) — reuse `ProjectScheduleEditable` component directly, which already handles date editing via the planning API
+- **Address / Logistics / Contact** grid — same 3-column layout as `BookingInfoExpanded`
+- **Internal notes** — same muted card style
+- **Booking files** — list booking attachments as read-only download links below the info card
+
+### 4. Keep existing pack dates and tabs
+
+The "Packdatum" row stays as-is (it's packing-specific, not booking data). The tabs (Checklista, Packlista, Produkter, Filer, Kommentarer) remain unchanged. The "Filer" tab continues to show packing-specific files.
 
 ### Files to modify
 
-- `src/pages/PackingDetail.tsx` — Add inline date pickers for start/end date with Supabase update
-- `src/services/packingService.ts` — Verify `fetchPacking` includes start_date/end_date (may already work)
-- Possibly `src/hooks/usePackingDetail.tsx` — Add a date update mutation if needed
+| File | Change |
+|------|--------|
+| `src/types/packing.ts` | Add logistics/notes/time fields to `PackingWithBooking.booking` |
+| `src/services/packingService.ts` | Expand booking select query |
+| `src/hooks/usePackingDetail.tsx` | Add `bookingAttachments` query |
+| `src/pages/PackingDetail.tsx` | Replace compact info strip with expanded card using `ProjectScheduleEditable`, address/logistics/notes sections, and booking attachments list |
 
-### Technical notes
+### Design notes
 
-- Calendar component must use `className="p-3 pointer-events-auto"` inside Popover
-- Dates stored as `date` type (YYYY-MM-DD) — use `format(date, 'yyyy-MM-dd')` for updates
-- No migration needed — columns already exist
+- Signature color: warehouse orange gradient (`hsl(38 92% 55%)`) for icons, not the teal/primary used in project views
+- Layout, spacing, typography, and card structure will mirror `BookingInfoExpanded` exactly
+- `ProjectScheduleEditable` is reused as-is (it handles its own booking date updates via the planning API proxy)
+- Booking attachments shown as downloadable file links with file type icons, read-only (no upload/delete — those are managed in the planning system)
 
