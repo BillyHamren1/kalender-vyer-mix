@@ -9,5 +9,3 @@
   --shadow-btn-primary: 0 2px 0 hsl(184 60% 26%);
 }
 
-/* Import calendar styles */
-@import './calendar.css';
