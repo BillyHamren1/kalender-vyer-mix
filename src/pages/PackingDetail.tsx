@@ -317,39 +317,13 @@ const PackingDetail = () => {
             </div>
           </div>
 
-          {/* Compact Booking Info */}
+          {/* Expanded Booking Info */}
           {booking && !isLargeProject && (
-            <div className="mb-4 px-5 py-3.5 bg-background/60 backdrop-blur-sm rounded-xl border border-border/30">
-              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium">{booking.client}</span>
-                  </div>
-                  {booking.eventdate && (
-                    <div className="flex items-center gap-1.5">
-                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{format(new Date(booking.eventdate), 'd MMM yyyy', { locale: sv })}</span>
-                    </div>
-                  )}
-                  {booking.deliveryaddress && (
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{booking.deliveryaddress}</span>
-                    </div>
-                  )}
-                  {booking.contact_name && (
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{booking.contact_name}</span>
-                    </div>
-                  )}
-                </div>
-                <Link to={`/booking/${booking.id}`}>
-                  <Button variant="outline" size="sm" className="h-7 text-xs border-border/60">Visa bokning</Button>
-                </Link>
-              </div>
-            </div>
+            <BookingInfoExpanded
+              booking={booking}
+              bookingAttachments={bookingAttachments}
+              onBookingUpdated={() => refetchAll()}
+            />
           )}
 
           {/* Packing Dates */}
