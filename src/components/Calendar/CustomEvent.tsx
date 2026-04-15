@@ -231,6 +231,48 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
+  // Warehouse events: wrap in QuickTimeEditPopover for click-to-edit-time
+  if (isWarehouseEvent && !readOnly) {
+    return (
+      <>
+        <QuickTimeEditPopover
+          event={{
+            id: event.id,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+            bookingId: event.bookingId,
+            eventType: event.eventType,
+            resourceId: event.resourceId,
+          }}
+          onUpdate={onEventResize}
+          variant="warehouse"
+        >
+          <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+            {eventCardContent}
+          </EventHoverCard>
+        </QuickTimeEditPopover>
+        
+        <MoveEventDateDialog
+          open={showDateDialog}
+          onOpenChange={(open) => {
+            setShowDateDialog(open);
+            if (!open) {
+              moveDateHandlers.onClose();
+            }
+          }}
+          event={event}
+          resources={availableResources}
+          onUpdate={onEventResize}
+          exactTimeNeeded={event.extendedProps?.exactTimeNeeded === true}
+          setEvents={setEvents}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
       <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
         <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
