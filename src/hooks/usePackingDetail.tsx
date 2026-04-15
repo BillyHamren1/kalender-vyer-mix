@@ -199,6 +199,7 @@ export const usePackingDetail = (packingId: string) => {
     tasks,
     comments,
     files,
+    bookingAttachments,
     isLoading: isLoadingPacking || isLoadingTasks,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
