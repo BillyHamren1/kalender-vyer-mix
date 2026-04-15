@@ -433,11 +433,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
-              {!hasBarcodeDetector && (
-                <div className="absolute top-4 left-4 right-4 bg-black/70 text-white text-xs text-center py-2 px-3 rounded-lg">
-                  Använder jsQR-fallback för avkodning
-                </div>
-              )}
             </>
           )}
         </div>
