@@ -149,14 +149,9 @@ const WarehouseDashboard = () => {
     refetchInterval: 300000,
   });
 
-  const isLoading = newJobsQuery.isLoading || 
-    activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading ||
-    transportsQuery.isLoading;
+  const isLoading = staffUtilizationQuery.isLoading || transportsQuery.isLoading;
 
   const refetchAll = () => {
-    newJobsQuery.refetch();
-    activePackingsQuery.refetch();
-    completedPackingsQuery.refetch();
     staffUtilizationQuery.refetch();
     transportsQuery.refetch();
   };
