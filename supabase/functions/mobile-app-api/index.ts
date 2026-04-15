@@ -3076,7 +3076,7 @@ async function handleDismissLocationEntry(supabase: any, staffId: string, data: 
   )
 }
 
-
+async function handleGetLocationTimeEntries(supabase: any, staffId: string, data: any, organizationId: string) {
   const { date_from, date_to, limit: queryLimit } = data || {}
 
   let query = supabase
