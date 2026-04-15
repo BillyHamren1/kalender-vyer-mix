@@ -1,34 +1,41 @@
 
 
-## Plan: Lägg till "Transporter"-kolumn i både personal- och lagerkalendern
+## Plan: Bakgrunds-geofence med korrekt ankomsttid och prompt vid appöppning
 
-### Bakgrund
-Transportplaneringar (`transport_assignments`) finns i databasen med datum, tid, fordon och bokningskoppling, men visas inte i kalendervyerna. Målet är att lägga till en dedikerad "Transporter"-kolumn i båda kalendrarna.
+### Problemet nu
+- `useBackgroundLocationReporter` skickar GPS var 30:e sekund även i bakgrunden, men gör **ingen geofence-check**
+- `useGeofencing` körs bara i förgrunden — `arrivalTimestamp` sätts till `Date.now()` när geofence-checken körs (dvs. när appen öppnas), inte när användaren faktiskt anlände
+- Resultat: om appen är stängd i 2 timmar och användaren öppnar den, ser den ut som att ankomsten skedde "just nu"
 
-### Placering
-- **Personalkalendern (Planning)**: "Transporter" placeras mellan Team 10 och "Live" (team-11)
-- **Lagerkalendern (Warehouse)**: "Transporter" placeras mellan sista Lager-kolumnen och "Event"
+### Lösning
 
-### Tekniska steg
+**1. Bakgrunds-geofence-check i `useBackgroundLocationReporter.ts`**
+- Läs geofence-targets (org locations + bokningar med koordinater) från `localStorage` (key: `eventflow-geofence-targets`)
+- I varje `handlePosition`-callback: kör Haversine mot alla targets
+- Om position är innanför radius och ingen pending arrival finns → spara till `localStorage` key `eventflow-pending-arrivals`:
+  ```json
+  [{ "key": "location-xxx", "name": "Lager", "type": "fixed", "timestamp": 1713182400000, "locationId": "xxx" }]
+  ```
+- Ta bort pending arrival om positionen rör sig utanför radius (exit)
 
-**1. Skapa hook `useTransportCalendarEvents`**
-- Ny hook som hämtar `transport_assignments` för veckan med join på `vehicles` och `bookings` (klient, bokningsnummer)
-- Prenumererar på Supabase Realtime för live-uppdateringar
-- Returnerar data mappat till `CalendarEvent[]` med `resourceId: 'transport'`, `eventType: 'delivery'` (blå färg), och titeln som visar klient + fordon
+**2. Cacha geofence-targets i `useGeofencing.ts`**
+- Efter hämtning av `orgLocations` och vid ändring av `bookings`: skriv en kompakt lista med id, lat/lng, radius, namn, typ till `localStorage` key `eventflow-geofence-targets`
+- Bakgrundsreportern läser detta cache — inga API-anrop behövs
 
-**2. Lägg till "Transporter" som resurs i båda kalendrarna**
-- **`useTeamResources.tsx`**: Lägg till `{ id: 'transport', title: 'Transporter', eventColor: '#3B82F6' }` före `team-11` i sorteringen
-- **`useWarehouseResources.tsx`**: Lägg till `{ id: 'transport', title: 'Transporter', eventColor: '#3B82F6' }` före `warehouse-event` i sorteringen
+**3. Läs pending arrivals vid mount i `useGeofencing.ts`**
+- Vid start (staffId ändras): läs `eventflow-pending-arrivals` från localStorage
+- För varje pending arrival: skapa `GeofenceEvent` med `arrivalTimestamp` satt till den sparade tidsstämpeln (den faktiska ankomsttiden)
+- Queue:a dessa till `geofenceEvent` state → prompten visas
 
-**3. Integrera transport-events i kalendersidorna**
-- **Personalkalendern (CalendarPage)**: Importera hooken, merga transport-events med befintliga events
-- **Lagerkalendern (WarehouseCalendarPage)**: Samma approach, exkludera transport-events från `distributeWarehouseEvents`
+**4. Uppdatera GeofencePrompt**
+- Prompten visar redan korrekt: "Enligt GPS anlände du kl. XX:XX (Xmin sedan)" + knappen "Starta från XX:XX"
+- Ingen ändring behövs i prompten — den använder redan `arrivalTimestamp` korrekt
+- Enda ändring: `arrivalTimestamp` kommer nu vara den riktiga bakgrunds-ankomsttiden istället för `Date.now()`
 
-**4. Visuell stil**
-- Blå bakgrund (`#BFDBFE` / `bg-blue-100`) — matchar befintlig `delivery`-färg
-- Visar: klientnamn, transport-tid, fordonsnamn
-- Read-only i kalendern (klick navigerar till projektets transportflik)
+### Filer som ändras
+- `src/hooks/useBackgroundLocationReporter.ts` — lägg till geofence-check mot localStorage-targets, spara pending arrivals
+- `src/hooks/useGeofencing.ts` — cacha targets till localStorage, läs pending arrivals vid mount
 
-**5. Skydda kolumnen**
-- Lägg till `'transport'` i listan av kolumner som inte kan tas bort/döljas i båda kalendrarna
+### Begränsning
+Bakgrunds-geofence fungerar bara på native (Capacitor) — i webbläsaren körs geofence bara i förgrunden som idag.
 
