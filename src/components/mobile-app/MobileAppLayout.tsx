@@ -41,6 +41,10 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}
       >
         {/* Global travel banner — visible on all pages */}
+        {/* Global active timer banner — visible on all pages except /m/report */}
+        <GlobalActiveTimerBanner />
+
+        {/* Global travel banner — visible on all pages */}
         <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
 
         {children}
