@@ -299,7 +299,6 @@ export const mobileApi = {
 
   dismissLocationEntry: (locationId: string) =>
     callApi<{ success?: boolean }>('dismiss_location_entry', { location_id: locationId }),
-    callApi<{ success: boolean; entry: any }>('stop_location_timer', data),
 
   getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
