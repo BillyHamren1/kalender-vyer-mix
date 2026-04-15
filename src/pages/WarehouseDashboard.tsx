@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
-import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
+
 import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
@@ -46,53 +46,6 @@ const WarehouseDashboard = () => {
 
 
 
-  const staffUtilizationQuery = useQuery({
-    queryKey: ['warehouse-staff-utilization', format(currentWeekStart, 'yyyy-MM-dd')],
-    queryFn: async () => {
-      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
-      const endStr = format(weekEnd, 'yyyy-MM-dd');
-
-      const { data: staffMembers } = await supabase
-        .from('staff_members')
-        .select('id, name')
-        .eq('is_active', true);
-
-      const { data: laborCosts } = await supabase
-        .from('packing_labor_costs')
-        .select('staff_id, hours')
-        .gte('work_date', startStr)
-        .lte('work_date', endStr);
-
-      const { data: packingTasks } = await supabase
-        .from('packing_tasks')
-        .select('assigned_to, packing_id')
-        .eq('completed', false);
-
-      const hoursMap = (laborCosts || []).reduce((acc, row) => {
-        acc[row.staff_id] = (acc[row.staff_id] || 0) + (row.hours || 0);
-        return acc;
-      }, {} as Record<string, number>);
-
-      const activePackingsMap = (packingTasks || []).reduce((acc, task) => {
-        if (task.assigned_to) {
-          if (!acc[task.assigned_to]) acc[task.assigned_to] = new Set();
-          acc[task.assigned_to].add(task.packing_id);
-        }
-        return acc;
-      }, {} as Record<string, Set<string>>);
-
-      const TARGET_HOURS = 40;
-
-      return (staffMembers || []).map(staff => ({
-        id: staff.id,
-        name: staff.name,
-        hoursThisWeek: hoursMap[staff.id] || 0,
-        targetHours: TARGET_HOURS,
-        utilizationPercent: Math.round(((hoursMap[staff.id] || 0) / TARGET_HOURS) * 100),
-        activePackings: activePackingsMap[staff.id]?.size || 0
-      })).filter(s => s.hoursThisWeek > 0 || s.activePackings > 0);
-    }
-  });
 
   // Transport assignments query - upcoming loadings/unloadings
   const transportsQuery = useQuery<TransportItem[]>({
@@ -146,10 +99,9 @@ const WarehouseDashboard = () => {
     refetchInterval: 300000,
   });
 
-  const isLoading = staffUtilizationQuery.isLoading || transportsQuery.isLoading;
+  const isLoading = transportsQuery.isLoading;
 
   const refetchAll = () => {
-    staffUtilizationQuery.refetch();
     transportsQuery.refetch();
   };
 
@@ -226,19 +178,13 @@ const WarehouseDashboard = () => {
             <WarehouseRecentPackingsWidgets />
           </div>
 
-          {/* Staff Activation + Transport + Utilization */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Staff Activation + Transport */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WarehouseStaffActivationCard />
 
             <TodaysTransportsCard 
               transports={transportsQuery.data || []}
               isLoading={transportsQuery.isLoading}
-            />
-
-            <WarehouseStaffUtilizationCard 
-              staff={staffUtilizationQuery.data || []}
-              isLoading={staffUtilizationQuery.isLoading}
-              weekNumber={format(currentWeekStart, 'w')}
             />
           </div>
         </div>
