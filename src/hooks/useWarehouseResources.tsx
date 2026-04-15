@@ -15,6 +15,7 @@ const defaultWarehouseTeams: Resource[] = [
   { id: 'lager-8', title: 'Lager 8', eventColor: '#9370db' },
   { id: 'lager-9', title: 'Lager 9', eventColor: '#ba55d3' },
   { id: 'lager-10', title: 'Lager 10', eventColor: '#da70d6' },
+  { id: 'warehouse-event', title: 'Event', eventColor: '#f59e0b' },
 ];
 
 const loadFromStorage = (): Resource[] => {
