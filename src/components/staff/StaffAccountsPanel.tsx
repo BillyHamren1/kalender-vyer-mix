@@ -279,6 +279,21 @@ const StaffAccountsPanel: React.FC = () => {
             Konton skapas automatiskt när personal taggas som Montage eller Lager.
           </p>
 
+          {staffWithoutAccounts.length > 0 && (
+            <Button
+              onClick={handleCreateAllAccounts}
+              disabled={isCreatingBulk}
+              className="w-full"
+            >
+              {isCreatingBulk ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              Skapa konton för alla ({staffWithoutAccounts.length} st)
+            </Button>
+          )}
+
           {/* Staff with accounts */}
           {staffWithAccounts.length > 0 && (
             <div className="space-y-2">
