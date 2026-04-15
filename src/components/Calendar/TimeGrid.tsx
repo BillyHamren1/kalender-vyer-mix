@@ -212,11 +212,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventClick,
   fullWidth = false,
   availableStaff = [],
+  staffExpanded: staffExpandedProp = false,
+  onToggleStaffExpanded,
   carouselNav,
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
-  const [staffExpanded, setStaffExpanded] = useState(false);
   const staffContainerRef = useRef<HTMLDivElement>(null);
   const { handleEventClick } = useEventNavigation();
 
