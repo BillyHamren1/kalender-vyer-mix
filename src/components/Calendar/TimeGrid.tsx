@@ -438,7 +438,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {!staffExpandedProp && getUnassignedAvailableStaff().length === 0 && (
           <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
         )}
-        )}
       </div>
 
       <div 
