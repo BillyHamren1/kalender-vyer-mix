@@ -102,7 +102,7 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-bold text-foreground uppercase tracking-wider">Packdatum</span>
             </div>
-            <div className="flex items-center gap-3 w-full">
+            <div className="flex items-center gap-3 w-full mb-3">
               <Popover>
                 <PopoverTrigger asChild>
                   <div className="flex-1 rounded-xl p-4 border border-border/40 bg-card cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all">
@@ -161,24 +161,43 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Individual events listed under packing dates */}
+            <div className="border-t border-border/30 pt-3">
+              <ProjectScheduleEditable
+                bookingId={booking.id}
+                rigDate={booking.rigdaydate}
+                eventDate={booking.eventdate}
+                rigdownDate={booking.rigdowndate}
+                rigStartTime={booking.rig_start_time}
+                rigEndTime={booking.rig_end_time}
+                eventStartTime={booking.event_start_time}
+                eventEndTime={booking.event_end_time}
+                rigdownStartTime={booking.rigdown_start_time}
+                rigdownEndTime={booking.rigdown_end_time}
+                onUpdated={onBookingUpdated}
+                compact
+              />
+            </div>
           </div>
         )}
 
-        {/* Schedule timeline */}
-        <ProjectScheduleEditable
-          bookingId={booking.id}
-          rigDate={booking.rigdaydate}
-          eventDate={booking.eventdate}
-          rigdownDate={booking.rigdowndate}
-          rigStartTime={booking.rig_start_time}
-          rigEndTime={booking.rig_end_time}
-          eventStartTime={booking.event_start_time}
-          eventEndTime={booking.event_end_time}
-          rigdownStartTime={booking.rigdown_start_time}
-          rigdownEndTime={booking.rigdown_end_time}
-          onUpdated={onBookingUpdated}
-          compact={isWarehouseView}
-        />
+        {/* Schedule timeline (non-warehouse view) */}
+        {!isWarehouseView && (
+          <ProjectScheduleEditable
+            bookingId={booking.id}
+            rigDate={booking.rigdaydate}
+            eventDate={booking.eventdate}
+            rigdownDate={booking.rigdowndate}
+            rigStartTime={booking.rig_start_time}
+            rigEndTime={booking.rig_end_time}
+            eventStartTime={booking.event_start_time}
+            eventEndTime={booking.event_end_time}
+            rigdownStartTime={booking.rigdown_start_time}
+            rigdownEndTime={booking.rigdown_end_time}
+            onUpdated={onBookingUpdated}
+          />
+        )}
       </div>
 
       {/* Address / Contact / Logistics */}
