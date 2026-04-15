@@ -91,8 +91,11 @@ export const useWarehouseResources = () => {
   };
 
   const teamResources = resources
-    .filter(r => r.id.startsWith('lager-'))
+    .filter(r => r.id.startsWith('lager-') || r.id === 'warehouse-event')
     .sort((a, b) => {
+      // warehouse-event always goes last
+      if (a.id === 'warehouse-event') return 1;
+      if (b.id === 'warehouse-event') return -1;
       const aNum = parseInt(a.id.replace('lager-', '')) || 0;
       const bNum = parseInt(b.id.replace('lager-', '')) || 0;
       return aNum - bNum;
