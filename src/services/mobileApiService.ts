@@ -292,7 +292,7 @@ export const mobileApi = {
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number }[] }>('get_organization_locations'),
 
   startLocationTimer: (locationId: string) =>
-    callApi<{ success: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
+    callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
 
   stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
     callApi<{ success: boolean; entry: any }>('stop_location_timer', data),

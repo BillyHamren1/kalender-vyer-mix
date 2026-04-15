@@ -140,12 +140,54 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     saveTimers(activeTimers);
   }, [activeTimers]);
 
-  // Fetch organization locations once
+  // Fetch organization locations once, then restore any active server-side timers
   useEffect(() => {
     if (!staffId) return;
-    mobileApi.getOrganizationLocations()
-      .then(res => setOrgLocations(res.locations || []))
-      .catch(err => console.warn('Failed to fetch org locations:', err));
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Fetch org locations
+        const locRes = await mobileApi.getOrganizationLocations();
+        if (cancelled) return;
+        const locations = locRes.locations || [];
+        setOrgLocations(locations);
+
+        // Fetch open (active) location_time_entries from server
+        const today = new Date().toISOString().split('T')[0];
+        const entriesRes = await mobileApi.getLocationTimeEntries({ date_from: today, limit: 50 });
+        if (cancelled) return;
+        const openEntries = (entriesRes.entries || []).filter((e: any) => !e.exited_at);
+
+        if (openEntries.length > 0) {
+          setActiveTimers(prev => {
+            const next = new Map(prev);
+            for (const entry of openEntries) {
+              const locKey = `location-${entry.location_id}`;
+              // Don't overwrite if user already has a local timer for this location
+              if (next.has(locKey)) continue;
+              const loc = locations.find((l: any) => l.id === entry.location_id);
+              next.set(locKey, {
+                bookingId: locKey,
+                client: loc?.name || 'Plats',
+                startTime: entry.entered_at,
+                isAutoStarted: entry.source === 'gps',
+                locationId: entry.location_id,
+                locationName: loc?.name || 'Plats',
+              });
+              // Mark as already triggered so geofence doesn't re-fire
+              triggeredEnterRef.current.add(locKey);
+            }
+            return next;
+          });
+          console.log('[Geofence] Restored', openEntries.length, 'active server timers');
+        }
+      } catch (err) {
+        console.warn('Failed to fetch org locations / active timers:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [staffId]);
 
   // Single consolidated GPS watcher
@@ -357,9 +399,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     // If it's a fixed location manual start, call the API
     if (locationId) {
-      mobileApi.startLocationTimer(locationId).catch(err => {
-        console.warn('Failed to start location timer on server:', err);
-      });
+      mobileApi.startLocationTimer(locationId)
+        .then(res => {
+          // If timer was already active on server, use the server start time
+          if (res.already_active && res.entry?.entered_at) {
+            setActiveTimers(prev => {
+              const next = new Map(prev);
+              const existing = next.get(key);
+              if (existing) {
+                next.set(key, { ...existing, startTime: res.entry.entered_at });
+              }
+              return next;
+            });
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to start location timer on server:', err);
+        });
     }
     return true;
   }, []);
