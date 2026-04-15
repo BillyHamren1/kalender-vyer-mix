@@ -392,9 +392,9 @@ const PackingDetail = () => {
             </div>
           )}
 
-          <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
-            <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="flex-wrap h-auto gap-1">
+          <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
+            <div className="border-b border-border/40 bg-card/50 backdrop-blur-sm rounded-xl px-2 py-1 mb-4">
+              <TabsList className="flex-wrap h-auto gap-1 bg-transparent p-0">
                 {isLargeProject && (
                   <TabsTrigger value="overview" className="flex items-center gap-1">
                     <LayoutList className="h-3.5 w-3.5" />
@@ -420,6 +420,9 @@ const PackingDetail = () => {
                 <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
+            </div>
+
+          <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
 
               {isLargeProject && (
                 <TabsContent value="overview">
@@ -486,8 +489,8 @@ const PackingDetail = () => {
               <TabsContent value="comments">
                 <PackingComments comments={comments} onAddComment={addComment} />
               </TabsContent>
-            </Tabs>
-          </div>
+            </div>
+          </Tabs>
         </div>
       </div>
     </div>
