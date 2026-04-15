@@ -1088,9 +1088,16 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
 
-  if (!booking_id || !report_date) {
+  if (!report_date) {
     return new Response(
-      JSON.stringify({ error: 'booking_id and report_date are required' }),
+      JSON.stringify({ error: 'report_date is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (!booking_id && !large_project_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id or large_project_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -1156,11 +1163,11 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  let resolvedBookingId = booking_id
+  let resolvedBookingId = booking_id || null
   let resolvedLargeProjectId = large_project_id || null
 
   // Large project timers: booking_id starts with "project-"
-  if (booking_id.startsWith('project-')) {
+  if (booking_id && booking_id.startsWith('project-')) {
     const projectId = booking_id.replace('project-', '')
     resolvedLargeProjectId = projectId
 
@@ -1211,7 +1218,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-  } else if (booking_id.startsWith('location-')) {
+  } else if (booking_id && booking_id.startsWith('location-')) {
     // Location timers: resolve to the internal project's booking_id
     const locationId = booking_id.replace('location-', '')
     const { data: locData } = await supabase
@@ -1249,7 +1256,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-  } else {
+  } else if (booking_id) {
     // Verify staff is assigned to this booking via booking_staff_assignments (single source of truth)
     const { data: assignment } = await supabase
       .from('booking_staff_assignments')
@@ -1261,6 +1268,36 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     if (!assignment || assignment.length === 0) {
       return new Response(
         JSON.stringify({ error: 'You are not assigned to this booking' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  } else if (large_project_id) {
+    // No booking_id provided, just large_project_id — verify membership
+    resolvedLargeProjectId = large_project_id
+    const { data: projectData } = await supabase
+      .from('large_projects')
+      .select('id')
+      .eq('id', large_project_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+
+    if (!projectData) {
+      return new Response(
+        JSON.stringify({ error: 'Project not found' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const { data: membership } = await supabase
+      .from('large_project_staff')
+      .select('id')
+      .eq('large_project_id', large_project_id)
+      .eq('staff_id', staffId)
+      .limit(1)
+
+    if (!membership || membership.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'You are not a member of this project' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
