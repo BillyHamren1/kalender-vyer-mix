@@ -3042,7 +3042,41 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
   )
 }
 
-async function handleGetLocationTimeEntries(supabase: any, staffId: string, data: any, organizationId: string) {
+// Dismiss (delete) a GPS-created location entry when user says "Inte nu"
+async function handleDismissLocationEntry(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id } = data || {}
+  if (!location_id) {
+    return new Response(
+      JSON.stringify({ error: 'location_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Delete (not just close) the GPS entry — user explicitly declined, no time should be recorded
+  const { error } = await supabase
+    .from('location_time_entries')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .eq('location_id', location_id)
+    .eq('source', 'gps')
+    .is('exited_at', null)
+
+  if (error) {
+    console.error('Dismiss location entry error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to dismiss location entry' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+
   const { date_from, date_to, limit: queryLimit } = data || {}
 
   let query = supabase
