@@ -4,6 +4,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useWarehouseStaffActivations } from '@/hooks/useWarehouseStaffActivations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
@@ -313,8 +314,11 @@ const WarehouseCalendarPage = () => {
     });
   };
 
-  // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager');
+  // Only show activated warehouse staff in calendar
+  const { activeStaffIds } = useWarehouseStaffActivations();
+
+  // Use the unified staff operations hook — filtered by activated staff
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager', activeStaffIds);
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
