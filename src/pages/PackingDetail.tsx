@@ -63,6 +63,7 @@ const PackingDetail = () => {
     uploadFile,
     deleteFile,
     isUploadingFile,
+    updatePackingDates,
     refetchAll
   } = usePackingDetail(packingId || '');
 
@@ -325,7 +326,7 @@ const PackingDetail = () => {
                   </div>
                   {booking.eventdate && (
                     <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>{format(new Date(booking.eventdate), 'd MMM yyyy', { locale: sv })}</span>
                     </div>
                   )}
