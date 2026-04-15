@@ -13,6 +13,7 @@ import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsC
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
 import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
+import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
