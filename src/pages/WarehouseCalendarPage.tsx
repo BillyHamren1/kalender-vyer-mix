@@ -415,21 +415,6 @@ const WarehouseCalendarPage = () => {
           />
         )}
 
-        {/* Incoming packing banner */}
-        {incomingPackingCount > 0 && (
-          <Link
-            to="/warehouse/packing"
-            className="mx-4 mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
-            style={{
-              background: 'hsl(38 92% 50% / 0.10)',
-              color: 'hsl(38 92% 40%)',
-              border: '1px solid hsl(38 92% 50% / 0.25)',
-            }}
-          >
-            <Package className="h-4 w-4" />
-            {incomingPackingCount} {incomingPackingCount === 1 ? 'projekt väntar' : 'projekt väntar'} på packning
-          </Link>
-        )}
 
         {/* Filter bar */}
         <div className="px-4 pt-2 pb-1 flex items-center gap-3">
