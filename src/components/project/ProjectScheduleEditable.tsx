@@ -119,7 +119,7 @@ const ProjectScheduleEditable = ({
           return (
             <div key={item.key} className="flex items-center flex-1">
               <div
-                className={`flex-1 rounded-xl p-3 border transition-all group cursor-pointer hover:border-primary/40 hover:shadow-sm ${
+                className={`flex-1 rounded-xl ${compact ? 'p-2' : 'p-3'} border transition-all group cursor-pointer hover:border-primary/40 hover:shadow-sm ${
                   today
                     ? 'border-primary/40 bg-accent shadow-sm'
                     : past
@@ -132,17 +132,17 @@ const ProjectScheduleEditable = ({
                 title="Klicka för att redigera"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <div
-                      className="w-5 h-5 rounded-md flex items-center justify-center"
+                      className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} rounded-md flex items-center justify-center`}
                       style={{
                         background: today ? 'var(--gradient-icon)' : undefined,
                         backgroundColor: today ? undefined : 'hsl(var(--muted))',
                       }}
                     >
-                      <Icon className={`h-3 w-3 ${today ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                      <Icon className={`${compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} ${today ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
                     </div>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className={`${compact ? 'text-[10px]' : 'text-xs'} font-semibold uppercase tracking-wider text-muted-foreground`}>
                       {item.label}
                     </span>
                   </div>
@@ -151,22 +151,24 @@ const ProjectScheduleEditable = ({
 
                 {hasDate ? (
                   <>
-                    <p className="font-semibold text-sm text-foreground tracking-tight">
+                    <p className={`font-semibold ${compact ? 'text-xs' : 'text-sm'} text-foreground tracking-tight`}>
                       {format(date!, 'd MMM yyyy', { locale: sv })}
                     </p>
                     {hasTime && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-muted-foreground mt-0.5`}>
                         {startDisplay}–{endDisplay}
                       </p>
                     )}
-                    <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                      {getCountdownText(item.date!)}
-                    </p>
+                    {!compact && (
+                      <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+                        {getCountdownText(item.date!)}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Plus className="h-3.5 w-3.5 text-primary" />
-                    <p className="text-xs text-primary font-medium">Lägg till datum</p>
+                    <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-primary font-medium`}>Lägg till datum</p>
                   </div>
                 )}
               </div>
