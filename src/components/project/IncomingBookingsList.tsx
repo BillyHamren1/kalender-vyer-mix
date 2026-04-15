@@ -52,7 +52,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       const candidateIds = candidates.map(b => b.id);
       
       const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
-        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
         supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
         supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
       ]);
