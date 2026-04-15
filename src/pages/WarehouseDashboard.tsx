@@ -226,19 +226,13 @@ const WarehouseDashboard = () => {
             <WarehouseRecentPackingsWidgets />
           </div>
 
-          {/* Staff Activation + Transport + Utilization */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Staff Activation + Transport */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WarehouseStaffActivationCard />
 
             <TodaysTransportsCard 
               transports={transportsQuery.data || []}
               isLoading={transportsQuery.isLoading}
-            />
-
-            <WarehouseStaffUtilizationCard 
-              staff={staffUtilizationQuery.data || []}
-              isLoading={staffUtilizationQuery.isLoading}
-              weekNumber={format(currentWeekStart, 'w')}
             />
           </div>
         </div>
