@@ -399,9 +399,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     // If it's a fixed location manual start, call the API
     if (locationId) {
-      mobileApi.startLocationTimer(locationId).catch(err => {
-        console.warn('Failed to start location timer on server:', err);
-      });
+      mobileApi.startLocationTimer(locationId)
+        .then(res => {
+          // If timer was already active on server, use the server start time
+          if (res.already_active && res.entry?.entered_at) {
+            setActiveTimers(prev => {
+              const next = new Map(prev);
+              const existing = next.get(key);
+              if (existing) {
+                next.set(key, { ...existing, startTime: res.entry.entered_at });
+              }
+              return next;
+            });
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to start location timer on server:', err);
+        });
     }
     return true;
   }, []);
