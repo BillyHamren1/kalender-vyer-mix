@@ -419,6 +419,26 @@ export async function markWarehouseEventAsAdjusted(eventId: string): Promise<voi
   }
 }
 
+// Update warehouse event times
+export async function updateWarehouseCalendarEvent(
+  eventId: string, 
+  updates: { start_time?: string; end_time?: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from('warehouse_calendar_events')
+    .update({
+      ...updates,
+      manually_adjusted: true,
+      has_source_changes: false,
+    })
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('[WarehouseCalendar] Error updating event:', error);
+    throw error;
+  }
+}
+
 // Fetch warehouse events for a date range
 export async function fetchWarehouseEvents(startDate: string, endDate: string) {
   const { data, error } = await supabase
