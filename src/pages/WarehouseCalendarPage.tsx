@@ -278,27 +278,26 @@ const WarehouseCalendarPage = () => {
     localStorage.setItem('warehouseVisibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
   }, [visibleTeamsByDay]);
 
-  // Get visible teams for a specific day - include 'warehouse' by default
+  // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
     if (stored) {
-      // Ensure warehouse is always included
-      return stored.includes('warehouse') ? stored : [...stored, 'warehouse'];
+      return stored;
     }
-    // Default: lager-1 to lager-4 and warehouse (Packning)
-    return ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
+    // Default: lager-1 to lager-4
+    return ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Lager 1-4 and Warehouse
-        if (['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'].includes(teamId)) {
+        // Don't allow hiding Lager 1-4
+        if (['lager-1', 'lager-2', 'lager-3', 'lager-4'].includes(teamId)) {
           return prev;
         }
         return {
