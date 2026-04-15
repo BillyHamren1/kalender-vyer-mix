@@ -271,7 +271,7 @@ const CustomCalendarPage = () => {
           
 
           {/* Task overlay toggle + Navigation */}
-          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-0.5">
             <div className="flex-1">
               <WeekNavigation
                 currentWeekStart={currentWeekStart}
