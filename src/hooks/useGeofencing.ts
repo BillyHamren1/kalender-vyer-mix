@@ -138,9 +138,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     }
   }, [staffId]);
 
-  // Persist timers on change
+  // Persist timers on change and notify global banner
   useEffect(() => {
     saveTimers(activeTimers);
+    window.dispatchEvent(new Event('timer-state-changed'));
   }, [activeTimers]);
 
   // Fetch organization locations once, then restore any active server-side timers
