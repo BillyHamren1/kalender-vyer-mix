@@ -21,8 +21,6 @@ import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Cal
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useIncomingPackingCount } from '@/hooks/useIncomingPackingCount';
-import { Package } from 'lucide-react';
 
 // Map warehouse event types to CalendarEvent eventType
 const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'] => {
@@ -111,7 +109,7 @@ const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const incomingPackingCount = useIncomingPackingCount();
+  
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
   const { teamResources: warehouseTeamResources } = useWarehouseResources();
 
@@ -415,21 +413,6 @@ const WarehouseCalendarPage = () => {
           />
         )}
 
-        {/* Incoming packing banner */}
-        {incomingPackingCount > 0 && (
-          <Link
-            to="/warehouse/packing"
-            className="mx-4 mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
-            style={{
-              background: 'hsl(38 92% 50% / 0.10)',
-              color: 'hsl(38 92% 40%)',
-              border: '1px solid hsl(38 92% 50% / 0.25)',
-            }}
-          >
-            <Package className="h-4 w-4" />
-            {incomingPackingCount} {incomingPackingCount === 1 ? 'projekt väntar' : 'projekt väntar'} på packning
-          </Link>
-        )}
 
         {/* Filter bar */}
         <div className="px-4 pt-2 pb-1 flex items-center gap-3">
