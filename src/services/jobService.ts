@@ -223,10 +223,10 @@ export const createJobFromBooking = async (bookingId: string): Promise<Job> => {
     .from('projects')
     .select('id, name, status')
     .eq('booking_id', bookingId)
-    .neq('status', 'cancelled');
+    .not('status', 'in', '("completed","cancelled")');
 
   if (existingProjects && existingProjects.length > 0) {
-    throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
+    throw new Error('Bokningen har redan ett aktivt projekt. Använd det befintliga projektet istället.');
   }
 
   // 3. No existing job or project - create new job
