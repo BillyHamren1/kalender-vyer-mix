@@ -5276,6 +5276,42 @@ export type Database = {
           },
         ]
       }
+      warehouse_staff_activations: {
+        Row: {
+          activation_type: string
+          created_at: string
+          end_date: string | null
+          id: string
+          is_active: boolean
+          organization_id: string
+          staff_id: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          activation_type: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          staff_id: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activation_type?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          staff_id?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       webhook_subscriptions: {
         Row: {
           created_at: string

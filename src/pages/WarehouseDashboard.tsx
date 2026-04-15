@@ -13,6 +13,7 @@ import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsC
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
 import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
+import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
@@ -396,9 +397,14 @@ const WarehouseDashboard = () => {
             />
           </div>
 
-          {/* Transport overview + Main Grid */}
+          {/* Staff Activation + Transport overview + Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-            {/* Transport card - left column */}
+            {/* Staff activation card */}
+            <div className="lg:col-span-2">
+              <WarehouseStaffActivationCard />
+            </div>
+
+            {/* Transport card */}
             <div className="lg:col-span-1">
               <TodaysTransportsCard 
                 transports={transportsQuery.data || []}

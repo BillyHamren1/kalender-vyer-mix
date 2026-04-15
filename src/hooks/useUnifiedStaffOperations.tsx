@@ -64,7 +64,7 @@ async function fetchActiveStaff(): Promise<StaffMember[]> {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string) => {
+export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string, filterByStaffIds?: string[]) => {
   const queryClient = useQueryClient();
 
   // Assignments — cached indefinitely, invalidated by realtime
@@ -103,9 +103,16 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
 
   // Filter active staff by tag if specified
   const filteredActiveStaff = useMemo(() => {
-    if (!filterByTag) return activeStaff;
-    return activeStaff.filter(s => s.tags?.includes(filterByTag));
-  }, [activeStaff, filterByTag]);
+    let result = activeStaff;
+    if (filterByTag) {
+      result = result.filter(s => s.tags?.includes(filterByTag));
+    }
+    if (filterByStaffIds && filterByStaffIds.length > 0) {
+      const idSet = new Set(filterByStaffIds);
+      result = result.filter(s => idSet.has(s.id));
+    }
+    return result;
+  }, [activeStaff, filterByTag, filterByStaffIds]);
 
   // availableStaff for current date (derived, no extra fetch)
   const availableStaff = useMemo(() => {
