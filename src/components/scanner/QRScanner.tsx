@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Camera, X, Radio, Loader2 } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
-import jsQR from 'jsqr';
+import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 
 interface QRScannerProps {
   onScan: (result: string) => void;
