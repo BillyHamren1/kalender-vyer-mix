@@ -8,7 +8,7 @@ import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
-import WeekPackingsView from "@/components/warehouse-dashboard/WeekPackingsView";
+
 import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
 import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
@@ -20,22 +20,13 @@ import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import { toast } from "sonner";
 
-interface WeekPacking {
-  id: string;
-  bookingId: string;
-  bookingNumber: string | null;
-  client: string;
-  date: Date;
-  eventType: 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'event' | 'rigdown';
-  status: string;
-}
+
+
 
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
-  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
-  const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+
+
 
   // Dialog states
   const [showCreateWizard, setShowCreateWizard] = useState(false);
@@ -47,7 +38,7 @@ const WarehouseDashboard = () => {
     channelName: 'warehouse-page-realtime',
     tables: ['packing_projects', 'packing_list_items', 'transport_assignments', 'bookings'],
     queryKeys: [
-      ['warehouse-week-packings'],
+      
       ['warehouse-new-jobs'],
       ['warehouse-active-packings'],
       ['warehouse-completed-packings'],
@@ -56,52 +47,8 @@ const WarehouseDashboard = () => {
     ],
   });
 
-  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
-  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
-  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
-
   // Query hooks
-  const weekPackingsQuery = useQuery({
-    queryKey: ['warehouse-week-packings', format(currentWeekStart, 'yyyy-MM-dd')],
-    queryFn: async () => {
-      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
-      const endStr = format(weekEnd, 'yyyy-MM-dd');
 
-      const { data, error } = await supabase
-        .from('warehouse_calendar_events')
-        .select('id, booking_id, booking_number, title, event_type, start_time')
-        .gte('start_time', startStr)
-        .lte('start_time', endStr + 'T23:59:59')
-        .order('start_time', { ascending: true });
-
-      if (error) throw error;
-
-      const KNOWN_PREFIXES = [
-        'Packning - ', 'Utleverans - ', 'Event - ', 'Återleverans - ',
-        'Inventering - ', 'Upppackning - ', 'Rigg - ', 'Nedriggning - '
-      ];
-      const packings: WeekPacking[] = (data || []).map(event => {
-        // Strip known event-type prefix — client names may also contain " - " so
-        // we match against a fixed list of prefixes rather than taking after first " - "
-        const rawTitle = event.title || '';
-        const matchedPrefix = KNOWN_PREFIXES.find(p => rawTitle.startsWith(p));
-        const clientName = matchedPrefix
-          ? rawTitle.substring(matchedPrefix.length)
-          : rawTitle;
-        return {
-          id: event.id,
-          bookingId: event.booking_id || '',
-          bookingNumber: event.booking_number,
-          client: clientName,
-          date: new Date(event.start_time),
-          eventType: (event.event_type?.toLowerCase() || 'other') as WeekPacking['eventType'],
-          status: 'active'
-        };
-      });
-
-      return packings;
-    }
-  });
 
   const newJobsQuery = useQuery({
     queryKey: ['warehouse-new-jobs'],
@@ -304,12 +251,11 @@ const WarehouseDashboard = () => {
     refetchInterval: 300000,
   });
 
-  const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 
+  const isLoading = newJobsQuery.isLoading || 
     activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading ||
     transportsQuery.isLoading;
 
   const refetchAll = () => {
-    weekPackingsQuery.refetch();
     newJobsQuery.refetch();
     activePackingsQuery.refetch();
     completedPackingsQuery.refetch();
@@ -383,18 +329,6 @@ const WarehouseDashboard = () => {
           {/* Incoming projects without packing */}
           <div className="mb-6">
             <IncomingPackingList />
-          </div>
-
-          {/* Week Planning - Packings View */}
-          <div className="mb-6">
-            <WeekPackingsView 
-              packings={weekPackingsQuery.data || []}
-              weekStart={currentWeekStart}
-              onPreviousWeek={goToPreviousWeek}
-              onNextWeek={goToNextWeek}
-              onCurrentWeek={goToCurrentWeek}
-              isLoading={weekPackingsQuery.isLoading}
-            />
           </div>
 
           {/* Staff Activation + Transport overview + Main Grid */}
