@@ -6,7 +6,7 @@ import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import StaffItem from './StaffItem';
 import TeamVisibilityControl from './TeamVisibilityControl';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import './TimeGrid.css';
 
 interface TeamVisibilityProps {
