@@ -64,29 +64,35 @@ const DashboardUpdatedBookings: React.FC = () => {
 
   return (
     <div
-      className="relative rounded-2xl overflow-hidden"
+      className="relative rounded-2xl overflow-hidden ring-2 ring-amber-400/40"
       style={{
         background: 'linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%)',
-        boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px hsl(var(--border) / 0.5)',
+        boxShadow: '0 4px 24px -4px rgba(217, 119, 6, 0.15), 0 0 0 1px hsl(var(--border) / 0.5)',
       }}
     >
-      <div className="h-1.5 bg-gradient-to-r from-blue-400/60 via-blue-500 to-blue-400/60" />
+      <div className="h-2 bg-gradient-to-r from-amber-400/70 via-amber-500 to-orange-400/70" />
 
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 ring-1 ring-blue-500/20">
-              <RefreshCw className="h-5 w-5 text-blue-600" />
-              <Sparkles className="absolute -top-1 -right-1 h-3.5 w-3.5 text-blue-500" />
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-amber-500/15 to-orange-500/5 ring-1 ring-amber-500/20">
+              <RefreshCw className="h-5 w-5 text-amber-600" />
+              <Sparkles className="absolute -top-1 -right-1 h-3.5 w-3.5 text-amber-500" />
             </div>
             <div>
               <h3 className="font-semibold text-lg text-foreground">Uppdaterade bokningar</h3>
-              <p className="text-xs text-muted-foreground">Bokningar som ändrats sedan de tilldelades</p>
+              <p className="text-xs text-amber-700 font-medium">Kräver granskning</p>
             </div>
           </div>
-          <Badge variant="secondary" className="h-7 px-3 text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-100">
-            {bookings.length} uppdaterade
-          </Badge>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <Badge variant="secondary" className="h-7 px-3 text-sm font-semibold bg-amber-100 text-amber-900 hover:bg-amber-100 border border-amber-300/50">
+              {bookings.length} uppdaterade
+            </Badge>
+          </div>
         </div>
 
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
