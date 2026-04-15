@@ -432,6 +432,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             playsInline
             muted
           />
+          <canvas ref={canvasRef} className="hidden" />
           
 
           {cameraState === 'error' && (
