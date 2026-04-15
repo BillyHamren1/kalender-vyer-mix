@@ -391,29 +391,15 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           transition: 'background 0.2s ease',
         }}
       >
-        <div className="flex items-center gap-2 mb-0.5">
-          <button
-            onClick={onToggleStaffExpanded}
-            className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1 hover:text-muted-foreground cursor-pointer"
-          >
-            {staffExpandedProp ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {selectingForTeam ? `Välj personal → ${selectingForTeam.title}` : `Personal (${getUnassignedAvailableStaff().length})`}
-          </button>
-          {selectingForTeam && (
-            <button 
-              onClick={() => setSelectingForTeam(null)}
-              className="text-[9px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground"
-            >
-              Avbryt
-            </button>
-          )}
-        </div>
-        {staffExpandedProp && (() => {
+        {(() => {
           const allStaff = getUnassignedAvailableStaff();
+          const maxCollapsed = 10; // 2 rows × 5 columns
+          const displayStaff = staffExpandedProp ? allStaff : allStaff.slice(0, maxCollapsed);
+          const hasMore = allStaff.length > maxCollapsed;
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-                {allStaff.map((staff) => {
+                {displayStaff.map((staff) => {
                   const firstName = staff.name.trim().split(' ')[0];
                   return (
                     <div 
@@ -432,11 +418,37 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   );
                 })}
               </div>
+              {hasMore && (
+                <button
+                  onClick={onToggleStaffExpanded}
+                  className="flex items-center gap-1 mt-1 text-[10px] font-medium text-primary hover:text-primary/80 cursor-pointer transition-colors"
+                >
+                  {staffExpandedProp ? (
+                    <>
+                      <ChevronUp className="h-3.5 w-3.5" />
+                      Visa mindre
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3.5 w-3.5" />
+                      Visa alla ({allStaff.length - maxCollapsed} till)
+                    </>
+                  )}
+                </button>
+              )}
+              {allStaff.length === 0 && (
+                <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
+              )}
             </>
           );
         })()}
-        {!staffExpandedProp && getUnassignedAvailableStaff().length === 0 && (
-          <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
+        {selectingForTeam && (
+          <button 
+            onClick={() => setSelectingForTeam(null)}
+            className="text-[9px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground mt-1"
+          >
+            Avbryt
+          </button>
         )}
       </div>
 
