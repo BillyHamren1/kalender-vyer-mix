@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
+import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 
 export const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const GPS_SETTINGS_KEY = 'eventflow-mobile-gps-settings';
+const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
+const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 
 export interface ActiveTimer {
   bookingId: string;
