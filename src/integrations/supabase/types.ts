@@ -4673,7 +4673,7 @@ export type Database = {
           approved: boolean | null
           approved_at: string | null
           approved_by: string | null
-          booking_id: string
+          booking_id: string | null
           break_time: number | null
           created_at: string
           description: string | null
@@ -4693,7 +4693,7 @@ export type Database = {
           approved?: boolean | null
           approved_at?: string | null
           approved_by?: string | null
-          booking_id: string
+          booking_id?: string | null
           break_time?: number | null
           created_at?: string
           description?: string | null
@@ -4713,7 +4713,7 @@ export type Database = {
           approved?: boolean | null
           approved_at?: string | null
           approved_by?: string | null
-          booking_id?: string
+          booking_id?: string | null
           break_time?: number | null
           created_at?: string
           description?: string | null
