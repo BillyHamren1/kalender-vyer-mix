@@ -27,7 +27,7 @@ import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 
 const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+  "px-6 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -322,8 +322,8 @@ const PackingDetail = () => {
           </div>
 
           <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
-            <div className="border-b border-border/40 overflow-x-auto">
-              <TabsList className="h-auto p-0 bg-transparent gap-0">
+            <div className="overflow-x-auto">
+              <TabsList className="h-auto p-1.5 bg-muted/50 rounded-xl border border-border/40 gap-1 w-full justify-start">
                 {isLargeProject && (
                   <TabsTrigger value="overview" className={tabTriggerClass}>
                     <LayoutList className="h-3.5 w-3.5 mr-1.5" />
