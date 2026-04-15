@@ -269,11 +269,11 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           .from('projects')
           .select('id')
           .eq('booking_id', bookingId)
-          .neq('status', 'cancelled')
+          .not('status', 'in', '("completed","cancelled")')
           .is('deleted_at', null);
         
         if (existingProjects && existingProjects.length > 0) {
-          throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
+          throw new Error('Bokningen har redan ett aktivt projekt. Använd det befintliga projektet istället.');
         }
         
         // Check for active (non-completed/cancelled) jobs — block creation
