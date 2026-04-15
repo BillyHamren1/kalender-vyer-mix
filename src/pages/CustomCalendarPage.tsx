@@ -7,6 +7,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
+import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -100,11 +101,15 @@ const CustomCalendarPage = () => {
   // Task overlay events (only fetched when toggle is on)
   const { taskEvents } = useTaskCalendarEvents(showTasks);
 
-  // Merge calendar events + task overlay
+  // Transport events for the "Transporter" column
+  const { transportEvents } = useTransportCalendarEvents(hookCurrentDate);
+
+  // Merge calendar events + task overlay + transport events
   const mergedEvents = useMemo(() => {
-    if (!showTasks || taskEvents.length === 0) return events;
-    return [...events, ...taskEvents];
-  }, [events, taskEvents, showTasks]);
+    const base = [...events, ...transportEvents];
+    if (!showTasks || taskEvents.length === 0) return base;
+    return [...base, ...taskEvents];
+  }, [events, taskEvents, transportEvents, showTasks]);
 
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {
