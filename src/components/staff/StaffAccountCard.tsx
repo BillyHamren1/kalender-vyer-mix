@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 interface StaffAccountCardProps {
   staffId: string;
   staffName: string;
+  staffEmail?: string;
   tags?: string[];
 }
 
@@ -33,15 +34,10 @@ const generateUsername = (name: string): string => {
     .replace(/[^a-z.]/g, '');
 };
 
-// Generate secure random password
-const generatePassword = (): string => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 8 }, () => 
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join('');
-};
+// Default password for all new accounts
+const getDefaultPassword = (): string => 'Frasse123';
 
-const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName, tags = [] }) => {
+const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName, staffEmail, tags = [] }) => {
   const queryClient = useQueryClient();
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
@@ -72,8 +68,8 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName,
   // Create account mutation
   const createAccountMutation = useMutation({
     mutationFn: async () => {
-      const username = generateUsername(staffName);
-      const password = generatePassword();
+      const username = staffEmail || generateUsername(staffName);
+      const password = getDefaultPassword();
       const passwordHash = btoa(password);
 
       // Check if username exists
@@ -114,7 +110,7 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName,
   // Reset password mutation
   const resetPasswordMutation = useMutation({
     mutationFn: async () => {
-      const newPassword = generatePassword();
+      const newPassword = getDefaultPassword();
       const passwordHash = btoa(newPassword);
 
       const { error } = await supabase
