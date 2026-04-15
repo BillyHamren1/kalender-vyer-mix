@@ -192,6 +192,8 @@ Deno.serve(async (req) => {
         return await handleStartLocationTimer(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
         return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'dismiss_location_entry':
+        return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       default:
@@ -2961,6 +2963,14 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     .maybeSingle()
 
   if (existing) {
+    // Upgrade GPS entry to manual (user confirmed) if needed
+    if (existing.source === 'gps') {
+      await supabase
+        .from('location_time_entries')
+        .update({ source: 'manual' })
+        .eq('id', existing.id)
+      existing.source = 'manual'
+    }
     // Return the existing entry so the client can restore the timer
     return new Response(
       JSON.stringify({ already_active: true, entry: existing }),
@@ -3028,6 +3038,40 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
 
   return new Response(
     JSON.stringify({ success: true, entry: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// Dismiss (delete) a GPS-created location entry when user says "Inte nu"
+async function handleDismissLocationEntry(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id } = data || {}
+  if (!location_id) {
+    return new Response(
+      JSON.stringify({ error: 'location_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Delete (not just close) the GPS entry — user explicitly declined, no time should be recorded
+  const { error } = await supabase
+    .from('location_time_entries')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .eq('location_id', location_id)
+    .eq('source', 'gps')
+    .is('exited_at', null)
+
+  if (error) {
+    console.error('Dismiss location entry error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to dismiss location entry' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

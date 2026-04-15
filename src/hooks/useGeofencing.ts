@@ -175,10 +175,13 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         if (cancelled) return;
         const openEntries = (entriesRes.entries || []).filter((e: any) => !e.exited_at);
 
-        if (openEntries.length > 0) {
+        // Only restore user-confirmed (manual) timers, NOT auto-GPS entries
+        const manualEntries = openEntries.filter((e: any) => e.source !== 'gps');
+
+        if (manualEntries.length > 0) {
           setActiveTimers(prev => {
             const next = new Map(prev);
-            for (const entry of openEntries) {
+            for (const entry of manualEntries) {
               const locKey = `location-${entry.location_id}`;
               // Don't overwrite if user already has a local timer for this location
               if (next.has(locKey)) continue;
@@ -187,7 +190,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 bookingId: locKey,
                 client: loc?.name || 'Plats',
                 startTime: entry.entered_at,
-                isAutoStarted: entry.source === 'gps',
+                isAutoStarted: false,
                 locationId: entry.location_id,
                 locationName: loc?.name || 'Plats',
               });
@@ -196,7 +199,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             }
             return next;
           });
-          console.log('[Geofence] Restored', openEntries.length, 'active server timers');
+          console.log('[Geofence] Restored', manualEntries.length, 'active manual timers');
         }
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
@@ -585,8 +588,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, []);
 
   const dismissGeofenceEvent = useCallback(() => {
+    const event = geofenceEvent;
     setGeofenceEvent(null);
-  }, []);
+
+    // If dismissing a location enter event, delete the background GPS entry
+    // so no time is recorded for this visit
+    if (event?.type === 'enter' && event.locationType === 'fixed' && event.locationId) {
+      mobileApi.dismissLocationEntry(event.locationId).catch(err => {
+        console.warn('[Geofence] Failed to dismiss location entry:', err);
+      });
+    }
+  }, [geofenceEvent]);
 
   return {
     activeTimers,

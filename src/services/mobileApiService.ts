@@ -295,7 +295,10 @@ export const mobileApi = {
     callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
 
   stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
-    callApi<{ success: boolean; entry: any }>('stop_location_timer', data),
+    callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
+
+  dismissLocationEntry: (locationId: string) =>
+    callApi<{ success?: boolean }>('dismiss_location_entry', { location_id: locationId }),
 
   getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
