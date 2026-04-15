@@ -192,6 +192,8 @@ Deno.serve(async (req) => {
         return await handleStartLocationTimer(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
         return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'dismiss_location_entry':
+        return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       default:
@@ -2961,6 +2963,14 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     .maybeSingle()
 
   if (existing) {
+    // Upgrade GPS entry to manual (user confirmed) if needed
+    if (existing.source === 'gps') {
+      await supabase
+        .from('location_time_entries')
+        .update({ source: 'manual' })
+        .eq('id', existing.id)
+      existing.source = 'manual'
+    }
     // Return the existing entry so the client can restore the timer
     return new Response(
       JSON.stringify({ already_active: true, entry: existing }),
