@@ -268,14 +268,7 @@ const CustomCalendarPage = () => {
   return (
     <TooltipProvider>
         <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
-          <div className="px-4 sm:px-6 lg:px-8 pt-6 shrink-0">
-            <PageHeader
-              icon={Calendar}
-              title="Personalplanering"
-              variant="purple"
-              subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
-            />
-          </div>
+          <div className="px-4 sm:px-6 lg:px-8 shrink-0">
 
           {/* Task overlay toggle + Navigation */}
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8">
