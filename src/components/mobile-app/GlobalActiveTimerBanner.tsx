@@ -50,6 +50,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   }, []);
 
   const handleStop = useCallback(async (key: string, timer: ActiveTimer) => {
+    const stopTime = new Date();
+    const startTimeDate = parseISO(timer.startTime);
+
     // Remove from localStorage immediately
     const current = loadTimersFromStorage();
     current.delete(key);
@@ -59,16 +62,35 @@ const GlobalActiveTimerBanner: React.FC = () => {
     // Notify useGeofencing instances
     window.dispatchEvent(new Event('timer-state-changed'));
 
-    // Stop on server if it's a location timer
+    // Stop location timer on server
     if (timer.locationId) {
-      try {
-        await mobileApi.stopLocationTimer({ location_id: timer.locationId });
-      } catch (err) {
+      mobileApi.stopLocationTimer({ location_id: timer.locationId }).catch(err => {
         console.warn('Failed to stop location timer on server:', err);
-      }
+      });
     }
 
-    toast.success('Timer stoppad');
+    // Create time report
+    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+    if (totalHours < 0) totalHours += 24;
+    const breakDeduction = totalHours > 5 ? 0.5 : 0;
+    const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
+    try {
+      await mobileApi.createTimeReport({
+        booking_id: key,
+        report_date: format(new Date(), 'yyyy-MM-dd'),
+        start_time: format(startTimeDate, 'HH:mm'),
+        end_time: format(stopTime, 'HH:mm'),
+        hours_worked: hoursWorked,
+        break_time: breakDeduction,
+        description: `Timer: ${timer.locationName || timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
+        establishment_task_id: timer.establishmentTaskId,
+        large_project_id: timer.largeProjectId,
+      });
+      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte spara tidrapport');
+    }
   }, []);
 
   // Hide on time report page (it has its own display)
