@@ -285,8 +285,8 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return stored;
     }
-    // Default: lager-1 to lager-4
-    return ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
+    // Default: lager-1 to lager-4 + warehouse-event
+    return ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'];
   };
 
   // Toggle team visibility for a specific day
