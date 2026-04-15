@@ -11,6 +11,7 @@ import ManualPackingChecklist from "@/components/packing/ManualPackingChecklist"
 import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
+import MultiBookingScheduleCard from "@/components/packing/MultiBookingScheduleCard";
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
@@ -317,8 +318,8 @@ const PackingDetail = () => {
             </div>
           </div>
 
-          {/* Booking Info with integrated packing dates */}
-          {booking && !isLargeProject && (
+          {/* Booking info / event overview */}
+          {booking && !isLargeProject && !isMultiBooking && (
             <BookingInfoExpanded
               booking={booking}
               bookingAttachments={bookingAttachments}
@@ -329,8 +330,18 @@ const PackingDetail = () => {
             />
           )}
 
-          {/* Packing dates for large projects (no booking) */}
-          {!booking && (
+          {isMultiBooking && (
+            <MultiBookingScheduleCard
+              linkedBookingIds={linkedBookingIds}
+              packingStartDate={packing.start_date}
+              packingEndDate={packing.end_date}
+              onPackingDateChange={updatePackingDates}
+              onBookingUpdated={() => refetchAll()}
+            />
+          )}
+
+          {/* Packing dates for large projects without linked bookings */}
+          {!booking && !isMultiBooking && (
             <div className="mb-4">
               <div className="rounded-2xl border border-border/40 shadow-2xl bg-card p-5">
                 <div className="flex items-center gap-2 mb-3">
