@@ -5,6 +5,7 @@ import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouse
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -47,7 +48,7 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
     title: we.title,
     start: we.start_time,
     end: we.end_time,
-    resourceId: 'warehouse', // All warehouse events go to the 'warehouse' resource
+    resourceId: 'lager-1', // Placeholder — will be redistributed by distributeWarehouseEvents
     bookingId: we.booking_id,
     bookingNumber: we.booking_number || undefined,
     eventType: mapWarehouseEventType(we.event_type),
@@ -111,6 +112,7 @@ const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const incomingPackingCount = useIncomingPackingCount();
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+  const { teamResources: warehouseTeamResources } = useWarehouseResources();
 
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
@@ -232,7 +234,9 @@ const WarehouseCalendarPage = () => {
     return eventTypeFilters.includes(eventType);
   });
   
-  const combinedEvents: CalendarEvent[] = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
+  const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  const combinedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
@@ -251,15 +255,9 @@ const WarehouseCalendarPage = () => {
     return eventType === 'rig' || eventType === 'event' || eventType === 'rigDown';
   };
 
-  const { teamResources: warehouseTeamResources } = useWarehouseResources();
   
-  // Add warehouse resource to the resources list
-  const warehouseResource = {
-    id: 'warehouse',
-    title: 'Packning',
-    eventColor: '#E5E7EB'
-  };
-  const resourcesWithWarehouse = [...warehouseTeamResources, warehouseResource];
+  // Resources list — warehouse resource no longer needed since events are distributed across lager columns
+  const resourcesWithWarehouse = warehouseTeamResources;
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
@@ -280,27 +278,26 @@ const WarehouseCalendarPage = () => {
     localStorage.setItem('warehouseVisibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
   }, [visibleTeamsByDay]);
 
-  // Get visible teams for a specific day - include 'warehouse' by default
+  // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
     if (stored) {
-      // Ensure warehouse is always included
-      return stored.includes('warehouse') ? stored : [...stored, 'warehouse'];
+      return stored;
     }
-    // Default: lager-1 to lager-4 and warehouse (Packning)
-    return ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
+    // Default: lager-1 to lager-4
+    return ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Lager 1-4 and Warehouse
-        if (['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse'].includes(teamId)) {
+        // Don't allow hiding Lager 1-4
+        if (['lager-1', 'lager-2', 'lager-3', 'lager-4'].includes(teamId)) {
           return prev;
         }
         return {
