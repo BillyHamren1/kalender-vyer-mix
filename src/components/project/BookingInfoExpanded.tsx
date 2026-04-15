@@ -1,8 +1,12 @@
 import { 
   User, MapPin, Phone, Mail, 
-  AlertTriangle, StickyNote, Truck, Hammer, Clock, Package
+  AlertTriangle, StickyNote, Truck, Hammer, Clock, Package, Calendar as CalendarIcon
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { sv } from "date-fns/locale";
 import ProjectScheduleEditable from "./ProjectScheduleEditable";
 import ProjectProductsList from "./ProjectProductsList";
 
@@ -46,11 +50,16 @@ interface BookingInfoExpandedProps {
   projectLeader?: string | null;
   bookingAttachments?: BookingAttachment[];
   onBookingUpdated?: () => void;
+  packingStartDate?: string | null;
+  packingEndDate?: string | null;
+  onPackingDateChange?: (updates: { start_date?: string | null; end_date?: string | null }) => void;
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], onBookingUpdated }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], onBookingUpdated, packingStartDate, packingEndDate, onPackingDateChange }: BookingInfoExpandedProps) => {
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
+  const hasPackingDates = packingStartDate !== undefined || packingEndDate !== undefined;
+  const isWarehouseView = !!onPackingDateChange;
 
   return (
     <Card className="mb-4 border-border/40 shadow-2xl rounded-2xl">
@@ -60,7 +69,7 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+              style={{ background: isWarehouseView ? 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' : 'var(--gradient-icon)', boxShadow: isWarehouseView ? undefined : 'var(--shadow-icon)' }}
             >
               <User className="h-4 w-4 text-primary-foreground" />
             </div>
@@ -87,6 +96,80 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
           )}
         </div>
 
+        {/* Packing dates (warehouse view) — prominent, below client name */}
+        {hasPackingDates && onPackingDateChange && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
+              >
+                <Package className="h-4 w-4 text-white" />
+              </div>
+              <span className="text-xs font-bold text-foreground uppercase tracking-wider">Packdatum</span>
+            </div>
+            <div className="flex items-center gap-3 w-full">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <div className="flex-1 rounded-xl p-4 border border-border/40 bg-card cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                        <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">START</span>
+                    </div>
+                    {packingStartDate ? (
+                      <p className="font-bold text-lg text-foreground tracking-tight">
+                        {format(new Date(packingStartDate), 'd MMMM yyyy', { locale: sv })}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-primary font-medium mt-1">Lägg till datum</p>
+                    )}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={packingStartDate ? new Date(packingStartDate) : undefined}
+                    onSelect={(date) => onPackingDateChange({ start_date: date ? format(date, 'yyyy-MM-dd') : null })}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <div className="w-8 h-px bg-border/60 flex-shrink-0" />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <div className="flex-1 rounded-xl p-4 border border-border/40 bg-card cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                        <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">SLUT</span>
+                    </div>
+                    {packingEndDate ? (
+                      <p className="font-bold text-lg text-foreground tracking-tight">
+                        {format(new Date(packingEndDate), 'd MMMM yyyy', { locale: sv })}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-primary font-medium mt-1">Lägg till datum</p>
+                    )}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={packingEndDate ? new Date(packingEndDate) : undefined}
+                    onSelect={(date) => onPackingDateChange({ end_date: date ? format(date, 'yyyy-MM-dd') : null })}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        )}
+
         {/* Schedule timeline */}
         <ProjectScheduleEditable
           bookingId={booking.id}
@@ -100,6 +183,7 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
           rigdownStartTime={booking.rigdown_start_time}
           rigdownEndTime={booking.rigdown_end_time}
           onUpdated={onBookingUpdated}
+          compact={isWarehouseView}
         />
       </div>
 
