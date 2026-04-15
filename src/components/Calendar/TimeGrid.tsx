@@ -41,6 +41,8 @@ interface TimeGridProps {
   onEventClick?: (event: CalendarEvent) => void;
   fullWidth?: boolean;
   availableStaff?: AvailableStaffMember[];
+  staffExpanded?: boolean;
+  onToggleStaffExpanded?: () => void;
   carouselNav?: {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
@@ -210,11 +212,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventClick,
   fullWidth = false,
   availableStaff = [],
+  staffExpanded: staffExpandedProp = false,
+  onToggleStaffExpanded,
   carouselNav,
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
-  const [staffExpanded, setStaffExpanded] = useState(false);
   const staffContainerRef = useRef<HTMLDivElement>(null);
   const { handleEventClick } = useEventNavigation();
 
@@ -384,15 +387,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             ? 'linear-gradient(180deg, hsl(var(--primary) / 0.15) 0%, hsl(var(--primary) / 0.08) 100%)'
             : 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
           borderBottom: '1px solid hsl(var(--border) / 0.6)',
-          padding: '6px 10px',
-          paddingLeft: `${timeColumnWidth + 10}px`,
+          padding: '4px 6px',
           transition: 'background 0.2s ease',
         }}
       >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            {selectingForTeam ? `Välj personal → ${selectingForTeam.title}` : 'Personal'}
-          </span>
+        <div className="flex items-center gap-2 mb-0.5">
+          <button
+            onClick={onToggleStaffExpanded}
+            className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1 hover:text-muted-foreground cursor-pointer"
+          >
+            {staffExpandedProp ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {selectingForTeam ? `Välj personal → ${selectingForTeam.title}` : `Personal (${getUnassignedAvailableStaff().length})`}
+          </button>
           {selectingForTeam && (
             <button 
               onClick={() => setSelectingForTeam(null)}
@@ -401,24 +407,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               Avbryt
             </button>
           )}
-          {!selectingForTeam && getUnassignedAvailableStaff().length > 15 && (
-            <button
-              onClick={() => setStaffExpanded(prev => !prev)}
-              className="text-[9px] px-1 py-0.5 rounded hover:bg-muted/80 text-muted-foreground flex items-center gap-0.5"
-            >
-              {staffExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {staffExpanded ? 'Mindre' : `Visa alla (${getUnassignedAvailableStaff().length})`}
-            </button>
-          )}
         </div>
-        {(() => {
+        {staffExpandedProp && (() => {
           const allStaff = getUnassignedAvailableStaff();
-          const maxCollapsed = 15; // 3 rows × 5 columns
-          const displayStaff = staffExpanded ? allStaff : allStaff.slice(0, maxCollapsed);
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-                {displayStaff.map((staff) => {
+                {allStaff.map((staff) => {
                   const firstName = staff.name.trim().split(' ')[0];
                   return (
                     <div 
@@ -437,18 +432,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   );
                 })}
               </div>
-              {!staffExpanded && allStaff.length > maxCollapsed && (
-                <button
-                  onClick={() => setStaffExpanded(true)}
-                  className="text-[9px] text-muted-foreground/70 hover:text-muted-foreground mt-1 cursor-pointer"
-                >
-                  +{allStaff.length - maxCollapsed} till...
-                </button>
-              )}
             </>
           );
         })()}
-        {getUnassignedAvailableStaff().length === 0 && (
+        {!staffExpandedProp && getUnassignedAvailableStaff().length === 0 && (
           <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
         )}
       </div>

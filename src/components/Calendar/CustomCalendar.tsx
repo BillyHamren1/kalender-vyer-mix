@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useCallback } from 'react';
+import React, { useRef, useMemo, useCallback, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
@@ -56,6 +56,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
+  const [staffExpanded, setStaffExpanded] = useState(false);
   const days = useWeekDays(currentDate);
 
   // Drag-and-drop for moving events between days
@@ -149,6 +150,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       setEvents,
       fullWidth,
       availableStaff: getAvailableStaffForDay(date),
+      staffExpanded,
+      onToggleStaffExpanded: () => setStaffExpanded(prev => !prev),
       ...(isCenter ? {
         carouselNav: {
           onNavigateLeft: () => navigateCarousel('left'),
