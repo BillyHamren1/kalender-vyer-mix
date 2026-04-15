@@ -350,7 +350,58 @@ const PackingDetail = () => {
             </div>
           )}
 
-          {/* Tabs Content */}
+          {/* Packing Dates */}
+          <div className="mb-4 px-5 py-3.5 bg-background/60 backdrop-blur-sm rounded-xl border border-border/30">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="text-muted-foreground font-medium">Packdatum:</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {packing.start_date
+                      ? format(new Date(packing.start_date), 'd MMM yyyy', { locale: sv })
+                      : 'Startdatum'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={packing.start_date ? new Date(packing.start_date) : undefined}
+                    onSelect={(date) => {
+                      updatePackingDates({
+                        start_date: date ? format(date, 'yyyy-MM-dd') : null,
+                      });
+                    }}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-muted-foreground">→</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {packing.end_date
+                      ? format(new Date(packing.end_date), 'd MMM yyyy', { locale: sv })
+                      : 'Slutdatum'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={packing.end_date ? new Date(packing.end_date) : undefined}
+                    onSelect={(date) => {
+                      updatePackingDates({
+                        end_date: date ? format(date, 'yyyy-MM-dd') : null,
+                      });
+                    }}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
           <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
             <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="flex-wrap h-auto gap-1">
