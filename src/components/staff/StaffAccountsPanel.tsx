@@ -35,13 +35,8 @@ const generateUsername = (name: string): string => {
     .replace(/[^a-z.]/g, '');         // Keep only a-z and dots
 };
 
-// Generate secure random password (8 chars)
-const generatePassword = (): string => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 8 }, () => 
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join('');
-};
+// Default password for all new accounts
+const getDefaultPassword = (): string => 'Frasse123';
 
 const StaffAccountsPanel: React.FC = () => {
   const queryClient = useQueryClient();
@@ -81,10 +76,10 @@ const StaffAccountsPanel: React.FC = () => {
 
   // Create single account mutation
   const createAccountMutation = useMutation({
-    mutationFn: async (staffMember: { id: string; name: string }) => {
-      const username = generateUsername(staffMember.name);
-      const password = generatePassword();
-      const passwordHash = btoa(password); // Base64 for demo - use bcrypt in production
+    mutationFn: async (staffMember: { id: string; name: string; email?: string }) => {
+      const username = staffMember.email || generateUsername(staffMember.name);
+      const password = getDefaultPassword();
+      const passwordHash = btoa(password);
 
       // Check if username exists
       const { data: existing } = await supabase
@@ -130,8 +125,8 @@ const StaffAccountsPanel: React.FC = () => {
 
     for (const staff of staffWithoutAccounts) {
       try {
-        const username = generateUsername(staff.name);
-        const password = generatePassword();
+        const username = staff.email || generateUsername(staff.name);
+        const password = getDefaultPassword();
         const passwordHash = btoa(password);
 
         // Check if username exists
@@ -201,7 +196,7 @@ const StaffAccountsPanel: React.FC = () => {
   // Reset password mutation
   const resetPasswordMutation = useMutation({
     mutationFn: async (staffMember: { id: string; name: string }) => {
-      const newPassword = generatePassword();
+      const newPassword = getDefaultPassword();
       const passwordHash = btoa(newPassword);
 
       const { error } = await supabase
