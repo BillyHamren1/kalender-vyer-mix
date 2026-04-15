@@ -21,8 +21,6 @@ import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Cal
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useIncomingPackingCount } from '@/hooks/useIncomingPackingCount';
-import { Package } from 'lucide-react';
 
 // Map warehouse event types to CalendarEvent eventType
 const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'] => {
