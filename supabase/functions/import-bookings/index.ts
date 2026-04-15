@@ -2809,6 +2809,15 @@ serve(async (req) => {
             continue
           }
 
+          // If skip_review is set (Planning UI caller), reset needs_review to prevent
+          // self-made changes from appearing as needing review
+          if (skip_review) {
+            await supabase
+              .from('bookings')
+              .update({ needs_review: false, needs_review_reason: null })
+              .eq('id', existingBooking.id);
+          }
+
           // Calendar reconciliation is now handled deterministically below (lines ~2644+)
           // No longer delete-and-recreate here — the reconciler handles create/update/delete
 
