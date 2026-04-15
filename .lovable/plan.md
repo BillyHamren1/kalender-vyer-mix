@@ -1,33 +1,34 @@
 
 
-## Plan: Only show external booking changes for review
+## Plan: Lägg till "Transporter"-kolumn i både personal- och lagerkalendern
 
-### Problem
-When a Planning user edits a booking (via the proxy), it syncs back through `import-bookings`, triggering the `track_booking_changes` trigger which sets `needs_review = true`. This causes self-made changes to appear as needing review — only changes from the external Booking system should trigger review.
+### Bakgrund
+Transportplaneringar (`transport_assignments`) finns i databasen med datum, tid, fordon och bokningskoppling, men visas inte i kalendervyerna. Målet är att lägga till en dedikerad "Transporter"-kolumn i båda kalendrarna.
 
-### Solution
-Use a PostgreSQL session variable to signal "this update came from Planning" so the trigger can skip setting `needs_review`.
+### Placering
+- **Personalkalendern (Planning)**: "Transporter" placeras mellan Team 10 och "Live" (team-11)
+- **Lagerkalendern (Warehouse)**: "Transporter" placeras mellan sista Lager-kolumnen och "Event"
 
-### Changes
+### Tekniska steg
 
-**1. Update `import-bookings` edge function** (`supabase/functions/import-bookings/index.ts`)
-- Accept a new `skip_review` parameter from the request body
-- Before updating bookings, call `SET LOCAL app.skip_review = 'true'` via a raw SQL query when `skip_review` is true
-- This session variable is transaction-scoped and auto-clears
+**1. Skapa hook `useTransportCalendarEvents`**
+- Ny hook som hämtar `transport_assignments` för veckan med join på `vehicles` och `bookings` (klient, bokningsnummer)
+- Prenumererar på Supabase Realtime för live-uppdateringar
+- Returnerar data mappat till `CalendarEvent[]` med `resourceId: 'transport'`, `eventType: 'delivery'` (blå färg), och titeln som visar klient + fordon
 
-**2. Update `track_booking_changes` trigger** (new migration)
-- Before setting `needs_review := true`, check `current_setting('app.skip_review', true)`. If it equals `'true'`, skip setting `needs_review`
-- This ensures only non-Planning updates (external webhooks, scheduled syncs) flag bookings for review
+**2. Lägg till "Transporter" som resurs i båda kalendrarna**
+- **`useTeamResources.tsx`**: Lägg till `{ id: 'transport', title: 'Transporter', eventColor: '#3B82F6' }` före `team-11` i sorteringen
+- **`useWarehouseResources.tsx`**: Lägg till `{ id: 'transport', title: 'Transporter', eventColor: '#3B82F6' }` före `warehouse-event` i sorteringen
 
-**3. Pass `skip_review: true` from Planning UI callers**
-- `src/hooks/useRefreshBooking.ts` — add `skip_review: true` to the import-bookings body (user manually refreshing a booking they're working on)
-- `src/pages/project/LargeProjectLayout.tsx` — add `skip_review: true` to the refresh calls
+**3. Integrera transport-events i kalendersidorna**
+- **Personalkalendern (CalendarPage)**: Importera hooken, merga transport-events med befintliga events
+- **Lagerkalendern (WarehouseCalendarPage)**: Samma approach, exkludera transport-events från `distributeWarehouseEvents`
 
-**4. Scheduled/webhook imports remain unchanged**
-- `src/services/importService.ts` (auto-sync, manual "Uppdatera") does NOT pass `skip_review`, so external changes still trigger review as expected
+**4. Visuell stil**
+- Blå bakgrund (`#BFDBFE` / `bg-blue-100`) — matchar befintlig `delivery`-färg
+- Visar: klientnamn, transport-tid, fordonsnamn
+- Read-only i kalendern (klick navigerar till projektets transportflik)
 
-### What stays the same
-- The visual styling of the "Uppdaterade bokningar" card (amber theme, pulsing dot)
-- The approve/dismiss workflow
-- The booking_changes audit trail (all changes are still recorded)
+**5. Skydda kolumnen**
+- Lägg till `'transport'` i listan av kolumner som inte kan tas bort/döljas i båda kalendrarna
 
