@@ -32,6 +32,7 @@ interface CustomCalendarProps {
   variant?: 'default' | 'warehouse';
   isEventReadOnly?: (event: CalendarEvent) => boolean;
   onEventClick?: (event: CalendarEvent) => void;
+  activatedStaffIds?: string[];
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -50,7 +51,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   allTeams,
   variant = 'default',
   isEventReadOnly,
-  onEventClick
+  onEventClick,
+  activatedStaffIds
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
@@ -72,7 +74,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const filterByTag = variant === 'warehouse' ? 'Lager' : 'Montage';
   const { getAvailableStaffForDay } = useAvailableStaffWeek(
-    days, weekStartTime, resources, weeklyStaffOperations, filterByTag
+    days, weekStartTime, resources, weeklyStaffOperations, filterByTag, activatedStaffIds
   );
 
   const {

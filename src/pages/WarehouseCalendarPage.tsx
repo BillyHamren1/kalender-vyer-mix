@@ -470,6 +470,7 @@ const WarehouseCalendarPage = () => {
                   variant="warehouse"
                   isEventReadOnly={isEventReadOnly}
                   onEventClick={handleEventClick}
+                  activatedStaffIds={activeStaffIds}
                 />
               )}
             </>
@@ -497,6 +498,7 @@ const WarehouseCalendarPage = () => {
                   variant="warehouse"
                   isEventReadOnly={isEventReadOnly}
                   onEventClick={handleEventClick}
+                  activatedStaffIds={activeStaffIds}
                 />
               )}
             </>
@@ -521,6 +523,7 @@ const WarehouseCalendarPage = () => {
                 variant="warehouse"
                 isEventReadOnly={isEventReadOnly}
                 onEventClick={handleEventClick}
+                activatedStaffIds={activeStaffIds}
               />
               {/* Week tabs for quick navigation within the month */}
               <WeekTabsNavigation

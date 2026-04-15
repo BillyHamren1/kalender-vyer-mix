@@ -24,10 +24,11 @@ export const useAvailableStaffWeek = (
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{ id: string; name: string; color?: string }>;
   },
-  filterByTag?: string
+  filterByTag?: string,
+  activatedStaffIds?: string[]
 ) => {
   const { data: weekAvailableStaff } = useQuery({
-    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(','), filterByTag || ''],
+    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(','), filterByTag || '', activatedStaffIds?.join(',') || ''],
     queryFn: async () => {
       const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
       const availableByDate = await getAvailableStaffForDateRange(days, filterByTag);
@@ -35,6 +36,14 @@ export const useAvailableStaffWeek = (
       const allStaffIds = new Set<string>();
       for (const ids of Object.values(availableByDate)) {
         ids.forEach(id => allStaffIds.add(id));
+      }
+
+      // If activatedStaffIds is provided, filter to only those staff
+      if (activatedStaffIds && activatedStaffIds.length > 0) {
+        for (const [dateStr, ids] of Object.entries(availableByDate)) {
+          availableByDate[dateStr] = ids.filter(id => activatedStaffIds.includes(id));
+        }
+        activatedStaffIds.forEach(id => allStaffIds.add(id));
       }
 
       let staffLookup: Record<string, { id: string; name: string; color?: string }> = {};
