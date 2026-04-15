@@ -144,6 +144,18 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     window.dispatchEvent(new Event('timer-state-changed'));
   }, [activeTimers]);
 
+  // Sync from external changes (e.g. global banner stopping a timer)
+  useEffect(() => {
+    const handler = () => {
+      const stored = loadTimers();
+      if (stored.size !== activeTimersRef.current.size) {
+        setActiveTimers(stored);
+      }
+    };
+    window.addEventListener('timer-state-changed', handler);
+    return () => window.removeEventListener('timer-state-changed', handler);
+  }, []);
+
   // Fetch organization locations once, then restore any active server-side timers
   useEffect(() => {
     if (!staffId) return;
