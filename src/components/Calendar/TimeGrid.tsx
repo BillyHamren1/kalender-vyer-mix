@@ -400,27 +400,53 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               Avbryt
             </button>
           )}
+          {!selectingForTeam && getUnassignedAvailableStaff().length > 15 && (
+            <button
+              onClick={() => setStaffExpanded(prev => !prev)}
+              className="text-[9px] px-1 py-0.5 rounded hover:bg-muted/80 text-muted-foreground flex items-center gap-0.5"
+            >
+              {staffExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {staffExpanded ? 'Mindre' : `Visa alla (${getUnassignedAvailableStaff().length})`}
+            </button>
+          )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-          {getUnassignedAvailableStaff().map((staff) => {
-            const firstName = staff.name.trim().split(' ')[0];
-            return (
-              <div 
-                key={staff.id}
-                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${selectingForTeam ? 'cursor-pointer hover:ring-2 hover:ring-primary/50 hover:scale-105 transition-all' : ''}`}
-                style={{ 
-                  backgroundColor: staff.color || 'hsl(var(--muted))',
-                  color: '#000'
-                }}
-                title={selectingForTeam ? `Tilldela ${staff.name} till ${selectingForTeam.title}` : staff.name}
-                onClick={selectingForTeam ? () => handleAvailableStaffClick(staff.id) : undefined}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
-                <span>{firstName}</span>
+        {(() => {
+          const allStaff = getUnassignedAvailableStaff();
+          const maxCollapsed = 15; // 3 rows × 5 columns
+          const displayStaff = staffExpanded ? allStaff : allStaff.slice(0, maxCollapsed);
+          return (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                {displayStaff.map((staff) => {
+                  const firstName = staff.name.trim().split(' ')[0];
+                  return (
+                    <div 
+                      key={staff.id}
+                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${selectingForTeam ? 'cursor-pointer hover:ring-2 hover:ring-primary/50 hover:scale-105 transition-all' : ''}`}
+                      style={{ 
+                        backgroundColor: staff.color || 'hsl(var(--muted))',
+                        color: '#000'
+                      }}
+                      title={selectingForTeam ? `Tilldela ${staff.name} till ${selectingForTeam.title}` : staff.name}
+                      onClick={selectingForTeam ? () => handleAvailableStaffClick(staff.id) : undefined}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
+                      <span>{firstName}</span>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+              {!staffExpanded && allStaff.length > maxCollapsed && (
+                <button
+                  onClick={() => setStaffExpanded(true)}
+                  className="text-[9px] text-muted-foreground/70 hover:text-muted-foreground mt-1 cursor-pointer"
+                >
+                  +{allStaff.length - maxCollapsed} till...
+                </button>
+              )}
+            </>
+          );
+        })()}
         {getUnassignedAvailableStaff().length === 0 && (
           <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
         )}
