@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   fetchPacking,
@@ -150,6 +151,21 @@ export const usePackingDetail = (packingId: string) => {
     onError: () => toast.error('Kunde inte ta bort fil')
   });
 
+  const updatePackingDatesMutation = useMutation({
+    mutationFn: async (updates: { start_date?: string | null; end_date?: string | null }) => {
+      const { error } = await supabase
+        .from('packing_projects')
+        .update(updates)
+        .eq('id', packingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packing', packingId] });
+      toast.success('Datum uppdaterat');
+    },
+    onError: () => toast.error('Kunde inte uppdatera datum'),
+  });
+
   const refetchAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['packing', packingId] }),
@@ -174,6 +190,7 @@ export const usePackingDetail = (packingId: string) => {
     uploadFile: uploadFileMutation.mutate,
     deleteFile: deleteFileMutation.mutate,
     isUploadingFile: uploadFileMutation.isPending,
+    updatePackingDates: updatePackingDatesMutation.mutate,
     refetchAll
   };
 };
