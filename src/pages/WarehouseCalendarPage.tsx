@@ -48,7 +48,7 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
     title: we.title,
     start: we.start_time,
     end: we.end_time,
-    resourceId: 'warehouse', // All warehouse events go to the 'warehouse' resource
+    resourceId: 'lager-1', // Placeholder — will be redistributed by distributeWarehouseEvents
     bookingId: we.booking_id,
     bookingNumber: we.booking_number || undefined,
     eventType: mapWarehouseEventType(we.event_type),
@@ -233,7 +233,9 @@ const WarehouseCalendarPage = () => {
     return eventTypeFilters.includes(eventType);
   });
   
-  const combinedEvents: CalendarEvent[] = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
+  const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  const combinedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
