@@ -29,12 +29,14 @@ interface QuickTimeEditPopoverProps {
     end: string | Date;
     bookingId?: string;
     eventType?: string;
+    resourceId?: string;
   };
   children: React.ReactNode;
   onUpdate?: () => void;
   onMoveDate?: () => void;
   onOpenChange?: (open: boolean) => void;
   exactTimeNeeded?: boolean;
+  variant?: 'default' | 'warehouse';
 }
 
 const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
@@ -43,8 +45,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   onUpdate,
   onMoveDate,
   onOpenChange,
-  exactTimeNeeded = false
+  exactTimeNeeded = false,
+  variant: variantProp
 }) => {
+  // Auto-detect warehouse variant from resourceId if not explicitly set
+  const variant = variantProp || (event.resourceId === 'warehouse' ? 'warehouse' : 'default');
+  const isWarehouse = variant === 'warehouse';
   const [open, setOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
   const [startMinute, setStartMinute] = useState('00');
