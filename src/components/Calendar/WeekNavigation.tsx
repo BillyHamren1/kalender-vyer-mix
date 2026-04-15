@@ -152,7 +152,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     : 'bg-primary hover:bg-primary/90';
 
   return (
-    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-3">
+    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-1.5">
       {/* Left spacer for centering */}
       <div className="w-32" />
 
