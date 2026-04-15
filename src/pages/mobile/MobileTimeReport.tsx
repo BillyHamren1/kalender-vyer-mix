@@ -229,11 +229,18 @@ const MobileTimeReport = () => {
                 onStop={async () => {
                   const stopTime = new Date();
                   const startTimeDate = parseISO(timer.startTime);
+                  stopTimer(key);
+
+                  // Location timers are tracked via location_time_entries on server — no time report needed
+                  if (timer.locationId) {
+                    toast.success('Timer stoppad');
+                    return;
+                  }
+
                   let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
                   if (totalHours < 0) totalHours += 24;
                   const breakDeduction = totalHours > 5 ? 0.5 : 0;
                   const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
-                  stopTimer(key);
                   try {
                     await mobileApi.createTimeReport({
                       booking_id: key,

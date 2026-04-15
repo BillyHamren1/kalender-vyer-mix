@@ -2959,7 +2959,7 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
     )
   }
 
-  const { data: updated, error } = await query.select().single()
+  const { data: updated, error } = await query.select().order('entered_at', { ascending: false }).limit(1).maybeSingle()
 
   if (error) {
     console.error('Stop location timer error:', error)
