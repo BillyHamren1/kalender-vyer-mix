@@ -1531,6 +1531,7 @@ serve(async (req) => {
       booking_id: singleBookingId = null,
       event_type: webhookEventType = null,
       localOnly = false,
+      skip_review = false,
     } = body;
 
     const importStartedAt = new Date().toISOString();
