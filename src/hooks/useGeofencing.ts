@@ -588,8 +588,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, []);
 
   const dismissGeofenceEvent = useCallback(() => {
+    const event = geofenceEvent;
     setGeofenceEvent(null);
-  }, []);
+
+    // If dismissing a location enter event, delete the background GPS entry
+    // so no time is recorded for this visit
+    if (event?.type === 'enter' && event.locationType === 'fixed' && event.locationId) {
+      mobileApi.dismissLocationEntry(event.locationId).catch(err => {
+        console.warn('[Geofence] Failed to dismiss location entry:', err);
+      });
+    }
+  }, [geofenceEvent]);
 
   return {
     activeTimers,
