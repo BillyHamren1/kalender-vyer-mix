@@ -38,13 +38,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanningRef = useRef(false);
 
   // Initialize BarcodeDetector (native or polyfill) on mount
   useEffect(() => {
@@ -99,6 +100,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   }, []);
 
   const runScanLoop = useCallback(() => {
+    let lastScanTime = 0;
+    const SCAN_INTERVAL = 250; // ~4 fps — give polyfill time to process
+
     const scan = async () => {
       if (!mountedRef.current || !videoRef.current) return;
 
@@ -108,15 +112,48 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         return;
       }
 
+      const now = performance.now();
+      if (now - lastScanTime < SCAN_INTERVAL || scanningRef.current) {
+        animationFrameRef.current = requestAnimationFrame(scan);
+        return;
+      }
+
+      lastScanTime = now;
+      scanningRef.current = true;
+
       try {
         if (detectorRef.current) {
-          const barcodes = await detectorRef.current.detect(video);
+          // Try detecting directly from video first
+          let barcodes: any[] = [];
+          try {
+            barcodes = await detectorRef.current.detect(video);
+          } catch {
+            // Some polyfills need canvas ImageBitmap instead of video element
+            const canvas = canvasRef.current;
+            if (canvas) {
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
+              if (ctx) {
+                ctx.drawImage(video, 0, 0);
+                try {
+                  barcodes = await detectorRef.current.detect(canvas);
+                } catch (e2) {
+                  console.warn('[QRScanner] detect(canvas) also failed:', e2);
+                }
+              }
+            }
+          }
           if (barcodes.length > 0) {
-            handleDetected(barcodes[0].rawValue);
+            const value = barcodes[0].rawValue;
+            console.log('[QRScanner] Detected:', value, 'format:', barcodes[0].format);
+            handleDetected(value);
           }
         }
-      } catch {
-        // detect() can throw on some frames, ignore and retry
+      } catch (err) {
+        console.warn('[QRScanner] scan error:', err);
+      } finally {
+        scanningRef.current = false;
       }
 
       if (mountedRef.current) {
@@ -395,6 +432,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             playsInline
             muted
           />
+          <canvas ref={canvasRef} className="hidden" />
           
 
           {cameraState === 'error' && (
