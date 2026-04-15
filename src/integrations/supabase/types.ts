@@ -2589,6 +2589,8 @@ export type Database = {
           id: string
           large_project_id: string | null
           name: string
+          needs_packing_review: boolean
+          needs_packing_review_reason: string | null
           notes: string | null
           organization_id: string
           project_leader: string | null
@@ -2607,6 +2609,8 @@ export type Database = {
           id?: string
           large_project_id?: string | null
           name: string
+          needs_packing_review?: boolean
+          needs_packing_review_reason?: string | null
           notes?: string | null
           organization_id?: string
           project_leader?: string | null
@@ -2625,6 +2629,8 @@ export type Database = {
           id?: string
           large_project_id?: string | null
           name?: string
+          needs_packing_review?: boolean
+          needs_packing_review_reason?: string | null
           notes?: string | null
           organization_id?: string
           project_leader?: string | null
