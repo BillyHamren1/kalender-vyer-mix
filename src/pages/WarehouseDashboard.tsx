@@ -9,12 +9,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
-import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
-import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
-import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
 import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
+import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
