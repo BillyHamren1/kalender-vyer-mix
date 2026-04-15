@@ -109,7 +109,7 @@ const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const incomingPackingCount = useIncomingPackingCount();
+  
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
   const { teamResources: warehouseTeamResources } = useWarehouseResources();
 
