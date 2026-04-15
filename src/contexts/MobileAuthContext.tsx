@@ -43,9 +43,15 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setAuth(token, res.staff);
         })
         .catch((err) => {
-          console.warn('[MobileAuth] Session verify failed:', err.message);
-          clearAuth();
-          setStaff(null);
+          // Only clear auth on explicit 401 (Session expired) — keep user
+          // logged in through network errors, timeouts, etc.
+          if (err.message === 'Session expired') {
+            console.warn('[MobileAuth] Token rejected (401), logging out');
+            clearAuth();
+            setStaff(null);
+          } else {
+            console.warn('[MobileAuth] Session verify failed (keeping session):', err.message);
+          }
         })
         .finally(() => setIsLoading(false));
     } else {
