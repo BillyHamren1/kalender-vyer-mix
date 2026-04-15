@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
+import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useWarehouseStaffActivations } from '@/hooks/useWarehouseStaffActivations';
@@ -171,6 +172,12 @@ const WarehouseCalendarPage = () => {
     currentDate: currentWeekStart,
     view: viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
   });
+
+  // Transport events for the "Transporter" column
+  const { transportEvents } = useTransportCalendarEvents(
+    currentWeekStart,
+    viewMode === 'day' ? 'day' : 'week'
+  );
 
   // Sync initial view/date from URL (?date=YYYY-MM-DD&view=day)
   useEffect(() => {
