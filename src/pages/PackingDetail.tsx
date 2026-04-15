@@ -13,6 +13,7 @@ import PackingComments from "@/components/packing/PackingComments";
 import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
+import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
