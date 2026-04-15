@@ -293,11 +293,11 @@ const WarehouseCalendarPage = () => {
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Lager 1-4
-        if (['lager-1', 'lager-2', 'lager-3', 'lager-4'].includes(teamId)) {
+        // Don't allow hiding Lager 1-4 or Event column
+        if (['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'].includes(teamId)) {
           return prev;
         }
         return {
