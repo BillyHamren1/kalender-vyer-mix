@@ -28,7 +28,7 @@ export const useRefreshBooking = (bookingId: string | null, projectId: string) =
       }
 
       const { data, error } = await supabase.functions.invoke("import-bookings", {
-        body: { booking_id: bookingId, syncMode: "single", organization_id: orgId },
+        body: { booking_id: bookingId, syncMode: "single", organization_id: orgId, skip_review: true },
       });
 
       if (error) throw error;
