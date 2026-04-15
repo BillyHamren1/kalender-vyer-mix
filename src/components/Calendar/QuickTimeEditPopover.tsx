@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { updateWarehouseCalendarEvent } from '@/services/warehouseCalendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
@@ -28,12 +29,14 @@ interface QuickTimeEditPopoverProps {
     end: string | Date;
     bookingId?: string;
     eventType?: string;
+    resourceId?: string;
   };
   children: React.ReactNode;
   onUpdate?: () => void;
   onMoveDate?: () => void;
   onOpenChange?: (open: boolean) => void;
   exactTimeNeeded?: boolean;
+  variant?: 'default' | 'warehouse';
 }
 
 const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
@@ -42,8 +45,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   onUpdate,
   onMoveDate,
   onOpenChange,
-  exactTimeNeeded = false
+  exactTimeNeeded = false,
+  variant: variantProp
 }) => {
+  // Auto-detect warehouse variant from resourceId if not explicitly set
+  const variant = variantProp || (event.resourceId === 'warehouse' ? 'warehouse' : 'default');
+  const isWarehouse = variant === 'warehouse';
   const [open, setOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
   const [startMinute, setStartMinute] = useState('00');
@@ -109,32 +116,40 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       const newStart = new Date(`${eventDate}T${startTime}:00Z`);
       const newEnd = new Date(`${eventDate}T${endTime}:00Z`);
 
-      // Update calendar event in database
-      await updateCalendarEvent(event.id, {
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
-      });
+      if (isWarehouse) {
+        // Update warehouse_calendar_events table
+        await updateWarehouseCalendarEvent(event.id, {
+          start_time: newStart.toISOString(),
+          end_time: newEnd.toISOString()
+        });
+      } else {
+        // Update calendar event in database
+        await updateCalendarEvent(event.id, {
+          start: newStart.toISOString(),
+          end: newEnd.toISOString()
+        });
 
-      // CRITICAL: Also update the booking time fields
-      if (event.bookingId && event.eventType) {
-        const bookingTimeField = {
-          'rig': { start: 'rig_start_time', end: 'rig_end_time' },
-          'event': { start: 'event_start_time', end: 'event_end_time' },
-          'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
-        }[event.eventType];
+        // CRITICAL: Also update the booking time fields
+        if (event.bookingId && event.eventType) {
+          const bookingTimeField = {
+            'rig': { start: 'rig_start_time', end: 'rig_end_time' },
+            'event': { start: 'event_start_time', end: 'event_end_time' },
+            'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
+          }[event.eventType];
 
-        if (bookingTimeField) {
-          await supabase
-            .from('bookings')
-            .update({
-              [bookingTimeField.start]: newStart.toISOString(),
-              [bookingTimeField.end]: newEnd.toISOString()
-            })
-            .eq('id', event.bookingId);
+          if (bookingTimeField) {
+            await supabase
+              .from('bookings')
+              .update({
+                [bookingTimeField.start]: newStart.toISOString(),
+                [bookingTimeField.end]: newEnd.toISOString()
+              })
+              .eq('id', event.bookingId);
+          }
         }
       }
 
-      toast.success('Time updated');
+      toast.success('Tid uppdaterad');
       setOpen(false);
       
       // Trigger refresh
@@ -143,7 +158,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       }
     } catch (error) {
       console.error('Error updating event time:', error);
-      toast.error('Failed to update');
+      toast.error('Kunde inte uppdatera');
     } finally {
       setIsSubmitting(false);
     }
@@ -178,8 +193,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
 
           <div className="flex gap-4">
             {/* START TIME */}
-            <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-              <Label className="text-sm font-semibold text-green-700 flex items-center gap-1">
+            <div className={`space-y-2 p-3 rounded-lg border ${
+              isWarehouse 
+                ? 'bg-violet-50 border-violet-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <Label className={`text-sm font-semibold flex items-center gap-1 ${
+                isWarehouse ? 'text-violet-700' : 'text-green-700'
+              }`}>
                 ▶ Start: {startHour}:{startMinute}
               </Label>
               <div className="flex gap-2">
@@ -190,8 +211,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setStartHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         startHour === hour 
-                          ? 'bg-green-600 text-white font-medium' 
-                          : 'bg-white hover:bg-green-100 border border-green-200'
+                          ? isWarehouse
+                            ? 'bg-violet-600 text-white font-medium'
+                            : 'bg-green-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-violet-100 border border-violet-200'
+                            : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       {hour}
@@ -205,8 +230,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setStartMinute(min)}
                       className={`h-8 w-12 text-xs rounded transition-colors ${
                         startMinute === min 
-                          ? 'bg-green-600 text-white font-medium' 
-                          : 'bg-white hover:bg-green-100 border border-green-200'
+                          ? isWarehouse
+                            ? 'bg-violet-600 text-white font-medium'
+                            : 'bg-green-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-violet-100 border border-violet-200'
+                            : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       :{min}
@@ -217,9 +246,15 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             </div>
 
             {/* END TIME */}
-            <div className="space-y-2 p-3 bg-red-50 rounded-lg border border-red-200">
-              <Label className="text-sm font-semibold text-red-700 flex items-center gap-1">
-                ■ End: {endHour}:{endMinute}
+            <div className={`space-y-2 p-3 rounded-lg border ${
+              isWarehouse 
+                ? 'bg-indigo-50 border-indigo-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <Label className={`text-sm font-semibold flex items-center gap-1 ${
+                isWarehouse ? 'text-indigo-700' : 'text-red-700'
+              }`}>
+                ■ Slut: {endHour}:{endMinute}
               </Label>
               <div className="flex gap-2">
                 <div className="grid grid-cols-6 gap-1">
@@ -229,8 +264,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setEndHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         endHour === hour 
-                          ? 'bg-red-600 text-white font-medium' 
-                          : 'bg-white hover:bg-red-100 border border-red-200'
+                          ? isWarehouse
+                            ? 'bg-indigo-600 text-white font-medium'
+                            : 'bg-red-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-indigo-100 border border-indigo-200'
+                            : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       {hour}
@@ -244,8 +283,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setEndMinute(min)}
                       className={`h-8 w-12 text-xs rounded transition-colors ${
                         endMinute === min 
-                          ? 'bg-red-600 text-white font-medium' 
-                          : 'bg-white hover:bg-red-100 border border-red-200'
+                          ? isWarehouse
+                            ? 'bg-indigo-600 text-white font-medium'
+                            : 'bg-red-600 text-white font-medium' 
+                          : isWarehouse
+                            ? 'bg-white hover:bg-indigo-100 border border-indigo-200'
+                            : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       :{min}
@@ -263,7 +306,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
               onClick={handleSave}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {isSubmitting ? 'Sparar...' : 'Spara'}
             </Button>
             {onMoveDate && (
               <Button 
@@ -278,7 +321,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                 <CalendarIcon className="h-3 w-3" />
               </Button>
             )}
-            {event.bookingId && (
+            {event.bookingId && !isWarehouse && (
               <Button 
                 size="sm" 
                 variant="outline"
@@ -288,7 +331,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                   setShowAddRiggDay(true);
                 }}
               >
-                Add rig day
+                Lägg till riggdag
               </Button>
             )}
           </div>
