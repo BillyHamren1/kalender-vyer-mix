@@ -268,7 +268,7 @@ const CustomCalendarPage = () => {
   return (
     <TooltipProvider>
         <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
-          <div className="px-4 sm:px-6 lg:px-8 shrink-0">
+          
 
           {/* Task overlay toggle + Navigation */}
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8">
