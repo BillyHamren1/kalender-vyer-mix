@@ -152,7 +152,7 @@ export const useTeamResources = () => {
 
   const removeTeam = (teamId: string) => {
     // Don't allow removing Team 1-4 and Live (team-11)
-    if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11'].includes(teamId)) {
+    if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
       toast.error("Cannot remove default team", {
         description: "Team 1-4 and Live cannot be removed.",
         duration: 3000,
@@ -172,9 +172,18 @@ export const useTeamResources = () => {
   };
 
   // Get only the team resources (not room resources) and sort them correctly
-  const teamResources = resources
-    .filter(resource => resource.id.startsWith('team-'))
-    .sort((a, b) => {
+  // Include the virtual 'transport' resource
+  const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
+  
+  const teamResources = [
+    ...resources.filter(resource => resource.id.startsWith('team-')),
+    transportResource,
+  ].sort((a, b) => {
+      // Transport always goes just before Live (team-11)
+      if (a.id === 'transport' && b.id === 'team-11') return -1;
+      if (a.id === 'team-11' && b.id === 'transport') return 1;
+      if (a.id === 'transport') return 1; // after all numbered teams
+      if (b.id === 'transport') return -1;
       // Special case for "Live" (team-11) - it should be last
       if (a.id === 'team-11') return 1;
       if (b.id === 'team-11') return -1;

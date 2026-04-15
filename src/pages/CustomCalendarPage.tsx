@@ -7,6 +7,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
+import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -100,11 +101,15 @@ const CustomCalendarPage = () => {
   // Task overlay events (only fetched when toggle is on)
   const { taskEvents } = useTaskCalendarEvents(showTasks);
 
-  // Merge calendar events + task overlay
+  // Transport events for the "Transporter" column
+  const { transportEvents } = useTransportCalendarEvents(hookCurrentDate);
+
+  // Merge calendar events + task overlay + transport events
   const mergedEvents = useMemo(() => {
-    if (!showTasks || taskEvents.length === 0) return events;
-    return [...events, ...taskEvents];
-  }, [events, taskEvents, showTasks]);
+    const base = [...events, ...transportEvents];
+    if (!showTasks || taskEvents.length === 0) return base;
+    return [...base, ...taskEvents];
+  }, [events, taskEvents, transportEvents, showTasks]);
 
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {
@@ -173,18 +178,18 @@ const CustomCalendarPage = () => {
   // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-11'];
+    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-11'];
+      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
       
       if (currentVisible.includes(teamId)) {
         // Don't allow hiding Team 1-4 and Live
-        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11'].includes(teamId)) {
+      if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
           return prev;
         }
         return {

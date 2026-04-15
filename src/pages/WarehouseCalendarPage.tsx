@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
+import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useWarehouseStaffActivations } from '@/hooks/useWarehouseStaffActivations';
@@ -172,6 +173,12 @@ const WarehouseCalendarPage = () => {
     view: viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
   });
 
+  // Transport events for the "Transporter" column
+  const { transportEvents } = useTransportCalendarEvents(
+    currentWeekStart,
+    viewMode === 'day' ? 'day' : 'week'
+  );
+
   // Sync initial view/date from URL (?date=YYYY-MM-DD&view=day)
   useEffect(() => {
     const dateStr = searchParams.get('date');
@@ -234,8 +241,10 @@ const WarehouseCalendarPage = () => {
   });
   
   // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
+  // Transport events are excluded from distribution — they already target resourceId 'transport'
   const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
-  const combinedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
+  const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
+  const combinedEvents: CalendarEvent[] = [...distributedEvents, ...transportEvents];
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
