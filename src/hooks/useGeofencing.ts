@@ -193,6 +193,133 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     return () => { cancelled = true; };
   }, [staffId]);
 
+  // Cache geofence targets to localStorage for background geofence checks
+  useEffect(() => {
+    const targets: Array<{
+      key: string;
+      name: string;
+      type: 'fixed' | 'project' | 'booking';
+      lat: number;
+      lng: number;
+      radius: number;
+      locationId?: string;
+      largeProjectId?: string;
+      bookingId?: string;
+      address?: string;
+    }> = [];
+
+    // Add fixed locations
+    for (const loc of orgLocations) {
+      targets.push({
+        key: `location-${loc.id}`,
+        name: loc.name,
+        type: 'fixed',
+        lat: loc.latitude,
+        lng: loc.longitude,
+        radius: loc.radius_meters,
+        locationId: loc.id,
+        address: loc.address || undefined,
+      });
+    }
+
+    // Add bookings with coordinates — consolidate large projects
+    const seenProjects = new Set<string>();
+    for (const booking of bookings) {
+      if (!booking.delivery_latitude || !booking.delivery_longitude) continue;
+
+      if (booking.large_project_id && booking.large_project_name) {
+        if (seenProjects.has(booking.large_project_id)) continue;
+        seenProjects.add(booking.large_project_id);
+        targets.push({
+          key: `project-${booking.large_project_id}`,
+          name: booking.large_project_name,
+          type: 'project',
+          lat: booking.delivery_latitude,
+          lng: booking.delivery_longitude,
+          radius: getGpsSettings().radius || ENTER_RADIUS,
+          largeProjectId: booking.large_project_id,
+          address: booking.deliveryaddress || undefined,
+        });
+      } else {
+        targets.push({
+          key: booking.id,
+          name: booking.client,
+          type: 'booking',
+          lat: booking.delivery_latitude,
+          lng: booking.delivery_longitude,
+          radius: getGpsSettings().radius || ENTER_RADIUS,
+          bookingId: booking.id,
+          address: booking.deliveryaddress || undefined,
+        });
+      }
+    }
+
+    localStorage.setItem(GEOFENCE_TARGETS_KEY, JSON.stringify(targets));
+  }, [orgLocations, bookings]);
+
+  // Read pending arrivals from background geofence on mount / staffId change
+  useEffect(() => {
+    if (!staffId) return;
+
+    try {
+      const raw = localStorage.getItem(PENDING_ARRIVALS_KEY);
+      if (!raw) return;
+      const pendingArrivals: PendingArrival[] = JSON.parse(raw);
+      if (pendingArrivals.length === 0) return;
+
+      // Process the first pending arrival (queue the rest by keeping them in localStorage)
+      const arrival = pendingArrivals[0];
+
+      // Skip if timer is already running for this key
+      if (activeTimersRef.current.has(arrival.key)) {
+        clearPendingArrivals([arrival.key]);
+        return;
+      }
+
+      // Mark as triggered so live geofence doesn't re-fire
+      triggeredEnterRef.current.add(arrival.key);
+
+      // Create geofence event with the real background arrival timestamp
+      const event: GeofenceEvent = {
+        type: 'enter',
+        distance: 0, // We don't have exact distance from background
+        arrivalTimestamp: arrival.timestamp,
+        locationType: arrival.type === 'fixed' ? 'fixed' : arrival.type === 'project' ? 'project' : 'booking',
+        locationId: arrival.locationId,
+        locationName: arrival.name,
+        locationAddress: arrival.address,
+        largeProjectId: arrival.largeProjectId,
+        largeProjectName: arrival.type === 'project' ? arrival.name : undefined,
+        largeProjectAddress: arrival.type === 'project' ? arrival.address : undefined,
+      };
+
+      // For booking type, try to find the booking object
+      if (arrival.type === 'booking' && arrival.bookingId) {
+        const booking = bookings.find(b => b.id === arrival.bookingId);
+        if (booking) {
+          event.booking = booking;
+        }
+      }
+
+      // For project type, find a representative booking
+      if (arrival.type === 'project' && arrival.largeProjectId) {
+        const booking = bookings.find(b => b.large_project_id === arrival.largeProjectId);
+        if (booking) {
+          event.booking = booking;
+        }
+      }
+
+      setGeofenceEvent(event);
+
+      // Remove this arrival from pending (keep others for next cycle)
+      clearPendingArrivals([arrival.key]);
+
+      console.log('[Geofence] Restored pending arrival:', arrival.name, 'from', new Date(arrival.timestamp).toLocaleTimeString('sv-SE'));
+    } catch (err) {
+      console.warn('[Geofence] Failed to read pending arrivals:', err);
+    }
+  }, [staffId, bookings]);
+
   // Single consolidated GPS watcher
   useEffect(() => {
     const settings = getGpsSettings();
