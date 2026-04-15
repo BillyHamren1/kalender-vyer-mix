@@ -3,18 +3,16 @@ import { RefreshCw, Plus, Package } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, addDays, isSameDay, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
-import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
-import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
-import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
 import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
+import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
@@ -37,10 +35,7 @@ const WarehouseDashboard = () => {
     channelName: 'warehouse-page-realtime',
     tables: ['packing_projects', 'packing_list_items', 'transport_assignments', 'bookings'],
     queryKeys: [
-      
-      ['warehouse-new-jobs'],
-      ['warehouse-active-packings'],
-      ['warehouse-completed-packings'],
+      ['warehouse-recent-packings'],
       ['warehouse-staff-utilization'],
       ['warehouse-transports'],
     ],
@@ -49,106 +44,7 @@ const WarehouseDashboard = () => {
   // Query hooks
 
 
-  const newJobsQuery = useQuery({
-    queryKey: ['warehouse-new-jobs'],
-    queryFn: async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      
-      const { data: bookings, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('id, client, booking_number, rigdaydate, eventdate, created_at')
-        .eq('status', 'CONFIRMED')
-        .gte('rigdaydate', today)
-        .order('rigdaydate', { ascending: true })
-        .limit(20);
 
-      if (bookingsError) throw bookingsError;
-
-      const { data: packings } = await supabase
-        .from('packing_projects')
-        .select('booking_id');
-
-      const packingBookingIds = new Set((packings || []).map(p => p.booking_id));
-
-      return (bookings || []).map(booking => ({
-        id: booking.id,
-        bookingNumber: booking.booking_number,
-        client: booking.client,
-        rigDate: booking.rigdaydate,
-        eventDate: booking.eventdate,
-        createdAt: booking.created_at,
-        hasPacking: packingBookingIds.has(booking.id)
-      }));
-    }
-  });
-
-  const activePackingsQuery = useQuery({
-    queryKey: ['warehouse-active-packings'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('packing_projects')
-        .select(`id, name, status, project_leader, updated_at, booking_id`)
-        .in('status', ['planning', 'in_progress'])
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-
-      const packingIds = (data || []).map(p => p.id);
-      const { data: listItems } = await supabase
-        .from('packing_list_items')
-        .select('packing_id, quantity_to_pack, quantity_packed')
-        .in('packing_id', packingIds);
-
-      const itemsByPacking = (listItems || []).reduce((acc, item) => {
-        if (!acc[item.packing_id]) {
-          acc[item.packing_id] = { total: 0, packed: 0 };
-        }
-        acc[item.packing_id].total += item.quantity_to_pack || 0;
-        acc[item.packing_id].packed += item.quantity_packed || 0;
-        return acc;
-      }, {} as Record<string, { total: number; packed: number }>);
-
-      return (data || []).map(packing => {
-        const items = itemsByPacking[packing.id] || { total: 0, packed: 0 };
-        const progress = items.total > 0 ? Math.round((items.packed / items.total) * 100) : 0;
-        
-        return {
-          id: packing.id,
-          name: packing.name,
-          status: packing.status,
-          progress,
-          totalItems: items.total,
-          packedItems: items.packed,
-          projectLeader: packing.project_leader,
-          updatedAt: packing.updated_at
-        };
-      });
-    }
-  });
-
-  const completedPackingsQuery = useQuery({
-    queryKey: ['warehouse-completed-packings', format(currentWeekStart, 'yyyy-MM-dd')],
-    queryFn: async () => {
-      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
-      const endStr = format(weekEnd, 'yyyy-MM-dd');
-
-      const { data, error } = await supabase
-        .from('packing_projects')
-        .select('id, name, updated_at')
-        .eq('status', 'completed')
-        .gte('updated_at', startStr)
-        .lte('updated_at', endStr + 'T23:59:59')
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-
-      return (data || []).map(packing => ({
-        id: packing.id,
-        name: packing.name,
-        completedAt: packing.updated_at
-      }));
-    }
-  });
 
   const staffUtilizationQuery = useQuery({
     queryKey: ['warehouse-staff-utilization', format(currentWeekStart, 'yyyy-MM-dd')],
@@ -250,14 +146,9 @@ const WarehouseDashboard = () => {
     refetchInterval: 300000,
   });
 
-  const isLoading = newJobsQuery.isLoading || 
-    activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading ||
-    transportsQuery.isLoading;
+  const isLoading = staffUtilizationQuery.isLoading || transportsQuery.isLoading;
 
   const refetchAll = () => {
-    newJobsQuery.refetch();
-    activePackingsQuery.refetch();
-    completedPackingsQuery.refetch();
     staffUtilizationQuery.refetch();
     transportsQuery.refetch();
   };
@@ -330,52 +221,25 @@ const WarehouseDashboard = () => {
             <IncomingPackingList />
           </div>
 
-          {/* Staff Activation + Transport overview + Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-            {/* Staff activation card */}
-            <div className="lg:col-span-2">
-              <WarehouseStaffActivationCard />
-            </div>
+          {/* Recent packnings widgets */}
+          <div className="mb-6">
+            <WarehouseRecentPackingsWidgets />
+          </div>
 
-            {/* Transport card */}
-            <div className="lg:col-span-1">
-              <TodaysTransportsCard 
-                transports={transportsQuery.data || []}
-                isLoading={transportsQuery.isLoading}
-              />
-            </div>
+          {/* Staff Activation + Transport + Utilization */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <WarehouseStaffActivationCard />
 
-            {/* Existing cards */}
-            <div className="lg:col-span-1">
-              <NewPackingJobsCard 
-                jobs={newJobsQuery.data || []}
-                isLoading={newJobsQuery.isLoading}
-                onCreatePacking={handleCreatePacking}
-              />
-            </div>
+            <TodaysTransportsCard 
+              transports={transportsQuery.data || []}
+              isLoading={transportsQuery.isLoading}
+            />
 
-            <div className="lg:col-span-2">
-              <ActivePackingsCard 
-                packings={activePackingsQuery.data || []}
-                isLoading={activePackingsQuery.isLoading}
-              />
-            </div>
-
-            <div className="lg:col-span-1">
-              <WarehouseStaffUtilizationCard 
-                staff={staffUtilizationQuery.data || []}
-                isLoading={staffUtilizationQuery.isLoading}
-                weekNumber={format(currentWeekStart, 'w')}
-              />
-            </div>
-
-            <div className="lg:col-span-1">
-              <CompletedPackingsCard 
-                packings={completedPackingsQuery.data || []}
-                isLoading={completedPackingsQuery.isLoading}
-                weekNumber={format(currentWeekStart, 'w')}
-              />
-            </div>
+            <WarehouseStaffUtilizationCard 
+              staff={staffUtilizationQuery.data || []}
+              isLoading={staffUtilizationQuery.isLoading}
+              weekNumber={format(currentWeekStart, 'w')}
+            />
           </div>
         </div>
       </div>
