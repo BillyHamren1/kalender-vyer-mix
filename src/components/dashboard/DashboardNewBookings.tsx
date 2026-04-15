@@ -39,7 +39,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
       const candidateIds = candidates.map(b => b.id);
       
       const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
-        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).neq('status', 'completed'),
+        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null),
         supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
         supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
       ]);
