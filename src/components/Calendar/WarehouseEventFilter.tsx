@@ -52,17 +52,16 @@ const WarehouseEventFilter: React.FC<WarehouseEventFilterProps> = ({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
+          variant="ghost"
+          size="icon"
           className={cn(
-            "gap-2 h-9 px-3 bg-card border-border hover:bg-accent/50",
-            activeCount < totalCount && "border-warehouse text-warehouse"
+            "h-7 w-7 rounded-md",
+            activeCount < totalCount && "text-warehouse"
           )}
         >
-          <Filter className="h-4 w-4" />
-          <span className="hidden sm:inline">Filter</span>
+          <Filter className="h-3.5 w-3.5" />
           {activeCount < totalCount && (
-            <span className="ml-1 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-warehouse text-white">
+            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[9px] font-bold rounded-full bg-warehouse text-white flex items-center justify-center">
               {activeCount}
             </span>
           )}

@@ -393,38 +393,34 @@ const WarehouseCalendarPage = () => {
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
-        {/* Navigation with view toggle */}
-        {viewMode === 'day' ? (
-          <WarehouseDayNavigationHeader
-            date={currentWeekStart}
-            onDateChange={handleDayChange}
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-          />
-        ) : (
-          <WeekNavigation
-            currentWeekStart={currentWeekStart}
-            setCurrentWeekStart={setCurrentWeekStart}
-            viewMode={viewMode as 'weekly' | 'monthly' | 'list'}
-            onViewModeChange={handleViewModeChange}
-            currentMonth={monthlyDate}
-            onMonthChange={handleMonthChange}
-            variant="warehouse"
-          />
-        )}
-
-
-        {/* Filter bar */}
-        <div className="px-4 pt-2 pb-1 flex items-center gap-3">
-          <WarehouseEventFilter
-            activeFilters={eventTypeFilters}
-            onFilterChange={setEventTypeFilters}
-          />
-          {eventTypeFilters.length < 8 && (
-            <span className="text-sm text-muted-foreground">
-              Visar {eventTypeFilters.length} av 8 händelsetyper
-            </span>
-          )}
+        {/* Navigation with view toggle + filter */}
+        <div className="flex items-center">
+          <div className="flex-1">
+            {viewMode === 'day' ? (
+              <WarehouseDayNavigationHeader
+                date={currentWeekStart}
+                onDateChange={handleDayChange}
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
+              />
+            ) : (
+              <WeekNavigation
+                currentWeekStart={currentWeekStart}
+                setCurrentWeekStart={setCurrentWeekStart}
+                viewMode={viewMode as 'weekly' | 'monthly' | 'list'}
+                onViewModeChange={handleViewModeChange}
+                currentMonth={monthlyDate}
+                onMonthChange={handleMonthChange}
+                variant="warehouse"
+              />
+            )}
+          </div>
+          <div className="pr-4 shrink-0">
+            <WarehouseEventFilter
+              activeFilters={eventTypeFilters}
+              onFilterChange={setEventTypeFilters}
+            />
+          </div>
         </div>
 
         {/* Content - flex-1 to fill remaining space */}
