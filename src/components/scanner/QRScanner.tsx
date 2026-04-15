@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Camera, X, Radio, Loader2 } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
-import jsQR from 'jsqr';
+import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 
 interface QRScannerProps {
   onScan: (result: string) => void;
@@ -38,7 +38,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
@@ -46,20 +46,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check BarcodeDetector support on mount
+  // Initialize BarcodeDetector (native or polyfill) on mount
   useEffect(() => {
     if (shouldSkipCamera) return;
-    const supported = 'BarcodeDetector' in window;
-    setHasBarcodeDetector(supported);
-    if (supported) {
-      try {
-        detectorRef.current = new (window as any).BarcodeDetector({
-          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39'],
-        });
-      } catch (e) {
-        console.warn('[QRScanner] BarcodeDetector init failed:', e);
-        setHasBarcodeDetector(false);
-      }
+    const DetectorClass = ('BarcodeDetector' in window)
+      ? (window as any).BarcodeDetector
+      : BarcodeDetectorPolyfill;
+    try {
+      detectorRef.current = new DetectorClass({
+        formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'codabar'],
+      });
+      setHasBarcodeDetector(true);
+      console.log('[QRScanner] BarcodeDetector ready (native:', 'BarcodeDetector' in window, ')');
+    } catch (e) {
+      console.warn('[QRScanner] BarcodeDetector init failed:', e);
+      setHasBarcodeDetector(false);
     }
   }, [shouldSkipCamera]);
 
@@ -112,23 +113,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           const barcodes = await detectorRef.current.detect(video);
           if (barcodes.length > 0) {
             handleDetected(barcodes[0].rawValue);
-          }
-        } else {
-          const canvas = canvasRef.current;
-          if (canvas) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(video, 0, 0);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (code?.data) {
-                handleDetected(code.data);
-              }
-            }
           }
         }
       } catch {
@@ -411,7 +395,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             playsInline
             muted
           />
-          <canvas ref={canvasRef} className="hidden" />
+          
 
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
@@ -449,11 +433,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
-              {!hasBarcodeDetector && (
-                <div className="absolute top-4 left-4 right-4 bg-black/70 text-white text-xs text-center py-2 px-3 rounded-lg">
-                  Använder jsQR-fallback för avkodning
-                </div>
-              )}
             </>
           )}
         </div>
