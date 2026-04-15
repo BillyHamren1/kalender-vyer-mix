@@ -41,6 +41,8 @@ interface TimeGridProps {
   onEventClick?: (event: CalendarEvent) => void;
   fullWidth?: boolean;
   availableStaff?: AvailableStaffMember[];
+  staffExpanded?: boolean;
+  onToggleStaffExpanded?: () => void;
   carouselNav?: {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
