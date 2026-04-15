@@ -18,6 +18,7 @@ interface ProjectScheduleEditableProps {
   rigdownStartTime?: string | null;
   rigdownEndTime?: string | null;
   onUpdated?: () => void;
+  compact?: boolean;
 }
 
 type DateType = 'rig' | 'event' | 'rigDown';
