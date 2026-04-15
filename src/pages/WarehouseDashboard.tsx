@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 
 const WarehouseDashboard = () => {
+  const navigate = useNavigate();
   const currentWeekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), []);
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
   // Dialog states
