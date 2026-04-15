@@ -112,6 +112,7 @@ const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const incomingPackingCount = useIncomingPackingCount();
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+  const { teamResources: warehouseTeamResources } = useWarehouseResources();
 
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
