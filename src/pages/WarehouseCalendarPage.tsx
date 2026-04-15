@@ -254,15 +254,9 @@ const WarehouseCalendarPage = () => {
     return eventType === 'rig' || eventType === 'event' || eventType === 'rigDown';
   };
 
-  const { teamResources: warehouseTeamResources } = useWarehouseResources();
   
-  // Add warehouse resource to the resources list
-  const warehouseResource = {
-    id: 'warehouse',
-    title: 'Packning',
-    eventColor: '#E5E7EB'
-  };
-  const resourcesWithWarehouse = [...warehouseTeamResources, warehouseResource];
+  // Resources list — warehouse resource no longer needed since events are distributed across lager columns
+  const resourcesWithWarehouse = warehouseTeamResources;
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
