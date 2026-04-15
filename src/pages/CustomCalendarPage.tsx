@@ -184,7 +184,7 @@ const CustomCalendarPage = () => {
       
       if (currentVisible.includes(teamId)) {
         // Don't allow hiding Team 1-4 and Live
-        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11'].includes(teamId)) {
+      if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
           return prev;
         }
         return {
