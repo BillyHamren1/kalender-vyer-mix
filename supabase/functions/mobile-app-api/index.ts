@@ -1253,9 +1253,10 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     if (internalProject?.booking_id) {
       resolvedBookingId = internalProject.booking_id
     } else if (internalProject) {
-      // Internal project without booking (e.g. "Lager") — allow null booking_id
+      // Internal project without booking (e.g. "Lager") — use location_id
       resolvedBookingId = null
-      console.log(`Internal project ${internalProject.id} for location ${locationId} has no booking_id — saving with null`)
+      resolvedLocationId = locationId
+      console.log(`Internal project ${internalProject.id} for location ${locationId} has no booking_id — saving with location_id`)
     } else {
       console.error(`No internal project found for location ${locationId}`)
       return new Response(
