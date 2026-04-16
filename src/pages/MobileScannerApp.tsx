@@ -55,6 +55,26 @@ const MobileScannerApp: React.FC = () => {
     autoInit: true, // Always active — no race conditions
   });
 
+  // Identify a product by scanned value
+  const doIdentify = useCallback(async (scannedValue: string) => {
+    if (isIdentifying || !scannedValue.trim()) return;
+    setIdentifyInput(scannedValue.trim());
+    setIsIdentifying(true);
+    setIdentifiedProduct(null);
+    try {
+      const productResult = await identifyProduct(scannedValue.trim());
+      if (productResult.found) {
+        setIdentifiedProduct(productResult);
+      } else {
+        toast.error(productResult.error || `Product "${scannedValue}" not found`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Could not identify product');
+    } finally {
+      setIsIdentifying(false);
+    }
+  }, [isIdentifying]);
+
   // Handle barcode scan on home screen — navigates to packing or identifies product
   const handleBarcodeScan = useCallback(async (scannedValue: string) => {
     const result = parseScanResult(scannedValue);
@@ -65,26 +85,9 @@ const MobileScannerApp: React.FC = () => {
       setIsQRActive(false);
       toast.success('Packing list found!');
     } else {
-      // Product scan on home screen → identify it
-      if (isIdentifying) return;
-      setIsIdentifying(true);
-      toast.loading('Searching product...', { id: 'identify' });
-      try {
-        const productResult = await identifyProduct(scannedValue);
-        toast.dismiss('identify');
-        if (productResult.found) {
-          setIdentifiedProduct(productResult);
-        } else {
-          toast.error(productResult.error || `Product "${scannedValue}" not found`);
-        }
-      } catch (err: any) {
-        toast.dismiss('identify');
-        toast.error(err.message || 'Could not identify product');
-      } finally {
-        setIsIdentifying(false);
-      }
+      doIdentify(scannedValue);
     }
-  }, [isIdentifying]);
+  }, [doIdentify]);
   // Update active scan handler when state changes
   useEffect(() => {
     if (state === 'home') {
