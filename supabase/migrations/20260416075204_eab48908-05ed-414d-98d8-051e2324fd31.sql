@@ -1,0 +1,1 @@
+DELETE FROM time_reports WHERE id = '51310772-598c-418e-be89-eb0935abc933';
