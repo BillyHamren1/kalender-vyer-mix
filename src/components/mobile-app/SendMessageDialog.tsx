@@ -21,12 +21,12 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
     setSending(true);
     try {
       await mobileApi.sendMessage({ content, message_type: messageType });
-      toast.success('Meddelande skickat');
+      toast.success('Message sent');
       setContent('');
       setMessageType('text');
       setOpen(false);
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte skicka meddelande');
+      toast.error(err.message || 'Could not send message');
     } finally {
       setSending(false);
     }
@@ -37,11 +37,10 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-sm mx-auto">
         <DialogHeader>
-          <DialogTitle className="text-base">Skicka meddelande</DialogTitle>
+          <DialogTitle className="text-base">Send message</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* Type selector */}
           <div className="flex gap-2">
             <button
               type="button"
@@ -53,7 +52,7 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              Vanligt
+              Normal
             </button>
             <button
               type="button"
@@ -65,14 +64,14 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              Brådskande
+              Urgent
             </button>
           </div>
 
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Skriv ditt meddelande..."
+            placeholder="Write your message..."
             className="min-h-[100px] rounded-xl"
             autoFocus
           />
@@ -83,7 +82,7 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
             className="w-full rounded-xl gap-2"
           >
             <Send className="w-4 h-4" />
-            {sending ? 'Skickar...' : 'Skicka'}
+            {sending ? 'Sending...' : 'Send'}
           </Button>
         </div>
       </DialogContent>

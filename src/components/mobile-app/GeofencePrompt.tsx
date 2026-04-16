@@ -17,7 +17,6 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
 
   const [now, setNow] = useState(Date.now());
 
-  // Update "now" every 30s so the relative time stays fresh
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
@@ -25,26 +24,26 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
 
   const arrivalTimestamp = event.arrivalTimestamp;
   const timeSinceArrival = arrivalTimestamp ? now - arrivalTimestamp : 0;
-  const showArrivalCorrection = isEnter && arrivalTimestamp && timeSinceArrival > 5 * 60 * 1000; // > 5 min
+  const showArrivalCorrection = isEnter && arrivalTimestamp && timeSinceArrival > 5 * 60 * 1000;
 
   const arrivalDate = arrivalTimestamp ? new Date(arrivalTimestamp) : null;
   const arrivalTimeStr = arrivalDate
-    ? arrivalDate.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+    ? arrivalDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '';
 
   const formatTimeSince = (ms: number) => {
     const mins = Math.floor(ms / 60000);
-    if (mins < 60) return `${mins} min sedan`;
+    if (mins < 60) return `${mins} min ago`;
     const hours = Math.floor(mins / 60);
     const remainMins = mins % 60;
-    return remainMins > 0 ? `${hours}h ${remainMins}min sedan` : `${hours}h sedan`;
+    return remainMins > 0 ? `${hours}h ${remainMins}min ago` : `${hours}h ago`;
   };
 
   const Icon = isProject ? FolderOpen : isLocation ? Building2 : MapPin;
   const label = isProject
-    ? event.largeProjectName || 'Projekt'
+    ? event.largeProjectName || 'Project'
     : isLocation
-      ? event.locationName || 'Plats'
+      ? event.locationName || 'Location'
       : event.booking?.client || '';
 
   return (
@@ -63,11 +62,11 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
           <div className="flex-1">
             <p className="text-white font-semibold text-sm">
               {isEnter
-                ? (isProject ? 'Du är vid projektet!' : isLocation ? 'Du är på plats!' : 'Du är på plats!')
-                : (isProject ? 'Du lämnar projektet' : isLocation ? 'Du lämnar platsen' : 'Du lämnar arbetsplatsen')}
+                ? (isProject ? 'You are at the project!' : isLocation ? 'You are on site!' : 'You are on site!')
+                : (isProject ? 'Leaving the project' : isLocation ? 'Leaving the location' : 'Leaving the worksite')}
             </p>
             <p className="text-white/80 text-xs">
-              {event.distance}m från {label}
+              {event.distance}m from {label}
             </p>
           </div>
           <button onClick={onDismiss} className="p-1 rounded-full hover:bg-white/20 transition-colors">
@@ -95,15 +94,15 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
 
           <p className="text-sm text-muted-foreground">
             {isEnter
-              ? (isProject ? 'Vill du starta tidregistrering för detta projekt?' : isLocation ? 'Vill du starta tidregistrering för denna plats?' : 'Vill du starta tidrapporten för detta jobb?')
-              : (isProject ? 'Vill du avsluta tidregistreringen för projektet?' : isLocation ? 'Vill du avsluta tidregistreringen?' : 'Vill du avsluta tidrapporten?')}
+              ? (isProject ? 'Do you want to start time tracking for this project?' : isLocation ? 'Do you want to start time tracking for this location?' : 'Do you want to start the time report for this job?')
+              : (isProject ? 'Do you want to end time tracking for the project?' : isLocation ? 'Do you want to end time tracking?' : 'Do you want to end the time report?')}
           </p>
 
           {showArrivalCorrection && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
               <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
               <p className="text-sm text-amber-800 dark:text-amber-200">
-                Enligt GPS anlände du kl. <span className="font-semibold">{arrivalTimeStr}</span> ({formatTimeSince(timeSinceArrival)})
+                GPS shows you arrived at <span className="font-semibold">{arrivalTimeStr}</span> ({formatTimeSince(timeSinceArrival)})
               </p>
             </div>
           )}
@@ -115,7 +114,7 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 onClick={() => onConfirm(arrivalDate!.toISOString())}
               >
                 <Clock className="w-4 h-4" />
-                Starta från {arrivalTimeStr}
+                Start from {arrivalTimeStr}
               </Button>
             )}
             <div className="flex gap-2">
@@ -124,7 +123,7 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 className="flex-1"
                 onClick={onDismiss}
               >
-                Inte nu
+                Not now
               </Button>
               <Button
                 className={cn(
@@ -138,12 +137,12 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 {isEnter ? (
                   <>
                     <Play className="w-4 h-4" />
-                    Starta nu
+                    Start now
                   </>
                 ) : (
                   <>
                     <Square className="w-4 h-4" />
-                    Avsluta
+                    End
                   </>
                 )}
               </Button>

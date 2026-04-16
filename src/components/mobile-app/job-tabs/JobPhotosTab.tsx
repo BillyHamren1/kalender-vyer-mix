@@ -37,25 +37,23 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
       file_data: base64,
       file_type: fileType,
     });
-    toast.success('Foto sparat!');
+    toast.success('Photo saved!');
     fetchFiles();
   };
 
   const handleCameraClick = async () => {
     const base64 = await takePhotoBase64();
     if (base64) {
-      // Native path – upload directly
       setIsUploading(true);
       try {
         const fileName = `photo_${Date.now()}.jpg`;
         await uploadBase64(base64, fileName, 'image/jpeg');
       } catch {
-        toast.error('Uppladdning misslyckades');
+        toast.error('Upload failed');
       } finally {
         setIsUploading(false);
       }
     } else {
-      // Web fallback
       fileInputRef.current?.click();
     }
   };
@@ -71,13 +69,13 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         const base64 = ev.target?.result as string;
         await uploadBase64(base64, file.name, file.type);
       } catch {
-        toast.error('Uppladdning misslyckades');
+        toast.error('Upload failed');
       } finally {
         setIsUploading(false);
       }
     };
     reader.onerror = () => {
-      toast.error('Kunde inte läsa filen');
+      toast.error('Could not read file');
       setIsUploading(false);
     };
     reader.readAsDataURL(file);
@@ -91,7 +89,6 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
     );
   }
 
-  // Separate by source, keep only images
   const uploadedPhotos = files.filter(f => f.source === 'project' && isImageFile(f));
   const bookingImages = files
     .filter(f => f.source === 'booking' && isImageFile(f))
@@ -99,7 +96,6 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Upload button */}
       <input
         ref={fileInputRef}
         type="file"
@@ -118,14 +114,13 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         ) : (
           <Camera className="w-5 h-5" />
         )}
-        {isUploading ? 'Laddar upp...' : 'Ta foto / ladda upp'}
+        {isUploading ? 'Uploading...' : 'Take photo / upload'}
       </Button>
 
-      {/* Uploaded project photos */}
       {uploadedPhotos.length === 0 ? (
         <div className="text-center py-6">
           <Image className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-          <p className="text-sm text-muted-foreground">Inga egna bilder ännu</p>
+          <p className="text-sm text-muted-foreground">No photos yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
@@ -137,7 +132,7 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
             >
               <img
                 src={file.url}
-                alt={file.name || 'Foto'}
+                alt={file.name || 'Photo'}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
@@ -146,11 +141,10 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         </div>
       )}
 
-      {/* Booking images section */}
       {bookingImages.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Bilder från bokning
+            Images from booking
           </p>
           <div className="grid grid-cols-2 gap-2">
             {bookingImages.map((img: any) => (
@@ -161,7 +155,7 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
               >
                 <img
                   src={img.url}
-                  alt={img.file_name || img.name || 'Bild'}
+                  alt={img.file_name || img.name || 'Image'}
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -171,7 +165,6 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         </div>
       )}
 
-      {/* Full-screen preview */}
       {previewUrl && (
         <div
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-4"

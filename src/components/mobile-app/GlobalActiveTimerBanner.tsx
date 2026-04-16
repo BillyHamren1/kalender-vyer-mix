@@ -19,17 +19,11 @@ function loadTimersFromStorage(): Map<string, ActiveTimer> {
   }
 }
 
-/**
- * Global banner showing active timers on ALL mobile pages.
- * Reads from localStorage so it works independently of useGeofencing instances.
- * The time report page already shows its own ActiveTimerCard, so we hide there.
- */
 const GlobalActiveTimerBanner: React.FC = () => {
   const location = useLocation();
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
   const [tick, setTick] = useState(0);
 
-  // Poll localStorage for timer changes (useGeofencing writes here)
   useEffect(() => {
     const interval = setInterval(() => {
       setTimers(loadTimersFromStorage());
@@ -38,7 +32,6 @@ const GlobalActiveTimerBanner: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Also listen for custom event from useGeofencing
   useEffect(() => {
     const handler = () => setTimers(loadTimersFromStorage());
     window.addEventListener('timer-state-changed', handler);
@@ -53,23 +46,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const stopTime = new Date();
     const startTimeDate = parseISO(timer.startTime);
 
-    // Remove from localStorage immediately
     const current = loadTimersFromStorage();
     current.delete(key);
     localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(current.entries())));
     setTimers(current);
 
-    // Notify useGeofencing instances
     window.dispatchEvent(new Event('timer-state-changed'));
 
-    // Stop location timer on server
     if (timer.locationId) {
       mobileApi.stopLocationTimer({ location_id: timer.locationId }).catch(err => {
         console.warn('Failed to stop location timer on server:', err);
       });
     }
 
-    // Create time report
     let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
     if (totalHours < 0) totalHours += 24;
     const breakDeduction = totalHours > 5 ? 0.5 : 0;
@@ -87,13 +76,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
         establishment_task_id: timer.establishmentTaskId,
         large_project_id: timer.largeProjectId,
       });
-      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+      toast.success(`Time report saved: ${hoursWorked}h`);
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara tidrapport');
+      toast.error(err.message || 'Could not save time report');
     }
   }, []);
 
-  // Hide on time report page (it has its own display)
   if (location.pathname === '/m/report') return null;
 
   if (timers.size === 0) return null;
@@ -126,7 +114,7 @@ const TimerRow: React.FC<{
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {format(parseISO(timer.startTime), 'HH:mm')}
+          Started {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
@@ -140,7 +128,7 @@ const TimerRow: React.FC<{
         onClick={() => onStop(timerKey, timer)}
       >
         <Square className="w-3 h-3" />
-        Stopp
+        Stop
       </Button>
     </div>
   );

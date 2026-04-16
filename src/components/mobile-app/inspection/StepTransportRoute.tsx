@@ -34,7 +34,6 @@ const StepTransportRoute = ({
     if (base64) {
       onAddMedia({ id: crypto.randomUUID(), type: 'image', dataUrl: base64 });
     } else {
-      // Web fallback – open file picker
       fileInputRef.current?.click();
     }
   };
@@ -54,7 +53,7 @@ const StepTransportRoute = ({
       video.onloadedmetadata = () => {
         URL.revokeObjectURL(video.src);
         if (video.duration > MAX_VIDEO_SECONDS) {
-          toast.error(`Video får vara max ${MAX_VIDEO_SECONDS} sekunder (var ${Math.round(video.duration)}s)`);
+          toast.error(`Video must be max ${MAX_VIDEO_SECONDS} seconds (was ${Math.round(video.duration)}s)`);
           resolve(false);
         } else {
           resolve(true);
@@ -83,24 +82,22 @@ const StepTransportRoute = ({
       }
     }
 
-    // Reset so same file can be re-selected
     e.target.value = '';
   };
 
   return (
     <div className="space-y-5">
       <p className="text-sm font-semibold text-foreground">
-        Dokumentera transportväg in samt yta för avlastning
+        Document transport route and unloading area
       </p>
 
-      {/* Camera / file button */}
       <button
         type="button"
         onClick={handleCameraClick}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-primary/40 text-primary font-medium text-sm active:scale-[0.98] transition-all"
       >
         <Camera className="w-5 h-5" />
-        <span>Ta bild / video</span>
+        <span>Take photo / video</span>
         <Video className="w-5 h-5" />
       </button>
 
@@ -114,7 +111,6 @@ const StepTransportRoute = ({
         onChange={handleFileChange}
       />
 
-      {/* Media gallery */}
       {media.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {media.map((item) => (
@@ -141,15 +137,14 @@ const StepTransportRoute = ({
         </div>
       )}
 
-      {/* Transport info text */}
       <div>
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-          Transportinfo
+          Transport info
         </label>
         <Textarea
           value={transportInfo}
           onChange={(e) => onTransportInfoChange(e.target.value)}
-          placeholder="Beskriv transportväg, hinder, avlastningsyta…"
+          placeholder="Describe transport route, obstacles, unloading area..."
           className="min-h-[100px] rounded-xl text-sm"
         />
       </div>
