@@ -4,15 +4,14 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { MapPin, ChevronRight, Loader2, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
-  if (dates.rigdaydate === assignmentDate) return { label: 'RIGG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
+  if (dates.rigdaydate === assignmentDate) return { label: 'RIG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
   if (dates.eventdate === assignmentDate) return { label: 'EVENT', className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
-  if (dates.rigdowndate === assignmentDate) return { label: 'NEDMONT.', className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
-  return { label: 'JOBB', className: 'bg-muted text-foreground border-border' };
+  if (dates.rigdowndate === assignmentDate) return { label: 'TEARDOWN', className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
+  return { label: 'JOB', className: 'bg-muted text-foreground border-border' };
 };
 
 const MobileProjectDetail = () => {
@@ -22,7 +21,7 @@ const MobileProjectDetail = () => {
   const { data: bookings = [], isLoading } = useMobileBookings();
 
   const projectBookings = bookings.filter(b => b.large_project_id === projectId);
-  const projectName = projectBookings[0]?.large_project_name || 'Projekt';
+  const projectName = projectBookings[0]?.large_project_name || 'Project';
 
   const sortByDate = (a: MobileBooking, b: MobileBooking) => {
     const dateA = a.rigdaydate || a.eventdate || a.rigdowndate || '';
@@ -61,7 +60,7 @@ const MobileProjectDetail = () => {
             </h3>
             {dateStr && (
               <p className="text-xs text-muted-foreground mb-0.5">
-                {format(parseISO(dateStr), 'd MMM yyyy', { locale: sv })}
+                {format(parseISO(dateStr), 'd MMM yyyy')}
               </p>
             )}
             {booking.deliveryaddress && (
@@ -97,7 +96,7 @@ const MobileProjectDetail = () => {
           <div>
             <h2 className="text-base font-bold text-foreground">{projectName}</h2>
             <p className="text-xs text-muted-foreground">
-              {projectBookings.length} bokningar
+              {projectBookings.length} bookings
             </p>
           </div>
         </div>
@@ -110,7 +109,7 @@ const MobileProjectDetail = () => {
 
         {projectBookings.length === 0 && (
           <div className="text-center py-10 text-muted-foreground text-sm">
-            Inga bokningar hittades i detta projekt.
+            No bookings found in this project.
           </div>
         )}
       </div>

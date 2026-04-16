@@ -6,7 +6,6 @@ import { useMobileInbox } from '@/hooks/useMobileInbox';
 import { MessageCircle, Radio, ArrowLeft, Send, ChevronRight, Briefcase, User, AlertTriangle, CloudRain, CalendarClock, Truck, Info, Plus, Search, Loader2, Archive } from 'lucide-react';
 import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO, differenceInDays } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -41,10 +40,10 @@ const categoryIcons: Record<string, typeof Info> = {
 
 const categoryLabels: Record<string, string> = {
   info: 'Information',
-  weather: 'Vädervarning',
-  schedule: 'Schemaändring',
-  logistics: 'Logistik',
-  urgent: 'Brådskande',
+  weather: 'Weather alert',
+  schedule: 'Schedule change',
+  logistics: 'Logistics',
+  urgent: 'Urgent',
 };
 
 const MobileInbox = () => {
@@ -53,7 +52,6 @@ const MobileInbox = () => {
   const { dmConversations, broadcasts, jobConversations, isLoading: loading, markDMReadOptimistic, appendDMMessage, markBroadcastReadOptimistic } = useMobileInbox();
   const [view, setView] = useState<InboxView>('list');
 
-  // Thread state
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
   const [activeJob, setActiveJob] = useState<{ bookingId: string; client: string } | null>(null);
   const [activeJobMessages, setActiveJobMessages] = useState<any[]>([]);
@@ -63,7 +61,6 @@ const MobileInbox = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  // Split job conversations into active and archived (7+ days after last date)
   const now = new Date();
   const activeJobs = jobConversations.filter(job => {
     if (!job.lastDate) return true;
@@ -76,14 +73,12 @@ const MobileInbox = () => {
     return daysSince >= 7;
   });
 
-  // Auto-scroll chat
   useEffect(() => {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [activeDM?.messages, activeJobMessages]);
 
   const totalUnread = dmConversations.reduce((sum, c) => sum + c.unread_count, 0) + broadcasts.filter(b => !b.is_read).length;
 
-  // === Open DM thread ===
   const openDM = async (conv: DMConversation) => {
     setActiveDM(conv);
     setView('dm-thread');
@@ -95,7 +90,6 @@ const MobileInbox = () => {
     }
   };
 
-  // === Open job thread ===
   const openJobThread = async (job: { bookingId: string; client: string }) => {
     setActiveJob(job);
     setView('job-thread');
@@ -107,7 +101,6 @@ const MobileInbox = () => {
     }
   };
 
-  // === Open broadcast ===
   const openBroadcast = async (b: BroadcastItem) => {
     setActiveBroadcast(b);
     setView('broadcast-detail');
@@ -119,7 +112,6 @@ const MobileInbox = () => {
     }
   };
 
-  // === Send DM ===
   const handleSendDM = async () => {
     if (!newMsg.trim() || !activeDM || sending) return;
     setSending(true);
@@ -135,11 +127,10 @@ const MobileInbox = () => {
       setActiveDM(prev => prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : null);
       appendDMMessage(activeDM.partner_id, optimisticMsg);
       setNewMsg('');
-    } catch { toast.error('Kunde inte skicka'); }
+    } catch { toast.error('Could not send'); }
     finally { setSending(false); }
   };
 
-  // === Send job message ===
   const handleSendJobMsg = async () => {
     if (!newMsg.trim() || !activeJob || sending) return;
     setSending(true);
@@ -154,7 +145,7 @@ const MobileInbox = () => {
         created_at: new Date().toISOString(),
       }]);
       setNewMsg('');
-    } catch { toast.error('Kunde inte skicka'); }
+    } catch { toast.error('Could not send'); }
     finally { setSending(false); }
   };
 
@@ -168,7 +159,7 @@ const MobileInbox = () => {
 
   const formatTime = (ts: string) => {
     const d = parseISO(ts);
-    return isToday(d) ? format(d, 'HH:mm') : format(d, 'd MMM HH:mm', { locale: sv });
+    return isToday(d) ? format(d, 'HH:mm') : format(d, 'd MMM HH:mm');
   };
 
   // === INBOX LIST VIEW ===
@@ -176,9 +167,9 @@ const MobileInbox = () => {
     return (
       <div className="flex flex-col min-h-screen pb-24 bg-background">
         <MobileHeroHeader
-          eyebrow="MEDDELANDEN"
-          title="Inkorg"
-          subtitle={totalUnread > 0 ? `${totalUnread} olästa` : 'Inga olästa'}
+          eyebrow="MESSAGES"
+          title="Inbox"
+          subtitle={totalUnread > 0 ? `${totalUnread} unread` : 'No unread'}
         />
 
         <div className="flex-1 overflow-y-auto">
@@ -236,7 +227,7 @@ const MobileInbox = () => {
               {dmConversations.length > 0 && (
                 <div>
                   <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 mb-1.5 flex items-center gap-1">
-                    <User className="w-3 h-3" /> Direktmeddelanden
+                    <User className="w-3 h-3" /> Direct messages
                   </h2>
                   <div className="space-y-1.5">
                     {dmConversations.map(conv => (
@@ -274,7 +265,7 @@ const MobileInbox = () => {
               {activeJobs.length > 0 && (
                 <div>
                   <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 mb-1.5 flex items-center gap-1">
-                    <Briefcase className="w-3 h-3" /> Jobbchatt
+                    <Briefcase className="w-3 h-3" /> Job chat
                   </h2>
                   <div className="space-y-1.5">
                     {activeJobs.map(job => (
@@ -288,7 +279,7 @@ const MobileInbox = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="text-xs font-semibold text-foreground truncate block">{job.client}</span>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">Öppna jobbchatt</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Open job chat</p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-1" />
                       </button>
@@ -306,7 +297,7 @@ const MobileInbox = () => {
                   >
                     <Archive className="w-3 h-3 text-muted-foreground" />
                     <h2 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Arkiverade jobbchattar ({archivedJobs.length})
+                      Archived job chats ({archivedJobs.length})
                     </h2>
                     <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform ml-auto", showArchived && "rotate-90")} />
                   </button>
@@ -323,7 +314,7 @@ const MobileInbox = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <span className="text-xs font-semibold text-foreground truncate block">{job.client}</span>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">Arkiverad jobbchatt</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Archived job chat</p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-1" />
                         </button>
@@ -336,7 +327,7 @@ const MobileInbox = () => {
               {broadcasts.length === 0 && dmConversations.length === 0 && jobConversations.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground text-sm">
                   <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  Inga meddelanden ännu
+                  No messages yet
                 </div>
               )}
             </div>
@@ -360,12 +351,10 @@ const MobileInbox = () => {
       staff={staff}
       dmConversations={dmConversations}
       onSelectContact={(contact) => {
-        // Check if conversation already exists
         const existing = dmConversations.find(c => c.partner_id === contact.id);
         if (existing) {
           openDM(existing);
         } else {
-          // Create a new empty conversation shell
           const newConv: DMConversation = {
             partner_id: contact.id,
             partner_name: contact.name,
@@ -401,7 +390,7 @@ const MobileInbox = () => {
             </div>
             <p className="text-sm text-foreground leading-relaxed">{activeBroadcast.content}</p>
             <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Från {activeBroadcast.sender_name}</span>
+              <span className="text-xs text-muted-foreground">From {activeBroadcast.sender_name}</span>
               <span className="text-xs text-muted-foreground">{formatTime(activeBroadcast.created_at)}</span>
             </div>
           </div>
@@ -446,12 +435,11 @@ const MobileInbox = () => {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input */}
         <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           <div className="flex gap-2">
             <input
               className="flex-1 text-sm bg-muted rounded-xl px-3 py-2.5 border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
-              placeholder="Skriv meddelande..."
+              placeholder="Type a message..."
               value={newMsg}
               onChange={e => setNewMsg(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendDM()}
@@ -483,7 +471,7 @@ const MobileInbox = () => {
           {activeJobMessages.length === 0 && (
             <div className="text-center py-8 text-muted-foreground text-sm">
               <MessageCircle className="w-6 h-6 mx-auto mb-2 opacity-40" />
-              Inga meddelanden i jobbchatten ännu
+              No messages in the job chat yet
             </div>
           )}
           {activeJobMessages.map(msg => {
@@ -500,7 +488,7 @@ const MobileInbox = () => {
                 )}>
                   {!isMe && (
                     <span className="text-[10px] font-bold block mb-0.5 opacity-70">
-                      {msg.sender_name} {msg.sender_role === 'planner' && '(Planerare)'}
+                      {msg.sender_name} {msg.sender_role === 'planner' && '(Planner)'}
                     </span>
                   )}
                   <p>{msg.content}</p>
@@ -512,12 +500,11 @@ const MobileInbox = () => {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input */}
         <div className="shrink-0 p-3 border-t border-border bg-card safe-area-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           <div className="flex gap-2">
             <input
               className="flex-1 text-sm bg-muted rounded-xl px-3 py-2.5 border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
-              placeholder="Skriv meddelande..."
+              placeholder="Type a message..."
               value={newMsg}
               onChange={e => setNewMsg(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendJobMsg()}
@@ -557,7 +544,7 @@ function ContactPicker({
   useEffect(() => {
     mobileApi.getContacts()
       .then(res => setContacts(res.contacts || []))
-      .catch(() => toast.error('Kunde inte hämta kontakter'))
+      .catch(() => toast.error('Could not fetch contacts'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -567,9 +554,8 @@ function ContactPicker({
 
   return (
     <div className="flex flex-col min-h-screen pb-24 bg-background">
-      <MobileBackHeader title="Nytt meddelande" onBack={onBack} />
+      <MobileBackHeader title="New message" onBack={onBack} />
 
-      {/* Search */}
       <div className="px-3 pt-2 pb-1">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -577,7 +563,7 @@ function ContactPicker({
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Sök kontakt..."
+            placeholder="Search contact..."
             className="w-full pl-9 pr-3 py-2.5 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
           />
         </div>
@@ -590,7 +576,7 @@ function ContactPicker({
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">
-            Inga kontakter hittades
+            No contacts found
           </div>
         ) : (
           filtered.map(c => {
@@ -607,8 +593,8 @@ function ContactPicker({
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold text-foreground truncate block">{c.name}</span>
                   <span className="text-[11px] text-muted-foreground">
-                    {c.type === 'planner' ? 'Planerare' : 'Personal'}
-                    {hasConversation ? ' · Pågående chatt' : ''}
+                    {c.type === 'planner' ? 'Planner' : 'Staff'}
+                    {hasConversation ? ' · Active chat' : ''}
                   </span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />

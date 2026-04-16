@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { MobileTimeReport, MobileTravelLog, mobileApi } from '@/services/mobileApiService';
 import { useMobileTimeReports, useMobileTravelLogs, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car, Check, Clock4, Pencil, Trash2, X } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
@@ -28,7 +27,6 @@ const MobileTimeHistory = () => {
 
   const totalHours = reports.reduce((sum, r) => sum + r.hours_worked, 0);
 
-  // Group reports by date for calendar
   const reportsByDate = useMemo(() => {
     const map = new Map<string, MobileTimeReport[]>();
     reports.forEach(r => {
@@ -39,17 +37,15 @@ const MobileTimeHistory = () => {
     return map;
   }, [reports]);
 
-  // Calendar data
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const startDayOfWeek = (getDay(monthStart) + 6) % 7; // Monday = 0
+  const startDayOfWeek = (getDay(monthStart) + 6) % 7;
 
   const selectedDateReports = selectedDate
     ? reports.filter(r => isSameDay(parseISO(r.report_date), selectedDate))
     : [];
 
-  // List view: filter by period
   const listInterval = useMemo(() => {
     if (listFilter === 'week') {
       const s = startOfWeek(listPeriod, { weekStartsOn: 1 });
@@ -74,7 +70,6 @@ const MobileTimeHistory = () => {
     });
   }, [travelLogs, listInterval]);
 
-  // Build all days in interval with their reports and travel logs (ascending order)
   const groupedListReports = useMemo(() => {
     const days = eachDayOfInterval(listInterval);
     const reportMap = new Map<string, MobileTimeReport[]>();
@@ -99,8 +94,8 @@ const MobileTimeHistory = () => {
   const filteredTravelHours = filteredTravelLogs.reduce((s, l) => s + l.hours_worked, 0);
 
   const listPeriodLabel = listFilter === 'week'
-    ? `${format(listInterval.start, 'd MMM', { locale: sv })} – ${format(listInterval.end, 'd MMM yyyy', { locale: sv })}`
-    : format(listPeriod, 'MMMM yyyy', { locale: sv });
+    ? `${format(listInterval.start, 'd MMM')} – ${format(listInterval.end, 'd MMM yyyy')}`
+    : format(listPeriod, 'MMMM yyyy');
 
   const navigateListPeriod = (dir: 1 | -1) => {
     setListPeriod(p => listFilter === 'week'
@@ -110,16 +105,16 @@ const MobileTimeHistory = () => {
   };
 
   const exportPdf = () => {
-    const staffName = staff?.name || 'Personal';
+    const staffName = staff?.name || 'Staff';
     const rows = groupedListReports.map(({ dateKey, reports: dr }) => {
       const d = parseISO(dateKey);
       const dayNum = format(d, 'd');
-      const dayName = format(d, 'EEE', { locale: sv });
+      const dayName = format(d, 'EEE');
       if (dr.length === 0) {
         return `<tr class="empty"><td>${dayNum}</td><td>${dayName}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
       }
       return dr.map((r, i) => {
-        const client = r.bookings?.client || 'Okänt';
+        const client = r.bookings?.client || 'Unknown';
         return `<tr class="report">
           <td>${i === 0 ? dayNum : ''}</td>
           <td>${i === 0 ? dayName : ''}</td>
@@ -133,7 +128,7 @@ const MobileTimeHistory = () => {
 
     const totalOt = filteredListReports.reduce((s, r) => s + (r.overtime_hours || 0), 0);
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tidrapport – ${staffName}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Time Report – ${staffName}</title>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family: -apple-system, system-ui, sans-serif; padding: 32px; color: #1a2a2a; background: #fff; }
@@ -157,16 +152,16 @@ const MobileTimeHistory = () => {
     </style></head><body>
     <div class="card">
       <div class="brand">EventFlow</div>
-      <h1>Tidrapport – ${staffName}</h1>
-      <p class="meta">${listPeriodLabel} · ${filteredListReports.length} rapporter</p>
+      <h1>Time Report – ${staffName}</h1>
+      <p class="meta">${listPeriodLabel} · ${filteredListReports.length} reports</p>
       <table>
-        <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
+        <thead><tr><th>Day</th><th></th><th>Client</th><th>Start</th><th>End</th><th>Hrs</th></tr></thead>
         <tbody>${rows}
-          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt.toFixed(0)}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+          <tr class="total"><td colspan="5">Total${totalOt > 0 ? ` (of which ${totalOt.toFixed(0)}h overtime)` : ''}</td><td>${filteredTotalHours}h</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="footer">Genererad ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
+    <p class="footer">Generated ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
     </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -179,13 +174,12 @@ const MobileTimeHistory = () => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  const weekDays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       {/* Header */}
       <div className="bg-primary rounded-b-3xl shadow-md">
-        {/* Safe area – täcker telefonens statusbar */}
         <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
         <div className="px-4 pb-4">
           <div className="flex items-center gap-3">
@@ -193,16 +187,16 @@ const MobileTimeHistory = () => {
               <ArrowLeft className="w-5 h-5 text-primary-foreground" />
             </button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">Tidrapporter</h1>
+              <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">Time reports</h1>
               <p className="text-[11px] text-primary-foreground/50 font-medium">
-                {reports.length} st · {formatHoursMinutes(totalHours)} totalt
+                {reports.length} pcs · {formatHoursMinutes(totalHours)} total
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs under header */}
+      {/* Tabs */}
       <div className="px-4 pt-3 pb-1">
         <div className="flex bg-muted rounded-2xl p-1 gap-1">
           <button
@@ -213,7 +207,7 @@ const MobileTimeHistory = () => {
             )}
           >
             <List className="w-4 h-4" />
-            Lista
+            List
           </button>
           <button
             onClick={() => setViewMode('calendar')}
@@ -223,7 +217,7 @@ const MobileTimeHistory = () => {
             )}
           >
             <Calendar className="w-4 h-4" />
-            Kalender
+            Calendar
           </button>
         </div>
       </div>
@@ -235,20 +229,18 @@ const MobileTimeHistory = () => {
           </div>
         ) : viewMode === 'calendar' ? (
           <div className="space-y-3">
-            {/* Month navigation */}
             <div className="flex items-center justify-between px-1">
               <button onClick={() => setCurrentMonth(m => subMonths(m, 1))} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronLeft className="w-5 h-5 text-foreground" />
               </button>
               <h2 className="text-sm font-bold text-foreground capitalize">
-                {format(currentMonth, 'MMMM yyyy', { locale: sv })}
+                {format(currentMonth, 'MMMM yyyy')}
               </h2>
               <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
               </button>
             </div>
 
-            {/* Calendar grid */}
             <div className="rounded-2xl border border-primary/20 bg-card p-3 shadow-md">
               <div className="grid grid-cols-7 gap-1 mb-1">
                 {weekDays.map(d => (
@@ -292,15 +284,14 @@ const MobileTimeHistory = () => {
               </div>
             </div>
 
-            {/* Selected date reports */}
             {selectedDate && (
               <div className="space-y-1.5">
                 <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">
-                  {format(selectedDate, 'd MMMM yyyy', { locale: sv })}
+                  {format(selectedDate, 'd MMMM yyyy')}
                 </h3>
                 {selectedDateReports.length === 0 ? (
                   <div className="text-center py-6">
-                    <p className="text-sm text-muted-foreground">Inga rapporter denna dag</p>
+                    <p className="text-sm text-muted-foreground">No reports this day</p>
                   </div>
                 ) : (
                   selectedDateReports.map(report => (
@@ -311,36 +302,32 @@ const MobileTimeHistory = () => {
             )}
           </div>
         ) : (
-          /* List view */
           <div className="space-y-3">
-            {/* Period navigation */}
             <div className="flex items-center justify-between">
               <button onClick={() => navigateListPeriod(-1)} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronLeft className="w-5 h-5 text-foreground" />
               </button>
               <div className="text-center">
                 <p className="text-sm font-bold text-foreground capitalize">{listPeriodLabel}</p>
-                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {formatHoursMinutes(filteredTotalHours)}</p>
+                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} reports · {formatHoursMinutes(filteredTotalHours)}</p>
               </div>
               <button onClick={() => navigateListPeriod(1)} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
               </button>
             </div>
 
-            {/* Table */}
             <div className="rounded-2xl border border-primary/20 bg-card shadow-md overflow-hidden">
-              {/* Table header */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] bg-muted/50 border-b border-border px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Datum</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Start</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Slut</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Tim</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">End</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Hrs</span>
               </div>
               {groupedListReports.map(({ dateKey, reports: dateReports, travels: dateTravels }, idx) => {
                 const hasContent = dateReports.length > 0 || dateTravels.length > 0;
                 const isLast = idx === groupedListReports.length - 1;
                 const dayNum = format(parseISO(dateKey), 'd');
-                const dayName = format(parseISO(dateKey), 'EEE', { locale: sv });
+                const dayName = format(parseISO(dateKey), 'EEE');
                 const allEntries = [
                   ...dateReports.map(r => ({ type: 'report' as const, data: r })),
                   ...dateTravels.map(t => ({ type: 'travel' as const, data: t })),
@@ -375,8 +362,8 @@ const MobileTimeHistory = () => {
                     ? (entry.data as MobileTravelLog).end_time?.slice(11, 16)
                     : (entry.data as MobileTimeReport).end_time?.slice(0, 5);
                   const label = isTravel
-                    ? '🚗 Förflyttning'
-                    : ((entry.data as MobileTimeReport).bookings?.client || 'Okänt');
+                    ? '🚗 Travel'
+                    : ((entry.data as MobileTimeReport).bookings?.client || 'Unknown');
 
                   return (
                     <div key={id} className={cn(
@@ -416,10 +403,9 @@ const MobileTimeHistory = () => {
                   );
                 });
               })}
-              {/* Total row */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
                 <span className="text-xs font-bold text-foreground uppercase">
-                  Totalt {filteredTravelHours > 0 && <span className="text-primary font-normal">(varav {formatHoursMinutes(filteredTravelHours)} förflyttning)</span>}
+                  Total {filteredTravelHours > 0 && <span className="text-primary font-normal">(incl. {formatHoursMinutes(filteredTravelHours)} travel)</span>}
                 </span>
                 <span />
                 <span />
@@ -427,13 +413,12 @@ const MobileTimeHistory = () => {
               </div>
             </div>
 
-            {/* Export button */}
             <button
               onClick={exportPdf}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm active:scale-[0.98] transition-all shadow-sm"
             >
               <Download className="w-4 h-4" />
-              Exportera som PDF
+              Export as PDF
             </button>
           </div>
         )}
@@ -467,21 +452,21 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
   };
 
   const getEditValidationError = (): string | null => {
-    if (!editStart) return 'Starttid krävs';
-    if (!editEnd) return 'Sluttid krävs';
+    if (!editStart) return 'Start time is required';
+    if (!editEnd) return 'End time is required';
     const [sh, sm] = editStart.split(':').map(Number);
     const [eh, em] = editEnd.split(':').map(Number);
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    if (endMin <= startMin) return 'Sluttid måste vara efter starttid';
+    if (endMin <= startMin) return 'End time must be after start time';
     const breakMin = parseInt(editBreak) || 0;
-    if (breakMin < 0) return 'Rast kan inte vara negativ';
-    if (breakMin > 240) return 'Rast kan inte överstiga 240 minuter';
+    if (breakMin < 0) return 'Break cannot be negative';
+    if (breakMin > 240) return 'Break cannot exceed 240 minutes';
     const hours = calculateEditHours();
-    if (hours <= 0) return 'Arbetad tid efter rast måste vara mer än 0';
-    if (hours > 16) return 'Arbetad tid kan inte överstiga 16 timmar';
+    if (hours <= 0) return 'Worked hours after break must be more than 0';
+    if (hours > 16) return 'Worked hours cannot exceed 16 hours';
     const ot = parseFloat(editOvertime) || 0;
-    if (ot < 0) return 'Övertid kan inte vara negativ';
+    if (ot < 0) return 'Overtime cannot be negative';
     
     return null;
   };
@@ -505,11 +490,11 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         break_time: parseInt(editBreak) || 0,
         description: editDesc || undefined,
       });
-      toast.success('Tidrapport uppdaterad');
+      toast.success('Time report updated');
       setEditing(false);
       invalidateTimeReports();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte uppdatera');
+      toast.error(err.message || 'Could not update');
     } finally {
       setSaving(false);
     }
@@ -519,10 +504,10 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
     setSaving(true);
     try {
       await mobileApi.deleteTimeReport(report.id);
-      toast.success('Tidrapport borttagen');
+      toast.success('Time report deleted');
       invalidateTimeReports();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte ta bort');
+      toast.error(err.message || 'Could not delete');
     } finally {
       setSaving(false);
       setDeleting(false);
@@ -535,20 +520,20 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="font-semibold text-sm truncate text-foreground">
-              {report.bookings?.client || 'Okänt jobb'}
+              {report.bookings?.client || 'Unknown job'}
             </p>
             {isApproved ? (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
-                <Check className="w-2.5 h-2.5" /> Godkänd
+                <Check className="w-2.5 h-2.5" /> Approved
               </span>
             ) : (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                <Clock4 className="w-2.5 h-2.5" /> Väntar
+                <Clock4 className="w-2.5 h-2.5" /> Pending
               </span>
             )}
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {showDate && format(parseISO(report.report_date), 'd MMM yyyy', { locale: sv })}
+            {showDate && format(parseISO(report.report_date), 'd MMM yyyy')}
             {showDate && report.start_time && report.end_time && ' · '}
             {report.start_time && report.end_time && (
               <span>{report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
@@ -569,7 +554,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           <div className="text-right shrink-0 ml-1">
             <p className="font-extrabold text-sm tabular-nums">{report.hours_worked}h</p>
             {report.overtime_hours > 0 && (
-              <p className="text-[10px] text-primary font-bold">+{report.overtime_hours}h öt</p>
+              <p className="text-[10px] text-primary font-bold">+{report.overtime_hours}h OT</p>
             )}
           </div>
         </div>
@@ -578,22 +563,20 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
       )}
 
-      {/* Delete confirmation */}
       {deleting && (
         <div className="mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium text-destructive">Ta bort denna rapport?</p>
+          <p className="text-xs font-medium text-destructive">Delete this report?</p>
           <div className="flex gap-1.5">
             <button onClick={() => setDeleting(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-muted text-muted-foreground">
-              Avbryt
+              Cancel
             </button>
             <button onClick={handleDelete} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-destructive text-destructive-foreground">
-              {saving ? '...' : 'Ta bort'}
+              {saving ? '...' : 'Delete'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Edit form */}
       {editing && (
         <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
           {validationError && (
@@ -607,36 +590,36 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
               <Input type="time" value={editStart} onChange={e => { setEditStart(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Slut</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">End</label>
               <Input type="time" value={editEnd} onChange={e => { setEditEnd(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Rast (min)</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">Break (min)</label>
               <Input type="number" min="0" max="240" value={editBreak} onChange={e => { setEditBreak(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Övertid (h)</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">Overtime (h)</label>
               <Input type="number" step="0.5" min="0" value={editOvertime} onChange={e => { setEditOvertime(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Beräknad tid</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">Calculated</label>
               <div className="h-9 flex items-center justify-center rounded-lg bg-muted text-sm font-bold text-foreground">
                 {calculateEditHours() > 0 ? `${calculateEditHours()}h` : '–'}
               </div>
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-muted-foreground">Beskrivning</label>
+            <label className="text-[10px] font-semibold text-muted-foreground">Description</label>
             <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="text-sm min-h-[48px] rounded-lg" />
           </div>
           <div className="flex gap-2">
             <button onClick={() => { setEditing(false); setValidationError(null); }} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-muted text-muted-foreground">
-              Avbryt
+              Cancel
             </button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground">
-              {saving ? 'Sparar...' : 'Spara'}
+              {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
