@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio } from 'lucide-react';
+import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
@@ -35,6 +35,8 @@ const MobileScannerApp: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
   const [isIdentifying, setIsIdentifying] = useState(false);
+  const [identifyInput, setIdentifyInput] = useState('');
+  const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
 
   // Active scan handler ref — points to the correct handler based on current state
   const activeScanHandler = useRef<(value: string) => void>(() => {});
@@ -53,6 +55,26 @@ const MobileScannerApp: React.FC = () => {
     autoInit: true, // Always active — no race conditions
   });
 
+  // Identify a product by scanned value
+  const doIdentify = useCallback(async (scannedValue: string) => {
+    if (isIdentifying || !scannedValue.trim()) return;
+    setIdentifyInput(scannedValue.trim());
+    setIsIdentifying(true);
+    setIdentifiedProduct(null);
+    try {
+      const productResult = await identifyProduct(scannedValue.trim());
+      if (productResult.found) {
+        setIdentifiedProduct(productResult);
+      } else {
+        toast.error(productResult.error || `Product "${scannedValue}" not found`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Could not identify product');
+    } finally {
+      setIsIdentifying(false);
+    }
+  }, [isIdentifying]);
+
   // Handle barcode scan on home screen — navigates to packing or identifies product
   const handleBarcodeScan = useCallback(async (scannedValue: string) => {
     const result = parseScanResult(scannedValue);
@@ -63,26 +85,9 @@ const MobileScannerApp: React.FC = () => {
       setIsQRActive(false);
       toast.success('Packing list found!');
     } else {
-      // Product scan on home screen → identify it
-      if (isIdentifying) return;
-      setIsIdentifying(true);
-      toast.loading('Searching product...', { id: 'identify' });
-      try {
-        const productResult = await identifyProduct(scannedValue);
-        toast.dismiss('identify');
-        if (productResult.found) {
-          setIdentifiedProduct(productResult);
-        } else {
-          toast.error(productResult.error || `Product "${scannedValue}" not found`);
-        }
-      } catch (err: any) {
-        toast.dismiss('identify');
-        toast.error(err.message || 'Could not identify product');
-      } finally {
-        setIsIdentifying(false);
-      }
+      doIdentify(scannedValue);
     }
-  }, [isIdentifying]);
+  }, [doIdentify]);
   // Update active scan handler when state changes
   useEffect(() => {
     if (state === 'home') {
@@ -362,6 +367,82 @@ const MobileScannerApp: React.FC = () => {
         </div>
       </div>
 
+      {/* Identify Product */}
+      <div className="px-3 pt-3">
+        <Card className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Tag className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">Identify product</span>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Scan or type barcode / SKU..."
+              value={identifyInput}
+              onChange={(e) => setIdentifyInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && doIdentify(identifyInput)}
+              className="h-9 flex-1"
+            />
+            <Button
+              size="sm"
+              className="h-9 gap-1"
+              onClick={() => setIsIdentifyQRActive(true)}
+            >
+              <Camera className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              className="h-9"
+              disabled={isIdentifying || !identifyInput.trim()}
+              onClick={() => doIdentify(identifyInput)}
+            >
+              {isIdentifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {/* Inline result */}
+          {identifiedProduct && (
+            <div className="mt-3 pt-3 border-t space-y-1.5">
+              <div className="flex items-start justify-between">
+                <p className="font-medium text-sm">{identifiedProduct.name}</p>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setIdentifiedProduct(null)}>✕</Button>
+              </div>
+              {identifiedProduct.sku && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                  <Tag className="h-3 w-3" />
+                  <span className="font-mono">{identifiedProduct.sku}</span>
+                </div>
+              )}
+              {identifiedProduct.status && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                  identifiedProduct.status === 'available' ? 'bg-green-100 text-green-800' :
+                  identifiedProduct.status === 'allocated' ? 'bg-blue-100 text-blue-800' :
+                  identifiedProduct.status === 'damaged' ? 'bg-red-100 text-red-800' :
+                  'bg-muted text-muted-foreground'
+                }`}>
+                  {identifiedProduct.status === 'available' ? 'Available' :
+                   identifiedProduct.status === 'allocated' ? 'Allocated' :
+                   identifiedProduct.status === 'reserved' ? 'Reserved' :
+                   identifiedProduct.status === 'damaged' ? 'Damaged' :
+                   identifiedProduct.status}
+                </span>
+              )}
+              {identifiedProduct.currentBooking && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                  <CalendarDays className="h-3 w-3" />
+                  <span>Booking: {identifiedProduct.currentBooking}{identifiedProduct.client ? ` (${identifiedProduct.client})` : ''}</span>
+                </div>
+              )}
+              {identifiedProduct.location && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                  <MapPin className="h-3 w-3" />
+                  <span>{identifiedProduct.location}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+
       {/* Content */}
       <main className="flex-1 overflow-y-auto p-3 space-y-4">
         {isLoading ? (
@@ -427,13 +508,15 @@ const MobileScannerApp: React.FC = () => {
         onClose={() => setIsQRActive(false)}
       />
 
-      {/* Product identification overlay */}
-      {identifiedProduct && (
-        <ProductIdentifyCard
-          result={identifiedProduct}
-          onClose={() => setIdentifiedProduct(null)}
-        />
-      )}
+      {/* Identify QR Scanner overlay */}
+      <QRScanner
+        isActive={isIdentifyQRActive}
+        onScan={(value) => {
+          setIsIdentifyQRActive(false);
+          doIdentify(value);
+        }}
+        onClose={() => setIsIdentifyQRActive(false)}
+      />
     </div>
   );
 };
