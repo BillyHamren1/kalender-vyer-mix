@@ -72,6 +72,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       lastScanRef.current = value;
+      setManualInput(value);
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
