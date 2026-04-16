@@ -10,7 +10,7 @@ import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Clock, Square } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Clock, Square, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -29,7 +29,10 @@ const MobileJobs = () => {
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+
+  // Fixed locations that should appear as job cards
+  const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
 
   const handleGeofenceConfirm = (correctedStartTime?: string) => {
     if (!geofenceEvent) return;
