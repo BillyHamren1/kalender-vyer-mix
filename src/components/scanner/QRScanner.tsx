@@ -37,6 +37,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
+  const [manualInput, setManualInput] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -376,7 +377,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [isIos, runScanLoop, shouldSkipCamera]);
 
-  const [manualInput, setManualInput] = useState('');
 
   const handleManualSubmit = useCallback(() => {
     if (manualInput.trim()) {
