@@ -1634,19 +1634,12 @@ async function handleUploadFile(supabase: any, staffId: string, data: any, organ
     .eq('id', staffId)
     .single()
 
-  // Get project for this booking
-  const { data: project, error: projectError } = await supabase
+  // Get project for this booking (optional – fallback to booking_attachments)
+  const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('booking_id', booking_id)
     .maybeSingle()
-
-  if (projectError || !project) {
-    return new Response(
-      JSON.stringify({ error: 'No project found for this booking' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
 
   try {
     // Extract base64 data
@@ -1674,7 +1667,10 @@ async function handleUploadFile(supabase: any, staffId: string, data: any, organ
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics (ä->a, ö->o)
       .replace(/[^a-zA-Z0-9._-]/g, '_') // replace anything not alphanumeric/dot/dash/underscore
       .replace(/_+/g, '_') // collapse multiple underscores
-    const storagePath = `${project.id}/${Date.now()}-${sanitizedName}`
+
+    // Use project id if available, otherwise booking_id as folder
+    const folderKey = project ? project.id : booking_id
+    const storagePath = `${folderKey}/${Date.now()}-${sanitizedName}`
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('project-files')
@@ -1696,34 +1692,63 @@ async function handleUploadFile(supabase: any, staffId: string, data: any, organ
       .from('project-files')
       .getPublicUrl(storagePath)
 
-    // Create file record
-    const { data: fileRecord, error: fileError } = await supabase
-      .from('project_files')
-    .insert({
-        project_id: project.id,
-        file_name,
-        file_type: contentType,
-        url: urlData.publicUrl,
-        uploaded_by: staffMember?.name || 'Mobile App User',
-        organization_id: organizationId
-      })
-      .select()
-      .single()
+    if (project) {
+      // Save to project_files table
+      const { data: fileRecord, error: fileError } = await supabase
+        .from('project_files')
+        .insert({
+          project_id: project.id,
+          file_name,
+          file_type: contentType,
+          url: urlData.publicUrl,
+          uploaded_by: staffMember?.name || 'Mobile App User',
+          organization_id: organizationId
+        })
+        .select()
+        .single()
 
-    if (fileError) {
-      console.error('File record creation error:', fileError)
+      if (fileError) {
+        console.error('File record creation error:', fileError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create file record' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log(`File uploaded: ${fileRecord.id} for project ${project.id}`)
       return new Response(
-        JSON.stringify({ error: 'Failed to create file record' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, file: fileRecord }),
+        { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } else {
+      // Fallback: save to booking_attachments
+      const { data: attachment, error: attError } = await supabase
+        .from('booking_attachments')
+        .insert({
+          booking_id,
+          file_name,
+          file_type: contentType,
+          url: urlData.publicUrl,
+          source: 'mobile',
+          organization_id: organizationId
+        })
+        .select()
+        .single()
+
+      if (attError) {
+        console.error('Attachment record creation error:', attError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create file record' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log(`File uploaded as attachment: ${attachment.id} for booking ${booking_id}`)
+      return new Response(
+        JSON.stringify({ success: true, file: attachment }),
+        { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    console.log(`File uploaded: ${fileRecord.id} for project ${project.id}`)
-
-    return new Response(
-      JSON.stringify({ success: true, file: fileRecord }),
-      { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   } catch (err) {
     console.error('File processing error:', err)
     return new Response(
