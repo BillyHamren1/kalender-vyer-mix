@@ -73,7 +73,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               <span>{debugInfo.isCapacitor ? 'Native (Capacitor)' : 'Web Browser'}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>Zebra: {debugInfo.isZebraDevice ? '✅ Ja' : '❌ Nej'}</span>
+              <span>Zebra: {debugInfo.isZebraDevice ? '✅ Yes' : '❌ No'}</span>
             </div>
           </div>
 
@@ -99,27 +99,27 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${statusColor(debugInfo.cameraAvailable)}`} />
-                <span>Kamera</span>
+               <span>Camera</span>
               </div>
             </div>
             {debugInfo.readerModel && (
-              <p className="text-[10px] text-muted-foreground">Modell: {debugInfo.readerModel}</p>
+              <p className="text-[10px] text-muted-foreground">Model: {debugInfo.readerModel}</p>
             )}
             {debugInfo.dataWedgeInitErrors.length > 0 && (
               <div className="text-[10px] text-destructive">
-                DW-fel: {debugInfo.dataWedgeInitErrors.join('; ')}
+                DW errors: {debugInfo.dataWedgeInitErrors.join('; ')}
               </div>
             )}
             {debugInfo.dataWedgeLastScanValue && (
               <p className="text-[10px] text-muted-foreground">
-                Senaste DW: {debugInfo.dataWedgeLastScanValue}
+                Last DW: {debugInfo.dataWedgeLastScanValue}
                 {debugInfo.dataWedgeLastScanTime && (
                   <> ({new Date(debugInfo.dataWedgeLastScanTime).toLocaleTimeString('sv-SE')})</>
                 )}
               </p>
             )}
             {debugInfo.lastError && (
-              <p className="text-[10px] text-destructive">Fel: {debugInfo.lastError}</p>
+              <p className="text-[10px] text-destructive">Error: {debugInfo.lastError}</p>
             )}
           </div>
 
@@ -140,7 +140,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               </div>
               <div className="bg-muted/50 rounded p-1.5 text-center">
                 <p className="font-bold text-sm">{queueStats.pending}</p>
-                <p className="text-[9px] text-muted-foreground">I kö</p>
+                <p className="text-[9px] text-muted-foreground">In queue</p>
               </div>
             </div>
           </div>
@@ -148,14 +148,14 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
           {/* Last Scan */}
           {lastScan && (
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Senaste scan</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Last scan</p>
               <div className="bg-muted/50 rounded p-2 font-mono text-[10px] break-all">
-                <p><strong>Typ:</strong> {lastScan.type} ({lastScan.source})</p>
-                <p><strong>Värde:</strong> {lastScan.value}</p>
-                {lastScan.symbology && <p><strong>Symbologi:</strong> {lastScan.symbology}</p>}
+                <p><strong>Type:</strong> {lastScan.type} ({lastScan.source})</p>
+                <p><strong>Value:</strong> {lastScan.value}</p>
+                {lastScan.symbology && <p><strong>Symbology:</strong> {lastScan.symbology}</p>}
                 {lastScan.rssi !== undefined && <p><strong>RSSI:</strong> {lastScan.rssi} dBm</p>}
-                <p><strong>Tid:</strong> {new Date(lastScan.timestamp).toLocaleTimeString('sv-SE')}</p>
-                {lastScan.isDuplicate && <p className="text-amber-600">⚠️ Duplikat</p>}
+                <p><strong>Time:</strong> {new Date(lastScan.timestamp).toLocaleTimeString('en-GB')}</p>
+                {lastScan.isDuplicate && <p className="text-amber-600">⚠️ Duplicate</p>}
               </div>
             </div>
           )}
@@ -164,7 +164,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
           {recentScans.length > 0 && (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Senaste scans ({recentScans.length})
+                Recent scans ({recentScans.length})
               </p>
               <div className="bg-muted/50 rounded p-2 max-h-24 overflow-y-auto space-y-0.5">
                 {recentScans.slice(0, 10).map(s => (
@@ -189,14 +189,14 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
           {/* Simulation Tools */}
           <div className="space-y-2 border-t pt-2">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              🧪 Simulering (test utan hårdvara)
+              🧪 Simulation (test without hardware)
             </p>
             
             <div className="flex gap-1.5">
               <Input
                 value={simBarcode}
                 onChange={e => setSimBarcode(e.target.value)}
-                placeholder="Streckkod..."
+                placeholder="Barcode..."
                 className="h-7 text-xs flex-1"
               />
               <Button
@@ -252,7 +252,7 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
 
           {onClose && (
             <Button size="sm" variant="ghost" onClick={onClose} className="w-full h-7 text-xs">
-              Stäng debug
+              Close debug
             </Button>
           )}
         </CardContent>
@@ -265,9 +265,9 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
 
 const DW_STATUS_LABELS: Record<string, { label: string; className: string }> = {
   success: { label: '✓ OK', className: 'text-green-600' },
-  failure: { label: '✗ FEL', className: 'text-destructive' },
-  pending: { label: '⏳ Väntar', className: 'text-amber-600' },
-  unknown: { label: '? Okänd', className: 'text-muted-foreground' },
+  failure: { label: '✗ FAIL', className: 'text-destructive' },
+  pending: { label: '⏳ Pending', className: 'text-amber-600' },
+  unknown: { label: '? Unknown', className: 'text-muted-foreground' },
 };
 
 const DwInitResultsSection: React.FC<{ results: DwCommandResultInfo[] }> = ({ results }) => {
@@ -276,7 +276,7 @@ const DwInitResultsSection: React.FC<{ results: DwCommandResultInfo[] }> = ({ re
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-        DW Init-resultat
+        DW Init results
       </p>
       <div className="bg-muted/50 rounded p-2 space-y-1">
         {results.map((r) => {
