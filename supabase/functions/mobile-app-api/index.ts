@@ -1089,6 +1089,7 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
+  let resolvedLocationId: string | null = null
 
   if (!report_date) {
     return new Response(
