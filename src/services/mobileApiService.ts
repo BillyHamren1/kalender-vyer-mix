@@ -289,7 +289,7 @@ export const mobileApi = {
 
   // Organization locations (fixed places)
   getOrganizationLocations: () =>
-    callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number }[] }>('get_organization_locations'),
+    callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
   startLocationTimer: (locationId: string) =>
     callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
