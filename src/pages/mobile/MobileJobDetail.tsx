@@ -19,7 +19,7 @@ import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 import { CheckCircle2 } from 'lucide-react';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
-const tabs = ['Info', 'Team', 'Bilder', 'Kostnader', 'Tid'] as const;
+const tabs = ['Info', 'Team', 'Photos', 'Costs', 'Time'] as const;
 type TabKey = typeof tabs[number];
 
 interface TaskOption {
@@ -106,13 +106,13 @@ const MobileJobDetail = () => {
           end_time: format(stopTime, 'HH:mm'),
           hours_worked: hoursWorked,
           break_time: breakDeduction,
-          description: `Timer: ${booking.client}${taskTitle ? ` — ${taskTitle}` : ''}${breakDeduction > 0 ? ' (30 min rast avdragen)' : ''}`,
+          description: `Timer: ${booking.client}${taskTitle ? ` — ${taskTitle}` : ''}${breakDeduction > 0 ? ' (30 min break deducted)' : ''}`,
           establishment_task_id: taskId,
         });
         invalidateTimeReports();
-        toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+        toast.success(`Time report saved: ${hoursWorked}h`);
       } catch (err: any) {
-        toast.error(err.message || 'Kunde inte spara tidrapport');
+        toast.error(err.message || 'Could not save time report');
       }
     } else {
       // Check distance before starting
@@ -124,7 +124,7 @@ const MobileJobDetail = () => {
           selectedTaskId || undefined,
           selectedTaskTitle || undefined
         );
-        toast.success(selectedTaskTitle ? `Timer startad — ${selectedTaskTitle}` : 'Timer startad');
+        toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
       };
 
       const coords = booking.delivery_latitude && booking.delivery_longitude
@@ -163,7 +163,7 @@ const MobileJobDetail = () => {
   if (!booking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-card">
-        <p className="text-muted-foreground">Jobb hittades inte</p>
+        <p className="text-muted-foreground">Job not found</p>
       </div>
     );
   }
@@ -210,9 +210,9 @@ const MobileJobDetail = () => {
             className="w-full flex items-center justify-between p-2.5 rounded-xl border border-border bg-muted/30 text-left"
           >
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Aktivitet för timer</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Activity for timer</p>
               <p className="text-sm font-medium text-foreground truncate">
-                {selectedTaskId ? selectedTaskTitle : 'Ingen vald (valfritt)'}
+                {selectedTaskId ? selectedTaskTitle : 'None selected (optional)'}
               </p>
             </div>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showTaskPicker && "rotate-180")} />
@@ -226,7 +226,7 @@ const MobileJobDetail = () => {
                   !selectedTaskId ? "bg-primary/5 text-primary font-semibold" : "text-muted-foreground"
                 )}
               >
-                Ingen specifik aktivitet
+                No specific activity
               </button>
               {myPendingTasks.map(task => (
                 <button
@@ -282,9 +282,9 @@ const MobileJobDetail = () => {
       <div className="flex-1 px-4 py-3">
         {activeTab === 'Info' && <JobInfoTab booking={booking} bookingId={booking.id} establishmentTasks={bookingData?.establishment_tasks} onCommentsUpdated={() => invalidateBookingDetails(booking.id)} onTaskToggled={() => invalidateBookingDetails(booking.id)} />}
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
-        {activeTab === 'Bilder' && <JobPhotosTab bookingId={booking.id} />}
-        {activeTab === 'Kostnader' && <JobCostsTab bookingId={booking.id} />}
-        {activeTab === 'Tid' && <JobTimeTab bookingId={booking.id} timeReports={bookingData?.my_time_reports} />}
+        {activeTab === 'Photos' && <JobPhotosTab bookingId={booking.id} />}
+        {activeTab === 'Costs' && <JobCostsTab bookingId={booking.id} />}
+        {activeTab === 'Time' && <JobTimeTab bookingId={booking.id} timeReports={bookingData?.my_time_reports} />}
       </div>
 
       {/* Avsluta jobb button */}
@@ -295,7 +295,7 @@ const MobileJobDetail = () => {
           className="w-full h-12 rounded-xl border-primary text-primary font-semibold text-base"
         >
           <CheckCircle2 className="w-5 h-5 mr-2" />
-          Avsluta jobb
+          Complete job
         </Button>
       </div>
 

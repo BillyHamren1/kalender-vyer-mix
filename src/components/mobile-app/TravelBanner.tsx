@@ -31,14 +31,14 @@ const TravelBanner = ({ travelState, elapsedSeconds, onStop }: TravelBannerProps
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-foreground">Under förflyttning</span>
+            <span className="text-sm font-bold text-foreground">Travelling</span>
             <span className="text-sm font-mono font-bold text-primary tabular-nums">
               {formatDuration(elapsedSeconds)}
             </span>
           </div>
           {travelState.fromAddress && (
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-              Från: {travelState.fromAddress}
+              From: {travelState.fromAddress}
             </p>
           )}
         </div>
@@ -46,7 +46,7 @@ const TravelBanner = ({ travelState, elapsedSeconds, onStop }: TravelBannerProps
         <button
           onClick={onStop}
           className="p-2 rounded-xl bg-destructive/10 active:scale-95 transition-all"
-          aria-label="Stoppa förflyttning"
+          aria-label="Stop travel"
         >
           <Square className="w-4 h-4 text-destructive fill-destructive" />
         </button>

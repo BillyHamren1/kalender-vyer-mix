@@ -16,7 +16,7 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
       .then(res => {
         setTeam(res.planning?.assigned_staff || res.booking?.assigned_staff || []);
       })
-      .catch(() => toast.error('Kunde inte ladda team'))
+      .catch(() => toast.error('Could not load team'))
       .finally(() => setIsLoading(false));
   }, [bookingId]);
 
@@ -32,7 +32,7 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
     return (
       <div className="text-center py-12">
         <Users className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-        <p className="text-sm text-muted-foreground">Ingen personal tilldelad</p>
+        <p className="text-sm text-muted-foreground">No staff assigned</p>
       </div>
     );
   }

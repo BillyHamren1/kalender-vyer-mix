@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { Calendar, ChevronDown, ChevronRight, Clock, FileText, StickyNote, MessageSquare, Send, Loader2, Truck, Package, Users, CheckSquare } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,7 +28,7 @@ interface JobInfoTabProps {
   onTaskToggled?: () => void;
 }
 
-// --- Product grouping logic (mirrors desktop ProductsList.tsx) ---
+// --- Product grouping logic ---
 
 interface ProductItem {
   id: string;
@@ -132,7 +131,7 @@ const TimeBlock = ({ label, date, start, end }: { label: string; date: string | 
     <div className="rounded-xl border border-border/50 bg-card p-3">
       <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">{label}</p>
       <p className="text-sm font-semibold text-foreground">
-        {format(parseISO(date), 'd MMM yyyy', { locale: sv })}
+        {format(parseISO(date), 'd MMM yyyy')}
       </p>
       {(start || end) && (
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -170,7 +169,7 @@ const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
               +{group.children.length}
             </span>
           )}
-          <span className="text-muted-foreground text-xs">{group.parent.quantity} st</span>
+          <span className="text-muted-foreground text-xs">{group.parent.quantity} pcs</span>
         </div>
       </button>
 
@@ -181,7 +180,7 @@ const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
               <span className="text-xs truncate">
                 {cleanProductName(child.name)}
               </span>
-              <span className="text-xs shrink-0 ml-2">{child.quantity} st</span>
+              <span className="text-xs shrink-0 ml-2">{child.quantity} pcs</span>
             </div>
           ))}
         </div>
@@ -202,18 +201,17 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
     setIsSending(true);
     try {
       await mobileApi.createComment({ booking_id: bookingId, content: newComment.trim() });
-      // Optimistic update
       setComments(prev => [...prev, {
         id: `temp-${Date.now()}`,
         content: newComment.trim(),
-        author_name: 'Du',
+        author_name: 'You',
         created_at: new Date().toISOString(),
       }]);
       setNewComment('');
-      toast.success('Kommentar skickad');
+      toast.success('Comment sent');
       onCommentsUpdated?.();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte skicka kommentar');
+      toast.error(err.message || 'Could not send comment');
     } finally {
       setIsSending(false);
     }
@@ -223,7 +221,7 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
     <div className="rounded-xl border bg-card p-3 space-y-3">
       <div className="flex items-center gap-2">
         <MessageSquare className="w-4 h-4 text-muted-foreground" />
-        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Kommentarer</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Comments</p>
       </div>
 
       {comments.length > 0 && (
@@ -234,7 +232,7 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
                 <span className="text-xs font-semibold text-foreground">{c.author_name}</span>
                 {c.created_at && (
                   <span className="text-[10px] text-muted-foreground">
-                    {format(parseISO(c.created_at), 'd MMM HH:mm', { locale: sv })}
+                    {format(parseISO(c.created_at), 'd MMM HH:mm')}
                   </span>
                 )}
               </div>
@@ -248,7 +246,7 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
         <Textarea
           value={newComment}
           onChange={e => setNewComment(e.target.value)}
-          placeholder="Skriv en kommentar..."
+          placeholder="Write a comment..."
           className="min-h-[40px] rounded-xl text-sm flex-1"
           rows={1}
         />
@@ -286,7 +284,7 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
       setLocalTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: result.completed } : t));
       onTaskToggled?.();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte uppdatera uppgift');
+      toast.error(err.message || 'Could not update task');
     } finally {
       setTogglingIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
     }
@@ -327,8 +325,8 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-[10px] text-muted-foreground">
-              {format(parseISO(task.start_date), 'd MMM', { locale: sv })}
-              {isMultiDay && ` → ${format(parseISO(task.end_date), 'd MMM', { locale: sv })}`}
+              {format(parseISO(task.start_date), 'd MMM')}
+              {isMultiDay && ` → ${format(parseISO(task.end_date), 'd MMM')}`}
             </span>
             {hasTime && (
               <span className="text-[10px] text-primary font-medium flex items-center gap-0.5">
@@ -339,7 +337,7 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
             {task.assigned_to_ids && task.assigned_to_ids.length > 1 && (
               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                 <Users className="w-2.5 h-2.5" />
-                {task.assigned_to_ids.length} pers
+                {task.assigned_to_ids.length} people
               </span>
             )}
           </div>
@@ -357,30 +355,28 @@ const EstablishmentTasksSection = ({ tasks, onTaskToggled }: { tasks: Establishm
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-primary" />
-          <p className="text-xs font-bold uppercase tracking-wider text-primary">Mina aktiviteter</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">My activities</p>
         </div>
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
           pendingTasks.length === 0
             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
             : 'bg-primary/10 text-primary'
         }`}>
-          {localTasks.length - pendingTasks.length}/{localTasks.length} klara
+          {localTasks.length - pendingTasks.length}/{localTasks.length} done
         </span>
       </div>
 
-      {/* Pending tasks first — these are what matters */}
       {pendingTasks.length > 0 && (
         <div className="space-y-0.5">
           {pendingTasks.map(renderTask)}
         </div>
       )}
 
-      {/* Completed tasks collapsed */}
       {completedTasks.length > 0 && (
         <details className="group">
           <summary className="text-[10px] text-muted-foreground cursor-pointer py-1 select-none list-none flex items-center gap-1">
             <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
-            {completedTasks.length} avklarad{completedTasks.length > 1 ? 'e' : ''}
+            {completedTasks.length} completed
           </summary>
           <div className="space-y-0.5 mt-1 opacity-60">
             {completedTasks.map(renderTask)}
@@ -402,15 +398,15 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
     <div className="space-y-4">
       {/* Dates */}
       <div className="grid grid-cols-3 gap-2">
-        <TimeBlock label="Rigg" date={booking.rigdaydate} start={booking.rig_start_time} end={booking.rig_end_time} />
+        <TimeBlock label="Rig" date={booking.rigdaydate} start={booking.rig_start_time} end={booking.rig_end_time} />
         <TimeBlock label="Event" date={booking.eventdate} start={booking.event_start_time} end={booking.event_end_time} />
-        <TimeBlock label="Riv" date={booking.rigdowndate} start={booking.rigdown_start_time} end={booking.rigdown_end_time} />
+        <TimeBlock label="Teardown" date={booking.rigdowndate} start={booking.rigdown_start_time} end={booking.rigdown_end_time} />
       </div>
 
       {/* Address */}
       {booking.deliveryaddress && (
         <div className="rounded-xl border bg-card p-3">
-          <InfoRow label="Leveransadress" value={booking.deliveryaddress} icon={Calendar} />
+          <InfoRow label="Delivery address" value={booking.deliveryaddress} icon={Calendar} />
           {(booking.delivery_postal_code || booking.delivery_city) && (
             <p className="text-xs text-muted-foreground pl-7">
               {[booking.delivery_postal_code, booking.delivery_city].filter(Boolean).join(' ')}
@@ -419,7 +415,7 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
         </div>
       )}
 
-      {/* MY TASKS — primary operational content, shown first */}
+      {/* MY TASKS */}
       {establishmentTasks && establishmentTasks.length > 0 && (
         <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
       )}
@@ -427,7 +423,7 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
       {/* Project info */}
       {booking.assigned_project_name && (
         <div className="rounded-xl border bg-card p-3">
-          <InfoRow label="Projekt" value={booking.assigned_project_name} icon={FileText} />
+          <InfoRow label="Project" value={booking.assigned_project_name} icon={FileText} />
         </div>
       )}
 
@@ -437,7 +433,7 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
           <div className="flex items-start gap-3">
             <StickyNote className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Interna anteckningar</p>
+              <p className="text-xs text-muted-foreground mb-1">Internal notes</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{booking.internalnotes}</p>
             </div>
           </div>
@@ -447,10 +443,10 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
       {/* Comments */}
       <CommentsSection bookingId={bookingId} comments={comments} onCommentsUpdated={onCommentsUpdated} />
 
-      {/* Products - grouped hierarchy */}
+      {/* Products */}
       {groups.length > 0 && (
         <div className="rounded-xl border bg-card p-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Produkter</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Products</p>
           <div>
             {groups.map((group) => (
               <ProductGroupRow key={group.parent.id} group={group} />

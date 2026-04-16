@@ -30,16 +30,16 @@ const DistanceWarningDialog = ({ open, onOpenChange, placeName, distanceMeters, 
         <AlertDialogHeader>
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" />
-            <AlertDialogTitle className="text-base">Du verkar inte vara i närheten</AlertDialogTitle>
+            <AlertDialogTitle className="text-base">You don't seem to be nearby</AlertDialogTitle>
           </div>
           <AlertDialogDescription className="text-sm">
-            Enligt GPS befinner du dig ca <strong className="text-foreground">{formatDistance(distanceMeters)}</strong> från <strong className="text-foreground">"{placeName}"</strong>.
-            {'\n\n'}Vill du starta timern ändå?
+            According to GPS you are approx. <strong className="text-foreground">{formatDistance(distanceMeters)}</strong> from <strong className="text-foreground">"{placeName}"</strong>.
+            {'\n\n'}Do you want to start the timer anyway?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Avbryt</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Starta ändå</AlertDialogAction>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>Start anyway</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
