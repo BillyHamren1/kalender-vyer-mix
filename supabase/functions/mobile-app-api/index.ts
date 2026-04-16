@@ -2956,7 +2956,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 async function handleGetOrganizationLocations(supabase: any, organizationId: string) {
   const { data, error } = await supabase
     .from('organization_locations')
-    .select('id, name, address, latitude, longitude, radius_meters')
+    .select('id, name, address, latitude, longitude, radius_meters, show_as_project')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
     .order('name')

@@ -139,6 +139,15 @@ const MobileTimeReport = () => {
       }
     }
 
+    // Add fixed locations marked as projects (e.g. Lager)
+    const locationProjects = orgLocations.filter(loc => loc.show_as_project === true);
+    for (const loc of locationProjects) {
+      options.push({
+        value: `location-${loc.id}`,
+        label: `🏢 ${loc.name}`,
+      });
+    }
+
     return options;
   })();
 

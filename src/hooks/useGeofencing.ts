@@ -42,6 +42,7 @@ export interface OrganizationLocationMobile {
   latitude: number;
   longitude: number;
   radius_meters: number;
+  show_as_project?: boolean;
 }
 
 interface GpsSettings {
