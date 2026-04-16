@@ -1089,6 +1089,7 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
+  let resolvedLocationId: string | null = null
 
   if (!report_date) {
     return new Response(
@@ -1097,6 +1098,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
+  // Allow location- prefixed booking_ids for internal projects
   if (!booking_id && !large_project_id) {
     return new Response(
       JSON.stringify({ error: 'booking_id or large_project_id is required' }),
@@ -1250,8 +1252,12 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
 
     if (internalProject?.booking_id) {
       resolvedBookingId = internalProject.booking_id
+    } else if (internalProject) {
+      // Internal project without booking (e.g. "Lager") — use location_id
+      resolvedBookingId = null
+      resolvedLocationId = locationId
+      console.log(`Internal project ${internalProject.id} for location ${locationId} has no booking_id — saving with location_id`)
     } else {
-      // Fallback: keep location-{id} as booking_id — will fail FK but log clearly
       console.error(`No internal project found for location ${locationId}`)
       return new Response(
         JSON.stringify({ error: 'Ingen intern bokning hittades för denna plats. Kontakta admin.' }),
@@ -1342,6 +1348,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       description: description || null,
       establishment_task_id: establishment_task_id || null,
       large_project_id: resolvedLargeProjectId,
+      location_id: resolvedLocationId,
       organization_id: organizationId
     })
     .select()
