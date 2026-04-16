@@ -333,7 +333,13 @@ const MobileScannerApp: React.FC = () => {
 
   // Home screen with packing list
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col relative">
+      {/* Scan flash overlay */}
+      {scanFlash && (
+        <div className={`absolute inset-0 z-[60] pointer-events-none transition-opacity duration-300 ${
+          scanFlash === 'success' ? 'bg-green-500/15' : 'bg-red-500/15'
+        } animate-in fade-in-0 fade-out-0`} />
+      )}
       {/* Header */}
       <header className="bg-primary text-primary-foreground p-3 flex items-center justify-between">
         <div>
