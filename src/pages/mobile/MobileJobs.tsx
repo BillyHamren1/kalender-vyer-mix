@@ -186,6 +186,29 @@ const MobileJobs = () => {
     }
   };
 
+  // Timer toggle for fixed locations (e.g. Lager)
+  const handleLocationTimerToggle = (e: React.MouseEvent, loc: typeof locationJobs[0]) => {
+    e.stopPropagation();
+    const locKey = `location-${loc.id}`;
+    if (activeTimers.has(locKey)) {
+      const stopped = stopTimer(locKey);
+      if (stopped) {
+        toast.success(t('timer.stoppedCreateReport'));
+        navigate('/m/report');
+      }
+    } else {
+      if (hasAnyTimer) {
+        toast.error(t('timer.alreadyActive'));
+        return;
+      }
+      const coords = loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : null;
+      checkDistanceAndStart(coords, loc.name, () => {
+        startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
+        toast.success(`${t('timer.started')}: ${loc.name}`);
+      });
+    }
+  };
+
   // Elapsed time display
   const [, setTick] = useState(0);
   useEffect(() => {
