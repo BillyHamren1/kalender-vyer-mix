@@ -12,8 +12,8 @@ const ShellEmptyState: React.FC<ShellEmptyStateProps> = ({ title, description, i
   const { mode } = useShell();
 
   const defaults = mode === 'scanner'
-    ? { title: 'Inga aktiva jobb', description: 'Skanna en QR-kod eller välj ett jobb för att börja.', icon: <ScanLine className="h-10 w-10 text-muted-foreground/40" /> }
-    : { title: 'Inget att visa', description: 'Du har inga jobb eller tidrapporter just nu.', icon: <Clock className="h-10 w-10 text-muted-foreground/40" /> };
+    ? { title: 'No active jobs', description: 'Scan a QR code or select a job to start.', icon: <ScanLine className="h-10 w-10 text-muted-foreground/40" /> }
+    : { title: 'Nothing to show', description: 'You have no jobs or time reports right now.', icon: <Clock className="h-10 w-10 text-muted-foreground/40" /> };
 
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
