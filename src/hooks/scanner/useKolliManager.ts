@@ -20,10 +20,10 @@ export const useKolliManager = (packingId: string) => {
       const parcel = await createParcel(packingId, verifierName);
       setActiveParcel(parcel);
       setIsKolliMode(true);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
     } catch (err) {
       console.error('Error creating parcel:', err);
-      toast.error('Kunde inte skapa kolli');
+      toast.error('Could not create parcel');
     }
   }, [packingId]);
 
@@ -31,19 +31,19 @@ export const useKolliManager = (packingId: string) => {
     try {
       const parcel = await createParcel(packingId, verifierName);
       setActiveParcel(parcel);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
       const parcelsData = await getItemParcels(packingId);
       setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error creating next parcel:', err);
-      toast.error('Kunde inte skapa nästa kolli');
+      toast.error('Could not create next parcel');
     }
   }, [packingId]);
 
   const exitKolli = useCallback(() => {
     setIsKolliMode(false);
     setActiveParcel(null);
-    toast.info('Kolli-läge avslutat');
+    toast.info('Parcel mode ended');
   }, []);
 
   const assignToKolli = useCallback(async (itemId: string) => {

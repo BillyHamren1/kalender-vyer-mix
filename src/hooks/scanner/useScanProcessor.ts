@@ -69,7 +69,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue });
       optRef.current.onScanResult({
         value: scannedValue,
-        result: `Redan scannad denna session`,
+        result: `Already scanned this session`,
         success: false,
       });
       addRecentScan({
@@ -106,12 +106,12 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         scanLog('scan_ignored_packing_id', { value: scannedValue, packingId: scanResult.packingId });
         onScanResult({
           value: scannedValue,
-          result: 'Packnings-ID scannat — inte en produktkod',
+          result: 'Packing ID scanned — not a product code',
           success: false,
         });
         addRecentScan({
           value: scannedValue,
-          productName: `Packnings-ID: ${scanResult.packingId?.slice(0, 8) || scannedValue}`,
+          productName: `Packing ID: ${scanResult.packingId?.slice(0, 8) || scannedValue}`,
           success: false,
           timestamp: Date.now(),
           reason: 'packing_id',
@@ -127,15 +127,15 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         );
 
         if (!matchingItem) {
-          onScanResult({ value: scannedValue, result: 'Ingen packad artikel hittades med denna SKU', success: false });
-          toast.error('Ingen packad artikel att ta bort');
+          onScanResult({ value: scannedValue, result: 'No packed item found with this SKU', success: false });
+          toast.error('No packed item to remove');
           return;
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
-        onScanResult({ value: scannedValue, result: `➖ Borttagen: ${productName}`, success: true, productName, isMinusScan: true });
+        onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
         onHighlight(matchingItem.id);
         onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
@@ -151,7 +151,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           value: scannedValue,
           result: result.success
             ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
-            : result.error || 'Okänt fel',
+            : result.error || 'Unknown error',
           success: result.success && !result.overscan,
           productName: result.productName || undefined,
         });
@@ -185,7 +185,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             // No toast — just show in feedback header
             onScanResult({
               value: scannedValue,
-              result: result.error || `Nr ${scannedValue} är redan scannad`,
+              result: result.error || `#${scannedValue} already scanned`,
               success: false,
             });
           } else {
@@ -206,7 +206,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       scanLog('process_error', { value: scannedValue, error: err.message });
       onScanResult({
         value: scannedValue,
-        result: err.message || 'Okänt fel vid scanning',
+        result: err.message || 'Unknown scan error',
         success: false,
       });
       addRecentScan({
@@ -247,7 +247,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
 
     if (isParent) {
-      toast.info('Huvudprodukter markeras automatiskt när alla delar är packade');
+      toast.info('Parent products are marked automatically when all parts are packed');
       return;
     }
 
@@ -255,7 +255,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       const items = getItems();
       const item = items.find(i => i.id === itemId);
       if (!item || (item.quantity_packed || 0) <= 0) {
-        toast.error('Inget att ta bort');
+        toast.error('Nothing to remove');
         return;
       }
       try {
@@ -263,7 +263,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         onOptimisticDecrement(itemId);
         onTriggerSync();
       } catch (err: any) {
-        toast.error(err.message || 'Kunde inte ta bort');
+        toast.error(err.message || 'Could not remove');
       }
       return;
     }
@@ -278,7 +278,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       }
       onTriggerSync();
     } else {
-      toast.error(result.error || 'Kunde inte uppdatera');
+      toast.error(result.error || 'Could not update');
     }
   }, []); // No deps — reads from optRef
 
