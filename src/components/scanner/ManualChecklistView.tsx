@@ -143,7 +143,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error loading packing data:', err);
-      if (!isBackground) toast.error('Kunde inte ladda packlista');
+      if (!isBackground) toast.error('Could not load packing list');
     } finally {
       if (!isBackground) setIsLoading(false);
     }
@@ -164,9 +164,9 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       const parcel = await createParcel(packingId, verifierName);
       setActiveParcel(parcel);
       setIsKolliMode(true);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
     } catch (err) {
-      toast.error('Kunde inte skapa kolli');
+      toast.error('Could not create parcel');
     }
   }, [packingId, verifierName]);
 
@@ -174,11 +174,11 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     try {
       const parcel = await createParcel(packingId, verifierName);
       setActiveParcel(parcel);
-      toast.success(`Kolli #${parcel.parcel_number} startat`);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
       const parcelsData = await getItemParcels(packingId);
       setItemParcelMap(parcelsData);
     } catch (err) {
-      toast.error('Kunde inte skapa nästa kolli');
+      toast.error('Could not create next parcel');
     }
   }, [packingId, verifierName]);
 
@@ -186,7 +186,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     setIsKolliMode(false);
     setActiveParcel(null);
     await loadData(false);
-    toast.info('Kolli-läge avslutat');
+    toast.info('Parcel mode ended');
   }, [loadData]);
 
   // Recalculate progress locally from items array (excluding parent items that have children)
@@ -233,7 +233,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         return updated;
       });
     } else {
-      toast.error(result.error || 'Kunde inte uppdatera');
+      toast.error(result.error || 'Could not update');
     }
   }, [verifierName, isKolliMode, activeParcel, recalcProgress]);
 
@@ -253,7 +253,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         return updated;
       });
     } else {
-      toast.error(result.error || 'Kunde inte uppdatera');
+      toast.error(result.error || 'Could not update');
     }
   }, [verifierName, recalcProgress]);
 
@@ -307,7 +307,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         {!isKolliMode && (
           <Button onClick={startKolliMode} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
             <Package className="h-3.5 w-3.5" />
-            <span className="text-xs">Kolli</span>
+            <span className="text-xs">Parcel</span>
           </Button>
         )}
       </div>
@@ -318,16 +318,16 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              <span className="font-semibold text-sm">KOLLI #{activeParcel.parcel_number}</span>
+              <span className="font-semibold text-sm">PARCEL #{activeParcel.parcel_number}</span>
             </div>
             <div className="flex gap-2">
               <Button onClick={nextParcel} size="sm" variant="secondary" className="h-7 text-xs gap-1">
-                <ChevronRight className="h-3 w-3" />
-                Nästa
+                 <ChevronRight className="h-3 w-3" />
+                 Next
               </Button>
               <Button onClick={exitKolliMode} size="sm" variant="secondary" className="h-7 text-xs gap-1">
-                <X className="h-3 w-3" />
-                Avsluta
+                 <X className="h-3 w-3" />
+                 End
               </Button>
             </div>
           </div>
@@ -336,7 +336,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
 
       {/* Hint */}
       <p className="text-[10px] text-muted-foreground px-1">
-        Använd + och − för att räkna upp/ner varje komponent
+        Use + and − to count up/down each component
       </p>
 
       {/* No items */}
@@ -346,8 +346,8 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
-                <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats ännu.</p>
+                <p className="font-medium text-amber-800 text-sm">No products</p>
+                <p className="text-xs text-amber-700 mt-0.5">Packing list has not been generated yet.</p>
               </div>
             </div>
           </CardContent>
@@ -358,13 +358,13 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       {items.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packat</span>
+             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packed</span>
           </div>
           
           <div className="divide-y divide-border/30 max-h-[calc(100vh-280px)] overflow-y-auto">
             {items.map(item => {
-              const rawName = item.booking_products?.name || 'Okänd produkt';
+              const rawName = item.booking_products?.name || 'Unknown product';
               const trimmedName = rawName.trimStart();
               const productId = item.booking_products?.id;
               
@@ -453,7 +453,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                     </span>
                     {isParent && (
                       <span className="text-[9px] text-muted-foreground">
-                        Auto vid alla delar packade
+                        Auto when all parts packed
                       </span>
                     )}
                   </div>
@@ -521,37 +521,37 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         </div>
       )}
 
-      {/* Signerad-indikator eller Signera-knapp */}
+      {/* Signed indicator or Sign button */}
       {isSigned && signedInfo ? (
         <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
           <div className="w-full h-12 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-primary font-semibold">
             <Check className="h-5 w-5" />
             <span className="text-sm">
-              Signerad av {signedInfo.by}, {new Date(signedInfo.at).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })} {new Date(signedInfo.at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+              Signed by {signedInfo.by}, {new Date(signedInfo.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} {new Date(signedInfo.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>
       ) : progress.percentage === 100 && (
         <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
           <ConfirmationDialog
-            title="Signera packlista"
-            description={`Har du${staffFirstName ? ` ${staffFirstName}` : ''} säkerställt att allt i listan är packat?`}
-            confirmLabel="Ja"
-            cancelLabel="Nej"
+            title="Sign packing list"
+            description={`Have you${staffFirstName ? ` ${staffFirstName}` : ''} verified that everything on the list is packed?`}
+            confirmLabel="Yes"
+            cancelLabel="No"
             onConfirm={async () => {
               setIsSigning(true);
-              const signerName = staffFirstName || 'Okänd';
+              const signerName = staffFirstName || 'Unknown';
               const now = new Date().toISOString();
               try {
                 await signPacking(packingId, signerName);
                 setIsSigning(false);
                 setIsSigned(true);
                 setSignedInfo({ by: signerName, at: now });
-                toast.success('Signering klar!');
+                toast.success('Signing complete!');
               } catch (err) {
                 setIsSigning(false);
                 console.error('Signing error:', err);
-                toast.error('Kunde inte signera packlistan');
+                toast.error('Could not sign the packing list');
               }
             }}
           >
@@ -560,7 +560,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               disabled={isSigning}
             >
               <PenLine className="h-5 w-5" />
-              {isSigning ? 'Signerar...' : 'Signera'}
+              {isSigning ? 'Signing...' : 'Sign'}
             </Button>
           </ConfirmationDialog>
         </div>
