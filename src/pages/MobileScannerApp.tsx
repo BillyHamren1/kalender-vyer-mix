@@ -35,6 +35,8 @@ const MobileScannerApp: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
   const [isIdentifying, setIsIdentifying] = useState(false);
+  const [identifyInput, setIdentifyInput] = useState('');
+  const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
 
   // Active scan handler ref — points to the correct handler based on current state
   const activeScanHandler = useRef<(value: string) => void>(() => {});
