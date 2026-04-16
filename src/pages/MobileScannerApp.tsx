@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio } from 'lucide-react';
+import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
