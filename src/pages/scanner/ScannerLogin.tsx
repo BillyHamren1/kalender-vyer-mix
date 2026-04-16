@@ -32,7 +32,7 @@ const ScannerLogin = () => {
       navigate('/scanner', { replace: true });
     } catch (err: any) {
       console.error('[ScannerLogin] Login error:', err?.name, err?.message, err?.cause, err?.stack?.substring?.(0, 300));
-      setError(err.message || 'Inloggningen misslyckades');
+      setError(err.message || 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +61,7 @@ const ScannerLogin = () => {
           )}
           <Input
             type="text"
-            placeholder="E-post eller användarnamn"
+            placeholder="Email or username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -69,7 +69,7 @@ const ScannerLogin = () => {
           />
           <Input
             type="password"
-            placeholder="Lösenord"
+            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -77,7 +77,7 @@ const ScannerLogin = () => {
           />
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Logga in
+            Log in
           </Button>
         </form>
       </div>

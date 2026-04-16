@@ -20,16 +20,16 @@ interface ProductIdentifyCardProps {
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
-  available: { label: 'Tillgänglig', className: 'bg-green-100 text-green-800' },
-  allocated: { label: 'Allokerad', className: 'bg-blue-100 text-blue-800' },
-  reserved: { label: 'Reserverad', className: 'bg-amber-100 text-amber-800' },
-  damaged: { label: 'Trasig', className: 'bg-red-100 text-red-800' },
-  local_match: { label: 'Lokal matchning', className: 'bg-muted text-muted-foreground' },
+  available: { label: 'Available', className: 'bg-green-100 text-green-800' },
+  allocated: { label: 'Allocated', className: 'bg-blue-100 text-blue-800' },
+  reserved: { label: 'Reserved', className: 'bg-amber-100 text-amber-800' },
+  damaged: { label: 'Damaged', className: 'bg-red-100 text-red-800' },
+  local_match: { label: 'Local match', className: 'bg-muted text-muted-foreground' },
 };
 
 export const ProductIdentifyCard: React.FC<ProductIdentifyCardProps> = ({ result, onClose }) => {
   const statusInfo = statusLabels[result.status || ''] || {
-    label: result.status || 'Okänd',
+    label: result.status || 'Unknown',
     className: 'bg-muted text-muted-foreground',
   };
 
@@ -40,7 +40,7 @@ export const ProductIdentifyCard: React.FC<ProductIdentifyCardProps> = ({ result
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold text-base">Produktinfo</h3>
+              <h3 className="font-semibold text-base">Product info</h3>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-1" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -68,7 +68,7 @@ export const ProductIdentifyCard: React.FC<ProductIdentifyCardProps> = ({ result
             {result.currentBooking && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <CalendarDays className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>Bokning: {result.currentBooking}{result.client ? ` (${result.client})` : ''}</span>
+                <span>Booking: {result.currentBooking}{result.client ? ` (${result.client})` : ''}</span>
               </div>
             )}
 
