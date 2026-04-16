@@ -131,7 +131,7 @@ const MobileCompleteJob = () => {
       setImages(prev => [...prev, {
         id: crypto.randomUUID(),
         base64,
-        fileName: `avslut_${Date.now()}.jpg`,
+        fileName: `completion_${Date.now()}.jpg`,
         fileType: 'image/jpeg',
       }]);
     } else {
@@ -166,14 +166,13 @@ const MobileCompleteJob = () => {
     setIsSaving(true);
 
     try {
-      // Build checklist text
       const checklistLines = groups.flatMap(group => {
         const lines: string[] = [];
         const parentChecked = checkedIds.has(group.parent.id);
-        lines.push(`${parentChecked ? '✅' : '⬜'} ${cleanProductName(group.parent.name)} (${group.parent.quantity} st)`);
+        lines.push(`${parentChecked ? '✅' : '⬜'} ${cleanProductName(group.parent.name)} (${group.parent.quantity} pcs)`);
         for (const child of group.children) {
           const childChecked = checkedIds.has(child.id);
-          lines.push(`   ${childChecked ? '✅' : '⬜'} ${cleanProductName(child.name)} (${child.quantity} st)`);
+          lines.push(`   ${childChecked ? '✅' : '⬜'} ${cleanProductName(child.name)} (${child.quantity} pcs)`);
         }
         return lines;
       });
@@ -181,21 +180,19 @@ const MobileCompleteJob = () => {
       const checkedCount = checkedIds.size;
       const totalCount = allProductIds.length;
 
-      let fullComment = `── AVSLUTA JOBB ──\n\nChecklista: ${checkedCount}/${totalCount} avcheckade\n\n${checklistLines.join('\n')}`;
+      let fullComment = `── COMPLETE JOB ──\n\nChecklist: ${checkedCount}/${totalCount} checked\n\n${checklistLines.join('\n')}`;
       if (comment.trim()) {
-        fullComment += `\n\nKommentar:\n${comment.trim()}`;
+        fullComment += `\n\nComment:\n${comment.trim()}`;
       }
       if (images.length > 0) {
-        fullComment += `\n\n${images.length} bild(er) bifogade`;
+        fullComment += `\n\n${images.length} image(s) attached`;
       }
 
-      // Save comment
       await mobileApi.createComment({
         booking_id: id,
         content: fullComment,
       });
 
-      // Upload images
       for (const img of images) {
         await mobileApi.uploadFile({
           booking_id: id,
@@ -206,10 +203,10 @@ const MobileCompleteJob = () => {
       }
 
       invalidateBookingDetails(id);
-      toast.success('Jobb avslutat och sparat!');
+      toast.success('Job completed and saved!');
       navigate(`/m/job/${id}`);
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara');
+      toast.error(err.message || 'Could not save');
     } finally {
       setIsSaving(false);
     }
@@ -226,7 +223,7 @@ const MobileCompleteJob = () => {
   if (!booking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-card">
-        <p className="text-muted-foreground">Jobb hittades inte</p>
+        <p className="text-muted-foreground">Job not found</p>
       </div>
     );
   }
@@ -234,7 +231,7 @@ const MobileCompleteJob = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-32">
       <MobileBackHeader
-        title="Avsluta jobb"
+        title="Complete job"
         subtitle={booking.client}
         backTo={`/m/job/${id}`}
       />
@@ -243,19 +240,18 @@ const MobileCompleteJob = () => {
         {/* Product checklist */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Produktchecklista</h2>
+            <h2 className="text-sm font-semibold text-foreground">Product checklist</h2>
             <button onClick={toggleAll} className="text-xs text-primary font-medium">
-              {allChecked ? 'Avmarkera alla' : 'Markera alla'}
+              {allChecked ? 'Uncheck all' : 'Check all'}
             </button>
           </div>
 
           {groups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Inga produkter i bokningen</p>
+            <p className="text-sm text-muted-foreground">No products in the booking</p>
           ) : (
             <div className="space-y-1">
               {groups.map(group => (
                 <div key={group.parent.id}>
-                  {/* Parent product */}
                   <label className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border cursor-pointer active:bg-muted/50 transition-colors">
                     <Checkbox
                       checked={checkedIds.has(group.parent.id)}
@@ -266,11 +262,10 @@ const MobileCompleteJob = () => {
                       <p className="text-sm font-medium text-foreground leading-snug">
                         {cleanProductName(group.parent.name)}
                       </p>
-                      <p className="text-xs text-muted-foreground">{group.parent.quantity} st</p>
+                      <p className="text-xs text-muted-foreground">{group.parent.quantity} pcs</p>
                     </div>
                   </label>
 
-                  {/* Child products */}
                   {group.children.map(child => (
                     <label
                       key={child.id}
@@ -285,7 +280,7 @@ const MobileCompleteJob = () => {
                         <p className="text-sm text-foreground leading-snug">
                           {cleanProductName(child.name)}
                         </p>
-                        <p className="text-xs text-muted-foreground">{child.quantity} st</p>
+                        <p className="text-xs text-muted-foreground">{child.quantity} pcs</p>
                       </div>
                     </label>
                   ))}
@@ -297,11 +292,11 @@ const MobileCompleteJob = () => {
 
         {/* Comment */}
         <section>
-          <h2 className="text-sm font-semibold text-foreground mb-2">Kommentar</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-2">Comment</h2>
           <Textarea
             value={comment}
             onChange={e => setComment(e.target.value)}
-            placeholder="Skriv en slutkommentar..."
+            placeholder="Write a closing comment..."
             rows={3}
             className="bg-muted/30 border-border"
           />
@@ -309,7 +304,7 @@ const MobileCompleteJob = () => {
 
         {/* Images */}
         <section>
-          <h2 className="text-sm font-semibold text-foreground mb-2">Bilder</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-2">Images</h2>
           <div className="flex gap-2 flex-wrap">
             {images.map(img => (
               <div key={img.id} className="relative w-20 h-20 rounded-xl overflow-hidden border border-border">
@@ -327,7 +322,7 @@ const MobileCompleteJob = () => {
               className="w-20 h-20 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground active:bg-muted/30 transition-colors"
             >
               <Camera className="w-5 h-5" />
-              <span className="text-[10px]">Foto</span>
+              <span className="text-[10px]">Photo</span>
             </button>
           </div>
           <input
@@ -341,7 +336,6 @@ const MobileCompleteJob = () => {
         </section>
       </div>
 
-      {/* Fixed bottom button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card border-t border-border safe-area-bottom">
         <Button
           onClick={handleSubmit}
@@ -353,7 +347,7 @@ const MobileCompleteJob = () => {
           ) : (
             <CheckCircle2 className="w-5 h-5 mr-2" />
           )}
-          Avsluta jobb
+          Complete job
         </Button>
       </div>
     </div>

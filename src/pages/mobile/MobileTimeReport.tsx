@@ -5,7 +5,6 @@ import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { Clock, Square, Loader2, Check, Send, Building2, Plus, ChevronRight, FileText, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,29 +62,28 @@ const MobileTimeReport = () => {
   };
 
   const getValidationError = (): string | null => {
-    if (!selectedBookingId) return 'Välj ett jobb';
-    if (!startTime) return 'Starttid krävs';
-    if (!endTime) return 'Sluttid krävs';
+    if (!selectedBookingId) return 'Select a job';
+    if (!startTime) return 'Start time is required';
+    if (!endTime) return 'End time is required';
 
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
     const startMinutes = sh * 60 + sm;
     const endMinutes = eh * 60 + em;
 
-    // Same time check (non-night-shift)
-    if (startMinutes === endMinutes) return 'Sluttid kan inte vara samma som starttid';
+    if (startMinutes === endMinutes) return 'End time cannot be the same as start time';
 
     const breakHours = parseFloat(breakTime || '0');
     const breakMinutes = breakHours * 60;
-    if (breakHours < 0) return 'Rast kan inte vara negativ';
-    if (breakMinutes > 240) return 'Rast kan inte överstiga 240 minuter';
+    if (breakHours < 0) return 'Break cannot be negative';
+    if (breakMinutes > 240) return 'Break cannot exceed 240 minutes';
 
     const hours = calculateHours();
-    if (hours <= 0) return 'Arbetad tid efter rast måste vara mer än 0';
-    if (hours > 16) return 'Arbetad tid kan inte överstiga 16 timmar';
+    if (hours <= 0) return 'Worked hours after break must be more than 0';
+    if (hours > 16) return 'Worked hours cannot exceed 16 hours';
 
     const ot = parseFloat(overtime || '0');
-    if (ot < 0) return 'Övertid kan inte vara negativ';
+    if (ot < 0) return 'Overtime cannot be negative';
     
 
     return null;
@@ -103,7 +101,6 @@ const MobileTimeReport = () => {
     const options: { value: string; label: string; isProject?: boolean; largeProjectId?: string }[] = [];
     const seenProjectIds = new Set<string>();
 
-    // Add large projects from bookings (deduplicated)
     for (const b of bookings) {
       if (b.large_project_id && b.large_project_name && !seenProjectIds.has(b.large_project_id)) {
         seenProjectIds.add(b.large_project_id);
@@ -116,7 +113,6 @@ const MobileTimeReport = () => {
       }
     }
 
-    // Also add projects from recent time reports (covers past projects not in current bookings)
     for (const r of timeReports) {
       if (r.large_project_id && r.large_project_name && !seenProjectIds.has(r.large_project_id)) {
         seenProjectIds.add(r.large_project_id);
@@ -129,7 +125,6 @@ const MobileTimeReport = () => {
       }
     }
 
-    // Add standalone bookings (not part of a large project)
     for (const b of bookings) {
       if (!b.large_project_id) {
         options.push({
@@ -139,7 +134,6 @@ const MobileTimeReport = () => {
       }
     }
 
-    // Add fixed locations marked as projects (e.g. Lager)
     const locationProjects = orgLocations.filter(loc => loc.show_as_project === true);
     for (const loc of locationProjects) {
       options.push({
@@ -155,7 +149,7 @@ const MobileTimeReport = () => {
 
   const handleSubmit = async () => {
     if (activeTimers.size > 0) {
-      const msg = 'Du har en aktiv timer. Stoppa den innan du skapar en manuell rapport.';
+      const msg = 'You have an active timer. Stop it before creating a manual report.';
       setValidationError(msg);
       toast.error(msg);
       return;
@@ -183,7 +177,7 @@ const MobileTimeReport = () => {
         description: description || undefined,
         large_project_id: selectedOption?.largeProjectId,
       });
-      toast.success('Tidrapport skapad!');
+      toast.success('Time report created!');
       invalidateTimeReports();
       setSelectedBookingId('');
       setDescription('');
@@ -194,7 +188,7 @@ const MobileTimeReport = () => {
       setShowForm(false);
       fetchReports();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte skapa tidrapport');
+      toast.error(err.message || 'Could not create time report');
     } finally {
       setIsSaving(false);
     }
@@ -203,7 +197,7 @@ const MobileTimeReport = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
+        <MobileHeroHeader eyebrow="TIME REPORT" title="Time reporting" subtitle="Report working hours" />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
@@ -223,13 +217,13 @@ const MobileTimeReport = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24 overflow-x-hidden">
-      <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetstid" />
+      <MobileHeroHeader eyebrow="TIME REPORT" title="Time reporting" subtitle="Report working hours" />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
         {/* Active timers */}
         {activeTimers.size > 0 && (
           <div className="space-y-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Active timers</h2>
             {Array.from(activeTimers.entries()).map(([key, timer]) => (
               <ActiveTimerCard
                 key={key}
@@ -240,9 +234,8 @@ const MobileTimeReport = () => {
                   const startTimeDate = parseISO(timer.startTime);
                   stopTimer(key);
 
-                  // Location timers are tracked via location_time_entries on server — no time report needed
                   if (timer.locationId) {
-                    toast.success('Timer stoppad');
+                    toast.success('Timer stopped');
                     return;
                   }
 
@@ -262,10 +255,10 @@ const MobileTimeReport = () => {
                       establishment_task_id: timer.establishmentTaskId,
                       large_project_id: timer.largeProjectId,
                     });
-                    toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                    toast.success(`Time report saved: ${hoursWorked}h`);
                     fetchReports();
                   } catch (err: any) {
-                    toast.error(err.message || 'Kunde inte spara tidrapport');
+                    toast.error(err.message || 'Could not save time report');
                   }
                 }}
               />
@@ -276,7 +269,7 @@ const MobileTimeReport = () => {
 
         {/* Header with small "new" button */}
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Mina tidrapporter</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">My time reports</h2>
           {!showForm && (
             <Button
               type="button"
@@ -286,7 +279,7 @@ const MobileTimeReport = () => {
               className="h-8 shrink-0 rounded-lg border-border bg-background px-3 text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
-              Ny tid
+              New
             </Button>
           )}
         </div>
@@ -295,23 +288,23 @@ const MobileTimeReport = () => {
         {showForm && (
           <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold text-[15px] text-foreground">Ny tidrapport</h2>
+              <h2 className="font-bold text-[15px] text-foreground">New time report</h2>
               <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
-                Avbryt
+                Cancel
               </button>
             </div>
             <div className="flex gap-2.5 items-start rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Använd <span className="font-semibold text-foreground">timer</span> i första hand. Manuell rapport används bara när timer inte kunnat användas.
+                Use the <span className="font-semibold text-foreground">timer</span> whenever possible. Manual reports are only for when the timer could not be used.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Job</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
                 <SelectTrigger className="h-12 rounded-xl text-sm bg-muted/40 border-border">
-                  <SelectValue placeholder="Välj jobb eller projekt..." />
+                  <SelectValue placeholder="Select job or project..." />
                 </SelectTrigger>
                 <SelectContent>
                   {jobOptions.map(opt => (
@@ -324,7 +317,7 @@ const MobileTimeReport = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Date</Label>
               <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full max-w-full" style={{ maxWidth: '100%' }} />
             </div>
 
@@ -336,16 +329,16 @@ const MobileTimeReport = () => {
                 <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
               </div>
               <div className="flex-1 min-w-0 space-y-2">
-                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
+                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">End</Label>
                 <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Break</Label>
               <div className="grid grid-cols-4 gap-1.5 min-w-0">
                 {[
-                  { label: 'Ingen', value: '0' },
+                  { label: 'None', value: '0' },
                   { label: '30m', value: '0.5' },
                   { label: '45m', value: '0.75' },
                   { label: '60m', value: '1' },
@@ -367,25 +360,25 @@ const MobileTimeReport = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Overtime (h)</Label>
               <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
 
             <div className="h-px bg-border/50" />
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Description</Label>
               <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Vad gjorde du..."
+                placeholder="What did you do..."
                 className="rounded-xl min-h-[72px] text-sm bg-muted/40 border-border"
               />
             </div>
 
             {isNightShift && (
               <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Nattskift upptäckt – tid beräknas över midnatt</p>
+                <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Night shift detected – time calculated over midnight</p>
               </div>
             )}
             {validationError && (
@@ -396,7 +389,7 @@ const MobileTimeReport = () => {
 
             <div className="flex items-center justify-between pt-3 border-t border-border/40">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xs text-muted-foreground">Totalt:</span>
+                <span className="text-xs text-muted-foreground">Total:</span>
                 <span className="text-lg font-extrabold text-foreground tabular-nums">{calculateHours()}h</span>
               </div>
               <Button
@@ -405,7 +398,7 @@ const MobileTimeReport = () => {
                 className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Spara
+                Save
               </Button>
             </div>
           </div>
@@ -421,7 +414,7 @@ const MobileTimeReport = () => {
           ) : sortedDates.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Inga tidrapporter ännu</p>
+              <p className="text-sm text-muted-foreground">No time reports yet</p>
             </div>
           ) : (
             sortedDates.map(date => {
@@ -429,8 +422,8 @@ const MobileTimeReport = () => {
               const totalHours = reports.reduce((sum, r) => sum + (r.hours_worked || 0), 0);
               const isToday = date === format(new Date(), 'yyyy-MM-dd');
               const dateLabel = isToday
-                ? 'Idag'
-                : format(parseISO(date), 'd MMM yyyy', { locale: sv });
+                ? 'Today'
+                : format(parseISO(date), 'd MMM yyyy');
 
               return (
                 <div key={date} className="space-y-1.5">
@@ -446,7 +439,7 @@ const MobileTimeReport = () => {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {r.large_project_name || r.bookings?.client || 'Okänt jobb'}
+                          {r.large_project_name || r.bookings?.client || 'Unknown job'}
                         </p>
                         {r.description && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>
@@ -455,7 +448,7 @@ const MobileTimeReport = () => {
                           {r.start_time && r.end_time
                             ? `${r.start_time.slice(0, 5)} – ${r.end_time.slice(0, 5)}`
                             : ''}
-                          {r.break_time > 0 ? ` · ${r.break_time}h rast` : ''}
+                          {r.break_time > 0 ? ` · ${r.break_time}h break` : ''}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -463,7 +456,7 @@ const MobileTimeReport = () => {
                           {formatHoursMinutes(r.hours_worked)}
                         </p>
                         {r.overtime_hours > 0 && (
-                          <p className="text-[10px] text-muted-foreground">+{r.overtime_hours}h öt</p>
+                          <p className="text-[10px] text-muted-foreground">+{r.overtime_hours}h OT</p>
                         )}
                         {r.approved && (
                           <Check className="w-3.5 h-3.5 text-primary inline-block" />
@@ -504,7 +497,7 @@ const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; on
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {format(parseISO(timer.startTime), 'HH:mm')}
+          Started {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
@@ -513,7 +506,7 @@ const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; on
       </div>
       <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop}>
         <Square className="w-3 h-3" />
-        Stopp
+        Stop
       </Button>
     </div>
   );

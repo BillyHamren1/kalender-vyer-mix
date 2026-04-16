@@ -4,7 +4,6 @@ import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { ArrowLeft, Loader2, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +25,6 @@ const MobileEditTimeReport = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Editable fields
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [breakTime, setBreakTime] = useState('');
@@ -82,26 +80,26 @@ const MobileEditTimeReport = () => {
     if (!report || !id) return;
 
     if (!editReason.trim()) {
-      toast.error('Du måste ange en anledning till ändringen');
+      toast.error('You must provide a reason for the change');
       return;
     }
 
     if (!startTime || !endTime) {
-      toast.error('Start- och sluttid krävs');
+      toast.error('Start and end time are required');
       return;
     }
 
     const hours = calculateHours();
     if (hours <= 0) {
-      toast.error('Arbetad tid måste vara mer än 0');
+      toast.error('Worked hours must be more than 0');
       return;
     }
 
     setSaving(true);
     try {
       const updatedDescription = description
-        ? `${description}\n\n[Ändrad: ${editReason.trim()}]`
-        : `[Ändrad: ${editReason.trim()}]`;
+        ? `${description}\n\n[Changed: ${editReason.trim()}]`
+        : `[Changed: ${editReason.trim()}]`;
 
       await mobileApi.updateTimeReport({
         time_report_id: id,
@@ -112,11 +110,11 @@ const MobileEditTimeReport = () => {
         overtime_hours: parseFloat(overtime || '0'),
         description: updatedDescription,
       });
-      toast.success('Tidrapport uppdaterad');
+      toast.success('Time report updated');
       invalidateTimeReports();
       navigate(-1);
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte uppdatera tidrapport');
+      toast.error(err.message || 'Could not update time report');
     } finally {
       setSaving(false);
     }
@@ -126,18 +124,18 @@ const MobileEditTimeReport = () => {
     if (!id) return;
 
     if (!editReason.trim()) {
-      toast.error('Du måste ange en anledning innan du raderar');
+      toast.error('You must provide a reason before deleting');
       return;
     }
 
     setDeleting(true);
     try {
       await mobileApi.deleteTimeReport(id);
-      toast.success('Tidrapport raderad');
+      toast.success('Time report deleted');
       invalidateTimeReports();
       navigate(-1);
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte radera tidrapport');
+      toast.error(err.message || 'Could not delete time report');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -147,7 +145,7 @@ const MobileEditTimeReport = () => {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIDRAPPORT" title="Redigera" subtitle="Laddar..." />
+        <MobileHeroHeader eyebrow="TIME REPORT" title="Edit" subtitle="Loading..." />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
@@ -158,22 +156,22 @@ const MobileEditTimeReport = () => {
   if (!report) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIDRAPPORT" title="Hittades inte" subtitle="" />
+        <MobileHeroHeader eyebrow="TIME REPORT" title="Not found" subtitle="" />
         <div className="flex-1 flex items-center justify-center flex-col gap-3">
-          <p className="text-sm text-muted-foreground">Tidrapporten kunde inte hittas</p>
-          <Button variant="outline" onClick={() => navigate(-1)}>Tillbaka</Button>
+          <p className="text-sm text-muted-foreground">The time report could not be found</p>
+          <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
         </div>
       </div>
     );
   }
 
-  const jobName = report.large_project_name || report.bookings?.client || 'Okänt jobb';
-  const dateLabel = format(parseISO(report.report_date), 'd MMMM yyyy', { locale: sv });
+  const jobName = report.large_project_name || report.bookings?.client || 'Unknown job';
+  const dateLabel = format(parseISO(report.report_date), 'd MMMM yyyy');
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
-        eyebrow="REDIGERA TIDRAPPORT"
+        eyebrow="EDIT TIME REPORT"
         title={jobName}
         subtitle={dateLabel}
         rightAction={
@@ -189,15 +187,15 @@ const MobileEditTimeReport = () => {
       <div className="flex-1 px-5 pt-5 pb-28 space-y-5">
         {/* Current values summary */}
         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Nuvarande</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Current</p>
           <p className="text-sm text-foreground">
             {report.start_time?.slice(0, 5)} – {report.end_time?.slice(0, 5)}
-            {report.break_time > 0 && ` · ${report.break_time}h rast`}
+            {report.break_time > 0 && ` · ${report.break_time}h break`}
             {' · '}
             <span className="font-bold">{formatHoursMinutes(report.hours_worked)}</span>
           </p>
           {report.approved && (
-            <p className="text-[11px] text-primary font-semibold mt-1">✓ Godkänd</p>
+            <p className="text-[11px] text-primary font-semibold mt-1">✓ Approved</p>
           )}
         </div>
 
@@ -214,7 +212,7 @@ const MobileEditTimeReport = () => {
               />
             </div>
             <div className="flex-1 min-w-0 space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">End</Label>
               <input
                 type="time"
                 value={endTime}
@@ -225,10 +223,10 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Break</Label>
             <div className="grid grid-cols-4 gap-1.5">
               {[
-                { label: 'Ingen', value: '0' },
+                { label: 'None', value: '0' },
                 { label: '30m', value: '0.5' },
                 { label: '45m', value: '0.75' },
                 { label: '60m', value: '1' },
@@ -250,7 +248,7 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Overtime (h)</Label>
             <Input
               type="number"
               step="0.5"
@@ -261,11 +259,11 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Description</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Vad gjorde du..."
+              placeholder="What did you do..."
               className="rounded-xl min-h-[72px] text-sm bg-muted/40 border-border"
             />
           </div>
@@ -275,12 +273,12 @@ const MobileEditTimeReport = () => {
           {/* Mandatory reason */}
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-destructive uppercase tracking-wide">
-              Anledning till ändring *
+              Reason for change *
             </Label>
             <Textarea
               value={editReason}
               onChange={e => setEditReason(e.target.value)}
-              placeholder="Ange varför du ändrar denna rapport..."
+              placeholder="Explain why you are changing this report..."
               className="rounded-xl min-h-[72px] text-sm bg-destructive/5 border-destructive/20 placeholder:text-muted-foreground"
             />
           </div>
@@ -289,7 +287,7 @@ const MobileEditTimeReport = () => {
         {/* Summary + actions */}
         <div className="flex items-center justify-between pt-3 border-t border-border/40">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs text-muted-foreground">Ny tid:</span>
+            <span className="text-xs text-muted-foreground">New time:</span>
             <span className="text-lg font-extrabold text-foreground tabular-nums">{formatHoursMinutes(calculateHours())}</span>
           </div>
           <Button
@@ -298,7 +296,7 @@ const MobileEditTimeReport = () => {
             className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Spara
+            Save
           </Button>
         </div>
 
@@ -310,11 +308,11 @@ const MobileEditTimeReport = () => {
               className="flex items-center gap-2 text-xs text-destructive/70 hover:text-destructive transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Radera tidrapport
+              Delete time report
             </button>
           ) : (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 space-y-3">
-              <p className="text-xs font-semibold text-destructive">Är du säker? Detta kan inte ångras.</p>
+              <p className="text-xs font-semibold text-destructive">Are you sure? This cannot be undone.</p>
               <div className="flex gap-2">
                 <Button
                   variant="destructive"
@@ -324,7 +322,7 @@ const MobileEditTimeReport = () => {
                   className="rounded-xl text-xs"
                 >
                   {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  Radera
+                  Delete
                 </Button>
                 <Button
                   variant="outline"
@@ -332,7 +330,7 @@ const MobileEditTimeReport = () => {
                   onClick={() => setShowDeleteConfirm(false)}
                   className="rounded-xl text-xs"
                 >
-                  Avbryt
+                  Cancel
                 </Button>
               </div>
             </div>
