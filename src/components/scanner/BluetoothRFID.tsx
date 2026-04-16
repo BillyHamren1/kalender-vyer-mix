@@ -41,7 +41,7 @@ export const BluetoothRFID: React.FC<BluetoothRFIDProps> = ({ onScan }) => {
             <span>RFID Scanner</span>
           </div>
           <Badge variant={isConnected ? 'default' : 'secondary'}>
-            {isConnected ? 'Ansluten' : 'Ej ansluten'}
+            {isConnected ? 'Connected' : 'Not connected'}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -50,10 +50,10 @@ export const BluetoothRFID: React.FC<BluetoothRFIDProps> = ({ onScan }) => {
           <div className="text-center py-4">
             <BluetoothOff className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Bluetooth stöds inte i denna webbläsare.
+              Bluetooth is not supported in this browser.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              RFID-scannern kan fortfarande fungera i HID-läge (som tangentbord).
+              The RFID scanner may still work in HID mode (as keyboard).
             </p>
           </div>
         ) : (
@@ -70,19 +70,19 @@ export const BluetoothRFID: React.FC<BluetoothRFIDProps> = ({ onScan }) => {
                     size="sm"
                     onClick={disconnect}
                   >
-                    Koppla från
+                    Disconnect
                   </Button>
                 </div>
                 
                 {lastScannedValue && (
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">Senast skannad:</p>
+                    <p className="text-xs text-muted-foreground mb-1">Last scanned:</p>
                     <p className="font-mono text-sm">{lastScannedValue}</p>
                   </div>
                 )}
 
                 <p className="text-xs text-center text-muted-foreground">
-                  Skannar automatiskt när RFID-taggar läses...
+                  Scanning automatically when RFID tags are read...
                 </p>
               </div>
             ) : (
@@ -93,21 +93,21 @@ export const BluetoothRFID: React.FC<BluetoothRFIDProps> = ({ onScan }) => {
                   className="w-full"
                 >
                   {isConnecting ? (
-                    <>
+                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Söker enheter...
+                      Searching devices...
                     </>
                   ) : (
                     <>
                       <Bluetooth className="h-4 w-4 mr-2" />
-                      Anslut RFID-scanner
+                      Connect RFID scanner
                     </>
                   )}
                 </Button>
                 
                 <p className="text-xs text-muted-foreground mt-3">
-                  Tips: Om din scanner fungerar som tangentbord (HID-läge),
-                  behöver du inte ansluta via Bluetooth – bara skanna!
+                  Tip: If your scanner works as a keyboard (HID mode),
+                  you don't need to connect via Bluetooth — just scan!
                 </p>
               </div>
             )}

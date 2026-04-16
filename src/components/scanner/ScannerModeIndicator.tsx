@@ -44,7 +44,7 @@ export const ScannerModeIndicator: React.FC<ScannerModeIndicatorProps> = ({
               }`}
             >
               <Scan className="h-3 w-3" />
-              Streckkod
+              Barcode
             </button>
             {isRfidReady && (
               <button
@@ -63,7 +63,7 @@ export const ScannerModeIndicator: React.FC<ScannerModeIndicatorProps> = ({
         ) : (
           <Badge variant="secondary" className="text-[10px] h-5 gap-1">
             <Radio className="h-3 w-3" />
-            {currentMode === 'barcode' ? 'Streckkod' : currentMode === 'rfid_inventory' ? 'RFID Inventering' : currentMode === 'rfid_locate' ? 'RFID Sök' : 'Blandat läge'}
+            {currentMode === 'barcode' ? 'Barcode' : currentMode === 'rfid_inventory' ? 'RFID Inventory' : currentMode === 'rfid_locate' ? 'RFID Locate' : 'Mixed mode'}
           </Badge>
         )}
         {isRfidReady && (
@@ -75,7 +75,7 @@ export const ScannerModeIndicator: React.FC<ScannerModeIndicatorProps> = ({
           ) : (
             <span className="flex items-center gap-1 text-destructive">
               <WifiOff className="h-3 w-3" />
-              Ej ansluten
+              Not connected
             </span>
           )
         )}

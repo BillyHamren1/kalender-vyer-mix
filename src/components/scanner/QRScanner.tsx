@@ -176,7 +176,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         if (mountedRef.current) {
           setCameraState((prev) => {
             if (prev === 'starting') {
-              setError('Kameran svarade inte. Använd hårdvaruscan eller manuell inmatning.');
+              setError('Camera did not respond. Use hardware scan or manual input.');
               if (streamRef.current) {
                 streamRef.current.getTracks().forEach((t) => t.stop());
                 streamRef.current = null;
@@ -203,7 +203,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 startingTimeoutRef.current = null;
               }
               setCameraState('error');
-              setError('Kameratillstånd nekades. Gå till enhetens inställningar och tillåt kamera för appen.');
+              setError('Camera permission denied. Go to device settings and allow camera access for the app.');
               return;
             }
           }
@@ -218,7 +218,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           startingTimeoutRef.current = null;
         }
         setCameraState('error');
-        setError('Kameran stöds inte i denna webbvy (getUserMedia saknas).');
+        setError('Camera is not supported in this web view (getUserMedia missing).');
         return;
       }
 
@@ -242,7 +242,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         return Promise.race([
           navigator.mediaDevices.getUserMedia(mediaConstraints),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('getUserMedia timeout efter 10s — kameran svarar inte.')), 10000)
+            setTimeout(() => reject(new Error('getUserMedia timeout after 10s — camera not responding.')), 10000)
           ),
         ]);
       };
@@ -304,7 +304,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             ) {
               finish();
             } else {
-              fail('Kameran svarade inte i tid. Försök igen.');
+              fail('Camera did not respond in time. Please try again.');
             }
           }, 8000);
 
@@ -328,7 +328,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
           if (playResult && typeof playResult.catch === 'function') {
             playResult.catch((e: any) => {
-              fail('Kameran kunde inte startas: ' + (e.message || e));
+              fail('Camera could not be started: ' + (e.message || e));
             });
           }
 
@@ -364,13 +364,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       setCameraState('error');
       if (err.name === 'NotAllowedError') {
-        setError('Kameratillstånd nekades. Tillåt kamera i enhetens inställningar.');
+        setError('Camera permission denied. Allow camera in device settings.');
       } else if (err.name === 'NotFoundError') {
-        setError('Ingen kamera hittades på enheten.');
+        setError('No camera found on device.');
       } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
-        setError('Kameran kunde inte startas. Den kanske används av en annan app.');
+        setError('Camera could not be started. It may be in use by another app.');
       } else {
-        setError(err.message || 'Kameran kunde inte startas.');
+        setError(err.message || 'Camera could not be started.');
       }
     }
   }, [isIos, runScanLoop, shouldSkipCamera]);
@@ -417,7 +417,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
-        <h2 className="text-lg font-semibold">{shouldSkipCamera ? 'Manuell inmatning' : 'QR-skanner'}</h2>
+        <h2 className="text-lg font-semibold">{shouldSkipCamera ? 'Manual input' : 'QR Scanner'}</h2>
         <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
           <X className="h-6 w-6" />
         </Button>
@@ -438,13 +438,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Camera className="h-16 w-16 mb-4 opacity-50" />
-              <p className="text-center mb-2 text-base">{error || 'Kameran kunde inte startas'}</p>
-              <p className="text-center text-sm text-white/60 mb-6">Du kan ange kod manuellt nedan.</p>
+              <p className="text-center mb-2 text-base">{error || 'Camera could not be started'}</p>
+              <p className="text-center text-sm text-white/60 mb-6">You can enter a code manually below.</p>
               <Button
                 onClick={() => void startCamera()}
                 variant="secondary"
               >
-                Försök igen
+                Try again
               </Button>
             </div>
           )}
@@ -452,7 +452,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           {cameraState === 'starting' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
               <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
-              <p className="text-center text-base">Startar kameran...</p>
+              <p className="text-center text-base">Starting camera...</p>
             </div>
           )}
 
@@ -479,25 +479,25 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       {shouldSkipCamera && (
         <div className="flex-1 flex flex-col items-center justify-center text-white p-6">
           <Radio className="h-16 w-16 mb-4 opacity-60" />
-          <p className="text-center text-lg font-medium mb-2">Använd Zebra-skannern</p>
-          <p className="text-center text-sm text-white/60">Tryck på skanningsknappen på enheten, eller ange kod manuellt nedan.</p>
+          <p className="text-center text-lg font-medium mb-2">Use Zebra scanner</p>
+          <p className="text-center text-sm text-white/60">Press the scan button on the device, or enter a code manually below.</p>
         </div>
       )}
 
       <div className="p-4 bg-black/80 safe-area-bottom">
-        <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Ange kod manuellt:' : 'Eller ange kod manuellt:'}</p>
+        <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Enter code manually:' : 'Or enter code manually:'}</p>
         <div className="flex gap-2">
           <input
             type="text"
             value={manualInput}
             onChange={(e) => setManualInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
-            placeholder="Ange QR-kod eller SKU..."
+            placeholder="Enter QR code or SKU..."
             className="flex-1 px-3 py-2 rounded bg-white/10 text-white placeholder:text-white/50 border border-white/20 focus:outline-none focus:border-primary"
             autoFocus={shouldSkipCamera}
           />
           <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
-            Skicka
+            Submit
           </Button>
         </div>
       </div>

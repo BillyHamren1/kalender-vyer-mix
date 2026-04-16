@@ -178,7 +178,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   };
 
   const getItemDisplayInfo = (item: PackingItem, childrenByParent: Record<string, PackingItem[]>) => {
-    const rawName = item.booking_products?.name || 'Okänd produkt';
+    const rawName = item.booking_products?.name || 'Unknown product';
     const trimmedName = rawName.trimStart();
     const productId = item.booking_products?.id;
     
@@ -283,7 +283,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </span>
           {info.isParent && (
             <span className="text-[9px] text-muted-foreground">
-              Markeras när alla delar är packade
+              Marked when all parts are packed
             </span>
           )}
         </div>
@@ -296,7 +296,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <span className="text-[10px] font-bold">#{parcelNumber}</span>
             </div>
           ) : info.isComplete ? (
-            <div className="shrink-0 text-[10px] text-muted-foreground">Inget kolli</div>
+            <div className="shrink-0 text-[10px] text-muted-foreground">No parcel</div>
           ) : null
         ) : (
           <>
@@ -334,13 +334,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              <span className="font-semibold">KOLLI-LÄGE</span>
+              <span className="font-semibold">PARCEL MODE</span>
             </div>
             <div className="bg-primary-foreground/20 px-3 py-1 rounded-full">
               <span className="font-bold text-lg">#{activeParcel.parcel_number}</span>
             </div>
           </div>
-          <p className="text-xs mt-1 opacity-90">Scanna eller klicka på produkter för Kolli #{activeParcel.parcel_number}</p>
+          <p className="text-xs mt-1 opacity-90">Scan or tap products for Parcel #{activeParcel.parcel_number}</p>
         </div>
 
         {lastScanResult && (
@@ -359,7 +359,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <button
               onClick={() => setScanResult(null)}
               className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
-              aria-label="Stäng"
+              aria-label="Close"
             >
               <X className="h-4 w-4" />
             </button>
@@ -369,14 +369,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <div className="flex gap-2">
           <Button onClick={() => setIsQRActive(true)} className="flex-1 gap-2">
             <Camera className="h-4 w-4" />
-            Scanna produkt
+            Scan product
           </Button>
         </div>
 
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Kolli</span>
+             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Parcel</span>
           </div>
           <div className="divide-y divide-border/30 max-h-[calc(100vh-320px)] overflow-y-auto">
             {items.map(item => renderItemRow(item, true))}
@@ -386,11 +386,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <div className="flex gap-2">
           <Button onClick={() => nextKolli(verifierName)} variant="outline" className="flex-1 gap-2">
             <ChevronRight className="h-4 w-4" />
-            Nästa kolli
+            Next parcel
           </Button>
           <Button onClick={handleExitKolli} variant="secondary" className="flex-1 gap-2">
             <X className="h-4 w-4" />
-            Avsluta
+            End
           </Button>
         </div>
 
@@ -448,9 +448,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-2">
             <Minus className="h-5 w-5" />
-            <span className="font-bold text-sm">MINUS-LÄGE AKTIVT</span>
+            <span className="font-bold text-sm">MINUS MODE ACTIVE</span>
           </div>
-          <span className="text-xs opacity-90">Scan tar bort 1 st</span>
+          <span className="text-xs opacity-90">Scan removes 1 pc</span>
         </div>
       )}
 
@@ -478,11 +478,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
         <Button onClick={() => setIsQRActive(true)} size="sm" className="h-8 px-2.5 gap-1">
           <Camera className="h-3.5 w-3.5" />
-          <span className="text-xs">Kamera</span>
+          <span className="text-xs">Camera</span>
         </Button>
         <Button onClick={() => setShowKolliConfirm(true)} size="sm" variant="secondary" className="h-8 px-3 gap-1.5 border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 font-semibold">
           <Package className="h-3.5 w-3.5 text-primary" />
-          <span className="text-xs text-primary">Kolli</span>
+          <span className="text-xs text-primary">Parcel</span>
           {Object.keys(itemParcelMap).length > 0 && (
             <span className="bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
               {new Set(Object.values(itemParcelMap)).size}
@@ -491,7 +491,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
         <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
           <List className="h-3.5 w-3.5" />
-          <span className="text-xs">Logg</span>
+          <span className="text-xs">Log</span>
           {recentScans.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
               {recentScans.length > 99 ? '99' : recentScans.length}
@@ -503,7 +503,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       {showRecentScans && recentScans.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Senaste scanningar</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recent scans</span>
             <button onClick={() => setShowRecentScans(false)} className="p-0.5 rounded hover:bg-muted">
               <X className="h-3 w-3 text-muted-foreground" />
             </button>
@@ -538,7 +538,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <button
             onClick={() => setScanResult(null)}
             className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
-            aria-label="Stäng"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -551,8 +551,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
-                <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats ännu.</p>
+                <p className="font-medium text-amber-800 text-sm">No products</p>
+                <p className="text-xs text-amber-700 mt-0.5">Packing list has not been generated yet.</p>
               </div>
             </div>
           </CardContent>
@@ -562,8 +562,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       {items.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packat</span>
+             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packed</span>
           </div>
           <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
             {items.map(item => renderItemRow(item, false))}
@@ -579,21 +579,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-primary" />
-              Starta nytt kolli?
+              Start new parcel?
             </AlertDialogTitle>
             <AlertDialogDescription>
               {Object.keys(itemParcelMap).length > 0
-                ? `Du har redan ${new Set(Object.values(itemParcelMap)).size} kolli. Ett nytt kolli skapas och scannade produkter tilldelas dit.`
-                : 'Ett nytt kolli skapas. Produkter du scannar eller klickar på tilldelas automatiskt till detta kolli.'}
+                ? `You already have ${new Set(Object.values(itemParcelMap)).size} parcels. A new parcel will be created and scanned products assigned to it.`
+                : 'A new parcel will be created. Products you scan or tap will automatically be assigned to this parcel.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setShowKolliConfirm(false);
               startKolli(verifierName);
             }}>
-              Starta kolli
+              Start parcel
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -61,23 +61,23 @@ const MobileScannerApp: React.FC = () => {
       setSelectedPackingId(result.packingId);
       setState('verifying');
       setIsQRActive(false);
-      toast.success('Packlista hittad!');
+      toast.success('Packing list found!');
     } else {
       // Product scan on home screen → identify it
       if (isIdentifying) return;
       setIsIdentifying(true);
-      toast.loading('Söker produkt...', { id: 'identify' });
+      toast.loading('Searching product...', { id: 'identify' });
       try {
         const productResult = await identifyProduct(scannedValue);
         toast.dismiss('identify');
         if (productResult.found) {
           setIdentifiedProduct(productResult);
         } else {
-          toast.error(productResult.error || `Produkt "${scannedValue}" hittades inte`);
+          toast.error(productResult.error || `Product "${scannedValue}" not found`);
         }
       } catch (err: any) {
         toast.dismiss('identify');
-        toast.error(err.message || 'Kunde inte identifiera produkt');
+        toast.error(err.message || 'Could not identify product');
       } finally {
         setIsIdentifying(false);
       }
@@ -107,7 +107,7 @@ const MobileScannerApp: React.FC = () => {
         setIsLoading(true);
         await loadPackings();
       } catch (error) {
-        toast.error('Kunde inte ladda packlistor');
+        toast.error('Could not load packing lists');
       } finally {
         setIsLoading(false);
       }
@@ -178,25 +178,25 @@ const MobileScannerApp: React.FC = () => {
       case 'in_progress':
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
-            Pågående
+            In progress
           </span>
         );
       case 'packed':
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
-            Packad ✓
+            Packed ✓
           </span>
         );
       case 'delivered':
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-            Levererad
+            Delivered
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-            Planering
+            Planning
           </span>
         );
     }
@@ -240,7 +240,7 @@ const MobileScannerApp: React.FC = () => {
             onClick={() => handleSelectPacking(packing.id, 'verifying')}
           >
             <Camera className="h-3.5 w-3.5" />
-            <span className="text-xs">Scanna</span>
+            <span className="text-xs">Scan</span>
           </Button>
           <Button 
             size="sm" 
@@ -249,7 +249,7 @@ const MobileScannerApp: React.FC = () => {
             onClick={() => handleSelectPacking(packing.id, 'manual')}
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
-            <span className="text-xs">Bocka av</span>
+            <span className="text-xs">Check off</span>
           </Button>
         </div>
       </Card>
@@ -298,8 +298,8 @@ const MobileScannerApp: React.FC = () => {
       {/* Header */}
       <header className="bg-primary text-primary-foreground p-3 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold">Lagerscanner</h1>
-          <p className="text-xs opacity-80">Zebra TC22 • Streckkod & RFID</p>
+          <h1 className="text-lg font-bold">Warehouse Scanner</h1>
+          <p className="text-xs opacity-80">Zebra TC22 • Barcode & RFID</p>
         </div>
         <div className="flex items-center gap-2">
           <Button 
@@ -317,7 +317,7 @@ const MobileScannerApp: React.FC = () => {
             onClick={() => setIsQRActive(true)}
           >
             <QrCode className="h-4 w-4" />
-            <span className="text-xs">Skanna</span>
+            <span className="text-xs">Scan</span>
           </Button>
         </div>
       </header>
@@ -354,7 +354,7 @@ const MobileScannerApp: React.FC = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Sök packlista, kund..."
+            placeholder="Search packing list, client..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9"
@@ -374,7 +374,7 @@ const MobileScannerApp: React.FC = () => {
           <div className="text-center py-8 text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm">
-              {searchQuery ? 'Inga packlistor matchar sökningen' : 'Inga aktiva packlistor'}
+              {searchQuery ? 'No packing lists match the search' : 'No active packing lists'}
             </p>
           </div>
         ) : (
@@ -382,7 +382,7 @@ const MobileScannerApp: React.FC = () => {
             {inProgress.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Pågående
+                  In progress
                 </h2>
                 <div className="space-y-2">
                   {inProgress.map(renderPackingCard)}
@@ -393,7 +393,7 @@ const MobileScannerApp: React.FC = () => {
             {packed.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Packade
+                  Packed
                 </h2>
                 <div className="space-y-2">
                   {packed.map(renderPackingCard)}
@@ -404,7 +404,7 @@ const MobileScannerApp: React.FC = () => {
             {upcoming.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  {(inProgress.length > 0 || packed.length > 0) ? 'Kommande' : 'Packlistor'}
+                  {(inProgress.length > 0 || packed.length > 0) ? 'Upcoming' : 'Packing lists'}
                 </h2>
                 <div className="space-y-2">
                   {upcoming.map(renderPackingCard)}

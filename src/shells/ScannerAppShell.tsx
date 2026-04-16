@@ -11,7 +11,7 @@ import MobileScannerApp from '@/pages/MobileScannerApp';
 
 const ScannerAppShell: React.FC = () => {
   return (
-    <ShellProvider mode="scanner" appName="EventFlow Scanner" appTagline="Skanning & packlista">
+    <ShellProvider mode="scanner" appName="EventFlow Scanner" appTagline="Scanning & packing">
       <MobileAuthProvider>
         <Routes>
           <Route path="/scanner/login" element={<ScannerLogin />} />

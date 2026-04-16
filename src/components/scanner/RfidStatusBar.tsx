@@ -30,27 +30,27 @@ interface RfidStatusBarProps {
 
 const STATUS_CONFIG: Record<RfidConnectionStatus, { label: string; className: string; icon: React.ReactNode }> = {
   disconnected: {
-    label: 'Ej ansluten',
+    label: 'Disconnected',
     className: 'bg-muted text-muted-foreground',
     icon: <WifiOff className="h-3 w-3" />,
   },
   connecting: {
-    label: 'Ansluter...',
+    label: 'Connecting...',
     className: 'bg-amber-100 text-amber-800 border-amber-300',
     icon: <Loader2 className="h-3 w-3 animate-spin" />,
   },
   connected: {
-    label: 'Ansluten',
+    label: 'Connected',
     className: 'bg-green-100 text-green-800 border-green-300',
     icon: <Wifi className="h-3 w-3" />,
   },
   inventory_active: {
-    label: 'Inventering',
+    label: 'Inventory',
     className: 'bg-primary/10 text-primary border-primary/30 animate-pulse',
     icon: <Radio className="h-3 w-3" />,
   },
   error: {
-    label: 'Fel',
+    label: 'Error',
     className: 'bg-destructive/10 text-destructive border-destructive/30',
     icon: <AlertCircle className="h-3 w-3" />,
   },
@@ -98,7 +98,7 @@ export const RfidStatusBar: React.FC<RfidStatusBarProps> = ({
               onClick={onConnect}
             >
               <Zap className="h-3 w-3" />
-              Anslut
+              Connect
             </Button>
           ) : status === 'connecting' ? null : (
             <>
@@ -112,12 +112,12 @@ export const RfidStatusBar: React.FC<RfidStatusBarProps> = ({
                 {inventoryActive ? (
                   <>
                     <Square className="h-2.5 w-2.5" />
-                    Stopp
+                    Stop
                   </>
                 ) : (
                   <>
                     <Play className="h-2.5 w-2.5" />
-                    Starta
+                    Start
                   </>
                 )}
               </Button>
@@ -150,10 +150,10 @@ export const RfidStatusBar: React.FC<RfidStatusBarProps> = ({
         <div className="flex items-center justify-between px-3 py-1 bg-muted/20 rounded text-[10px]">
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">
-              Läst: <strong className="text-foreground">{totalTagsRead}</strong>
+              Read: <strong className="text-foreground">{totalTagsRead}</strong>
             </span>
             <span className="text-muted-foreground">
-              Unika: <strong className="text-foreground">{uniqueTagsRead}</strong>
+              Unique: <strong className="text-foreground">{uniqueTagsRead}</strong>
             </span>
             {matchedCount > 0 && (
               <span className="text-green-700">
