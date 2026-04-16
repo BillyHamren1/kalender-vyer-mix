@@ -278,7 +278,7 @@ const MobileJobs = () => {
               <div className="flex items-center gap-2 mb-2.5">
                 <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                 <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Fasta platser
+                  Fixed locations
                 </h2>
               </div>
               <div className="space-y-2">
@@ -302,7 +302,7 @@ const MobileJobs = () => {
                           <div className="flex items-center gap-2 mb-1">
                             <Building2 className="w-3.5 h-3.5 text-primary/70" />
                             <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
-                              PLATS
+                              LOCATION
                             </span>
                           </div>
                           <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
@@ -392,7 +392,7 @@ const MobileJobs = () => {
                       {nearby && (
                         <div className="flex items-center gap-1.5 text-xs text-primary font-semibold mt-1">
                           <Navigation className="w-3 h-3" />
-                          <span>{nearby.distance}m bort</span>
+                          <span>{nearby.distance}m away</span>
                         </div>
                       )}
                       {hasTimer && timer && (
