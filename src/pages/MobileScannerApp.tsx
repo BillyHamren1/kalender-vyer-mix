@@ -183,6 +183,8 @@ const MobileScannerApp: React.FC = () => {
 
   // Handle QR scan from camera
   const handleHomeScan = useCallback((scannedValue: string) => {
+    // Close the camera overlay so the user can see results
+    setIsQRActive(false);
     // Camera scans go through the same flow
     scanner.submitManualScan(scannedValue, 'camera');
     handleBarcodeScan(scannedValue);
