@@ -55,25 +55,59 @@ const MobileScannerApp: React.FC = () => {
     autoInit: true, // Always active — no race conditions
   });
 
+  // Play a short beep for scan feedback
+  const playBeep = useCallback((success: boolean) => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = success ? 1200 : 400;
+      osc.type = 'square';
+      gain.gain.value = 0.15;
+      osc.start();
+      osc.stop(ctx.currentTime + (success ? 0.1 : 0.25));
+    } catch {}
+  }, []);
+
+  // Flash state for visual feedback
+  const [scanFlash, setScanFlash] = useState<'success' | 'error' | null>(null);
+
+  const flashScan = useCallback((type: 'success' | 'error') => {
+    setScanFlash(type);
+    setTimeout(() => setScanFlash(null), 600);
+  }, []);
+
   // Identify a product by scanned value
   const doIdentify = useCallback(async (scannedValue: string) => {
     if (isIdentifying || !scannedValue.trim()) return;
     setIdentifyInput(scannedValue.trim());
     setIsIdentifying(true);
     setIdentifiedProduct(null);
+    playBeep(true);
+    flashScan('success');
+    toast.loading('Searching...', { id: 'identify' });
     try {
       const productResult = await identifyProduct(scannedValue.trim());
+      toast.dismiss('identify');
       if (productResult.found) {
         setIdentifiedProduct(productResult);
+        toast.success(`Found: ${productResult.name}`);
       } else {
+        playBeep(false);
+        flashScan('error');
         toast.error(productResult.error || `Product "${scannedValue}" not found`);
       }
     } catch (err: any) {
+      toast.dismiss('identify');
+      playBeep(false);
+      flashScan('error');
       toast.error(err.message || 'Could not identify product');
     } finally {
       setIsIdentifying(false);
     }
-  }, [isIdentifying]);
+  }, [isIdentifying, playBeep, flashScan]);
 
   // Handle barcode scan on home screen — navigates to packing or identifies product
   const handleBarcodeScan = useCallback(async (scannedValue: string) => {
@@ -299,7 +333,13 @@ const MobileScannerApp: React.FC = () => {
 
   // Home screen with packing list
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col relative">
+      {/* Scan flash overlay */}
+      {scanFlash && (
+        <div className={`absolute inset-0 z-[60] pointer-events-none transition-opacity duration-300 ${
+          scanFlash === 'success' ? 'bg-green-500/15' : 'bg-red-500/15'
+        } animate-in fade-in-0 fade-out-0`} />
+      )}
       {/* Header */}
       <header className="bg-primary text-primary-foreground p-3 flex items-center justify-between">
         <div>
