@@ -494,7 +494,8 @@ const MobileJobs = () => {
                 </div>
               </div>
             );
-          })
+          })}
+          </>
         )}
       </div>
 
