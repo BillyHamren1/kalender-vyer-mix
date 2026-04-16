@@ -1097,6 +1097,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
+  // Allow location- prefixed booking_ids for internal projects
   if (!booking_id && !large_project_id) {
     return new Response(
       JSON.stringify({ error: 'booking_id or large_project_id is required' }),
@@ -1250,8 +1251,11 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
 
     if (internalProject?.booking_id) {
       resolvedBookingId = internalProject.booking_id
+    } else if (internalProject) {
+      // Internal project without booking (e.g. "Lager") — allow null booking_id
+      resolvedBookingId = null
+      console.log(`Internal project ${internalProject.id} for location ${locationId} has no booking_id — saving with null`)
     } else {
-      // Fallback: keep location-{id} as booking_id — will fail FK but log clearly
       console.error(`No internal project found for location ${locationId}`)
       return new Response(
         JSON.stringify({ error: 'Ingen intern bokning hittades för denna plats. Kontakta admin.' }),
