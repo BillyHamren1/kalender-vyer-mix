@@ -508,13 +508,15 @@ const MobileScannerApp: React.FC = () => {
         onClose={() => setIsQRActive(false)}
       />
 
-      {/* Product identification overlay */}
-      {identifiedProduct && (
-        <ProductIdentifyCard
-          result={identifiedProduct}
-          onClose={() => setIdentifiedProduct(null)}
-        />
-      )}
+      {/* Identify QR Scanner overlay */}
+      <QRScanner
+        isActive={isIdentifyQRActive}
+        onScan={(value) => {
+          setIsIdentifyQRActive(false);
+          doIdentify(value);
+        }}
+        onClose={() => setIsIdentifyQRActive(false)}
+      />
     </div>
   );
 };
