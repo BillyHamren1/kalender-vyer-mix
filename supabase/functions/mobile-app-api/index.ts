@@ -1348,6 +1348,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       description: description || null,
       establishment_task_id: establishment_task_id || null,
       large_project_id: resolvedLargeProjectId,
+      location_id: resolvedLocationId,
       organization_id: organizationId
     })
     .select()
