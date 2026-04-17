@@ -551,13 +551,9 @@ const MobileScannerApp: React.FC = () => {
         onClose={() => setIsQRActive(false)}
       />
 
-      {/* Identify QR Scanner overlay */}
-      <QRScanner
+      {/* Identify Scanner overlay — keeps camera open across multiple scans */}
+      <IdentifyScannerOverlay
         isActive={isIdentifyQRActive}
-        onScan={(value) => {
-          setIsIdentifyQRActive(false);
-          doIdentify(value);
-        }}
         onClose={() => setIsIdentifyQRActive(false)}
       />
     </div>
