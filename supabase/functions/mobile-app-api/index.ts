@@ -2976,6 +2976,72 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
   )
 }
 
+/**
+ * Cursor-paginated DM thread between caller and a single partner.
+ * Same semantics as handleGetJobMessages: latest first from DB,
+ * returned ASC; `before` paginates older.
+ */
+async function handleGetDMThread(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { partner_id, before, limit } = data || {}
+  if (!partner_id) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'partner_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const pageSize = Math.min(Math.max(parseInt(String(limit ?? 30), 10) || 30, 1), 100)
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  // sender ∈ ids ∧ recipient = partner   OR   sender = partner ∧ recipient ∈ ids
+  const idCsv = ids.join(',')
+  const orFilter =
+    `and(sender_id.in.(${idCsv}),recipient_id.eq.${partner_id}),` +
+    `and(sender_id.eq.${partner_id},recipient_id.in.(${idCsv}))`
+
+  const fetchSize = pageSize + 10
+
+  let q = supabase
+    .from('direct_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+    .order('created_at', { ascending: false })
+    .limit(fetchSize)
+
+  if (before && typeof before === 'string') {
+    q = q.lt('created_at', before)
+  }
+
+  const { data: rows, error } = await q
+
+  if (error) {
+    console.error('Get DM thread error:', error)
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to fetch DM thread' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Filter per-user archive
+  const visible = (rows || []).filter((m: any) => {
+    const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
+    return !ids.some(id => arr.includes(id))
+  })
+
+  const trimmed = visible.slice(0, pageSize)
+  const messages = trimmed.slice().reverse()
+
+  const has_more = (rows?.length || 0) >= fetchSize
+  const next_cursor = messages.length > 0 ? messages[0].created_at : null
+
+  return new Response(
+    JSON.stringify({ messages, has_more, next_cursor }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { recipient_id, content, file_url, file_name, file_type, booking_id } = data
 
