@@ -131,10 +131,21 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     return baseStyles;
   };
 
-  // Get booking number and delivery city from event
+  // Get booking number and delivery info from event
   const rawBookingId = event.bookingNumber || event.extendedProps?.bookingNumber || event.extendedProps?.booking_id || 'No ID';
   const bookingNumber = rawBookingId.length > 20 ? rawBookingId.slice(-8) : rawBookingId;
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
+  const deliveryAddress = event.deliveryAddress || event.extendedProps?.deliveryAddress || '';
+
+  // Strip legacy "Packning - " / "Retur - " prefixes from warehouse event titles
+  const displayTitle = isWarehouseEvent
+    ? event.title.replace(/^(Packning|Retur)\s*-\s*/i, '')
+    : event.title;
+
+  // For warehouse events: prefer the full street address; fall back to city
+  const locationLine = isWarehouseEvent
+    ? (deliveryAddress || deliveryCity)
+    : deliveryCity;
 
   // Render the event card content
   const eventCardContent = (
@@ -174,7 +185,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         )}
         {/* Read-only events no longer show a badge */}
         <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
-          {event.title}
+          {displayTitle}
         </div>
         <div 
           className={`event-booking ${isCancelled ? 'line-through' : ''}`}
@@ -185,7 +196,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         >
           #{bookingNumber}
         </div>
-        {deliveryCity && (
+        {locationLine && (
           <div 
             className={`event-city ${isCancelled ? 'line-through' : ''}`}
             style={{ 
@@ -194,7 +205,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
               opacity: 0.8
             }}
           >
-            {deliveryCity}
+            {locationLine}
           </div>
         )}
         {/* Trash icon for cancelled events */}
