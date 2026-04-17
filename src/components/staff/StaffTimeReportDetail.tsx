@@ -557,48 +557,88 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                           </TableCell>
                         </TableRow>
                         {/* Individual rows for that date */}
-                        {dateRows.map(report => (
-                          <TableRow key={report.id} className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
-                            <TableCell>
-                              <div className="truncate max-w-[180px] flex items-center gap-1">
-                                {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
-                                <span>
-                                  {report.booking_client}
-                                  {report.booking_number && (
-                                    <span className="text-muted-foreground text-xs ml-1">
-                                      #{report.booking_number}
+                        {dateRows.map(report => {
+                          const reportAnomalies = report.type === 'work'
+                            ? (anomaliesByReportId.get(report.id) || [])
+                            : [];
+                          return (
+                            <React.Fragment key={report.id}>
+                              <TableRow className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                                <TableCell>
+                                  <div className="truncate max-w-[180px] flex items-center gap-1">
+                                    {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                    <span>
+                                      {report.booking_client}
+                                      {report.booking_number && (
+                                        <span className="text-muted-foreground text-xs ml-1">
+                                          #{report.booking_number}
+                                        </span>
+                                      )}
                                     </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
+                                <TableCell className="text-right">
+                                  {report.type === 'travel'
+                                    ? '-'
+                                    : (report.overtime_hours || 0) > 0
+                                      ? formatHoursMinutes(report.overtime_hours!)
+                                      : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  {report.type === 'travel' ? (
+                                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
+                                      Resa
+                                    </Badge>
+                                  ) : report.approved ? (
+                                    <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                      Godkänd
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px]">
+                                      Väntande
+                                    </Badge>
                                   )}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
-                            <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
-                            <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
-                            <TableCell className="text-right">
-                              {report.type === 'travel'
-                                ? '-'
-                                : (report.overtime_hours || 0) > 0
-                                  ? formatHoursMinutes(report.overtime_hours!)
-                                  : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {report.type === 'travel' ? (
-                                <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
-                                  Resa
-                                </Badge>
-                              ) : report.approved ? (
-                                <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
-                                  Godkänd
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px]">
-                                  Väntande
-                                </Badge>
+                                </TableCell>
+                              </TableRow>
+                              {reportAnomalies.length > 0 && (
+                                <TableRow className="bg-muted/20">
+                                  <TableCell colSpan={6} className="py-2">
+                                    <div className="flex flex-wrap gap-1.5 pl-6">
+                                      {reportAnomalies.map((a: any) => {
+                                        const startTime = format(parseISO(a.started_at), 'HH:mm');
+                                        const endTime = format(parseISO(a.ended_at), 'HH:mm');
+                                        const dur = a.duration_minutes ?? 0;
+                                        if (a.classification === 'break') {
+                                          return (
+                                            <Badge key={a.id} variant="outline" className="text-[10px] gap-1">
+                                              <Coffee className="h-3 w-3" /> Rast {startTime}–{endTime} ({dur}m)
+                                            </Badge>
+                                          );
+                                        }
+                                        if (a.classification === 'work') {
+                                          return (
+                                            <Badge key={a.id} variant="outline" className="text-[10px] gap-1" title={a.work_description || ''}>
+                                              <Briefcase className="h-3 w-3" /> Arbete {startTime}–{endTime} ({dur}m)
+                                              {a.work_description && <span className="ml-1 text-muted-foreground truncate max-w-[140px]">"{a.work_description}"</span>}
+                                            </Badge>
+                                          );
+                                        }
+                                        return (
+                                          <Badge key={a.id} variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
+                                            <HelpCircle className="h-3 w-3" /> Oklassad {startTime}–{endTime} ({dur}m)
+                                          </Badge>
+                                        );
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
                               )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                            </React.Fragment>
+                          );
+                        })}
                       </React.Fragment>
                     );
                   });
