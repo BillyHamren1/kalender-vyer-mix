@@ -17,6 +17,10 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { WarehouseProjectChangesTab } from "@/components/warehouse/WarehouseProjectChangesTab";
+import { useQuery as useChangesCountQuery } from "@tanstack/react-query";
+import { fetchWarehouseChanges } from "@/services/warehouseProjectChangesService";
+import { Bell } from "lucide-react";
 
 const WarehouseProjectDetail = () => {
   const { warehouseProjectId } = useParams<{ warehouseProjectId: string }>();
@@ -41,6 +45,12 @@ const WarehouseProjectDetail = () => {
   const { data: tasks = [] } = useQuery({
     queryKey: ['warehouse-project-tasks', warehouseProjectId],
     queryFn: () => fetchWarehouseProjectTasks(warehouseProjectId!),
+    enabled: !!warehouseProjectId,
+  });
+
+  const { data: unackChanges = [] } = useChangesCountQuery({
+    queryKey: ['warehouse-changes', warehouseProjectId, 'unack-count'],
+    queryFn: () => fetchWarehouseChanges({ warehouseProjectId: warehouseProjectId!, onlyUnacknowledged: true }),
     enabled: !!warehouseProjectId,
   });
 
@@ -126,6 +136,15 @@ const WarehouseProjectDetail = () => {
             <TabsTrigger value="overview">Översikt</TabsTrigger>
             <TabsTrigger value="packings">Packningar</TabsTrigger>
             <TabsTrigger value="tasks">Moment ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="changes" className="gap-1.5">
+              <Bell className="w-3.5 h-3.5" />
+              Ändringar
+              {unackChanges.length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-blue-100 text-blue-800 border-0">
+                  {unackChanges.length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
