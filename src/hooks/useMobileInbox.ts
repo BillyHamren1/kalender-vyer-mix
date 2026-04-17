@@ -46,11 +46,18 @@ export function useMobileInbox() {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
 
-  // Realtime: invalidate inbox cache on new DMs, broadcasts OR job messages
+  // Realtime: only react to *new* messages (INSERT). Read-receipt / archive UPDATEs
+  // are handled by optimistic helpers below — no need to refetch the whole inbox.
+  // Debounce so bursts (e.g. broadcast to 30 staff) collapse into one refetch.
   useRealtimeInvalidation({
     channelName: 'mobile-inbox-realtime',
-    tables: ['direct_messages', 'broadcast_messages', 'job_messages'],
+    tables: [
+      { table: 'direct_messages', events: ['INSERT'] },
+      { table: 'broadcast_messages', events: ['INSERT'] },
+      { table: 'job_messages', events: ['INSERT'] },
+    ],
     queryKeys: [['mobile-inbox-all']],
+    debounceMs: 250,
   });
 
   const inboxQuery = useQuery({
