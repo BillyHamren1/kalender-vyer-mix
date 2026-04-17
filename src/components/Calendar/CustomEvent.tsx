@@ -259,7 +259,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           variant="warehouse"
         >
           <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-            {eventCardContent}
+            <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+              {eventCardContent}
+            </div>
           </EventHoverCard>
         </QuickTimeEditPopover>
         
