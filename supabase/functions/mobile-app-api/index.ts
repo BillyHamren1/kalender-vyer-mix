@@ -2946,13 +2946,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
       const isInside = dist <= loc.radius_meters
 
-      // Check for open GPS entry at this location
+      // Check for ANY open entry at this location (gps or manual) — one place, one open entry
       const { data: openEntry } = await supabase
         .from('location_time_entries')
-        .select('id')
+        .select('id, source')
         .eq('staff_id', staffId)
         .eq('location_id', loc.id)
-        .eq('source', 'gps')
         .is('exited_at', null)
         .limit(1)
         .maybeSingle()
@@ -2969,8 +2968,8 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         })
         atLocation = { id: loc.id, name: loc.name }
         console.log(`[geofence] Staff ${staffId} entered ${loc.name}`)
-      } else if (!isInside && openEntry) {
-        // Left — close GPS entry
+      } else if (!isInside && openEntry && openEntry.source === 'gps') {
+        // Left — close GPS entry (never auto-close manual entries)
         await supabase
           .from('location_time_entries')
           .update({ exited_at: new Date().toISOString() })
