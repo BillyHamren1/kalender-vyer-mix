@@ -3250,7 +3250,8 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
           'Authorization': `Bearer ${serviceKey}`,
         },
         body: JSON.stringify({
-          staff_ids: [recipient_id],
+          // Send to ALL resolved identity IDs so push reaches both staff & planner devices.
+          staff_ids: uniqueRecipientIds,
           title: `Meddelande från ${senderName}`,
           body: pushBody,
           notification_type: 'message',
