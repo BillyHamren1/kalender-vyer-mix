@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Phone } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { ArrowLeft, Phone, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -16,10 +16,16 @@ interface Props {
   onMessagesChanged?: (messages: ChatMessage[]) => void;
 }
 
-/** iMessage-style 1:1 DM view with realtime + read receipts. */
+interface PendingMessage extends ChatMessage {
+  /** Local-only marker for optimistic + retry tracking */
+  _status?: 'sending' | 'failed';
+  _payload?: { content: string; file_url?: string; file_name?: string; file_type?: string };
+}
+
+/** iMessage-style 1:1 DM view with realtime + read receipts + retry. */
 export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, onMessagesChanged }: Props) => {
   const { staff } = useMobileAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<PendingMessage[]>(initialMessages);
   const myIdsRef = useRef<Set<string>>(new Set([staff?.id || '']));
 
   // Keep local copy in sync with parent updates
@@ -71,29 +77,60 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
     return () => { supabase.removeChannel(channel); };
   }, [partnerId, staff?.id]); // eslint-disable-line
 
+  const performSend = useCallback(async (
+    optimisticId: string,
+    payload: { content: string; file_url?: string; file_name?: string; file_type?: string },
+  ) => {
+    try {
+      const res = await mobileApi.sendDirectMessage({ recipient_id: partnerId, ...payload });
+      const real = (res as any)?.message as ChatMessage | undefined;
+      setMessages((prev) => {
+        if (real && prev.some((m) => m.id === real.id)) {
+          return prev.filter((m) => m.id !== optimisticId);
+        }
+        if (!real) return prev.filter((m) => m.id !== optimisticId);
+        return prev.map((m) => (m.id === optimisticId ? { ...real } : m));
+      });
+    } catch (err: any) {
+      console.error('[DM] send failed', err);
+      toast.error('Kunde inte skicka – tryck för att försöka igen');
+      setMessages((prev) =>
+        prev.map((m) => m.id === optimisticId ? { ...m, _status: 'failed', _payload: payload } : m)
+      );
+    }
+  }, [partnerId]);
+
   const handleSend = async (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => {
-    const optimistic: ChatMessage = {
-      id: `tmp-${Date.now()}`,
+    const text = data.content?.trim() || '';
+    if (!text && !data.file_url) return;
+    const payload = {
+      content: text || (data.file_name ? `📎 ${data.file_name}` : '📎'),
+      file_url: data.file_url,
+      file_name: data.file_name,
+      file_type: data.file_type,
+    };
+    const optimistic: PendingMessage = {
+      id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       sender_id: staff?.id || '',
       sender_name: staff?.name || '',
-      content: data.content || (data.file_name ? `📎 ${data.file_name}` : '📎'),
+      content: payload.content,
       created_at: new Date().toISOString(),
       delivered_at: null,
       read_at: null,
-      file_url: data.file_url || null,
-      file_name: data.file_name || null,
-      file_type: data.file_type || null,
+      file_url: payload.file_url || null,
+      file_name: payload.file_name || null,
+      file_type: payload.file_type || null,
+      _status: 'sending',
+      _payload: payload,
     };
     setMessages((prev) => [...prev, optimistic]);
-    try {
-      await mobileApi.sendDirectMessage({ recipient_id: partnerId, ...data });
-      // realtime INSERT will replace the optimistic with the real row
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    } catch (e: any) {
-      console.error(e);
-      toast.error('Kunde inte skicka meddelandet');
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    }
+    await performSend(optimistic.id, payload);
+  };
+
+  const handleRetry = (msg: PendingMessage) => {
+    if (!msg._payload) return;
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, _status: 'sending' } : m)));
+    performSend(msg.id, msg._payload);
   };
 
   return (
@@ -132,6 +169,25 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
       <MessageList
         messages={messages}
         myIds={myIdsRef.current}
+        renderFooter={(m) => {
+          const pm = m as PendingMessage;
+          if (pm._status === 'failed') {
+            return (
+              <button
+                onClick={() => handleRetry(pm)}
+                className="flex items-center gap-1 mt-1 mr-1.5 text-[10px] text-destructive hover:underline"
+                aria-label="Skicka igen"
+              >
+                <AlertCircle className="w-3 h-3" />
+                Ej skickat – tryck för att försöka igen
+              </button>
+            );
+          }
+          if (pm._status === 'sending') {
+            return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>;
+          }
+          return null;
+        }}
       />
 
       <ChatInput onSend={handleSend} />
