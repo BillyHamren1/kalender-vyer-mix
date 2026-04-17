@@ -28,6 +28,9 @@ interface LagerTask {
   completed: boolean;
 }
 
+const tabs = ['Info', 'Team', 'Photos', 'Costs'] as const;
+type TabKey = typeof tabs[number];
+
 const MobileLocationDetail = () => {
   const { id: locationId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -36,6 +39,7 @@ const MobileLocationDetail = () => {
   const { data: bookings = [] } = useMobileBookings();
   const { activeTimers, orgLocations, startTimer, stopTimer } = useGeofencing(bookings, staff?.id);
 
+  const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [loading, setLoading] = useState(true);
   const [myTasks, setMyTasks] = useState<LagerTask[]>([]);
   const [openTasks, setOpenTasks] = useState<LagerTask[]>([]);
@@ -50,6 +54,7 @@ const MobileLocationDetail = () => {
   const locKey = `location-${locationId}`;
   const hasLocationTimer = activeTimers.has(locKey);
   const hasAnyTimer = activeTimers.size > 0;
+  const currentTimer = activeTimers.get(locKey);
 
   // tick for elapsed display
   useEffect(() => {
@@ -92,8 +97,7 @@ const MobileLocationDetail = () => {
     }
     try {
       await mobileApi.startLocationTimer(location.id, task.id);
-      const label = `${location.name} · ${task.title}`;
-      const ok = startTimer(locKey, label, false, task.id, task.title, location.id, location.name);
+      const ok = startTimer(locKey, location.name, false, task.id, task.title, location.id, location.name);
       if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
     } catch (e) {
       console.error(e);
@@ -166,9 +170,14 @@ const MobileLocationDetail = () => {
     }
   };
 
+  const openNavigation = () => {
+    if (!location?.address) return;
+    window.open(`https://maps.google.com/maps?daddr=${encodeURIComponent(location.address)}`, '_blank');
+  };
+
   const renderTaskCard = (task: LagerTask, isMine: boolean) => {
     const activeTimer = activeTimers.get(locKey);
-    const isActiveTask = hasLocationTimer && !!activeTimer && (activeTimer as any).activityLabel === task.title;
+    const isActiveTask = hasLocationTimer && !!activeTimer && (activeTimer as any).establishmentTaskId === task.id;
 
     return (
       <div
@@ -253,7 +262,7 @@ const MobileLocationDetail = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      {/* Header — matches other mobile project pages */}
+      {/* Header — identical pattern to MobileJobDetail */}
       <MobileBackHeader
         title={location.name}
         subtitle="Lager"
@@ -277,68 +286,97 @@ const MobileLocationDetail = () => {
       />
 
       {/* Timer info bar */}
-      {hasLocationTimer && (
+      {currentTimer && (
         <div className="text-center py-1.5 bg-primary/5">
           <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
-            <Clock className="w-3 h-3 inline mr-1" />{formatElapsed(activeTimers.get(locKey)!.startTime)}
+            <Clock className="w-3 h-3 inline mr-1" />{formatElapsed(currentTimer.startTime)}
           </span>
-        </div>
-      )}
-
-      {location.address && (
-        <div className="mx-4 mt-3 p-3 rounded-2xl bg-muted/30 border border-border flex items-center gap-2.5">
-          <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-foreground text-sm flex-1 truncate">{location.address}</span>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="flex-1 px-4 mt-4 space-y-5">
-        {/* My tasks */}
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-              Mina uppgifter
-            </h2>
-            <button
-              onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-primary active:opacity-70"
-            >
-              <Plus className="w-3.5 h-3.5" /> Ny
-            </button>
-          </div>
-          {myTasks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-5 text-center">
-              <p className="text-sm text-muted-foreground">
-                Du har inga tilldelade uppgifter just nu.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">{myTasks.map((tk) => renderTaskCard(tk, true))}</div>
+          {(currentTimer as any).establishmentTaskTitle && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">{(currentTimer as any).establishmentTaskTitle}</p>
           )}
         </div>
+      )}
 
-        {/* Open tasks */}
-        {openTasks.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2.5">
-              <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                Öppna uppgifter
-              </h2>
-            </div>
-            <div className="space-y-2">{openTasks.map((tk) => renderTaskCard(tk, false))}</div>
+      {/* Address card — same style as MobileJobDetail */}
+      {location.address && (
+        <button
+          onClick={openNavigation}
+          className="mx-4 mt-3 p-3.5 rounded-2xl bg-card border border-primary flex items-center gap-2.5 w-[calc(100%-2rem)] text-left active:scale-[0.98] transition-all"
+        >
+          <MapPin className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-foreground font-medium text-sm flex-1">{location.address}</span>
+          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shrink-0">
+            <Navigation className="w-4 h-4 text-primary-foreground" />
           </div>
+        </button>
+      )}
+
+      {/* Tab navigation — identical to MobileJobDetail */}
+      <div className="px-4 pt-2.5">
+        <div className="flex gap-0.5 bg-muted/50 rounded-xl p-0.5">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "flex-1 py-2 text-[11px] font-semibold rounded-lg transition-all duration-200",
+                activeTab === tab
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 px-4 py-3 space-y-5">
+        {activeTab === 'Info' && (
+          <>
+            {/* My tasks */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Mina uppgifter
+                </h2>
+                <button
+                  onClick={() => setCreateOpen(true)}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary active:opacity-70"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Ny
+                </button>
+              </div>
+              {myTasks.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border p-5 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Du har inga tilldelade uppgifter just nu.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">{myTasks.map((tk) => renderTaskCard(tk, true))}</div>
+              )}
+            </div>
+
+            {/* Open tasks */}
+            {openTasks.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                  <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Öppna uppgifter
+                  </h2>
+                </div>
+                <div className="space-y-2">{openTasks.map((tk) => renderTaskCard(tk, false))}</div>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Lager team */}
-        <LagerTeamSection />
-
-        {/* Expenses */}
-        <LagerExpensesSection />
-
-        {/* Photos */}
-        <LagerPhotosSection />
+        {activeTab === 'Team' && <LagerTeamSection />}
+        {activeTab === 'Photos' && <LagerPhotosSection />}
+        {activeTab === 'Costs' && <LagerExpensesSection />}
       </div>
 
       {/* Create task dialog */}
