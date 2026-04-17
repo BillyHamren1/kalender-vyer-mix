@@ -5,6 +5,7 @@ import {
   parseScanResult,
   decrementPackingItem,
   togglePackingItemManually,
+  addUnknownProduct,
 } from '@/services/scannerService';
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
@@ -16,7 +17,13 @@ export interface RecentScanEntry {
   success: boolean;
   timestamp: number;
   /** Why this scan was ignored (if not successful) */
-  reason?: 'duplicate' | 'packing_id' | 'error' | 'not_found' | 'overscan';
+  reason?: 'duplicate' | 'packing_id' | 'error' | 'not_found' | 'overscan' | 'unknown_product';
+}
+
+export interface PendingUnknownProductState {
+  scannedValue: string;
+  scannedSku: string | null;
+  scannedName: string | null;
 }
 
 interface UseScanProcessorOptions {
@@ -44,12 +51,18 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   const scannedThisSessionRef = useRef<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
 
+  // When a scan returns an unknown product, we PAUSE the queue and surface a
+  // pending state to the UI. The processor will not advance until the user
+  // confirms (confirmAddUnknown) or dismisses (dismissUnknown).
+  const [pendingUnknownProduct, setPendingUnknownProduct] = useState<PendingUnknownProductState | null>(null);
+  const isPausedRef = useRef(false);
+
   const addRecentScan = useCallback((entry: RecentScanEntry) => {
     setRecentScans(prev => [entry, ...prev].slice(0, 100));
   }, []);
 
   const processNext = useCallback(async () => {
-    if (isProcessingRef.current || queueRef.current.length === 0) return;
+    if (isProcessingRef.current || isPausedRef.current || queueRef.current.length === 0) return;
     isProcessingRef.current = true;
 
     const rawValue = queueRef.current.shift()!;
@@ -147,6 +160,30 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         const result = await verifyProductBySku(packingId, scannedValue, verifierName);
         scanLog('verify_result', result);
 
+        // === Special branch: product not in packing list — pause + prompt user ===
+        if (!result.success && result.notInPackingList) {
+          scanLog('unknown_product_prompt', {
+            value: scannedValue,
+            scannedSku: result.scannedSku,
+            scannedName: result.scannedName,
+          });
+          isPausedRef.current = true;
+          setPendingUnknownProduct({
+            scannedValue,
+            scannedSku: result.scannedSku ?? null,
+            scannedName: result.scannedName ?? null,
+          });
+          onScanResult({
+            value: scannedValue,
+            result: `Okänd produkt – väntar på bekräftelse`,
+            success: false,
+          });
+          // Allow user to re-scan same code after responding
+          scannedThisSessionRef.current.delete(normalised);
+          notifyRfid(scannedValue, false, undefined, undefined);
+          return;
+        }
+
         onScanResult({
           value: scannedValue,
           result: result.success
@@ -218,11 +255,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       });
     } finally {
       isProcessingRef.current = false;
-      if (queueRef.current.length > 0) {
+      if (!isPausedRef.current && queueRef.current.length > 0) {
         processNext();
       }
     }
-  }, []); // No deps — reads everything from optRef
+  }, [addRecentScan]); // No deps that change — reads everything from optRef
 
   const enqueueScan = useCallback((value: string) => {
     if (!value || !value.trim()) {
@@ -287,5 +324,65 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     scanLog('session_dedup_cleared');
   }, []);
 
-  return { enqueueScan, handleManualToggle, recentScans, clearSessionDedup };
+  // === Unknown-product handlers ===
+  const confirmAddUnknown = useCallback(async (productName: string, quantity: number): Promise<boolean> => {
+    if (!pendingUnknownProduct) return false;
+    const { packingId, verifierName, onHighlight, onTriggerSync } = optRef.current;
+    try {
+      const result = await addUnknownProduct(
+        packingId,
+        pendingUnknownProduct.scannedSku || pendingUnknownProduct.scannedValue,
+        productName,
+        quantity,
+        verifierName,
+      );
+      if (!result.success) {
+        toast.error(result.error || 'Kunde inte lägga till produkten');
+        return false;
+      }
+      toast.success(`Lade till ${productName} (1/${quantity})`);
+      addRecentScan({
+        value: pendingUnknownProduct.scannedValue,
+        productName: result.productName || productName,
+        success: true,
+        timestamp: Date.now(),
+        reason: 'unknown_product',
+      });
+      if (result.itemId) onHighlight(result.itemId);
+      onTriggerSync();
+      setPendingUnknownProduct(null);
+      isPausedRef.current = false;
+      // Resume queue
+      if (queueRef.current.length > 0) processNext();
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || 'Kunde inte lägga till produkten');
+      return false;
+    }
+  }, [pendingUnknownProduct, addRecentScan, processNext]);
+
+  const dismissUnknown = useCallback(() => {
+    if (pendingUnknownProduct) {
+      addRecentScan({
+        value: pendingUnknownProduct.scannedValue,
+        productName: pendingUnknownProduct.scannedName || pendingUnknownProduct.scannedValue,
+        success: false,
+        timestamp: Date.now(),
+        reason: 'unknown_product',
+      });
+    }
+    setPendingUnknownProduct(null);
+    isPausedRef.current = false;
+    if (queueRef.current.length > 0) processNext();
+  }, [pendingUnknownProduct, addRecentScan, processNext]);
+
+  return {
+    enqueueScan,
+    handleManualToggle,
+    recentScans,
+    clearSessionDedup,
+    pendingUnknownProduct,
+    confirmAddUnknown,
+    dismissUnknown,
+  };
 };
