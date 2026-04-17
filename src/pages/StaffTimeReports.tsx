@@ -18,6 +18,7 @@ interface StaffWithLatestReport {
   latest_hours: number | null;
   total_hours_this_month: number;
   reports_count: number;
+  has_open_report: boolean;
 }
 
 const StaffTimeReports: React.FC = () => {
@@ -40,10 +41,10 @@ const StaffTimeReports: React.FC = () => {
       if (staffError) throw staffError;
       if (!staff) return [];
 
-      const [reportsRes, latestRes, travelRes] = await Promise.all([
+      const [reportsRes, latestRes, travelRes, openRes] = await Promise.all([
         supabase
           .from('time_reports')
-          .select('staff_id, report_date, hours_worked')
+          .select('staff_id, report_date, hours_worked, end_time')
           .gte('report_date', monthStart)
           .lte('report_date', monthEnd),
         supabase
@@ -56,6 +57,10 @@ const StaffTimeReports: React.FC = () => {
           .gte('report_date', monthStart)
           .lte('report_date', monthEnd)
           .not('end_time', 'is', null),
+        supabase
+          .from('time_reports')
+          .select('staff_id')
+          .is('end_time', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -63,6 +68,9 @@ const StaffTimeReports: React.FC = () => {
       const reports = reportsRes.data;
       const latestReports = latestRes.data;
       const travelReports = travelRes.data || [];
+      const openReports = openRes.data || [];
+
+      const openStaffIds = new Set<string>(openReports.map(r => r.staff_id));
 
       const latestByStaff = new Map<string, { date: string; hours: number }>();
       for (const r of latestReports || []) {
@@ -84,20 +92,24 @@ const StaffTimeReports: React.FC = () => {
         monthlyByStaff.set(t.staff_id, existing);
       }
 
-      return staff.map(s => {
-        const latest = latestByStaff.get(s.id);
-        const monthly = monthlyByStaff.get(s.id) || { totalHours: 0, count: 0 };
-        return {
-          id: s.id,
-          name: s.name,
-          role: s.role,
-          color: s.color,
-          latest_report_date: latest?.date || null,
-          latest_hours: latest?.hours || null,
-          total_hours_this_month: monthly.totalHours,
-          reports_count: monthly.count,
-        };
-      });
+      return staff
+        .map(s => {
+          const latest = latestByStaff.get(s.id);
+          const monthly = monthlyByStaff.get(s.id) || { totalHours: 0, count: 0 };
+          return {
+            id: s.id,
+            name: s.name,
+            role: s.role,
+            color: s.color,
+            latest_report_date: latest?.date || null,
+            latest_hours: latest?.hours || null,
+            total_hours_this_month: monthly.totalHours,
+            reports_count: monthly.count,
+            has_open_report: openStaffIds.has(s.id),
+          };
+        })
+        // Show only staff who reported time this month (or have an active open report)
+        .filter(s => s.reports_count > 0 || s.has_open_report);
     },
   });
 

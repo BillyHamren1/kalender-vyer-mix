@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route, Activity, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -515,6 +515,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
+                    const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
 
                     return (
                       <React.Fragment key={date}>
@@ -525,11 +526,28 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                         >
                           <TableCell colSpan={6}>
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <MapPin className="h-4 w-4 text-primary" />
                                 <span className="font-semibold text-sm capitalize">
                                   {format(new Date(date), 'EEEE d MMMM', { locale: sv })}
                                 </span>
+                                {hasOpenWork ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                  >
+                                    <Activity className="h-2.5 w-2.5" />
+                                    Pågående
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                                  >
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    Stängd
+                                  </Badge>
+                                )}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
@@ -601,6 +619,14 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   {report.type === 'travel' ? (
                                     <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
                                       Resa
+                                    </Badge>
+                                  ) : !report.end_time ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                    >
+                                      <Activity className="h-2.5 w-2.5" />
+                                      Pågående
                                     </Badge>
                                   ) : report.approved ? (
                                     <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">

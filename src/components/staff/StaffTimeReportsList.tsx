@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft } from 'lucide-react';
+import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2 } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,7 @@ interface StaffWithLatestReport {
   latest_hours: number | null;
   total_hours_this_month: number;
   reports_count: number;
+  has_open_report: boolean;
 }
 
 interface StaffTimeReportsListProps {
@@ -59,12 +60,13 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   }
 
   const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: sv });
+  const openCount = staffList.filter(s => s.has_open_report).length;
 
   return (
     <PremiumCard
       icon={Clock}
       title="Tidrapporter"
-      subtitle={`${staffList.length} personer · ${monthLabel}`}
+      subtitle={`${staffList.length} med rapport · ${monthLabel}`}
       count={staffList.length}
     >
       {/* Month navigation */}
@@ -90,6 +92,25 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </Button>
       </div>
 
+      {/* Summary badges */}
+      {staffList.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <Badge variant="secondary" className="text-[11px] gap-1">
+            <Clock className="h-3 w-3" />
+            {staffList.length} {staffList.length === 1 ? 'person' : 'personer'}
+          </Badge>
+          {openCount > 0 && (
+            <Badge
+              variant="outline"
+              className="text-[11px] gap-1 border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950/20"
+            >
+              <Activity className="h-3 w-3" />
+              {openCount} pågående
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -101,34 +122,60 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {filtered.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            {search ? 'Inga träffar' : 'Ingen personal hittades'}
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            {search
+              ? 'Inga träffar'
+              : 'Ingen personal har rapporterat tid denna månad'}
           </div>
         ) : (
           filtered.map(staff => (
             <button
               key={staff.id}
               onClick={() => onSelectStaff(staff.id, staff.name)}
-              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors text-left group"
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
+                staff.has_open_report
+                  ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10 dark:hover:bg-orange-950/20'
+                  : 'border-transparent hover:bg-muted/50 hover:border-border'
+              }`}
             >
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative"
                 style={{
                   backgroundColor: staff.color ? `${staff.color}20` : 'hsl(var(--muted))',
                   color: staff.color || 'hsl(var(--muted-foreground))',
                 }}
               >
                 {staff.name.charAt(0).toUpperCase()}
+                {staff.has_open_report && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
                   {staff.role && (
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                       {staff.role}
+                    </Badge>
+                  )}
+                  {staff.has_open_report ? (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 gap-1 border-orange-300 text-orange-600"
+                    >
+                      <Activity className="h-2.5 w-2.5" />
+                      Pågående
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                    >
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      Stängd
                     </Badge>
                   )}
                 </div>
@@ -140,18 +187,12 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               </div>
 
               <div className="text-right shrink-0">
-                {staff.total_hours_this_month > 0 ? (
-                  <>
-                    <div className="text-sm font-semibold text-foreground">
-                      {formatHoursMinutes(staff.total_hours_this_month)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {staff.reports_count} rapporter
-                    </div>
-                  </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">0h</span>
-                )}
+                <div className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatHoursMinutes(staff.total_hours_this_month)}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {staff.reports_count} {staff.reports_count === 1 ? 'rapport' : 'rapporter'}
+                </div>
               </div>
 
               <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
