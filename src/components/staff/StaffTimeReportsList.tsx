@@ -244,6 +244,24 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       </>
                     )}
                   </div>
+                  {staff.projects.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {staff.projects.map(p => (
+                        <Badge
+                          key={p.booking_id}
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 font-normal max-w-[280px] truncate ${
+                            p.is_open
+                              ? 'border-orange-300 text-orange-700 bg-orange-50/50 dark:bg-orange-950/20'
+                              : 'border-border text-muted-foreground bg-muted/40'
+                          }`}
+                          title={p.label}
+                        >
+                          {p.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-right shrink-0">
