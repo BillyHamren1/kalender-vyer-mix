@@ -125,8 +125,9 @@ export default function CreateInternalTaskDialog({
         <DialogHeader>
           <DialogTitle>Skapa lageruppgift</DialogTitle>
           <DialogDescription>
-            Internt arbete som loggas på projektet <strong>Lager</strong> – t.ex.
-            städa, tvätta, inköp eller planering. Datum är valfria.
+            Internt arbete som loggas på projektet <strong>Lager</strong> – samma
+            projekt som personalens tidregistrering går till. T.ex. städa, tvätta,
+            inköp eller planering. Datum är valfria.
           </DialogDescription>
         </DialogHeader>
 
