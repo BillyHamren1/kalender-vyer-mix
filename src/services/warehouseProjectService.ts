@@ -448,10 +448,10 @@ export const deleteWarehouseProjectTask = async (id: string): Promise<void> => {
 // Internal "Lager" project helpers
 // ============================================================================
 export const fetchInternalWarehouseProject = async (): Promise<WarehouseProject | null> => {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase
     .from('warehouse_projects')
-    .select('*')
-    .eq('is_internal' as any, true as any)
+    .select('*') as any)
+    .eq('is_internal', true)
     .maybeSingle();
   if (error) throw error;
   return (data || null) as WarehouseProject | null;
