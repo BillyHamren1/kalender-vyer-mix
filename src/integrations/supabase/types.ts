@@ -897,12 +897,15 @@ export type Database = {
           booking_id: string | null
           content: string
           created_at: string
+          delivered_at: string | null
           file_name: string | null
           file_type: string | null
           file_url: string | null
           id: string
+          is_archived_by: string[]
           is_read: boolean
           organization_id: string
+          read_at: string | null
           recipient_id: string
           recipient_name: string
           sender_id: string
@@ -913,12 +916,15 @@ export type Database = {
           booking_id?: string | null
           content: string
           created_at?: string
+          delivered_at?: string | null
           file_name?: string | null
           file_type?: string | null
           file_url?: string | null
           id?: string
+          is_archived_by?: string[]
           is_read?: boolean
           organization_id?: string
+          read_at?: string | null
           recipient_id: string
           recipient_name: string
           sender_id: string
@@ -929,12 +935,15 @@ export type Database = {
           booking_id?: string | null
           content?: string
           created_at?: string
+          delivered_at?: string | null
           file_name?: string | null
           file_type?: string | null
           file_url?: string | null
           id?: string
+          is_archived_by?: string[]
           is_read?: boolean
           organization_id?: string
+          read_at?: string | null
           recipient_id?: string
           recipient_name?: string
           sender_id?: string
@@ -1405,9 +1414,12 @@ export type Database = {
           booking_id: string
           content: string
           created_at: string
+          delivered_at: string | null
           id: string
           is_archived: boolean
+          is_archived_by: string[]
           organization_id: string
+          read_by: Json
           sender_id: string
           sender_name: string
           sender_role: string
@@ -1416,9 +1428,12 @@ export type Database = {
           booking_id: string
           content: string
           created_at?: string
+          delivered_at?: string | null
           id?: string
           is_archived?: boolean
+          is_archived_by?: string[]
           organization_id?: string
+          read_by?: Json
           sender_id: string
           sender_name: string
           sender_role?: string
@@ -1427,9 +1442,12 @@ export type Database = {
           booking_id?: string
           content?: string
           created_at?: string
+          delivered_at?: string | null
           id?: string
           is_archived?: boolean
+          is_archived_by?: string[]
           organization_id?: string
+          read_by?: Json
           sender_id?: string
           sender_name?: string
           sender_role?: string
