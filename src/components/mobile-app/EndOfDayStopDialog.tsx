@@ -70,15 +70,21 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
     }
   };
 
-  // Build full ISO timestamp from time-of-day input, anchored to today
-  // (or yesterday if the picked time is earlier than the exit time and that would put it before exit)
+  // Build full ISO timestamp from time-of-day input.
+  // Night-shift handling: if the entered HH:mm is BEFORE the exit time AND
+  // the exit happened in the previous calendar evening, assume the user means
+  // the next day (e.g. exit yesterday 23:00, end now 02:00 → next day 02:00).
+  // Heuristic: if HH:mm < 12:00 AND it would land before exitDate, roll to next day.
   const buildCustomIso = (): string | null => {
     if (!/^\d{2}:\d{2}$/.test(customTime)) return null;
     const [h, m] = customTime.split(':').map(Number);
-    const candidate = new Date();
+    // Anchor to the same calendar date as the exit
+    const candidate = new Date(exitDate);
     candidate.setHours(h, m, 0, 0);
-    // If user picked a time earlier than the geofence exit on the same date, assume it's still later
-    // — but we still validate below.
+    // If candidate is before exit AND chosen hour is "morning" (<12), roll to next day
+    if (candidate.getTime() <= exitDate.getTime() && h < 12) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
     return candidate.toISOString();
   };
 
