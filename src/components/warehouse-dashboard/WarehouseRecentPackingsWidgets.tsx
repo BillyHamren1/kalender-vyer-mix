@@ -98,7 +98,7 @@ const WarehouseRecentPackingsWidgets = () => {
           {STATUS_LABELS[item.status] || item.status}
         </Badge>
         <p className="text-sm font-medium truncate">
-          {item.name}
+          {item.name.replace(/\s*-\s*\d{4}-\d{2}-\d{2}\s*$/, '')}
           {item.projectNumber && (
             <span className="ml-2 text-xs text-muted-foreground font-normal">{item.projectNumber}</span>
           )}
