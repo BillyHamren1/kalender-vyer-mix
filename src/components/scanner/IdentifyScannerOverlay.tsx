@@ -40,7 +40,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
  * IdentifyScannerOverlay — Camera stays open while user scans multiple
  * products. Each scan is added to a session list shown below the camera.
  */
-export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ isActive, onClose }) => {
+export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ isActive, onClose, onPackingDetected }) => {
   const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
