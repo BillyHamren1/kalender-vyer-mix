@@ -936,9 +936,10 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-  if (finalOvertime > 6) {
+  // Cap removed (was 6h) — sanity-cap at 16h matching hours-worked validation below.
+  if (finalOvertime > 16) {
     return new Response(
-      JSON.stringify({ error: 'Övertid kan inte överstiga 6 timmar' }),
+      JSON.stringify({ error: 'Övertid kan inte överstiga 16 timmar' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -1076,6 +1077,44 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
   })
 
   console.log(`[mobile-app-api] Time report ${time_report_id} updated by staff ${staffId}`)
+
+  // C1: Orphan strategy. If start/end times changed, the report's time-window may
+  // no longer match the previously-linked anomalies / GPS-history. Rather than
+  // delete or silently keep stale links, we orphan rows that fall OUTSIDE the new
+  // window. The 30-day cron then cleans up orphaned GPS history naturally; orphan
+  // anomalies become re-classifiable.
+  if (updates.start_time !== undefined || updates.end_time !== undefined) {
+    try {
+      const newStart = (updates.start_time ?? existing.start_time) as string | null
+      const newEnd = (updates.end_time ?? existing.end_time) as string | null
+      const reportDate = existing.report_date as string
+
+      if (newStart && newEnd && reportDate) {
+        const endsNextDay = newEnd < newStart
+        const endDate = endsNextDay
+          ? new Date(new Date(reportDate).getTime() + 86_400_000).toISOString().slice(0, 10)
+          : reportDate
+        const newStartIso = `${reportDate}T${newStart}:00`
+        const newEndIso = `${endDate}T${newEnd}:00`
+
+        // Orphan anomalies that fall outside the new window
+        await supabase
+          .from('time_report_anomalies')
+          .update({ time_report_id: null })
+          .eq('time_report_id', time_report_id)
+          .or(`started_at.lt.${newStartIso},ended_at.gt.${newEndIso}`)
+
+        // Orphan GPS history that falls outside the new window
+        await supabase
+          .from('staff_location_history')
+          .update({ time_report_id: null })
+          .eq('time_report_id', time_report_id)
+          .or(`recorded_at.lt.${newStartIso},recorded_at.gt.${newEndIso}`)
+      }
+    } catch (orphanErr) {
+      console.warn('[mobile-app-api] orphan-on-update failed (non-fatal):', orphanErr)
+    }
+  }
 
   return new Response(
     JSON.stringify({ success: true, time_report: updated }),
@@ -4198,8 +4237,15 @@ async function handleClassifyAnomaly(supabase: any, staffId: string, data: any, 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // If classified as break, deduct from linked time_report (if any)
-  if (classification === 'break' && existing.time_report_id && existing.duration_minutes) {
+  // C9: If classified as break, deduct from linked time_report — but only ONCE.
+  // We previously had a bug where re-classifying the same anomaly would double-deduct.
+  // Guard with `existing.classification` so we only run on FIRST classification.
+  if (
+    classification === 'break'
+    && existing.time_report_id
+    && existing.duration_minutes
+    && existing.classification !== 'break'
+  ) {
     const breakHours = Number((existing.duration_minutes / 60).toFixed(2))
     const { data: tr } = await supabase
       .from('time_reports')
@@ -4499,12 +4545,40 @@ async function handleGetPositionAtTime(supabase: any, staffId: string, data: any
  * Returns all GPS history points for a given staff member on a given date.
  * Used by admin movement map (StaffMovementMap) in StaffTimeReportDetail.
  */
-async function handleGetMovementForDay(supabase: any, _callerStaffId: string, data: any, organizationId: string) {
+async function handleGetMovementForDay(supabase: any, callerStaffId: string, data: any, organizationId: string) {
   const { staff_id, date } = data || {}
   if (!staff_id || !date) {
     return new Response(JSON.stringify({ error: 'staff_id and date are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
+
+  // C6: Authorization. A user may always look up their OWN movement.
+  // For OTHERS' movement, require that the calling staff member is mapped to a user
+  // with the 'admin' role.
+  if (staff_id !== callerStaffId) {
+    const { data: callerStaff } = await supabase
+      .from('staff_members')
+      .select('user_id')
+      .eq('id', callerStaffId)
+      .single()
+
+    let isAdmin = false
+    if (callerStaff?.user_id) {
+      const { data: roleRow } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', callerStaff.user_id)
+        .eq('role', 'admin')
+        .maybeSingle()
+      isAdmin = !!roleRow
+    }
+
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin role required to view other staff movement' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+  }
+
   // Day window in Europe/Stockholm; simplified to UTC day for indexing speed
   const fromIso = `${date}T00:00:00.000Z`
   const toIso = `${date}T23:59:59.999Z`
@@ -4524,5 +4598,117 @@ async function handleGetMovementForDay(supabase: any, _callerStaffId: string, da
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
   return new Response(JSON.stringify({ points: rows || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============= Arrival prompt (B-flow) =============
+
+/**
+ * Returns whether this staff member should see a "starta dagen?"-prompt right now.
+ * Same source-of-truth used by both the mobile app (polling) and arrival-reminder cron.
+ *
+ * Rule: prompt if there is an open geofence-entry for this staff AND they have no
+ * open time_report for the entry's date AND the prompt log isn't resolved.
+ */
+async function handleGetArrivalState(supabase: any, staffId: string, organizationId: string) {
+  // Find the most recent open geofence entry for this staff
+  const { data: openEntry } = await supabase
+    .from('location_time_entries')
+    .select('location_id, entered_at, organization_locations(name)')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+    .order('entered_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!openEntry) {
+    return new Response(JSON.stringify({
+      should_prompt: false, arrived_at: null, location_id: null, location_name: null, prompts_sent: 0,
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const arrivedAt = openEntry.entered_at as string
+  const today = new Date(arrivedAt).toISOString().slice(0, 10)
+
+  // Already has a time_report for today? then resolved.
+  const { data: existingReport } = await supabase
+    .from('time_reports')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('report_date', today)
+    .limit(1)
+    .maybeSingle()
+
+  if (existingReport) {
+    return new Response(JSON.stringify({
+      should_prompt: false,
+      arrived_at: arrivedAt,
+      location_id: openEntry.location_id,
+      location_name: (openEntry as any).organization_locations?.name || null,
+      prompts_sent: 0,
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Check prompt log — if user manually dismissed, do not show again for this entry
+  const { data: log } = await supabase
+    .from('arrival_prompt_log')
+    .select('prompt_count, resolved')
+    .eq('staff_id', staffId)
+    .eq('location_id', openEntry.location_id)
+    .eq('arrived_at', arrivedAt)
+    .maybeSingle()
+
+  const resolved = log?.resolved === true
+
+  return new Response(JSON.stringify({
+    should_prompt: !resolved,
+    arrived_at: arrivedAt,
+    location_id: openEntry.location_id,
+    location_name: (openEntry as any).organization_locations?.name || null,
+    prompts_sent: log?.prompt_count ?? 0,
+  }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * Marks the arrival prompt as resolved (user took an action: started timer or dismissed).
+ * Cron-job and the in-app polling both stop showing prompts after this.
+ */
+async function handleMarkArrivalResolved(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id, arrived_at } = data || {}
+  if (!location_id || !arrived_at) {
+    return new Response(JSON.stringify({ error: 'location_id and arrived_at required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Upsert: if no row exists yet (e.g. cron hasn't run for this entry), create one as resolved
+  const { data: existing } = await supabase
+    .from('arrival_prompt_log')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('location_id', location_id)
+    .eq('arrived_at', arrived_at)
+    .maybeSingle()
+
+  if (existing) {
+    await supabase
+      .from('arrival_prompt_log')
+      .update({ resolved: true, resolved_at: new Date().toISOString() })
+      .eq('id', existing.id)
+  } else {
+    await supabase
+      .from('arrival_prompt_log')
+      .insert({
+        organization_id: organizationId,
+        staff_id: staffId,
+        location_id,
+        arrived_at,
+        prompt_count: 0,
+        resolved: true,
+        resolved_at: new Date().toISOString(),
+      })
+  }
+
+  return new Response(JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
