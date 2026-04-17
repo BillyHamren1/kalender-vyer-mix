@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { format, isToday, isYesterday, parseISO, differenceInMinutes, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { Loader2 } from 'lucide-react';
 import MessageBubble, { ChatMessage } from './MessageBubble';
 
 interface Props {
@@ -10,6 +11,10 @@ interface Props {
   showSenderNames?: boolean;
   /** Optional per-message footer override (e.g. retry button). Return null to fall back to default. */
   renderFooter?: (m: ChatMessage) => ReactNode;
+  /** Pagination hooks — when present the list shows pull-to-load-older and preserves scroll position. */
+  hasMore?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => void;
 }
 
 const dayLabel = (d: Date) => {
@@ -21,19 +26,67 @@ const dayLabel = (d: Date) => {
 const timeLabel = (d: Date) =>
   isToday(d) ? format(d, 'HH:mm') : format(d, 'EEE HH:mm', { locale: sv });
 
-export const MessageList = ({ messages, myIds, showSenderNames, renderFooter }: Props) => {
+export const MessageList = ({
+  messages,
+  myIds,
+  showSenderNames,
+  renderFooter,
+  hasMore,
+  loadingOlder,
+  onLoadOlder,
+}: Props) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages.length]);
+  // Tracks the topmost message id between renders so we can detect a "prepend"
+  // (load-older) and restore scroll position relative to the previous top.
+  const prevTopIdRef = useRef<string | null>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  // Avoid auto-scrolling to bottom after a load-older operation.
+  const skipAutoScrollRef = useRef(false);
 
   const groups = useMemo(() => {
-    const sorted = [...messages].sort(
+    return [...messages].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-    return sorted;
   }, [messages]);
+
+  // Detect prepend: snapshot scrollHeight BEFORE paint when top id changed.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const newTopId = groups[0]?.id ?? null;
+    const prevTopId = prevTopIdRef.current;
+
+    if (prevTopId && newTopId && prevTopId !== newTopId) {
+      // Older messages were prepended → restore scroll offset relative to top.
+      const delta = el.scrollHeight - prevScrollHeightRef.current;
+      if (delta > 0) {
+        el.scrollTop = el.scrollTop + delta;
+        skipAutoScrollRef.current = true;
+      }
+    }
+
+    prevTopIdRef.current = newTopId;
+    prevScrollHeightRef.current = el.scrollHeight;
+  }, [groups]);
+
+  // Auto-scroll to bottom for fresh appends. Skip exactly once after a prepend.
+  useEffect(() => {
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false;
+      return;
+    }
+    endRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [groups.length]);
+
+  // Pull-to-load-older: trigger when scrolled near the top.
+  const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+    if (!onLoadOlder || !hasMore || loadingOlder) return;
+    if (e.currentTarget.scrollTop < 80) {
+      onLoadOlder();
+    }
+  };
 
   // Find the index of the last own message — that one shows status
   const lastOwnIndex = useMemo(() => {
@@ -44,7 +97,26 @@ export const MessageList = ({ messages, myIds, showSenderNames, renderFooter }: 
   }, [groups, myIds]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-1">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-1"
+    >
+      {hasMore && (
+        <div className="flex justify-center py-2">
+          {loadingOlder ? (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          ) : onLoadOlder ? (
+            <button
+              onClick={onLoadOlder}
+              className="text-[11px] text-primary hover:underline active:opacity-70"
+            >
+              Visa äldre meddelanden
+            </button>
+          ) : null}
+        </div>
+      )}
+
       {groups.map((m, i) => {
         const prev = groups[i - 1];
         const next = groups[i + 1];
