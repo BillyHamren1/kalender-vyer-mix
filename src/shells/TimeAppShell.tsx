@@ -18,6 +18,7 @@ import MobileProfile from '@/pages/mobile/MobileProfile';
 import MobileTimeHistory from '@/pages/mobile/MobileTimeHistory';
 import MobileInbox from '@/pages/mobile/MobileInbox';
 import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
+import MobileScannerApp from '@/pages/MobileScannerApp';
 
 const TimeAppShell: React.FC = () => {
   return (
@@ -36,6 +37,7 @@ const TimeAppShell: React.FC = () => {
           <Route path="/m/profile" element={<MobileProtectedRoute><TimeAppLayout><MobileProfile /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/time-history" element={<MobileProtectedRoute><TimeAppLayout><MobileTimeHistory /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/inbox" element={<MobileProtectedRoute><TimeAppLayout><MobileInbox /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/scan" element={<MobileProtectedRoute><TimeAppLayout><MobileScannerApp /></TimeAppLayout></MobileProtectedRoute>} />
           
           {/* Redirect scanner routes to time app */}
           <Route path="/scanner" element={<Navigate to="/m" replace />} />

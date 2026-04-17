@@ -6,6 +6,7 @@ const translations = {
   'nav.time': { sv: 'Tid', en: 'Time' },
   'nav.messages': { sv: 'Meddelanden', en: 'Messages' },
   'nav.expenses': { sv: 'Utlägg', en: 'Expenses' },
+  'nav.scan': { sv: 'Scan', en: 'Scan' },
   'nav.profile': { sv: 'Profil', en: 'Profile' },
 
   // Jobs page
