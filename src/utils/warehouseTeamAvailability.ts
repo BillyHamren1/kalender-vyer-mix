@@ -16,50 +16,13 @@ export const distributeWarehouseEvents = (
 ): CalendarEvent[] => {
   const EVENT_TYPES = new Set(['rig', 'event', 'rigDown']);
 
-  // Separate event-column events from lager events
-  const eventColumnEvents: CalendarEvent[] = [];
-  const lagerEvents: CalendarEvent[] = [];
-
-  for (const ev of events) {
-    if (EVENT_TYPES.has(ev.eventType || '')) {
-      eventColumnEvents.push(ev);
-    } else {
-      lagerEvents.push(ev);
-    }
-  }
-
-  const result: CalendarEvent[] = [];
-
-  // === 1. Stack event-column events in 3h blocks per day ===
-  // Sort by start time, then stack sequentially
-  const sortedEventCol = [...eventColumnEvents].sort(
-    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+  // Transport-kolumnen ('warehouse-event') ska vara tom tills vidare —
+  // filtrera bort alla rig/event/rigDown från lagerkalendern.
+  const lagerEvents: CalendarEvent[] = events.filter(
+    ev => !EVENT_TYPES.has(ev.eventType || '')
   );
 
-  // Track how many events placed per day for stacking
-  const eventColDayCount = new Map<string, number>();
-
-  for (const event of sortedEventCol) {
-    const evStart = new Date(event.start);
-    const dateKey = `${evStart.getUTCFullYear()}-${String(evStart.getUTCMonth() + 1).padStart(2, '0')}-${String(evStart.getUTCDate()).padStart(2, '0')}`;
-
-    const count = eventColDayCount.get(dateKey) || 0;
-    eventColDayCount.set(dateKey, count + 1);
-
-    // Stack: 08:00-11:00, 11:00-14:00, 14:00-17:00, etc.
-    const baseHour = 8 + count * 3;
-    const stackedStart = new Date(evStart);
-    stackedStart.setUTCHours(baseHour, 0, 0, 0);
-    const stackedEnd = new Date(evStart);
-    stackedEnd.setUTCHours(baseHour + 3, 0, 0, 0);
-
-    result.push({
-      ...event,
-      resourceId: 'warehouse-event',
-      start: stackedStart.toISOString(),
-      end: stackedEnd.toISOString(),
-    });
-  }
+  const result: CalendarEvent[] = [];
 
   // === 2. Distribute lager events with round-robin ===
   const lagerResources = resources
