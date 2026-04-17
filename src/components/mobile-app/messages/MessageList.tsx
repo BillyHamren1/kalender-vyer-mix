@@ -81,6 +81,7 @@ export const MessageList = ({ messages, myIds, showSenderNames, renderFooter }: 
               hasTail={hasTail}
               showStatus={i === lastOwnIndex}
               showSenderName={showSenderName}
+              footerOverride={renderFooter ? renderFooter(m) : null}
             />
             {sameSenderAsNext && <div className="h-0.5" />}
           </div>
