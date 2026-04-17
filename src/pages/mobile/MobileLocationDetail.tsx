@@ -265,7 +265,7 @@ const MobileLocationDetail = () => {
       {/* Header — identical pattern to MobileJobDetail */}
       <MobileBackHeader
         title={location.name}
-        subtitle="Lager"
+        subtitle={location.address || undefined}
         backTo="/m"
         rightAction={
           <button
