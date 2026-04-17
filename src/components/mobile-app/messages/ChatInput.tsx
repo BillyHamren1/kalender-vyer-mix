@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Plus, ArrowUp, Camera, X, Loader2 } from 'lucide-react';
+import { Plus, ArrowUp, Camera, X, Loader2, RotateCw, AlertCircle, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
+import { useChatUpload } from './useChatUpload';
 
 interface Props {
   onSend: (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => Promise<void> | void;
@@ -10,25 +10,13 @@ interface Props {
   disabled?: boolean;
 }
 
-const fileToBase64 = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => {
-      const result = r.result as string;
-      resolve(result.split(',')[1] || '');
-    };
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-
 export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props) => {
   const [text, setText] = useState('');
-  const [pending, setPending] = useState<{ url: string; name: string; type: string; preview?: string } | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const { pending, uploadFile, cancel, retry, consume } = useChatUpload();
 
   const autosize = () => {
     const el = taRef.current;
@@ -39,53 +27,44 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
 
   const handleFile = async (file: File) => {
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error('Filen är för stor (max 15 MB)');
-      return;
-    }
-    setUploading(true);
     try {
-      const base64 = await fileToBase64(file);
-      const res = await mobileApi.uploadChatAttachment({
-        file_name: file.name,
-        file_type: file.type,
-        file_data_base64: base64,
-      });
-      setPending({
-        url: res.url,
-        name: res.file_name,
-        type: file.type,
-        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      });
+      await uploadFile(file);
     } catch (e: any) {
-      console.error(e);
+      // Only thrown for client-side validation (size). Network/server errors
+      // surface inside the pending chip via `status: 'failed'`.
       toast.error(e?.message || 'Kunde inte ladda upp filen');
-    } finally {
-      setUploading(false);
     }
   };
 
+  const isUploading = pending?.status === 'uploading';
+  const isFailed = pending?.status === 'failed';
+  const isReady = pending?.status === 'ready';
+
   const send = async () => {
-    if (sending) return;
+    if (sending || isUploading) return;
+    if (isFailed) {
+      toast.error('Bilagan kunde inte laddas upp – tryck på pilen för att försöka igen');
+      return;
+    }
     const trimmed = text.trim();
-    if (!trimmed && !pending) return;
+    if (!trimmed && !isReady) return;
     setSending(true);
     try {
       await onSend({
         content: trimmed,
-        file_url: pending?.url,
-        file_name: pending?.name,
-        file_type: pending?.type,
+        file_url: isReady ? pending!.url : undefined,
+        file_name: isReady ? pending!.name : undefined,
+        file_type: isReady ? pending!.type : undefined,
       });
       setText('');
-      setPending(null);
+      consume();
       requestAnimationFrame(autosize);
     } finally {
       setSending(false);
     }
   };
 
-  const canSend = (text.trim().length > 0 || !!pending) && !sending && !uploading;
+  const canSend = !sending && !isUploading && (text.trim().length > 0 || isReady);
 
   return (
     <div
@@ -93,22 +72,65 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {pending && (
-        <div className="px-3 pt-2 flex items-center gap-2">
-          <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
-            {pending.preview ? (
-              <img src={pending.preview} alt="" className="w-14 h-14 object-cover" />
-            ) : (
-              <div className="w-14 h-14 flex items-center justify-center text-[10px] px-1 text-center text-muted-foreground">
-                {pending.name}
-              </div>
-            )}
-            <button
-              onClick={() => setPending(null)}
-              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center shadow"
-              aria-label="Ta bort bilaga"
-            >
-              <X className="w-3 h-3" />
-            </button>
+        <div className="px-3 pt-2">
+          <div className="flex items-start gap-2">
+            <div className="relative rounded-xl overflow-hidden border border-border bg-muted shrink-0">
+              {pending.preview ? (
+                <img src={pending.preview} alt="" className="w-14 h-14 object-cover" />
+              ) : (
+                <div className="w-14 h-14 flex items-center justify-center text-muted-foreground">
+                  <FileText className="w-5 h-5" />
+                </div>
+              )}
+
+              {/* Dim + spinner overlay while uploading */}
+              {isUploading && (
+                <div className="absolute inset-0 bg-background/55 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin text-foreground" />
+                </div>
+              )}
+              {/* Error overlay */}
+              {isFailed && (
+                <div className="absolute inset-0 bg-destructive/25 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                </div>
+              )}
+
+              <button
+                onClick={cancel}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center shadow"
+                aria-label="Ta bort bilaga"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-w-0 pt-0.5">
+              <p className="text-[12px] truncate text-foreground">{pending.name}</p>
+              {isUploading && (
+                <div className="mt-1 h-1 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-[width] duration-200"
+                    style={{ width: `${pending.progress}%` }}
+                  />
+                </div>
+              )}
+              {isUploading && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Laddar upp… {pending.progress}%</p>
+              )}
+              {isFailed && (
+                <button
+                  onClick={retry}
+                  className="mt-1 inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  {pending.error || 'Misslyckades'} – försök igen
+                </button>
+              )}
+              {isReady && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Klar att skicka</p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -140,15 +162,15 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
 
         <button
           onClick={() => fileRef.current?.click()}
-          disabled={uploading || disabled}
+          disabled={isUploading || disabled}
           className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
           aria-label="Bifoga fil"
         >
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
+          {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
         </button>
         <button
           onClick={() => cameraRef.current?.click()}
-          disabled={uploading || disabled}
+          disabled={isUploading || disabled}
           className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
           aria-label="Ta bild"
         >

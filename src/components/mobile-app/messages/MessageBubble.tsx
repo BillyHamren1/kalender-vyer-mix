@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { Check, CheckCheck, FileText } from 'lucide-react';
+import { Check, CheckCheck, FileText, Download } from 'lucide-react';
+import ImageLightbox from './ImageLightbox';
 
 export interface ChatMessage {
   id: string;
@@ -36,6 +37,7 @@ const isImage = (m: ChatMessage) =>
 
 export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, showStatus, footerOverride }: Props) => {
   const image = isImage(msg);
+  const [lightbox, setLightbox] = useState(false);
 
   return (
     <div className={cn('flex w-full', isMe ? 'justify-end' : 'justify-start')}>
@@ -47,35 +49,38 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
         )}
 
         {image ? (
-          <a
-            href={msg.file_url!}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => setLightbox(true)}
             className={cn(
-              'overflow-hidden rounded-[20px] shadow-sm',
+              'overflow-hidden rounded-[20px] shadow-sm active:opacity-90 transition-opacity',
               hasTail && (isMe ? 'rounded-br-md' : 'rounded-bl-md')
             )}
+            aria-label="Öppna bild"
           >
             <img
               src={msg.file_url!}
               alt={msg.file_name || 'image'}
               className="max-h-72 w-auto block object-cover"
               loading="lazy"
+              draggable={false}
             />
-          </a>
+          </button>
         ) : msg.file_url ? (
           <a
             href={msg.file_url}
             target="_blank"
             rel="noopener noreferrer"
+            download={msg.file_name || true}
             className={cn(
-              'flex items-center gap-2 px-3.5 py-2.5 rounded-[20px] text-sm leading-snug shadow-sm',
+              'flex items-center gap-2 px-3.5 py-2.5 rounded-[20px] text-sm leading-snug shadow-sm group',
               isMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
               hasTail && (isMe ? 'rounded-br-md' : 'rounded-bl-md')
             )}
           >
             <FileText className="w-4 h-4 shrink-0 opacity-80" />
-            <span className="truncate">{msg.file_name || 'Bifogad fil'}</span>
+            <span className="truncate flex-1 min-w-0">{msg.file_name || 'Bifogad fil'}</span>
+            <Download className="w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
           </a>
         ) : (
           <div
@@ -83,6 +88,18 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
               'px-3.5 py-2 rounded-[20px] text-[15px] leading-snug shadow-sm whitespace-pre-wrap break-words',
               isMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
               hasTail && (isMe ? 'rounded-br-md' : 'rounded-bl-md')
+            )}
+          >
+            {msg.content}
+          </div>
+        )}
+
+        {/* Caption text under an image, when sent together */}
+        {image && msg.content && msg.content !== `📎 ${msg.file_name}` && msg.content !== '📎' && (
+          <div
+            className={cn(
+              'mt-1 px-3 py-1.5 rounded-2xl text-[14px] leading-snug shadow-sm whitespace-pre-wrap break-words',
+              isMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
             )}
           >
             {msg.content}
@@ -109,6 +126,10 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
           </div>
         ) : null}
       </div>
+
+      {lightbox && image && (
+        <ImageLightbox url={msg.file_url!} name={msg.file_name} onClose={() => setLightbox(false)} />
+      )}
     </div>
   );
 };
