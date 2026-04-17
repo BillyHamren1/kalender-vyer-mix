@@ -147,6 +147,11 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
                 onChange={(e) => setCustomTime(e.target.value)}
                 className="text-base"
               />
+              {customInvalid && (
+                <p className="text-xs text-destructive">
+                  Tiden måste vara i förflutet (max idag).
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -191,7 +196,7 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
               </Button>
               <Button
                 onClick={handleSubmitCustom}
-                disabled={submitting || !/^\d{2}:\d{2}$/.test(customTime)}
+                disabled={submitting || !customIso}
                 className="w-full sm:w-auto"
               >
                 {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
