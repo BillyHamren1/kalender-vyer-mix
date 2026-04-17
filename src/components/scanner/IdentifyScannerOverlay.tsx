@@ -4,6 +4,7 @@ import { Camera, X, Loader2, Tag, MapPin, CalendarDays, Package, CheckCircle2, A
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { identifyProduct } from '@/services/scannerService';
+import { parseScanResult } from '@/services/scannerService';
 import { toast } from 'sonner';
 
 interface IdentifiedItem {
