@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
@@ -235,6 +235,44 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
   const reports = queryData?.reports || [];
   const rawTravel = queryData?.rawTravel || [];
+
+  // Background-tracked absence anomalies (geofence-based)
+  const { data: bgAnomalies = [] } = useQuery({
+    queryKey: ['staff-bg-anomalies', staffId, monthStart],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('time_report_anomalies')
+        .select('id, time_report_id, started_at, ended_at, duration_minutes, classification, work_description, location_id, organization_locations(name)')
+        .eq('staff_id', staffId)
+        .gte('started_at', `${monthStart}T00:00:00`)
+        .lte('started_at', `${monthEnd}T23:59:59`)
+        .not('ended_at', 'is', null)
+        .order('started_at', { ascending: true });
+      return data || [];
+    },
+  });
+
+  // Group anomalies by time_report_id (linked) and by date (unlinked)
+  const anomaliesByReportId = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of bgAnomalies as any[]) {
+      if (!a.time_report_id) continue;
+      if (!map.has(a.time_report_id)) map.set(a.time_report_id, []);
+      map.get(a.time_report_id)!.push(a);
+    }
+    return map;
+  }, [bgAnomalies]);
+
+  const unlinkedAnomaliesByDate = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of bgAnomalies as any[]) {
+      if (a.time_report_id) continue;
+      const date = a.started_at.slice(0, 10);
+      if (!map.has(date)) map.set(date, []);
+      map.get(date)!.push(a);
+    }
+    return map;
+  }, [bgAnomalies]);
 
   // Fetch booking geocodes for work entries (for daily overview map)
   const bookingIdsInReports = useMemo(() => {
@@ -498,6 +536,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <AlertTriangle className="h-4 w-4" />
                                   </button>
                                 )}
+                                {(unlinkedAnomaliesByDate.get(date) || []).length > 0 && (
+                                  <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600">
+                                    {(unlinkedAnomaliesByDate.get(date) || []).length} oklassad frånvaro
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span>{formatHoursMinutes(dateTotalHours)}</span>
@@ -514,48 +557,88 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                           </TableCell>
                         </TableRow>
                         {/* Individual rows for that date */}
-                        {dateRows.map(report => (
-                          <TableRow key={report.id} className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
-                            <TableCell>
-                              <div className="truncate max-w-[180px] flex items-center gap-1">
-                                {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
-                                <span>
-                                  {report.booking_client}
-                                  {report.booking_number && (
-                                    <span className="text-muted-foreground text-xs ml-1">
-                                      #{report.booking_number}
+                        {dateRows.map(report => {
+                          const reportAnomalies = report.type === 'work'
+                            ? (anomaliesByReportId.get(report.id) || [])
+                            : [];
+                          return (
+                            <React.Fragment key={report.id}>
+                              <TableRow className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                                <TableCell>
+                                  <div className="truncate max-w-[180px] flex items-center gap-1">
+                                    {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                    <span>
+                                      {report.booking_client}
+                                      {report.booking_number && (
+                                        <span className="text-muted-foreground text-xs ml-1">
+                                          #{report.booking_number}
+                                        </span>
+                                      )}
                                     </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
+                                <TableCell className="text-right">
+                                  {report.type === 'travel'
+                                    ? '-'
+                                    : (report.overtime_hours || 0) > 0
+                                      ? formatHoursMinutes(report.overtime_hours!)
+                                      : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  {report.type === 'travel' ? (
+                                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
+                                      Resa
+                                    </Badge>
+                                  ) : report.approved ? (
+                                    <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                      Godkänd
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px]">
+                                      Väntande
+                                    </Badge>
                                   )}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
-                            <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
-                            <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
-                            <TableCell className="text-right">
-                              {report.type === 'travel'
-                                ? '-'
-                                : (report.overtime_hours || 0) > 0
-                                  ? formatHoursMinutes(report.overtime_hours!)
-                                  : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {report.type === 'travel' ? (
-                                <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
-                                  Resa
-                                </Badge>
-                              ) : report.approved ? (
-                                <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
-                                  Godkänd
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px]">
-                                  Väntande
-                                </Badge>
+                                </TableCell>
+                              </TableRow>
+                              {reportAnomalies.length > 0 && (
+                                <TableRow className="bg-muted/20">
+                                  <TableCell colSpan={6} className="py-2">
+                                    <div className="flex flex-wrap gap-1.5 pl-6">
+                                      {reportAnomalies.map((a: any) => {
+                                        const startTime = format(parseISO(a.started_at), 'HH:mm');
+                                        const endTime = format(parseISO(a.ended_at), 'HH:mm');
+                                        const dur = a.duration_minutes ?? 0;
+                                        if (a.classification === 'break') {
+                                          return (
+                                            <Badge key={a.id} variant="outline" className="text-[10px] gap-1">
+                                              <Coffee className="h-3 w-3" /> Rast {startTime}–{endTime} ({dur}m)
+                                            </Badge>
+                                          );
+                                        }
+                                        if (a.classification === 'work') {
+                                          return (
+                                            <Badge key={a.id} variant="outline" className="text-[10px] gap-1" title={a.work_description || ''}>
+                                              <Briefcase className="h-3 w-3" /> Arbete {startTime}–{endTime} ({dur}m)
+                                              {a.work_description && <span className="ml-1 text-muted-foreground truncate max-w-[140px]">"{a.work_description}"</span>}
+                                            </Badge>
+                                          );
+                                        }
+                                        return (
+                                          <Badge key={a.id} variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
+                                            <HelpCircle className="h-3 w-3" /> Oklassad {startTime}–{endTime} ({dur}m)
+                                          </Badge>
+                                        );
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
                               )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                            </React.Fragment>
+                          );
+                        })}
                       </React.Fragment>
                     );
                   });
