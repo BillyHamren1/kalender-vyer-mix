@@ -59,6 +59,10 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
   return (
     <div className="fixed inset-0 overflow-hidden bg-card">
       <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
+        {/* Header slot — headers portal in here so they sit OUTSIDE the scroll container.
+            This avoids the iOS WKWebView bug where position: sticky inside a momentum-scrolling
+            container jitters/lags behind the scroll. */}
+        <div id="mobile-header-slot" className="shrink-0 bg-primary z-[60]" />
         <div
           ref={scrollRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
