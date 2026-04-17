@@ -228,6 +228,8 @@ Deno.serve(async (req) => {
         return await handleListPendingAnomalies(supabase, staffId, organizationId)
       case 'classify_anomaly':
         return await handleClassifyAnomaly(supabase, staffId, data, organizationId)
+      case 'close_open_anomalies':
+        return await handleCloseOpenAnomalies(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
