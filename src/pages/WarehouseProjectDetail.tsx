@@ -166,15 +166,25 @@ const WarehouseProjectDetail = () => {
           </TabsContent>
 
           <TabsContent value="packings" className="mt-4">
-            <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
-              <Package className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                Packningar för bokningar i källprojektet skapas här.
-              </p>
-              <Button disabled variant="outline">
-                Skapa packning (kommer i nästa steg)
-              </Button>
-            </div>
+            {packings.length === 0 ? (
+              <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
+                <Package className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Inga packningar skapade ännu för det här lagerprojektet.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {packings.map((packing) => (
+                  <PackingCard
+                    key={packing.id}
+                    packing={packing}
+                    onClick={() => navigate(`/warehouse/packing/${packing.id}`)}
+                    onDelete={() => {/* deletion handled in PackingDetail */}}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-4">
