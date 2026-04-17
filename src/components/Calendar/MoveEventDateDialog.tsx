@@ -93,35 +93,49 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         ));
       }
 
-      const updatePayload: any = {
-        start: newStartISO,
-        end: newEndISO
-      };
+      // Warehouse event types live in `warehouse_calendar_events`, not `calendar_events`.
+      const WAREHOUSE_TYPES = ['packing', 'return', 'delivery', 'inventory', 'unpacking'];
+      const isWarehouseEvent = !!event.eventType && WAREHOUSE_TYPES.includes(event.eventType);
 
-      // Include resourceId change if different
-      if (selectedResourceId && selectedResourceId !== event.resourceId) {
-        updatePayload.resourceId = selectedResourceId;
-      }
+      if (isWarehouseEvent) {
+        const { error: whErr } = await supabase
+          .from('warehouse_calendar_events')
+          .update({
+            start_time: newStartISO,
+            end_time: newEndISO,
+            manually_adjusted: true,
+            has_source_changes: false,
+          })
+          .eq('id', event.id);
+        if (whErr) throw whErr;
+      } else {
+        const updatePayload: any = {
+          start: newStartISO,
+          end: newEndISO,
+        };
+        if (selectedResourceId && selectedResourceId !== event.resourceId) {
+          updatePayload.resourceId = selectedResourceId;
+        }
+        await updateCalendarEvent(event.id, updatePayload);
 
-      await updateCalendarEvent(event.id, updatePayload);
+        // Mirror date/time onto the booking row for staff event types only.
+        if (event.bookingId && event.eventType) {
+          const bookingFields = {
+            'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+            'event': { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+            'rigDown': { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' }
+          }[event.eventType as 'rig' | 'event' | 'rigDown'];
 
-      // Also update the booking date/time fields to keep data in sync
-      if (event.bookingId && event.eventType) {
-        const bookingFields = {
-          'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-          'event': { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-          'rigDown': { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' }
-        }[event.eventType];
-
-        if (bookingFields) {
-          await supabase
-            .from('bookings')
-            .update({
-              [bookingFields.date]: newDateStr,
-              [bookingFields.start]: newStartISO,
-              [bookingFields.end]: newEndISO
-            })
-            .eq('id', event.bookingId);
+          if (bookingFields) {
+            await supabase
+              .from('bookings')
+              .update({
+                [bookingFields.date]: newDateStr,
+                [bookingFields.start]: newStartISO,
+                [bookingFields.end]: newEndISO
+              })
+              .eq('id', event.bookingId);
+          }
         }
       }
 

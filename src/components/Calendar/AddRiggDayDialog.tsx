@@ -34,11 +34,15 @@ interface AddRiggDayDialogProps {
     end: string | Date;
     bookingId?: string;
     resourceId?: string;
+    eventType?: string;
   };
   defaultStartTime: string;
   defaultEndTime: string;
   onUpdate?: () => void;
 }
+
+const WAREHOUSE_TYPES = ['packing', 'return', 'delivery', 'inventory', 'unpacking'] as const;
+type WarehouseType = typeof WAREHOUSE_TYPES[number];
 
 const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   open,
@@ -48,8 +52,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   defaultEndTime,
   onUpdate
 }) => {
+  const isWarehouseSource = !!event.eventType && (WAREHOUSE_TYPES as readonly string[]).includes(event.eventType);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown'>('rig');
+  const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown' | WarehouseType>(
+    isWarehouseSource ? (event.eventType as WarehouseType) : 'rig'
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [rigDates, setRigDates] = useState<Date[]>([]);
   const [eventDates, setEventDates] = useState<Date[]>([]);
@@ -109,25 +117,21 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
       return;
     }
 
-    if (!event.bookingId || !event.resourceId) {
-      toast.error('Bokning eller resurs saknas');
+    if (!event.bookingId) {
+      toast.error('Bokning saknas');
       return;
     }
 
     setIsCreating(true);
 
     try {
-      // Format date as YYYY-MM-DD
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
-      // Create UTC datetime strings
       const startDateTime = `${dateStr}T${startTime}:00Z`;
       const endDateTime = `${dateStr}T${endTime}:00Z`;
 
-      // Fetch booking to get organization_id and booking_number
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
-        .select('organization_id, booking_number, deliveryaddress, delivery_city')
+        .select('organization_id, booking_number, deliveryaddress, delivery_city, client')
         .eq('id', event.bookingId)
         .single();
 
@@ -135,53 +139,82 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
         throw new Error('Kunde inte hämta bokningsdata');
       }
 
-      const sourceDate = startDateTime.split('T')[0];
-      
-      const { error: insertError } = await supabase
-        .from('calendar_events')
-        .insert({
-          title: event.title,
-          start_time: startDateTime,
-          end_time: endDateTime,
-          resource_id: event.resourceId,
-          booking_id: event.bookingId,
-          event_type: eventType,
-          organization_id: booking.organization_id,
-          booking_number: booking.booking_number,
-          delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
-          source_date: sourceDate
-        });
+      const isWarehouseTarget = (WAREHOUSE_TYPES as readonly string[]).includes(eventType);
 
-      if (insertError) {
-        throw insertError;
+      if (isWarehouseTarget) {
+        const { error: whErr } = await supabase
+          .from('warehouse_calendar_events')
+          .insert({
+            title: booking.client || event.title,
+            start_time: startDateTime,
+            end_time: endDateTime,
+            resource_id: 'warehouse',
+            booking_id: event.bookingId,
+            booking_number: booking.booking_number,
+            event_type: eventType,
+            organization_id: booking.organization_id,
+            delivery_address:
+              [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+            manually_adjusted: true,
+          });
+        if (whErr) throw whErr;
+
+        const labels: Record<string, string> = {
+          packing: 'Packning',
+          return: 'Retur',
+          delivery: 'Leverans',
+          inventory: 'Inventering',
+          unpacking: 'Uppackning',
+        };
+        toast.success(`${labels[eventType] || 'Dag'} tillagd`);
+      } else {
+        if (!event.resourceId) {
+          toast.error('Resurs saknas');
+          setIsCreating(false);
+          return;
+        }
+        const sourceDate = startDateTime.split('T')[0];
+        const { error: insertError } = await supabase
+          .from('calendar_events')
+          .insert({
+            title: event.title,
+            start_time: startDateTime,
+            end_time: endDateTime,
+            resource_id: event.resourceId,
+            booking_id: event.bookingId,
+            event_type: eventType,
+            organization_id: booking.organization_id,
+            booking_number: booking.booking_number,
+            delivery_address:
+              [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+            source_date: sourceDate,
+          });
+        if (insertError) throw insertError;
+
+        const bookingFieldMap = {
+          rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+          event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+          rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+        } as const;
+
+        const fields = bookingFieldMap[eventType as 'rig' | 'event' | 'rigDown'];
+        if (fields) {
+          await supabase
+            .from('bookings')
+            .update({
+              [fields.date]: dateStr,
+              [fields.start]: startDateTime,
+              [fields.end]: endDateTime,
+            })
+            .eq('id', event.bookingId);
+        }
+
+        const typeLabels = { rig: 'Riggdag', event: 'Eventdag', rigDown: 'Rivdag' } as const;
+        toast.success(`${typeLabels[eventType as 'rig' | 'event' | 'rigDown']} tillagd`);
       }
 
-      // Also update the booking date fields so sync doesn't delete the event
-      const bookingFieldMap = {
-        'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-        'event': { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-        'rigDown': { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' }
-      };
-
-      const fields = bookingFieldMap[eventType];
-      if (fields) {
-        await supabase
-          .from('bookings')
-          .update({
-            [fields.date]: dateStr,
-            [fields.start]: startDateTime,
-            [fields.end]: endDateTime
-          })
-          .eq('id', event.bookingId);
-      }
-
-      const typeLabels = { rig: 'Riggdag', event: 'Eventdag', rigDown: 'Rivdag' };
-      toast.success(`${typeLabels[eventType]} tillagd`);
       onOpenChange(false);
-      
-      if (onUpdate) {
-        onUpdate();
-      }
+      if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error creating event day:', error);
       toast.error('Kunde inte lägga till dagen');
@@ -210,9 +243,21 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rig">Riggdag</SelectItem>
-                <SelectItem value="event">Eventdag</SelectItem>
-                <SelectItem value="rigDown">Rivdag</SelectItem>
+                {isWarehouseSource ? (
+                  <>
+                    <SelectItem value="packing">Packning</SelectItem>
+                    <SelectItem value="return">Retur</SelectItem>
+                    <SelectItem value="delivery">Leverans</SelectItem>
+                    <SelectItem value="inventory">Inventering</SelectItem>
+                    <SelectItem value="unpacking">Uppackning</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="rig">Riggdag</SelectItem>
+                    <SelectItem value="event">Eventdag</SelectItem>
+                    <SelectItem value="rigDown">Rivdag</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
