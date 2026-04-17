@@ -2036,6 +2036,7 @@ export type Database = {
           organization_id: string
           source: string
           staff_id: string
+          task_id: string | null
           total_minutes: number | null
         }
         Insert: {
@@ -2048,6 +2049,7 @@ export type Database = {
           organization_id: string
           source?: string
           staff_id: string
+          task_id?: string | null
           total_minutes?: number | null
         }
         Update: {
@@ -2060,6 +2062,7 @@ export type Database = {
           organization_id?: string
           source?: string
           staff_id?: string
+          task_id?: string | null
           total_minutes?: number | null
         }
         Relationships: [
@@ -2075,6 +2078,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_time_entries_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -3828,9 +3838,11 @@ export type Database = {
       project_tasks: {
         Row: {
           assigned_to: string | null
+          assigned_to_ids: string[] | null
           category: string | null
           completed: boolean
           created_at: string
+          created_by: string | null
           deadline: string | null
           dependency_task_id: string | null
           description: string | null
@@ -3848,9 +3860,11 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          assigned_to_ids?: string[] | null
           category?: string | null
           completed?: boolean
           created_at?: string
+          created_by?: string | null
           deadline?: string | null
           dependency_task_id?: string | null
           description?: string | null
@@ -3868,9 +3882,11 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          assigned_to_ids?: string[] | null
           category?: string | null
           completed?: boolean
           created_at?: string
+          created_by?: string | null
           deadline?: string | null
           dependency_task_id?: string | null
           description?: string | null

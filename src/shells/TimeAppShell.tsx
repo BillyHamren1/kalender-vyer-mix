@@ -31,6 +31,7 @@ const TimeAppShell: React.FC = () => {
           <Route path="/m/job/:id" element={<MobileProtectedRoute><TimeAppLayout><MobileJobDetail /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/job/:id/complete" element={<MobileProtectedRoute><TimeAppLayout><MobileCompleteJob /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/project/:projectId" element={<MobileProtectedRoute><TimeAppLayout><MobileProjectDetail /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/location/:id" element={<MobileProtectedRoute><TimeAppLayout><MobileLocationDetail /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/report" element={<MobileProtectedRoute><TimeAppLayout><MobileTimeReport /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/report/:id/edit" element={<MobileProtectedRoute><TimeAppLayout><MobileEditTimeReport /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/expenses" element={<MobileProtectedRoute><TimeAppLayout><MobileExpenses /></TimeAppLayout></MobileProtectedRoute>} />

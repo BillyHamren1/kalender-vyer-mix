@@ -298,7 +298,10 @@ const MobileJobs = () => {
                       )}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => navigate(`/m/location/${loc.id}`)}
+                          className="flex-1 min-w-0 text-left active:opacity-70"
+                        >
                           <div className="flex items-center gap-2 mb-1">
                             <Building2 className="w-3.5 h-3.5 text-primary/70" />
                             <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
@@ -319,7 +322,7 @@ const MobileJobs = () => {
                               ⏱ {formatElapsed(timer.startTime)}
                             </p>
                           )}
-                        </div>
+                        </button>
                         {(hasTimer || !hasAnyTimer) && (
                           <button
                             onClick={(e) => handleLocationTimerToggle(e, loc)}

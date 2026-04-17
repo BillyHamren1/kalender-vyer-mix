@@ -196,6 +196,14 @@ Deno.serve(async (req) => {
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+      case 'get_lager_tasks':
+        return await handleGetLagerTasks(supabase, staffId, organizationId)
+      case 'create_lager_task':
+        return await handleCreateLagerTask(supabase, staffId, data, organizationId)
+      case 'complete_lager_task':
+        return await handleCompleteLagerTask(supabase, data, organizationId)
+      case 'claim_lager_task':
+        return await handleClaimLagerTask(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -2976,7 +2984,7 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
 }
 
 async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id } = data || {}
+  const { location_id, task_id } = data || {}
   if (!location_id) {
     return new Response(
       JSON.stringify({ error: 'location_id is required' }),
@@ -2996,14 +3004,16 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
 
   if (existing) {
     // Upgrade GPS entry to manual (user confirmed) if needed
-    if (existing.source === 'gps') {
+    const updates: any = {}
+    if (existing.source === 'gps') updates.source = 'manual'
+    if (task_id && !existing.task_id) updates.task_id = task_id
+    if (Object.keys(updates).length > 0) {
       await supabase
         .from('location_time_entries')
-        .update({ source: 'manual' })
+        .update(updates)
         .eq('id', existing.id)
-      existing.source = 'manual'
+      Object.assign(existing, updates)
     }
-    // Return the existing entry so the client can restore the timer
     return new Response(
       JSON.stringify({ already_active: true, entry: existing }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -3016,6 +3026,7 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
       organization_id: organizationId,
       staff_id: staffId,
       location_id: location_id,
+      task_id: task_id || null,
       entry_date: new Date().toISOString().split('T')[0],
       entered_at: new Date().toISOString(),
       source: 'manual',
@@ -3034,6 +3045,178 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
   return new Response(
     JSON.stringify({ success: true, entry }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ==================== LAGER (INTERNAL PROJECT) TASKS ====================
+
+async function handleGetLagerTasks(supabase: any, staffId: string, organizationId: string) {
+  // Find internal Lager project for org
+  const { data: project, error: pErr } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('organization_id', organizationId)
+    .eq('is_internal', true)
+    .maybeSingle()
+
+  if (pErr || !project) {
+    return new Response(
+      JSON.stringify({ project: null, my_tasks: [], open_tasks: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: tasks, error: tErr } = await supabase
+    .from('project_tasks')
+    .select('*')
+    .eq('project_id', project.id)
+    .eq('completed', false)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false })
+
+  if (tErr) {
+    console.error('Get lager tasks error:', tErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to load tasks' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const allTasks = tasks || []
+  const myTasks = allTasks.filter((t: any) =>
+    Array.isArray(t.assigned_to_ids) && t.assigned_to_ids.includes(staffId)
+  )
+  const openTasks = allTasks.filter((t: any) =>
+    !Array.isArray(t.assigned_to_ids) || t.assigned_to_ids.length === 0
+  )
+
+  return new Response(
+    JSON.stringify({ project, my_tasks: myTasks, open_tasks: openTasks }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleCreateLagerTask(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { title, description, deadline, assign_to_me } = data || {}
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return new Response(
+      JSON.stringify({ error: 'title is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('is_internal', true)
+    .maybeSingle()
+
+  if (!project) {
+    return new Response(
+      JSON.stringify({ error: 'Internt Lager-projekt saknas' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: task, error } = await supabase
+    .from('project_tasks')
+    .insert({
+      organization_id: organizationId,
+      project_id: project.id,
+      title: title.trim(),
+      description: description?.trim() || null,
+      deadline: deadline || null,
+      assigned_to_ids: assign_to_me ? [staffId] : [],
+      completed: false,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Create lager task error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Kunde inte skapa uppgift' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, task }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleCompleteLagerTask(supabase: any, data: any, organizationId: string) {
+  const { task_id, completed } = data || {}
+  if (!task_id) {
+    return new Response(
+      JSON.stringify({ error: 'task_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: task, error } = await supabase
+    .from('project_tasks')
+    .update({ completed: completed !== false })
+    .eq('id', task_id)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Complete lager task error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Kunde inte uppdatera uppgift' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, task }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleClaimLagerTask(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { task_id } = data || {}
+  if (!task_id) {
+    return new Response(
+      JSON.stringify({ error: 'task_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Read current assigned_to_ids
+  const { data: existing } = await supabase
+    .from('project_tasks')
+    .select('assigned_to_ids')
+    .eq('id', task_id)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+
+  const current: string[] = Array.isArray(existing?.assigned_to_ids) ? existing!.assigned_to_ids : []
+  if (!current.includes(staffId)) current.push(staffId)
+
+  const { data: task, error } = await supabase
+    .from('project_tasks')
+    .update({ assigned_to_ids: current })
+    .eq('id', task_id)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Claim lager task error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Kunde inte ta uppgift' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, task }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
