@@ -2828,27 +2828,48 @@ async function handleArchiveJobConversation(supabase: any, staffId: string, data
   const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
   if (denied) return denied
 
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
+  const ids = userId && userId !== staffId ? [staffId, userId] : [staffId]
 
-  // Per-user archive (DM-style: append to is_archived_by array)
-  const { data: rows, error: fetchErr } = await supabase
-    .from('job_messages')
-    .select('id, is_archived_by')
-    .eq('booking_id', booking_id)
-    .eq('organization_id', organizationId)
+  // Atomic, idempotent, race-safe single round-trip via SQL function.
+  const { data: affected, error } = await supabase.rpc('archive_job_thread', {
+    _org_id: organizationId,
+    _my_ids: ids,
+    _booking_id: booking_id,
+  })
 
-  if (fetchErr) {
-    return new Response(JSON.stringify({ success: false, error: fetchErr.message }),
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  await Promise.all((rows || []).map((r: any) => {
-    const next = Array.from(new Set([...(r.is_archived_by || []), ...ids]))
-    return supabase.from('job_messages').update({ is_archived_by: next }).eq('id', r.id)
-  }))
+  return new Response(JSON.stringify({ success: true, archived_count: affected ?? 0 }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
 
-  return new Response(JSON.stringify({ success: true }),
+async function handleUnarchiveJobConversation(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { booking_id } = data || {}
+  if (!booking_id) {
+    return new Response(JSON.stringify({ success: false, error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
+
+  const ids = userId && userId !== staffId ? [staffId, userId] : [staffId]
+
+  const { data: affected, error } = await supabase.rpc('unarchive_job_thread', {
+    _org_id: organizationId,
+    _my_ids: ids,
+    _booking_id: booking_id,
+  })
+
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(JSON.stringify({ success: true, unarchived_count: affected ?? 0 }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
