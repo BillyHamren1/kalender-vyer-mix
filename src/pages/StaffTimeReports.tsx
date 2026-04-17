@@ -7,109 +7,121 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { format } from 'date-fns';
 
-interface StaffWithLatestReport {
+interface StaffWithDayReport {
   id: string;
   name: string;
   role: string | null;
   color: string | null;
-  latest_report_date: string | null;
-  latest_hours: number | null;
-  total_hours_this_month: number;
+  total_hours: number;
   reports_count: number;
   has_open_report: boolean;
+  earliest_start: string | null;
+  latest_end: string | null;
 }
 
 const StaffTimeReports: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
-  const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
   const { data: staffList = [], isLoading } = useQuery({
-    queryKey: ['staff-time-reports-overview', monthStart],
-    queryFn: async (): Promise<StaffWithLatestReport[]> => {
-      const { data: staff, error: staffError } = await supabase
-        .from('staff_members')
-        .select('id, name, role, color')
-        .eq('is_active', true)
-        .order('name');
-
-      if (staffError) throw staffError;
-      if (!staff) return [];
-
-      const [reportsRes, latestRes, travelRes, openRes] = await Promise.all([
+    queryKey: ['staff-time-reports-day', dateStr],
+    queryFn: async (): Promise<StaffWithDayReport[]> => {
+      // Fetch all reports + travel for the day in parallel
+      const [reportsRes, travelRes] = await Promise.all([
         supabase
           .from('time_reports')
-          .select('staff_id, report_date, hours_worked, end_time')
-          .gte('report_date', monthStart)
-          .lte('report_date', monthEnd),
-        supabase
-          .from('time_reports')
-          .select('staff_id, report_date, hours_worked')
-          .order('report_date', { ascending: false }),
+          .select('staff_id, hours_worked, start_time, end_time')
+          .eq('report_date', dateStr),
         supabase
           .from('travel_time_logs')
           .select('staff_id, hours_worked')
-          .gte('report_date', monthStart)
-          .lte('report_date', monthEnd)
+          .eq('report_date', dateStr)
           .not('end_time', 'is', null),
-        supabase
-          .from('time_reports')
-          .select('staff_id')
-          .is('end_time', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
-      if (latestRes.error) throw latestRes.error;
-      const reports = reportsRes.data;
-      const latestReports = latestRes.data;
-      const travelReports = travelRes.data || [];
-      const openReports = openRes.data || [];
+      if (travelRes.error) throw travelRes.error;
 
-      const openStaffIds = new Set<string>(openReports.map(r => r.staff_id));
+      const reports = reportsRes.data || [];
+      const travel = travelRes.data || [];
 
-      const latestByStaff = new Map<string, { date: string; hours: number }>();
-      for (const r of latestReports || []) {
-        if (!latestByStaff.has(r.staff_id)) {
-          latestByStaff.set(r.staff_id, { date: r.report_date, hours: r.hours_worked });
+      // Build per-staff aggregate
+      type Agg = {
+        total_hours: number;
+        reports_count: number;
+        has_open_report: boolean;
+        earliest_start: string | null;
+        latest_end: string | null;
+      };
+      const byStaff = new Map<string, Agg>();
+
+      for (const r of reports) {
+        const a = byStaff.get(r.staff_id) || {
+          total_hours: 0,
+          reports_count: 0,
+          has_open_report: false,
+          earliest_start: null,
+          latest_end: null,
+        };
+        a.total_hours += r.hours_worked || 0;
+        a.reports_count += 1;
+        if (!r.end_time) a.has_open_report = true;
+        if (r.start_time && (!a.earliest_start || r.start_time < a.earliest_start)) {
+          a.earliest_start = r.start_time;
         }
+        if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
+          a.latest_end = r.end_time;
+        }
+        byStaff.set(r.staff_id, a);
+      }
+      for (const t of travel) {
+        const a = byStaff.get(t.staff_id) || {
+          total_hours: 0,
+          reports_count: 0,
+          has_open_report: false,
+          earliest_start: null,
+          latest_end: null,
+        };
+        a.total_hours += t.hours_worked || 0;
+        byStaff.set(t.staff_id, a);
       }
 
-      const monthlyByStaff = new Map<string, { totalHours: number; count: number }>();
-      for (const r of reports || []) {
-        const existing = monthlyByStaff.get(r.staff_id) || { totalHours: 0, count: 0 };
-        existing.totalHours += r.hours_worked;
-        existing.count += 1;
-        monthlyByStaff.set(r.staff_id, existing);
-      }
-      for (const t of travelReports) {
-        const existing = monthlyByStaff.get(t.staff_id) || { totalHours: 0, count: 0 };
-        existing.totalHours += t.hours_worked;
-        monthlyByStaff.set(t.staff_id, existing);
-      }
+      const staffIds = [...byStaff.keys()];
+      if (staffIds.length === 0) return [];
 
-      return staff
+      // Fetch staff details
+      const { data: staff, error: staffError } = await supabase
+        .from('staff_members')
+        .select('id, name, role, color')
+        .in('id', staffIds);
+
+      if (staffError) throw staffError;
+
+      return (staff || [])
         .map(s => {
-          const latest = latestByStaff.get(s.id);
-          const monthly = monthlyByStaff.get(s.id) || { totalHours: 0, count: 0 };
+          const a = byStaff.get(s.id)!;
           return {
             id: s.id,
             name: s.name,
             role: s.role,
             color: s.color,
-            latest_report_date: latest?.date || null,
-            latest_hours: latest?.hours || null,
-            total_hours_this_month: monthly.totalHours,
-            reports_count: monthly.count,
-            has_open_report: openStaffIds.has(s.id),
+            total_hours: a.total_hours,
+            reports_count: a.reports_count,
+            has_open_report: a.has_open_report,
+            earliest_start: a.earliest_start,
+            latest_end: a.latest_end,
           };
         })
-        // Show only staff who reported time this month (or have an active open report)
-        .filter(s => s.reports_count > 0 || s.has_open_report);
+        .sort((a, b) => {
+          // Open reports first, then by name
+          if (a.has_open_report !== b.has_open_report) return a.has_open_report ? -1 : 1;
+          return a.name.localeCompare(b.name, 'sv');
+        });
     },
   });
 
@@ -119,7 +131,7 @@ const StaffTimeReports: React.FC = () => {
         <PageHeader
           icon={Clock}
           title={selectedStaffName}
-          subtitle="Tidrapporter per månad"
+          subtitle="Tidrapporter per vecka"
           variant="purple"
         >
           <Button variant="outline" size="sm" onClick={() => setSelectedStaffId(null)} className="rounded-xl">
@@ -127,7 +139,11 @@ const StaffTimeReports: React.FC = () => {
             Tillbaka
           </Button>
         </PageHeader>
-        <StaffTimeReportDetail staffId={selectedStaffId} staffName={selectedStaffName} />
+        <StaffTimeReportDetail
+          staffId={selectedStaffId}
+          staffName={selectedStaffName}
+          initialDate={selectedDate}
+        />
       </PageContainer>
     );
   }
@@ -147,8 +163,8 @@ const StaffTimeReports: React.FC = () => {
           setSelectedStaffId(id);
           setSelectedStaffName(name);
         }}
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
       />
     </PageContainer>
   );

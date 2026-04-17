@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, eachDayOfInterval, isToday, getISOWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
@@ -19,6 +19,7 @@ import { StaffMovementMap } from './StaffMovementMap';
 interface StaffTimeReportDetailProps {
   staffId: string;
   staffName: string;
+  initialDate?: Date;
 }
 
 interface TimeReportRow {
@@ -54,14 +55,19 @@ interface RawTravelLog {
 export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   staffId,
   staffName,
+  initialDate,
 }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(initialDate || new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
   const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
   const [movementDate, setMovementDate] = useState<string | null>(null);
 
-  const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-  const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+  const monthStart = format(weekStart, 'yyyy-MM-dd');
+  const monthEnd = format(weekEnd, 'yyyy-MM-dd');
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const isoWeek = getISOWeek(weekStart);
 
   // Main data query
   const { data: queryData, isLoading } = useQuery({
@@ -413,35 +419,50 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         }))
     : [];
 
+  const weekRangeLabel = `${format(weekStart, 'd MMM', { locale: sv })} – ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
+
   return (
     <>
       <PremiumCard
         icon={Calendar}
-        title={format(currentMonth, 'MMMM yyyy', { locale: sv })}
-        subtitle={`${reports.length} rapporter · ${formatHoursMinutes(totalHours)} totalt`}
+        title={`Vecka ${isoWeek}`}
+        subtitle={`${weekRangeLabel} · ${formatHoursMinutes(totalHours)} totalt`}
       >
-        {/* Month navigation */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Week navigation */}
+        <div className="flex items-center justify-between gap-2 mb-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
+            onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
             className="rounded-xl"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Förra
+            Förra vecka
           </Button>
-          <span className="text-sm font-medium capitalize">
-            {format(currentMonth, 'MMMM yyyy', { locale: sv })}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-sm font-semibold capitalize">Vecka {isoWeek}</span>
+            <span className="text-xs text-muted-foreground capitalize">{weekRangeLabel}</span>
+          </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
+            onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
             className="rounded-xl"
           >
-            Nästa
+            Nästa vecka
             <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        {/* Today shortcut */}
+        <div className="flex justify-center mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCurrentWeek(new Date())}
+            className="rounded-xl text-xs h-7"
+          >
+            Gå till denna vecka
           </Button>
         </div>
 
@@ -479,13 +500,9 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
         {isLoading ? (
           <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 7 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full rounded-lg" />
             ))}
-          </div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Inga tidrapporter för denna månad.
           </div>
         ) : (
           <div className="overflow-x-auto -mx-1">
@@ -508,30 +525,42 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     if (!grouped.has(r.report_date)) grouped.set(r.report_date, []);
                     grouped.get(r.report_date)!.push(r);
                   }
-                  const sortedDates = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
 
-                  return sortedDates.map(date => {
-                    const dateRows = grouped.get(date)!;
+                  // Iterate all 7 days of the week (Mon→Sun) so empty days are visible
+                  return weekDays.map(dayDate => {
+                    const date = format(dayDate, 'yyyy-MM-dd');
+                    const dateRows = grouped.get(date) || [];
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
+                    const hasAnyReport = dateRows.length > 0;
+                    const dayIsToday = isToday(dayDate);
 
                     return (
                       <React.Fragment key={date}>
-                        {/* Date header row — clickable to open daily overview */}
+                        {/* Date header row — clickable only if there's data */}
                         <TableRow
-                          className="bg-muted/70 hover:bg-muted cursor-pointer border-t-2"
-                          onClick={() => setDailyOverviewDate(date)}
+                          className={`border-t-2 ${
+                            hasAnyReport
+                              ? 'bg-muted/70 hover:bg-muted cursor-pointer'
+                              : 'bg-muted/30'
+                          } ${dayIsToday ? 'border-l-4 border-l-primary' : ''}`}
+                          onClick={hasAnyReport ? () => setDailyOverviewDate(date) : undefined}
                         >
                           <TableCell colSpan={6}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <MapPin className="h-4 w-4 text-primary" />
-                                <span className="font-semibold text-sm capitalize">
-                                  {format(new Date(date), 'EEEE d MMMM', { locale: sv })}
+                                <MapPin className={`h-4 w-4 ${hasAnyReport ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                                <span className={`font-semibold text-sm capitalize ${!hasAnyReport && 'text-muted-foreground'}`}>
+                                  {format(dayDate, 'EEEE d MMMM', { locale: sv })}
                                 </span>
-                                {hasOpenWork ? (
+                                {dayIsToday && (
+                                  <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                    Idag
+                                  </Badge>
+                                )}
+                                {hasAnyReport && (hasOpenWork ? (
                                   <Badge
                                     variant="outline"
                                     className="text-[10px] gap-1 border-orange-300 text-orange-600"
@@ -547,7 +576,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Stängd
                                   </Badge>
-                                )}
+                                ))}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
@@ -563,24 +592,30 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   </Badge>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <span>{formatHoursMinutes(dateTotalHours)}</span>
-                                {dateTravelHours > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
-                                  </span>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
-                                  title="Visa rörelse på karta"
-                                >
-                                  <Route className="h-3 w-3" /> Rörelse
-                                </button>
-                                <Badge variant="outline" className="text-[10px]">
-                                  Dagöversikt →
-                                </Badge>
-                              </div>
+                              {hasAnyReport ? (
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{formatHoursMinutes(dateTotalHours)}</span>
+                                  {dateTravelHours > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
+                                    title="Visa rörelse på karta"
+                                  >
+                                    <Route className="h-3 w-3" /> Rörelse
+                                  </button>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    Dagöversikt →
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60 italic">
+                                  Ingen rapport
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
