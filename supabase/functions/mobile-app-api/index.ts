@@ -3940,7 +3940,209 @@ async function handleUploadChatAttachment(supabase: any, staffId: string, data: 
     if (upErr) {
       return new Response(JSON.stringify({ error: upErr.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============= Anomalies (background absence tracking) =============
+
+async function handleStartAnomaly(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id, booking_id, large_project_id, started_at } = data || {}
+  if (!location_id && !booking_id) {
+    return new Response(JSON.stringify({ error: 'location_id or booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Check for already-open anomaly (idempotent)
+  let existingQuery = supabase
+    .from('time_report_anomalies')
+    .select('id, started_at')
+    .eq('staff_id', staffId)
+    .is('ended_at', null)
+    .limit(1)
+  if (location_id) existingQuery = existingQuery.eq('location_id', location_id)
+  else existingQuery = existingQuery.eq('booking_id', booking_id)
+
+  const { data: existing } = await existingQuery
+  if (existing && existing.length > 0) {
+    return new Response(JSON.stringify({ success: true, anomaly: existing[0], already_open: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('time_report_anomalies')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      location_id: location_id || null,
+      booking_id: booking_id || null,
+      large_project_id: large_project_id || null,
+      started_at: started_at || new Date().toISOString(),
+      source: 'geofence',
+    })
+    .select()
+    .single()
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, anomaly: inserted }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleStopAnomaly(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { location_id, booking_id, anomaly_id, ended_at } = data || {}
+  if (!location_id && !booking_id && !anomaly_id) {
+    return new Response(JSON.stringify({ error: 'location_id, booking_id or anomaly_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  let query = supabase
+    .from('time_report_anomalies')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('ended_at', null)
+    .limit(1)
+  if (anomaly_id) query = query.eq('id', anomaly_id)
+  else if (location_id) query = query.eq('location_id', location_id)
+  else query = query.eq('booking_id', booking_id)
+
+  const { data: rows } = await query
+  if (!rows || rows.length === 0) {
+    return new Response(JSON.stringify({ success: true, no_open: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const stopAt = ended_at || new Date().toISOString()
+  const { data: updated, error } = await supabase
+    .from('time_report_anomalies')
+    .update({ ended_at: stopAt })
+    .eq('id', rows[0].id)
+    .select()
+    .single()
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Auto-discard absences shorter than 60 seconds (noise / GPS bouncing)
+  if (updated && updated.duration_minutes !== null && updated.duration_minutes < 1) {
+    const startMs = new Date(updated.started_at).getTime()
+    const endMs = new Date(updated.ended_at).getTime()
+    if (endMs - startMs < 60_000) {
+      await supabase.from('time_report_anomalies').delete().eq('id', updated.id)
+      return new Response(JSON.stringify({ success: true, discarded: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
+  }
+
+  return new Response(JSON.stringify({ success: true, anomaly: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleListPendingAnomalies(supabase: any, staffId: string, organizationId: string) {
+  // Pending = ended (closed) but not yet classified
+  const { data, error } = await supabase
+    .from('time_report_anomalies')
+    .select('id, location_id, booking_id, large_project_id, started_at, ended_at, duration_minutes, classification, work_description, time_report_id')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .not('ended_at', 'is', null)
+    .is('classification', null)
+    .order('started_at', { ascending: true })
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Resolve location names
+  const locationIds = Array.from(new Set((data || []).map((a: any) => a.location_id).filter(Boolean)))
+  let locMap: Record<string, string> = {}
+  if (locationIds.length > 0) {
+    const { data: locs } = await supabase
+      .from('organization_locations')
+      .select('id, name')
+      .in('id', locationIds)
+    locMap = Object.fromEntries((locs || []).map((l: any) => [l.id, l.name]))
+  }
+
+  const enriched = (data || []).map((a: any) => ({
+    ...a,
+    location_name: a.location_id ? (locMap[a.location_id] || 'Plats') : null,
+  }))
+
+  return new Response(JSON.stringify({ anomalies: enriched }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleClassifyAnomaly(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { anomaly_id, classification, work_description } = data || {}
+  if (!anomaly_id || !classification || !['break', 'work'].includes(classification)) {
+    return new Response(JSON.stringify({ error: 'anomaly_id and valid classification (break|work) required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Verify ownership
+  const { data: existing, error: fetchErr } = await supabase
+    .from('time_report_anomalies')
+    .select('*')
+    .eq('id', anomaly_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchErr || !existing) {
+    return new Response(JSON.stringify({ error: 'Anomaly not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  if (classification === 'work' && (existing.duration_minutes || 0) > 10) {
+    if (!work_description || !work_description.trim()) {
+      return new Response(JSON.stringify({ error: 'work_description required for work > 10 min' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+  }
+
+  const updates: any = {
+    classification,
+    work_description: classification === 'work' ? (work_description || null) : null,
+    classified_at: new Date().toISOString(),
+  }
+
+  const { data: updated, error: updErr } = await supabase
+    .from('time_report_anomalies')
+    .update(updates)
+    .eq('id', anomaly_id)
+    .select()
+    .single()
+
+  if (updErr) {
+    return new Response(JSON.stringify({ error: updErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // If classified as break, deduct from linked time_report (if any)
+  if (classification === 'break' && existing.time_report_id && existing.duration_minutes) {
+    const breakHours = Number((existing.duration_minutes / 60).toFixed(2))
+    const { data: tr } = await supabase
+      .from('time_reports')
+      .select('id, hours_worked, break_time')
+      .eq('id', existing.time_report_id)
+      .single()
+    if (tr) {
+      const newHours = Math.max(0, Number((tr.hours_worked - breakHours).toFixed(2)))
+      const newBreak = Number(((tr.break_time || 0) + breakHours).toFixed(2))
+      await supabase.from('time_reports')
+        .update({ hours_worked: newHours, break_time: newBreak })
+        .eq('id', existing.time_report_id)
+    }
+  }
+
+  return new Response(JSON.stringify({ success: true, anomaly: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
     const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
     return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
