@@ -419,35 +419,50 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         }))
     : [];
 
+  const weekRangeLabel = `${format(weekStart, 'd MMM', { locale: sv })} – ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
+
   return (
     <>
       <PremiumCard
         icon={Calendar}
-        title={format(currentMonth, 'MMMM yyyy', { locale: sv })}
-        subtitle={`${reports.length} rapporter · ${formatHoursMinutes(totalHours)} totalt`}
+        title={`Vecka ${isoWeek}`}
+        subtitle={`${weekRangeLabel} · ${formatHoursMinutes(totalHours)} totalt`}
       >
-        {/* Month navigation */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Week navigation */}
+        <div className="flex items-center justify-between gap-2 mb-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
+            onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
             className="rounded-xl"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Förra
+            Förra vecka
           </Button>
-          <span className="text-sm font-medium capitalize">
-            {format(currentMonth, 'MMMM yyyy', { locale: sv })}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-sm font-semibold capitalize">Vecka {isoWeek}</span>
+            <span className="text-xs text-muted-foreground capitalize">{weekRangeLabel}</span>
+          </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
+            onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
             className="rounded-xl"
           >
-            Nästa
+            Nästa vecka
             <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        {/* Today shortcut */}
+        <div className="flex justify-center mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCurrentWeek(new Date())}
+            className="rounded-xl text-xs h-7"
+          >
+            Gå till denna vecka
           </Button>
         </div>
 
@@ -485,13 +500,9 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
         {isLoading ? (
           <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 7 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full rounded-lg" />
             ))}
-          </div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Inga tidrapporter för denna månad.
           </div>
         ) : (
           <div className="overflow-x-auto -mx-1">
