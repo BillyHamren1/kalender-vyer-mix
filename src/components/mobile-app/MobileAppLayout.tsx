@@ -54,7 +54,10 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-card max-w-lg mx-auto">
+    <div
+      className="bg-card max-w-lg mx-auto fixed inset-0 overflow-y-auto overscroll-none"
+      style={{ WebkitOverflowScrolling: 'touch' as any }}
+    >
       <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
         {/* Global active timer banner — visible on all pages except /m/report */}
         <GlobalActiveTimerBanner />
