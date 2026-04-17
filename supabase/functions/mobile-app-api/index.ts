@@ -38,6 +38,39 @@ function verifyPassword(inputPassword: string, storedHash: string): boolean {
   return inputHash === storedHash
 }
 
+/**
+ * Build a safe push-notification preview body for chat messages.
+ * - Never throws on null/undefined inputs.
+ * - Prefers trimmed text content; falls back to attachment label.
+ * - Caps length so notification payloads stay within OS limits.
+ */
+function buildMessagePreview(
+  content: unknown,
+  fileName?: string | null,
+  fileType?: string | null,
+  maxLen = 120,
+): string {
+  const text = typeof content === 'string' ? content.trim() : ''
+  if (text.length > 0) {
+    return text.length > maxLen ? text.slice(0, maxLen - 1) + '…' : text
+  }
+
+  // Attachment-only message
+  const safeName = typeof fileName === 'string' ? fileName.trim() : ''
+  const mime = typeof fileType === 'string' ? fileType.toLowerCase() : ''
+  let label = '📎 Skickade en bilaga'
+  if (mime.startsWith('image/')) label = '📷 Skickade en bild'
+  else if (mime.startsWith('video/')) label = '🎬 Skickade en video'
+  else if (mime.startsWith('audio/')) label = '🎤 Skickade en ljudfil'
+  else if (mime === 'application/pdf') label = '📄 Skickade ett PDF'
+
+  if (safeName) {
+    const combined = `${label}: ${safeName}`
+    return combined.length > maxLen ? combined.slice(0, maxLen - 1) + '…' : combined
+  }
+  return label
+}
+
 async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
   if (explicitOrgId) {
     const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
