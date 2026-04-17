@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
