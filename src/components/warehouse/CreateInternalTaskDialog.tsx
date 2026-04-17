@@ -94,8 +94,8 @@ export default function CreateInternalTaskDialog({
         end_date: endDate || startDate || null,
       }),
     onSuccess: () => {
-      toast.success("Lageruppgift skapad");
-      qc.invalidateQueries({ queryKey: ["warehouse-project-tasks"] });
+      toast.success("Lageruppgift skapad på projektet Lager");
+      qc.invalidateQueries({ queryKey: ["project-tasks"] });
       qc.invalidateQueries({ queryKey: ["warehouse-internal-tasks"] });
       onSuccess?.();
       onOpenChange(false);

@@ -446,15 +446,25 @@ export const deleteWarehouseProjectTask = async (id: string): Promise<void> => {
 
 // ============================================================================
 // Internal "Lager" project helpers
+// Konsoliderat: använder samma `projects.is_internal = true` Lager som tidappen.
+// Tidigare lagrades dessa i warehouse_projects, men det skapade ett dubbelt
+// "Lager" — nu är de samma entitet, så tidregistrering på Lager hamnar rätt.
 // ============================================================================
-export const fetchInternalWarehouseProject = async (): Promise<WarehouseProject | null> => {
-  const { data, error } = await (supabase
-    .from('warehouse_projects')
-    .select('*') as any)
+export interface InternalLagerProject {
+  id: string;
+  organization_id: string;
+  name: string;
+  is_internal: boolean;
+}
+
+export const fetchInternalWarehouseProject = async (): Promise<InternalLagerProject | null> => {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, organization_id, name, is_internal')
     .eq('is_internal', true)
     .maybeSingle();
   if (error) throw error;
-  return (data || null) as WarehouseProject | null;
+  return (data || null) as InternalLagerProject | null;
 };
 
 export interface CreateInternalTaskInput {
@@ -468,18 +478,26 @@ export interface CreateInternalTaskInput {
 
 export const createInternalWarehouseTask = async (
   input: CreateInternalTaskInput
-): Promise<WarehouseProjectTask> => {
+): Promise<{ id: string }> => {
   const project = await fetchInternalWarehouseProject();
   if (!project) {
     throw new Error('Lagerprojektet (Lager) saknas. Ladda om sidan eller kontakta admin.');
   }
-  return createWarehouseProjectTask({
-    warehouse_project_id: project.id,
-    title: input.title,
-    description: input.description ?? null,
-    assigned_to: input.assigned_to ?? null,
-    start_date: input.start_date ?? null,
-    end_date: input.end_date ?? null,
-    category: input.category ?? null,
-  });
+
+  const { data, error } = await supabase
+    .from('project_tasks')
+    .insert({
+      project_id: project.id,
+      title: input.title,
+      description: input.description ?? null,
+      assigned_to: input.assigned_to ?? null,
+      start_date: input.start_date ? new Date(input.start_date).toISOString() : null,
+      end_date: input.end_date ? new Date(input.end_date).toISOString() : null,
+      category: input.category ?? null,
+    } as any)
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data as { id: string };
 };
