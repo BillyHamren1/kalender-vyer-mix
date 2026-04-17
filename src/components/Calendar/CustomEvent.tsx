@@ -91,8 +91,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [event.id]);
 
-  // Check if this is a warehouse event
-  const isWarehouseEvent = event.resourceId === 'warehouse';
+  // Check if this is a warehouse event (covers all warehouse calendar resources)
+  const isWarehouseEvent =
+    event.resourceId === 'warehouse' ||
+    event.resourceId === 'warehouse-event' ||
+    event.resourceId?.startsWith('lager-');
   
   // Check if this is a warehouse event with source changes
   const hasSourceChanges = event.extendedProps?.has_source_changes === true && 
