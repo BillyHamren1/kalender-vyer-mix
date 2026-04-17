@@ -27,7 +27,7 @@ interface JobConversation {
   client: string;
   lastMessage: string;
   lastTime: string;
-  unread: boolean;
+  unreadCount: number;
   status: string;
   lastDate: string | null;
 }
@@ -46,10 +46,10 @@ export function useMobileInbox() {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
 
-  // Realtime: invalidate inbox cache on new DMs or broadcasts
+  // Realtime: invalidate inbox cache on new DMs, broadcasts OR job messages
   useRealtimeInvalidation({
     channelName: 'mobile-inbox-realtime',
-    tables: ['direct_messages', 'broadcast_messages'],
+    tables: ['direct_messages', 'broadcast_messages', 'job_messages'],
     queryKeys: [['mobile-inbox-all']],
   });
 
@@ -65,9 +65,9 @@ export function useMobileInbox() {
       const jobs: JobConversation[] = (res.bookings || []).slice(0, 50).map((b: any) => ({
         bookingId: b.id,
         client: b.client,
-        lastMessage: '',
-        lastTime: '',
-        unread: false,
+        lastMessage: b.last_message_content || '',
+        lastTime: b.last_message_at || '',
+        unreadCount: b.unread_count || 0,
         status: b.status || 'CONFIRMED',
         lastDate: b.rigdowndate || b.eventdate || b.rigdaydate || null,
       }));
@@ -124,6 +124,19 @@ export function useMobileInbox() {
     });
   };
 
+  // Optimistic: mark job conversation as read
+  const markJobReadOptimistic = (bookingId: string) => {
+    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        jobs: old.jobs.map(j =>
+          j.bookingId === bookingId ? { ...j, unreadCount: 0 } : j
+        ),
+      };
+    });
+  };
+
   return {
     dmConversations: data?.conversations || [],
     broadcasts: data?.broadcasts || [],
@@ -133,5 +146,6 @@ export function useMobileInbox() {
     markDMReadOptimistic,
     appendDMMessage,
     markBroadcastReadOptimistic,
+    markJobReadOptimistic,
   };
 }

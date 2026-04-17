@@ -48,7 +48,7 @@ const formatTime = (ts: string) => {
 
 const MobileInbox = () => {
   const { staff } = useMobileAuth();
-  const { dmConversations, broadcasts, jobConversations, isLoading, markBroadcastReadOptimistic, refetchAll } = useMobileInbox();
+  const { dmConversations, broadcasts, jobConversations, isLoading, markBroadcastReadOptimistic, markJobReadOptimistic, refetchAll } = useMobileInbox();
   const [view, setView] = useState<View>('list');
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
   const [activeJob, setActiveJob] = useState<{ bookingId: string; client: string } | null>(null);
@@ -74,7 +74,20 @@ const MobileInbox = () => {
     return diff <= 7;
   });
 
-  const totalUnread = activeDMs.reduce((s, c) => s + c.unread_count, 0) + broadcasts.filter(b => !b.is_read).length;
+  const totalUnread =
+    activeDMs.reduce((s, c) => s + c.unread_count, 0) +
+    broadcasts.filter(b => !b.is_read).length +
+    activeJobs.reduce((s, j) => s + (j.unreadCount || 0), 0);
+
+  const openDM = (conv: DMConversation) => { setActiveDM(conv); setView('dm'); };
+  const openJob = (job: { bookingId: string; client: string; unreadCount?: number }) => {
+    if (job.unreadCount && job.unreadCount > 0) {
+      markJobReadOptimistic(job.bookingId);
+      mobileApi.markJobRead(job.bookingId).catch(() => {});
+    }
+    setActiveJob({ bookingId: job.bookingId, client: job.client });
+    setView('job');
+  };
 
   const openDM = (conv: DMConversation) => { setActiveDM(conv); setView('dm'); };
   const handleArchive = async (partnerId: string) => {
@@ -204,9 +217,11 @@ const MobileInbox = () => {
                   <ConversationRow
                     key={job.bookingId}
                     name={job.client}
-                    preview="Öppna jobbchatten"
+                    preview={job.lastMessage || 'Öppna jobbchatten'}
+                    timestamp={job.lastTime || undefined}
+                    unread={job.unreadCount || 0}
                     avatarIcon={<Briefcase className="w-5 h-5 text-muted-foreground" />}
-                    onClick={() => { setActiveJob({ bookingId: job.bookingId, client: job.client }); setView('job'); }}
+                    onClick={() => openJob({ bookingId: job.bookingId, client: job.client, unreadCount: job.unreadCount })}
                   />
                 ))}
               </Section>

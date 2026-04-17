@@ -274,6 +274,12 @@ export const mobileApi = {
   sendJobMessage: (data: { booking_id: string; content: string }) =>
     callApi<{ success: boolean }>('send_job_message', data),
 
+  markJobRead: (bookingId: string) =>
+    callApi<{ success: boolean; updated: number }>('mark_job_read', { booking_id: bookingId }),
+
+  archiveJobConversation: (bookingId: string) =>
+    callApi<{ success: boolean }>('archive_job_conversation', { booking_id: bookingId }),
+
   // Broadcasts
   getBroadcasts: () =>
     callApi<{ broadcasts: any[] }>('get_broadcasts'),

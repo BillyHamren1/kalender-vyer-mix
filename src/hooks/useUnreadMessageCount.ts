@@ -25,7 +25,11 @@ export function useUnreadMessageCount() {
       const unreadBroadcast = (allData.broadcasts || []).filter(
         (b: any) => !b.is_read
       ).length;
-      setCount(unreadDM + unreadBroadcast);
+      const unreadJobs = (allData.jobs || []).reduce(
+        (sum: number, j: any) => sum + (j.unreadCount || 0),
+        0
+      );
+      setCount(unreadDM + unreadBroadcast + unreadJobs);
       return true;
     }
     return false;
@@ -45,7 +49,11 @@ export function useUnreadMessageCount() {
       const unreadBroadcast = (res.broadcasts || []).filter(
         (b: any) => !(b.is_read_by || []).includes(staff.id) && !b.is_read
       ).length;
-      setCount(unreadDM + unreadBroadcast);
+      const unreadJobs = (res.bookings || []).reduce(
+        (sum: number, b: any) => sum + (b.unread_count || 0),
+        0
+      );
+      setCount(unreadDM + unreadBroadcast + unreadJobs);
     } catch {
       // silently ignore
     }
@@ -83,6 +91,9 @@ export function useUnreadMessageCount() {
         refresh();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, () => {
+        refresh();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'job_messages' }, () => {
         refresh();
       })
       .subscribe();
