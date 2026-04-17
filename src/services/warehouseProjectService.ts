@@ -148,7 +148,7 @@ export const createWarehouseProjectFromInbox = async (
     .insert([
       {
         warehouse_project_id: wp.id,
-        title: 'Packa',
+        title: 'Packning',
         start_date: options.packStart,
         end_date: options.packEnd,
         status: 'planning',
@@ -156,7 +156,7 @@ export const createWarehouseProjectFromInbox = async (
       },
       {
         warehouse_project_id: wp.id,
-        title: 'Returnera',
+        title: 'Retur',
         start_date: options.returnStart,
         end_date: options.returnEnd,
         status: 'planning',

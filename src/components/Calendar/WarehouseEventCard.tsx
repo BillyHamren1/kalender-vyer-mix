@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen } from 'lucide-react';
+import { AlertTriangle, Package, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { 
@@ -30,11 +30,7 @@ interface WarehouseEventCardProps {
 // Icons for each event type
 const EVENT_ICONS: Record<WarehouseEventType, React.ComponentType<{ className?: string }>> = {
   packing: Package,
-  delivery: Truck,
-  event: Calendar,
-  return: RotateCcw,
-  inventory: ClipboardList,
-  unpacking: PackageOpen
+  return: RotateCcw
 };
 
 export function WarehouseEventCard({ event, onClick, compact = false }: WarehouseEventCardProps) {
