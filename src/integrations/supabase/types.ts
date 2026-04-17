@@ -1457,9 +1457,12 @@ export type Database = {
       job_messages: {
         Row: {
           booking_id: string
-          content: string
+          content: string | null
           created_at: string
           delivered_at: string | null
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
           id: string
           is_archived: boolean
           is_archived_by: string[]
@@ -1471,9 +1474,12 @@ export type Database = {
         }
         Insert: {
           booking_id: string
-          content: string
+          content?: string | null
           created_at?: string
           delivered_at?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           is_archived?: boolean
           is_archived_by?: string[]
@@ -1485,9 +1491,12 @@ export type Database = {
         }
         Update: {
           booking_id?: string
-          content?: string
+          content?: string | null
           created_at?: string
           delivered_at?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           is_archived?: boolean
           is_archived_by?: string[]
