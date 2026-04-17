@@ -536,6 +536,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <AlertTriangle className="h-4 w-4" />
                                   </button>
                                 )}
+                                {(unlinkedAnomaliesByDate.get(date) || []).length > 0 && (
+                                  <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600">
+                                    {(unlinkedAnomaliesByDate.get(date) || []).length} oklassad frånvaro
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span>{formatHoursMinutes(dateTotalHours)}</span>
