@@ -87,7 +87,7 @@ const StaffTimeReports: React.FC = () => {
         has_open_report: boolean;
         earliest_start: string | null;
         latest_end: string | null;
-        projects: Map<string, { label: string; is_open: boolean }>;
+        projects: Map<string, { label: string; is_open: boolean; total_hours: number }>;
       };
       const byStaff = new Map<string, Agg>();
 
