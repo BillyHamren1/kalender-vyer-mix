@@ -9,6 +9,12 @@ import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 import { format } from 'date-fns';
 
+interface ProjectInfo {
+  booking_id: string;
+  label: string;
+  is_open: boolean;
+}
+
 interface StaffWithDayReport {
   id: string;
   name: string;
@@ -19,6 +25,7 @@ interface StaffWithDayReport {
   has_open_report: boolean;
   earliest_start: string | null;
   latest_end: string | null;
+  projects: ProjectInfo[];
 }
 
 const StaffTimeReports: React.FC = () => {
@@ -35,7 +42,7 @@ const StaffTimeReports: React.FC = () => {
       const [reportsRes, travelRes] = await Promise.all([
         supabase
           .from('time_reports')
-          .select('staff_id, hours_worked, start_time, end_time')
+          .select('staff_id, booking_id, hours_worked, start_time, end_time')
           .eq('report_date', dateStr),
         supabase
           .from('travel_time_logs')
@@ -50,6 +57,20 @@ const StaffTimeReports: React.FC = () => {
       const reports = reportsRes.data || [];
       const travel = travelRes.data || [];
 
+      // Fetch booking labels
+      const bookingIds = [...new Set(reports.map(r => r.booking_id).filter(Boolean))];
+      const bookingMap = new Map<string, string>();
+      if (bookingIds.length > 0) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('id, client, booking_number')
+          .in('id', bookingIds);
+        (bookings || []).forEach(b => {
+          const label = b.booking_number ? `${b.booking_number} · ${b.client}` : b.client;
+          bookingMap.set(b.id, label);
+        });
+      }
+
       // Build per-staff aggregate
       type Agg = {
         total_hours: number;
@@ -57,6 +78,7 @@ const StaffTimeReports: React.FC = () => {
         has_open_report: boolean;
         earliest_start: string | null;
         latest_end: string | null;
+        projects: Map<string, { label: string; is_open: boolean }>;
       };
       const byStaff = new Map<string, Agg>();
 
@@ -67,6 +89,7 @@ const StaffTimeReports: React.FC = () => {
           has_open_report: false,
           earliest_start: null,
           latest_end: null,
+          projects: new Map(),
         };
         a.total_hours += r.hours_worked || 0;
         a.reports_count += 1;
@@ -77,6 +100,14 @@ const StaffTimeReports: React.FC = () => {
         if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
           a.latest_end = r.end_time;
         }
+        if (r.booking_id) {
+          const label = bookingMap.get(r.booking_id) || 'Okänt projekt';
+          const existing = a.projects.get(r.booking_id);
+          a.projects.set(r.booking_id, {
+            label,
+            is_open: (existing?.is_open || false) || !r.end_time,
+          });
+        }
         byStaff.set(r.staff_id, a);
       }
       for (const t of travel) {
@@ -86,6 +117,7 @@ const StaffTimeReports: React.FC = () => {
           has_open_report: false,
           earliest_start: null,
           latest_end: null,
+          projects: new Map(),
         };
         a.total_hours += t.hours_worked || 0;
         byStaff.set(t.staff_id, a);
@@ -94,7 +126,6 @@ const StaffTimeReports: React.FC = () => {
       const staffIds = [...byStaff.keys()];
       if (staffIds.length === 0) return [];
 
-      // Fetch staff details
       const { data: staff, error: staffError } = await supabase
         .from('staff_members')
         .select('id, name, role, color')
@@ -115,10 +146,14 @@ const StaffTimeReports: React.FC = () => {
             has_open_report: a.has_open_report,
             earliest_start: a.earliest_start,
             latest_end: a.latest_end,
+            projects: [...a.projects.entries()].map(([booking_id, v]) => ({
+              booking_id,
+              label: v.label,
+              is_open: v.is_open,
+            })),
           };
         })
         .sort((a, b) => {
-          // Open reports first, then by name
           if (a.has_open_report !== b.has_open_report) return a.has_open_report ? -1 : 1;
           return a.name.localeCompare(b.name, 'sv');
         });
