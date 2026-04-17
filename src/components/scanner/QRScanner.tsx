@@ -385,33 +385,42 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [manualInput, onScan]);
 
+  // Stable refs so the lifecycle effect below doesn't restart the camera
+  // on every parent render (which created a start/stop loop on iOS).
+  const startCameraRef = useRef(startCamera);
+  const stopCameraRef = useRef(stopCamera);
+  startCameraRef.current = startCamera;
+  stopCameraRef.current = stopCamera;
+
   useEffect(() => {
     mountedRef.current = true;
 
     if (!isActive) {
       setError(null);
-      stopCamera();
+      stopCameraRef.current();
       return () => {
         mountedRef.current = false;
-        stopCamera();
+        stopCameraRef.current();
       };
     }
 
     if (shouldSkipCamera) {
-      stopCamera();
+      stopCameraRef.current();
       return () => {
         mountedRef.current = false;
-        stopCamera();
+        stopCameraRef.current();
       };
     }
 
-    void startCamera();
+    void startCameraRef.current();
 
     return () => {
       mountedRef.current = false;
-      stopCamera();
+      stopCameraRef.current();
     };
-  }, [isActive, isIos, shouldSkipCamera, startCamera, stopCamera]);
+    // Intentionally only depend on activation flags — start/stop are read via refs
+    // to prevent restart loops when parent re-renders.
+  }, [isActive, shouldSkipCamera]);
 
   if (!isActive) return null;
 
