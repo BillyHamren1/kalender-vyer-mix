@@ -525,14 +525,17 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     if (!grouped.has(r.report_date)) grouped.set(r.report_date, []);
                     grouped.get(r.report_date)!.push(r);
                   }
-                  const sortedDates = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
 
-                  return sortedDates.map(date => {
-                    const dateRows = grouped.get(date)!;
+                  // Iterate all 7 days of the week (Mon→Sun) so empty days are visible
+                  return weekDays.map(dayDate => {
+                    const date = format(dayDate, 'yyyy-MM-dd');
+                    const dateRows = grouped.get(date) || [];
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
+                    const hasAnyReport = dateRows.length > 0;
+                    const dayIsToday = isToday(dayDate);
 
                     return (
                       <React.Fragment key={date}>
