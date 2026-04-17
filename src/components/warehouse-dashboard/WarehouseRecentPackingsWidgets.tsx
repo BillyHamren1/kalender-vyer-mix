@@ -15,6 +15,8 @@ interface PackingItem {
   status: string;
   updatedAt: string;
   createdAt: string;
+  eventDate: string | null;
+  projectNumber: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -37,17 +39,36 @@ const WarehouseRecentPackingsWidgets = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('packing_projects')
-        .select('id, name, status, created_at, updated_at')
+        .select('id, name, status, created_at, updated_at, booking_id, warehouse_project_id')
         .order('updated_at', { ascending: false })
         .limit(20);
 
       if (error) throw error;
-      return (data || []).map(p => ({
+
+      const rows = data || [];
+      const bookingIds = Array.from(new Set(rows.map(r => r.booking_id).filter(Boolean))) as string[];
+      const wpIds = Array.from(new Set(rows.map(r => r.warehouse_project_id).filter(Boolean))) as string[];
+
+      const [bookingsRes, wpsRes] = await Promise.all([
+        bookingIds.length
+          ? supabase.from('bookings').select('id, eventdate').in('id', bookingIds)
+          : Promise.resolve({ data: [], error: null } as any),
+        wpIds.length
+          ? supabase.from('warehouse_projects').select('id, project_number').in('id', wpIds)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+
+      const bookingMap = new Map((bookingsRes.data || []).map((b: any) => [b.id, b.eventdate]));
+      const wpMap = new Map((wpsRes.data || []).map((w: any) => [w.id, w.project_number]));
+
+      return rows.map(p => ({
         id: p.id,
         name: p.name,
         status: p.status,
         updatedAt: p.updated_at,
         createdAt: p.created_at,
+        eventDate: p.booking_id ? (bookingMap.get(p.booking_id) as string | null) ?? null : null,
+        projectNumber: p.warehouse_project_id ? (wpMap.get(p.warehouse_project_id) as string | null) ?? null : null,
       })) as PackingItem[];
     },
   });
@@ -76,10 +97,15 @@ const WarehouseRecentPackingsWidgets = () => {
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${STATUS_BADGE_CLASSES[item.status] || ''}`}>
           {STATUS_LABELS[item.status] || item.status}
         </Badge>
-        <p className="text-sm font-medium truncate">{item.name}</p>
+        <p className="text-sm font-medium truncate">
+          {item.name}
+          {item.projectNumber && (
+            <span className="ml-2 text-xs text-muted-foreground font-normal">{item.projectNumber}</span>
+          )}
+        </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <span className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+        <span className="text-xs text-muted-foreground">{formatDate(item.eventDate)}</span>
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
       </div>
     </div>
