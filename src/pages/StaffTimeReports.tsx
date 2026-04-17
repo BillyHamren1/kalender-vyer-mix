@@ -115,6 +115,7 @@ const StaffTimeReports: React.FC = () => {
           a.projects.set(r.booking_id, {
             label,
             is_open: (existing?.is_open || false) || !r.end_time,
+            total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
           });
         }
         byStaff.set(r.staff_id, a);
