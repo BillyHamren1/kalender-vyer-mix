@@ -539,19 +539,28 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
                     return (
                       <React.Fragment key={date}>
-                        {/* Date header row — clickable to open daily overview */}
+                        {/* Date header row — clickable only if there's data */}
                         <TableRow
-                          className="bg-muted/70 hover:bg-muted cursor-pointer border-t-2"
-                          onClick={() => setDailyOverviewDate(date)}
+                          className={`border-t-2 ${
+                            hasAnyReport
+                              ? 'bg-muted/70 hover:bg-muted cursor-pointer'
+                              : 'bg-muted/30'
+                          } ${dayIsToday ? 'border-l-4 border-l-primary' : ''}`}
+                          onClick={hasAnyReport ? () => setDailyOverviewDate(date) : undefined}
                         >
                           <TableCell colSpan={6}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <MapPin className="h-4 w-4 text-primary" />
-                                <span className="font-semibold text-sm capitalize">
-                                  {format(new Date(date), 'EEEE d MMMM', { locale: sv })}
+                                <MapPin className={`h-4 w-4 ${hasAnyReport ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                                <span className={`font-semibold text-sm capitalize ${!hasAnyReport && 'text-muted-foreground'}`}>
+                                  {format(dayDate, 'EEEE d MMMM', { locale: sv })}
                                 </span>
-                                {hasOpenWork ? (
+                                {dayIsToday && (
+                                  <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                    Idag
+                                  </Badge>
+                                )}
+                                {hasAnyReport && (hasOpenWork ? (
                                   <Badge
                                     variant="outline"
                                     className="text-[10px] gap-1 border-orange-300 text-orange-600"
@@ -567,7 +576,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Stängd
                                   </Badge>
-                                )}
+                                ))}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
@@ -583,24 +592,30 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   </Badge>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <span>{formatHoursMinutes(dateTotalHours)}</span>
-                                {dateTravelHours > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
-                                  </span>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
-                                  title="Visa rörelse på karta"
-                                >
-                                  <Route className="h-3 w-3" /> Rörelse
-                                </button>
-                                <Badge variant="outline" className="text-[10px]">
-                                  Dagöversikt →
-                                </Badge>
-                              </div>
+                              {hasAnyReport ? (
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{formatHoursMinutes(dateTotalHours)}</span>
+                                  {dateTravelHours > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
+                                    title="Visa rörelse på karta"
+                                  >
+                                    <Route className="h-3 w-3" /> Rörelse
+                                  </button>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    Dagöversikt →
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60 italic">
+                                  Ingen rapport
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
