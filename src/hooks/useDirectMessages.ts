@@ -10,17 +10,21 @@ import { useRealtimeInvalidation } from './useRealtimeInvalidation';
 export const useDirectMessages = (allMyIds: string[], allPartnerIds: string[]) => {
   const channelKey = `dm-${allMyIds.join('-')}-${allPartnerIds.join('-')}`;
 
+  // Only react to INSERT — UPDATE (read receipts) is handled inside the chat view
+  // via local state; refetching the whole thread on every read flag would thrash.
+  // We can't filter server-side on multi-id pairs, so the queryFn already scopes.
   useRealtimeInvalidation({
     channelName: channelKey,
-    tables: ['direct_messages'],
+    tables: [{ table: 'direct_messages', events: ['INSERT'] }],
     queryKeys: [['direct-messages', ...allMyIds, ...allPartnerIds]],
+    debounceMs: 200,
   });
 
   const messagesQuery = useQuery<DirectMessage[]>({
     queryKey: ['direct-messages', ...allMyIds, ...allPartnerIds, 'messages'],
     queryFn: () => fetchDirectMessages(allMyIds, allPartnerIds),
     enabled: allMyIds.length > 0 && allPartnerIds.length > 0,
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   return {
