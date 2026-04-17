@@ -49,14 +49,23 @@ export function useProjectInboxCount(): number {
   });
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; refetch(); }, 400);
+    };
     const channel = supabase
       .channel('project-inbox-badge')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        refetch();
-      })
+      // INSERT: brand new booking → may belong in inbox
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, schedule)
+      // UPDATE: status / assignment / dates change can move bookings in or out of the inbox
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, schedule)
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, [refetch]);
 
   return count;
