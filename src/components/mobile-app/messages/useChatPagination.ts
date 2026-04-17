@@ -86,18 +86,23 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  // Mirror messages into a ref so loadOlder stays referentially stable.
+  // Without this, loadOlder would be re-created on every message append, which
+  // would invalidate any effect downstream that depends on it.
+  const messagesRef = useRef<ChatMessage[]>(state.messages);
+  useEffect(() => { messagesRef.current = state.messages; }, [state.messages]);
+
   const loadOlder = useCallback(async () => {
     if (inflight.current) return;
+    const current = messagesRef.current;
+    if (current.length === 0) return;
+    const oldest = current[0]?.created_at;
+    if (!oldest) return;
+
     setState((s) => {
-      if (!s.hasMore || s.loading || s.loadingOlder || s.messages.length === 0) return s;
+      if (!s.hasMore || s.loading || s.loadingOlder) return s;
       return { ...s, loadingOlder: true };
     });
-    // Read freshest cursor after the state update by using a ref-style snapshot
-    const oldest = state.messages[0]?.created_at;
-    if (!oldest) {
-      setState((s) => ({ ...s, loadingOlder: false }));
-      return;
-    }
     inflight.current = true;
     const myGen = generation.current;
     try {
@@ -116,7 +121,7 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
     } finally {
       inflight.current = false;
     }
-  }, [fetcher, state.messages]);
+  }, [fetcher]);
 
   /** Imperative setter so realtime/optimistic flows can mutate locally. */
   const setMessages = useCallback(
