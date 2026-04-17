@@ -21,6 +21,7 @@ import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
