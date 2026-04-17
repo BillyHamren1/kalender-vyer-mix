@@ -162,6 +162,12 @@ Deno.serve(async (req) => {
         return await handleGetJobMessages(supabase, staffId, data, organizationId)
       case 'send_job_message':
         return await handleSendJobMessage(supabase, staffId, data, organizationId)
+      case 'archive_dm':
+        return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'unarchive_dm':
+        return await handleUnarchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'upload_chat_attachment':
+        return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
@@ -735,17 +741,25 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
 
   // --- Process DMs ---
   const myIds = new Set(ids) // staffId + userId (if linked)
-  const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[] }>()
+  const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[]; archived: boolean }>()
   for (const msg of (dmResult.data || [])) {
     const isSender = myIds.has(msg.sender_id)
     const partnerId = isSender ? msg.recipient_id : msg.sender_id
     const partnerName = isSender ? msg.recipient_name : msg.sender_name
+    if (myIds.has(partnerId)) continue // skip self-conversations
     if (!conversations.has(partnerId)) {
-      conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [] })
+      conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [], archived: false })
     }
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && !isSender) conv.unread_count++
+    // unread = sent to me, not yet read
+    if (!msg.read_at && !msg.is_read && !isSender) conv.unread_count++
+  }
+  // Conversation is archived only if EVERY message archive list contains my id
+  for (const conv of conversations.values()) {
+    conv.archived = conv.messages.length > 0 && conv.messages.every((m: any) =>
+      Array.isArray(m.is_archived_by) && ids.some(id => m.is_archived_by.includes(id))
+    )
   }
   const dmInbox = Array.from(conversations.values())
     .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
