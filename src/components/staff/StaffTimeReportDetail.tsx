@@ -236,6 +236,44 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   const reports = queryData?.reports || [];
   const rawTravel = queryData?.rawTravel || [];
 
+  // Background-tracked absence anomalies (geofence-based)
+  const { data: bgAnomalies = [] } = useQuery({
+    queryKey: ['staff-bg-anomalies', staffId, monthStart],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('time_report_anomalies')
+        .select('id, time_report_id, started_at, ended_at, duration_minutes, classification, work_description, location_id, organization_locations(name)')
+        .eq('staff_id', staffId)
+        .gte('started_at', `${monthStart}T00:00:00`)
+        .lte('started_at', `${monthEnd}T23:59:59`)
+        .not('ended_at', 'is', null)
+        .order('started_at', { ascending: true });
+      return data || [];
+    },
+  });
+
+  // Group anomalies by time_report_id (linked) and by date (unlinked)
+  const anomaliesByReportId = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of bgAnomalies as any[]) {
+      if (!a.time_report_id) continue;
+      if (!map.has(a.time_report_id)) map.set(a.time_report_id, []);
+      map.get(a.time_report_id)!.push(a);
+    }
+    return map;
+  }, [bgAnomalies]);
+
+  const unlinkedAnomaliesByDate = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of bgAnomalies as any[]) {
+      if (a.time_report_id) continue;
+      const date = a.started_at.slice(0, 10);
+      if (!map.has(date)) map.set(date, []);
+      map.get(date)!.push(a);
+    }
+    return map;
+  }, [bgAnomalies]);
+
   // Fetch booking geocodes for work entries (for daily overview map)
   const bookingIdsInReports = useMemo(() => {
     return [...new Set(reports.filter(r => r.booking_id).map(r => r.booking_id!))];
