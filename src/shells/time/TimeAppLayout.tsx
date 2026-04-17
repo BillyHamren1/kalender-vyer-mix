@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import MobileBottomNav from '@/components/mobile-app/MobileBottomNav';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
@@ -11,16 +12,17 @@ interface TimeAppLayoutProps {
 
 /**
  * TimeAppLayout — the native shell for EventFlow Time.
- * Wraps content with a time-focused bottom navigation.
- * Uses the existing MobileBottomNav which already has the correct Time tabs.
- * Also runs background GPS reporting for all authenticated staff.
+ * Owns the single scroll container for the time app to avoid
+ * iOS viewport/body scroll jitter with fixed bottom navigation.
  */
 const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
+  const { pathname } = useLocation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useBackgroundLocationReporter(staff?.id);
 
-  // Prefetch inbox data at app start
   useEffect(() => {
     if (staff) {
       queryClient.prefetchQuery({
@@ -30,12 +32,26 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
       });
     }
   }, [staff, queryClient]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [pathname]);
+
   return (
-    <div className="min-h-screen bg-card max-w-lg mx-auto">
-      <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
-        {children}
+    <div className="h-[100dvh] overflow-hidden bg-card">
+      <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)',
+          }}
+        >
+          {children}
+        </div>
+        <MobileBottomNav />
       </div>
-      <MobileBottomNav />
     </div>
   );
 };
