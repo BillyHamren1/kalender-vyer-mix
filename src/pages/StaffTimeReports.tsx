@@ -63,10 +63,18 @@ const StaffTimeReports: React.FC = () => {
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('id, client, booking_number')
+          .select('id, client, booking_number, is_internal, internal_type')
           .in('id', bookingIds);
         (bookings || []).forEach(b => {
-          const label = b.booking_number ? `${b.booking_number} · ${b.client}` : b.client;
+          let label: string;
+          if (b.is_internal) {
+            // Internt projekt (t.ex. Lager) – visa bara klientnamnet
+            label = b.client || 'Internt';
+          } else if (b.booking_number) {
+            label = `${b.booking_number} · ${b.client}`;
+          } else {
+            label = b.client;
+          }
           bookingMap.set(b.id, label);
         });
       }
