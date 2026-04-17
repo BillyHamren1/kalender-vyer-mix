@@ -44,8 +44,13 @@ export const useWarehouseResources = () => {
       // Ensure all defaults exist
       let changed = false;
       defaultWarehouseTeams.forEach(def => {
-        if (!loaded.find(r => r.id === def.id)) {
+        const existing = loaded.find(r => r.id === def.id);
+        if (!existing) {
           loaded.push(def);
+          changed = true;
+        } else if (def.id === 'warehouse-event' && existing.title === 'Event') {
+          // Migrate old "Event" label to "Transport"
+          existing.title = 'Transport';
           changed = true;
         }
       });
