@@ -4,6 +4,8 @@ import {
   WarehouseProjectInboxItem,
   WarehouseProjectTask,
 } from "@/types/warehouseProject";
+import { PackingWithBooking } from "@/types/packing";
+import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 
 // ============================================================================
 // Inbox
@@ -167,6 +169,13 @@ export const createWarehouseProjectFromInbox = async (
     // Don't throw — project is created, tasks can be added later
   }
 
+  // Auto-create packing_projects for the source booking(s) — non-blocking
+  try {
+    await createPackingsForWarehouseProject(wp as WarehouseProject, inboxItem);
+  } catch (err) {
+    console.error('Failed to auto-create packings for warehouse project:', err);
+  }
+
   // Mark inbox as converted
   await supabase
     .from('warehouse_project_inbox')
@@ -178,6 +187,190 @@ export const createWarehouseProjectFromInbox = async (
     .eq('id', inboxItem.id);
 
   return wp as WarehouseProject;
+};
+
+// ============================================================================
+// Auto-create packings for newly created warehouse project
+// ============================================================================
+const createPackingsForWarehouseProject = async (
+  wp: WarehouseProject,
+  inboxItem: WarehouseProjectInboxItem
+): Promise<void> => {
+  if (inboxItem.source_type === 'project') {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('booking_id')
+      .eq('id', inboxItem.source_id)
+      .maybeSingle();
+
+    const bookingId = proj?.booking_id;
+    if (!bookingId) return;
+
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, internalnotes, organization_id')
+      .eq('id', bookingId)
+      .maybeSingle();
+    if (!booking) return;
+
+    // Re-use existing packing if one already exists for this booking
+    const { data: existing } = await supabase
+      .from('packing_projects')
+      .select('id')
+      .eq('booking_id', bookingId)
+      .is('large_project_id', null)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('packing_projects')
+        .update({ warehouse_project_id: wp.id })
+        .eq('id', existing.id);
+      syncBookingToPacking(bookingId, booking.organization_id);
+      return;
+    }
+
+    const dateStr = booking.eventdate
+      ? new Date(booking.eventdate).toISOString().slice(0, 10)
+      : '';
+    const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
+
+    const { error: insertError } = await supabase
+      .from('packing_projects')
+      .insert({
+        name: packingName,
+        booking_id: bookingId,
+        warehouse_project_id: wp.id,
+        client_name: booking.client,
+        start_date: booking.rigdaydate,
+        end_date: booking.rigdowndate,
+        delivery_address: booking.deliveryaddress,
+        notes: booking.internalnotes,
+        status: 'planning',
+        organization_id: booking.organization_id,
+      } as any);
+
+    if (insertError) {
+      console.error('Failed to create packing for booking:', insertError);
+      return;
+    }
+
+    syncBookingToPacking(bookingId, booking.organization_id);
+    return;
+  }
+
+  if (inboxItem.source_type === 'large_project') {
+    const { data: lpBookings } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .eq('large_project_id', inboxItem.source_id);
+
+    const bookingIds = (lpBookings || []).map(b => b.booking_id).filter(Boolean) as string[];
+    if (bookingIds.length === 0) return;
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, internalnotes, organization_id')
+      .in('id', bookingIds);
+    if (!bookings || bookings.length === 0) return;
+
+    // Avoid duplicate consolidated packing
+    const { data: existingConsolidated } = await supabase
+      .from('packing_projects')
+      .select('id')
+      .eq('large_project_id', inboxItem.source_id)
+      .maybeSingle();
+
+    if (existingConsolidated) {
+      await supabase
+        .from('packing_projects')
+        .update({ warehouse_project_id: wp.id })
+        .eq('id', existingConsolidated.id);
+      for (const b of bookings) {
+        syncBookingToPacking(b.id, b.organization_id);
+      }
+      return;
+    }
+
+    const orgId = bookings[0].organization_id;
+    const rigDates = bookings.map(b => b.rigdaydate).filter(Boolean) as string[];
+    const rigdownDates = bookings.map(b => b.rigdowndate).filter(Boolean) as string[];
+    const startDate = rigDates.length > 0 ? rigDates.sort()[0] : null;
+    const endDate = rigdownDates.length > 0 ? rigdownDates.sort().reverse()[0] : null;
+
+    const { data: lp } = await supabase
+      .from('large_projects')
+      .select('name')
+      .eq('id', inboxItem.source_id)
+      .maybeSingle();
+    const packingName = lp?.name || inboxItem.client_name || 'Lagerprojekt';
+
+    const { data: newPacking, error: insertError } = await supabase
+      .from('packing_projects')
+      .insert({
+        name: packingName,
+        booking_id: bookings[0].id,
+        large_project_id: inboxItem.source_id,
+        warehouse_project_id: wp.id,
+        client_name: bookings[0].client,
+        delivery_address: bookings[0].deliveryaddress,
+        notes: bookings[0].internalnotes,
+        start_date: startDate,
+        end_date: endDate,
+        status: 'planning',
+        organization_id: orgId,
+      } as any)
+      .select('id')
+      .single();
+
+    if (insertError || !newPacking) {
+      console.error('Failed to create consolidated packing:', insertError);
+      return;
+    }
+
+    const links = bookings.map(b => ({
+      packing_id: newPacking.id,
+      booking_id: b.id,
+      organization_id: b.organization_id,
+    }));
+    await supabase.from('packing_project_bookings').insert(links);
+
+    for (const b of bookings) {
+      syncBookingToPacking(b.id, b.organization_id);
+    }
+  }
+};
+
+// ============================================================================
+// Packings linked to a warehouse project
+// ============================================================================
+export const fetchWarehousePackings = async (
+  warehouseProjectId: string
+): Promise<PackingWithBooking[]> => {
+  const { data: packings, error } = await supabase
+    .from('packing_projects')
+    .select('*')
+    .eq('warehouse_project_id', warehouseProjectId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  const list = (packings || []) as any[];
+  if (list.length === 0) return [];
+
+  const bookingIds = list.map(p => p.booking_id).filter(Boolean) as string[];
+  const bookingMap = new Map<string, any>();
+  if (bookingIds.length > 0) {
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+      .in('id', bookingIds);
+    (bookings || []).forEach(b => bookingMap.set(b.id, b));
+  }
+
+  return list.map(p => ({
+    ...p,
+    booking: p.booking_id ? bookingMap.get(p.booking_id) || null : null,
+  })) as PackingWithBooking[];
 };
 
 export const updateWarehouseProject = async (
