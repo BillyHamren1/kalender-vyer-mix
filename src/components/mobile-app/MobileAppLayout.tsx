@@ -135,6 +135,18 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
       )}
 
+      {/* Global arrival prompt — shown whenever staff is at workplace without a timer */}
+      {arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at && (
+        <ArrivalPromptDialog
+          open={arrivalDialogOpen}
+          onOpenChange={setArrivalDialogOpen}
+          arrivedAtIso={arrivalState.arrived_at}
+          locationName={arrivalState.location_name || 'Arbetsplats'}
+          onConfirm={handleArrivalConfirm}
+          onDismiss={handleArrivalDismiss}
+        />
+      )}
+
       <MobileBottomNav />
     </div>
   );
