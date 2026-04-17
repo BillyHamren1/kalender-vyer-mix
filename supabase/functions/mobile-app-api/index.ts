@@ -220,6 +220,14 @@ Deno.serve(async (req) => {
         return await handleGetLagerFiles(supabase, organizationId)
       case 'upload_lager_file':
         return await handleUploadLagerFile(supabase, staffId, data, organizationId)
+      case 'start_anomaly':
+        return await handleStartAnomaly(supabase, staffId, data, organizationId)
+      case 'stop_anomaly':
+        return await handleStopAnomaly(supabase, staffId, data, organizationId)
+      case 'list_pending_anomalies':
+        return await handleListPendingAnomalies(supabase, staffId, organizationId)
+      case 'classify_anomaly':
+        return await handleClassifyAnomaly(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
