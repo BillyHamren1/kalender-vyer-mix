@@ -2946,13 +2946,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
       const isInside = dist <= loc.radius_meters
 
-      // Check for open GPS entry at this location
+      // Check for ANY open entry at this location (gps or manual) — one place, one open entry
       const { data: openEntry } = await supabase
         .from('location_time_entries')
-        .select('id')
+        .select('id, source')
         .eq('staff_id', staffId)
         .eq('location_id', loc.id)
-        .eq('source', 'gps')
         .is('exited_at', null)
         .limit(1)
         .maybeSingle()
