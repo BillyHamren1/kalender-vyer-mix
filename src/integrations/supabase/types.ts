@@ -4670,6 +4670,91 @@ export type Database = {
           },
         ]
       }
+      time_report_anomalies: {
+        Row: {
+          booking_id: string | null
+          classification:
+            | Database["public"]["Enums"]["anomaly_classification"]
+            | null
+          classified_at: string | null
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          id: string
+          large_project_id: string | null
+          location_id: string | null
+          organization_id: string
+          source: string
+          staff_id: string
+          started_at: string
+          time_report_id: string | null
+          updated_at: string
+          work_description: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          classification?:
+            | Database["public"]["Enums"]["anomaly_classification"]
+            | null
+          classified_at?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          large_project_id?: string | null
+          location_id?: string | null
+          organization_id: string
+          source?: string
+          staff_id: string
+          started_at?: string
+          time_report_id?: string | null
+          updated_at?: string
+          work_description?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          classification?:
+            | Database["public"]["Enums"]["anomaly_classification"]
+            | null
+          classified_at?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          large_project_id?: string | null
+          location_id?: string | null
+          organization_id?: string
+          source?: string
+          staff_id?: string
+          started_at?: string
+          time_report_id?: string | null
+          updated_at?: string
+          work_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_report_anomalies_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_report_anomalies_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "organization_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_report_anomalies_time_report_id_fkey"
+            columns: ["time_report_id"]
+            isOneToOne: false
+            referencedRelation: "time_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_report_edit_log: {
         Row: {
           created_at: string
@@ -6053,6 +6138,7 @@ export type Database = {
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
     }
     Enums: {
+      anomaly_classification: "break" | "work"
       app_role: "admin" | "forsaljning" | "projekt" | "lager"
       availability_type: "available" | "unavailable" | "blocked"
       billing_status:
@@ -6190,6 +6276,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      anomaly_classification: ["break", "work"],
       app_role: ["admin", "forsaljning", "projekt", "lager"],
       availability_type: ["available", "unavailable", "blocked"],
       billing_status: [
