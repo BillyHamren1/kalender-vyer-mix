@@ -1,81 +1,56 @@
 
 ## Mål
-Ta bort den missvisande badge "3" på sidomenyn ("Planera packning") och ersätt med en korrekt notifieringslogik som matchar Planning-sidans förändringsflöde — men anpassad för lager.
+När ett lagerprojekt skapas från inkorgen ska systemet **automatiskt skapa packlistor** för alla bokningar som ingår i källprojektet — exakt som tidigare auto-skapelse vid CONFIRMED. Sen ska all bokningsinfo (kund, datum, adress, kontakter, produkter, packlista, bilagor) vara tillgänglig precis som i den gamla `PackingDetail`-vyn.
 
-## Problem
-Badge "3" visar idag antal `warehouse_project_inbox` med status `new`, vilket är otydligt. Användaren vet inte vad det betyder.
+## Vad som behövs
 
-## Ny logik
+### 1. Auto-skapa `packing_projects` vid lagerprojekt-skapande
 
-Badgen ska visa **två typer av notiser**:
+Utöka `createWarehouseProjectFromInbox` (i `warehouseProjectService.ts`) så att efter `warehouse_projects`-raden + 2 moment skapas, även:
 
-### 1. Nya projekt (oförändrat koncept, men endast nya)
-- Rader i `warehouse_project_inbox` med status `new` (väntar på konvertering till lagerprojekt).
+**Om `source_type='project'`** (en bokning):
+- Skapa 1 `packing_projects`-rad med `booking_id = projects.booking_id`, `warehouse_project_id = wp.id`, namn = `client - eventdate`, datum från bokningen.
+- Anropa `syncBookingToPacking(bookingId, organizationId)` (befintlig edge function) för att kopiera produkter → `packing_list_items`.
 
-### 2. Förändringar i befintliga lagerprojekt
-Spegla Planning-sidans `BookingChanges`-flöde (mem://features/booking/audit-trail-visual-policy) men filtrera så att **endast lager-relevanta ändringar** triggas:
+**Om `source_type='large_project'`** (flera bokningar):
+- Hämta alla `large_project_bookings.booking_id` för projektet.
+- Skapa 1 konsoliderad `packing_projects`-rad med `large_project_id = lp.id`, `warehouse_project_id = wp.id`.
+- Skapa rader i `packing_project_bookings` för varje booking_id.
+- Anropa `syncBookingToPacking` för varje bokning (eller en bulk-variant).
 
-- **Produktändringar** på källbokningen:
-  - Produkt tillagd
-  - Produkt borttagen
-  - Antal ändrat
-  - **Pris-ändringar IGNORERAS**
-- **Datumändringar** på källbokningen:
-  - `eventdate`, `rigdate`, `rigdowndate`, `loadingdate`, `unloadingdate`
+### 2. Visa packningar i lagerprojektets "Packningar"-flik
 
-## Implementation
+Just nu är fliken en placeholder. Ersätt med:
+- Hämta `packing_projects WHERE warehouse_project_id = wp.id`.
+- Visa lista med kort (kund, datum, status, framsteg) — återanvänd `PackingCard` som redan finns.
+- Klick → navigerar till befintliga `/warehouse/packing/:packingId` (PackingDetail) som redan har all info: BookingInfoExpanded, ProductsList, DesktopChecklistView, ManualPackingChecklist, files, comments, attachments.
 
-### A) Ny tabell: `warehouse_project_changes`
-```sql
-CREATE TABLE warehouse_project_changes (
-  id uuid PK,
-  organization_id uuid,
-  warehouse_project_id uuid FK,       -- vilket lagerprojekt påverkas
-  source_booking_id uuid,             -- ursprungsbokning
-  change_type text,                   -- 'product_added' | 'product_removed' | 'quantity_changed' | 'date_changed'
-  field_name text,                    -- t.ex. 'eventdate' eller produkt-namn
-  old_value text,
-  new_value text,
-  acknowledged boolean DEFAULT false,
-  created_at timestamptz
-);
-```
+### 3. Säkerställ datasynk vid bokningsändringar
 
-### B) DB-triggers (filter för lager-relevans)
-1. **`booking_products` AFTER INSERT/UPDATE/DELETE** → hitta alla `warehouse_projects` som har `source_project_id` länkad via `projects.booking_id` (eller via `large_projects`) och insertera rad i `warehouse_project_changes`. **Endast `quantity` och produkt själv — INTE `price`/`unit_price`-fält.**
-2. **`bookings` AFTER UPDATE** → om `eventdate`/`rigdate`/`rigdowndate`/`loadingdate`/`unloadingdate` ändras → insertera rad per ändrat fält.
+Den befintliga triggern `sync_packing_on_booking_change` uppdaterar redan `packing_projects` (namn, datum, adress, status) för befintliga rader — den fungerar fortfarande för packlistor som vi nu skapar via lagerprojekt-flödet. Ingen DB-ändring behövs.
 
-### C) Badge-logik (`SidebarNav` eller motsvarande)
-Räkna:
-```
-count = COUNT(warehouse_project_inbox WHERE status='new')
-      + COUNT(warehouse_project_changes WHERE acknowledged=false)
-```
+`booking_products` ändringar → `syncBookingToPacking` används redan av `bookingStatusService` när status ändras. För kontinuerlig produktsynk räcker att packningen är skapad — befintlig synk-pipeline tar resten.
 
-Hover/tooltip: "X nya projekt, Y ändringar"
+## Datamodell — inget nytt
+`packing_projects.warehouse_project_id` finns redan (`uuid`, nullable). Inga nya kolumner eller triggers krävs.
 
-### D) UI för förändringar
-- I `WarehouseProjectInbox.tsx`: lägg till en sektion **"Ändringar"** under "Nya projekt" som listar oacknowledged changes per lagerprojekt med "Från → Till"-format (samma visuella policy som Planning).
-- I `WarehouseProjectDetail.tsx`: ny flik **"Ändringar"** som visar projektets egna ändringar + "Markera som hanterad"-knapp (sätter `acknowledged=true`).
+## Filer som ändras
 
-### E) Realtime
-Aktivera Realtime på `warehouse_project_changes` så badgen uppdateras direkt.
+**`src/services/warehouseProjectService.ts`** — utöka `createWarehouseProjectFromInbox`:
+- Efter wp insert + tasks insert: hämta booking_ids från källan, skapa `packing_projects`-rader (+ `packing_project_bookings` om large), kalla `syncBookingToPacking` per bokning. Allt non-blocking — om det fallerar loggas, men lagerprojektet skapas ändå.
 
-## Filer
+**`src/pages/WarehouseProjectDetail.tsx`** — "Packningar"-fliken:
+- Ny query: `fetchWarehousePackings(warehouseProjectId)` → `packing_projects WHERE warehouse_project_id = ?`.
+- Rendera lista med befintlig `PackingCard` (eller enklare lokalt kort) → onClick → `navigate(/warehouse/packing/:id)`.
 
-**Migration**: ny tabell `warehouse_project_changes` + 2 triggers + RLS + realtime publication.
+**`src/services/warehouseProjectService.ts`** — lägg till hjälpare:
+- `fetchWarehousePackings(wpId)` 
+- `getSourceBookingIds(inboxItem)` (intern, för create-flödet)
 
-**Nya filer**:
-- `src/components/warehouse/WarehouseProjectChanges.tsx` (sektion för inkorgen)
-- `src/components/warehouse/WarehouseProjectChangesTab.tsx` (flik i detaljvyn)
-- `src/hooks/useWarehouseNotificationCount.ts` (räknar inbox + changes)
+## Edge cases
+- **Befintliga packningar för samma bokning**: `packing_projects.booking_id` har inte unique constraint, men vi vill undvika dubletter. Kolla först `SELECT id FROM packing_projects WHERE booking_id = ? AND large_project_id IS NULL` — om finns, sätt bara `warehouse_project_id` på den befintliga istället för att skapa ny.
+- **Cancellation/återbekräftelse**: hanteras av befintliga `sync_packing_on_booking_change` + `cancellation-workflow`.
+- **Source large_project utan bookings**: skapa lagerprojekt + moment ändå, ingen packning.
 
-**Ändrade**:
-- Sidomenyn (hitta filen som renderar "Planera packning" + badge "3") → använd nya hooken.
-- `src/components/warehouse/WarehouseProjectInbox.tsx` → rendera även changes-sektionen.
-- `src/pages/WarehouseProjectDetail.tsx` → ny flik.
-
-## Frågor
-
-1. **Acknowledge per ändring eller bulk per projekt?** Förslag: per ändring (mer granulärt, samma som Planning).
-2. **Ska gamla "Nya bokningar"-inkorgen (`IncomingPackingInbox`) tas bort helt nu?** Den är fortfarande synlig men ersätts av detta flöde. Förslag: ta bort i denna iteration.
+## Inga DB-migrationer
+All logik körs i service-lagret. Triggern modifierades redan i förra steget (auto-INSERT borttaget, UPDATE-synk kvar).
