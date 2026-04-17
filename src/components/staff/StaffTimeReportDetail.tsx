@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, eachDayOfInterval, isToday, getISOWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
@@ -19,6 +19,7 @@ import { StaffMovementMap } from './StaffMovementMap';
 interface StaffTimeReportDetailProps {
   staffId: string;
   staffName: string;
+  initialDate?: Date;
 }
 
 interface TimeReportRow {
@@ -54,14 +55,19 @@ interface RawTravelLog {
 export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   staffId,
   staffName,
+  initialDate,
 }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(initialDate || new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
   const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
   const [movementDate, setMovementDate] = useState<string | null>(null);
 
-  const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-  const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+  const monthStart = format(weekStart, 'yyyy-MM-dd');
+  const monthEnd = format(weekEnd, 'yyyy-MM-dd');
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const isoWeek = getISOWeek(weekStart);
 
   // Main data query
   const { data: queryData, isLoading } = useQuery({
