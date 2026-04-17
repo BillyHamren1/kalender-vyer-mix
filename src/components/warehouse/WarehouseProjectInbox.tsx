@@ -151,6 +151,8 @@ export const WarehouseProjectInbox: React.FC = () => {
         }}
       />
     </div>
+    <WarehouseProjectChanges />
+    </div>
   );
 };
 
