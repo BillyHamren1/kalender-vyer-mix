@@ -3140,7 +3140,7 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
 }
 
 async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, task_id } = data || {}
+  const { location_id, task_id, started_at } = data || {}
   if (!location_id) {
     return new Response(
       JSON.stringify({ error: 'location_id is required' }),
@@ -3176,6 +3176,20 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     )
   }
 
+  // Allow caller to specify custom start time (arrival-prompt "Starta från XX:XX")
+  // Validation: must be within last 24h and not in the future
+  let enteredAtIso = new Date().toISOString()
+  let entryDate = enteredAtIso.split('T')[0]
+  if (started_at && typeof started_at === 'string') {
+    const parsed = new Date(started_at)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      enteredAtIso = parsed.toISOString()
+      // entry_date follows local Stockholm date of entered_at
+      entryDate = new Date(parsed.getTime() + 60 * 60 * 1000).toISOString().split('T')[0]
+    }
+  }
+
   const { data: entry, error } = await supabase
     .from('location_time_entries')
     .insert({
@@ -3183,8 +3197,8 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
       staff_id: staffId,
       location_id: location_id,
       task_id: task_id || null,
-      entry_date: new Date().toISOString().split('T')[0],
-      entered_at: new Date().toISOString(),
+      entry_date: entryDate,
+      entered_at: enteredAtIso,
       source: 'manual',
     })
     .select()
