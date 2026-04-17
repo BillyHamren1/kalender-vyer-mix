@@ -159,6 +159,7 @@ export const useOptimisticPacking = (packingId: string) => {
     loadData,
     recalcProgress,
     applyOptimisticIncrement,
+    applyOptimisticSet,
     applyOptimisticDecrement,
     mergeServerData,
   };
