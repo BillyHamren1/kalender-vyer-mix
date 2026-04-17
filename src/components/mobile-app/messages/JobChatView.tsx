@@ -24,6 +24,8 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
     mobileApi.getJobMessages(bookingId)
       .then((res) => { if (!cancelled) setMessages((res.messages as ChatMessage[]) || []); })
       .catch(() => { if (!cancelled) setMessages([]); });
+    // Mark as read on open
+    mobileApi.markJobRead(bookingId).catch(() => {});
     return () => { cancelled = true; };
   }, [bookingId]);
 
@@ -36,11 +38,15 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
         (payload) => {
           const m = payload.new as ChatMessage;
           setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
+          // Auto-mark read since the user is currently viewing this conversation
+          if (m.sender_id !== staff?.id) {
+            mobileApi.markJobRead(bookingId).catch(() => {});
+          }
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [bookingId]);
+  }, [bookingId, staff?.id]);
 
   const handleSend = async (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => {
     // Job messages don't yet support attachments server-side; send content + note
