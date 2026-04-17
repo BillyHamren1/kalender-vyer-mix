@@ -395,6 +395,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, []); // Single watcher, refs used for current values
 
   // Geofence checks for bookings AND fixed locations
+  // Also: trigger background anomalies (absence tracking) when leaving/re-entering
+  // a geofence while a timer is active. Job timer KEEPS running.
   useEffect(() => {
     if (!userPosition) return;
 
@@ -403,6 +405,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     const exitRadius = enterRadius + 50;
 
     const nearby: (MobileBooking & { distance: number })[] = [];
+
+    // Background anomaly helpers (fire-and-forget, no UI)
+    const fireAnomalyStart = (params: { locationId?: string; bookingId?: string; largeProjectId?: string }) => {
+      mobileApi.startAnomaly({
+        location_id: params.locationId,
+        booking_id: params.bookingId,
+        large_project_id: params.largeProjectId,
+        started_at: new Date().toISOString(),
+      }).catch(err => console.warn('[Anomaly] start failed:', err?.message || err));
+    };
+    const fireAnomalyStop = (params: { locationId?: string; bookingId?: string }) => {
+      mobileApi.stopAnomaly({
+        location_id: params.locationId,
+        booking_id: params.bookingId,
+        ended_at: new Date().toISOString(),
+      }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
+    };
 
     // Check bookings — consolidate large project bookings
     const triggeredProjects = new Set<string>();
@@ -451,18 +470,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           });
         }
 
-        if (dist > exitRadius && hasTimer && activeTimers.get(projectKey)?.isAutoStarted && !triggeredExitRef.current.has(projectKey)) {
+        // Re-entry: timer is active and we just came back inside → close any open anomaly
+        if (dist <= enterRadius && hasTimer && triggeredExitRef.current.has(projectKey)) {
+          triggeredExitRef.current.delete(projectKey);
+          fireAnomalyStop({ bookingId: projectKey });
+        }
+
+        // Exit while timer is running → start anomaly in background, DO NOT stop timer
+        if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(projectKey)) {
           triggeredExitRef.current.add(projectKey);
           triggeredEnterRef.current.delete(projectKey);
-          setGeofenceEvent({
-            type: 'exit',
-            booking,
-            distance: Math.round(dist),
-            locationType: 'project',
-            largeProjectId: lpId,
-            largeProjectName: lpName,
-            largeProjectAddress: booking.deliveryaddress || undefined,
-          });
+          fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
         }
       } else {
         // Standalone booking
@@ -474,10 +492,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking', arrivalTimestamp: Date.now() });
         }
 
-        if (dist > exitRadius && hasTimer && activeTimers.get(booking.id)?.isAutoStarted && !triggeredExitRef.current.has(booking.id)) {
+        // Re-entry while timer is active → close any open anomaly
+        if (dist <= enterRadius && hasTimer && triggeredExitRef.current.has(booking.id)) {
+          triggeredExitRef.current.delete(booking.id);
+          fireAnomalyStop({ bookingId: booking.id });
+        }
+
+        // Exit while timer is running → background anomaly, DO NOT stop timer
+        if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(booking.id)) {
           triggeredExitRef.current.add(booking.id);
           triggeredEnterRef.current.delete(booking.id);
-          setGeofenceEvent({ type: 'exit', booking, distance: Math.round(dist), locationType: 'booking' });
+          fireAnomalyStart({ bookingId: booking.id });
         }
       }
     }
@@ -502,17 +527,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         });
       }
 
-      if (dist > (loc.radius_meters + 50) && hasTimer && activeTimers.get(locKey)?.isAutoStarted && !triggeredExitRef.current.has(locKey)) {
+      // Re-entry while timer is active → stop any open anomaly for this location
+      if (dist <= loc.radius_meters && hasTimer && triggeredExitRef.current.has(locKey)) {
+        triggeredExitRef.current.delete(locKey);
+        fireAnomalyStop({ locationId: loc.id });
+      }
+
+      // Exit while timer is running → start anomaly in background, KEEP timer running
+      if (dist > (loc.radius_meters + 50) && hasTimer && !triggeredExitRef.current.has(locKey)) {
         triggeredExitRef.current.add(locKey);
         triggeredEnterRef.current.delete(locKey);
-        setGeofenceEvent({
-          type: 'exit',
-          distance: Math.round(dist),
-          locationType: 'fixed',
-          locationId: loc.id,
-          locationName: loc.name,
-          locationAddress: loc.address || undefined,
-        });
+        fireAnomalyStart({ locationId: loc.id });
       }
     }
 

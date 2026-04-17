@@ -341,6 +341,31 @@ export const mobileApi = {
   getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
 
+  // ===== Anomalies (background absence tracking) =====
+  startAnomaly: (data: { location_id?: string; booking_id?: string; large_project_id?: string; started_at?: string }) =>
+    callApi<{ success: boolean; anomaly: any; already_open?: boolean }>('start_anomaly', data),
+
+  stopAnomaly: (data: { location_id?: string; booking_id?: string; anomaly_id?: string; ended_at?: string }) =>
+    callApi<{ success: boolean; anomaly?: any; no_open?: boolean; discarded?: boolean }>('stop_anomaly', data),
+
+  listPendingAnomalies: () =>
+    callApi<{ anomalies: Array<{
+      id: string;
+      location_id: string | null;
+      booking_id: string | null;
+      large_project_id: string | null;
+      location_name: string | null;
+      started_at: string;
+      ended_at: string;
+      duration_minutes: number;
+      classification: 'break' | 'work' | null;
+      work_description: string | null;
+      time_report_id: string | null;
+    }> }>('list_pending_anomalies'),
+
+  classifyAnomaly: (data: { anomaly_id: string; classification: 'break' | 'work'; work_description?: string }) =>
+    callApi<{ success: boolean; anomaly: any }>('classify_anomaly', data),
+
   // Travel logs
   createTravelLog: (data: {
     from_address?: string;
