@@ -3847,3 +3847,98 @@ async function handleGetContacts(supabase: any, staffId: string, organizationId:
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+// ============= Chat archive + attachments =============
+
+async function handleArchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { partner_id } = data
+  if (!partner_id) {
+    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.flatMap(id => [
+    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
+    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
+  ]).join(',')
+
+  const { data: rows, error: fetchErr } = await supabase
+    .from('direct_messages')
+    .select('id, is_archived_by')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+  if (fetchErr) {
+    return new Response(JSON.stringify({ error: fetchErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  await Promise.all((rows || []).map((r: any) => {
+    const next = Array.from(new Set([...(r.is_archived_by || []), staffId]))
+    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
+  }))
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleUnarchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { partner_id } = data
+  if (!partner_id) {
+    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.flatMap(id => [
+    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
+    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
+  ]).join(',')
+
+  const { data: rows, error: fetchErr } = await supabase
+    .from('direct_messages')
+    .select('id, is_archived_by')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+  if (fetchErr) {
+    return new Response(JSON.stringify({ error: fetchErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  await Promise.all((rows || []).map((r: any) => {
+    const next = (r.is_archived_by || []).filter((x: string) => !ids.includes(x))
+    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
+  }))
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleUploadChatAttachment(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { file_name, file_type, file_data_base64 } = data
+  if (!file_name || !file_data_base64) {
+    return new Response(JSON.stringify({ error: 'file_name and file_data_base64 are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  try {
+    const binary = Uint8Array.from(atob(file_data_base64), c => c.charCodeAt(0))
+    const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `${organizationId}/${staffId}/${Date.now()}_${safeName}`
+    const { error: upErr } = await supabase.storage
+      .from('chat-attachments')
+      .upload(path, binary, {
+        contentType: file_type || 'application/octet-stream',
+        upsert: false,
+      })
+    if (upErr) {
+      return new Response(JSON.stringify({ error: upErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+    return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e?.message || 'upload failed' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+}
