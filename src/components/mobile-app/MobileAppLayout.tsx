@@ -1,13 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
+import ArrivalPromptDialog from './ArrivalPromptDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
+import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
