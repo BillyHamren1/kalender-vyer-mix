@@ -81,27 +81,11 @@ export function useUnreadMessageCount() {
     return () => window.removeEventListener('push-notification-received', handler);
   }, [refresh]);
 
-  // Realtime subscription for instant updates
-  useEffect(() => {
-    if (!staff) return;
-
-    const channel = supabase
-      .channel('unread-badge')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
-        refresh();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, () => {
-        refresh();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'job_messages' }, () => {
-        refresh();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [staff, refresh]);
+  // No separate realtime subscription — useMobileInbox already subscribes
+  // to direct_messages/broadcast_messages/job_messages and updates the
+  // ['mobile-inbox-all'] cache. The cache subscriber above re-computes
+  // the badge instantly when that cache changes, so a duplicate channel
+  // would only cause extra API calls.
 
   return { count, refresh };
 }
