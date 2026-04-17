@@ -29,9 +29,8 @@ interface HeroHeaderProps {
 }
 
 export const MobileHeroHeader: React.FC<HeroHeaderProps> = ({ eyebrow, title, subtitle, rightAction }) => (
-  <div className="bg-primary rounded-b-2xl shadow-md sticky top-0 z-40">
-    <div className="safe-area-top" style={{ minHeight: '44px' }} />
-    <div className="px-5 pb-5 min-h-[60px] flex flex-col justify-end">
+  <div className="bg-primary sticky top-0 z-40" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div className="px-5 pt-3 pb-5 min-h-[60px] flex flex-col justify-end">
       <div className="flex items-center justify-between">
         <div>
           {eyebrow && (
@@ -74,9 +73,8 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
   };
 
   return (
-    <div className="bg-primary rounded-b-2xl shadow-md sticky top-0 z-40">
-      <div className="safe-area-top" style={{ minHeight: '44px' }} />
-      <div className="px-5 pb-5 min-h-[60px] flex flex-col justify-end">
+    <div className="bg-primary sticky top-0 z-40" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="px-5 pt-3 pb-5 min-h-[60px] flex flex-col justify-end">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
@@ -108,9 +106,8 @@ interface ProfileHeaderProps {
 }
 
 export const MobileProfileHeader: React.FC<ProfileHeaderProps> = ({ avatar, name, role }) => (
-  <div className="bg-primary rounded-b-2xl shadow-md sticky top-0 z-40">
-    <div className="safe-area-top" style={{ minHeight: '44px' }} />
-    <div className="px-5 pb-6">
+  <div className="bg-primary sticky top-0 z-40" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div className="px-5 pt-3 pb-6">
       <div className="flex flex-col items-center">
         {avatar || (
           <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
