@@ -6,18 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Inbox, Calendar, Loader2, Layers, Package, X } from 'lucide-react';
 import {
   fetchInbox,
-  createWarehouseProjectFromInbox,
   dismissInboxItem,
 } from '@/services/warehouseProjectService';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { ConvertInboxDialog } from './ConvertInboxDialog';
+import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 
 export const WarehouseProjectInbox: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [activeItem, setActiveItem] = useState<WarehouseProjectInboxItem | null>(null);
 
   useRealtimeInvalidation({
     channelName: 'warehouse-project-inbox-realtime',
@@ -29,22 +31,6 @@ export const WarehouseProjectInbox: React.FC = () => {
     queryKey: ['warehouse-project-inbox'],
     queryFn: () => fetchInbox('new'),
   });
-
-  const handleConvert = async (item: typeof items[number]) => {
-    setBusyId(item.id);
-    try {
-      const wp = await createWarehouseProjectFromInbox(item);
-      await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
-      await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
-      toast.success(`Lagerprojekt ${wp.project_number} skapat`);
-      navigate(`/warehouse/projects/${wp.id}`);
-    } catch (err) {
-      console.error('Error creating warehouse project:', err);
-      toast.error('Kunde inte skapa lagerprojekt');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const handleDismiss = async (id: string) => {
     setBusyId(id);
@@ -127,15 +113,11 @@ export const WarehouseProjectInbox: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleConvert(item)}
+                  onClick={() => setActiveItem(item)}
                   disabled={isBusy}
                   className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
                 >
-                  {isBusy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Package className="w-3.5 h-3.5" />
-                  )}
+                  <Package className="w-3.5 h-3.5" />
                   <span>Skapa lagerprojekt</span>
                 </Button>
                 <Button
