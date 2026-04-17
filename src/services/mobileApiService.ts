@@ -421,4 +421,17 @@ export const mobileApi = {
 
   toggleEstablishmentTask: (taskId: string) =>
     callApi<{ success: boolean; completed: boolean }>('toggle_establishment_task', { task_id: taskId }),
+
+  // Arrival prompt (B-flow) — same source-of-truth used by push-cron
+  getArrivalState: () =>
+    callApi<{
+      should_prompt: boolean;
+      arrived_at: string | null;
+      location_id: string | null;
+      location_name: string | null;
+      prompts_sent: number;
+    }>('get_arrival_state'),
+
+  markArrivalResolved: (data: { location_id: string; arrived_at: string }) =>
+    callApi<{ success: boolean }>('mark_arrival_resolved', data),
 };
