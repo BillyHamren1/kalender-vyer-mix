@@ -204,6 +204,16 @@ Deno.serve(async (req) => {
         return await handleCompleteLagerTask(supabase, data, organizationId)
       case 'claim_lager_task':
         return await handleClaimLagerTask(supabase, staffId, data, organizationId)
+      case 'get_lager_team':
+        return await handleGetLagerTeam(supabase, organizationId)
+      case 'get_lager_purchases':
+        return await handleGetLagerPurchases(supabase, organizationId)
+      case 'create_lager_purchase':
+        return await handleCreateLagerPurchase(supabase, staffId, data, organizationId)
+      case 'get_lager_files':
+        return await handleGetLagerFiles(supabase, organizationId)
+      case 'upload_lager_file':
+        return await handleUploadLagerFile(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
