@@ -128,7 +128,7 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
     eventsToCreate.push({
       booking_id: booking.id,
       booking_number: bookingNum,
-      title: `Packning - ${clientName}`,
+      title: clientName,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       resource_id: 'warehouse',
@@ -148,7 +148,7 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
     eventsToCreate.push({
       booking_id: booking.id,
       booking_number: bookingNum,
-      title: `Retur - ${clientName}`,
+      title: clientName,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       resource_id: 'warehouse',
