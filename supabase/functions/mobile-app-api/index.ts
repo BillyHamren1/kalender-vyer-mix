@@ -4395,12 +4395,9 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
         work_description: work_description ? String(work_description).trim() : null,
         classified_at: new Date().toISOString(),
         time_report_id: time_report_id || null,
-        end_location_lat: end_location_lat ?? null,
-        end_location_lng: end_location_lng ?? null,
-        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
-        auto_classified: true,
-      })
-      .eq('id', openRows[0].id)
+        end_location_lat: resolvedLat,
+        end_location_lng: resolvedLng,
+        end_location_recorded_at: resolvedRecordedAt,
       .select()
       .single()
     if (updErr) {
@@ -4423,11 +4420,9 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
         classification: 'work',
         work_description: work_description ? String(work_description).trim() : null,
         classified_at: new Date().toISOString(),
-        end_location_lat: end_location_lat ?? null,
-        end_location_lng: end_location_lng ?? null,
-        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
-        auto_classified: true,
-        source: 'end_of_day',
+        end_location_lat: resolvedLat,
+        end_location_lng: resolvedLng,
+        end_location_recorded_at: resolvedRecordedAt,
       })
       .select()
       .single()
