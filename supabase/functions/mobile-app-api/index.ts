@@ -2812,6 +2812,63 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // ── Push notifications to all OTHER team members on this booking ──
+  // Resolve recipient set from booking_staff_assignments + job_staff_assignments
+  // (matches assertJobAccess scope so anyone with access also gets notified).
+  try {
+    const recipientIds = new Set<string>()
+
+    // booking_staff_assignments — direct staff on this booking
+    const { data: bsa } = await supabase
+      .from('booking_staff_assignments')
+      .select('staff_id')
+      .eq('booking_id', booking_id)
+      .eq('organization_id', organizationId)
+    for (const r of (bsa || [])) if (r.staff_id) recipientIds.add(r.staff_id)
+
+    // job_staff_assignments — staff via the jobs table
+    const { data: jobRows } = await supabase
+      .from('jobs')
+      .select('id')
+      .eq('booking_id', booking_id)
+      .eq('organization_id', organizationId)
+    const jobIds = (jobRows || []).map((j: any) => j.id)
+    if (jobIds.length > 0) {
+      const { data: jsa } = await supabase
+        .from('job_staff_assignments')
+        .select('staff_id')
+        .in('job_id', jobIds)
+      for (const r of (jsa || [])) if (r.staff_id) recipientIds.add(r.staff_id)
+    }
+
+    // Exclude sender (and their dual identity)
+    recipientIds.delete(staffId)
+    if (userId) recipientIds.delete(userId)
+
+    if (recipientIds.size > 0) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      const pushBody = buildMessagePreview(content, file_name, file_type)
+      const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+        body: JSON.stringify({
+          staff_ids: Array.from(recipientIds),
+          title: `${senderName} (jobb)`,
+          body: pushBody,
+          notification_type: 'message',
+          data: { booking_id, chat_type: 'job', sender_id: staffId },
+          organization_id: organizationId,
+        }),
+      })
+      const pr = await pushRes.json().catch(() => ({}))
+      console.log(`[Job Push] booking=${booking_id} recipients=${recipientIds.size} sent=${pr.sent} failed=${pr.failed}`)
+    }
+  } catch (pushErr) {
+    console.error('[Job Push] failed:', pushErr)
+    // Never fail the message send because of a push error.
+  }
+
   return new Response(
     JSON.stringify({ success: true, message }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -2831,31 +2888,46 @@ async function handleMarkJobRead(supabase: any, staffId: string, data: any, orga
   const ids = [staffId]
   if (userId && userId !== staffId) ids.push(userId)
 
-  // Fetch un-read messages for this booking and append the reader id to read_by JSONB array
+  // Fetch only un-read messages where caller is NOT yet in read_by.
+  // (read_by is JSONB, so we can't push the predicate fully into Postgres without
+  // an SQL function — but we limit columns + order to keep it cheap.)
   const { data: rows, error } = await supabase
     .from('job_messages')
     .select('id, read_by')
     .eq('booking_id', booking_id)
     .eq('organization_id', organizationId)
+    .neq('sender_id', staffId)
+    .order('created_at', { ascending: false })
+    .limit(500)
 
   if (error) {
     return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  const updates = (rows || [])
-    .filter((r: any) => {
-      const arr = Array.isArray(r.read_by) ? r.read_by : []
-      return !ids.some(id => arr.includes(id))
-    })
-    .map((r: any) => {
-      const arr = Array.isArray(r.read_by) ? r.read_by : []
-      const next = Array.from(new Set([...arr, ...ids]))
-      return supabase.from('job_messages').update({ read_by: next }).eq('id', r.id)
-    })
+  // Filter unread on the server, then issue a single chunked update per chunk
+  // (Postgrest supports `in.()` with up to ~1000 ids per request).
+  const unreadIds: string[] = []
+  const merged: Record<string, string[]> = {}
+  for (const r of (rows || [])) {
+    const arr = Array.isArray(r.read_by) ? r.read_by : []
+    if (ids.some(id => arr.includes(id))) continue
+    unreadIds.push(r.id)
+    merged[r.id] = Array.from(new Set([...arr, ...ids]))
+  }
 
-  await Promise.all(updates)
-  return new Response(JSON.stringify({ success: true, updated: updates.length }),
+  // Issue updates in parallel — kept per-row because read_by is per-row JSONB.
+  // Bound concurrency at 25 to avoid PgBouncer congestion when there are many rows.
+  let updated = 0
+  for (let i = 0; i < unreadIds.length; i += 25) {
+    const batch = unreadIds.slice(i, i + 25)
+    await Promise.all(batch.map(id =>
+      supabase.from('job_messages').update({ read_by: merged[id] }).eq('id', id)
+    ))
+    updated += batch.length
+  }
+
+  return new Response(JSON.stringify({ success: true, updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
