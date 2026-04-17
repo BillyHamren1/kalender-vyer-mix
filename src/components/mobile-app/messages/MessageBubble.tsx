@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { Check, CheckCheck, FileText } from 'lucide-react';
@@ -27,7 +28,7 @@ interface Props {
   /** Show "Levererat"/"Läst" footer (only on last own message of a streak) */
   showStatus: boolean;
   /** When non-null, replaces the default delivered/read footer (e.g. retry button) */
-  footerOverride?: React.ReactNode;
+  footerOverride?: ReactNode;
 }
 
 const isImage = (m: ChatMessage) =>
