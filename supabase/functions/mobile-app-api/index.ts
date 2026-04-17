@@ -3135,25 +3135,36 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
 
   const senderName = staffMember?.name || 'Okänd'
 
-  // Get recipient name — check staff_members first, then profiles (for planners using auth user id)
-  let recipientName = 'Planerare'
+  // Resolve recipient name AND validate cross-org isolation in one pass.
+  // The recipient_id may be either staff_members.id OR profiles.user_id (planners).
+  let recipientName: string | null = null
   const { data: recipientStaff } = await supabase
     .from('staff_members')
     .select('name')
     .eq('id', recipient_id)
     .eq('organization_id', organizationId)
-    .single()
+    .maybeSingle()
 
   if (recipientStaff) {
     recipientName = recipientStaff.name
   } else {
-    // Might be a planner (auth user)
+    // Try profiles (planner). MUST be in the same org.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, email')
+      .select('full_name, email, organization_id')
       .eq('user_id', recipient_id)
-      .single()
-    if (profile) recipientName = profile.full_name || profile.email || 'Planerare'
+      .maybeSingle()
+    if (profile && profile.organization_id === organizationId) {
+      recipientName = profile.full_name || profile.email || 'Planerare'
+    }
+  }
+
+  if (!recipientName) {
+    // Cross-org or unknown recipient — refuse with 403 (don't leak existence).
+    return new Response(
+      JSON.stringify({ error: 'Recipient not found in your organization' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   const { data: message, error } = await supabase
