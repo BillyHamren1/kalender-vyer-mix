@@ -156,11 +156,14 @@ const StaffTimeReports: React.FC = () => {
             has_open_report: a.has_open_report,
             earliest_start: a.earliest_start,
             latest_end: a.latest_end,
-            projects: [...a.projects.entries()].map(([booking_id, v]) => ({
-              booking_id,
-              label: v.label,
-              is_open: v.is_open,
-            })),
+            projects: [...a.projects.entries()]
+              .map(([booking_id, v]) => ({
+                booking_id,
+                label: v.label,
+                is_open: v.is_open,
+                total_hours: v.total_hours,
+              }))
+              .sort((x, y) => y.total_hours - x.total_hours),
           };
         })
         .sort((a, b) => {
