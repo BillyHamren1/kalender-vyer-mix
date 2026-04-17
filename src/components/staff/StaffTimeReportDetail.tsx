@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route, Activity, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
