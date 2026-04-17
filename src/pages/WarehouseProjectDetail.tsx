@@ -201,6 +201,9 @@ const WarehouseProjectDetail = () => {
               </div>
             )}
           </TabsContent>
+          <TabsContent value="changes" className="mt-4">
+            <WarehouseProjectChangesTab warehouseProjectId={warehouseProjectId!} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
