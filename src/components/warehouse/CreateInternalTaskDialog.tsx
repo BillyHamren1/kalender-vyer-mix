@@ -94,8 +94,8 @@ export default function CreateInternalTaskDialog({
         end_date: endDate || startDate || null,
       }),
     onSuccess: () => {
-      toast.success("Lageruppgift skapad");
-      qc.invalidateQueries({ queryKey: ["warehouse-project-tasks"] });
+      toast.success("Lageruppgift skapad på projektet Lager");
+      qc.invalidateQueries({ queryKey: ["project-tasks"] });
       qc.invalidateQueries({ queryKey: ["warehouse-internal-tasks"] });
       onSuccess?.();
       onOpenChange(false);
@@ -125,8 +125,9 @@ export default function CreateInternalTaskDialog({
         <DialogHeader>
           <DialogTitle>Skapa lageruppgift</DialogTitle>
           <DialogDescription>
-            Internt arbete som loggas på projektet <strong>Lager</strong> – t.ex.
-            städa, tvätta, inköp eller planering. Datum är valfria.
+            Internt arbete som loggas på projektet <strong>Lager</strong> – samma
+            projekt som personalens tidregistrering går till. T.ex. städa, tvätta,
+            inköp eller planering. Datum är valfria.
           </DialogDescription>
         </DialogHeader>
 
