@@ -267,9 +267,19 @@ export const mobileApi = {
   uploadChatAttachment: (data: { file_name: string; file_type: string; file_data_base64: string }) =>
     callApi<{ success: boolean; url: string; file_name: string; file_type: string | null }>('upload_chat_attachment', data),
 
-  // Job chat
-  getJobMessages: (bookingId: string) =>
-    callApi<{ messages: any[] }>('get_job_messages', { booking_id: bookingId }),
+  // Job chat — cursor-paginated. Pass `before` (ISO created_at) to load older.
+  getJobMessages: (bookingId: string, opts?: { before?: string; limit?: number }) =>
+    callApi<{ messages: any[]; has_more: boolean; next_cursor: string | null }>(
+      'get_job_messages',
+      { booking_id: bookingId, before: opts?.before, limit: opts?.limit },
+    ),
+
+  // DM thread (paginated). Distinct from get_direct_messages, which is the inbox aggregator.
+  getDMThread: (partnerId: string, opts?: { before?: string; limit?: number }) =>
+    callApi<{ messages: any[]; has_more: boolean; next_cursor: string | null }>(
+      'get_dm_thread',
+      { partner_id: partnerId, before: opts?.before, limit: opts?.limit },
+    ),
 
   sendJobMessage: (data: { booking_id: string; content: string; file_url?: string; file_name?: string; file_type?: string }) =>
     callApi<{ success: boolean; message: any }>('send_job_message', data),
