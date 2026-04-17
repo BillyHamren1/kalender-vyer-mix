@@ -4223,3 +4223,142 @@ async function handleCloseOpenAnomalies(supabase: any, staffId: string, data: an
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 }
+
+// ============= End-of-day stop helpers =============
+
+/**
+ * Returns the most recent geofence exit (location_time_entries.exited_at)
+ * for this staff member within the last 24h. Used by the timer-stop dialog
+ * to ask "Du lämnade arbetsplatsen kl XX:XX, använd som sluttid?".
+ */
+async function handleGetLastWorkplaceExit(supabase: any, staffId: string, organizationId: string) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: rows, error } = await supabase
+    .from('location_time_entries')
+    .select('exited_at, location_id, organization_locations(name)')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .not('exited_at', 'is', null)
+    .gte('exited_at', since)
+    .order('exited_at', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const row = rows && rows[0]
+  return new Response(JSON.stringify({
+    last_exit: row ? {
+      exited_at: row.exited_at,
+      location_id: row.location_id,
+      location_name: (row as any).organization_locations?.name || null,
+    } : null,
+  }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * End-of-day "Nej" path: user declined the suggested exit time and
+ * provided their own end-time + a description of what they did.
+ * We create an anomaly that's pre-classified as work, with the GPS
+ * position captured at submit-time stored as end-location.
+ */
+async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data: any, organizationId: string) {
+  const {
+    started_at,           // last geofence exit time (anomaly start)
+    ended_at,             // user-provided end time
+    work_description,     // required if duration > 10 min
+    end_location_lat,     // current GPS at submit (optional)
+    end_location_lng,
+    location_id,          // workplace location they left (optional)
+    booking_id,           // active booking timer (optional)
+    large_project_id,
+    time_report_id,       // newly created time_report this anomaly belongs to
+  } = data || {}
+
+  if (!started_at || !ended_at) {
+    return new Response(JSON.stringify({ error: 'started_at and ended_at are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const startMs = new Date(started_at).getTime()
+  const endMs = new Date(ended_at).getTime()
+  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) {
+    return new Response(JSON.stringify({ error: 'ended_at must be after started_at' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const durationMin = Math.round((endMs - startMs) / 60000)
+  if (durationMin > 10 && (!work_description || !String(work_description).trim())) {
+    return new Response(JSON.stringify({ error: 'work_description required for absences > 10 min' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Reuse open anomaly if one exists for this period (don't create duplicates)
+  const { data: openRows } = await supabase
+    .from('time_report_anomalies')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+
+  let row: any
+  if (openRows && openRows.length > 0) {
+    const { data: upd, error: updErr } = await supabase
+      .from('time_report_anomalies')
+      .update({
+        ended_at,
+        classification: 'work',
+        work_description: work_description ? String(work_description).trim() : null,
+        classified_at: new Date().toISOString(),
+        time_report_id: time_report_id || null,
+        end_location_lat: end_location_lat ?? null,
+        end_location_lng: end_location_lng ?? null,
+        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
+        auto_classified: true,
+      })
+      .eq('id', openRows[0].id)
+      .select()
+      .single()
+    if (updErr) {
+      return new Response(JSON.stringify({ error: updErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    row = upd
+  } else {
+    const { data: ins, error: insErr } = await supabase
+      .from('time_report_anomalies')
+      .insert({
+        organization_id: organizationId,
+        staff_id: staffId,
+        location_id: location_id || null,
+        booking_id: booking_id || null,
+        large_project_id: large_project_id || null,
+        time_report_id: time_report_id || null,
+        started_at,
+        ended_at,
+        classification: 'work',
+        work_description: work_description ? String(work_description).trim() : null,
+        classified_at: new Date().toISOString(),
+        end_location_lat: end_location_lat ?? null,
+        end_location_lng: end_location_lng ?? null,
+        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
+        auto_classified: true,
+        source: 'end_of_day',
+      })
+      .select()
+      .single()
+    if (insErr) {
+      return new Response(JSON.stringify({ error: insErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    row = ins
+  }
+
+  return new Response(JSON.stringify({ success: true, anomaly: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
