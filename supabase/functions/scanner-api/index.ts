@@ -518,7 +518,15 @@ Deno.serve(async (req) => {
         }
 
         if (matchedItems.length === 0) {
-          return json({ success: false, error: `Artikeltyp "${returnedSku || returnedItemType}" finns inte i packlistan` })
+          // Return distinct flag so the UI can prompt to add the product
+          return json({
+            success: false,
+            notInPackingList: true,
+            scannedSku: returnedSku || null,
+            scannedName: returnedItemType || null,
+            bookingId: packing.booking_id,
+            error: `Artikeltyp "${returnedSku || returnedItemType}" finns inte i packlistan`
+          })
         }
 
         // Deterministic order + pick first not-full row
