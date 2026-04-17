@@ -1,40 +1,67 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
  *
- * Design tokens (standardised across all variants):
- *   - Safe area:       env(safe-area-inset-top, 0px) via spacer div
- *   - Background:      bg-primary (solid teal)
- *   - Corner radius:   rounded-b-2xl
- *   - Shadow:          shadow-md
- *   - Horizontal pad:  px-5
- *   - Bottom pad:      pb-5  (hero / page)  |  pb-4 (compact back-nav)
- *   - Title size:      text-xl font-extrabold (hero)
- *                      text-lg font-extrabold (back / profile)
- *   - Subtitle:        text-xs text-primary-foreground/60
+ * Headers portal into #mobile-header-slot (rendered by TimeAppLayout)
+ * so they sit OUTSIDE the scroll container. This avoids a long-standing
+ * iOS WKWebView bug where `position: sticky` inside a momentum-scrolling
+ * element jitters / lags behind the scroll.
+ *
+ * If the slot is not present (e.g. Scanner shell), headers render
+ * inline as a graceful fallback.
  * ============================================================ */
+
+/** Resolves the portal slot, retrying on first paint until it exists. */
+const useMobileHeaderSlot = (): HTMLElement | null => {
+  const [slot, setSlot] = useState<HTMLElement | null>(() =>
+    typeof document !== 'undefined' ? document.getElementById('mobile-header-slot') : null
+  );
+
+  useEffect(() => {
+    if (slot) return;
+    let raf = 0;
+    const tryFind = () => {
+      const el = document.getElementById('mobile-header-slot');
+      if (el) setSlot(el);
+      else raf = requestAnimationFrame(tryFind);
+    };
+    raf = requestAnimationFrame(tryFind);
+    return () => cancelAnimationFrame(raf);
+  }, [slot]);
+
+  return slot;
+};
+
+/** Wraps header markup with a portal to the slot, falling back to inline. */
+const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const slot = useMobileHeaderSlot();
+  const content = (
+    <div
+      className="bg-primary shadow-sm"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
+      {children}
+    </div>
+  );
+  if (slot) return createPortal(content, slot);
+  // Fallback: render inline (non-Time shells)
+  return <div className="sticky top-0 z-[60]">{content}</div>;
+};
 
 /* ---- Variant: Hero ---- */
 interface HeroHeaderProps {
-  /** Small caps label above the title, e.g. "Välkommen" */
   eyebrow?: string;
   title: string;
   subtitle?: string;
-  /** Action element rendered on the right (icon button, badge, etc.) */
   rightAction?: React.ReactNode;
 }
 
 export const MobileHeroHeader: React.FC<HeroHeaderProps> = ({ eyebrow, title, subtitle, rightAction }) => (
-  <div
-    className="bg-primary sticky top-0 z-[60] shadow-sm"
-    style={{
-      paddingTop: 'env(safe-area-inset-top, 0px)',
-    }}
-  >
+  <HeaderShell>
     <div className="px-5 pt-1.5 pb-2.5 flex flex-col justify-end">
       <div className="flex items-center justify-between">
         <div className="min-w-0">
@@ -49,20 +76,16 @@ export const MobileHeroHeader: React.FC<HeroHeaderProps> = ({ eyebrow, title, su
         {rightAction && <div className="shrink-0">{rightAction}</div>}
       </div>
     </div>
-  </div>
+  </HeaderShell>
 );
 
 /* ---- Variant: Back header (inner pages) ---- */
 interface BackHeaderProps {
   title: string;
   subtitle?: string;
-  /** Override back destination. Defaults to browser back. */
   backTo?: string;
-  /** Called before navigating back, e.g. to confirm unsaved changes */
   onBack?: () => void;
-  /** Action element(s) rendered on the right */
   rightAction?: React.ReactNode;
-  /** Extra elements rendered between back-button and title (icons, avatars) */
   titlePrefix?: React.ReactNode;
 }
 
@@ -78,12 +101,7 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
   };
 
   return (
-    <div
-      className="bg-primary sticky top-0 z-[60] shadow-sm"
-      style={{
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-      }}
-    >
+    <HeaderShell>
       <div className="px-5 pt-1.5 pb-2.5 flex flex-col justify-end">
         <div className="flex items-center gap-3">
           <button
@@ -103,25 +121,19 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
           {rightAction && <div className="shrink-0 flex items-center gap-2">{rightAction}</div>}
         </div>
       </div>
-    </div>
+    </HeaderShell>
   );
 };
 
 /* ---- Variant: Profile hero ---- */
 interface ProfileHeaderProps {
-  /** Avatar content — defaults to first letter of name */
   avatar?: React.ReactNode;
   name: string;
   role?: string | null;
 }
 
 export const MobileProfileHeader: React.FC<ProfileHeaderProps> = ({ avatar, name, role }) => (
-  <div
-    className="bg-primary sticky top-0 z-[60] shadow-sm"
-    style={{
-      paddingTop: 'env(safe-area-inset-top, 0px)',
-    }}
-  >
+  <HeaderShell>
     <div className="px-5 pt-1.5 pb-3">
       <div className="flex flex-col items-center">
         {avatar || (
@@ -135,5 +147,5 @@ export const MobileProfileHeader: React.FC<ProfileHeaderProps> = ({ avatar, name
         )}
       </div>
     </div>
-  </div>
+  </HeaderShell>
 );
