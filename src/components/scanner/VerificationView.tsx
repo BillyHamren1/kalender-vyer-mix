@@ -412,6 +412,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
 
         <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
+
+        <AddUnknownProductDialog
+          pending={pendingUnknownProduct}
+          onConfirm={handleConfirmUnknown}
+          onDismiss={dismissUnknown}
+        />
       </div>
     );
   }
