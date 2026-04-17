@@ -1,0 +1,192 @@
+import { useRef, useState } from 'react';
+import { Plus, ArrowUp, Camera, X, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { mobileApi } from '@/services/mobileApiService';
+import { toast } from 'sonner';
+
+interface Props {
+  onSend: (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => Promise<void> | void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const result = r.result as string;
+      resolve(result.split(',')[1] || '');
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+
+export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props) => {
+  const [text, setText] = useState('');
+  const [pending, setPending] = useState<{ url: string; name: string; type: string; preview?: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  const autosize = () => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  };
+
+  const handleFile = async (file: File) => {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Filen är för stor (max 15 MB)');
+      return;
+    }
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await mobileApi.uploadChatAttachment({
+        file_name: file.name,
+        file_type: file.type,
+        file_data_base64: base64,
+      });
+      setPending({
+        url: res.url,
+        name: res.file_name,
+        type: file.type,
+        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || 'Kunde inte ladda upp filen');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const send = async () => {
+    if (sending) return;
+    const trimmed = text.trim();
+    if (!trimmed && !pending) return;
+    setSending(true);
+    try {
+      await onSend({
+        content: trimmed,
+        file_url: pending?.url,
+        file_name: pending?.name,
+        file_type: pending?.type,
+      });
+      setText('');
+      setPending(null);
+      requestAnimationFrame(autosize);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const canSend = (text.trim().length > 0 || !!pending) && !sending && !uploading;
+
+  return (
+    <div
+      className="shrink-0 border-t border-border/60 bg-card"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      {pending && (
+        <div className="px-3 pt-2 flex items-center gap-2">
+          <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
+            {pending.preview ? (
+              <img src={pending.preview} alt="" className="w-14 h-14 object-cover" />
+            ) : (
+              <div className="w-14 h-14 flex items-center justify-center text-[10px] px-1 text-center text-muted-foreground">
+                {pending.name}
+              </div>
+            )}
+            <button
+              onClick={() => setPending(null)}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center shadow"
+              aria-label="Ta bort bilaga"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="px-2.5 py-2 flex items-end gap-1.5">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = '';
+          }}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = '';
+          }}
+        />
+
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || disabled}
+          className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+          aria-label="Bifoga fil"
+        >
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={() => cameraRef.current?.click()}
+          disabled={uploading || disabled}
+          className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+          aria-label="Ta bild"
+        >
+          <Camera className="w-4 h-4" />
+        </button>
+
+        <div className="flex-1 flex items-end bg-muted rounded-2xl border border-border/60 px-3 py-1">
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => { setText(e.target.value); autosize(); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            rows={1}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="flex-1 resize-none bg-transparent text-[15px] leading-snug py-1.5 outline-none text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+
+        <button
+          onClick={send}
+          disabled={!canSend || disabled}
+          className={cn(
+            'w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95',
+            canSend ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground/50'
+          )}
+          aria-label="Skicka"
+        >
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default ChatInput;

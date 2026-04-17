@@ -162,6 +162,12 @@ Deno.serve(async (req) => {
         return await handleGetJobMessages(supabase, staffId, data, organizationId)
       case 'send_job_message':
         return await handleSendJobMessage(supabase, staffId, data, organizationId)
+      case 'archive_dm':
+        return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'unarchive_dm':
+        return await handleUnarchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'upload_chat_attachment':
+        return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
         return await handleGetBroadcasts(supabase, staffId, organizationId)
       case 'mark_broadcast_read':
@@ -735,17 +741,25 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
 
   // --- Process DMs ---
   const myIds = new Set(ids) // staffId + userId (if linked)
-  const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[] }>()
+  const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[]; archived: boolean }>()
   for (const msg of (dmResult.data || [])) {
     const isSender = myIds.has(msg.sender_id)
     const partnerId = isSender ? msg.recipient_id : msg.sender_id
     const partnerName = isSender ? msg.recipient_name : msg.sender_name
+    if (myIds.has(partnerId)) continue // skip self-conversations
     if (!conversations.has(partnerId)) {
-      conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [] })
+      conversations.set(partnerId, { partner_id: partnerId, partner_name: partnerName, last_message: msg, unread_count: 0, messages: [], archived: false })
     }
     const conv = conversations.get(partnerId)!
     conv.messages.push(msg)
-    if (!msg.is_read && !isSender) conv.unread_count++
+    // unread = sent to me, not yet read
+    if (!msg.read_at && !msg.is_read && !isSender) conv.unread_count++
+  }
+  // Conversation is archived only if EVERY message archive list contains my id
+  for (const conv of conversations.values()) {
+    conv.archived = conv.messages.length > 0 && conv.messages.every((m: any) =>
+      Array.isArray(m.is_archived_by) && ids.some(id => m.is_archived_by.includes(id))
+    )
   }
   const dmInbox = Array.from(conversations.values())
     .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
@@ -2503,11 +2517,12 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
 }
 
 async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { recipient_id, content } = data
+  const { recipient_id, content, file_url, file_name, file_type, booking_id } = data
 
-  if (!recipient_id || !content?.trim()) {
+  const trimmed = (content || '').trim()
+  if (!recipient_id || (!trimmed && !file_url)) {
     return new Response(
-      JSON.stringify({ error: 'recipient_id and content are required' }),
+      JSON.stringify({ error: 'recipient_id and content or attachment are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2551,8 +2566,13 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
       sender_type: 'staff',
       recipient_id,
       recipient_name: recipientName,
-      content: content.trim(),
+      content: trimmed || (file_name ? `📎 ${file_name}` : '📎 Bifogad fil'),
+      file_url: file_url || null,
+      file_name: file_name || null,
+      file_type: file_type || null,
+      booking_id: booking_id || null,
       organization_id: organizationId,
+      delivered_at: new Date().toISOString(),
     })
     .select()
     .single()
@@ -2656,14 +2676,15 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   const ids = [staffId]
   if (userId && userId !== staffId) ids.push(userId)
 
+  const nowIso = new Date().toISOString()
   const markPromises = ids.map(myId =>
     supabase
       .from('direct_messages')
-      .update({ is_read: true })
+      .update({ is_read: true, read_at: nowIso })
       .eq('recipient_id', myId)
       .eq('sender_id', sender_id)
       .eq('organization_id', organizationId)
-      .eq('is_read', false)
+      .is('read_at', null)
   )
 
   const results = await Promise.all(markPromises)
@@ -3825,4 +3846,99 @@ async function handleGetContacts(supabase: any, staffId: string, organizationId:
     JSON.stringify({ contacts }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+// ============= Chat archive + attachments =============
+
+async function handleArchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { partner_id } = data
+  if (!partner_id) {
+    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.flatMap(id => [
+    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
+    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
+  ]).join(',')
+
+  const { data: rows, error: fetchErr } = await supabase
+    .from('direct_messages')
+    .select('id, is_archived_by')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+  if (fetchErr) {
+    return new Response(JSON.stringify({ error: fetchErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  await Promise.all((rows || []).map((r: any) => {
+    const next = Array.from(new Set([...(r.is_archived_by || []), staffId]))
+    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
+  }))
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleUnarchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { partner_id } = data
+  if (!partner_id) {
+    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+  const orFilter = ids.flatMap(id => [
+    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
+    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
+  ]).join(',')
+
+  const { data: rows, error: fetchErr } = await supabase
+    .from('direct_messages')
+    .select('id, is_archived_by')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+  if (fetchErr) {
+    return new Response(JSON.stringify({ error: fetchErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  await Promise.all((rows || []).map((r: any) => {
+    const next = (r.is_archived_by || []).filter((x: string) => !ids.includes(x))
+    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
+  }))
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleUploadChatAttachment(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { file_name, file_type, file_data_base64 } = data
+  if (!file_name || !file_data_base64) {
+    return new Response(JSON.stringify({ error: 'file_name and file_data_base64 are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  try {
+    const binary = Uint8Array.from(atob(file_data_base64), c => c.charCodeAt(0))
+    const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `${organizationId}/${staffId}/${Date.now()}_${safeName}`
+    const { error: upErr } = await supabase.storage
+      .from('chat-attachments')
+      .upload(path, binary, {
+        contentType: file_type || 'application/octet-stream',
+        upsert: false,
+      })
+    if (upErr) {
+      return new Response(JSON.stringify({ error: upErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+    return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e?.message || 'upload failed' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
 }
