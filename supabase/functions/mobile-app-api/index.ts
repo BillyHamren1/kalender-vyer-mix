@@ -3041,19 +3041,31 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     )
   }
 
-  // ── APPEND TO LOCATION HISTORY (every ping, ~30s) ──
+  // ── APPEND TO LOCATION HISTORY (throttled to ≥15s between rows) ──
   // Used for movement maps and looking up position at a given time.
   // Cleaned up by cron after time reports are approved.
   try {
-    await supabase.from('staff_location_history').insert({
-      organization_id: organizationId,
-      staff_id: staffId,
-      lat: latitude,
-      lng: longitude,
-      accuracy: accuracy ?? null,
-      speed: speed ?? null,
-      recorded_at: new Date().toISOString(),
-    })
+    const { data: lastHist } = await supabase
+      .from('staff_location_history')
+      .select('recorded_at')
+      .eq('staff_id', staffId)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const nowMs = Date.now()
+    const lastMs = lastHist?.recorded_at ? new Date(lastHist.recorded_at).getTime() : 0
+    if (nowMs - lastMs >= 15_000) {
+      await supabase.from('staff_location_history').insert({
+        organization_id: organizationId,
+        staff_id: staffId,
+        lat: latitude,
+        lng: longitude,
+        accuracy: accuracy ?? null,
+        speed: speed ?? null,
+        recorded_at: new Date().toISOString(),
+      })
+    }
   } catch (histErr) {
     // Never fail the request if history insert fails
     console.warn('[mobile-app-api] history insert failed:', histErr)
