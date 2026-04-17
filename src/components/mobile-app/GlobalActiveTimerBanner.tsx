@@ -9,6 +9,7 @@ import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
+const PENDING_STOP_KEY = 'eventflow-pending-stop';
 
 function loadTimersFromStorage(): Map<string, ActiveTimer> {
   try {
@@ -51,6 +52,44 @@ const GlobalActiveTimerBanner: React.FC = () => {
       window.removeEventListener('storage', handler);
     };
   }, []);
+
+  // C8 — Restore any pending-stop dialog state if app was killed mid-confirmation
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PENDING_STOP_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.key && parsed.timer && parsed.startTimeIso && parsed.lastExitIso) {
+        setPendingStop({
+          key: parsed.key,
+          timer: parsed.timer,
+          startTimeDate: parseISO(parsed.startTimeIso),
+          lastExitIso: parsed.lastExitIso,
+          locationName: parsed.locationName ?? null,
+        });
+      }
+    } catch {
+      // ignore corrupt state
+      localStorage.removeItem(PENDING_STOP_KEY);
+    }
+  }, []);
+
+  // Persist pending-stop to localStorage so it survives app kill
+  useEffect(() => {
+    if (!pendingStop) {
+      localStorage.removeItem(PENDING_STOP_KEY);
+      return;
+    }
+    try {
+      localStorage.setItem(PENDING_STOP_KEY, JSON.stringify({
+        key: pendingStop.key,
+        timer: pendingStop.timer,
+        startTimeIso: pendingStop.startTimeDate.toISOString(),
+        lastExitIso: pendingStop.lastExitIso,
+        locationName: pendingStop.locationName,
+      }));
+    } catch {}
+  }, [pendingStop]);
 
   /**
    * Persists the time report and (if needed) the end-of-day anomaly.
@@ -167,7 +206,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     }
 
-    // No relevant exit — save directly with "now" as end-time
+    // No relevant exit — close any orphan anomalies (safety net) and save directly
+    mobileApi.closeOpenAnomalies({ ended_at: stopTime.toISOString() }).catch(err => {
+      console.warn('Failed to close open anomalies on stop:', err);
+    });
     await persistStop(key, timer, startTimeDate, stopTime);
   }, [persistStop]);
 

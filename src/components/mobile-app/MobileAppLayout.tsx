@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import type { ActiveTimer } from '@/hooks/useGeofencing';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
@@ -25,6 +26,63 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   // Travel detection — runs globally regardless of active page
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
+
+  // Arrival prompt — same source-of-truth used by push-cron
+  const { state: arrivalState, refresh: refreshArrival, markResolved } = useArrivalPrompt(!!staff);
+  const [arrivalDialogOpen, setArrivalDialogOpen] = useState(false);
+  const [, setArrivalSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at) {
+      setArrivalDialogOpen(true);
+    } else {
+      setArrivalDialogOpen(false);
+    }
+  }, [arrivalState?.should_prompt, arrivalState?.location_id, arrivalState?.arrived_at]);
+
+  const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
+    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
+    setArrivalSubmitting(true);
+    try {
+      // Use suggested arrival time, or user-picked custom time
+      const startedAt = result.usedSuggestedArrival ? arrivalState.arrived_at : result.startedAtIso;
+      await mobileApi.startLocationTimer(arrivalState.location_id, undefined, startedAt);
+
+      // Optimistically reflect new timer in localStorage so banner updates immediately
+      try {
+        const TIMERS_KEY = 'eventflow-mobile-timers';
+        const raw = localStorage.getItem(TIMERS_KEY);
+        const map = new Map<string, ActiveTimer>(raw ? JSON.parse(raw) : []);
+        const key = `location-${arrivalState.location_id}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            startTime: startedAt,
+            client: arrivalState.location_name || 'Arbetsplats',
+            locationId: arrivalState.location_id,
+            locationName: arrivalState.location_name || 'Arbetsplats',
+            isAutoStarted: false,
+          } as ActiveTimer);
+          localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(map.entries())));
+          window.dispatchEvent(new Event('timer-state-changed'));
+        }
+      } catch {}
+
+      await markResolved(arrivalState.location_id, arrivalState.arrived_at);
+      toast.success('Timer startad');
+      setArrivalDialogOpen(false);
+      refreshArrival();
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte starta timer');
+    } finally {
+      setArrivalSubmitting(false);
+    }
+  }, [arrivalState, markResolved, refreshArrival]);
+
+  const handleArrivalDismiss = useCallback(async () => {
+    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
+    await markResolved(arrivalState.location_id, arrivalState.arrived_at);
+    setArrivalDialogOpen(false);
+  }, [arrivalState, markResolved]);
 
   // Prefetch inbox data at app start so it's cached before user opens inbox
   useEffect(() => {
@@ -75,6 +133,18 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
       {/* Global travel completed dialog */}
       {completedTravel && (
         <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
+      )}
+
+      {/* Global arrival prompt — shown whenever staff is at workplace without a timer */}
+      {arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at && (
+        <ArrivalPromptDialog
+          open={arrivalDialogOpen}
+          onOpenChange={setArrivalDialogOpen}
+          arrivedAtIso={arrivalState.arrived_at}
+          locationName={arrivalState.location_name || 'Arbetsplats'}
+          onConfirm={handleArrivalConfirm}
+          onDismiss={handleArrivalDismiss}
+        />
       )}
 
       <MobileBottomNav />
