@@ -44,11 +44,11 @@ export const getEventColor = (eventType: string | undefined): string => {
       return '#FEE2E2'; // Light red
     // --- Warehouse colors (NO green/yellow/red overlap) ---
     case 'packing':
-      return '#E9D5FF'; // Lavender/purple
+      return '#F2FCE2'; // Light green (same as rig)
     case 'delivery':
       return '#BFDBFE'; // Blue
     case 'return':
-      return '#C4B5FD'; // Violet
+      return '#FEE2E2'; // Light red (same as rigDown)
     case 'inventory':
       return '#A5F3FC'; // Cyan
     case 'unpacking':
