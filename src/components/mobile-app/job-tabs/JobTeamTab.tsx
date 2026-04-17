@@ -54,14 +54,22 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
             </div>
             <div className="flex items-center gap-1">
               {member.phone && (
-                <a href={`tel:${member.phone}`} className="p-2 rounded-lg hover:bg-muted transition-colors">
+                <button
+                  type="button"
+                  onClick={() => { window.open(`tel:${member.phone}`, '_system') || (window.location.href = `tel:${member.phone}`); }}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                   <Phone className="w-4 h-4 text-primary" />
-                </a>
+                </button>
               )}
               {member.email && (
-                <a href={`mailto:${member.email}`} className="p-2 rounded-lg hover:bg-muted transition-colors">
+                <button
+                  type="button"
+                  onClick={() => { window.open(`mailto:${member.email}`, '_system') || (window.location.href = `mailto:${member.email}`); }}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                   <Mail className="w-4 h-4 text-primary" />
-                </a>
+                </button>
               )}
             </div>
           </div>
