@@ -369,6 +369,21 @@ export const mobileApi = {
   closeOpenAnomalies: (data?: { ended_at?: string }) =>
     callApi<{ success: boolean; closed: number; discarded: number }>('close_open_anomalies', data || {}),
 
+  getLastWorkplaceExit: () =>
+    callApi<{ last_exit: { exited_at: string; location_id: string | null; location_name: string | null } | null }>('get_last_workplace_exit'),
+
+  createEndOfDayAnomaly: (data: {
+    started_at: string;
+    ended_at: string;
+    work_description?: string;
+    end_location_lat?: number;
+    end_location_lng?: number;
+    location_id?: string;
+    booking_id?: string;
+    large_project_id?: string;
+    time_report_id?: string;
+  }) => callApi<{ success: boolean; anomaly: any }>('create_end_of_day_anomaly', data),
+
   // Travel logs
   createTravelLog: (data: {
     from_address?: string;
