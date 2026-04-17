@@ -3828,6 +3828,7 @@ export type Database = {
       project_tasks: {
         Row: {
           assigned_to: string | null
+          category: string | null
           completed: boolean
           created_at: string
           deadline: string | null
@@ -3847,6 +3848,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          category?: string | null
           completed?: boolean
           created_at?: string
           deadline?: string | null
@@ -3866,6 +3868,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          category?: string | null
           completed?: boolean
           created_at?: string
           deadline?: string | null
@@ -5968,6 +5971,7 @@ export type Database = {
           event_type_result: string
         }[]
       }
+      ensure_internal_project: { Args: { _org_id: string }; Returns: string }
       ensure_internal_warehouse_project: {
         Args: { _org_id: string }
         Returns: string
