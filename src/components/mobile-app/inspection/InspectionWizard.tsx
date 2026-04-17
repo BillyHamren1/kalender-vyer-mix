@@ -31,8 +31,8 @@ const InspectionWizard = ({ bookingId, onClose }: InspectionWizardProps) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-card flex flex-col">
-      <div className="bg-primary rounded-b-2xl shadow-md">
-        <div className="safe-area-top" style={{ minHeight: '44px' }} />
+      <div className="bg-primary" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="pt-3" />
         <div className="px-4 pb-4 flex items-center gap-3">
           <button onClick={onClose} className="p-2 -ml-1 rounded-xl active:scale-95 transition-all">
             <ArrowLeft className="w-5 h-5 text-primary-foreground" />
