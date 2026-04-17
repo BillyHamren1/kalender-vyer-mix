@@ -135,6 +135,17 @@ export const WarehouseProjectInbox: React.FC = () => {
           );
         })}
       </div>
+
+      <ConvertInboxDialog
+        item={activeItem}
+        open={!!activeItem}
+        onOpenChange={(o) => !o && setActiveItem(null)}
+        onSuccess={async (wp) => {
+          await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
+          await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
+          navigate(`/warehouse/projects/${wp.id}`);
+        }}
+      />
     </div>
   );
 };
