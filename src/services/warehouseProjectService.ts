@@ -51,8 +51,75 @@ export const fetchWarehouseProject = async (id: string): Promise<WarehouseProjec
   return (data || null) as WarehouseProject | null;
 };
 
+export interface SuggestedTaskDates {
+  packStart: string | null;
+  packEnd: string | null;
+  returnStart: string | null;
+  returnEnd: string | null;
+}
+
+const addDays = (iso: string, days: number): string => {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+export const fetchInboxItemSuggestedDates = async (
+  item: WarehouseProjectInboxItem
+): Promise<SuggestedTaskDates> => {
+  let eventDate: string | null = null;
+  let rigdownDate: string | null = null;
+
+  if (item.source_type === 'project') {
+    // projects.booking_id -> bookings.eventdate / rigdowndate
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('booking_id')
+      .eq('id', item.source_id)
+      .maybeSingle();
+    if (proj?.booking_id) {
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('eventdate, rigdowndate')
+        .eq('id', proj.booking_id)
+        .maybeSingle();
+      eventDate = booking?.eventdate ?? null;
+      rigdownDate = booking?.rigdowndate ?? eventDate;
+    }
+  } else if (item.source_type === 'large_project') {
+    const { data: lp } = await supabase
+      .from('large_projects')
+      .select('event_date, end_date')
+      .eq('id', item.source_id)
+      .maybeSingle();
+    const events = (lp?.event_date || []).filter(Boolean).sort();
+    const ends = (lp?.end_date || []).filter(Boolean).sort();
+    eventDate = events[0] || item.event_date || null;
+    rigdownDate = ends[ends.length - 1] || eventDate;
+  }
+
+  if (!eventDate) eventDate = item.event_date;
+  if (!rigdownDate) rigdownDate = eventDate;
+
+  return {
+    packStart: eventDate ? addDays(eventDate, -3) : null,
+    packEnd: eventDate ? addDays(eventDate, -1) : null,
+    returnStart: rigdownDate ? addDays(rigdownDate, 1) : null,
+    returnEnd: rigdownDate ? addDays(rigdownDate, 2) : null,
+  };
+};
+
+export interface CreateFromInboxOptions {
+  name: string;
+  packStart: string;
+  packEnd: string;
+  returnStart: string;
+  returnEnd: string;
+}
+
 export const createWarehouseProjectFromInbox = async (
-  inboxItem: WarehouseProjectInboxItem
+  inboxItem: WarehouseProjectInboxItem,
+  options: CreateFromInboxOptions
 ): Promise<WarehouseProject> => {
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -60,7 +127,7 @@ export const createWarehouseProjectFromInbox = async (
   const { data: wp, error: wpError } = await supabase
     .from('warehouse_projects')
     .insert({
-      name: inboxItem.client_name || 'Lagerprojekt',
+      name: options.name || inboxItem.client_name || 'Lagerprojekt',
       source_project_id: inboxItem.source_type === 'project' ? inboxItem.source_id : null,
       source_large_project_id: inboxItem.source_type === 'large_project' ? inboxItem.source_id : null,
       source_project_number: inboxItem.source_project_number,
@@ -72,6 +139,33 @@ export const createWarehouseProjectFromInbox = async (
     .single();
 
   if (wpError) throw wpError;
+
+  // Insert the two mandatory tasks (Packa + Returnera)
+  const { error: tasksError } = await supabase
+    .from('warehouse_project_tasks')
+    .insert([
+      {
+        warehouse_project_id: wp.id,
+        title: 'Packa',
+        start_date: options.packStart,
+        end_date: options.packEnd,
+        status: 'planning',
+        sort_order: 0,
+      },
+      {
+        warehouse_project_id: wp.id,
+        title: 'Returnera',
+        start_date: options.returnStart,
+        end_date: options.returnEnd,
+        status: 'planning',
+        sort_order: 1,
+      },
+    ] as any);
+
+  if (tasksError) {
+    console.error('Failed to create default tasks:', tasksError);
+    // Don't throw — project is created, tasks can be added later
+  }
 
   // Mark inbox as converted
   await supabase

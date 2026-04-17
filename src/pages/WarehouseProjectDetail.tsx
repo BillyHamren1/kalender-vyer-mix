@@ -150,15 +150,37 @@ const WarehouseProjectDetail = () => {
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-4">
-            <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
-              <Wrench className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                Fria moment (t.ex. "Tvätta dukar") läggs upp här.
-              </p>
-              <Button disabled variant="outline">
-                Lägg till moment (kommer i nästa steg)
-              </Button>
-            </div>
+            {tasks.length === 0 ? (
+              <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
+                <Wrench className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">Inga moment ännu.</p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/40 bg-card divide-y divide-border/40 overflow-hidden">
+                {tasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Wrench className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-foreground">{task.title}</h4>
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                          {WAREHOUSE_PROJECT_STATUS_LABELS[task.status]}
+                        </Badge>
+                      </div>
+                      {(task.start_date || task.end_date) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {task.start_date && format(new Date(task.start_date), 'd MMM', { locale: sv })}
+                          {task.start_date && task.end_date && ' – '}
+                          {task.end_date && format(new Date(task.end_date), 'd MMM yyyy', { locale: sv })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
