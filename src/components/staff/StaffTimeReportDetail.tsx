@@ -515,6 +515,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
+                    const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
 
                     return (
                       <React.Fragment key={date}>
@@ -525,11 +526,28 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                         >
                           <TableCell colSpan={6}>
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <MapPin className="h-4 w-4 text-primary" />
                                 <span className="font-semibold text-sm capitalize">
                                   {format(new Date(date), 'EEEE d MMMM', { locale: sv })}
                                 </span>
+                                {hasOpenWork ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                  >
+                                    <Activity className="h-2.5 w-2.5" />
+                                    Pågående
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                                  >
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    Stängd
+                                  </Badge>
+                                )}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
