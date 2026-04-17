@@ -216,7 +216,7 @@ const MobileTimeReport = () => {
   const sortedDates = Object.keys(reportsByDate).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="flex flex-col min-h-screen bg-card pb-24 overflow-x-hidden">
+    <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader eyebrow="TIME REPORT" title="Time reporting" subtitle="Report working hours" />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
