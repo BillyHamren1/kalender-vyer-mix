@@ -6,10 +6,19 @@ import { format } from 'date-fns';
 export const useJobChat = (bookingId: string | null) => {
   const today = format(new Date(), 'yyyy-MM-dd');
 
+  // Server-side filter on booking_id keeps the channel quiet — we won't
+  // wake up for messages on other jobs. Only INSERT triggers a refetch;
+  // read-receipt UPDATEs are handled in JobChatView via local state.
   useRealtimeInvalidation({
     channelName: `job-chat-${bookingId || 'none'}`,
-    tables: ['job_messages', 'booking_staff_assignments'],
+    tables: bookingId
+      ? [
+          { table: 'job_messages', events: ['INSERT'], filter: `booking_id=eq.${bookingId}` },
+          { table: 'booking_staff_assignments', events: ['INSERT', 'DELETE'], filter: `booking_id=eq.${bookingId}` },
+        ]
+      : [],
     queryKeys: [['job-chat', bookingId || '']],
+    debounceMs: 200,
   });
 
   const messagesQuery = useQuery<JobMessage[]>({
