@@ -4424,14 +4424,6 @@ async function handleCloseOpenAnomalies(supabase: any, staffId: string, data: an
   return new Response(JSON.stringify({ success: true, closed: openRows.length, discarded: toDelete.length }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
-    const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
-    return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message || 'upload failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
-}
 
 // ============= End-of-day stop helpers =============
 
