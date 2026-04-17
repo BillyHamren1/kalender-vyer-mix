@@ -129,7 +129,7 @@ const MobileInbox = () => {
 
   // === Inbox list ===
   return (
-    <div className="flex flex-col min-h-screen pb-24 bg-background">
+    <div className="flex flex-col min-h-screen pb-24 bg-card">
       <MobileHeroHeader
         eyebrow="MEDDELANDEN"
         title="Inkorg"
