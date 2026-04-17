@@ -4170,6 +4170,47 @@ async function handleClassifyAnomaly(supabase: any, staffId: string, data: any, 
   return new Response(JSON.stringify({ success: true, anomaly: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
+
+async function handleCloseOpenAnomalies(supabase: any, staffId: string, data: any, organizationId: string) {
+  // Safety net: closes any orphan anomalies for this staff that were never properly stopped
+  // (e.g. user left geofence, never returned, app closed). Called when a job timer stops.
+  const { ended_at } = data || {}
+  const stopAt = ended_at || new Date().toISOString()
+
+  const { data: openRows } = await supabase
+    .from('time_report_anomalies')
+    .select('id, started_at')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('ended_at', null)
+
+  if (!openRows || openRows.length === 0) {
+    return new Response(JSON.stringify({ success: true, closed: 0 }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Close each, then delete those shorter than 60s (noise)
+  const toDelete: string[] = []
+  for (const row of openRows) {
+    const { data: upd } = await supabase
+      .from('time_report_anomalies')
+      .update({ ended_at: stopAt })
+      .eq('id', row.id)
+      .select('id, started_at, ended_at')
+      .single()
+    if (upd) {
+      const startMs = new Date(upd.started_at).getTime()
+      const endMs = new Date(upd.ended_at).getTime()
+      if (endMs - startMs < 60_000) toDelete.push(upd.id)
+    }
+  }
+  if (toDelete.length > 0) {
+    await supabase.from('time_report_anomalies').delete().in('id', toDelete)
+  }
+
+  return new Response(JSON.stringify({ success: true, closed: openRows.length, discarded: toDelete.length }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
     const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
     return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
