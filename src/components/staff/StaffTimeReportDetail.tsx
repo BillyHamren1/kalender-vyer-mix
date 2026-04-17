@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -13,6 +14,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
 import { AnomalyDialog } from './AnomalyDialog';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
+import { StaffMovementMap } from './StaffMovementMap';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
@@ -56,6 +58,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
   const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
+  const [movementDate, setMovementDate] = useState<string | null>(null);
 
   const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
@@ -549,6 +552,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
                                   </span>
                                 )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
+                                  title="Visa rörelse på karta"
+                                >
+                                  <Route className="h-3 w-3" /> Rörelse
+                                </button>
                                 <Badge variant="outline" className="text-[10px]">
                                   Dagöversikt →
                                 </Badge>
@@ -703,6 +713,21 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         travelSegments={dailyOverviewTravel}
         workEntries={dailyOverviewWork}
       />
+
+      <Dialog open={!!movementDate} onOpenChange={(open) => !open && setMovementDate(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Route className="h-5 w-5" />
+              Rörelse {movementDate && format(parseISO(movementDate), 'EEEE d MMMM', { locale: sv })}
+              <span className="text-sm font-normal text-muted-foreground ml-2">— {staffName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {movementDate && (
+            <StaffMovementMap staffId={staffId} date={movementDate} className="h-[500px]" />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
