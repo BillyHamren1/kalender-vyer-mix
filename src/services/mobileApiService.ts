@@ -259,10 +259,10 @@ export const mobileApi = {
     callApi<{ success: boolean }>('mark_dm_read', { sender_id: senderId }),
 
   archiveDM: (partnerId: string) =>
-    callApi<{ success: boolean }>('archive_dm', { partner_id: partnerId }),
+    callApi<{ success: boolean; archived_count: number }>('archive_dm', { partner_id: partnerId }),
 
   unarchiveDM: (partnerId: string) =>
-    callApi<{ success: boolean }>('unarchive_dm', { partner_id: partnerId }),
+    callApi<{ success: boolean; unarchived_count: number }>('unarchive_dm', { partner_id: partnerId }),
 
   uploadChatAttachment: (data: { file_name: string; file_type: string; file_data_base64: string }) =>
     callApi<{ success: boolean; url: string; file_name: string; file_type: string | null }>('upload_chat_attachment', data),
@@ -278,7 +278,10 @@ export const mobileApi = {
     callApi<{ success: boolean; updated: number }>('mark_job_read', { booking_id: bookingId }),
 
   archiveJobConversation: (bookingId: string) =>
-    callApi<{ success: boolean }>('archive_job_conversation', { booking_id: bookingId }),
+    callApi<{ success: boolean; archived_count: number }>('archive_job_conversation', { booking_id: bookingId }),
+
+  unarchiveJobConversation: (bookingId: string) =>
+    callApi<{ success: boolean; unarchived_count: number }>('unarchive_job_conversation', { booking_id: bookingId }),
 
   // Broadcasts
   getBroadcasts: () =>
