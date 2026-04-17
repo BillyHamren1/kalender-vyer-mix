@@ -11,6 +11,7 @@ import { QRScanner } from '@/components/scanner/QRScanner';
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
 import { ProductIdentifyCard } from '@/components/scanner/ProductIdentifyCard';
+import { IdentifyScannerOverlay } from '@/components/scanner/IdentifyScannerOverlay';
 import { parseScanResult, fetchActivePackings, identifyProduct } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { useScannerController } from '@/hooks/scanner/useScannerController';
@@ -550,13 +551,9 @@ const MobileScannerApp: React.FC = () => {
         onClose={() => setIsQRActive(false)}
       />
 
-      {/* Identify QR Scanner overlay */}
-      <QRScanner
+      {/* Identify Scanner overlay — keeps camera open across multiple scans */}
+      <IdentifyScannerOverlay
         isActive={isIdentifyQRActive}
-        onScan={(value) => {
-          setIsIdentifyQRActive(false);
-          doIdentify(value);
-        }}
         onClose={() => setIsIdentifyQRActive(false)}
       />
     </div>
