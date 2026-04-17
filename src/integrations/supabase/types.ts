@@ -405,7 +405,9 @@ export type Database = {
           exact_time_needed: boolean | null
           ground_nails_allowed: boolean | null
           id: string
+          internal_type: string | null
           internalnotes: string | null
+          is_internal: boolean
           large_project_id: string | null
           last_calendar_sync: string | null
           map_drawing_url: string | null
@@ -447,7 +449,9 @@ export type Database = {
           exact_time_needed?: boolean | null
           ground_nails_allowed?: boolean | null
           id: string
+          internal_type?: string | null
           internalnotes?: string | null
+          is_internal?: boolean
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
@@ -489,7 +493,9 @@ export type Database = {
           exact_time_needed?: boolean | null
           ground_nails_allowed?: boolean | null
           id?: string
+          internal_type?: string | null
           internalnotes?: string | null
+          is_internal?: boolean
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
@@ -4733,6 +4739,8 @@ export type Database = {
           organization_id: string
           overtime_hours: number | null
           report_date: string
+          source: string
+          source_entry_id: string | null
           staff_id: string
           start_time: string | null
           updated_at: string
@@ -4754,6 +4762,8 @@ export type Database = {
           organization_id?: string
           overtime_hours?: number | null
           report_date: string
+          source?: string
+          source_entry_id?: string | null
           staff_id: string
           start_time?: string | null
           updated_at?: string
@@ -4775,6 +4785,8 @@ export type Database = {
           organization_id?: string
           overtime_hours?: number | null
           report_date?: string
+          source?: string
+          source_entry_id?: string | null
           staff_id?: string
           start_time?: string | null
           updated_at?: string
@@ -5974,6 +5986,7 @@ export type Database = {
       }
     }
     Functions: {
+      auto_close_open_location_entries: { Args: never; Returns: number }
       claim_sync_jobs: {
         Args: { batch_limit?: number }
         Returns: {
@@ -6004,6 +6017,10 @@ export type Database = {
           duplicates_removed: number
           event_type_result: string
         }[]
+      }
+      ensure_internal_lager_booking: {
+        Args: { _org_id: string }
+        Returns: string
       }
       ensure_internal_project: { Args: { _org_id: string }; Returns: string }
       ensure_internal_warehouse_project: {
