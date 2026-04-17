@@ -1,39 +1,64 @@
 
-## Kort svar
-**Nej — det är inte samma "Lager".** Idag finns det **två separata Lager-projekt** per organisation:
+User wants the week tabs bottom bar (like in warehouse calendar) added to the **week view** in the **project staff calendar** (Personalplanering / Personalkalender in projects).
 
-| | Tidappen "Lager" | Lagerkalenderns "Lager" |
-|---|---|---|
-| Tabell | `projects` (`is_internal = true`) | `warehouse_projects` (`is_internal = true`) |
-| Kopplat till | `location_id` (fast plats i `organization_locations`) | Ingen plats |
-| Skapas av | Trigger på `organization_locations` med `show_as_project = true` | Trigger på `organizations` (planen vi nyss byggde) |
-| Tidregistrering | Ja — mobilapp loggar mot detta via `location_id` | Nej — `warehouse_project_tasks` har ingen tidskoppling |
+Looking at the screenshot: the warehouse calendar shows "Vecka 14, Vecka 15, Vecka 16, Vecka 17, Vecka 18" tabs at the bottom. The user wants this exact component visible on the week view in the project's staff/personnel calendar.
 
-Verifierat i DB: organisation `f5e5cade…` har **båda** parallellt:
-- `projects.id = aabe7606…` (Lager, location-länkad)
-- `warehouse_projects.id = e87b6763…` (Lager, intern lagerprojektet vi skapade)
+The component already exists: `src/components/Calendar/WeekTabsNavigation.tsx`. I just need to find the project staff/personnel calendar week view and add it.
 
-Detta strider mot din ursprungliga intention: *"Den tiden skall registreras i detta projekt."* — men idag går tidregistreringen till ett annat "Lager".
+Let me explore to find the right file.
+<lov-tool-use id="toolu_vrtx_019MzwVx16v7nxHYkgZ2dZgb" name="code--search_files" integration-id="code" data="{\"query\": \"Personalkalender|Personalplanering\", \"include_patterns\": \"*.tsx\"}">
+</lov-tool-use>
 
-## Förslag — välj enhetlig modell
+<lov-tool-use id="toolu_vrtx_016ioNyMQ3ReiCjiieqo79d6" name="code--search_files" integration-id="code" data="{\"query\": \"WeekTabsNavigation\", \"include_patterns\": \"*.tsx\"}">
+</lov-tool-use>
 
-Två rimliga vägar (välj en):
+<lov-tool-use id="toolu_vrtx_014ch5aLnU6mey72ZqgfJTWc" name="code--search_files" integration-id="code" data="{\"query\": \"WeekTabsNavigation\", \"include_patterns\": \"*.tsx\"}">
+</lov-tool-use>
 
-### Alternativ A — Konsolidera till ETT Lager (rekommenderat)
-- Ta bort `warehouse_projects.is_internal` Lager-projektet.
-- Flytta lageruppgifterna (`warehouse_project_tasks` på Lager) till `tasks`-tabellen kopplad till det interna `projects`-Lager.
-- Lagerkalendern visar tasks från `projects` (Lager) istället.
-- Tid loggas redan på rätt projekt → uppgift kan väljas valfritt.
+<lov-tool-use id="toolu_vrtx_01RR9jznuUhhGZ5QyNTTjpc8" name="code--search_files" integration-id="code" data="{\"query\": \"Personalplanering|StaffCalendar|PersonalKalender\", \"include_patterns\": \"*.tsx\"}">
+</lov-tool-use>
+The user mentioned "Personalkalender i projekt" — but the path is `/calendar` (CustomCalendarPage). It already imports WeekTabsNavigation. Let me check it.
+<lov-tool-use id="toolu_vrtx_019upff9FDmgtu2oLyZJbrjA" name="code--view" integration-id="code" data="{\"file_path\": \"src/pages/CustomCalendarPage.tsx\", \"lines\": \"300-450\"}">
+</lov-tool-use>
+The WeekTabsNavigation only shows under monthly view. The user wants it to also appear under the WEEKLY view. Also let me check warehouse's structure to see the pattern.
+<lov-tool-use id="toolu_vrtx_016ao6rVvE7vxZQeHzuLEwH2" name="code--view" integration-id="code" data="{\"file_path\": \"src/pages/WarehouseCalendarPage.tsx\", \"lines\": \"470-540\"}">
+</lov-tool-use>
+Wait, looking at the user's screenshot again — it shows the warehouse calendar Month view at /warehouse/calendar with Vecka 14-18 tabs at bottom. The user wants the same thing in the project staff calendar (/calendar), but specifically when **VECKA** view (weekly) is selected.
 
-### Alternativ B — Brygga de två
-- Behåll båda tabeller men säkerställ att `warehouse_projects` Lager **alltid speglar** motsvarande `projects` Lager (samma org).
-- När man loggar tid på en lageruppgift går den till `projects` Lager via `location_id`.
-- Lager-uppgifter visas i tidappen som valbara underuppgifter på Lager-projektet.
+Looking at the current code: `CustomCalendarPage.tsx` only renders WeekTabsNavigation in monthly view. Need to add it in weekly view too.
 
-### Alternativ C — Behåll separation
-- Acceptera två "Lager" — ett för operativa lageruppgifter (warehouse), ett för platsbaserad tidregistrering. Tydligare namn: "Lager (uppgifter)" vs "Lager (plats)".
+I should also check the daily view — user said "VECKOVYN ska se ut som lagerkalenderns MÅNADSVY" — so they want the week tabs to appear in weekly view in the project calendar.
 
-## Rekommendation
-**Alternativ A** — det matchar din ursprungliga formulering bäst ("Den tiden skall registreras i detta projekt"). Det innebär att vi tar bort dubbletten i `warehouse_projects` och centrerar allt internt arbete på det ena `projects`-Lager som tidappen redan känner till.
+<lov-plan>
+## Problem
+I `/calendar` (Personalplanering – Projekt) visas vecknavigeringen (Vecka 14, 15, 16…) i botten **endast** när Månadsvy är vald. När man väljer **Veckovy** finns ingen sådan navigeringsbar längst ner.
 
-Säg till vilket alternativ du vill att jag bygger, så lägger jag plan för migration + UI-anpassning.
+I lagerkalendern (`/warehouse/calendar`) visas däremot dessa veckotabbar tydligt i Månadsvyn (se din skärmbild).
+
+Du vill att **Veckovyn i Personalkalendern** ska få samma bottom-bar med månadens alla veckor som lagerkalenderns månadsvy.
+
+## Lösning
+En liten, fokuserad ändring i `src/pages/CustomCalendarPage.tsx`:
+
+Lägg till `<WeekTabsNavigation>` även under blocket för `viewMode === 'weekly'` (desktop), exakt på samma sätt som det redan görs för `monthly`.
+
+```text
+viewMode === 'weekly' (desktop)
+ ┌─────────────────────────────┐
+ │  CustomCalendar (veckogrid) │
+ ├─────────────────────────────┤
+ │ [Vecka 14][Vecka 15][16]... │ ← NY bottom-bar
+ └─────────────────────────────┘
+```
+
+### Detaljer
+- Använder befintlig komponent `WeekTabsNavigation` (samma som i `WarehouseCalendarPage` och i monthly-vyn).
+- Props: `currentMonth={monthlyDate}`, `currentWeekStart={currentWeekStart}`, `onWeekSelect={handleWeekSelect}` — alla finns redan i scope.
+- Aktiv vecka markeras automatiskt (primary färg) eftersom `isSameWeek` jämför mot `currentWeekStart`.
+- Klick på en veckotabb byter `currentWeekStart` → veckogriden uppdateras direkt.
+- Endast desktop (inom befintlig `!isMobile`-gren). Mobil har redan sin egen `MobileWarehouseWeekSelector`-logik.
+
+### Fil som ändras
+- `src/pages/CustomCalendarPage.tsx` — lägg till `<WeekTabsNavigation>` under desktop-`CustomCalendar` i weekly-grenen (rad ~335–354), wrappa i fragment `<>...</>` precis som monthly-grenen.
+
+Inga andra filer behöver röras. `WeekTabsNavigation` stöder redan `variant="default"` (primary färg, matchar projektkalenderns tema) — ingen variant-prop behövs här eftersom detta är projektsidan, inte warehouse.
