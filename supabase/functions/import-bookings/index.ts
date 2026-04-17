@@ -1022,10 +1022,11 @@ const getNextTeamAssignment = async (
   endTime?: string,
   isExplicitStart: boolean = false
 ): Promise<string> => {
-  // EVENT type events always go to team-11 (Live column)
+  // EVENT type events are no longer scheduled on a team — the Live column has been removed
+  // and eventdate is kept on bookings only. Defensive guard: if anything still tries to
+  // place an EVENT row in calendar_events, fall back to round-robin like rig events.
   if (eventType === 'event') {
-    console.log(`Assigning EVENT type to team-11 (Live) for booking ${bookingId}`);
-    return 'team-11';
+    console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
   }
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
