@@ -11,7 +11,7 @@ import { type LucideIcon,
    ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useIncomingPackingCount } from "@/hooks/useIncomingPackingCount";
+import { useWarehouseNotificationCount } from "@/hooks/useWarehouseNotificationCount";
 
 interface NavItem {
   title: string;
@@ -41,7 +41,7 @@ export function WarehouseSidebar3D() {
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const incomingPackingCount = useIncomingPackingCount();
+  const notif = useWarehouseNotificationCount();
 
   // Auto-expand parent if a child route is active
   useEffect(() => {
@@ -202,8 +202,9 @@ export function WarehouseSidebar3D() {
                       {!isCollapsed && (
                         <span style={labelStyle}>{item.title}</span>
                       )}
-                      {item.url === '/warehouse/packing' && incomingPackingCount > 0 && (
+                      {item.url === '/warehouse/packing' && notif.total > 0 && (
                         <span
+                          title={`${notif.newProjects} nya projekt, ${notif.changes} ändringar`}
                           className="flex items-center justify-center rounded-full text-white font-bold shrink-0"
                           style={{
                             background: ACCENT,
@@ -214,7 +215,7 @@ export function WarehouseSidebar3D() {
                             lineHeight: 1,
                           }}
                         >
-                          {incomingPackingCount}
+                          {notif.total}
                         </span>
                       )}
                     </NavLink>
