@@ -164,8 +164,33 @@ export const verifyProductBySku = async (
   packingId: string,
   sku: string,
   verifiedBy: string
-): Promise<{ success: boolean; productName?: string; error?: string; overscan?: boolean; itemId?: string; newQuantity?: number; quantityToPack?: number }> => {
+): Promise<{
+  success: boolean;
+  productName?: string;
+  error?: string;
+  overscan?: boolean;
+  itemId?: string;
+  newQuantity?: number;
+  quantityToPack?: number;
+  notInPackingList?: boolean;
+  scannedSku?: string | null;
+  scannedName?: string | null;
+  bookingId?: string;
+  alreadyScanned?: boolean;
+}> => {
   return callScannerApi('verify_product', { packingId, sku, verifiedBy });
+};
+
+// Add an unknown product (scanned but not in packing list) to both
+// the booking_products and packing_list_items, with 1 already packed.
+export const addUnknownProduct = async (
+  packingId: string,
+  sku: string | null,
+  name: string,
+  quantityToPack: number,
+  verifiedBy: string
+): Promise<{ success: boolean; itemId?: string; bookingProductId?: string; productName?: string; error?: string }> => {
+  return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy });
 };
 
 // Toggle a packing item manually
