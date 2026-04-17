@@ -4083,24 +4083,96 @@ async function handleUnarchiveDM(supabase: any, staffId: string, data: any, orga
 }
 
 async function handleUploadChatAttachment(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { file_name, file_type, file_data_base64 } = data
-  if (!file_name || !file_data_base64) {
-    return new Response(JSON.stringify({ error: 'file_name and file_data_base64 are required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
   try {
-    const binary = Uint8Array.from(atob(file_data_base64), c => c.charCodeAt(0))
-    const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `${organizationId}/${staffId}/${Date.now()}_${safeName}`
+    // 1. Auth/org guard
+    if (!staffId || !organizationId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: missing staff or organization context' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    const { file_name, file_type, file_data_base64 } = data || {}
+    if (!file_name || !file_data_base64) {
+      return new Response(JSON.stringify({ error: 'file_name and file_data_base64 are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // 2. Mime-type whitelist
+    const ALLOWED_MIME = new Set([
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/csv',
+    ])
+    const mimeType = (file_type || 'application/octet-stream').toLowerCase()
+    if (!ALLOWED_MIME.has(mimeType)) {
+      return new Response(JSON.stringify({ error: `Unsupported mime type: ${mimeType}` }),
+        { status: 415, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // 3. Decode + size validation (max 15 MB)
+    let binary: Uint8Array
+    try {
+      binary = Uint8Array.from(atob(file_data_base64), c => c.charCodeAt(0))
+    } catch (_e) {
+      return new Response(JSON.stringify({ error: 'Invalid base64 payload' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const MAX_BYTES = 15 * 1024 * 1024
+    if (binary.byteLength === 0) {
+      return new Response(JSON.stringify({ error: 'Empty file' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (binary.byteLength > MAX_BYTES) {
+      return new Response(JSON.stringify({ error: `File too large (max ${MAX_BYTES / (1024 * 1024)} MB)` }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // 4. Unique path per org/user/timestamp
+    const safeName = String(file_name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+    const path = `${organizationId}/${staffId}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}_${safeName}`
+
+    // 5. Upload
     const { error: upErr } = await supabase.storage
       .from('chat-attachments')
       .upload(path, binary, {
-        contentType: file_type || 'application/octet-stream',
+        contentType: mimeType,
         upsert: false,
       })
     if (upErr) {
-      return new Response(JSON.stringify({ error: upErr.message }),
+      return new Response(JSON.stringify({ error: `Upload failed: ${upErr.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // 6. Resolve URL (public, fallback to 7-day signed)
+    let url = ''
+    const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+    if (pub?.publicUrl) {
+      url = pub.publicUrl
+    } else {
+      const { data: signed, error: signErr } = await supabase.storage
+        .from('chat-attachments')
+        .createSignedUrl(path, 60 * 60 * 24 * 7)
+      if (signErr || !signed?.signedUrl) {
+        return new Response(JSON.stringify({ error: `Could not resolve URL: ${signErr?.message || 'unknown'}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      url = signed.signedUrl
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      path,
+      url,
+      file_name: safeName,
+      mime_type: mimeType,
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  } catch (err) {
+    return new Response(JSON.stringify({ error: `Unexpected error: ${err instanceof Error ? err.message : String(err)}` }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
 }
 
 // ============= Anomalies (background absence tracking) =============
@@ -4351,14 +4423,6 @@ async function handleCloseOpenAnomalies(supabase: any, staffId: string, data: an
 
   return new Response(JSON.stringify({ success: true, closed: openRows.length, discarded: toDelete.length }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-}
-    const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path)
-    return new Response(JSON.stringify({ success: true, url: pub.publicUrl, file_name: safeName, file_type: file_type || null }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message || 'upload failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
 }
 
 // ============= End-of-day stop helpers =============
