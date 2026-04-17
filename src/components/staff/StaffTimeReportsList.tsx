@@ -244,9 +244,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       </>
                     )}
                   </div>
-                  {staff.projects.length > 0 && (
+                  {(staff.projects?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {staff.projects.map(p => (
+                      {staff.projects!.map(p => (
                         <Badge
                           key={p.booking_id}
                           variant="outline"
