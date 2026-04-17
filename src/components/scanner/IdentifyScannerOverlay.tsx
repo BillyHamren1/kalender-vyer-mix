@@ -25,6 +25,7 @@ interface IdentifiedItem {
 interface IdentifyScannerOverlayProps {
   isActive: boolean;
   onClose: () => void;
+  onPackingDetected?: (packingId: string) => void;
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
