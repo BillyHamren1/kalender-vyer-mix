@@ -456,8 +456,6 @@ const WarehouseCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
-                  isEventReadOnly={isEventReadOnly}
-                  onEventClick={handleEventClick}
                   activatedStaffIds={activeStaffIds}
                 />
               )}
@@ -484,8 +482,6 @@ const WarehouseCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
-                  isEventReadOnly={isEventReadOnly}
-                  onEventClick={handleEventClick}
                   activatedStaffIds={activeStaffIds}
                 />
               )}
@@ -509,8 +505,6 @@ const WarehouseCalendarPage = () => {
                 onToggleTeamForDay={handleToggleTeamForDay}
                 allTeams={resourcesWithWarehouse}
                 variant="warehouse"
-                isEventReadOnly={isEventReadOnly}
-                onEventClick={handleEventClick}
                 activatedStaffIds={activeStaffIds}
               />
               {/* Week tabs for quick navigation within the month */}
