@@ -271,8 +271,8 @@ export const mobileApi = {
   getJobMessages: (bookingId: string) =>
     callApi<{ messages: any[] }>('get_job_messages', { booking_id: bookingId }),
 
-  sendJobMessage: (data: { booking_id: string; content: string }) =>
-    callApi<{ success: boolean }>('send_job_message', data),
+  sendJobMessage: (data: { booking_id: string; content: string; file_url?: string; file_name?: string; file_type?: string }) =>
+    callApi<{ success: boolean; message: any }>('send_job_message', data),
 
   markJobRead: (bookingId: string) =>
     callApi<{ success: boolean; updated: number }>('mark_job_read', { booking_id: bookingId }),
