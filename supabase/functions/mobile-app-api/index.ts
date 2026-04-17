@@ -234,6 +234,10 @@ Deno.serve(async (req) => {
         return await handleGetLastWorkplaceExit(supabase, staffId, organizationId)
       case 'create_end_of_day_anomaly':
         return await handleCreateEndOfDayAnomaly(supabase, staffId, data, organizationId)
+      case 'get_position_at_time':
+        return await handleGetPositionAtTime(supabase, staffId, data, organizationId)
+      case 'get_movement_for_day':
+        return await handleGetMovementForDay(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -1433,6 +1437,28 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       .lte('ended_at', reportEndIso)
   } catch (linkErr) {
     console.warn('Failed to link anomalies to time report:', linkErr)
+  }
+
+  // Link GPS history rows that fall inside this report's time window so the
+  // approval-based retention cleanup can later remove them automatically.
+  try {
+    const reportStartIso = `${report_date}T${start_time}:00`
+    const endsNextDay = end_time < start_time
+    const reportEndDate = endsNextDay
+      ? new Date(new Date(report_date).getTime() + 86_400_000).toISOString().slice(0, 10)
+      : report_date
+    const reportEndIso = `${reportEndDate}T${end_time}:00`
+
+    await supabase
+      .from('staff_location_history')
+      .update({ time_report_id: report.id })
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('time_report_id', null)
+      .gte('recorded_at', reportStartIso)
+      .lte('recorded_at', reportEndIso)
+  } catch (histLinkErr) {
+    console.warn('Failed to link location history to time report:', histLinkErr)
   }
 
   return new Response(
@@ -2970,6 +2996,24 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       JSON.stringify({ error: 'Failed to report location' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // ── APPEND TO LOCATION HISTORY (every ping, ~30s) ──
+  // Used for movement maps and looking up position at a given time.
+  // Cleaned up by cron after time reports are approved.
+  try {
+    await supabase.from('staff_location_history').insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      lat: latitude,
+      lng: longitude,
+      accuracy: accuracy ?? null,
+      speed: speed ?? null,
+      recorded_at: new Date().toISOString(),
+    })
+  } catch (histErr) {
+    // Never fail the request if history insert fails
+    console.warn('[mobile-app-api] history insert failed:', histErr)
   }
 
   // ── GEOFENCE CHECK for organization_locations ──
