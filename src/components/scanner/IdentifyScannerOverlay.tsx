@@ -134,8 +134,20 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
     // Dedup same value within 2.5s
     if (value === lastScanRef.current.value && now - lastScanRef.current.at < 2500) return;
     lastScanRef.current = { value, at: now };
+
+    // If this looks like a packing label and we have a navigation handler, route there.
+    if (onPackingDetected) {
+      const parsed = parseScanResult(value);
+      if (parsed.type === 'packing_id' && parsed.packingId) {
+        playBeep(true);
+        toast.success('Packlista hittad!');
+        onPackingDetected(parsed.packingId);
+        return;
+      }
+    }
+
     handleIdentify(value);
-  }, [handleIdentify]);
+  }, [handleIdentify, onPackingDetected, playBeep]);
 
   const stopCamera = useCallback(() => {
     if (startingTimeoutRef.current) {
