@@ -16,23 +16,26 @@ const POLL_INTERVAL_MS = 60_000;
  * Same source-of-truth used by the push-cron job, so logic is identical
  * regardless of whether the user opens the app via push or manually.
  *
- * Returns the current state and a `markResolved()` to flag the prompt
- * as handled (e.g. after timer is started or user dismissed).
+ * `pausePolling` should be true while the user is interacting with the
+ * arrival dialog so polling doesn't yank state from under them.
  */
-export function useArrivalPrompt(staffAuthenticated: boolean) {
+export function useArrivalPrompt(staffAuthenticated: boolean, pausePolling = false) {
   const [state, setState] = useState<ArrivalState | null>(null);
   const intervalRef = useRef<number | null>(null);
   const inFlightRef = useRef(false);
+  const pauseRef = useRef(pausePolling);
 
-  const fetchState = useCallback(async () => {
+  useEffect(() => { pauseRef.current = pausePolling; }, [pausePolling]);
+
+  const fetchState = useCallback(async (force = false) => {
     if (!staffAuthenticated) return;
+    if (!force && pauseRef.current) return;
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     try {
       const result = await mobileApi.getArrivalState();
       setState(result);
     } catch (err) {
-      // Network errors are non-fatal — we'll retry on next interval
       console.warn('[useArrivalPrompt] fetch failed:', err);
     } finally {
       inFlightRef.current = false;
@@ -45,15 +48,12 @@ export function useArrivalPrompt(staffAuthenticated: boolean) {
       return;
     }
 
-    // Initial fetch
-    fetchState();
+    fetchState(true);
 
-    // Poll every 60s
-    intervalRef.current = window.setInterval(fetchState, POLL_INTERVAL_MS);
+    intervalRef.current = window.setInterval(() => fetchState(false), POLL_INTERVAL_MS);
 
-    // Re-fetch when the app becomes visible (push-tap, tab focus)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') fetchState();
+      if (document.visibilityState === 'visible') fetchState(false);
     };
     document.addEventListener('visibilitychange', onVisible);
 
@@ -72,5 +72,5 @@ export function useArrivalPrompt(staffAuthenticated: boolean) {
     setState((prev) => (prev ? { ...prev, should_prompt: false } : prev));
   }, []);
 
-  return { state, refresh: fetchState, markResolved };
+  return { state, refresh: () => fetchState(true), markResolved };
 }

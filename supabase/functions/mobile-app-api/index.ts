@@ -3217,6 +3217,23 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     .single()
 
   if (error) {
+    // 23505 = unique_violation (race: another device just inserted the open entry)
+    if ((error as any)?.code === '23505') {
+      const { data: latest } = await supabase
+        .from('location_time_entries')
+        .select('*')
+        .eq('staff_id', staffId)
+        .eq('location_id', location_id)
+        .is('exited_at', null)
+        .limit(1)
+        .maybeSingle()
+      if (latest) {
+        return new Response(
+          JSON.stringify({ already_active: true, entry: latest }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
     console.error('Start location timer error:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to start location timer' }),
@@ -4640,6 +4657,14 @@ async function handleGetMovementForDay(supabase: any, callerStaffId: string, dat
  * Rule: prompt if there is an open geofence-entry for this staff AND they have no
  * open time_report for the entry's date AND the prompt log isn't resolved.
  */
+/**
+ * Convert an ISO timestamp to its Europe/Stockholm calendar date (YYYY-MM-DD).
+ * Uses sv-SE locale which produces ISO-like output.
+ */
+function stockholmDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' })
+}
+
 async function handleGetArrivalState(supabase: any, staffId: string, organizationId: string) {
   // Find the most recent open geofence entry for this staff
   const { data: openEntry } = await supabase
@@ -4659,18 +4684,39 @@ async function handleGetArrivalState(supabase: any, staffId: string, organizatio
   }
 
   const arrivedAt = openEntry.entered_at as string
-  const today = new Date(arrivedAt).toISOString().slice(0, 10)
+  // Use Stockholm-local date so cross-midnight shifts don't get the wrong day.
+  const arrivedDateStockholm = stockholmDate(arrivedAt)
 
-  // Already has a time_report for today? then resolved.
-  const { data: existingReport } = await supabase
+  // Resolved if EITHER:
+  //  a) An OPEN time_report exists for this staff (covers any active timer), OR
+  //  b) A CLOSED time_report exists for the arrival date whose start_time is
+  //     AFTER this geofence arrival (i.e. the report already covers this arrival).
+  // This allows multiple visits per day to each get their own prompt.
+  const { data: openReports } = await supabase
     .from('time_reports')
     .select('id')
     .eq('staff_id', staffId)
-    .eq('report_date', today)
+    .is('end_time', null)
     .limit(1)
-    .maybeSingle()
 
-  if (existingReport) {
+  const { data: laterReports } = await supabase
+    .from('time_reports')
+    .select('id, start_time')
+    .eq('staff_id', staffId)
+    .eq('report_date', arrivedDateStockholm)
+    .not('start_time', 'is', null)
+    .limit(20)
+
+  // arrived_at HH:mm in Stockholm — compare against report.start_time (HH:mm string)
+  const arrivedHHMM = new Date(arrivedAt).toLocaleTimeString('sv-SE', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm', hour12: false,
+  })
+  const coveringReport = (laterReports || []).find((r: any) => {
+    const s = String(r.start_time || '').slice(0, 5)
+    return s && s <= arrivedHHMM
+  })
+
+  if ((openReports && openReports.length > 0) || coveringReport) {
     return new Response(JSON.stringify({
       should_prompt: false,
       arrived_at: arrivedAt,
@@ -4680,7 +4726,8 @@ async function handleGetArrivalState(supabase: any, staffId: string, organizatio
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // Check prompt log — if user manually dismissed, do not show again for this entry
+  // Check prompt log for THIS specific arrival (composite key staff/location/arrived_at)
+  // — old resolved logs from previous geofence-entries don't apply.
   const { data: log } = await supabase
     .from('arrival_prompt_log')
     .select('prompt_count, resolved')
