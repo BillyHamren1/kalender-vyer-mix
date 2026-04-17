@@ -49,10 +49,14 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
     onMessagesChanged?.(messages);
   }, [messages, onMessagesChanged]);
 
-  // Mark partner messages as read on open + whenever new ones arrive
+  // Mark partner messages as read on open and whenever a NEW partner message arrives.
+  // We trigger only on changes to the count of messages from the partner — sending
+  // our own messages should never round-trip a mark_read.
+  const partnerMsgCount = messages.filter((m) => m.sender_id === partnerId).length;
   useEffect(() => {
+    if (partnerMsgCount === 0) return;
     mobileApi.markDMRead(partnerId).catch(() => { /* ignore */ });
-  }, [partnerId, messages.length]);
+  }, [partnerId, partnerMsgCount]);
 
   // Realtime: append/update only — never trigger a full refetch.
   useEffect(() => {
