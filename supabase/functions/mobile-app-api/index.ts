@@ -2517,11 +2517,12 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
 }
 
 async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { recipient_id, content } = data
+  const { recipient_id, content, file_url, file_name, file_type, booking_id } = data
 
-  if (!recipient_id || !content?.trim()) {
+  const trimmed = (content || '').trim()
+  if (!recipient_id || (!trimmed && !file_url)) {
     return new Response(
-      JSON.stringify({ error: 'recipient_id and content are required' }),
+      JSON.stringify({ error: 'recipient_id and content or attachment are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2565,8 +2566,13 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
       sender_type: 'staff',
       recipient_id,
       recipient_name: recipientName,
-      content: content.trim(),
+      content: trimmed || (file_name ? `📎 ${file_name}` : '📎 Bifogad fil'),
+      file_url: file_url || null,
+      file_name: file_name || null,
+      file_type: file_type || null,
+      booking_id: booking_id || null,
       organization_id: organizationId,
+      delivered_at: new Date().toISOString(),
     })
     .select()
     .single()
@@ -2670,14 +2676,15 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   const ids = [staffId]
   if (userId && userId !== staffId) ids.push(userId)
 
+  const nowIso = new Date().toISOString()
   const markPromises = ids.map(myId =>
     supabase
       .from('direct_messages')
-      .update({ is_read: true })
+      .update({ is_read: true, read_at: nowIso })
       .eq('recipient_id', myId)
       .eq('sender_id', sender_id)
       .eq('organization_id', organizationId)
-      .eq('is_read', false)
+      .is('read_at', null)
   )
 
   const results = await Promise.all(markPromises)
