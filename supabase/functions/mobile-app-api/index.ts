@@ -196,6 +196,14 @@ Deno.serve(async (req) => {
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+      case 'get_lager_tasks':
+        return await handleGetLagerTasks(supabase, staffId, organizationId)
+      case 'create_lager_task':
+        return await handleCreateLagerTask(supabase, staffId, data, organizationId)
+      case 'complete_lager_task':
+        return await handleCompleteLagerTask(supabase, data, organizationId)
+      case 'claim_lager_task':
+        return await handleClaimLagerTask(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
