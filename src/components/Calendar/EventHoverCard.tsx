@@ -53,7 +53,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
         )}
       </HoverCardTrigger>
       <HoverCardContent
-        className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 
+        className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto z-[9999]" 
         side="right" 
         align="center"
         sideOffset={10}
