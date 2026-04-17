@@ -89,7 +89,6 @@ const MobileInbox = () => {
     setView('job');
   };
 
-  const openDM = (conv: DMConversation) => { setActiveDM(conv); setView('dm'); };
   const handleArchive = async (partnerId: string) => {
     try { await mobileApi.archiveDM(partnerId); toast.success('Arkiverat'); refetchAll(); }
     catch { toast.error('Kunde inte arkivera'); }
