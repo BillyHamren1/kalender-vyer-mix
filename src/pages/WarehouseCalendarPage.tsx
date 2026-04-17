@@ -385,13 +385,8 @@ const WarehouseCalendarPage = () => {
     setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
 
-  // Handle event click to show booking products dialog
-  const handleEventClick = (event: CalendarEvent) => {
-    if (event.bookingId) {
-      setSelectedBookingId(event.bookingId);
-      setProductDialogOpen(true);
-    }
-  };
+  // Single click disabled in warehouse calendar — use double-click / dedicated actions instead.
+  const handleEventClick = (_event: CalendarEvent) => {};
 
   // Handle create packing from dialog
   const handleCreatePacking = (bookingId: string, bookingClient: string) => {
