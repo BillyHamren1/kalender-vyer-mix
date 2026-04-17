@@ -456,8 +456,6 @@ const WarehouseCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
-                  isEventReadOnly={isEventReadOnly}
-                  onEventClick={handleEventClick}
                   activatedStaffIds={activeStaffIds}
                 />
               )}
