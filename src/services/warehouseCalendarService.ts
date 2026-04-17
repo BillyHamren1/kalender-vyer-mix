@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, addDays, parseISO, setHours, setMinutes } from "date-fns";
 
-// Warehouse event types
-export type WarehouseEventType = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking';
+// Warehouse event types — only packing + return are shown in the warehouse calendar
+export type WarehouseEventType = 'packing' | 'return';
 
 // Default rules for warehouse events
 const WAREHOUSE_RULES: Record<WarehouseEventType, {
@@ -20,61 +20,25 @@ const WAREHOUSE_RULES: Record<WarehouseEventType, {
     startMinute: 0,
     durationHours: 3
   },
-  delivery: {
-    basedOn: 'rigDate',
-    daysBefore: 0,
-    startHour: 7,
-    startMinute: 0,
-    durationHours: 2
-  },
-  event: {
-    basedOn: 'eventDate',
-    daysBefore: 0,
-    startHour: 9,
-    startMinute: 0,
-    durationHours: 8
-  },
   return: {
-    basedOn: 'rigDownDate',
-    daysBefore: 0,
-    startHour: 17,
-    startMinute: 0,
-    durationHours: 2
-  },
-  inventory: {
     basedOn: 'rigDownDate',
     daysAfter: 1,
     startHour: 8,
     startMinute: 0,
-    durationHours: 2
-  },
-  unpacking: {
-    basedOn: 'rigDownDate',
-    daysAfter: 1,
-    startHour: 10,
-    startMinute: 0,
-    durationHours: 2
+    durationHours: 3
   }
 };
 
 // Event type labels in Swedish
 export const WAREHOUSE_EVENT_LABELS: Record<WarehouseEventType, string> = {
   packing: 'Packning',
-  delivery: 'Utleverans',
-  event: 'Event',
-  return: 'Återleverans',
-  inventory: 'Inventering',
-  unpacking: 'Upppackning'
+  return: 'Retur'
 };
 
 // Event type colors — must NOT overlap with planning colors (green/yellow/red)
 export const WAREHOUSE_EVENT_COLORS: Record<WarehouseEventType, string> = {
   packing: '#E9D5FF',    // Lavender/purple
-  delivery: '#DBEAFE',   // Blue
-  event: '#E0E7FF',      // Indigo (NOT yellow — yellow is planning)
-  return: '#C4B5FD',     // Violet (NOT orange — too close to yellow/red)
-  inventory: '#CFFAFE',  // Cyan
-  unpacking: '#F1F5F9'   // Slate gray
+  return: '#C4B5FD'      // Violet
 };
 
 interface BookingData {
