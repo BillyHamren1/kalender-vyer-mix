@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      arrival_prompt_log: {
+        Row: {
+          arrived_at: string
+          created_at: string
+          id: string
+          last_prompt_at: string | null
+          location_id: string
+          organization_id: string
+          prompt_count: number
+          resolved: boolean
+          resolved_at: string | null
+          staff_id: string
+        }
+        Insert: {
+          arrived_at: string
+          created_at?: string
+          id?: string
+          last_prompt_at?: string | null
+          location_id: string
+          organization_id: string
+          prompt_count?: number
+          resolved?: boolean
+          resolved_at?: string | null
+          staff_id: string
+        }
+        Update: {
+          arrived_at?: string
+          created_at?: string
+          id?: string
+          last_prompt_at?: string | null
+          location_id?: string
+          organization_id?: string
+          prompt_count?: number
+          resolved?: boolean
+          resolved_at?: string | null
+          staff_id?: string
+        }
+        Relationships: []
+      }
       booking_attachments: {
         Row: {
           booking_id: string
