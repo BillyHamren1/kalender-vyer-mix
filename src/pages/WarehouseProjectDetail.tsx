@@ -35,6 +35,7 @@ const WarehouseProjectDetail = () => {
     queryKeys: [
       ['warehouse-project', warehouseProjectId || ''],
       ['warehouse-project-tasks', warehouseProjectId || ''],
+      ['warehouse-project-packings', warehouseProjectId || ''],
     ],
   });
 
@@ -47,6 +48,12 @@ const WarehouseProjectDetail = () => {
   const { data: tasks = [] } = useQuery({
     queryKey: ['warehouse-project-tasks', warehouseProjectId],
     queryFn: () => fetchWarehouseProjectTasks(warehouseProjectId!),
+    enabled: !!warehouseProjectId,
+  });
+
+  const { data: packings = [] } = useQuery({
+    queryKey: ['warehouse-project-packings', warehouseProjectId],
+    queryFn: () => fetchWarehousePackings(warehouseProjectId!),
     enabled: !!warehouseProjectId,
   });
 
