@@ -291,8 +291,21 @@ export const mobileApi = {
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
-  startLocationTimer: (locationId: string) =>
-    callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId }),
+  startLocationTimer: (locationId: string, taskId?: string) =>
+    callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId, task_id: taskId }),
+
+  // Lager (internal Lager project) tasks
+  getLagerTasks: () =>
+    callApi<{ project: { id: string; name: string } | null; my_tasks: any[]; open_tasks: any[] }>('get_lager_tasks'),
+
+  createLagerTask: (data: { title: string; description?: string; deadline?: string; assign_to_me?: boolean }) =>
+    callApi<{ success: boolean; task: any }>('create_lager_task', data),
+
+  completeLagerTask: (data: { task_id: string; completed?: boolean }) =>
+    callApi<{ success: boolean; task: any }>('complete_lager_task', data),
+
+  claimLagerTask: (data: { task_id: string }) =>
+    callApi<{ success: boolean; task: any }>('claim_lager_task', data),
 
   stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
     callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
