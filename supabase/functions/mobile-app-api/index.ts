@@ -2608,6 +2608,65 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
   )
 }
 
+async function handleMarkJobRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { booking_id } = data || {}
+  if (!booking_id) {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  // Fetch un-read messages for this booking and append the reader id to read_by JSONB array
+  const { data: rows, error } = await supabase
+    .from('job_messages')
+    .select('id, read_by')
+    .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const updates = (rows || [])
+    .filter((r: any) => {
+      const arr = Array.isArray(r.read_by) ? r.read_by : []
+      return !ids.some(id => arr.includes(id))
+    })
+    .map((r: any) => {
+      const arr = Array.isArray(r.read_by) ? r.read_by : []
+      const next = Array.from(new Set([...arr, ...ids]))
+      return supabase.from('job_messages').update({ read_by: next }).eq('id', r.id)
+    })
+
+  await Promise.all(updates)
+  return new Response(JSON.stringify({ success: true, updated: updates.length }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleArchiveJobConversation(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { booking_id } = data || {}
+  if (!booking_id) {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { error } = await supabase
+    .from('job_messages')
+    .update({ is_archived: true })
+    .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
 // ============= Direct Messages Handlers =============
 
 async function handleGetDirectMessages(supabase: any, staffId: string, organizationId: string, userId: string | null) {
