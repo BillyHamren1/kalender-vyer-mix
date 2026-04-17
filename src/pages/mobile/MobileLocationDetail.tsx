@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Clock, Square, Check, Building2, Loader2, Users } from 'lucide-react';
+import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Navigation } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useGeofencing } from '@/hooks/useGeofencing';
@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
@@ -252,47 +253,44 @@ const MobileLocationDetail = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      {/* Header */}
-      <div className="bg-primary text-primary-foreground px-5 pt-12 pb-6">
-        <button
-          onClick={() => navigate('/m')}
-          className="mb-3 -ml-2 p-2 rounded-lg active:bg-primary-foreground/10"
-          aria-label="Tillbaka"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex items-center gap-2 mb-1">
-          <Building2 className="w-4 h-4 opacity-70" />
-          <span className="text-[11px] font-bold uppercase tracking-widest opacity-80">
-            Lager
+      {/* Header — matches other mobile project pages */}
+      <MobileBackHeader
+        title={location.name}
+        subtitle="Lager"
+        backTo="/m"
+        rightAction={
+          <button
+            onClick={hasLocationTimer ? handleStopTimer : handleStartGeneralTimer}
+            disabled={!hasLocationTimer && hasAnyTimer}
+            className={cn(
+              "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
+              hasLocationTimer
+                ? "bg-destructive text-destructive-foreground animate-pulse"
+                : "bg-primary-foreground text-primary",
+              !hasLocationTimer && hasAnyTimer && "opacity-40"
+            )}
+            aria-label={hasLocationTimer ? "Stoppa timer" : "Starta timer"}
+          >
+            {hasLocationTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+          </button>
+        }
+      />
+
+      {/* Timer info bar */}
+      {hasLocationTimer && (
+        <div className="text-center py-1.5 bg-primary/5">
+          <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
+            <Clock className="w-3 h-3 inline mr-1" />{formatElapsed(activeTimers.get(locKey)!.startTime)}
           </span>
         </div>
-        <h1 className="text-2xl font-bold">{location.name}</h1>
-        {location.address && (
-          <p className="text-sm opacity-80 mt-1">{location.address}</p>
-        )}
-      </div>
+      )}
 
-      {/* General timer button */}
-      <div className="px-4 -mt-4 mb-4">
-        {hasLocationTimer ? (
-          <button
-            onClick={handleStopTimer}
-            className="w-full rounded-2xl bg-destructive text-destructive-foreground p-4 shadow-lg flex items-center justify-center gap-2 font-semibold active:scale-[0.98]"
-          >
-            <Square className="w-5 h-5" />
-            Stoppa timer · {formatElapsed(activeTimers.get(locKey)!.startTime)}
-          </button>
-        ) : !hasAnyTimer ? (
-          <button
-            onClick={handleStartGeneralTimer}
-            className="w-full rounded-2xl bg-card border border-primary/30 text-primary p-4 shadow-md flex items-center justify-center gap-2 font-semibold active:scale-[0.98]"
-          >
-            <Clock className="w-5 h-5" />
-            Starta tid på Lager
-          </button>
-        ) : null}
-      </div>
+      {location.address && (
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-muted/30 border border-border flex items-center gap-2.5">
+          <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-foreground text-sm flex-1 truncate">{location.address}</span>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 px-4 space-y-5">
