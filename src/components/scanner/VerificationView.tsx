@@ -21,6 +21,7 @@ import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -101,7 +102,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
   const [showKolliConfirm, setShowKolliConfirm] = useState(false);
-  const { enqueueScan, handleManualToggle, recentScans, clearSessionDedup } = useScanProcessor({
+  const {
+    enqueueScan,
+    handleManualToggle,
+    recentScans,
+    clearSessionDedup,
+    pendingUnknownProduct,
+    confirmAddUnknown,
+    dismissUnknown,
+  } = useScanProcessor({
     packingId,
     verifierName,
     getItems: () => itemsRef.current,
@@ -115,6 +124,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
+
+  // After adding an unknown product, reload data so the new row appears
+  const handleConfirmUnknown = useCallback(async (name: string, quantity: number) => {
+    const ok = await confirmAddUnknown(name, quantity);
+    if (ok) {
+      await loadData(true);
+    }
+  }, [confirmAddUnknown, loadData]);
 
   // Override rfid to also clear scan dedup on session reset
   const rfidWithReset = useMemo(() => ({
@@ -395,6 +412,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
 
         <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
+
+        <AddUnknownProductDialog
+          pending={pendingUnknownProduct}
+          onConfirm={handleConfirmUnknown}
+          onDismiss={dismissUnknown}
+        />
       </div>
     );
   }
@@ -572,6 +595,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       )}
 
       <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
+
+      {/* Unknown product dialog — pauses the scan queue until user responds */}
+      <AddUnknownProductDialog
+        pending={pendingUnknownProduct}
+        onConfirm={handleConfirmUnknown}
+        onDismiss={dismissUnknown}
+      />
 
       {/* Kolli confirmation dialog */}
       <AlertDialog open={showKolliConfirm} onOpenChange={setShowKolliConfirm}>

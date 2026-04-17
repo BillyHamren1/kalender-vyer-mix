@@ -67,6 +67,21 @@ export const useOptimisticPacking = (packingId: string) => {
     scanLog('quantity_updated', { itemId, direction: '+1' });
   }, [recalcProgress]);
 
+  // Set the exact quantity_packed for an item (used when backend reports an authoritative value,
+  // e.g. after over-scan where the server count is the source of truth).
+  const applyOptimisticSet = useCallback((itemId: string, quantity: number) => {
+    setItems(prev => {
+      const updated = prev.map(item =>
+        item.id === itemId
+          ? { ...item, quantity_packed: Math.max(0, quantity) }
+          : item
+      );
+      recalcProgress(updated);
+      return updated;
+    });
+    scanLog('quantity_set', { itemId, quantity });
+  }, [recalcProgress]);
+
   const applyOptimisticDecrement = useCallback((itemId: string) => {
     setItems(prev => {
       const updated = prev.map(item =>
@@ -144,6 +159,7 @@ export const useOptimisticPacking = (packingId: string) => {
     loadData,
     recalcProgress,
     applyOptimisticIncrement,
+    applyOptimisticSet,
     applyOptimisticDecrement,
     mergeServerData,
   };
