@@ -825,6 +825,75 @@ Deno.serve(async (req) => {
         }
       }
 
+      case 'add_unknown_product': {
+        const { packingId, sku, name, quantityToPack, verifiedBy } = params
+        const qty = Math.max(1, parseInt(quantityToPack, 10) || 1)
+        const productName = (name && String(name).trim()) || (sku ? `Okänd: ${sku}` : 'Okänd produkt')
+
+        // 1. Resolve booking_id from packing
+        const { data: packing, error: packErr } = await supabase
+          .from('packing_projects')
+          .select('booking_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        if (packErr || !packing?.booking_id) {
+          return json({ success: false, error: 'Packlistan saknar kopplad bokning' })
+        }
+
+        // 2. Insert into booking_products so the project/booking is updated
+        const { data: bookingProduct, error: bpErr } = await supabase
+          .from('booking_products')
+          .insert({
+            booking_id: packing.booking_id,
+            organization_id: ORG_ID,
+            name: productName,
+            sku: sku || null,
+            quantity: qty,
+          })
+          .select('id')
+          .single()
+
+        if (bpErr || !bookingProduct) {
+          console.error('[add_unknown_product] booking_products insert failed:', bpErr)
+          return json({ success: false, error: 'Kunde inte lägga till produkten i bokningen' })
+        }
+
+        // 3. Insert matching packing_list_items row with quantity_packed = 1
+        const now = new Date().toISOString()
+        const isFull = 1 >= qty
+        const { data: pli, error: pliErr } = await supabase
+          .from('packing_list_items')
+          .insert({
+            packing_id: packingId,
+            booking_product_id: bookingProduct.id,
+            organization_id: ORG_ID,
+            quantity_to_pack: qty,
+            quantity_packed: 1,
+            packed_at: now,
+            packed_by: verifiedBy,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+          })
+          .select('id')
+          .single()
+
+        if (pliErr || !pli) {
+          console.error('[add_unknown_product] packing_list_items insert failed:', pliErr)
+          return json({ success: false, error: 'Kunde inte lägga till i packlistan' })
+        }
+
+        await transitionToInProgress(supabase, packingId, ORG_ID)
+        await checkIfAllPacked(supabase, packingId, ORG_ID)
+
+        return json({
+          success: true,
+          itemId: pli.id,
+          bookingProductId: bookingProduct.id,
+          productName: `${productName} (1/${qty})`,
+        })
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
