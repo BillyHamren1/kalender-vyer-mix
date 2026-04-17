@@ -4375,12 +4375,14 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
     }
   }
 
-  // Reuse open anomaly if one exists for this period (don't create duplicates)
+  // Reuse open anomaly that started AT this geofence-exit time (don't create duplicates).
+  // Filter strictly on started_at == lastExitIso to avoid grabbing an unrelated open row.
   const { data: openRows } = await supabase
     .from('time_report_anomalies')
     .select('id')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
+    .eq('started_at', started_at)
     .is('ended_at', null)
     .order('started_at', { ascending: false })
     .limit(1)
@@ -4398,6 +4400,8 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
         end_location_lat: resolvedLat,
         end_location_lng: resolvedLng,
         end_location_recorded_at: resolvedRecordedAt,
+      })
+      .eq('id', openRows[0].id)
       .select()
       .single()
     if (updErr) {
