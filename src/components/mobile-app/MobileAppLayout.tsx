@@ -11,7 +11,7 @@ import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
-import { format, parseISO, differenceInSeconds } from 'date-fns';
+import { format } from 'date-fns';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 
 interface MobileAppLayoutProps {
@@ -30,7 +30,7 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   // Arrival prompt — same source-of-truth used by push-cron
   const { state: arrivalState, refresh: refreshArrival, markResolved } = useArrivalPrompt(!!staff);
   const [arrivalDialogOpen, setArrivalDialogOpen] = useState(false);
-  const [arrivalSubmitting, setArrivalSubmitting] = useState(false);
+  const [, setArrivalSubmitting] = useState(false);
 
   useEffect(() => {
     if (arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at) {
