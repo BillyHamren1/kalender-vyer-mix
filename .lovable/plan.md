@@ -1,132 +1,64 @@
 
-## Mål
-Lagerprojekt blir den nya **paraply-entiteten** för lagerverksamhet — exakt som Projekt är paraplyet på Planning-sidan. Packningar (`packing_projects`) skapas inte längre automatiskt vid bokningsbekräftelse, utan **manuellt inifrån lagerprojektet** (precis som moment/tasks skapas inuti ett projekt).
+## Klargörande
+Inga moment skapas automatiskt vid konvertering. När användaren klickar **"Skapa lagerprojekt"** öppnas en dialog där Packa/Returnera-datum är förifyllda som förslag. Användaren redigerar och bekräftar — först då skapas lagerprojektet + de två momenten i en transaktion.
 
-## Ny arkitektur
+## Flöde
 
 ```text
-Planning sida                    Lager sida
-─────────────                    ──────────
-projects / large_projects   →    warehouse_projects (NY paraply-entitet)
-  ├─ tasks (moment)              ├─ packings (packing_projects, manuellt skapade)
-  ├─ products                    ├─ free tasks (t.ex. "Tvätta dukar")
-  └─ team                        └─ team / notes / files
+[Inkorg] "Skapa lagerprojekt" → öppnar dialog
+            ↓
+[ConvertInboxDialog]
+  Lagerprojekt: {namn}            (redigerbart)
+  
+  📦 Packa
+    Start: [datum]  Slut: [datum] (förslag, redigerbart)
+  
+  🔄 Returnera
+    Start: [datum]  Slut: [datum] (förslag, redigerbart)
+  
+  [Avbryt]    [Skapa lagerprojekt]
+            ↓
+  Skapar warehouse_projects + 2× warehouse_project_tasks
+  Markerar inbox som converted
+  Navigerar till /warehouse/projects/:id
 ```
 
-### Flöde
+## Förslagslogik (vid dialog-öppning)
 
-1. **Projekt skapas på Planning** → notis till lager (via `warehouse_project_inbox`).
-2. **Lageranvändaren klickar "Skapa lagerprojekt"** → `warehouse_projects`-rad skapas med projektnummer `Lager-{ursprungligt nr}`.
-3. **Inuti lagerprojektet** kan användaren skapa moment:
-   - **Packning** (knyts till en bokning som ingår i källprojektet — skapar `packing_projects`-rad med `warehouse_project_id` länk)
-   - **Fritt moment** (t.ex. "Tvätta dukar" — egen task-tabell, valfria datum, hamnar i lagerkalendern)
+Hämtar event/nedrigg-datum från källan:
+- **`source_type='project'`** → `bookings.eventdate` / `bookings.rigdowndate` via `projects.booking_id`
+- **`source_type='large_project'`** → min(`event_date[]`) / max(`rigdown_date[]`) från `large_projects`
 
-## Datamodell
-
-### Ny tabell: `warehouse_projects`
-```sql
-CREATE TABLE warehouse_projects (
-  id uuid PK,
-  organization_id uuid NOT NULL,
-  project_number text NOT NULL UNIQUE,    -- "Lager-260417-Projekt01"
-  name text NOT NULL,
-  source_project_id uuid,                  -- FK -> projects.id (nullable)
-  source_large_project_id uuid,            -- FK -> large_projects.id (nullable)
-  source_project_number text,              -- snapshot för stabil numrering
-  status text DEFAULT 'planning',          -- planning | in_progress | completed | cancelled
-  start_date date,
-  end_date date,
-  manager_id uuid,
-  notes text,
-  created_at, updated_at, created_by
-);
+Beräkning:
+```ts
+packEnd     = eventDate - 1 dag
+packStart   = eventDate - 3 dagar
+returnStart = rigdownDate + 1 dag
+returnEnd   = rigdownDate + 2 dagar
 ```
 
-### Ny tabell: `warehouse_project_inbox`
-Triage-inkorg — fylls automatiskt när projekt skapas i Planning.
-```sql
-CREATE TABLE warehouse_project_inbox (
-  id uuid PK,
-  organization_id uuid,
-  source_type text,                        -- 'project' | 'large_project'
-  source_id uuid,
-  source_project_number text,
-  client_name text,
-  event_date date,
-  status text DEFAULT 'new',               -- new | converted | dismissed
-  warehouse_project_id uuid,
-  created_at, processed_at
-);
-```
+Saknas datum → fält tomma, användaren fyller i manuellt.
 
-### Ny tabell: `warehouse_project_tasks`
-Fria moment inuti ett lagerprojekt.
-```sql
-CREATE TABLE warehouse_project_tasks (
-  id uuid PK,
-  warehouse_project_id uuid NOT NULL,
-  organization_id uuid NOT NULL,
-  title text NOT NULL,                     -- "Tvätta dukar"
-  description text,
-  start_date date,
-  end_date date,
-  assigned_to uuid,
-  status text DEFAULT 'planning',
-  sort_order int DEFAULT 0,
-  created_at, updated_at
-);
-```
+## Ändringar
 
-### Ändringar i `packing_projects`
-- Ny kolumn: `warehouse_project_id uuid` (FK → `warehouse_projects.id`, nullable för bakåtkompatibilitet).
-- **Trigger `sync_packing_on_booking_change` modifieras**: Tar bort `INSERT`-blocket i slutet (ingen automatisk skapelse vid CONFIRMED). Behåller UPDATE-logiken för befintliga packlistor (synk av namn/datum/status).
+**Ny fil:**
+- `src/components/warehouse/ConvertInboxDialog.tsx` — dialog med projektnamn + 2 datumpar (shadcn Calendar i Popover, `pointer-events-auto`)
 
-## Triggers
+**Service (`warehouseProjectService.ts`):**
+- Ny `fetchInboxItemSuggestedDates(item)` — returnerar `{packStart, packEnd, returnStart, returnEnd}` eller null per fält
+- Utöka `createWarehouseProjectFromInbox(item, dates)` — efter att projektet skapats, insert 2 rader i `warehouse_project_tasks` (`Packa` sort_order 0, `Returnera` sort_order 1) med användarens datum
 
-1. **`projects` AFTER INSERT** → infoga rad i `warehouse_project_inbox` (status `new`).
-2. **`large_projects` AFTER INSERT** → infoga rad i `warehouse_project_inbox`.
-3. **`warehouse_projects` BEFORE INSERT** → generera `project_number`:
-   - Om `source_project_number` finns → `Lager-{source_project_number}`
-   - Annars → `Lager-YYMMDD-FrittNN`
-4. **`warehouse_project_tasks` AFTER INSERT/UPDATE** → spegla till `warehouse_calendar_events` (för lagerkalendern).
+**`WarehouseProjectInbox.tsx`:**
+- Ersätt direkt `handleConvert` med `setActiveItem(item)` som öppnar `ConvertInboxDialog`
+- Dialogens onSuccess kör navigeringen + invalidering
 
-## UI-ändringar
+**`WarehouseProjectDetail.tsx`:**
+- "Moment"-fliken: lista `warehouse_project_tasks` (titel + datumintervall) — read-only i denna iteration
 
-### Nya filer
-- `src/types/warehouseProject.ts`
-- `src/services/warehouseProjectService.ts`
-- `src/hooks/useWarehouseProjectInboxRealtime.ts`
-- `src/components/warehouse/WarehouseProjectInbox.tsx` — highlightad triage-lista överst
-- `src/pages/WarehouseProjectDetail.tsx` — detaljsida (flikar: Översikt, Packningar, Moment, Team, Filer)
-- `src/components/warehouse/CreateWarehousePackingDialog.tsx` — välj bokning från källprojekt
-- `src/components/warehouse/CreateWarehouseTaskDialog.tsx` — fritt moment
+## Validering
+- Båda momenten kräver start + slut
+- Slutdatum ≥ startdatum per moment
+- Submit blockad tills alla 4 datum är giltiga
 
-### Ändrade filer
-- `src/pages/PackingManagement.tsx` — visar `<WarehouseProjectInbox />` överst + lista över `warehouse_projects`.
-- `src/pages/WarehouseDashboard.tsx` — knapp "Skapa lagerprojekt" + badge med antal nya i inbox.
-- `src/components/packing/CreatePackingWizard.tsx` — utfasas (ersätts av flödet ovan), eller behålls som "skapa fristående packning" för edge-case.
-- Routes: `/warehouse/projects/:id` → `WarehouseProjectDetail`.
-
-### Borttaget beteende
-- Auto-skapande av `packing_projects` vid `CONFIRMED`-bokning tas bort.
-- `IncomingPackingInbox` (gamla bokning-inkorgen) ersätts av `WarehouseProjectInbox`.
-
-## Migrationsstrategi för befintlig data
-
-- Befintliga `packing_projects` lämnas orörda (`warehouse_project_id = NULL`). De fortsätter fungera fristående.
-- **Ingen backfill** av `warehouse_project_inbox` — bara framtida projekt notifierar (annars översvämmas vyn).
-- Befintliga `large_projects` med konsoliderade packningar lämnas orörda.
-
-## Frågor att bekräfta
-
-1. **Inkorg-källa**: Ska BÅDE `projects` (medelstora) OCH `large_projects` skapa inbox-rader? Förslag: **Ja**.
-2. **Befintliga packningar**: Ska gamla auto-skapade packningar (utan `warehouse_project_id`) visas i lager-UI? Förslag: **Ja**, i en separat sektion "Fristående packningar (legacy)".
-3. **`IncomingPackingInbox`** (gamla bokning-inkorgen): Behåll eller ta bort? Förslag: **Ta bort** — ersätts helt av nya flödet.
-
-## Filer som ändras (sammanfattning)
-
-**Migration**: 1 ny migration med 3 nya tabeller + 4 triggers + RLS + realtime publication.
-
-**Nya komponenter**: 6 filer (types, service, hook, 3 UI-komponenter).
-
-**Ändrade**: `PackingManagement.tsx`, `WarehouseDashboard.tsx`, route-tabell, `sync_packing_on_booking_change`-funktion.
+## Inga DB-ändringar
+`warehouse_project_tasks` finns redan med rätt kolumner.
