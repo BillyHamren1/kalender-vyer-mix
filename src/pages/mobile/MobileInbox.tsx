@@ -108,7 +108,7 @@ const MobileInbox = () => {
   if (view === 'broadcast' && activeBroadcast) {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
     return (
-      <div className="flex flex-col min-h-screen pb-24 bg-background">
+      <div className="flex flex-col min-h-screen pb-24 bg-card">
         <MobileBackHeader title="Meddelande" onBack={goBack} titlePrefix={<Radio className="w-4 h-4 text-primary-foreground" />} />
         <div className="flex-1 p-4">
           <div className={cn("rounded-2xl border p-5", activeBroadcast.category === 'urgent' ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card')}>
@@ -129,7 +129,7 @@ const MobileInbox = () => {
 
   // === Inbox list ===
   return (
-    <div className="flex flex-col min-h-screen pb-24 bg-background">
+    <div className="flex flex-col min-h-screen pb-24 bg-card">
       <MobileHeroHeader
         eyebrow="MEDDELANDEN"
         title="Inkorg"
@@ -325,7 +325,7 @@ function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { i
   const filtered = contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="flex flex-col min-h-screen pb-24 bg-background">
+    <div className="flex flex-col min-h-screen pb-24 bg-card">
       <MobileBackHeader title="Nytt meddelande" onBack={onBack} />
       <div className="px-4 pt-3 pb-2">
         <div className="relative">
