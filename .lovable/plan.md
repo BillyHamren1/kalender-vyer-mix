@@ -1,56 +1,73 @@
 
 ## Mål
-När ett lagerprojekt skapas från inkorgen ska systemet **automatiskt skapa packlistor** för alla bokningar som ingår i källprojektet — exakt som tidigare auto-skapelse vid CONFIRMED. Sen ska all bokningsinfo (kund, datum, adress, kontakter, produkter, packlista, bilagor) vara tillgänglig precis som i den gamla `PackingDetail`-vyn.
+Migrera alla befintliga packningar (`packing_projects`) till den nya lagerprojekt-strukturen så att inget arbete tappas bort. Rensa lagerkalendern till endast två aktivitetstyper: **Packning** och **Retur** (tidigare "Uppackning").
 
-## Vad som behövs
+## Vad som finns idag (utforskning)
 
-### 1. Auto-skapa `packing_projects` vid lagerprojekt-skapande
+Jag behöver kontrollera:
+1. Hur många `packing_projects` saknar `warehouse_project_id`
+2. Vilka kalender-events/aktivitetstyper finns i lagerkalendern idag
+3. Om "Uppackning" är hårdkodat namn eller en enum/typ
 
-Utöka `createWarehouseProjectFromInbox` (i `warehouseProjectService.ts`) så att efter `warehouse_projects`-raden + 2 moment skapas, även:
+Antaganden jag baserar planen på (verifieras vid implementation):
+- `packing_projects` har redan all data (produkter, scans, kolli, kommentarer, filer) — vi behöver bara skapa en `warehouse_projects`-rad **per packning** och länka via `warehouse_project_id`.
+- Lagerkalendern visar `warehouse_project_tasks` (Packa/Returnera) — detta är redan rätt struktur.
+- "Uppackning" är troligen ett textfält eller default-titel i `warehouse_project_tasks` eller en gammal kalenderhändelse.
 
-**Om `source_type='project'`** (en bokning):
-- Skapa 1 `packing_projects`-rad med `booking_id = projects.booking_id`, `warehouse_project_id = wp.id`, namn = `client - eventdate`, datum från bokningen.
-- Anropa `syncBookingToPacking(bookingId, organizationId)` (befintlig edge function) för att kopiera produkter → `packing_list_items`.
+## Plan
 
-**Om `source_type='large_project'`** (flera bokningar):
-- Hämta alla `large_project_bookings.booking_id` för projektet.
-- Skapa 1 konsoliderad `packing_projects`-rad med `large_project_id = lp.id`, `warehouse_project_id = wp.id`.
-- Skapa rader i `packing_project_bookings` för varje booking_id.
-- Anropa `syncBookingToPacking` för varje bokning (eller en bulk-variant).
+### Steg 1 — Backfill-migration (SQL)
 
-### 2. Visa packningar i lagerprojektets "Packningar"-flik
+För varje `packing_projects` som saknar `warehouse_project_id`:
+1. Skapa en `warehouse_projects`-rad med:
+   - `name` = packningens namn (kund - datum)
+   - `source_type` = `'project'` om `booking_id` finns, annars `'large_project'` om `large_project_id` finns, annars `'manual'`
+   - `source_project_id` / `source_large_project_id` = motsvarande
+   - `start_date` / `end_date` = packningens datum
+   - `status` = mappa från packing-status (planning→planning, in_progress→in_progress, packed/delivered/completed→completed, cancelled→cancelled)
+   - `organization_id` = från packningen
+   - `project_number` = generera via befintlig sekvens
+2. Skapa **2 default-moment** (`warehouse_project_tasks`):
+   - **Packa**: 3 dagar fram till och med dagen före event/start
+   - **Retur**: 2 dagar från dagen efter rigdown/end
+3. Sätt `packing_projects.warehouse_project_id` = den nya wp.id
 
-Just nu är fliken en placeholder. Ersätt med:
-- Hämta `packing_projects WHERE warehouse_project_id = wp.id`.
-- Visa lista med kort (kund, datum, status, framsteg) — återanvänd `PackingCard` som redan finns.
-- Klick → navigerar till befintliga `/warehouse/packing/:packingId` (PackingDetail) som redan har all info: BookingInfoExpanded, ProductsList, DesktopChecklistView, ManualPackingChecklist, files, comments, attachments.
+Allt befintligt (produkter, packed_quantity, kolli, scans, kommentarer, filer, attachments) följer automatiskt med eftersom det redan ligger på `packing_projects.id` som inte ändras.
 
-### 3. Säkerställ datasynk vid bokningsändringar
+### Steg 2 — Rensa lagerkalendern till "Packning" + "Retur"
 
-Den befintliga triggern `sync_packing_on_booking_change` uppdaterar redan `packing_projects` (namn, datum, adress, status) för befintliga rader — den fungerar fortfarande för packlistor som vi nu skapar via lagerprojekt-flödet. Ingen DB-ändring behövs.
+**Kalenderkällan:** `warehouse_project_tasks` (default-titlar idag är "Packa" och "Returnera" enligt tidigare plan).
 
-`booking_products` ändringar → `syncBookingToPacking` används redan av `bookingStatusService` när status ändras. För kontinuerlig produktsynk räcker att packningen är skapad — befintlig synk-pipeline tar resten.
+Åtgärder:
+- **Döp om** alla befintliga tasks med titel `'Uppackning'` → `'Retur'` (UPDATE).
+- **Standardisera default-titlar** till `'Packning'` och `'Retur'` (kontrollera `warehouseProjectService.ts` där defaults skapas och justera).
+- **Ta bort alla andra event-typer** från lagerkalendern (om kalendern visar något annat än `warehouse_project_tasks` — t.ex. legacy `calendar_events` med warehouse-tagg → soft-filtrera eller radera).
 
-## Datamodell — inget nytt
-`packing_projects.warehouse_project_id` finns redan (`uuid`, nullable). Inga nya kolumner eller triggers krävs.
+Jag verifierar först hur `WarehouseCalendar` hämtar sin data innan jag bestämmer exakt borttagningslogik.
 
-## Filer som ändras
+### Steg 3 — UI-justering
+- Översätt "Uppackning" → "Retur" i alla labels/translations i lagermodulen.
+- Säkerställ att `ConvertInboxDialog` föreslår titlarna **"Packning"** och **"Retur"** (inte "Packa"/"Returnera").
 
-**`src/services/warehouseProjectService.ts`** — utöka `createWarehouseProjectFromInbox`:
-- Efter wp insert + tasks insert: hämta booking_ids från källan, skapa `packing_projects`-rader (+ `packing_project_bookings` om large), kalla `syncBookingToPacking` per bokning. Allt non-blocking — om det fallerar loggas, men lagerprojektet skapas ändå.
+## Filer som påverkas
 
-**`src/pages/WarehouseProjectDetail.tsx`** — "Packningar"-fliken:
-- Ny query: `fetchWarehousePackings(warehouseProjectId)` → `packing_projects WHERE warehouse_project_id = ?`.
-- Rendera lista med befintlig `PackingCard` (eller enklare lokalt kort) → onClick → `navigate(/warehouse/packing/:id)`.
+**Migration (SQL):**
+- En migration som backfillar `warehouse_projects` + `warehouse_project_tasks` för alla föräldralösa `packing_projects`.
+- En `UPDATE` för att döpa om "Uppackning"/"Returnera" → "Retur" och säkerställa "Packa" → "Packning".
 
-**`src/services/warehouseProjectService.ts`** — lägg till hjälpare:
-- `fetchWarehousePackings(wpId)` 
-- `getSourceBookingIds(inboxItem)` (intern, för create-flödet)
+**Kod:**
+- `src/services/warehouseProjectService.ts` — uppdatera default-task-titlar till "Packning" / "Retur".
+- `src/components/warehouse/ConvertInboxDialog.tsx` — uppdatera default-namn i förslaget.
+- Eventuella översättningar/labels i lagerkalender och task-listor.
 
-## Edge cases
-- **Befintliga packningar för samma bokning**: `packing_projects.booking_id` har inte unique constraint, men vi vill undvika dubletter. Kolla först `SELECT id FROM packing_projects WHERE booking_id = ? AND large_project_id IS NULL` — om finns, sätt bara `warehouse_project_id` på den befintliga istället för att skapa ny.
-- **Cancellation/återbekräftelse**: hanteras av befintliga `sync_packing_on_booking_change` + `cancellation-workflow`.
-- **Source large_project utan bookings**: skapa lagerprojekt + moment ändå, ingen packning.
+## Säkerhet
+- Migrationen är **idempotent**: kollar `warehouse_project_id IS NULL` så den kan köras igen utan dubletter.
+- Inga packningar raderas.
+- Originaldata (scans, kolli, packed_quantity) rörs inte alls.
 
-## Inga DB-migrationer
-All logik körs i service-lagret. Triggern modifierades redan i förra steget (auto-INSERT borttaget, UPDATE-synk kvar).
+## Frågor jag löser vid implementation
+- Hur lagerkalendern faktiskt hämtar events (verifieras genom att läsa `WarehouseCalendar`-komponenten).
+- Om det finns `calendar_events` med warehouse-relaterade typer som också behöver ryd­das.
+
+## Inga risker för dataförlust
+All migration är additiv (skapar nya `warehouse_projects` + länkar). Befintliga packningar och deras innehåll förblir orörda.
