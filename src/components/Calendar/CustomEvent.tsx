@@ -91,8 +91,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [event.id]);
 
-  // Check if this is a warehouse event
-  const isWarehouseEvent = event.resourceId === 'warehouse';
+  // Check if this is a warehouse event (covers all warehouse calendar resources)
+  const isWarehouseEvent =
+    event.resourceId === 'warehouse' ||
+    event.resourceId === 'warehouse-event' ||
+    event.resourceId?.startsWith('lager-');
   
   // Check if this is a warehouse event with source changes
   const hasSourceChanges = event.extendedProps?.has_source_changes === true && 
@@ -137,15 +140,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
   const deliveryAddress = event.deliveryAddress || event.extendedProps?.deliveryAddress || '';
 
-  // Strip legacy "Packning - " / "Retur - " prefixes from warehouse event titles
+  // Strip legacy "Packning - " / "Retur - " / "Återleverans - " prefixes from warehouse event titles
   const displayTitle = isWarehouseEvent
-    ? event.title.replace(/^(Packning|Retur)\s*-\s*/i, '')
+    ? event.title.replace(/^(Packning|Retur|Återleverans)\s*-\s*/i, '')
     : event.title;
 
-  // For warehouse events: prefer the full street address; fall back to city
-  const locationLine = isWarehouseEvent
-    ? (deliveryAddress || deliveryCity)
-    : deliveryCity;
+  // For warehouse events: hide location entirely (only client name + booking number)
+  const locationLine = isWarehouseEvent ? '' : deliveryCity;
 
   // Render the event card content
   const eventCardContent = (
