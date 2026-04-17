@@ -40,6 +40,12 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
+const STAFF_SOURCE_ID = 'ops-staff-source';
+const STAFF_HIGHLIGHT_LAYER_ID = 'ops-staff-highlight-layer';
+const STAFF_MARKER_LAYER_ID = 'ops-staff-marker-layer';
+const STAFF_LABEL_LAYER_ID = 'ops-staff-label-layer';
+const STAFF_GPS_DOT_LAYER_ID = 'ops-staff-gps-dot-layer';
+
 const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, routePolyline }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -58,6 +64,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showCameras, setShowCameras] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
+  const [styleRevision, setStyleRevision] = useState(0);
   const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
   const [showOrgLocations, setShowOrgLocations] = useState(true);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -85,7 +92,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           attributionControl: false,
         });
         map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
-        map.current.on('load', () => { if (!cancelled) setMapReady(true); });
+        map.current.on('load', () => {
+          if (!cancelled) {
+            setMapReady(true);
+            setStyleRevision(prev => prev + 1);
+          }
+        });
+        map.current.on('style.load', () => {
+          if (!cancelled) setStyleRevision(prev => prev + 1);
+        });
       } catch { /* silent */ }
     };
     init();
@@ -253,7 +268,161 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         console.warn('[OpsLiveMap] Geofence layer error:', e);
       }
     });
-  }, [mapReady, showOrgLocations, orgLocations]);
+  }, [mapReady, showOrgLocations, orgLocations, styleRevision]);
+
+  // Render staff as WebGL layers so positions stay locked at any browser zoom level
+  useEffect(() => {
+    if (!mapReady || !map.current || !map.current.isStyleLoaded()) return;
+
+    const m = map.current;
+    const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
+    const staffWithCoords = locations.filter(loc => loc.latitude && loc.longitude);
+
+    const staffGeoJson = {
+      type: 'FeatureCollection',
+      features: staffWithCoords.map(loc => {
+        const status = getStaffStatus(loc, mapJobs);
+        const hasRecentGps = Boolean(
+          loc.isGps &&
+          loc.lastReportTime &&
+          Date.now() - new Date(loc.lastReportTime).getTime() < 5 * 60_000,
+        );
+
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [loc.longitude!, loc.latitude!],
+          },
+          properties: {
+            id: loc.id,
+            initial: loc.name.charAt(0).toUpperCase(),
+            color: statusStyles[status].color,
+            isHighlighted: assignedIds.has(loc.id) ? 1 : 0,
+            hasRecentGps: hasRecentGps ? 1 : 0,
+          },
+        };
+      }),
+    } as GeoJSON.FeatureCollection<GeoJSON.Point>;
+
+    const source = m.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(staffGeoJson);
+    } else {
+      m.addSource(STAFF_SOURCE_ID, {
+        type: 'geojson',
+        data: staffGeoJson,
+      });
+    }
+
+    if (!m.getLayer(STAFF_HIGHLIGHT_LAYER_ID)) {
+      m.addLayer({
+        id: STAFF_HIGHLIGHT_LAYER_ID,
+        type: 'circle',
+        source: STAFF_SOURCE_ID,
+        filter: ['==', ['get', 'isHighlighted'], 1],
+        paint: {
+          'circle-radius': 17,
+          'circle-color': 'hsl(184, 55%, 38%)',
+          'circle-opacity': 0.22,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-stroke-opacity': 0.85,
+        },
+      });
+    }
+
+    if (!m.getLayer(STAFF_MARKER_LAYER_ID)) {
+      m.addLayer({
+        id: STAFF_MARKER_LAYER_ID,
+        type: 'circle',
+        source: STAFF_SOURCE_ID,
+        paint: {
+          'circle-radius': 13,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 1,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': 1,
+        },
+      });
+    }
+
+    if (!m.getLayer(STAFF_LABEL_LAYER_ID)) {
+      m.addLayer({
+        id: STAFF_LABEL_LAYER_ID,
+        type: 'symbol',
+        source: STAFF_SOURCE_ID,
+        layout: {
+          'text-field': ['get', 'initial'],
+          'text-size': 11,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.08)',
+          'text-halo-width': 0.5,
+        },
+      });
+    }
+
+    if (!m.getLayer(STAFF_GPS_DOT_LAYER_ID)) {
+      m.addLayer({
+        id: STAFF_GPS_DOT_LAYER_ID,
+        type: 'circle',
+        source: STAFF_SOURCE_ID,
+        filter: ['==', ['get', 'hasRecentGps'], 1],
+        paint: {
+          'circle-radius': 4,
+          'circle-color': '#22c55e',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+          'circle-translate': [8, -8],
+          'circle-opacity': 1,
+        },
+      });
+    }
+
+    const handleStaffClick = (event: mapboxgl.MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const staffId = feature?.properties?.id;
+      if (!staffId) return;
+
+      const location = locations.find(loc => loc.id === staffId);
+      if (!location) return;
+
+      setStaffPanel(location);
+      setSelectedJob(null);
+    };
+
+    const handleMouseEnter = () => {
+      m.getCanvas().style.cursor = 'pointer';
+    };
+
+    const handleMouseLeave = () => {
+      m.getCanvas().style.cursor = '';
+    };
+
+    m.on('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
+    m.on('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
+    m.on('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
+    m.on('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+    m.on('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
+    m.on('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+
+    return () => {
+      if (!map.current) return;
+
+      map.current.off('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
+      map.current.off('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
+      map.current.off('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
+      map.current.off('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+      map.current.off('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
+      map.current.off('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+    };
+  }, [mapReady, locations, mapJobs, selectedJob, styleRevision]);
 
   // Render markers
   useEffect(() => {
@@ -295,54 +464,10 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       jobMarkersRef.current.push(marker);
     });
 
-    // Staff markers (circles)
     const staffWithCoords = locations.filter(l => l.latitude && l.longitude);
     staffWithCoords.forEach(loc => {
       hasPoints = true;
       bounds.extend([loc.longitude!, loc.latitude!]);
-
-      const status = getStaffStatus(loc, mapJobs);
-      const style = statusStyles[status];
-
-      const el = document.createElement('div');
-      const opacity = loc.isOffline ? '0.4' : '1';
-      el.style.cssText = `
-        width: 26px; height: 26px; border-radius: 50%;
-        background: ${style.color}; border: 2.5px solid white;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.25);
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer; transition: box-shadow 0.15s;
-        font-size: 10px; font-weight: 700; color: white;
-        position: relative; opacity: ${opacity};
-      `;
-      el.textContent = loc.name.charAt(0).toUpperCase();
-
-      // GPS live indicator dot
-      if (loc.isGps && loc.lastReportTime) {
-        const sinceMs = Date.now() - new Date(loc.lastReportTime).getTime();
-        if (sinceMs < 5 * 60_000) {
-          const dot = document.createElement('div');
-          dot.style.cssText = `
-            position: absolute; top: -2px; right: -2px;
-            width: 8px; height: 8px; border-radius: 50%;
-            background: #22c55e; border: 1.5px solid white;
-          `;
-          el.appendChild(dot);
-        }
-      }
-      el.addEventListener('mouseenter', () => { el.style.boxShadow = '0 0 0 4px rgba(255,255,255,0.5), 0 2px 8px rgba(0,0,0,0.35)'; });
-      el.addEventListener('mouseleave', () => { el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.25)'; });
-
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        setStaffPanel(loc);
-        setSelectedJob(null);
-      });
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([loc.longitude!, loc.latitude!])
-        .addTo(map.current!);
-      staffMarkersRef.current.push(marker);
     });
 
     // Fit bounds
@@ -357,7 +482,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         map.current.fitBounds(bounds, { padding: 50, maxZoom: 13 });
       }
     }
-  }, [mapReady, locations, mapJobs, clearMarkers]);
+  }, [mapReady, locations, mapJobs, clearMarkers, styleRevision]);
 
   // Focus from external trigger
   useEffect(() => {
@@ -422,34 +547,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       if (map.current.getLayer(layerId)) map.current.removeLayer(layerId);
       if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
     };
-  }, [routePolyline, mapReady]);
-
-  // Handle zoom to job's assigned staff (highlight)
-  useEffect(() => {
-    if (!selectedJob || !map.current || !mapReady) return;
-    // Highlight by adding ring effect markers for assigned staff
-    const assignedIds = new Set(selectedJob.assignedStaff.map(s => s.id));
-    staffMarkersRef.current.forEach((marker, idx) => {
-      const loc = locations.filter(l => l.latitude && l.longitude)[idx];
-      if (!loc) return;
-      const el = marker.getElement();
-      if (assignedIds.has(loc.id)) {
-        el.style.boxShadow = '0 0 0 3px hsl(184, 55%, 38%), 0 1px 6px rgba(0,0,0,0.25)';
-        el.style.zIndex = '10';
-      } else {
-        el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.25)';
-        el.style.zIndex = '1';
-      }
-    });
-
-    return () => {
-      staffMarkersRef.current.forEach(marker => {
-        const el = marker.getElement();
-        el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.25)';
-        el.style.zIndex = '1';
-      });
-    };
-  }, [selectedJob, mapReady, locations]);
+  }, [routePolyline, mapReady, styleRevision]);
 
   const handleSendQuickMsg = async () => {
     if (!quickMsg.trim() || !staffPanel || sending) return;
@@ -508,15 +606,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     m.setStyle(MAP_STYLES[newStyle]);
     m.once('style.load', () => {
       m.jumpTo({ center: savedCenter, zoom: savedZoom });
-      if (newStyle === 'streets') {
-        m.setFog({
-          color: 'rgb(186, 210, 235)',
-          'high-color': 'rgb(36, 92, 223)',
-          'horizon-blend': 0.02,
-          'space-color': 'rgb(11, 11, 25)',
-          'star-intensity': 0.6,
-        });
-      }
     });
   }, [mapStyle]);
 
