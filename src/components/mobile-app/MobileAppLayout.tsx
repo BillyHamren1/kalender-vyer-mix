@@ -33,6 +33,19 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
     }
   }, [staff, queryClient]);
 
+  // Paint the document background teal so iOS rubber-band overscroll at the
+  // top reveals the same colour as the sticky header (no white flash).
+  useEffect(() => {
+    const prevHtml = document.documentElement.style.backgroundColor;
+    const prevBody = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = 'hsl(var(--primary))';
+    document.body.style.backgroundColor = 'hsl(var(--primary))';
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtml;
+      document.body.style.backgroundColor = prevBody;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-card max-w-lg mx-auto">
       <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
