@@ -2969,6 +2969,10 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
       
       console.log(`[DM Push] calling send-push-notification for ${tokens.length} device(s)`)
       
+      // Build a safe push body — never crash on null/undefined content,
+      // prefer text preview, fall back to attachment label, cap length.
+      const pushBody = buildMessagePreview(content, file_name, file_type)
+
       const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
         method: 'POST',
         headers: {
@@ -2978,7 +2982,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
         body: JSON.stringify({
           staff_ids: [recipient_id],
           title: `Meddelande från ${senderName}`,
-          body: content.trim().substring(0, 100),
+          body: pushBody,
           notification_type: 'message',
           data: { sender_id: staffId, chat_type: 'direct' },
           organization_id: organizationId,
