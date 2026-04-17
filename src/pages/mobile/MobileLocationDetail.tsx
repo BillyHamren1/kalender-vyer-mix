@@ -293,7 +293,7 @@ const MobileLocationDetail = () => {
       )}
 
       {/* Content */}
-      <div className="flex-1 px-4 space-y-5">
+      <div className="flex-1 px-4 mt-4 space-y-5">
         {/* My tasks */}
         <div>
           <div className="flex items-center justify-between mb-2.5">
