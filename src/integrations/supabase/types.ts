@@ -4325,6 +4325,60 @@ export type Database = {
           },
         ]
       }
+      staff_location_history: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          id: string
+          lat: number
+          lng: number
+          organization_id: string
+          recorded_at: string
+          speed: number | null
+          staff_id: string
+          time_report_id: string | null
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          lat: number
+          lng: number
+          organization_id: string
+          recorded_at: string
+          speed?: number | null
+          staff_id: string
+          time_report_id?: string | null
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          lat?: number
+          lng?: number
+          organization_id?: string
+          recorded_at?: string
+          speed?: number | null
+          staff_id?: string
+          time_report_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_location_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_history_time_report_id_fkey"
+            columns: ["time_report_id"]
+            isOneToOne: false
+            referencedRelation: "time_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_locations: {
         Row: {
           accuracy: number | null
@@ -6113,6 +6167,13 @@ export type Database = {
           booking_id_result: string
           duplicates_removed: number
           event_type_result: string
+        }[]
+      }
+      cleanup_staff_location_history: {
+        Args: never
+        Returns: {
+          approved_deleted: number
+          orphans_deleted: number
         }[]
       }
       ensure_internal_lager_booking: {
