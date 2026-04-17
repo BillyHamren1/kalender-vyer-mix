@@ -17,9 +17,27 @@ export interface DirectMessage {
 }
 
 /**
+ * All chat WRITE operations are routed through the `mobile-app-api` edge function
+ * (single backend layer for messaging logic). Reads continue against DB (RLS-protected).
+ */
+async function invokeChat<T = any>(action: string, data: Record<string, unknown> = {}): Promise<T> {
+  const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
+    body: { action, data },
+  });
+  if (error) {
+    console.error(`[chat-api] ${action} failed:`, error);
+    throw error;
+  }
+  if (result && typeof result === 'object' && 'error' in result && result.error) {
+    console.error(`[chat-api] ${action} returned error:`, result.error);
+    throw new Error(String(result.error));
+  }
+  return result as T;
+}
+
+/**
  * Fetch conversation between two participants (sorted by time).
- * Uses dual-identity: allMyIds covers both staff_members.id and auth.users.id.
- * allPartnerIds does the same for the partner.
+ * READ — direct DB query (RLS protected).
  */
 export const fetchDirectMessages = async (
   allMyIds: string[],
@@ -27,7 +45,6 @@ export const fetchDirectMessages = async (
 ): Promise<DirectMessage[]> => {
   if (allMyIds.length === 0 || allPartnerIds.length === 0) return [];
 
-  // Build OR filter: any combination of my IDs as sender+partner as recipient, or vice versa
   const conditions: string[] = [];
   for (const myId of allMyIds) {
     for (const partnerId of allPartnerIds) {
@@ -50,12 +67,9 @@ export const fetchDirectMessages = async (
 };
 
 /**
- * Send a direct message with optional file attachment and job tag.
+ * WRITE wrapper — sends a direct message via mobile-app-api.
  */
-export const sendDirectMessage = async (
-  senderId: string,
-  senderName: string,
-  senderType: 'planner' | 'staff',
+export const sendDM = async (
   recipientId: string,
   recipientName: string,
   content: string,
@@ -66,111 +80,116 @@ export const sendDirectMessage = async (
     bookingId?: string;
   },
 ): Promise<void> => {
-  const insertData: Record<string, unknown> = {
-    sender_id: senderId,
-    sender_name: senderName,
-    sender_type: senderType,
+  await invokeChat('send_direct_message', {
     recipient_id: recipientId,
     recipient_name: recipientName,
     content: content.trim(),
-  };
-
-  if (options?.fileUrl) {
-    insertData.file_url = options.fileUrl;
-    insertData.file_name = options.fileName || 'file';
-    insertData.file_type = options.fileType || 'application/octet-stream';
-  }
-  if (options?.bookingId) {
-    insertData.booking_id = options.bookingId;
-  }
-
-  const { error } = await supabase
-    .from('direct_messages')
-    .insert(insertData as any);
-
-  if (error) {
-    console.error('Error sending direct message:', error);
-    throw error;
-  }
-
-  // Trigger push notification to recipient (fire-and-forget)
-  try {
-    supabase.functions.invoke('push-notification-trigger', {
-      body: {
-        type: 'INSERT',
-        table: 'direct_messages',
-        record: {
-          sender_id: senderId,
-          sender_name: senderName,
-          recipient_id: recipientId,
-          content: content.trim(),
-          organization_id: '',
-        },
-      },
-    }).catch(err => console.error('Push trigger failed:', err));
-  } catch {
-    // Don't block DM send if push fails
-  }
+    file_url: options?.fileUrl,
+    file_name: options?.fileName,
+    file_type: options?.fileType,
+    booking_id: options?.bookingId,
+  });
 };
 
 /**
- * Upload a file for direct messages and return the public URL.
+ * Backward-compatible signature kept so existing components don't break.
+ * sender* args are ignored — backend resolves identity from auth.
+ */
+export const sendDirectMessage = async (
+  _senderId: string,
+  _senderName: string,
+  _senderType: 'planner' | 'staff',
+  recipientId: string,
+  recipientName: string,
+  content: string,
+  options?: {
+    fileUrl?: string;
+    fileName?: string;
+    fileType?: string;
+    bookingId?: string;
+  },
+): Promise<void> => {
+  await sendDM(recipientId, recipientName, content, options);
+};
+
+/**
+ * Upload chat attachment via mobile-app-api → chat-attachments bucket.
+ * Returns URL + metadata ready to attach to a DM/job message.
+ */
+export const uploadChatAttachment = async (
+  file: File,
+): Promise<{ url: string; path: string; fileName: string; fileType: string }> => {
+  const base64 = await fileToBase64(file);
+  const result = await invokeChat<{
+    success: boolean;
+    url: string;
+    path: string;
+    file_name: string;
+    mime_type: string;
+  }>('upload_chat_attachment', {
+    file_name: file.name,
+    file_type: file.type || 'application/octet-stream',
+    file_data_base64: base64,
+  });
+  return {
+    url: result.url,
+    path: result.path,
+    fileName: result.file_name,
+    fileType: result.mime_type,
+  };
+};
+
+/**
+ * Backward-compatible alias for components that still call uploadDMFile.
  */
 export const uploadDMFile = async (
   file: File,
-  senderId: string,
+  _senderId: string,
 ): Promise<{ url: string; fileName: string; fileType: string }> => {
-  const ext = file.name.split('.').pop() || 'bin';
-  const path = `dm-files/${senderId}/${Date.now()}_${file.name}`;
+  const r = await uploadChatAttachment(file);
+  return { url: r.url, fileName: r.fileName, fileType: r.fileType };
+};
 
-  const { error } = await supabase.storage
-    .from('project-files')
-    .upload(path, file, { upsert: false });
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // strip "data:<mime>;base64," prefix
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
-  if (error) {
-    console.error('Error uploading DM file:', error);
-    throw error;
-  }
-
-  const { data: urlData } = supabase.storage
-    .from('project-files')
-    .getPublicUrl(path);
-
-  return {
-    url: urlData.publicUrl,
-    fileName: file.name,
-    fileType: file.type || `application/${ext}`,
-  };
+/**
+ * WRITE wrapper — mark messages from sender as read.
+ */
+export const markDMRead = async (senderId: string): Promise<void> => {
+  await invokeChat('mark_dm_read', { sender_id: senderId });
 };
 
 /**
- * Mark all messages from a specific sender as read.
- * Uses dual-identity: allMyIds for recipient matching.
+ * Backward-compatible signature.
  */
 export const markDirectMessagesRead = async (
-  allMyIds: string[],
+  _allMyIds: string[],
   senderId: string,
 ): Promise<void> => {
-  if (allMyIds.length === 0) return;
-
-  // Mark read for all my known IDs as recipient
-  const promises = allMyIds.map(myId =>
-    supabase
-      .from('direct_messages')
-      .update({ is_read: true })
-      .eq('recipient_id', myId)
-      .eq('sender_id', senderId)
-      .eq('is_read', false)
-  );
-
-  const results = await Promise.all(promises);
-  for (const { error } of results) {
-    if (error) console.error('Error marking DMs as read:', error);
-  }
+  await markDMRead(senderId);
 };
 
 /**
- * Get unread DM count for a recipient (supports multiple IDs).
+ * WRITE wrapper — archive a DM thread for the current user.
+ */
+export const archiveDM = async (partnerId: string): Promise<void> => {
+  await invokeChat('archive_dm', { partner_id: partnerId });
+};
+
+/**
+ * Get unread DM count for a recipient (READ).
  */
 export const fetchUnreadDMCount = async (allMyIds: string[]): Promise<number> => {
   if (allMyIds.length === 0) return 0;
@@ -187,7 +206,7 @@ export const fetchUnreadDMCount = async (allMyIds: string[]): Promise<number> =>
 };
 
 /**
- * Get DM inbox for a staff member.
+ * Get DM inbox for a staff member (READ).
  */
 export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
   if (allMyIds.length === 0) return [];
@@ -217,8 +236,7 @@ export interface GroupedConversation {
 }
 
 /**
- * Get DM inbox grouped by conversation partner.
- * Uses dual-identity via allMyIds.
+ * Get DM inbox grouped by conversation partner (READ).
  */
 export const fetchDMInboxGrouped = async (allMyIds: string[]): Promise<GroupedConversation[]> => {
   if (allMyIds.length === 0) return [];
@@ -246,7 +264,6 @@ export const fetchDMInboxGrouped = async (allMyIds: string[]): Promise<GroupedCo
     const partnerId = isMe ? m.recipient_id : m.sender_id;
     const partnerName = isMe ? m.recipient_name : m.sender_name;
 
-    // Skip if the partner is also one of my IDs (self-conversations across identities)
     if (myIdSet.has(partnerId)) continue;
 
     if (!convMap.has(partnerId)) {

@@ -78,41 +78,83 @@ Deno.serve(async (req) => {
       return await handleLogin(supabase, requestData ?? {})
     }
 
-    // All other actions require valid token
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Auth: prefer custom mobile token; fall back to web Authorization: Bearer <JWT>
+    let staffId: string | undefined
+    let staffOrg: { organization_id: string | null; user_id: string | null } | null = null
+
+    if (token) {
+      const tokenResult = verifyToken(token)
+      if (!tokenResult.valid) {
+        return new Response(
+          JSON.stringify({ error: tokenResult.error }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      staffId = tokenResult.staffId!
+    } else {
+      // Web JWT fallback (planner UI)
+      const authHeader = req.headers.get('Authorization') || ''
+      if (!authHeader.startsWith('Bearer ')) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const jwt = authHeader.slice('Bearer '.length)
+      // Use anon client just to verify the JWT
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+      const verifier = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const { data: claimsData, error: claimsErr } = await verifier.auth.getClaims(jwt)
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid web session' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const webUserId: string = claimsData.claims.sub
+      // Try to map to a staff_member row; if none, use user_id as the staffId-equivalent
+      const { data: sm } = await supabase
+        .from('staff_members')
+        .select('id, organization_id, user_id')
+        .eq('user_id', webUserId)
+        .maybeSingle()
+      if (sm) {
+        staffId = sm.id
+        staffOrg = { organization_id: sm.organization_id, user_id: sm.user_id }
+      } else {
+        // Web-only planner without staff_members row → resolve org from profiles
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', webUserId)
+          .maybeSingle()
+        staffId = webUserId
+        staffOrg = { organization_id: prof?.organization_id || null, user_id: webUserId }
+      }
     }
 
-    const tokenResult = verifyToken(token)
-    if (!tokenResult.valid) {
-      return new Response(
-        JSON.stringify({ error: tokenResult.error }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Resolve organization_id from the authenticated staff member (if not already set via JWT path)
+    if (!staffOrg) {
+      const { data: smOrg } = await supabase
+        .from('staff_members')
+        .select('organization_id, user_id')
+        .eq('id', staffId)
+        .single()
+      staffOrg = smOrg ? { organization_id: smOrg.organization_id, user_id: smOrg.user_id } : null
     }
-
-    const staffId = tokenResult.staffId!
-
-    // Resolve organization_id from the authenticated staff member
-    const { data: staffOrg } = await supabase
-      .from('staff_members')
-      .select('organization_id, user_id')
-      .eq('id', staffId)
-      .single()
 
     const organizationId = staffOrg?.organization_id
     if (!organizationId) {
-      console.error(`[mobile-app-api] Staff ${staffId} has no organization_id`)
+      console.error(`[mobile-app-api] Staff/user ${staffId} has no organization_id`)
       return new Response(
-        JSON.stringify({ error: 'Staff member not associated with an organization' }),
+        JSON.stringify({ error: 'Not associated with an organization' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[mobile-app-api] Staff ${staffId} org: ${organizationId}`)
+    console.log(`[mobile-app-api] Auth resolved staffId=${staffId} org=${organizationId}`)
 
     // Route to appropriate handler - all receive organizationId for tenant isolation
     switch (action) {
@@ -162,6 +204,10 @@ Deno.serve(async (req) => {
         return await handleGetJobMessages(supabase, staffId, data, organizationId)
       case 'send_job_message':
         return await handleSendJobMessage(supabase, staffId, data, organizationId)
+      case 'mark_job_read':
+        return await handleMarkJobRead(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'archive_job_conversation':
+        return await handleArchiveJobConversation(supabase, staffId, data, organizationId)
       case 'archive_dm':
         return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'unarchive_dm':
@@ -2560,6 +2606,65 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
     JSON.stringify({ success: true, message }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+async function handleMarkJobRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const { booking_id } = data || {}
+  if (!booking_id) {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  // Fetch un-read messages for this booking and append the reader id to read_by JSONB array
+  const { data: rows, error } = await supabase
+    .from('job_messages')
+    .select('id, read_by')
+    .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const updates = (rows || [])
+    .filter((r: any) => {
+      const arr = Array.isArray(r.read_by) ? r.read_by : []
+      return !ids.some(id => arr.includes(id))
+    })
+    .map((r: any) => {
+      const arr = Array.isArray(r.read_by) ? r.read_by : []
+      const next = Array.from(new Set([...arr, ...ids]))
+      return supabase.from('job_messages').update({ read_by: next }).eq('id', r.id)
+    })
+
+  await Promise.all(updates)
+  return new Response(JSON.stringify({ success: true, updated: updates.length }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleArchiveJobConversation(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { booking_id } = data || {}
+  if (!booking_id) {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { error } = await supabase
+    .from('job_messages')
+    .update({ is_archived: true })
+    .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
 // ============= Direct Messages Handlers =============
