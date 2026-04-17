@@ -177,7 +177,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           ))}
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
               {search
