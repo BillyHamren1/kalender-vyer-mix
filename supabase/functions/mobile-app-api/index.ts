@@ -1404,6 +1404,31 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
 
   console.log(`Time report created: ${report.id} by staff ${staffId}${establishment_task_id ? ` (task: ${establishment_task_id})` : ''}`)
 
+  // Link any unlinked anomalies that overlap this report's time range to the new time report
+  // This ensures background-tracked absences get associated with the correct work shift,
+  // even if they were closed before the report was created.
+  try {
+    const reportStartIso = `${report_date}T${start_time}:00`
+    // For night shifts (end < start), end belongs to next day
+    const endsNextDay = end_time < start_time
+    const reportEndDate = endsNextDay
+      ? new Date(new Date(report_date).getTime() + 86_400_000).toISOString().slice(0, 10)
+      : report_date
+    const reportEndIso = `${reportEndDate}T${end_time}:00`
+
+    await supabase
+      .from('time_report_anomalies')
+      .update({ time_report_id: report.id })
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('time_report_id', null)
+      .not('ended_at', 'is', null)
+      .gte('started_at', reportStartIso)
+      .lte('ended_at', reportEndIso)
+  } catch (linkErr) {
+    console.warn('Failed to link anomalies to time report:', linkErr)
+  }
+
   return new Response(
     JSON.stringify({ success: true, time_report: report }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
