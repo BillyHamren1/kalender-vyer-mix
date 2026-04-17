@@ -4,6 +4,8 @@ import {
   WarehouseProjectInboxItem,
   WarehouseProjectTask,
 } from "@/types/warehouseProject";
+import { PackingWithBooking } from "@/types/packing";
+import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 
 // ============================================================================
 // Inbox
