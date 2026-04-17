@@ -237,10 +237,10 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-base font-semibold text-foreground tabular-nums leading-tight">
+                      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
                         {formatHoursMinutes(staff.total_hours)}
                       </div>
-                      <div className="text-[10px] text-muted-foreground tabular-nums">
+                      <div className="text-[10px] text-muted-foreground tabular-nums leading-tight">
                         {staff.earliest_start && (
                           <>
                             {staff.earliest_start.slice(0, 5)}
@@ -256,15 +256,15 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 
                   {/* Project list — one row per project */}
                   {(staff.projects?.length ?? 0) > 0 && (
-                    <div className="mt-2 space-y-0.5 border-l-2 border-border/60 pl-2.5">
+                    <div className="mt-1 border-l-2 border-border/60 pl-2">
                       {staff.projects!.map(p => (
                         <div
                           key={p.booking_id}
-                          className="flex items-center justify-between gap-3 text-xs"
+                          className="flex items-center justify-between gap-3 text-xs leading-snug"
                         >
                           <span
                             className={`truncate ${
-                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-foreground/80'
+                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-muted-foreground'
                             }`}
                             title={p.label}
                           >
@@ -273,7 +273,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                               <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-500 align-middle animate-pulse" />
                             )}
                           </span>
-                          <span className="text-muted-foreground tabular-nums shrink-0">
+                          <span className="text-muted-foreground tabular-nums shrink-0 text-[11px]">
                             {formatHoursMinutes(p.total_hours)}
                           </span>
                         </div>
