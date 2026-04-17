@@ -7,12 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchWarehouseProject,
   fetchWarehouseProjectTasks,
+  fetchWarehousePackings,
   deleteWarehouseProject,
 } from "@/services/warehouseProjectService";
 import {
   WAREHOUSE_PROJECT_STATUS_LABELS,
   WAREHOUSE_PROJECT_STATUS_COLORS,
 } from "@/types/warehouseProject";
+import PackingCard from "@/components/packing/PackingCard";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
