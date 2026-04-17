@@ -620,6 +620,14 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
                                       Resa
                                     </Badge>
+                                  ) : !report.end_time ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                    >
+                                      <Activity className="h-2.5 w-2.5" />
+                                      Pågående
+                                    </Badge>
                                   ) : report.approved ? (
                                     <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
                                       Godkänd
