@@ -72,7 +72,9 @@
 .carousel-3d-card .day-card {
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow: hidden; /* Inner scroll keeps header sticky */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Disable interactions on non-center cards */
@@ -354,7 +356,9 @@
 .weekly-day-card .day-card {
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow: hidden; /* Inner .time-grid-scrollable-content handles vertical scroll → header stays sticky */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Today indicator for weekly view */

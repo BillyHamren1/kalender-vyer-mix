@@ -24,9 +24,13 @@
   --calendar-accent: var(--warehouse);
 }
 
-/* Fixed header styling */
+/* Fixed header styling - sticky so it doesn't scroll with content */
 .time-grid-fixed-header {
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
 }
 
 /* Scrollable content area */
@@ -110,12 +114,12 @@
   border-radius: 16px 16px 0 0;
 }
 
-/* Time Column Header */
+/* Time Column Header - reduced padding for compact header */
 .time-column-header {
   background: transparent;
   border-right: 1px solid hsl(var(--calendar-primary-foreground) / 0.15);
   border-bottom: none;
-  padding: 14px 8px;
+  padding: 6px 8px;
   text-align: center;
   display: flex;
   align-items: center;
@@ -135,11 +139,11 @@
   opacity: 0.9;
 }
 
-/* Day Header */
+/* Day Header - reduced padding for compact header */
 .day-header-teams {
   background: transparent;
   border-bottom: none;
-  padding: 10px 12px;
+  padding: 4px 12px;
   grid-row: 1;
   position: relative;
   z-index: 1;
@@ -153,7 +157,7 @@
 }
 
 .day-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: hsl(var(--primary-foreground));
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
