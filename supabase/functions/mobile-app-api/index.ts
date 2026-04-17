@@ -2528,15 +2528,100 @@ async function handleSendMessage(supabase: any, staffId: string, data: any, orga
 
 // ============= Job Messages Handlers =============
 
-async function handleGetJobMessages(supabase: any, staffId: string, data: any, organizationId: string) {
+/**
+ * Authorization gate for job chat (job_messages).
+ * A caller may read/write iff at least ONE of these holds:
+ *   1. They are assigned to the job (job_staff_assignments via jobs.booking_id == booking_id)
+ *   2. They are assigned to the booking on any date (booking_staff_assignments)
+ *   3. They are listed as project staff for the parent large project (large_project_staff)
+ *   4. They have planner role (admin / projekt / lager) — checked via has_role()
+ * Returns null on success, or a Response on denial / error.
+ */
+async function assertJobAccess(
+  supabase: any,
+  bookingId: string,
+  staffId: string,
+  organizationId: string,
+  userId: string | null,
+): Promise<Response | null> {
+  const deny = () => new Response(
+    JSON.stringify({ success: false, error: 'Unauthorized job access' }),
+    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+
+  if (!bookingId) return deny()
+
+  // 4. Planner role (admin/projekt/lager) via has_planning_access RPC if web user
+  if (userId) {
+    const { data: planner } = await supabase.rpc('has_planning_access', { _user_id: userId })
+    if (planner === true) return null
+  }
+
+  // 1. job_staff_assignments — jobs row references this booking_id, and staff is assigned to that job
+  {
+    const { data: jobRows } = await supabase
+      .from('jobs')
+      .select('id')
+      .eq('booking_id', bookingId)
+      .eq('organization_id', organizationId)
+    const jobIds = (jobRows || []).map((j: any) => j.id)
+    if (jobIds.length > 0) {
+      const { data: jsa } = await supabase
+        .from('job_staff_assignments')
+        .select('id')
+        .eq('staff_id', staffId)
+        .in('job_id', jobIds)
+        .limit(1)
+      if (jsa && jsa.length > 0) return null
+    }
+  }
+
+  // 2. booking_staff_assignments — assigned to this booking on any date
+  {
+    const { data: bsa } = await supabase
+      .from('booking_staff_assignments')
+      .select('id')
+      .eq('booking_id', bookingId)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .limit(1)
+    if (bsa && bsa.length > 0) return null
+  }
+
+  // 3. large_project_staff — staff is on the parent large project
+  {
+    const { data: bk } = await supabase
+      .from('bookings')
+      .select('large_project_id')
+      .eq('id', bookingId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (bk?.large_project_id) {
+      const { data: lps } = await supabase
+        .from('large_project_staff')
+        .select('id')
+        .eq('large_project_id', bk.large_project_id)
+        .eq('staff_id', staffId)
+        .limit(1)
+      if (lps && lps.length > 0) return null
+    }
+  }
+
+  return deny()
+}
+
+async function handleGetJobMessages(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { booking_id } = data
 
   if (!booking_id) {
     return new Response(
-      JSON.stringify({ error: 'booking_id is required' }),
+      JSON.stringify({ success: false, error: 'booking_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
 
   const { data: messages, error } = await supabase
     .from('job_messages')
@@ -2550,7 +2635,7 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
   if (error) {
     console.error('Get job messages error:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to fetch job messages' }),
+      JSON.stringify({ success: false, error: 'Failed to fetch job messages' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2561,15 +2646,18 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
   )
 }
 
-async function handleSendJobMessage(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleSendJobMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { booking_id, content } = data
 
   if (!booking_id || !content?.trim()) {
     return new Response(
-      JSON.stringify({ error: 'booking_id and content are required' }),
+      JSON.stringify({ success: false, error: 'booking_id and content are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
 
   // Get staff name
   const { data: staffMember } = await supabase
@@ -2597,7 +2685,7 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
   if (error) {
     console.error('Send job message error:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to send job message' }),
+      JSON.stringify({ success: false, error: 'Failed to send job message' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2611,9 +2699,12 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
 async function handleMarkJobRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { booking_id } = data || {}
   if (!booking_id) {
-    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+    return new Response(JSON.stringify({ success: false, error: 'booking_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
 
   const ids = [staffId]
   if (userId && userId !== staffId) ids.push(userId)
@@ -2626,7 +2717,7 @@ async function handleMarkJobRead(supabase: any, staffId: string, data: any, orga
     .eq('organization_id', organizationId)
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }),
+    return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
@@ -2646,12 +2737,15 @@ async function handleMarkJobRead(supabase: any, staffId: string, data: any, orga
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
-async function handleArchiveJobConversation(supabase: any, staffId: string, data: any, organizationId: string) {
+async function handleArchiveJobConversation(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { booking_id } = data || {}
   if (!booking_id) {
-    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+    return new Response(JSON.stringify({ success: false, error: 'booking_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
 
   const { error } = await supabase
     .from('job_messages')
@@ -2660,7 +2754,7 @@ async function handleArchiveJobConversation(supabase: any, staffId: string, data
     .eq('organization_id', organizationId)
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }),
+    return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
   return new Response(JSON.stringify({ success: true }),
