@@ -2677,8 +2677,22 @@ async function assertJobAccess(
   return deny()
 }
 
+/**
+ * Cursor-paginated job-chat messages.
+ *
+ *   - Initial load (no `before`): returns the latest `limit` messages.
+ *   - Load older (`before` = ISO timestamp): returns the next `limit` rows
+ *     strictly older than that cursor.
+ *
+ * The DB query orders DESC (newest first) so we can grab the tail efficiently
+ * via `created_at < before`. Results are reversed before returning so the
+ * client gets them ASC for natural rendering.
+ *
+ * `has_more` is true when we filled the page — the next page may be empty
+ * but that's cheap to detect on the client.
+ */
 async function handleGetJobMessages(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { booking_id } = data
+  const { booking_id, before, limit } = data || {}
 
   if (!booking_id) {
     return new Response(
@@ -2687,20 +2701,33 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // Clamp page size: 30 default, max 100
+  const pageSize = Math.min(Math.max(parseInt(String(limit ?? 30), 10) || 30, 1), 100)
+
   const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
   if (denied) return denied
 
   const ids = [staffId]
   if (userId && userId !== staffId) ids.push(userId)
 
-  const { data: rows, error } = await supabase
+  // Over-fetch to compensate for client-side per-user archive filtering,
+  // so we still return ~pageSize visible rows in most cases.
+  const fetchSize = pageSize + 10
+
+  let q = supabase
     .from('job_messages')
     .select('*')
     .eq('booking_id', booking_id)
     .eq('organization_id', organizationId)
     .eq('is_archived', false)
-    .order('created_at', { ascending: true })
-    .limit(200)
+    .order('created_at', { ascending: false })
+    .limit(fetchSize)
+
+  if (before && typeof before === 'string') {
+    q = q.lt('created_at', before)
+  }
+
+  const { data: rows, error } = await q
 
   if (error) {
     console.error('Get job messages error:', error)
@@ -2711,13 +2738,23 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
   }
 
   // Filter out per-user-archived messages (DM-style is_archived_by)
-  const messages = (rows || []).filter((m: any) => {
+  const visible = (rows || []).filter((m: any) => {
     const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
     return !ids.some(id => arr.includes(id))
   })
 
+  // Trim to the requested page size after archive filtering
+  const trimmed = visible.slice(0, pageSize)
+  // Return ASC so the UI can append at the bottom / prepend on load-older
+  const messages = trimmed.slice().reverse()
+
+  // We over-fetched; if the unfiltered result reached the over-fetch size,
+  // there may be more rows beyond the cursor.
+  const has_more = (rows?.length || 0) >= fetchSize
+  const next_cursor = messages.length > 0 ? messages[0].created_at : null
+
   return new Response(
-    JSON.stringify({ messages }),
+    JSON.stringify({ messages, has_more, next_cursor }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
