@@ -2655,7 +2655,10 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
   const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
   if (denied) return denied
 
-  const { data: messages, error } = await supabase
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  const { data: rows, error } = await supabase
     .from('job_messages')
     .select('*')
     .eq('booking_id', booking_id)
@@ -2672,18 +2675,25 @@ async function handleGetJobMessages(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // Filter out per-user-archived messages (DM-style is_archived_by)
+  const messages = (rows || []).filter((m: any) => {
+    const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
+    return !ids.some(id => arr.includes(id))
+  })
+
   return new Response(
-    JSON.stringify({ messages: messages || [] }),
+    JSON.stringify({ messages }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
 async function handleSendJobMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { booking_id, content } = data
+  const { booking_id, content, file_url, file_name, file_type } = data
 
-  if (!booking_id || !content?.trim()) {
+  const trimmed = (content || '').trim()
+  if (!booking_id || (!trimmed && !file_url)) {
     return new Response(
-      JSON.stringify({ success: false, error: 'booking_id and content are required' }),
+      JSON.stringify({ success: false, error: 'booking_id and content or attachment are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2708,8 +2718,14 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
       sender_id: staffId,
       sender_name: senderName,
       sender_role: 'staff',
-      content: content.trim(),
+      content: trimmed || (file_name ? `📎 ${file_name}` : '📎 Bifogad fil'),
+      file_url: file_url || null,
+      file_name: file_name || null,
+      file_type: file_type || null,
       organization_id: organizationId,
+      delivered_at: new Date().toISOString(),
+      // Auto-mark as read by sender
+      read_by: [staffId, ...(userId && userId !== staffId ? [userId] : [])],
     })
     .select()
     .single()
@@ -2717,7 +2733,7 @@ async function handleSendJobMessage(supabase: any, staffId: string, data: any, o
   if (error) {
     console.error('Send job message error:', error)
     return new Response(
-      JSON.stringify({ success: false, error: 'Failed to send job message' }),
+      JSON.stringify({ success: false, error: error.message || 'Failed to send job message' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -2779,16 +2795,26 @@ async function handleArchiveJobConversation(supabase: any, staffId: string, data
   const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
   if (denied) return denied
 
-  const { error } = await supabase
+  const ids = [staffId]
+  if (userId && userId !== staffId) ids.push(userId)
+
+  // Per-user archive (DM-style: append to is_archived_by array)
+  const { data: rows, error: fetchErr } = await supabase
     .from('job_messages')
-    .update({ is_archived: true })
+    .select('id, is_archived_by')
     .eq('booking_id', booking_id)
     .eq('organization_id', organizationId)
 
-  if (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }),
+  if (fetchErr) {
+    return new Response(JSON.stringify({ success: false, error: fetchErr.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
+
+  await Promise.all((rows || []).map((r: any) => {
+    const next = Array.from(new Set([...(r.is_archived_by || []), ...ids]))
+    return supabase.from('job_messages').update({ is_archived_by: next }).eq('id', r.id)
+  }))
+
   return new Response(JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }

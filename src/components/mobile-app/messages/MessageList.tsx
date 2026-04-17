@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { format, isToday, isYesterday, parseISO, differenceInMinutes, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import MessageBubble, { ChatMessage } from './MessageBubble';
@@ -8,6 +8,8 @@ interface Props {
   myIds: Set<string>;
   /** Show sender name for non-me bubbles (group chats) */
   showSenderNames?: boolean;
+  /** Optional per-message footer override (e.g. retry button). Return null to fall back to default. */
+  renderFooter?: (m: ChatMessage) => ReactNode;
 }
 
 const dayLabel = (d: Date) => {
@@ -19,7 +21,7 @@ const dayLabel = (d: Date) => {
 const timeLabel = (d: Date) =>
   isToday(d) ? format(d, 'HH:mm') : format(d, 'EEE HH:mm', { locale: sv });
 
-export const MessageList = ({ messages, myIds, showSenderNames }: Props) => {
+export const MessageList = ({ messages, myIds, showSenderNames, renderFooter }: Props) => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,6 +81,7 @@ export const MessageList = ({ messages, myIds, showSenderNames }: Props) => {
               hasTail={hasTail}
               showStatus={i === lastOwnIndex}
               showSenderName={showSenderName}
+              footerOverride={renderFooter ? renderFooter(m) : null}
             />
             {sameSenderAsNext && <div className="h-0.5" />}
           </div>

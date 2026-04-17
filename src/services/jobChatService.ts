@@ -8,6 +8,12 @@ export interface JobMessage {
   sender_role: string;
   content: string;
   is_archived: boolean;
+  is_archived_by?: string[];
+  read_by?: string[];
+  delivered_at?: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
   created_at: string;
 }
 
@@ -59,16 +65,22 @@ export const fetchJobMessages = async (bookingId: string): Promise<JobMessage[]>
  */
 export const sendJobMessage = async (
   bookingId: string,
-  senderIdOrContent?: string,
-  _senderName?: string,
-  _senderRole?: string,
-  content?: string,
-): Promise<void> => {
-  const finalContent = content !== undefined ? content : (senderIdOrContent ?? '');
-  await invokeChat('send_job_message', {
+  contentOrLegacy?: string,
+  _legacySenderName?: string,
+  _legacySenderRole?: string,
+  legacyContent?: string,
+  options?: { fileUrl?: string; fileName?: string; fileType?: string },
+): Promise<JobMessage | null> => {
+  // Support legacy 5-arg form: (bookingId, senderId, senderName, senderRole, content)
+  const finalContent = legacyContent !== undefined ? legacyContent : (contentOrLegacy ?? '');
+  const result = await invokeChat<{ success: boolean; message: JobMessage }>('send_job_message', {
     booking_id: bookingId,
     content: String(finalContent).trim(),
+    file_url: options?.fileUrl,
+    file_name: options?.fileName,
+    file_type: options?.fileType,
   });
+  return result?.message || null;
 };
 
 /** WRITE wrapper — mark all messages in a job conversation as read by current user. */
