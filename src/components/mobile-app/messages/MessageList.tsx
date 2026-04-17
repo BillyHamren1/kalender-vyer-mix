@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { format, isToday, isYesterday, parseISO, differenceInMinutes, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import MessageBubble, { ChatMessage } from './MessageBubble';
@@ -9,7 +9,7 @@ interface Props {
   /** Show sender name for non-me bubbles (group chats) */
   showSenderNames?: boolean;
   /** Optional per-message footer override (e.g. retry button). Return null to fall back to default. */
-  renderFooter?: (m: ChatMessage) => React.ReactNode;
+  renderFooter?: (m: ChatMessage) => ReactNode;
 }
 
 const dayLabel = (d: Date) => {
