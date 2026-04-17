@@ -189,14 +189,14 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               <button
                 key={staff.id}
                 onClick={() => onSelectStaff(staff.id, staff.name)}
-                className={`w-full flex items-stretch gap-3 p-3 rounded-xl border transition-all text-left group ${
+                className={`w-full flex items-stretch gap-2.5 px-3 py-2 rounded-lg border transition-all text-left group ${
                   staff.has_open_report
                     ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10 dark:hover:bg-orange-950/20'
                     : 'border-transparent hover:bg-muted/50 hover:border-border'
                 }`}
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative self-start"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5"
                   style={{
                     backgroundColor: staff.color ? `${staff.color}20` : 'hsl(var(--muted))',
                     color: staff.color || 'hsl(var(--muted-foreground))',
@@ -204,7 +204,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 >
                   {staff.name.charAt(0).toUpperCase()}
                   {staff.has_open_report && (
-                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
                   )}
                 </div>
 
