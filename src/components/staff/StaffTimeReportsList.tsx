@@ -11,6 +11,12 @@ import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 
+interface ProjectInfo {
+  booking_id: string;
+  label: string;
+  is_open: boolean;
+}
+
 interface StaffWithDayReport {
   id: string;
   name: string;
@@ -21,6 +27,7 @@ interface StaffWithDayReport {
   has_open_report: boolean;
   earliest_start: string | null;
   latest_end: string | null;
+  projects: ProjectInfo[];
 }
 
 interface StaffTimeReportsListProps {
