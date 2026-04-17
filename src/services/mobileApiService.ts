@@ -366,6 +366,9 @@ export const mobileApi = {
   classifyAnomaly: (data: { anomaly_id: string; classification: 'break' | 'work'; work_description?: string }) =>
     callApi<{ success: boolean; anomaly: any }>('classify_anomaly', data),
 
+  closeOpenAnomalies: (data?: { ended_at?: string }) =>
+    callApi<{ success: boolean; closed: number; discarded: number }>('close_open_anomalies', data || {}),
+
   // Travel logs
   createTravelLog: (data: {
     from_address?: string;
