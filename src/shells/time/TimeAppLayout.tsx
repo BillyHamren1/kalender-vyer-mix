@@ -37,8 +37,27 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
     scrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [pathname]);
 
+  useEffect(() => {
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
+    const prevBodyOverscroll = document.body.style.overscrollBehaviorY;
+
+    document.documentElement.style.backgroundColor = 'hsl(var(--primary))';
+    document.body.style.backgroundColor = 'hsl(var(--primary))';
+    document.documentElement.style.overscrollBehaviorY = 'none';
+    document.body.style.overscrollBehaviorY = 'none';
+
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.overscrollBehaviorY = prevHtmlOverscroll;
+      document.body.style.overscrollBehaviorY = prevBodyOverscroll;
+    };
+  }, []);
+
   return (
-    <div className="h-[100dvh] overflow-hidden bg-card">
+    <div className="fixed inset-0 overflow-hidden bg-card">
       <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
         <div
           ref={scrollRef}

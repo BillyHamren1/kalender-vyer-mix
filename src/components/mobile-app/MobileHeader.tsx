@@ -30,16 +30,12 @@ interface HeroHeaderProps {
 
 export const MobileHeroHeader: React.FC<HeroHeaderProps> = ({ eyebrow, title, subtitle, rightAction }) => (
   <div
-    className="bg-primary sticky top-0 z-40 shadow-sm"
+    className="bg-primary sticky top-0 z-[60] shadow-sm"
     style={{
       paddingTop: 'env(safe-area-inset-top, 0px)',
-      // iOS Safari: ensure sticky works inside flex/scroll containers by promoting to its own layer
-      WebkitTransform: 'translateZ(0)',
-      transform: 'translateZ(0)',
-      willChange: 'transform',
     }}
   >
-    <div className="px-5 pt-2 pb-3 flex flex-col justify-end">
+    <div className="px-5 pt-1.5 pb-2.5 flex flex-col justify-end">
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           {eyebrow && (
@@ -83,15 +79,12 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
 
   return (
     <div
-      className="bg-primary sticky top-0 z-40 shadow-sm"
+      className="bg-primary sticky top-0 z-[60] shadow-sm"
       style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
-        WebkitTransform: 'translateZ(0)',
-        transform: 'translateZ(0)',
-        willChange: 'transform',
       }}
     >
-      <div className="px-5 pt-2 pb-3 flex flex-col justify-end">
+      <div className="px-5 pt-1.5 pb-2.5 flex flex-col justify-end">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
@@ -124,15 +117,12 @@ interface ProfileHeaderProps {
 
 export const MobileProfileHeader: React.FC<ProfileHeaderProps> = ({ avatar, name, role }) => (
   <div
-    className="bg-primary sticky top-0 z-40 shadow-sm"
+    className="bg-primary sticky top-0 z-[60] shadow-sm"
     style={{
       paddingTop: 'env(safe-area-inset-top, 0px)',
-      WebkitTransform: 'translateZ(0)',
-      transform: 'translateZ(0)',
-      willChange: 'transform',
     }}
   >
-    <div className="px-5 pt-2 pb-4">
+    <div className="px-5 pt-1.5 pb-3">
       <div className="flex flex-col items-center">
         {avatar || (
           <div className="w-12 h-12 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-1.5">
