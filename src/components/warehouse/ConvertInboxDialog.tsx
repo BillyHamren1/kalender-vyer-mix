@@ -169,7 +169,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
               <div className="rounded-lg border border-border/60 p-3 space-y-3">
                 <div className="flex items-center gap-2">
                   <Package className="w-4 h-4 text-primary" />
-                  <h4 className="text-sm font-medium">Packa</h4>
+                  <h4 className="text-sm font-medium">Packning</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <DateField label="Startdatum" value={packStart} onChange={setPackStart} />
@@ -183,7 +183,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
               <div className="rounded-lg border border-border/60 p-3 space-y-3">
                 <div className="flex items-center gap-2">
                   <RotateCcw className="w-4 h-4 text-primary" />
-                  <h4 className="text-sm font-medium">Returnera</h4>
+                  <h4 className="text-sm font-medium">Retur</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <DateField label="Startdatum" value={returnStart} onChange={setReturnStart} />
