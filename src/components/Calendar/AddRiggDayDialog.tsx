@@ -243,9 +243,21 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rig">Riggdag</SelectItem>
-                <SelectItem value="event">Eventdag</SelectItem>
-                <SelectItem value="rigDown">Rivdag</SelectItem>
+                {isWarehouseSource ? (
+                  <>
+                    <SelectItem value="packing">Packning</SelectItem>
+                    <SelectItem value="return">Retur</SelectItem>
+                    <SelectItem value="delivery">Leverans</SelectItem>
+                    <SelectItem value="inventory">Inventering</SelectItem>
+                    <SelectItem value="unpacking">Uppackning</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="rig">Riggdag</SelectItem>
+                    <SelectItem value="event">Eventdag</SelectItem>
+                    <SelectItem value="rigDown">Rivdag</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
