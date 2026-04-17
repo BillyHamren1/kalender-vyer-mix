@@ -6022,6 +6022,10 @@ export type Database = {
         Args: { _org_id: string }
         Returns: string
       }
+      ensure_internal_lager_setup: {
+        Args: { _location_id?: string; _org_id: string }
+        Returns: string
+      }
       ensure_internal_project: { Args: { _org_id: string }; Returns: string }
       ensure_internal_warehouse_project: {
         Args: { _org_id: string }
