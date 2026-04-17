@@ -27,16 +27,17 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
 
-  // Arrival prompt — same source-of-truth used by push-cron
-  const { state: arrivalState, refresh: refreshArrival, markResolved } = useArrivalPrompt(!!staff);
+  // Arrival prompt — same source-of-truth used by push-cron.
+  // Pause polling while the dialog is open OR while end-of-day dialog is active
+  // so state doesn't flip under the user.
   const [arrivalDialogOpen, setArrivalDialogOpen] = useState(false);
   const [, setArrivalSubmitting] = useState(false);
+  const { state: arrivalState, refresh: refreshArrival, markResolved } = useArrivalPrompt(!!staff, arrivalDialogOpen);
 
   useEffect(() => {
+    // Only auto-open if we're not already showing it AND the server still says we should.
     if (arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at) {
       setArrivalDialogOpen(true);
-    } else {
-      setArrivalDialogOpen(false);
     }
   }, [arrivalState?.should_prompt, arrivalState?.location_id, arrivalState?.arrived_at]);
 

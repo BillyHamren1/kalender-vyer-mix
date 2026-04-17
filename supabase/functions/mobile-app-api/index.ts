@@ -3217,6 +3217,23 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     .single()
 
   if (error) {
+    // 23505 = unique_violation (race: another device just inserted the open entry)
+    if ((error as any)?.code === '23505') {
+      const { data: latest } = await supabase
+        .from('location_time_entries')
+        .select('*')
+        .eq('staff_id', staffId)
+        .eq('location_id', location_id)
+        .is('exited_at', null)
+        .limit(1)
+        .maybeSingle()
+      if (latest) {
+        return new Response(
+          JSON.stringify({ already_active: true, entry: latest }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
     console.error('Start location timer error:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to start location timer' }),
