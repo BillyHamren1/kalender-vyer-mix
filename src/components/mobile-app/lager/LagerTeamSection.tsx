@@ -45,14 +45,22 @@ const LagerTeamSection = () => {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {m.phone && (
-                  <a href={`tel:${m.phone}`} className="p-2 rounded-lg hover:bg-muted active:scale-95">
+                  <button
+                    type="button"
+                    onClick={() => { window.open(`tel:${m.phone}`, '_system') || (window.location.href = `tel:${m.phone}`); }}
+                    className="p-2 rounded-lg hover:bg-muted active:scale-95"
+                  >
                     <Phone className="w-4 h-4 text-primary" />
-                  </a>
+                  </button>
                 )}
                 {m.email && (
-                  <a href={`mailto:${m.email}`} className="p-2 rounded-lg hover:bg-muted active:scale-95">
+                  <button
+                    type="button"
+                    onClick={() => { window.open(`mailto:${m.email}`, '_system') || (window.location.href = `mailto:${m.email}`); }}
+                    className="p-2 rounded-lg hover:bg-muted active:scale-95"
+                  >
                     <Mail className="w-4 h-4 text-primary" />
-                  </a>
+                  </button>
                 )}
               </div>
             </div>
