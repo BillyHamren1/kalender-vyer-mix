@@ -362,7 +362,7 @@ const MobileScannerApp: React.FC = () => {
             variant="secondary" 
             size="sm"
             className="gap-1.5"
-            onClick={() => setIsQRActive(true)}
+            onClick={() => setIsIdentifyQRActive(true)}
           >
             <QrCode className="h-4 w-4" />
             <span className="text-xs">Scan</span>
