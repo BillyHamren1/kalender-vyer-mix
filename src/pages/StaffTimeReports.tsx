@@ -13,6 +13,7 @@ interface ProjectInfo {
   booking_id: string;
   label: string;
   is_open: boolean;
+  total_hours: number;
 }
 
 interface StaffWithDayReport {
@@ -86,7 +87,7 @@ const StaffTimeReports: React.FC = () => {
         has_open_report: boolean;
         earliest_start: string | null;
         latest_end: string | null;
-        projects: Map<string, { label: string; is_open: boolean }>;
+        projects: Map<string, { label: string; is_open: boolean; total_hours: number }>;
       };
       const byStaff = new Map<string, Agg>();
 
@@ -114,6 +115,7 @@ const StaffTimeReports: React.FC = () => {
           a.projects.set(r.booking_id, {
             label,
             is_open: (existing?.is_open || false) || !r.end_time,
+            total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
           });
         }
         byStaff.set(r.staff_id, a);
@@ -154,11 +156,14 @@ const StaffTimeReports: React.FC = () => {
             has_open_report: a.has_open_report,
             earliest_start: a.earliest_start,
             latest_end: a.latest_end,
-            projects: [...a.projects.entries()].map(([booking_id, v]) => ({
-              booking_id,
-              label: v.label,
-              is_open: v.is_open,
-            })),
+            projects: [...a.projects.entries()]
+              .map(([booking_id, v]) => ({
+                booking_id,
+                label: v.label,
+                is_open: v.is_open,
+                total_hours: v.total_hours,
+              }))
+              .sort((x, y) => y.total_hours - x.total_hours),
           };
         })
         .sort((a, b) => {
