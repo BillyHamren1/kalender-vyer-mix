@@ -76,14 +76,29 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
     }
   };
 
-  const handleSubmitCustom = async () => {
-    if (!/^\d{2}:\d{2}$/.test(customTime)) return;
+  // Build a valid past-or-now timestamp from HH:mm input.
+  // Night-shift safe: anchor to arrivalDate's calendar day; if HH:mm comes
+  // BEFORE arrival on that day, roll to the next day. Reject any candidate
+  // in the future (server also rejects, but fail-fast in UI is nicer).
+  const buildCustomIso = (): string | null => {
+    if (!/^\d{2}:\d{2}$/.test(customTime)) return null;
     const [h, m] = customTime.split(':').map(Number);
-    const candidate = new Date();
+    const candidate = new Date(arrivedDate);
     candidate.setHours(h, m, 0, 0);
+    if (candidate.getTime() < arrivedDate.getTime() && h < 12) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    if (candidate.getTime() > Date.now()) return null;
+    return candidate.toISOString();
+  };
+  const customIso = buildCustomIso();
+  const customInvalid = !!customTime && customIso === null;
+
+  const handleSubmitCustom = async () => {
+    if (!customIso) return;
     setSubmitting(true);
     try {
-      await onConfirm({ startedAtIso: candidate.toISOString(), usedSuggestedArrival: false });
+      await onConfirm({ startedAtIso: customIso, usedSuggestedArrival: false });
     } finally {
       setSubmitting(false);
     }

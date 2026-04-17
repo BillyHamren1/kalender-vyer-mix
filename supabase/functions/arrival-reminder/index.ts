@@ -54,18 +54,33 @@ Deno.serve(async (req) => {
       const arrivedMs = new Date(entry.entered_at).getTime()
       const ageMin = (now - arrivedMs) / 60_000
 
-      // Has the staff member created an open or recent time_report covering this arrival?
-      // If a time_report row exists for today with start_time <= entry.entered_at, treat as resolved.
-      const today = new Date(arrivedMs).toISOString().slice(0, 10)
-      const { data: existingReport } = await supabase
+      // Stockholm-local date for the arrival (cross-midnight safe)
+      const arrivedDateStockholm = new Date(arrivedMs).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' })
+      const arrivedHHMM = new Date(arrivedMs).toLocaleTimeString('sv-SE', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm', hour12: false,
+      })
+
+      // Resolved if there is an OPEN time_report, or a CLOSED one that already
+      // covers this arrival (start_time <= arrival HH:mm on the same Stockholm date).
+      const { data: openReports } = await supabase
         .from('time_reports')
         .select('id')
         .eq('staff_id', entry.staff_id)
-        .eq('report_date', today)
+        .is('end_time', null)
         .limit(1)
-        .maybeSingle()
+      const { data: dayReports } = await supabase
+        .from('time_reports')
+        .select('id, start_time')
+        .eq('staff_id', entry.staff_id)
+        .eq('report_date', arrivedDateStockholm)
+        .not('start_time', 'is', null)
+        .limit(20)
+      const coveringReport = (dayReports || []).find((r: any) => {
+        const s = String(r.start_time || '').slice(0, 5)
+        return s && s <= arrivedHHMM
+      })
 
-      if (existingReport) {
+      if ((openReports && openReports.length > 0) || coveringReport) {
         // User already started/has a timer today → mark log resolved if exists, skip prompt.
         await supabase
           .from('arrival_prompt_log')
