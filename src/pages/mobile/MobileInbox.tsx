@@ -65,8 +65,14 @@ const MobileInbox = () => {
     return { activeDMs: active, archivedDMs: archived };
   }, [dmConversations]);
 
+  // Only show job chats the user is actively assigned to AND that are within ±7 days of today.
+  // Jobs without a lastDate are excluded — they're stale assignments with no scheduled work.
   const now = new Date();
-  const activeJobs = jobConversations.filter(j => !j.lastDate || differenceInDays(now, parseISO(j.lastDate)) < 7);
+  const activeJobs = jobConversations.filter(j => {
+    if (!j.lastDate) return false;
+    const diff = Math.abs(differenceInDays(now, parseISO(j.lastDate)));
+    return diff <= 7;
+  });
 
   const totalUnread = activeDMs.reduce((s, c) => s + c.unread_count, 0) + broadcasts.filter(b => !b.is_read).length;
 
