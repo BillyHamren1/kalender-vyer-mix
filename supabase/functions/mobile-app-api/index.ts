@@ -4340,6 +4340,41 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  // If client didn't send GPS, look it up from history at ended_at (±5 min)
+  let resolvedLat: number | null = end_location_lat ?? null
+  let resolvedLng: number | null = end_location_lng ?? null
+  let resolvedRecordedAt: string | null =
+    (resolvedLat != null && resolvedLng != null) ? new Date().toISOString() : null
+
+  if (resolvedLat == null || resolvedLng == null) {
+    try {
+      const windowMs = 5 * 60 * 1000
+      const fromIso = new Date(endMs - windowMs).toISOString()
+      const toIso = new Date(endMs + windowMs).toISOString()
+      const { data: histRows } = await supabase
+        .from('staff_location_history')
+        .select('lat, lng, recorded_at')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .gte('recorded_at', fromIso)
+        .lte('recorded_at', toIso)
+
+      if (histRows && histRows.length > 0) {
+        let best = histRows[0]
+        let bestDiff = Math.abs(new Date(best.recorded_at).getTime() - endMs)
+        for (const r of histRows) {
+          const diff = Math.abs(new Date(r.recorded_at).getTime() - endMs)
+          if (diff < bestDiff) { best = r; bestDiff = diff }
+        }
+        resolvedLat = best.lat
+        resolvedLng = best.lng
+        resolvedRecordedAt = best.recorded_at
+      }
+    } catch (lookupErr) {
+      console.warn('[end_of_day] history lookup failed:', lookupErr)
+    }
+  }
+
   // Reuse open anomaly if one exists for this period (don't create duplicates)
   const { data: openRows } = await supabase
     .from('time_report_anomalies')
