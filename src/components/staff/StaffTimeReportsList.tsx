@@ -177,7 +177,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           ))}
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
               {search
@@ -189,14 +189,14 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               <button
                 key={staff.id}
                 onClick={() => onSelectStaff(staff.id, staff.name)}
-                className={`w-full flex items-stretch gap-3 p-3 rounded-xl border transition-all text-left group ${
+                className={`w-full flex items-stretch gap-2.5 px-3 py-2 rounded-lg border transition-all text-left group ${
                   staff.has_open_report
                     ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10 dark:hover:bg-orange-950/20'
                     : 'border-transparent hover:bg-muted/50 hover:border-border'
                 }`}
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative self-start"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5"
                   style={{
                     backgroundColor: staff.color ? `${staff.color}20` : 'hsl(var(--muted))',
                     color: staff.color || 'hsl(var(--muted-foreground))',
@@ -204,7 +204,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 >
                   {staff.name.charAt(0).toUpperCase()}
                   {staff.has_open_report && (
-                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
                   )}
                 </div>
 
@@ -237,10 +237,10 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-base font-semibold text-foreground tabular-nums leading-tight">
+                      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
                         {formatHoursMinutes(staff.total_hours)}
                       </div>
-                      <div className="text-[10px] text-muted-foreground tabular-nums">
+                      <div className="text-[10px] text-muted-foreground tabular-nums leading-tight">
                         {staff.earliest_start && (
                           <>
                             {staff.earliest_start.slice(0, 5)}
@@ -256,15 +256,15 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 
                   {/* Project list — one row per project */}
                   {(staff.projects?.length ?? 0) > 0 && (
-                    <div className="mt-2 space-y-0.5 border-l-2 border-border/60 pl-2.5">
+                    <div className="mt-1 border-l-2 border-border/60 pl-2">
                       {staff.projects!.map(p => (
                         <div
                           key={p.booking_id}
-                          className="flex items-center justify-between gap-3 text-xs"
+                          className="flex items-center justify-between gap-3 text-xs leading-snug"
                         >
                           <span
                             className={`truncate ${
-                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-foreground/80'
+                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-muted-foreground'
                             }`}
                             title={p.label}
                           >
@@ -273,7 +273,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                               <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-500 align-middle animate-pulse" />
                             )}
                           </span>
-                          <span className="text-muted-foreground tabular-nums shrink-0">
+                          <span className="text-muted-foreground tabular-nums shrink-0 text-[11px]">
                             {formatHoursMinutes(p.total_hours)}
                           </span>
                         </div>
