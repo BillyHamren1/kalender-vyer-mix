@@ -9,6 +9,7 @@ interface DMConversation {
   last_message: any;
   unread_count: number;
   messages: any[];
+  archived?: boolean;
 }
 
 interface BroadcastItem {
