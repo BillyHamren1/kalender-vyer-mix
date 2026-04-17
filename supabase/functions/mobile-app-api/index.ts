@@ -238,6 +238,10 @@ Deno.serve(async (req) => {
         return await handleGetPositionAtTime(supabase, staffId, data, organizationId)
       case 'get_movement_for_day':
         return await handleGetMovementForDay(supabase, staffId, data, organizationId)
+      case 'get_arrival_state':
+        return await handleGetArrivalState(supabase, staffId, organizationId)
+      case 'mark_arrival_resolved':
+        return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
