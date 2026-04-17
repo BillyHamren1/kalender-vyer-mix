@@ -252,11 +252,20 @@ export const mobileApi = {
   getDirectMessages: () =>
     callApi<{ conversations: any[] }>('get_direct_messages'),
 
-  sendDirectMessage: (data: { recipient_id: string; content: string }) =>
+  sendDirectMessage: (data: { recipient_id: string; content: string; file_url?: string; file_name?: string; file_type?: string; booking_id?: string }) =>
     callApi<{ success: boolean; message: any }>('send_direct_message', data),
 
   markDMRead: (senderId: string) =>
     callApi<{ success: boolean }>('mark_dm_read', { sender_id: senderId }),
+
+  archiveDM: (partnerId: string) =>
+    callApi<{ success: boolean }>('archive_dm', { partner_id: partnerId }),
+
+  unarchiveDM: (partnerId: string) =>
+    callApi<{ success: boolean }>('unarchive_dm', { partner_id: partnerId }),
+
+  uploadChatAttachment: (data: { file_name: string; file_type: string; file_data_base64: string }) =>
+    callApi<{ success: boolean; url: string; file_name: string; file_type: string | null }>('upload_chat_attachment', data),
 
   // Job chat
   getJobMessages: (bookingId: string) =>
