@@ -53,6 +53,44 @@ const GlobalActiveTimerBanner: React.FC = () => {
     };
   }, []);
 
+  // C8 — Restore any pending-stop dialog state if app was killed mid-confirmation
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PENDING_STOP_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.key && parsed.timer && parsed.startTimeIso && parsed.lastExitIso) {
+        setPendingStop({
+          key: parsed.key,
+          timer: parsed.timer,
+          startTimeDate: parseISO(parsed.startTimeIso),
+          lastExitIso: parsed.lastExitIso,
+          locationName: parsed.locationName ?? null,
+        });
+      }
+    } catch {
+      // ignore corrupt state
+      localStorage.removeItem(PENDING_STOP_KEY);
+    }
+  }, []);
+
+  // Persist pending-stop to localStorage so it survives app kill
+  useEffect(() => {
+    if (!pendingStop) {
+      localStorage.removeItem(PENDING_STOP_KEY);
+      return;
+    }
+    try {
+      localStorage.setItem(PENDING_STOP_KEY, JSON.stringify({
+        key: pendingStop.key,
+        timer: pendingStop.timer,
+        startTimeIso: pendingStop.startTimeDate.toISOString(),
+        lastExitIso: pendingStop.lastExitIso,
+        locationName: pendingStop.locationName,
+      }));
+    } catch {}
+  }, [pendingStop]);
+
   /**
    * Persists the time report and (if needed) the end-of-day anomaly.
    * Used by both the direct-stop path and the dialog-confirmed path.
