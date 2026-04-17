@@ -179,8 +179,8 @@ const MobileTimeHistory = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       {/* Header */}
-      <div className="bg-primary rounded-b-3xl shadow-md">
-        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+      <div className="bg-primary" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="pt-3" />
         <div className="px-4 pb-4">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate('/m/profile')} className="p-2 -ml-1 rounded-xl active:scale-95 transition-all">
