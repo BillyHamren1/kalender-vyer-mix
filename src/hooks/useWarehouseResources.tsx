@@ -15,7 +15,7 @@ const defaultWarehouseTeams: Resource[] = [
   { id: 'lager-8', title: 'Lager 8', eventColor: '#9370db' },
   { id: 'lager-9', title: 'Lager 9', eventColor: '#ba55d3' },
   { id: 'lager-10', title: 'Lager 10', eventColor: '#da70d6' },
-  { id: 'warehouse-event', title: 'Event', eventColor: '#f59e0b' },
+  { id: 'warehouse-event', title: 'Transport', eventColor: '#f59e0b' },
 ];
 
 const loadFromStorage = (): Resource[] => {
@@ -44,8 +44,13 @@ export const useWarehouseResources = () => {
       // Ensure all defaults exist
       let changed = false;
       defaultWarehouseTeams.forEach(def => {
-        if (!loaded.find(r => r.id === def.id)) {
+        const existing = loaded.find(r => r.id === def.id);
+        if (!existing) {
           loaded.push(def);
+          changed = true;
+        } else if (def.id === 'warehouse-event' && existing.title === 'Event') {
+          // Migrate old "Event" label to "Transport"
+          existing.title = 'Transport';
           changed = true;
         }
       });

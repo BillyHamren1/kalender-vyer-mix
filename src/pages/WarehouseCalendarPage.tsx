@@ -293,19 +293,19 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return stored;
     }
-    // Default: lager-1 to lager-4 + warehouse-event
-    return ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'];
+    // Default: lager-1 to lager-3 + warehouse-event (Transport)
+    return ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Lager 1-4 or Event column
-        if (['lager-1', 'lager-2', 'lager-3', 'lager-4', 'warehouse-event'].includes(teamId)) {
+        // Don't allow hiding Lager 1-3 or Transport column
+        if (['lager-1', 'lager-2', 'lager-3', 'warehouse-event'].includes(teamId)) {
           return prev;
         }
         return {
