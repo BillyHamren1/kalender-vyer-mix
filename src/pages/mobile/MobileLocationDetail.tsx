@@ -164,7 +164,7 @@ const MobileLocationDetail = () => {
 
   const renderTaskCard = (task: LagerTask, isMine: boolean) => {
     const activeTimer = activeTimers.get(locKey);
-    const isActiveTask = hasLocationTimer && activeTimer?.taskId === task.id;
+    const isActiveTask = hasLocationTimer && !!activeTimer && (activeTimer as any).activityLabel === task.title;
 
     return (
       <div
