@@ -252,8 +252,6 @@ const MobileJobs = () => {
         </div>
       )}
 
-      <GeofenceStatusBar isTracking={isTracking} activeTimers={activeTimers} />
-
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
         {isLoading ? (
