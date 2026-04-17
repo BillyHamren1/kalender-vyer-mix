@@ -9,6 +9,12 @@ import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 import { format } from 'date-fns';
 
+interface ProjectInfo {
+  booking_id: string;
+  label: string;
+  is_open: boolean;
+}
+
 interface StaffWithDayReport {
   id: string;
   name: string;
@@ -19,6 +25,7 @@ interface StaffWithDayReport {
   has_open_report: boolean;
   earliest_start: string | null;
   latest_end: string | null;
+  projects: ProjectInfo[];
 }
 
 const StaffTimeReports: React.FC = () => {
