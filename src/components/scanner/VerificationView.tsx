@@ -590,6 +590,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
       <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
 
+      {/* Unknown product dialog — pauses the scan queue until user responds */}
+      <AddUnknownProductDialog
+        pending={pendingUnknownProduct}
+        onConfirm={handleConfirmUnknown}
+        onDismiss={dismissUnknown}
+      />
+
       {/* Kolli confirmation dialog */}
       <AlertDialog open={showKolliConfirm} onOpenChange={setShowKolliConfirm}>
         <AlertDialogContent>
