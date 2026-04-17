@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
@@ -11,7 +11,8 @@ import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, parseISO, differenceInSeconds } from 'date-fns';
+import type { ActiveTimer } from '@/hooks/useGeofencing';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
