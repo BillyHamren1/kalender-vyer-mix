@@ -1,49 +1,69 @@
 
 
-## Root cause
+## Root cause analysis
 
-The header is placed *inside* the scroll container (`TimeAppLayout`'s `overflow-y-auto` div) using `position: sticky`. On iOS in a Capacitor WKWebView, `position: sticky` inside an internal scroll container with momentum scrolling (`-webkit-overflow-scrolling: touch`) is a long-standing broken combination — the sticky element visually "follows" the scroll with a delay, causing the bouncing/moving you see.
+### Issue 1: "Lager" appears twice in the header
 
-The previous fixes (removing transforms, raising z-index, sticky/top-0 tweaks) cannot solve this because the bug is in WebKit's compositing of sticky inside a non-document scroller.
+The `MobileBackHeader` on `MobileLocationDetail.tsx` is rendered with:
+- `title={location.name}` — which is something like **"Lager Stockholm"** (or just "Lager")
+- `subtitle="Lager"` — hard-coded string
 
-## The fix: portal the header out of the scroll area
-
-Restructure so the header lives **above** the scroll container as a real sibling, not inside it. Each page keeps using `<MobileHeroHeader />` / `<MobileBackHeader />` exactly as today — no page-level changes needed.
-
-```text
-TimeAppLayout
-├── <div id="mobile-header-slot">   ← headers portal here (NOT scrollable)
-├── <div ref=scrollRef overflow-auto>
-│     {children}                    ← page content scrolls under the header
-└── <MobileBottomNav />
+So the header visually shows the word "Lager" twice stacked:
+```
+[← ] Lager Stockholm   [▶]
+     Lager
 ```
 
-Implementation:
+This is not a duplicate-header bug; it's redundant labeling. The other mobile detail pages (`MobileJobDetail`) use the **booking number** as subtitle, not the project type — so they don't have this issue.
 
-1. **`TimeAppLayout.tsx`** — add a `<div id="mobile-header-slot" className="shrink-0 bg-primary" />` as the first child of the inner flex column, before the scroll container. This div has no fixed height; it grows to fit whichever header is portaled into it.
+### Issue 2: Tapping phone/email on team members does nothing
 
-2. **`MobileHeader.tsx`** — wrap each of the three header variants with `createPortal(content, document.getElementById('mobile-header-slot'))`. Use a small `useMobileHeaderSlot()` hook that:
-   - Returns the slot element once mounted (with a `useEffect` retry for the first paint)
-   - Falls back to inline rendering if the slot isn't found (so non-Time shells like Scanner still work)
-   - Removes all `sticky top-0` classes from the header markup itself — they're no longer needed because the slot is already outside the scroll area
+`LagerTeamSection.tsx` uses `<a href="tel:...">` and `<a href="mailto:...">`. In the iOS Capacitor WKWebView these schemes are silently ignored unless:
+1. The schemes are whitelisted in `Info.plist` under `LSApplicationQueriesSchemes`, AND
+2. The link is opened via the system handler (`window.open(url, '_system')` or Capacitor's `App.openUrl`) — plain `<a>` clicks inside a WKWebView often don't trigger the URL scheme handler on iOS.
 
-3. **Keep the safe-area padding** (`paddingTop: env(safe-area-inset-top)`) on the header — it still needs to sit below the iOS status bar.
+Confirmed: `ios/App/App/Info.plist` does **not** contain `LSApplicationQueriesSchemes`. The existing `JobTeamTab` has the same `<a href="tel:">` pattern and likely shares the bug.
 
-4. **Remove now-redundant `min-h-screen` issues**: pages still use `flex flex-col min-h-screen`, which is fine because the header is no longer a flex child taking layout space (it's portaled out). The `flex-1` content area continues to fill the scroll container.
+## Fix
+
+### 1. Header subtitle (`src/pages/mobile/MobileLocationDetail.tsx`)
+- Change `subtitle="Lager"` to a useful subtitle like the address (or omit it entirely if the location name already contains "Lager"). Use `subtitle={location.address || undefined}` so we get info parity with `MobileJobDetail` (which puts secondary identifying info there).
+
+### 2. Tel/mail links work in iOS WKWebView
+
+Two parts:
+
+**A. Add `LSApplicationQueriesSchemes` to `ios/App/App/Info.plist`** with `tel`, `telprompt`, `mailto`, `sms`, `maps`. This lets iOS know we intend to query/launch these.
+
+**B. Replace `<a href="tel:">` with click handlers that use the system browser** in `LagerTeamSection.tsx`:
+```tsx
+const openExternal = (url: string) => {
+  // Capacitor: opens in system handler (Phone app, Mail app, etc.)
+  window.open(url, '_system') || (window.location.href = url);
+};
+// ...
+<button onClick={() => openExternal(`tel:${m.phone}`)}>...</button>
+```
+Switch the `<a>` elements to `<button>` so React handlers run reliably inside WKWebView.
+
+While we're at it, apply the same fix to `JobTeamTab.tsx` for consistency (same bug).
+
+### 3. Native sync required
+
+Info.plist changes only take effect after `npx cap sync ios` and rebuild in Xcode.
 
 ## Files to edit
 
-- `src/shells/time/TimeAppLayout.tsx` — add the header slot div above the scroll container
-- `src/components/mobile-app/MobileHeader.tsx` — portal the three header variants into the slot, drop `sticky top-0`
+- `src/pages/mobile/MobileLocationDetail.tsx` — replace hard-coded `subtitle="Lager"` with the address (or remove)
+- `src/components/mobile-app/lager/LagerTeamSection.tsx` — replace `<a href="tel|mailto:">` with `<button>` + `window.open(..., '_system')`
+- `src/components/mobile-app/job-tabs/JobTeamTab.tsx` — same fix for parity
+- `ios/App/App/Info.plist` — add `LSApplicationQueriesSchemes` array
 
-## Why this is guaranteed to work
+## Verification
 
-The header is no longer scrolled at all — it's a static sibling of the scroll container. There is nothing for iOS sticky to break. The header simply cannot move because it's outside the element that scrolls.
-
-## Verification after deploy
-
-- Pull, `npm run build`, `npx cap sync ios`, rebuild in Xcode
-- Open Time app on iPhone, scroll any page hard with momentum — header must stay rock-solid
-- Check all three header types: Jobs (hero), Job Detail (back), Profile (profile)
-- Confirm no double headers in Scanner shell (fallback path)
+- `git pull` → `npx cap sync ios` → rebuild via Xcode
+- Open Lager in the Time app on iPhone:
+  - Header should show only one "Lager"-related line (name + address as subtitle)
+  - Tapping the phone icon on a team member should open the iOS Phone app
+  - Tapping the mail icon should open the iOS Mail composer
 
