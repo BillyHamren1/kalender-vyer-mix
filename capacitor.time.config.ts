@@ -13,15 +13,15 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   android: {
     allowMixedContent: true,
-    backgroundColor: '#0A0A0B',
+    backgroundColor: '#0F7C7C',
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined,
     }
   },
   ios: {
-    contentInset: 'automatic',
-    backgroundColor: '#0A0A0B',
+    contentInset: 'never',
+    backgroundColor: '#0F7C7C',
     infoPlist: {
       NSCameraUsageDescription: 'EventFlow Time uses the camera to capture images related to work tasks.',
       NSPhotoLibraryUsageDescription: 'EventFlow Time uses the photo library when selecting or attaching images related to work tasks.',
@@ -34,12 +34,12 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 2000,
-      backgroundColor: '#0A0A0B',
+      backgroundColor: '#0F7C7C',
       showSpinner: false,
     },
     StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#0A0A0B',
+      style: 'LIGHT',
+      backgroundColor: '#0F7C7C',
       overlaysWebView: false,
     },
     PushNotifications: {
