@@ -4695,11 +4695,14 @@ async function handleUploadChatAttachment(supabase: any, staffId: string, data: 
       url = signed.signedUrl
     }
 
+    // NOTE: Both `file_type` and `mime_type` are returned for backwards
+    // compatibility — the chat input reads `file_type`, older callers read `mime_type`.
     return new Response(JSON.stringify({
       success: true,
       path,
       url,
       file_name: safeName,
+      file_type: mimeType,
       mime_type: mimeType,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
