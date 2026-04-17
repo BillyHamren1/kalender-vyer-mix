@@ -4462,66 +4462,49 @@ async function handleGetContacts(supabase: any, staffId: string, organizationId:
 // ============= Chat archive + attachments =============
 
 async function handleArchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { partner_id } = data
+  const { partner_id } = data || {}
   if (!partner_id) {
-    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+    return new Response(JSON.stringify({ success: false, error: 'partner_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
-  const orFilter = ids.flatMap(id => [
-    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
-    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
-  ]).join(',')
+  const ids = userId && userId !== staffId ? [staffId, userId] : [staffId]
 
-  const { data: rows, error: fetchErr } = await supabase
-    .from('direct_messages')
-    .select('id, is_archived_by')
-    .eq('organization_id', organizationId)
-    .or(orFilter)
-  if (fetchErr) {
-    return new Response(JSON.stringify({ error: fetchErr.message }),
+  // Atomic, idempotent, race-safe single round-trip via SQL function.
+  const { data: affected, error } = await supabase.rpc('archive_dm_thread', {
+    _org_id: organizationId,
+    _my_ids: ids,
+    _partner_id: partner_id,
+  })
+
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  await Promise.all((rows || []).map((r: any) => {
-    const next = Array.from(new Set([...(r.is_archived_by || []), staffId]))
-    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
-  }))
-
-  return new Response(JSON.stringify({ success: true }),
+  return new Response(JSON.stringify({ success: true, archived_count: affected ?? 0 }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
 async function handleUnarchiveDM(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { partner_id } = data
+  const { partner_id } = data || {}
   if (!partner_id) {
-    return new Response(JSON.stringify({ error: 'partner_id is required' }),
+    return new Response(JSON.stringify({ success: false, error: 'partner_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
-  const orFilter = ids.flatMap(id => [
-    `and(sender_id.eq.${id},recipient_id.eq.${partner_id})`,
-    `and(sender_id.eq.${partner_id},recipient_id.eq.${id})`,
-  ]).join(',')
+  const ids = userId && userId !== staffId ? [staffId, userId] : [staffId]
 
-  const { data: rows, error: fetchErr } = await supabase
-    .from('direct_messages')
-    .select('id, is_archived_by')
-    .eq('organization_id', organizationId)
-    .or(orFilter)
-  if (fetchErr) {
-    return new Response(JSON.stringify({ error: fetchErr.message }),
+  const { data: affected, error } = await supabase.rpc('unarchive_dm_thread', {
+    _org_id: organizationId,
+    _my_ids: ids,
+    _partner_id: partner_id,
+  })
+
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  await Promise.all((rows || []).map((r: any) => {
-    const next = (r.is_archived_by || []).filter((x: string) => !ids.includes(x))
-    return supabase.from('direct_messages').update({ is_archived_by: next }).eq('id', r.id)
-  }))
-
-  return new Response(JSON.stringify({ success: true }),
+  return new Response(JSON.stringify({ success: true, unarchived_count: affected ?? 0 }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
