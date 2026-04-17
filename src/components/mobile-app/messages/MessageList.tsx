@@ -8,6 +8,8 @@ interface Props {
   myIds: Set<string>;
   /** Show sender name for non-me bubbles (group chats) */
   showSenderNames?: boolean;
+  /** Optional per-message footer override (e.g. retry button). Return null to fall back to default. */
+  renderFooter?: (m: ChatMessage) => React.ReactNode;
 }
 
 const dayLabel = (d: Date) => {
@@ -19,7 +21,7 @@ const dayLabel = (d: Date) => {
 const timeLabel = (d: Date) =>
   isToday(d) ? format(d, 'HH:mm') : format(d, 'EEE HH:mm', { locale: sv });
 
-export const MessageList = ({ messages, myIds, showSenderNames }: Props) => {
+export const MessageList = ({ messages, myIds, showSenderNames, renderFooter }: Props) => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

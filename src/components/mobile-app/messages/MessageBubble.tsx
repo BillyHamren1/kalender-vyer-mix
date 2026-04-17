@@ -26,12 +26,14 @@ interface Props {
   hasTail: boolean;
   /** Show "Levererat"/"Läst" footer (only on last own message of a streak) */
   showStatus: boolean;
+  /** When non-null, replaces the default delivered/read footer (e.g. retry button) */
+  footerOverride?: React.ReactNode;
 }
 
 const isImage = (m: ChatMessage) =>
   !!m.file_url && (m.file_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(m.file_url || ''));
 
-export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, showStatus }: Props) => {
+export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, showStatus, footerOverride }: Props) => {
   const image = isImage(msg);
 
   return (
@@ -86,7 +88,9 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
           </div>
         )}
 
-        {showStatus && isMe && (
+        {footerOverride !== undefined && footerOverride !== null ? (
+          footerOverride
+        ) : showStatus && isMe ? (
           <div className="flex items-center gap-1 mt-1 mr-1.5 text-[10px] text-muted-foreground/80">
             {msg.read_at ? (
               <>
@@ -102,7 +106,7 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
               <span className="opacity-60">Skickar…</span>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
