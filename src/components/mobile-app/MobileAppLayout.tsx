@@ -44,13 +44,9 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
     if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
     setArrivalSubmitting(true);
     try {
-      await mobileApi.startLocationTimer(arrivalState.location_id, undefined as any);
-      // If user picked a custom start time, send it via started_at
-      // (startLocationTimer signature only supports locationId/taskId — use raw call)
-      if (!result.usedSuggestedArrival || result.startedAtIso !== arrivalState.arrived_at) {
-        // Re-issue with started_at by calling raw
-        await (mobileApi as any).startLocationTimer?.length;
-      }
+      // Use suggested arrival time, or user-picked custom time
+      const startedAt = result.usedSuggestedArrival ? arrivalState.arrived_at : result.startedAtIso;
+      await mobileApi.startLocationTimer(arrivalState.location_id, undefined, startedAt);
 
       // Optimistically reflect new timer in localStorage so banner updates immediately
       try {
@@ -60,7 +56,7 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         const key = `location-${arrivalState.location_id}`;
         if (!map.has(key)) {
           map.set(key, {
-            startTime: result.startedAtIso,
+            startTime: startedAt,
             client: arrivalState.location_name || 'Arbetsplats',
             locationId: arrivalState.location_id,
             locationName: arrivalState.location_name || 'Arbetsplats',
