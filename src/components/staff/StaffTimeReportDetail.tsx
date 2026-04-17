@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -242,7 +242,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
     queryFn: async () => {
       const { data } = await supabase
         .from('time_report_anomalies')
-        .select('id, time_report_id, started_at, ended_at, duration_minutes, classification, work_description, location_id, organization_locations(name)')
+        .select('id, time_report_id, started_at, ended_at, duration_minutes, classification, work_description, location_id, end_location_lat, end_location_lng, auto_classified, organization_locations(name)')
         .eq('staff_id', staffId)
         .gte('started_at', `${monthStart}T00:00:00`)
         .lte('started_at', `${monthEnd}T23:59:59`)
@@ -619,10 +619,32 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                           );
                                         }
                                         if (a.classification === 'work') {
+                                          const hasPos = a.end_location_lat != null && a.end_location_lng != null;
+                                          const mapsUrl = hasPos
+                                            ? `https://www.google.com/maps?q=${a.end_location_lat},${a.end_location_lng}`
+                                            : null;
                                           return (
-                                            <Badge key={a.id} variant="outline" className="text-[10px] gap-1" title={a.work_description || ''}>
-                                              <Briefcase className="h-3 w-3" /> Arbete {startTime}–{endTime} ({dur}m)
+                                            <Badge
+                                              key={a.id}
+                                              variant="outline"
+                                              className={`text-[10px] gap-1 ${a.auto_classified ? 'border-blue-300 text-blue-700' : ''}`}
+                                              title={a.work_description || ''}
+                                            >
+                                              <Briefcase className="h-3 w-3" />
+                                              {a.auto_classified ? 'Efter arbetsplatsen' : 'Arbete'} {startTime}–{endTime} ({dur}m)
                                               {a.work_description && <span className="ml-1 text-muted-foreground truncate max-w-[140px]">"{a.work_description}"</span>}
+                                              {mapsUrl && (
+                                                <a
+                                                  href={mapsUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="ml-1 text-primary hover:underline inline-flex items-center"
+                                                  title="Visa position på karta"
+                                                >
+                                                  <Pin className="h-3 w-3" />
+                                                </a>
+                                              )}
                                             </Badge>
                                           );
                                         }

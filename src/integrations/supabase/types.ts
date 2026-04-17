@@ -4672,6 +4672,7 @@ export type Database = {
       }
       time_report_anomalies: {
         Row: {
+          auto_classified: boolean
           booking_id: string | null
           classification:
             | Database["public"]["Enums"]["anomaly_classification"]
@@ -4679,6 +4680,9 @@ export type Database = {
           classified_at: string | null
           created_at: string
           duration_minutes: number | null
+          end_location_lat: number | null
+          end_location_lng: number | null
+          end_location_recorded_at: string | null
           ended_at: string | null
           id: string
           large_project_id: string | null
@@ -4692,6 +4696,7 @@ export type Database = {
           work_description: string | null
         }
         Insert: {
+          auto_classified?: boolean
           booking_id?: string | null
           classification?:
             | Database["public"]["Enums"]["anomaly_classification"]
@@ -4699,6 +4704,9 @@ export type Database = {
           classified_at?: string | null
           created_at?: string
           duration_minutes?: number | null
+          end_location_lat?: number | null
+          end_location_lng?: number | null
+          end_location_recorded_at?: string | null
           ended_at?: string | null
           id?: string
           large_project_id?: string | null
@@ -4712,6 +4720,7 @@ export type Database = {
           work_description?: string | null
         }
         Update: {
+          auto_classified?: boolean
           booking_id?: string | null
           classification?:
             | Database["public"]["Enums"]["anomaly_classification"]
@@ -4719,6 +4728,9 @@ export type Database = {
           classified_at?: string | null
           created_at?: string
           duration_minutes?: number | null
+          end_location_lat?: number | null
+          end_location_lng?: number | null
+          end_location_recorded_at?: string | null
           ended_at?: string | null
           id?: string
           large_project_id?: string | null
