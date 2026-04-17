@@ -67,6 +67,7 @@ import WarehouseDashboard from "./pages/WarehouseDashboard";
 import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
 import PackingManagement from "./pages/PackingManagement";
 import PackingDetail from "./pages/PackingDetail";
+import WarehouseProjectDetail from "./pages/WarehouseProjectDetail";
 import PackingVerify from "./pages/PackingVerify";
 import WarehouseEconomy from "./pages/WarehouseEconomy";
 import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
@@ -249,6 +250,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/warehouse/packing" element={<ProtectedRoute><WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout></ProtectedRoute>} />
             <Route path="/warehouse/packing/:packingId" element={<ProtectedRoute><WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout></ProtectedRoute>} />
             <Route path="/warehouse/packing/:packingId/verify" element={<ProtectedRoute><PackingVerify /></ProtectedRoute>} />
+            <Route path="/warehouse/projects/:warehouseProjectId" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseProjectDetail /></WarehouseSystemLayout></ProtectedRoute>} />
             <Route path="/warehouse/economy" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout></ProtectedRoute>} />
             <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
             <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />

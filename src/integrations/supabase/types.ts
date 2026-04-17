@@ -2599,6 +2599,7 @@ export type Database = {
           start_date: string | null
           status: string
           updated_at: string
+          warehouse_project_id: string | null
         }
         Insert: {
           booking_id?: string | null
@@ -2619,6 +2620,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           updated_at?: string
+          warehouse_project_id?: string | null
         }
         Update: {
           booking_id?: string | null
@@ -2639,6 +2641,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           updated_at?: string
+          warehouse_project_id?: string | null
         }
         Relationships: [
           {
@@ -2653,6 +2656,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_projects_warehouse_project_id_fkey"
+            columns: ["warehouse_project_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -5288,6 +5298,171 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_project_inbox: {
+        Row: {
+          client_name: string | null
+          created_at: string
+          event_date: string | null
+          id: string
+          organization_id: string
+          processed_at: string | null
+          source_id: string
+          source_project_number: string | null
+          source_type: string
+          status: string
+          warehouse_project_id: string | null
+        }
+        Insert: {
+          client_name?: string | null
+          created_at?: string
+          event_date?: string | null
+          id?: string
+          organization_id: string
+          processed_at?: string | null
+          source_id: string
+          source_project_number?: string | null
+          source_type: string
+          status?: string
+          warehouse_project_id?: string | null
+        }
+        Update: {
+          client_name?: string | null
+          created_at?: string
+          event_date?: string | null
+          id?: string
+          organization_id?: string
+          processed_at?: string | null
+          source_id?: string
+          source_project_number?: string | null
+          source_type?: string
+          status?: string
+          warehouse_project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_project_inbox_warehouse_project_id_fkey"
+            columns: ["warehouse_project_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_project_tasks: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          organization_id: string
+          sort_order: number
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          warehouse_project_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          organization_id: string
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          warehouse_project_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          organization_id?: string
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          warehouse_project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_project_tasks_warehouse_project_id_fkey"
+            columns: ["warehouse_project_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_projects: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          manager_id: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          project_number: string
+          source_large_project_id: string | null
+          source_project_id: string | null
+          source_project_number: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          manager_id?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          project_number: string
+          source_large_project_id?: string | null
+          source_project_id?: string | null
+          source_project_number?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          manager_id?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          project_number?: string
+          source_large_project_id?: string | null
+          source_project_id?: string | null
+          source_project_number?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_projects_source_large_project_id_fkey"
+            columns: ["source_large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
             referencedColumns: ["id"]
           },
         ]
