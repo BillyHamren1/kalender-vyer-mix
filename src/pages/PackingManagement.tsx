@@ -12,6 +12,7 @@ import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
 import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
+import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
@@ -116,7 +117,12 @@ const PackingManagement = () => {
             </Button>
           </div>
 
-          {/* Incoming bookings without packing */}
+          {/* Inbox: nya projekt från Planning */}
+          <div className="mb-6">
+            <WarehouseProjectInbox />
+          </div>
+
+          {/* Legacy: bokningar utan packlista (gamla flödet, behålls för befintlig data) */}
           <div className="mb-6">
             <IncomingPackingList />
           </div>
