@@ -189,14 +189,14 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               <button
                 key={staff.id}
                 onClick={() => onSelectStaff(staff.id, staff.name)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
+                className={`w-full flex items-stretch gap-3 p-3 rounded-xl border transition-all text-left group ${
                   staff.has_open_report
                     ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10 dark:hover:bg-orange-950/20'
                     : 'border-transparent hover:bg-muted/50 hover:border-border'
                 }`}
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative self-start"
                   style={{
                     backgroundColor: staff.color ? `${staff.color}20` : 'hsl(var(--muted))',
                     color: staff.color || 'hsl(var(--muted-foreground))',
@@ -209,72 +209,80 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
-                    {staff.role && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {staff.role}
-                      </Badge>
-                    )}
-                    {staff.has_open_report ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 gap-1 border-orange-300 text-orange-600"
-                      >
-                        <Activity className="h-2.5 w-2.5" />
-                        Pågående
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
-                      >
-                        <CheckCircle2 className="h-2.5 w-2.5" />
-                        Stängd
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                    {staff.earliest_start && (
-                      <>
-                        {staff.earliest_start.slice(0, 5)}
-                        {' – '}
-                        {staff.has_open_report
-                          ? <span className="text-orange-600">pågår</span>
-                          : (staff.latest_end?.slice(0, 5) || '—')}
-                      </>
-                    )}
-                  </div>
-                  {(staff.projects?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {staff.projects!.map(p => (
-                        <Badge
-                          key={p.booking_id}
-                          variant="outline"
-                          className={`text-[10px] px-1.5 py-0 font-normal max-w-[280px] truncate ${
-                            p.is_open
-                              ? 'border-orange-300 text-orange-700 bg-orange-50/50 dark:bg-orange-950/20'
-                              : 'border-border text-muted-foreground bg-muted/40'
-                          }`}
-                          title={p.label}
-                        >
-                          {p.label}
+                  {/* Header row: name + status + day total */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
+                      {staff.role && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {staff.role}
                         </Badge>
+                      )}
+                      {staff.has_open_report ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-orange-300 text-orange-600"
+                        >
+                          <Activity className="h-2.5 w-2.5" />
+                          Pågående
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                        >
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Stängd
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-base font-semibold text-foreground tabular-nums leading-tight">
+                        {formatHoursMinutes(staff.total_hours)}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground tabular-nums">
+                        {staff.earliest_start && (
+                          <>
+                            {staff.earliest_start.slice(0, 5)}
+                            {' – '}
+                            {staff.has_open_report
+                              ? <span className="text-orange-600">pågår</span>
+                              : (staff.latest_end?.slice(0, 5) || '—')}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Project list — one row per project */}
+                  {(staff.projects?.length ?? 0) > 0 && (
+                    <div className="mt-2 space-y-0.5 border-l-2 border-border/60 pl-2.5">
+                      {staff.projects!.map(p => (
+                        <div
+                          key={p.booking_id}
+                          className="flex items-center justify-between gap-3 text-xs"
+                        >
+                          <span
+                            className={`truncate ${
+                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-foreground/80'
+                            }`}
+                            title={p.label}
+                          >
+                            {p.label}
+                            {p.is_open && (
+                              <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-500 align-middle animate-pulse" />
+                            )}
+                          </span>
+                          <span className="text-muted-foreground tabular-nums shrink-0">
+                            {formatHoursMinutes(p.total_hours)}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-semibold text-foreground tabular-nums">
-                    {formatHoursMinutes(staff.total_hours)}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {staff.reports_count} {staff.reports_count === 1 ? 'rapport' : 'rapporter'}
-                  </div>
-                </div>
-
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0 self-center" />
               </button>
             ))
           )}
