@@ -11,7 +11,7 @@ export const useTeamResources = () => {
   const [initialSetupComplete, setInitialSetupComplete] = useState(false);
   const [cleanupDone, setCleanupDone] = useState(false);
   
-  // Default required teams (Team 1-10 + Live)
+  // Default required teams (Team 1-10). The "Live" column (team-11) is deprecated and removed.
   const defaultTeams: Resource[] = [
     { id: 'team-1', title: 'Team 1', eventColor: '#3788d8' },
     { id: 'team-2', title: 'Team 2', eventColor: '#1e90ff' },
@@ -23,7 +23,6 @@ export const useTeamResources = () => {
     { id: 'team-8', title: 'Team 8', eventColor: '#9370db' },
     { id: 'team-9', title: 'Team 9', eventColor: '#ba55d3' },
     { id: 'team-10', title: 'Team 10', eventColor: '#da70d6' },
-    { id: 'team-11', title: 'Live', eventColor: '#FEF7CD' },
   ];
   
   // Load resources on initial mount only
@@ -34,25 +33,20 @@ export const useTeamResources = () => {
     let updatedResources = [...loadedResources];
     let resourcesChanged = false;
     
+    // Always strip out the deprecated Live column (team-11) if it lingers in storage
+    updatedResources = updatedResources.filter(r => r.id !== 'team-11');
+    if (loadedResources.some(r => r.id === 'team-11')) {
+      resourcesChanged = true;
+    }
+
     defaultTeams.forEach(defaultTeam => {
       const existingTeam = updatedResources.find(resource => resource.id === defaultTeam.id);
-      
+
       if (!existingTeam) {
         // Team doesn't exist, add it
         updatedResources.push(defaultTeam);
         resourcesChanged = true;
         console.log(`Added missing default team: ${defaultTeam.title}`);
-      } else if (defaultTeam.id === 'team-11' && (existingTeam.title !== 'Live' && existingTeam.title !== 'Todays events')) {
-        // Ensure Team 11 has the correct name
-        existingTeam.title = 'Live';
-        existingTeam.eventColor = '#FEF7CD';
-        resourcesChanged = true;
-      } else if (defaultTeam.id === 'team-11' && existingTeam.title === 'Todays events') {
-        // Rename "Todays events" to "Live"
-        existingTeam.title = 'Live';
-        existingTeam.eventColor = '#FEF7CD';
-        resourcesChanged = true;
-        console.log('Renamed "Todays events" to "Live"');
       } else if (defaultTeam.id === 'team-6' && existingTeam.title === 'Live') {
         // Migrate old team-6 "Live" to team-11
         existingTeam.title = 'Team 6';
@@ -103,11 +97,11 @@ export const useTeamResources = () => {
   }, [resources, initialSetupComplete]);
 
   const addTeam = (teamName: string = '') => {
-    // First check if we already have too many teams (11 = 10 teams + Live)
+    // Cap at 10 teams (Live column removed)
     const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
-    if (teamResources.length >= 11) {
+    if (teamResources.length >= 10) {
       toast.error("Maximum teams reached", {
-        description: "You cannot add more than 11 teams.",
+        description: "You cannot add more than 10 teams.",
         duration: 3000,
       });
       return;
@@ -151,10 +145,10 @@ export const useTeamResources = () => {
   };
 
   const removeTeam = (teamId: string) => {
-    // Don't allow removing Team 1-4 and Live (team-11)
-    if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
+    // Don't allow removing Team 1-4 and the transport pseudo-team
+    if (['team-1', 'team-2', 'team-3', 'team-4', 'transport'].includes(teamId)) {
       toast.error("Cannot remove default team", {
-        description: "Team 1-4 and Live cannot be removed.",
+        description: "Team 1-4 cannot be removed.",
         duration: 3000,
       });
       return;
@@ -171,30 +165,25 @@ export const useTeamResources = () => {
     });
   };
 
-  // Get only the team resources (not room resources) and sort them correctly
-  // Include the virtual 'transport' resource
+  // Get only the team resources (not room resources) and sort them correctly.
+  // Excludes the deprecated Live column (team-11). Includes the virtual 'transport' resource.
   const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
   
   const teamResources = [
-    ...resources.filter(resource => resource.id.startsWith('team-')),
+    ...resources.filter(resource => resource.id.startsWith('team-') && resource.id !== 'team-11'),
     transportResource,
   ].sort((a, b) => {
-      // Transport always goes just before Live (team-11)
-      if (a.id === 'transport' && b.id === 'team-11') return -1;
-      if (a.id === 'team-11' && b.id === 'transport') return 1;
-      if (a.id === 'transport') return 1; // after all numbered teams
+      // Transport always goes last
+      if (a.id === 'transport') return 1;
       if (b.id === 'transport') return -1;
-      // Special case for "Live" (team-11) - it should be last
-      if (a.id === 'team-11') return 1;
-      if (b.id === 'team-11') return -1;
-      
+
       // Extract team numbers for comparison
       const aMatch = a.id.match(/team-(\d+)/);
       const bMatch = b.id.match(/team-(\d+)/);
-      
+
       const aNum = aMatch ? parseInt(aMatch[1]) : 0;
       const bNum = bMatch ? parseInt(bMatch[1]) : 0;
-      
+
       // Sort by team number
       return aNum - bNum;
     });

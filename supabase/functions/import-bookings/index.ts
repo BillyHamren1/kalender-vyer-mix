@@ -793,42 +793,10 @@ async function reconcileCalendarEvents(
     });
   }
 
-  // Event days: always 3h blocks on team-11, stacked sequentially (08:00, 11:00, 14:00, ...)
-  // Count existing team-11 events for each date to determine stacking offset
-  const eventDateSlotCounts = new Map<string, number>();
-  if (eventDates.length > 0) {
-    // Fetch existing team-11 events for these dates (excluding current booking's events)
-    for (const date of eventDates) {
-      const { data: existingTeam11 } = await supabase
-        .from('calendar_events')
-        .select('id')
-        .eq('organization_id', bookingData.organization_id || organizationId)
-        .eq('resource_id', 'team-11')
-        .eq('event_type', 'event')
-        .eq('source_date', date)
-        .neq('booking_id', bookingData.id);
-      eventDateSlotCounts.set(date, (existingTeam11?.length || 0));
-    }
-  }
-
-  for (const date of eventDates) {
-    // Count already-pushed desired events for same date (for multi-event-date bookings)
-    const alreadyPushedForDate = desiredEvents.filter(
-      e => e.event_type === 'event' && e.date === date
-    ).length;
-    const slotIndex = (eventDateSlotCounts.get(date) || 0) + alreadyPushedForDate;
-    const startHour = 8 + (slotIndex * 3);
-    const startDateTime = `${date}T${String(startHour).padStart(2, '0')}:00:00`;
-    const endHour = startHour + 3;
-    const endDateTime = `${date}T${String(endHour).padStart(2, '0')}:00:00`;
-    console.log(`[Calendar Time] event ${date}: slot=${slotIndex}, start=${startDateTime}, end=${endDateTime} (STACKED on team-11)`);
-    desiredEvents.push({
-      event_type: 'event', start_time: startDateTime, end_time: endDateTime,
-      title: desiredTitle, booking_number: bookingData.booking_number || null,
-      delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: false
-    });
-  }
+  // Event days are NO LONGER persisted to calendar_events.
+  // The "Live" column (team-11) was removed; eventdate is kept on the booking row only.
+  // Any pre-existing event-type calendar rows are treated as stale and removed by the
+  // reconciliation pass below (step 5).
 
   for (const date of rigdownDates) {
     const start = buildDateTimeFromPartsEx(date, bookingData.rigdown_start_time);
@@ -1054,10 +1022,11 @@ const getNextTeamAssignment = async (
   endTime?: string,
   isExplicitStart: boolean = false
 ): Promise<string> => {
-  // EVENT type events always go to team-11 (Live column)
+  // EVENT type events are no longer scheduled on a team — the Live column has been removed
+  // and eventdate is kept on bookings only. Defensive guard: if anything still tries to
+  // place an EVENT row in calendar_events, fall back to round-robin like rig events.
   if (eventType === 'event') {
-    console.log(`Assigning EVENT type to team-11 (Live) for booking ${bookingId}`);
-    return 'team-11';
+    console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
   }
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
