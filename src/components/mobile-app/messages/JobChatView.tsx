@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Briefcase, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import { ChatMessage } from './MessageBubble';
+import { useChatPagination } from './useChatPagination';
 
 interface Props {
   bookingId: string;
@@ -15,44 +16,38 @@ interface Props {
 }
 
 interface PendingMessage extends ChatMessage {
-  /** Local-only marker for optimistic + retry tracking */
   _status?: 'sending' | 'failed';
   _payload?: { content: string; file_url?: string; file_name?: string; file_type?: string };
 }
 
 export const JobChatView = ({ bookingId, client, onBack }: Props) => {
   const { staff } = useMobileAuth();
-  const [messages, setMessages] = useState<PendingMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const myIdsRef = useRef<Set<string>>(new Set([staff?.id || '']));
 
-  const loadMessages = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const res = await mobileApi.getJobMessages(bookingId);
-      setMessages((res.messages as ChatMessage[]) || []);
-    } catch (e: any) {
-      console.error('[JobChat] load failed', e);
-      setLoadError(e?.message || 'Kunde inte ladda meddelanden');
-    } finally {
-      setLoading(false);
-    }
-  }, [bookingId]);
+  const fetcher = useCallback(
+    (opts: { before?: string; limit: number }) =>
+      mobileApi.getJobMessages(bookingId, opts) as Promise<{ messages: ChatMessage[]; has_more: boolean; next_cursor: string | null }>,
+    [bookingId],
+  );
+
+  const {
+    messages,
+    loading,
+    loadingOlder,
+    error,
+    hasMore,
+    loadOlder,
+    reload,
+    setMessages,
+  } = useChatPagination({ key: bookingId, fetcher });
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await loadMessages();
-      if (cancelled) return;
-      // Mark as read on open
+    if (!loading && messages.length > 0) {
       mobileApi.markJobRead(bookingId).catch(() => {});
-    })();
-    return () => { cancelled = true; };
-  }, [bookingId, loadMessages]);
+    }
+  }, [bookingId, loading, messages.length]);
 
-  // Realtime: INSERT (new messages) + UPDATE (read receipts / archive)
+  // Realtime: append/update only — never refetch.
   useEffect(() => {
     const channel = supabase
       .channel(`job-${bookingId}`)
@@ -62,7 +57,6 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
         (payload) => {
           const m = payload.new as ChatMessage;
           setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
-          // Auto-mark read since the user is currently viewing this conversation
           if (m.sender_id !== staff?.id) {
             mobileApi.markJobRead(bookingId).catch(() => {});
           }
@@ -84,9 +78,8 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [bookingId, staff?.id]);
+  }, [bookingId, staff?.id, setMessages]);
 
-  /** Performs the actual send; on success replaces the optimistic row, on failure marks it failed for retry. */
   const performSend = useCallback(async (
     optimisticId: string,
     payload: { content: string; file_url?: string; file_name?: string; file_type?: string },
@@ -101,7 +94,6 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
       });
       const real = res?.message as ChatMessage | undefined;
       setMessages((prev) => {
-        // If realtime already inserted the real row, just drop the optimistic one.
         if (real && prev.some((m) => m.id === real.id)) {
           return prev.filter((m) => m.id !== optimisticId);
         }
@@ -112,12 +104,10 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
       console.error('[JobChat] send failed', err);
       toast.error('Kunde inte skicka – tryck för att försöka igen');
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === optimisticId ? { ...m, _status: 'failed', _payload: payload } : m
-        )
+        prev.map((m) => m.id === optimisticId ? { ...(m as PendingMessage), _status: 'failed', _payload: payload } : m)
       );
     }
-  }, [bookingId]);
+  }, [bookingId, setMessages]);
 
   const handleSend = async (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => {
     const text = data.content?.trim() || '';
@@ -150,10 +140,12 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
   const handleRetry = (msg: PendingMessage) => {
     if (!msg._payload) return;
     setMessages((prev) =>
-      prev.map((m) => (m.id === msg.id ? { ...m, _status: 'sending' } : m))
+      prev.map((m) => (m.id === msg.id ? { ...(m as PendingMessage), _status: 'sending' } : m))
     );
     performSend(msg.id, msg._payload);
   };
+
+  const showInitialLoading = loading && messages.length === 0;
 
   return (
     <div className="flex flex-col h-[100dvh] bg-background">
@@ -179,16 +171,16 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
         </div>
       </div>
 
-      {loading && messages.length === 0 ? (
+      {showInitialLoading ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin" />
         </div>
-      ) : loadError ? (
+      ) : error && messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
           <AlertCircle className="w-6 h-6 text-destructive" />
-          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
           <button
-            onClick={loadMessages}
+            onClick={reload}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm active:scale-95 transition-transform"
           >
             <RefreshCw className="w-4 h-4" />
@@ -200,6 +192,9 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
           messages={messages}
           myIds={myIdsRef.current}
           showSenderNames
+          hasMore={hasMore}
+          loadingOlder={loadingOlder}
+          onLoadOlder={loadOlder}
           renderFooter={(m) => {
             const pm = m as PendingMessage;
             if (pm._status === 'failed') {
@@ -215,9 +210,7 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
               );
             }
             if (pm._status === 'sending') {
-              return (
-                <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>
-              );
+              return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>;
             }
             return null;
           }}

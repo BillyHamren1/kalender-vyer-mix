@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowLeft, Phone, AlertCircle } from 'lucide-react';
+import { useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, Phone, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import { ChatMessage } from './MessageBubble';
+import { useChatPagination } from './useChatPagination';
 
 interface Props {
   partnerId: string;
@@ -17,26 +18,43 @@ interface Props {
 }
 
 interface PendingMessage extends ChatMessage {
-  /** Local-only marker for optimistic + retry tracking */
   _status?: 'sending' | 'failed';
   _payload?: { content: string; file_url?: string; file_name?: string; file_type?: string };
 }
 
-/** iMessage-style 1:1 DM view with realtime + read receipts + retry. */
+/** iMessage-style 1:1 DM view with cursor pagination + realtime + retry. */
 export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, onMessagesChanged }: Props) => {
   const { staff } = useMobileAuth();
-  const [messages, setMessages] = useState<PendingMessage[]>(initialMessages);
   const myIdsRef = useRef<Set<string>>(new Set([staff?.id || '']));
 
-  // Keep local copy in sync with parent updates
-  useEffect(() => { setMessages(initialMessages); }, [partnerId]); // eslint-disable-line
+  const fetcher = useCallback(
+    (opts: { before?: string; limit: number }) =>
+      mobileApi.getDMThread(partnerId, opts) as Promise<{ messages: ChatMessage[]; has_more: boolean; next_cursor: string | null }>,
+    [partnerId],
+  );
+
+  const {
+    messages,
+    loading,
+    loadingOlder,
+    error,
+    hasMore,
+    loadOlder,
+    reload,
+    setMessages,
+  } = useChatPagination({ key: partnerId, seed: initialMessages, fetcher });
+
+  // Notify parent when local messages change (used by inbox cache)
+  useEffect(() => {
+    onMessagesChanged?.(messages);
+  }, [messages, onMessagesChanged]);
 
   // Mark partner messages as read on open + whenever new ones arrive
   useEffect(() => {
     mobileApi.markDMRead(partnerId).catch(() => { /* ignore */ });
   }, [partnerId, messages.length]);
 
-  // Realtime: append new messages between us, update read receipts
+  // Realtime: append/update only — never trigger a full refetch.
   useEffect(() => {
     if (!staff) return;
     const myId = staff.id;
@@ -50,12 +68,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
           const fromPartner = m.sender_id === partnerId && (m as any).recipient_id === myId;
           const fromMe = m.sender_id === myId && (m as any).recipient_id === partnerId;
           if (!fromPartner && !fromMe) return;
-          setMessages((prev) => {
-            if (prev.some((x) => x.id === m.id)) return prev;
-            const next = [...prev, m];
-            onMessagesChanged?.(next);
-            return next;
-          });
+          setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
         }
       )
       .on(
@@ -68,14 +81,13 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
             if (idx === -1) return prev;
             const next = [...prev];
             next[idx] = { ...next[idx], ...m };
-            onMessagesChanged?.(next);
             return next;
           });
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [partnerId, staff?.id]); // eslint-disable-line
+  }, [partnerId, staff?.id, setMessages]);
 
   const performSend = useCallback(async (
     optimisticId: string,
@@ -95,10 +107,10 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
       console.error('[DM] send failed', err);
       toast.error('Kunde inte skicka – tryck för att försöka igen');
       setMessages((prev) =>
-        prev.map((m) => m.id === optimisticId ? { ...m, _status: 'failed', _payload: payload } : m)
+        prev.map((m) => m.id === optimisticId ? { ...(m as PendingMessage), _status: 'failed', _payload: payload } : m)
       );
     }
-  }, [partnerId]);
+  }, [partnerId, setMessages]);
 
   const handleSend = async (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => {
     const text = data.content?.trim() || '';
@@ -129,13 +141,14 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
 
   const handleRetry = (msg: PendingMessage) => {
     if (!msg._payload) return;
-    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, _status: 'sending' } : m)));
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...(m as PendingMessage), _status: 'sending' } : m)));
     performSend(msg.id, msg._payload);
   };
 
+  const showInitialLoading = loading && messages.length === 0;
+
   return (
     <div className="flex flex-col h-[100dvh] bg-background">
-      {/* iMessage-style header: avatar above name */}
       <div
         className="bg-card/95 backdrop-blur border-b border-border/60 sticky top-0 z-10"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
@@ -166,29 +179,49 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
         </div>
       </div>
 
-      <MessageList
-        messages={messages}
-        myIds={myIdsRef.current}
-        renderFooter={(m) => {
-          const pm = m as PendingMessage;
-          if (pm._status === 'failed') {
-            return (
-              <button
-                onClick={() => handleRetry(pm)}
-                className="flex items-center gap-1 mt-1 mr-1.5 text-[10px] text-destructive hover:underline"
-                aria-label="Skicka igen"
-              >
-                <AlertCircle className="w-3 h-3" />
-                Ej skickat – tryck för att försöka igen
-              </button>
-            );
-          }
-          if (pm._status === 'sending') {
-            return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>;
-          }
-          return null;
-        }}
-      />
+      {showInitialLoading ? (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : error && messages.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+          <AlertCircle className="w-6 h-6 text-destructive" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <button
+            onClick={reload}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm active:scale-95 transition-transform"
+          >
+            Försök igen
+          </button>
+        </div>
+      ) : (
+        <MessageList
+          messages={messages}
+          myIds={myIdsRef.current}
+          hasMore={hasMore}
+          loadingOlder={loadingOlder}
+          onLoadOlder={loadOlder}
+          renderFooter={(m) => {
+            const pm = m as PendingMessage;
+            if (pm._status === 'failed') {
+              return (
+                <button
+                  onClick={() => handleRetry(pm)}
+                  className="flex items-center gap-1 mt-1 mr-1.5 text-[10px] text-destructive hover:underline"
+                  aria-label="Skicka igen"
+                >
+                  <AlertCircle className="w-3 h-3" />
+                  Ej skickat – tryck för att försöka igen
+                </button>
+              );
+            }
+            if (pm._status === 'sending') {
+              return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>;
+            }
+            return null;
+          }}
+        />
+      )}
 
       <ChatInput onSend={handleSend} />
     </div>
