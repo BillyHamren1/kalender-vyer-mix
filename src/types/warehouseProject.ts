@@ -15,10 +15,34 @@ export interface WarehouseProject {
   end_date: string | null;
   manager_id: string | null;
   notes: string | null;
+  is_internal?: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;
 }
+
+export type WarehouseTaskCategory =
+  | 'cleaning'
+  | 'maintenance'
+  | 'purchase'
+  | 'planning'
+  | 'other';
+
+export const WAREHOUSE_TASK_CATEGORY_LABELS: Record<WarehouseTaskCategory, string> = {
+  cleaning: 'Städning',
+  maintenance: 'Underhåll',
+  purchase: 'Inköp',
+  planning: 'Planering',
+  other: 'Övrigt',
+};
+
+export const WAREHOUSE_TASK_CATEGORY_COLORS: Record<WarehouseTaskCategory, string> = {
+  cleaning: 'bg-sky-100 text-sky-800',
+  maintenance: 'bg-amber-100 text-amber-800',
+  purchase: 'bg-emerald-100 text-emerald-800',
+  planning: 'bg-violet-100 text-violet-800',
+  other: 'bg-muted text-muted-foreground',
+};
 
 export interface WarehouseProjectInboxItem {
   id: string;
@@ -44,6 +68,7 @@ export interface WarehouseProjectTask {
   end_date: string | null;
   assigned_to: string | null;
   status: WarehouseProjectStatus;
+  category: WarehouseTaskCategory | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

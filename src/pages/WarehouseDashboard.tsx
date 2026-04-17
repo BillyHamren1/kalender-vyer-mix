@@ -14,7 +14,7 @@ import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/Wareh
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
-import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
+import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
 import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 import { toast } from "sonner";
@@ -155,7 +155,7 @@ const WarehouseDashboard = () => {
               className="bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20 font-medium rounded-lg px-4 h-8"
             >
               <Plus className="h-4 w-4 mr-1.5" />
-              Skapa lagerprojekt
+              Skapa lageruppgift
             </Button>
             <Button 
               variant="outline" 
@@ -207,8 +207,8 @@ const WarehouseDashboard = () => {
         onCreatePacking={handleDialogCreatePacking}
       />
 
-      {/* Create Packing Wizard */}
-      <CreatePackingWizard
+      {/* Create Internal Warehouse Task */}
+      <CreateInternalTaskDialog
         open={showCreateWizard}
         onOpenChange={setShowCreateWizard}
         onSuccess={() => {

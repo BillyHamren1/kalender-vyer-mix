@@ -5408,6 +5408,7 @@ export type Database = {
       warehouse_project_tasks: {
         Row: {
           assigned_to: string | null
+          category: string | null
           created_at: string
           description: string | null
           end_date: string | null
@@ -5422,6 +5423,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          category?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -5436,6 +5438,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          category?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -5464,6 +5467,7 @@ export type Database = {
           created_by: string | null
           end_date: string | null
           id: string
+          is_internal: boolean
           manager_id: string | null
           name: string
           notes: string | null
@@ -5481,6 +5485,7 @@ export type Database = {
           created_by?: string | null
           end_date?: string | null
           id?: string
+          is_internal?: boolean
           manager_id?: string | null
           name: string
           notes?: string | null
@@ -5498,6 +5503,7 @@ export type Database = {
           created_by?: string | null
           end_date?: string | null
           id?: string
+          is_internal?: boolean
           manager_id?: string | null
           name?: string
           notes?: string | null
@@ -5961,6 +5967,10 @@ export type Database = {
           duplicates_removed: number
           event_type_result: string
         }[]
+      }
+      ensure_internal_warehouse_project: {
+        Args: { _org_id: string }
+        Returns: string
       }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       handle_booking_move: {

@@ -414,6 +414,7 @@ export const createWarehouseProjectTask = async (task: {
   start_date?: string | null;
   end_date?: string | null;
   assigned_to?: string | null;
+  category?: string | null;
 }): Promise<WarehouseProjectTask> => {
   const { data, error } = await supabase
     .from('warehouse_project_tasks')
@@ -441,4 +442,44 @@ export const deleteWarehouseProjectTask = async (id: string): Promise<void> => {
     .delete()
     .eq('id', id);
   if (error) throw error;
+};
+
+// ============================================================================
+// Internal "Lager" project helpers
+// ============================================================================
+export const fetchInternalWarehouseProject = async (): Promise<WarehouseProject | null> => {
+  const { data, error } = await (supabase
+    .from('warehouse_projects')
+    .select('*') as any)
+    .eq('is_internal', true)
+    .maybeSingle();
+  if (error) throw error;
+  return (data || null) as WarehouseProject | null;
+};
+
+export interface CreateInternalTaskInput {
+  title: string;
+  description?: string | null;
+  assigned_to?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  category?: string | null;
+}
+
+export const createInternalWarehouseTask = async (
+  input: CreateInternalTaskInput
+): Promise<WarehouseProjectTask> => {
+  const project = await fetchInternalWarehouseProject();
+  if (!project) {
+    throw new Error('Lagerprojektet (Lager) saknas. Ladda om sidan eller kontakta admin.');
+  }
+  return createWarehouseProjectTask({
+    warehouse_project_id: project.id,
+    title: input.title,
+    description: input.description ?? null,
+    assigned_to: input.assigned_to ?? null,
+    start_date: input.start_date ?? null,
+    end_date: input.end_date ?? null,
+    category: input.category ?? null,
+  });
 };
