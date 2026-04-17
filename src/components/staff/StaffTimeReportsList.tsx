@@ -15,6 +15,7 @@ interface ProjectInfo {
   booking_id: string;
   label: string;
   is_open: boolean;
+  total_hours: number;
 }
 
 interface StaffWithDayReport {
