@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
-import { supabase } from '@/integrations/supabase/client';
+
 
 /**
  * Returns total unread message count (DMs + broadcasts) for the current mobile staff user.
