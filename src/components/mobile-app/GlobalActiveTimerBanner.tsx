@@ -9,6 +9,7 @@ import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
+const PENDING_STOP_KEY = 'eventflow-pending-stop';
 
 function loadTimersFromStorage(): Map<string, ActiveTimer> {
   try {
@@ -167,7 +168,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     }
 
-    // No relevant exit — save directly with "now" as end-time
+    // No relevant exit — close any orphan anomalies (safety net) and save directly
+    mobileApi.closeOpenAnomalies({ ended_at: stopTime.toISOString() }).catch(err => {
+      console.warn('Failed to close open anomalies on stop:', err);
+    });
     await persistStop(key, timer, startTimeDate, stopTime);
   }, [persistStop]);
 
