@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Clock, Square, Check, Building2, Loader2, Users } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
+import { useMobileBookings } from '@/hooks/useMobileData';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -26,12 +27,12 @@ interface LagerTask {
 const MobileLocationDetail = () => {
   const { id: locationId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { staff } = useMobileAuth();
-  const { activeTimers, startTimer, stopTimer, hasAnyTimer } = useTimerStore();
+  const { t } = useLanguage();
+  const { data: bookings = [] } = useMobileBookings();
+  const { activeTimers, orgLocations, startTimer, stopTimer } = useGeofencing(bookings, staff?.id);
 
   const [loading, setLoading] = useState(true);
-  const [location, setLocation] = useState<{ id: string; name: string; address: string | null; latitude: number; longitude: number } | null>(null);
   const [myTasks, setMyTasks] = useState<LagerTask[]>([]);
   const [openTasks, setOpenTasks] = useState<LagerTask[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
@@ -41,37 +42,33 @@ const MobileLocationDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [, setTick] = useState(0);
 
+  const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
   const hasLocationTimer = activeTimers.has(locKey);
+  const hasAnyTimer = activeTimers.size > 0;
 
   // tick for elapsed display
   useEffect(() => {
     if (activeTimers.size === 0) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(id);
   }, [activeTimers.size]);
 
-  const loadAll = async () => {
-    if (!locationId) return;
+  const loadTasks = async () => {
     try {
-      const [locsRes, tasksRes] = await Promise.all([
-        mobileApi.getOrganizationLocations(),
-        mobileApi.getLagerTasks(),
-      ]);
-      const loc = locsRes.locations.find((l) => l.id === locationId);
-      if (loc) setLocation(loc);
+      const tasksRes = await mobileApi.getLagerTasks();
       setMyTasks(tasksRes.my_tasks || []);
       setOpenTasks(tasksRes.open_tasks || []);
     } catch (e) {
       console.error(e);
-      toast.error(t('locationDetail.loadFailed') ?? 'Kunde inte ladda data');
+      toast.error('Kunde inte ladda uppgifter');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAll();
+    loadTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
@@ -86,14 +83,14 @@ const MobileLocationDetail = () => {
   const handleStartTaskTimer = async (task: LagerTask) => {
     if (!location) return;
     if (hasAnyTimer) {
-      toast.error(t('timer.alreadyActive') ?? 'En timer är redan aktiv');
+      toast.error(t('timer.alreadyActive'));
       return;
     }
     try {
       await mobileApi.startLocationTimer(location.id, task.id);
       const label = `${location.name} · ${task.title}`;
-      startTimer(`location-${location.id}`, label, false, undefined, undefined, location.id, location.name);
-      toast.success(`${t('timer.started') ?? 'Timer startad'}: ${task.title}`);
+      const ok = startTimer(locKey, label, false, task.id, task.title, location.id, location.name);
+      if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
     } catch (e) {
       console.error(e);
       toast.error('Kunde inte starta timer');
@@ -103,13 +100,13 @@ const MobileLocationDetail = () => {
   const handleStartGeneralTimer = async () => {
     if (!location) return;
     if (hasAnyTimer) {
-      toast.error(t('timer.alreadyActive') ?? 'En timer är redan aktiv');
+      toast.error(t('timer.alreadyActive'));
       return;
     }
     try {
       await mobileApi.startLocationTimer(location.id);
-      startTimer(`location-${location.id}`, location.name, false, undefined, undefined, location.id, location.name);
-      toast.success(`${t('timer.started') ?? 'Timer startad'}: ${location.name}`);
+      const ok = startTimer(locKey, location.name, false, undefined, undefined, location.id, location.name);
+      if (ok) toast.success(`${t('timer.started')}: ${location.name}`);
     } catch (e) {
       console.error(e);
       toast.error('Kunde inte starta timer');
@@ -117,9 +114,9 @@ const MobileLocationDetail = () => {
   };
 
   const handleStopTimer = () => {
-    const stopped = stopTimer(`location-${location!.id}`);
+    const stopped = stopTimer(locKey);
     if (stopped) {
-      toast.success(t('timer.stoppedCreateReport') ?? 'Timer stoppad');
+      toast.success(t('timer.stoppedCreateReport'));
       navigate('/m/report');
     }
   };
@@ -127,7 +124,7 @@ const MobileLocationDetail = () => {
   const handleToggleComplete = async (task: LagerTask) => {
     try {
       await mobileApi.completeLagerTask({ task_id: task.id, completed: !task.completed });
-      await loadAll();
+      await loadTasks();
     } catch (e) {
       toast.error('Kunde inte uppdatera');
     }
@@ -137,7 +134,7 @@ const MobileLocationDetail = () => {
     try {
       await mobileApi.claimLagerTask({ task_id: task.id });
       toast.success('Uppgift tagen');
-      await loadAll();
+      await loadTasks();
     } catch (e) {
       toast.error('Kunde inte ta uppgift');
     }
@@ -157,7 +154,7 @@ const MobileLocationDetail = () => {
       setAssignToMe(true);
       setCreateOpen(false);
       toast.success('Uppgift skapad');
-      await loadAll();
+      await loadTasks();
     } catch (e) {
       toast.error('Kunde inte skapa uppgift');
     } finally {
@@ -166,8 +163,8 @@ const MobileLocationDetail = () => {
   };
 
   const renderTaskCard = (task: LagerTask, isMine: boolean) => {
-    const taskTimerLabel = activeTimers.get(locKey)?.activityLabel || '';
-    const isActiveTask = hasLocationTimer && taskTimerLabel.includes(task.title);
+    const activeTimer = activeTimers.get(locKey);
+    const isActiveTask = hasLocationTimer && activeTimer?.taskId === task.id;
 
     return (
       <div
@@ -181,6 +178,7 @@ const MobileLocationDetail = () => {
           <button
             onClick={() => handleToggleComplete(task)}
             className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-muted-foreground/30 flex items-center justify-center active:scale-90"
+            aria-label="Markera klar"
           >
             {task.completed && <Check className="w-3.5 h-3.5 text-primary" />}
           </button>
@@ -194,9 +192,9 @@ const MobileLocationDetail = () => {
             {task.deadline && (
               <p className="text-[11px] text-muted-foreground mt-1">📅 {task.deadline}</p>
             )}
-            {isActiveTask && activeTimers.get(locKey) && (
+            {isActiveTask && activeTimer && (
               <p className="text-xs font-mono text-primary font-bold mt-1">
-                ⏱ {formatElapsed(activeTimers.get(locKey)!.startTime)}
+                ⏱ {formatElapsed(activeTimer.startTime)}
               </p>
             )}
           </div>
@@ -205,6 +203,7 @@ const MobileLocationDetail = () => {
               <button
                 onClick={handleStopTimer}
                 className="shrink-0 w-10 h-10 rounded-xl bg-destructive text-destructive-foreground flex items-center justify-center shadow-md active:scale-90"
+                aria-label="Stoppa timer"
               >
                 <Square className="w-4 h-4" />
               </button>
@@ -213,6 +212,7 @@ const MobileLocationDetail = () => {
                 <button
                   onClick={() => handleStartTaskTimer(task)}
                   className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
+                  aria-label="Starta timer"
                 >
                   <Clock className="w-4 h-4" />
                 </button>
@@ -254,6 +254,7 @@ const MobileLocationDetail = () => {
         <button
           onClick={() => navigate('/m')}
           className="mb-3 -ml-2 p-2 rounded-lg active:bg-primary-foreground/10"
+          aria-label="Tillbaka"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -312,7 +313,7 @@ const MobileLocationDetail = () => {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">{myTasks.map((t) => renderTaskCard(t, true))}</div>
+            <div className="space-y-2">{myTasks.map((tk) => renderTaskCard(tk, true))}</div>
           )}
         </div>
 
@@ -325,7 +326,7 @@ const MobileLocationDetail = () => {
                 Öppna uppgifter
               </h2>
             </div>
-            <div className="space-y-2">{openTasks.map((t) => renderTaskCard(t, false))}</div>
+            <div className="space-y-2">{openTasks.map((tk) => renderTaskCard(tk, false))}</div>
           </div>
         )}
       </div>
