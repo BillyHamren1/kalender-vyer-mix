@@ -34,11 +34,15 @@ interface AddRiggDayDialogProps {
     end: string | Date;
     bookingId?: string;
     resourceId?: string;
+    eventType?: string;
   };
   defaultStartTime: string;
   defaultEndTime: string;
   onUpdate?: () => void;
 }
+
+const WAREHOUSE_TYPES = ['packing', 'return', 'delivery', 'inventory', 'unpacking'] as const;
+type WarehouseType = typeof WAREHOUSE_TYPES[number];
 
 const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   open,
@@ -48,8 +52,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   defaultEndTime,
   onUpdate
 }) => {
+  const isWarehouseSource = !!event.eventType && (WAREHOUSE_TYPES as readonly string[]).includes(event.eventType);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown'>('rig');
+  const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown' | WarehouseType>(
+    isWarehouseSource ? (event.eventType as WarehouseType) : 'rig'
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [rigDates, setRigDates] = useState<Date[]>([]);
   const [eventDates, setEventDates] = useState<Date[]>([]);
