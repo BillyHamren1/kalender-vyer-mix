@@ -102,7 +102,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
   const [showKolliConfirm, setShowKolliConfirm] = useState(false);
-  const { enqueueScan, handleManualToggle, recentScans, clearSessionDedup } = useScanProcessor({
+  const {
+    enqueueScan,
+    handleManualToggle,
+    recentScans,
+    clearSessionDedup,
+    pendingUnknownProduct,
+    confirmAddUnknown,
+    dismissUnknown,
+  } = useScanProcessor({
     packingId,
     verifierName,
     getItems: () => itemsRef.current,
@@ -116,6 +124,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
+
+  // After adding an unknown product, reload data so the new row appears
+  const handleConfirmUnknown = useCallback(async (name: string, quantity: number) => {
+    const ok = await confirmAddUnknown(name, quantity);
+    if (ok) {
+      await loadData(true);
+    }
+  }, [confirmAddUnknown, loadData]);
 
   // Override rfid to also clear scan dedup on session reset
   const rfidWithReset = useMemo(() => ({
