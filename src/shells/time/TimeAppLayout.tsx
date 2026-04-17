@@ -57,7 +57,7 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-card">
+    <div className="fixed inset-0 overflow-hidden bg-primary">
       <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
         {/* Header slot — headers portal in here so they sit OUTSIDE the scroll container.
             This avoids the iOS WKWebView bug where position: sticky inside a momentum-scrolling
