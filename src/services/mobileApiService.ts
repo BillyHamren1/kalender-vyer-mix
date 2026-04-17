@@ -307,6 +307,22 @@ export const mobileApi = {
   claimLagerTask: (data: { task_id: string }) =>
     callApi<{ success: boolean; task: any }>('claim_lager_task', data),
 
+  // Lager team / purchases / files
+  getLagerTeam: () =>
+    callApi<{ team: { id: string; name: string; phone: string | null; email: string | null; role: string | null; color: string | null }[] }>('get_lager_team'),
+
+  getLagerPurchases: () =>
+    callApi<{ purchases: MobilePurchase[] }>('get_lager_purchases'),
+
+  createLagerPurchase: (data: { description: string; amount: number; supplier?: string; receipt_image?: string }) =>
+    callApi<{ success: boolean; purchase: any }>('create_lager_purchase', data),
+
+  getLagerFiles: () =>
+    callApi<{ files: any[] }>('get_lager_files'),
+
+  uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
+    callApi<{ success: boolean; file: any }>('upload_lager_file', data),
+
   stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
     callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
 

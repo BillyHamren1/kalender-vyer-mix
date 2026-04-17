@@ -204,6 +204,16 @@ Deno.serve(async (req) => {
         return await handleCompleteLagerTask(supabase, data, organizationId)
       case 'claim_lager_task':
         return await handleClaimLagerTask(supabase, staffId, data, organizationId)
+      case 'get_lager_team':
+        return await handleGetLagerTeam(supabase, organizationId)
+      case 'get_lager_purchases':
+        return await handleGetLagerPurchases(supabase, organizationId)
+      case 'create_lager_purchase':
+        return await handleCreateLagerPurchase(supabase, staffId, data, organizationId)
+      case 'get_lager_files':
+        return await handleGetLagerFiles(supabase, organizationId)
+      case 'upload_lager_file':
+        return await handleUploadLagerFile(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -3218,6 +3228,248 @@ async function handleClaimLagerTask(supabase: any, staffId: string, data: any, o
     JSON.stringify({ success: true, task }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+// ==================== LAGER TEAM / PURCHASES / FILES ====================
+
+async function handleGetLagerTeam(supabase: any, organizationId: string) {
+  const today = new Date().toISOString().split('T')[0]
+
+  // Get staff with 'Lager' tag
+  const { data: staffMembers, error: sErr } = await supabase
+    .from('staff_members')
+    .select('id, name, phone, email, role, color, tags')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .contains('tags', ['Lager'])
+
+  if (sErr) {
+    console.error('Get lager team — staff err:', sErr)
+    return new Response(JSON.stringify({ team: [] }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: activations } = await supabase
+    .from('warehouse_staff_activations')
+    .select('*')
+    .eq('organization_id', organizationId)
+
+  const actMap = new Map((activations || []).map((a: any) => [a.staff_id, a]))
+
+  const team = (staffMembers || []).filter((s: any) => {
+    const a = actMap.get(s.id)
+    if (!a || !a.is_active) return false
+    if (a.activation_type === 'permanent') return true
+    if (a.activation_type === 'temporary') {
+      const start = a.start_date || today
+      const end = a.end_date
+      return today >= start && (!end || today <= end)
+    }
+    return false
+  }).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    phone: s.phone,
+    email: s.email,
+    role: s.role,
+    color: s.color,
+  }))
+
+  return new Response(
+    JSON.stringify({ team }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function getInternalLagerProjectId(supabase: any, organizationId: string): Promise<string | null> {
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('is_internal', true)
+    .maybeSingle()
+  return project?.id || null
+}
+
+async function handleGetLagerPurchases(supabase: any, organizationId: string) {
+  const projectId = await getInternalLagerProjectId(supabase, organizationId)
+  if (!projectId) {
+    return new Response(JSON.stringify({ purchases: [] }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: purchases, error } = await supabase
+    .from('project_purchases')
+    .select('id, description, amount, supplier, category, receipt_url, purchase_date, created_by, created_at')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Get lager purchases err:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch purchases' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(
+    JSON.stringify({ purchases: purchases || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleCreateLagerPurchase(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { description, amount, supplier, receipt_image } = data || {}
+  if (!description || amount === undefined || amount === null) {
+    return new Response(JSON.stringify({ error: 'description and amount are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const projectId = await getInternalLagerProjectId(supabase, organizationId)
+  if (!projectId) {
+    return new Response(JSON.stringify({ error: 'Internt Lager-projekt saknas' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: staffMember } = await supabase.from('staff_members').select('name').eq('id', staffId).single()
+
+  let receiptUrl: string | null = null
+  if (receipt_image && typeof receipt_image === 'string') {
+    try {
+      const base64Data = receipt_image.replace(/^data:image\/\w+;base64,/, '')
+      const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+      let extension = 'jpg'
+      if (receipt_image.includes('image/png')) extension = 'png'
+      else if (receipt_image.includes('image/webp')) extension = 'webp'
+      const fileName = `receipts/${projectId}/${Date.now()}-receipt.${extension}`
+      const { error: uploadError } = await supabase.storage
+        .from('project-files')
+        .upload(fileName, imageBuffer, { contentType: `image/${extension}`, upsert: false })
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(fileName)
+        receiptUrl = urlData.publicUrl
+      } else {
+        console.error('Lager receipt upload error:', uploadError)
+      }
+    } catch (e) {
+      console.error('Lager receipt processing error:', e)
+    }
+  }
+
+  const { data: purchase, error } = await supabase
+    .from('project_purchases')
+    .insert({
+      project_id: projectId,
+      description,
+      amount: parseFloat(amount),
+      supplier: supplier || null,
+      category: 'lager',
+      receipt_url: receiptUrl,
+      purchase_date: new Date().toISOString().split('T')[0],
+      created_by: staffMember?.name || 'Mobile App',
+      organization_id: organizationId,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Lager purchase creation error:', error)
+    return new Response(JSON.stringify({ error: 'Kunde inte spara inköp' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, purchase }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetLagerFiles(supabase: any, organizationId: string) {
+  const projectId = await getInternalLagerProjectId(supabase, organizationId)
+  if (!projectId) {
+    return new Response(JSON.stringify({ files: [] }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: files } = await supabase
+    .from('project_files')
+    .select('id, file_name, file_type, url, uploaded_by, uploaded_at')
+    .eq('project_id', projectId)
+    .order('uploaded_at', { ascending: false })
+
+  return new Response(
+    JSON.stringify({ files: files || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleUploadLagerFile(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { file_name, file_type, file_data } = data || {}
+  if (!file_name || !file_data) {
+    return new Response(JSON.stringify({ error: 'file_name and file_data are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  if (file_type && !allowedTypes.includes(file_type)) {
+    return new Response(JSON.stringify({ error: 'File type not allowed' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const projectId = await getInternalLagerProjectId(supabase, organizationId)
+  if (!projectId) {
+    return new Response(JSON.stringify({ error: 'Internt Lager-projekt saknas' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: staffMember } = await supabase.from('staff_members').select('name').eq('id', staffId).single()
+
+  try {
+    const base64Match = file_data.match(/^data:(.+);base64,(.+)$/)
+    let fileBuffer: Uint8Array
+    let contentType = file_type || 'application/octet-stream'
+    if (base64Match) {
+      contentType = base64Match[1]
+      fileBuffer = Uint8Array.from(atob(base64Match[2]), c => c.charCodeAt(0))
+    } else {
+      fileBuffer = Uint8Array.from(atob(file_data), c => c.charCodeAt(0))
+    }
+
+    if (fileBuffer.length > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({ error: 'File too large. Max 10MB' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    const sanitizedName = file_name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/_+/g, '_')
+    const storagePath = `lager/${projectId}/${Date.now()}-${sanitizedName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('project-files')
+      .upload(storagePath, fileBuffer, { contentType, upsert: false })
+
+    if (uploadError) {
+      console.error('Lager file upload error:', uploadError)
+      return new Response(JSON.stringify({ error: 'Failed to upload file' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(storagePath)
+
+    const { data: fileRecord, error: fileError } = await supabase
+      .from('project_files')
+      .insert({
+        project_id: projectId,
+        file_name,
+        file_type: contentType,
+        url: urlData.publicUrl,
+        uploaded_by: staffMember?.name || 'Mobile App',
+        organization_id: organizationId,
+      })
+      .select()
+      .single()
+
+    if (fileError) {
+      console.error('Lager file record err:', fileError)
+      return new Response(JSON.stringify({ error: 'Failed to create file record' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, file: fileRecord }),
+      { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (err: any) {
+    console.error('Lager upload error:', err)
+    return new Response(JSON.stringify({ error: err?.message || 'Upload failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
 }
 
 async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {

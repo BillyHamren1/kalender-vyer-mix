@@ -14,6 +14,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
+import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
+import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
 
 interface LagerTask {
   id: string;
@@ -329,6 +332,15 @@ const MobileLocationDetail = () => {
             <div className="space-y-2">{openTasks.map((tk) => renderTaskCard(tk, false))}</div>
           </div>
         )}
+
+        {/* Lager team */}
+        <LagerTeamSection />
+
+        {/* Expenses */}
+        <LagerExpensesSection />
+
+        {/* Photos */}
+        <LagerPhotosSection />
       </div>
 
       {/* Create task dialog */}
