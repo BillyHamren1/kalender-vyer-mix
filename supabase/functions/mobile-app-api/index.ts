@@ -241,6 +241,8 @@ Deno.serve(async (req) => {
         return await handleMarkJobRead(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'archive_job_conversation':
         return await handleArchiveJobConversation(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'unarchive_job_conversation':
+        return await handleUnarchiveJobConversation(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'archive_dm':
         return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'unarchive_dm':
