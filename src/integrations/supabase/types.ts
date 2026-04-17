@@ -5302,6 +5302,59 @@ export type Database = {
           },
         ]
       }
+      warehouse_project_changes: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          change_type: string
+          created_at: string
+          field_name: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          organization_id: string
+          source_booking_id: string | null
+          warehouse_project_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          change_type: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          organization_id: string
+          source_booking_id?: string | null
+          warehouse_project_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          change_type?: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          organization_id?: string
+          source_booking_id?: string | null
+          warehouse_project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_project_changes_warehouse_project_id_fkey"
+            columns: ["warehouse_project_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warehouse_project_inbox: {
         Row: {
           client_name: string | null
