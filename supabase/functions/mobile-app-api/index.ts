@@ -234,6 +234,10 @@ Deno.serve(async (req) => {
         return await handleGetLastWorkplaceExit(supabase, staffId, organizationId)
       case 'create_end_of_day_anomaly':
         return await handleCreateEndOfDayAnomaly(supabase, staffId, data, organizationId)
+      case 'get_position_at_time':
+        return await handleGetPositionAtTime(supabase, staffId, data, organizationId)
+      case 'get_movement_for_day':
+        return await handleGetMovementForDay(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -1433,6 +1437,28 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       .lte('ended_at', reportEndIso)
   } catch (linkErr) {
     console.warn('Failed to link anomalies to time report:', linkErr)
+  }
+
+  // Link GPS history rows that fall inside this report's time window so the
+  // approval-based retention cleanup can later remove them automatically.
+  try {
+    const reportStartIso = `${report_date}T${start_time}:00`
+    const endsNextDay = end_time < start_time
+    const reportEndDate = endsNextDay
+      ? new Date(new Date(report_date).getTime() + 86_400_000).toISOString().slice(0, 10)
+      : report_date
+    const reportEndIso = `${reportEndDate}T${end_time}:00`
+
+    await supabase
+      .from('staff_location_history')
+      .update({ time_report_id: report.id })
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('time_report_id', null)
+      .gte('recorded_at', reportStartIso)
+      .lte('recorded_at', reportEndIso)
+  } catch (histLinkErr) {
+    console.warn('Failed to link location history to time report:', histLinkErr)
   }
 
   return new Response(
@@ -2972,6 +2998,24 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // ── APPEND TO LOCATION HISTORY (every ping, ~30s) ──
+  // Used for movement maps and looking up position at a given time.
+  // Cleaned up by cron after time reports are approved.
+  try {
+    await supabase.from('staff_location_history').insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      lat: latitude,
+      lng: longitude,
+      accuracy: accuracy ?? null,
+      speed: speed ?? null,
+      recorded_at: new Date().toISOString(),
+    })
+  } catch (histErr) {
+    // Never fail the request if history insert fails
+    console.warn('[mobile-app-api] history insert failed:', histErr)
+  }
+
   // ── GEOFENCE CHECK for organization_locations ──
   let atLocation: { id: string; name: string } | null = null
   try {
@@ -4296,6 +4340,41 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  // If client didn't send GPS, look it up from history at ended_at (±5 min)
+  let resolvedLat: number | null = end_location_lat ?? null
+  let resolvedLng: number | null = end_location_lng ?? null
+  let resolvedRecordedAt: string | null =
+    (resolvedLat != null && resolvedLng != null) ? new Date().toISOString() : null
+
+  if (resolvedLat == null || resolvedLng == null) {
+    try {
+      const windowMs = 5 * 60 * 1000
+      const fromIso = new Date(endMs - windowMs).toISOString()
+      const toIso = new Date(endMs + windowMs).toISOString()
+      const { data: histRows } = await supabase
+        .from('staff_location_history')
+        .select('lat, lng, recorded_at')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .gte('recorded_at', fromIso)
+        .lte('recorded_at', toIso)
+
+      if (histRows && histRows.length > 0) {
+        let best = histRows[0]
+        let bestDiff = Math.abs(new Date(best.recorded_at).getTime() - endMs)
+        for (const r of histRows) {
+          const diff = Math.abs(new Date(r.recorded_at).getTime() - endMs)
+          if (diff < bestDiff) { best = r; bestDiff = diff }
+        }
+        resolvedLat = best.lat
+        resolvedLng = best.lng
+        resolvedRecordedAt = best.recorded_at
+      }
+    } catch (lookupErr) {
+      console.warn('[end_of_day] history lookup failed:', lookupErr)
+    }
+  }
+
   // Reuse open anomaly if one exists for this period (don't create duplicates)
   const { data: openRows } = await supabase
     .from('time_report_anomalies')
@@ -4316,12 +4395,9 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
         work_description: work_description ? String(work_description).trim() : null,
         classified_at: new Date().toISOString(),
         time_report_id: time_report_id || null,
-        end_location_lat: end_location_lat ?? null,
-        end_location_lng: end_location_lng ?? null,
-        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
-        auto_classified: true,
-      })
-      .eq('id', openRows[0].id)
+        end_location_lat: resolvedLat,
+        end_location_lng: resolvedLng,
+        end_location_recorded_at: resolvedRecordedAt,
       .select()
       .single()
     if (updErr) {
@@ -4344,11 +4420,9 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
         classification: 'work',
         work_description: work_description ? String(work_description).trim() : null,
         classified_at: new Date().toISOString(),
-        end_location_lat: end_location_lat ?? null,
-        end_location_lng: end_location_lng ?? null,
-        end_location_recorded_at: (end_location_lat != null && end_location_lng != null) ? new Date().toISOString() : null,
-        auto_classified: true,
-        source: 'end_of_day',
+        end_location_lat: resolvedLat,
+        end_location_lng: resolvedLng,
+        end_location_recorded_at: resolvedRecordedAt,
       })
       .select()
       .single()
@@ -4360,5 +4434,91 @@ async function handleCreateEndOfDayAnomaly(supabase: any, staffId: string, data:
   }
 
   return new Response(JSON.stringify({ success: true, anomaly: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============= GPS history lookup =============
+
+/**
+ * Returns the GPS position closest to a given timestamp from staff_location_history.
+ * Searches within ±5 minutes window. Used by EndOfDayStopDialog when the user
+ * enters a custom end-time so we can record where they were at that moment.
+ */
+async function handleGetPositionAtTime(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { at } = data || {}
+  if (!at) {
+    return new Response(JSON.stringify({ error: 'at (ISO timestamp) is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const targetMs = new Date(at).getTime()
+  if (!isFinite(targetMs)) {
+    return new Response(JSON.stringify({ error: 'invalid timestamp' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const windowMs = 5 * 60 * 1000
+  const fromIso = new Date(targetMs - windowMs).toISOString()
+  const toIso = new Date(targetMs + windowMs).toISOString()
+
+  const { data: rows, error } = await supabase
+    .from('staff_location_history')
+    .select('lat, lng, accuracy, recorded_at')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .gte('recorded_at', fromIso)
+    .lte('recorded_at', toIso)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  if (!rows || rows.length === 0) {
+    return new Response(JSON.stringify({ position: null }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Pick row closest to target time
+  let best = rows[0]
+  let bestDiff = Math.abs(new Date(best.recorded_at).getTime() - targetMs)
+  for (const r of rows) {
+    const diff = Math.abs(new Date(r.recorded_at).getTime() - targetMs)
+    if (diff < bestDiff) {
+      best = r
+      bestDiff = diff
+    }
+  }
+  return new Response(JSON.stringify({ position: best }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * Returns all GPS history points for a given staff member on a given date.
+ * Used by admin movement map (StaffMovementMap) in StaffTimeReportDetail.
+ */
+async function handleGetMovementForDay(supabase: any, _callerStaffId: string, data: any, organizationId: string) {
+  const { staff_id, date } = data || {}
+  if (!staff_id || !date) {
+    return new Response(JSON.stringify({ error: 'staff_id and date are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  // Day window in Europe/Stockholm; simplified to UTC day for indexing speed
+  const fromIso = `${date}T00:00:00.000Z`
+  const toIso = `${date}T23:59:59.999Z`
+
+  const { data: rows, error } = await supabase
+    .from('staff_location_history')
+    .select('lat, lng, accuracy, speed, recorded_at')
+    .eq('staff_id', staff_id)
+    .eq('organization_id', organizationId)
+    .gte('recorded_at', fromIso)
+    .lte('recorded_at', toIso)
+    .order('recorded_at', { ascending: true })
+    .limit(5000)
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ points: rows || [] }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }

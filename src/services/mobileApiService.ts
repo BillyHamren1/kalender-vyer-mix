@@ -384,6 +384,13 @@ export const mobileApi = {
     time_report_id?: string;
   }) => callApi<{ success: boolean; anomaly: any }>('create_end_of_day_anomaly', data),
 
+  // GPS history lookups
+  getPositionAtTime: (at: string) =>
+    callApi<{ position: { lat: number; lng: number; accuracy: number | null; recorded_at: string } | null }>('get_position_at_time', { at }),
+
+  getMovementForDay: (staffId: string, date: string) =>
+    callApi<{ points: { lat: number; lng: number; accuracy: number | null; speed: number | null; recorded_at: string }[] }>('get_movement_for_day', { staff_id: staffId, date }),
+
   // Travel logs
   createTravelLog: (data: {
     from_address?: string;
