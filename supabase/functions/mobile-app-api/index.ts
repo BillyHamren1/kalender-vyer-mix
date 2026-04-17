@@ -4263,46 +4263,174 @@ async function handleGetTravelLogs(supabase: any, staffId: string, data: any, or
 }
 
 // ── GET CONTACTS ──
+//
+// Normalised contact list (messenger-style):
+// • Sammanslår staff_members + profiles + user_roles → en post per person.
+// • Dedup nyckelordning: user_id → email (lowercased) → staff_members.id.
+// • Bästa namn vinner (staff_members.name > profiles.full_name > email local-part).
+// • Roller bevaras (staff/planner/admin/projekt/lager) men `type` håller UI-kompat.
+// • Stabil sortering: namn (sv) → id.
 async function handleGetContacts(supabase: any, staffId: string, organizationId: string) {
-  // Get all staff in the org except self
-  const { data: staffMembers, error: staffErr } = await supabase
+  // Hämta auth user_id för anroparen så vi inte returnerar oss själva via planner-spåret
+  const { data: meStaff } = await supabase
     .from('staff_members')
-    .select('id, name')
+    .select('user_id, email')
+    .eq('id', staffId)
     .eq('organization_id', organizationId)
-    .neq('id', staffId)
+    .maybeSingle()
+  const myUserId: string | null = meStaff?.user_id ?? null
+  const myEmail: string | null = meStaff?.email ? String(meStaff.email).toLowerCase() : null
 
-  if (staffErr) {
-    console.error('Get contacts staff error:', staffErr)
+  // Parallella läsningar för snabb laddning
+  const [staffRes, profileRes] = await Promise.all([
+    supabase
+      .from('staff_members')
+      .select('id, name, email, user_id, role, is_active')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .neq('id', staffId),
+    supabase
+      .from('profiles')
+      .select('user_id, full_name, email')
+      .eq('organization_id', organizationId),
+  ])
+
+  if (staffRes.error) {
+    console.error('Get contacts staff error:', staffRes.error)
     return new Response(
       JSON.stringify({ error: 'Failed to fetch contacts' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-
-  // Get planners (profiles) in the org
-  const { data: planners, error: plannerErr } = await supabase
-    .from('profiles')
-    .select('user_id, full_name')
-    .eq('organization_id', organizationId)
-
-  if (plannerErr) {
-    console.error('Get contacts planners error:', plannerErr)
+  if (profileRes.error) {
+    console.error('Get contacts planners error:', profileRes.error)
   }
 
-  const contacts: { id: string; name: string; type: string }[] = []
+  // Roller: hämta alla user_roles för aktuella user_ids (en query, indexerad på user_id)
+  const userIdSet = new Set<string>()
+  for (const s of (staffRes.data || [])) if (s.user_id) userIdSet.add(s.user_id)
+  for (const p of (profileRes.data || [])) if (p.user_id) userIdSet.add(p.user_id)
 
-  for (const s of (staffMembers || [])) {
-    contacts.push({ id: s.id, name: s.name, type: 'staff' })
-  }
-
-  for (const p of (planners || [])) {
-    if (p.full_name && p.user_id) {
-      contacts.push({ id: p.user_id, name: p.full_name, type: 'planner' })
+  let rolesByUser = new Map<string, string[]>()
+  if (userIdSet.size > 0) {
+    const { data: roleRows, error: roleErr } = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .in('user_id', Array.from(userIdSet))
+    if (roleErr) {
+      console.warn('Get contacts roles error (non-fatal):', roleErr.message)
+    } else {
+      for (const r of (roleRows || [])) {
+        const list = rolesByUser.get(r.user_id) || []
+        if (!list.includes(r.role)) list.push(r.role)
+        rolesByUser.set(r.user_id, list)
+      }
     }
   }
 
-  // Sort alphabetically
-  contacts.sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+  type Contact = {
+    id: string
+    name: string
+    type: 'staff' | 'planner' | 'admin'
+    subtitle?: string
+    roles: string[]
+    _sortKey: string
+  }
+  // Två index för dedup: user_id → contact, lower(email) → contact
+  const byUserId = new Map<string, Contact>()
+  const byEmail = new Map<string, Contact>()
+  const byStaffId = new Map<string, Contact>()
+
+  const pickName = (...candidates: (string | null | undefined)[]): string => {
+    for (const c of candidates) {
+      const t = (c || '').trim()
+      if (t) return t
+    }
+    return 'Okänd'
+  }
+  const emailLocal = (e?: string | null): string => {
+    const s = (e || '').trim()
+    if (!s || !s.includes('@')) return ''
+    return s.split('@')[0]
+  }
+  const decideType = (hasStaff: boolean, roles: string[]): 'staff' | 'planner' | 'admin' => {
+    if (roles.includes('admin')) return 'admin'
+    if (!hasStaff && (roles.includes('projekt') || roles.includes('lager'))) return 'planner'
+    if (roles.some(r => ['projekt', 'lager'].includes(r)) && !hasStaff) return 'planner'
+    return hasStaff ? 'staff' : 'planner'
+  }
+
+  // 1) Lägg in staff_members först — de är "auktoritativa" för namn/avatar
+  for (const s of (staffRes.data || [])) {
+    const roles = s.user_id ? (rolesByUser.get(s.user_id) || []) : []
+    const name = pickName(s.name)
+    const emailKey = s.email ? String(s.email).toLowerCase() : ''
+    const contact: Contact = {
+      id: s.id, // staff_members.id — fungerar för DM (recipient_id slår staff_members först)
+      name,
+      type: decideType(true, roles),
+      subtitle: s.email || undefined,
+      roles: ['staff', ...roles],
+      _sortKey: name.toLocaleLowerCase('sv'),
+    }
+    byStaffId.set(s.id, contact)
+    if (s.user_id) byUserId.set(s.user_id, contact)
+    if (emailKey) byEmail.set(emailKey, contact)
+  }
+
+  // 2) Slå in profiles — slå ihop med befintlig staff via user_id eller email
+  for (const p of (profileRes.data || [])) {
+    if (!p.user_id) continue
+    // Hoppa över oss själva (om vi nås via planner-spåret)
+    if (myUserId && p.user_id === myUserId) continue
+    const emailKey = p.email ? String(p.email).toLowerCase() : ''
+    if (myEmail && emailKey && emailKey === myEmail) continue
+
+    const existing = byUserId.get(p.user_id) || (emailKey ? byEmail.get(emailKey) : undefined)
+    const roles = rolesByUser.get(p.user_id) || []
+
+    if (existing) {
+      // Berika existerande staff-post med roller och ev. bättre namn/email
+      for (const r of roles) if (!existing.roles.includes(r)) existing.roles.push(r)
+      // Befordra typ om personen har planner/admin-roll
+      if (roles.includes('admin')) existing.type = 'admin'
+      else if (existing.type === 'staff' && roles.some(r => ['projekt', 'lager'].includes(r))) {
+        // Behåll 'staff' som primär (de är fortfarande personal) — UI visar ändå "Personal"
+      }
+      if (!existing.subtitle && p.email) existing.subtitle = p.email
+      // Indexera även via user_id/email så framtida träffar hittar samma post
+      byUserId.set(p.user_id, existing)
+      if (emailKey) byEmail.set(emailKey, existing)
+      continue
+    }
+
+    // Ren planner/admin (ingen staff-post)
+    const name = pickName(p.full_name, emailLocal(p.email))
+    const contact: Contact = {
+      id: p.user_id,
+      name,
+      type: decideType(false, roles),
+      subtitle: p.email || undefined,
+      roles: roles.length ? roles : ['planner'],
+      _sortKey: name.toLocaleLowerCase('sv'),
+    }
+    byUserId.set(p.user_id, contact)
+    if (emailKey) byEmail.set(emailKey, contact)
+  }
+
+  // Samla unika kontakter (Set hindrar dubbletter när samma referens finns i flera index)
+  const unique = new Set<Contact>()
+  for (const c of byStaffId.values()) unique.add(c)
+  for (const c of byUserId.values()) unique.add(c)
+  for (const c of byEmail.values()) unique.add(c)
+
+  // Stabil sortering: namn (sv) → id
+  const contacts = Array.from(unique)
+    .map(({ _sortKey, ...c }) => c)
+    .sort((a, b) => {
+      const n = a.name.localeCompare(b.name, 'sv', { sensitivity: 'base' })
+      return n !== 0 ? n : a.id.localeCompare(b.id)
+    })
 
   return new Response(
     JSON.stringify({ contacts }),
