@@ -4,6 +4,7 @@ import { Camera, X, Loader2, Tag, MapPin, CalendarDays, Package, CheckCircle2, A
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { identifyProduct } from '@/services/scannerService';
+import { parseScanResult } from '@/services/scannerService';
 import { toast } from 'sonner';
 
 interface IdentifiedItem {
@@ -24,6 +25,7 @@ interface IdentifiedItem {
 interface IdentifyScannerOverlayProps {
   isActive: boolean;
   onClose: () => void;
+  onPackingDetected?: (packingId: string) => void;
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -38,7 +40,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
  * IdentifyScannerOverlay — Camera stays open while user scans multiple
  * products. Each scan is added to a session list shown below the camera.
  */
-export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ isActive, onClose }) => {
+export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ isActive, onClose, onPackingDetected }) => {
   const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
@@ -132,8 +134,20 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
     // Dedup same value within 2.5s
     if (value === lastScanRef.current.value && now - lastScanRef.current.at < 2500) return;
     lastScanRef.current = { value, at: now };
+
+    // If this looks like a packing label and we have a navigation handler, route there.
+    if (onPackingDetected) {
+      const parsed = parseScanResult(value);
+      if (parsed.type === 'packing_id' && parsed.packingId) {
+        playBeep(true);
+        toast.success('Packlista hittad!');
+        onPackingDetected(parsed.packingId);
+        return;
+      }
+    }
+
     handleIdentify(value);
-  }, [handleIdentify]);
+  }, [handleIdentify, onPackingDetected, playBeep]);
 
   const stopCamera = useCallback(() => {
     if (startingTimeoutRef.current) {

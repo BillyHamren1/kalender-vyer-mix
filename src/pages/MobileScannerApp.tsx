@@ -362,7 +362,7 @@ const MobileScannerApp: React.FC = () => {
             variant="secondary" 
             size="sm"
             className="gap-1.5"
-            onClick={() => setIsQRActive(true)}
+            onClick={() => setIsIdentifyQRActive(true)}
           >
             <QrCode className="h-4 w-4" />
             <span className="text-xs">Scan</span>
@@ -544,17 +544,16 @@ const MobileScannerApp: React.FC = () => {
         <p>v2.0.0 • Zebra Enterprise Scanner</p>
       </footer>
 
-      {/* QR Scanner overlay (camera fallback) */}
-      <QRScanner
-        isActive={isQRActive}
-        onScan={handleHomeScan}
-        onClose={() => setIsQRActive(false)}
-      />
-
-      {/* Identify Scanner overlay — keeps camera open across multiple scans */}
+      {/* Identify Scanner overlay — keeps camera open across multiple scans.
+          Also handles packing labels: navigates to verifying when detected. */}
       <IdentifyScannerOverlay
         isActive={isIdentifyQRActive}
         onClose={() => setIsIdentifyQRActive(false)}
+        onPackingDetected={(packingId) => {
+          setIsIdentifyQRActive(false);
+          setSelectedPackingId(packingId);
+          setState('verifying');
+        }}
       />
     </div>
   );
