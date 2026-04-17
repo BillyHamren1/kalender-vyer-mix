@@ -230,6 +230,10 @@ Deno.serve(async (req) => {
         return await handleClassifyAnomaly(supabase, staffId, data, organizationId)
       case 'close_open_anomalies':
         return await handleCloseOpenAnomalies(supabase, staffId, data, organizationId)
+      case 'get_last_workplace_exit':
+        return await handleGetLastWorkplaceExit(supabase, staffId, organizationId)
+      case 'create_end_of_day_anomaly':
+        return await handleCreateEndOfDayAnomaly(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
