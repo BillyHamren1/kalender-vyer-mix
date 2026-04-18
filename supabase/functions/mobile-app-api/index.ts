@@ -1735,7 +1735,285 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
   )
 }
 
-async function handleGetProject(supabase: any, data: { booking_id: string }, organizationId: string) {
+// ============================================================================
+// ADMIN / WEB TIME-REPORT ENDPOINTS
+// ----------------------------------------------------------------------------
+// These mirror the mobile create/delete handlers but operate on a target
+// staff_id supplied by an admin/projekt user. They enforce:
+//   - caller has 'admin' or 'projekt' app_role
+//   - same time validation (start/end, break, overtime, hours) as mobile
+//   - same datetime overlap check
+//   - same approved-lock semantics (DB triggers are the ultimate backstop)
+// They are the ONLY web write-path for time_reports — projectStaffService
+// must route through here, never write directly.
+// ============================================================================
+
+async function callerHasAdminOrProjektRole(supabase: any, callerUserId: string | null): Promise<boolean> {
+  if (!callerUserId) return false
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', callerUserId)
+    .in('role', ['admin', 'projekt'])
+    .limit(1)
+  if (error) {
+    console.error('[admin-time-report] role check failed:', error)
+    return false
+  }
+  return Array.isArray(data) && data.length > 0
+}
+
+async function handleAdminDeleteTimeReport(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  const { time_report_id } = data || {}
+
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!time_report_id) {
+    return new Response(
+      JSON.stringify({ error: 'time_report_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Must exist within the caller's organization (multi-tenant isolation).
+  const { data: existing, error: fetchErr } = await supabase
+    .from('time_reports')
+    .select('id, approved')
+    .eq('id', time_report_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchErr || !existing) {
+    return new Response(
+      JSON.stringify({ error: 'Time report not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (existing.approved) {
+    return new Response(
+      JSON.stringify({ error: 'Cannot delete an approved time report' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { error: deleteErr } = await supabase
+    .from('time_reports')
+    .delete()
+    .eq('id', time_report_id)
+    .eq('organization_id', organizationId)
+
+  if (deleteErr) {
+    console.error('[admin-time-report] delete error:', deleteErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to delete time report' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`[admin-time-report] ${time_report_id} deleted by user ${callerUserId}`)
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleAdminCreateTimeReport(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  const {
+    target_staff_id,
+    booking_id,
+    report_date,
+    start_time,
+    end_time,
+    overtime_hours,
+    break_time,
+    description,
+    establishment_task_id,
+    large_project_id,
+  } = data || {}
+
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (!target_staff_id) {
+    return new Response(
+      JSON.stringify({ error: 'target_staff_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!report_date) {
+    return new Response(
+      JSON.stringify({ error: 'report_date is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!booking_id && !large_project_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id or large_project_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // --- Same time validation as handleCreateTimeReport ---
+  if (!start_time || !end_time) {
+    return new Response(
+      JSON.stringify({ error: 'start_time och end_time krävs' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const [sh, sm] = String(start_time).split(':').map(Number)
+  const [eh, em] = String(end_time).split(':').map(Number)
+  if (![sh, sm, eh, em].every((n) => Number.isFinite(n))) {
+    return new Response(
+      JSON.stringify({ error: 'Ogiltigt tidsformat' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const startMinutes = sh * 60 + sm
+  const endMinutes = eh * 60 + em
+  if (startMinutes === endMinutes) {
+    return new Response(
+      JSON.stringify({ error: 'Sluttid kan inte vara samma som starttid' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const breakHours = break_time ? parseFloat(break_time) : 0
+  const breakMinutes = breakHours * 60
+  if (breakHours < 0 || breakMinutes > 240) {
+    return new Response(
+      JSON.stringify({ error: 'Ogiltig rast (0–240 min)' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const ot = overtime_hours ? parseFloat(overtime_hours) : 0
+  if (ot < 0) {
+    return new Response(
+      JSON.stringify({ error: 'Övertid kan inte vara negativ' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  let rawHours = (eh + em / 60) - (sh + sm / 60)
+  if (rawHours < 0) rawHours += 24
+  const calculatedHours = Math.round((rawHours - breakHours) * 100) / 100
+  if (calculatedHours <= 0 || calculatedHours > 16) {
+    return new Response(
+      JSON.stringify({ error: 'Arbetad tid efter rast måste vara 0–16h' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Verify target staff belongs to caller's organization (tenant isolation).
+  const { data: targetStaff } = await supabase
+    .from('staff_members')
+    .select('id, organization_id')
+    .eq('id', target_staff_id)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  if (!targetStaff) {
+    return new Response(
+      JSON.stringify({ error: 'Target staff not found in your organization' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Resolve booking / large_project (booking is the only supported web case
+  // today — admin web does not need location- or project- prefixed timers).
+  let resolvedBookingId: string | null = booking_id || null
+  let resolvedLargeProjectId: string | null = large_project_id || null
+  if (resolvedBookingId) {
+    const { data: bk } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('id', resolvedBookingId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (!bk) {
+      return new Response(
+        JSON.stringify({ error: 'Booking not found in your organization' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // Same datetime overlap check as create/update — handles night shifts.
+  const newInterval = buildShiftInterval(report_date, start_time, end_time)
+  if (newInterval) {
+    const baseDate = new Date(`${report_date}T00:00:00Z`)
+    const prevDate = new Date(baseDate.getTime() - 86_400_000).toISOString().slice(0, 10)
+    const nextDate = new Date(baseDate.getTime() + 86_400_000).toISOString().slice(0, 10)
+
+    const { data: candidates } = await supabase
+      .from('time_reports')
+      .select('id, report_date, start_time, end_time')
+      .eq('staff_id', target_staff_id)
+      .in('report_date', [prevDate, report_date, nextDate])
+      .not('start_time', 'is', null)
+      .not('end_time', 'is', null)
+
+    const hasOverlap = (candidates || []).some((r: any) => {
+      const other = buildShiftInterval(r.report_date, r.start_time, r.end_time)
+      return other ? intervalsOverlap(newInterval, other) : false
+    })
+    if (hasOverlap) {
+      return new Response(
+        JSON.stringify({ error: 'Personalen har redan en tidrapport som överlappar detta tidsintervall' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  const { data: report, error } = await supabase
+    .from('time_reports')
+    .insert({
+      staff_id: target_staff_id,
+      booking_id: resolvedBookingId,
+      report_date,
+      start_time,
+      end_time,
+      hours_worked: calculatedHours,
+      overtime_hours: ot,
+      break_time: breakHours,
+      description: description || null,
+      establishment_task_id: establishment_task_id || null,
+      large_project_id: resolvedLargeProjectId,
+      organization_id: organizationId,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[admin-time-report] insert error:', error)
+    // DB-trigger overlap/approved violations surface here as well.
+    const msg = (error as any)?.message || 'Failed to create time report'
+    return new Response(
+      JSON.stringify({ error: msg }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  console.log(`[admin-time-report] ${report.id} created by user ${callerUserId} for staff ${target_staff_id}`)
+  return new Response(
+    JSON.stringify({ success: true, time_report: report }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
   const { booking_id } = data
 
   if (!booking_id) {
