@@ -183,28 +183,46 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // Only restore user-confirmed (manual) timers, NOT auto-GPS entries
         const manualEntries = openEntries.filter((e: any) => e.source !== 'gps');
 
+        // Restore ALL three timer types from server (architectural decision:
+        // server is source of truth — local map is just a cache).
         if (manualEntries.length > 0) {
           setActiveTimers(prev => {
             const next = new Map(prev);
             for (const entry of manualEntries) {
-              const locKey = `location-${entry.location_id}`;
-              // Don't overwrite if user already has a local timer for this location
-              if (next.has(locKey)) continue;
-              const loc = locations.find((l: any) => l.id === entry.location_id);
-              next.set(locKey, {
-                bookingId: locKey,
-                client: loc?.name || 'Plats',
+              let key: string | null = null;
+              const patch: Partial<ActiveTimer> = {
                 startTime: entry.entered_at,
                 isAutoStarted: false,
-                locationId: entry.location_id,
-                locationName: loc?.name || 'Plats',
-              });
-              // Mark as already triggered so geofence doesn't re-fire
-              triggeredEnterRef.current.add(locKey);
+                serverEntryId: entry.id,
+                pendingSync: false,
+              };
+              if (entry.location_id) {
+                key = `location-${entry.location_id}`;
+                const loc = locations.find((l: any) => l.id === entry.location_id);
+                patch.client = loc?.name || 'Plats';
+                patch.locationId = entry.location_id;
+                patch.locationName = loc?.name || 'Plats';
+              } else if (entry.large_project_id) {
+                key = `project-${entry.large_project_id}`;
+                patch.client = 'Projekt';
+                patch.largeProjectId = entry.large_project_id;
+              } else if (entry.booking_id) {
+                key = entry.booking_id;
+                patch.client = 'Uppdrag';
+              }
+              if (!key) continue;
+              const existing = next.get(key);
+              if (existing) {
+                // Local timer exists — adopt server start time + server id, but keep local label.
+                next.set(key, { ...existing, ...patch, client: existing.client });
+              } else {
+                next.set(key, { bookingId: key, ...patch } as ActiveTimer);
+              }
+              triggeredEnterRef.current.add(key);
             }
             return next;
           });
-          console.log('[Geofence] Restored', manualEntries.length, 'active manual timers');
+          console.log('[Geofence] Restored', manualEntries.length, 'active timers from server');
         }
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
