@@ -1,4 +1,14 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * Job-chat service — backward-compatible thin wrapper.
+ *
+ * Officiell väg för jobbchatt:
+ *   - send / mark-read / archive / read-thread → `mobileApi` (mobileApiService)
+ *   - alla anrop går genom edge-funktionen `mobile-app-api`
+ *
+ * Den här filen finns kvar enbart för att inte bryta äldre call-sites.
+ * Nya komponenter ska importera `mobileApi` direkt.
+ */
+import { mobileApi } from './mobileApiService';
 
 export interface JobMessage {
   id: string;
@@ -23,33 +33,12 @@ export interface JobChatParticipant {
   role: 'planner' | 'team_leader' | 'staff';
 }
 
-/**
- * All chat WRITE operations are routed through the `mobile-app-api` edge function
- * (single backend layer for messaging logic). Reads continue against DB (RLS-protected).
- */
-async function invokeChat<T = any>(action: string, data: Record<string, unknown> = {}): Promise<T> {
-  const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
-    body: { action, data },
-  });
-  if (error) {
-    console.error(`[chat-api] ${action} failed:`, error);
-    throw error;
-  }
-  if (result && typeof result === 'object' && 'error' in result && result.error) {
-    console.error(`[chat-api] ${action} returned error:`, result.error);
-    throw new Error(String(result.error));
-  }
-  return result as T;
-}
-
-/** READ — routed through `mobile-app-api` (single backend layer for messaging). */
+/** READ — senaste sidan av meddelanden för en jobbtråd. */
 export const fetchJobMessages = async (bookingId: string): Promise<JobMessage[]> => {
   if (!bookingId) return [];
   try {
-    const result = await invokeChat<{ messages: JobMessage[] }>('get_job_messages', {
-      booking_id: bookingId,
-    });
-    return result?.messages || [];
+    const result = await mobileApi.getJobMessages(bookingId);
+    return (result?.messages as JobMessage[]) || [];
   } catch (err) {
     console.error('Error fetching job messages:', err);
     return [];
@@ -57,10 +46,10 @@ export const fetchJobMessages = async (bookingId: string): Promise<JobMessage[]>
 };
 
 /**
- * WRITE wrapper — send a job message via mobile-app-api.
- * Backward-compatible: legacy 5-arg form (bookingId, senderId, senderName, senderRole, content)
- * AND new 2-arg form (bookingId, content) both work. sender* args are ignored —
- * identity is resolved server-side from the auth context.
+ * WRITE — skicka jobbmeddelande.
+ * Bakåtkompatibel: stöder både legacy 5-args (bookingId, senderId, senderName, senderRole, content)
+ * och ny 2-args-form (bookingId, content). sender*-args ignoreras — identiteten
+ * resolvas server-side från auth-token.
  */
 export const sendJobMessage = async (
   bookingId: string,
@@ -70,40 +59,36 @@ export const sendJobMessage = async (
   legacyContent?: string,
   options?: { fileUrl?: string; fileName?: string; fileType?: string },
 ): Promise<JobMessage | null> => {
-  // Support legacy 5-arg form: (bookingId, senderId, senderName, senderRole, content)
   const finalContent = legacyContent !== undefined ? legacyContent : (contentOrLegacy ?? '');
-  const result = await invokeChat<{ success: boolean; message: JobMessage }>('send_job_message', {
+  const result = await mobileApi.sendJobMessage({
     booking_id: bookingId,
     content: String(finalContent).trim(),
     file_url: options?.fileUrl,
     file_name: options?.fileName,
     file_type: options?.fileType,
   });
-  return result?.message || null;
+  return (result?.message as JobMessage) || null;
 };
 
-/** WRITE wrapper — mark all messages in a job conversation as read by current user. */
+/** WRITE — markera hela jobbtråden som läst för aktuell användare. */
 export const markJobRead = async (bookingId: string): Promise<void> => {
-  await invokeChat('mark_job_read', { booking_id: bookingId });
+  await mobileApi.markJobRead(bookingId);
 };
 
-/** WRITE wrapper — archive an entire job conversation. */
+/** WRITE — arkivera hela jobbtråden för aktuell användare. */
 export const archiveJobConversation = async (bookingId: string): Promise<void> => {
-  await invokeChat('archive_job_conversation', { booking_id: bookingId });
+  await mobileApi.archiveJobConversation(bookingId);
 };
 
-/** READ — routed through `mobile-app-api`. Backend resolves staff + planners with org isolation. */
+/** READ — deltagare i jobbchatten (planners + tilldelad personal för datumet). */
 export const fetchJobParticipants = async (
   bookingId: string,
   date: string,
 ): Promise<JobChatParticipant[]> => {
   if (!bookingId) return [];
   try {
-    const result = await invokeChat<{ participants: JobChatParticipant[] }>('get_job_participants', {
-      booking_id: bookingId,
-      date,
-    });
-    return result?.participants || [];
+    const result = await mobileApi.getJobParticipants(bookingId, date);
+    return (result?.participants as JobChatParticipant[]) || [];
   } catch (err) {
     console.error('Error fetching job participants:', err);
     return [];
