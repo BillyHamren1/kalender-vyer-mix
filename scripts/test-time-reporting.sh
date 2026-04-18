@@ -45,9 +45,11 @@ FRONTEND_TESTS=(
 )
 
 BACKEND_TESTS=(
-  # Inga dedikerade Deno-tester ännu för time-reporting-vägen.
-  # När de läggs till: ange relativ sökväg, t.ex.
-  # "supabase/functions/mobile-app-api/timeReports.test.ts"
+  # Dedikerade Deno-tester för time-reporting-vägen i mobile-app-api.
+  # Verifierar auth-guards, payload-validering, admin-vägen och
+  # idempotent timer-kontrakt. Frontend-sviten täcker den lyckade
+  # DB-vägen via mockad mobileApi.
+  "supabase/functions/mobile-app-api/timeReports.test.ts"
 )
 
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
