@@ -296,6 +296,12 @@ const MobileEditTimeReport = () => {
             />
           </div>
 
+          {isNightShift && (
+            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Night shift detected – time calculated over midnight</p>
+            </div>
+          )}
+
           <div className="h-px bg-border/50" />
 
           {/* Mandatory reason */}
