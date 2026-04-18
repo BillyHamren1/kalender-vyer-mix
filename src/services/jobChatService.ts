@@ -92,44 +92,20 @@ export const archiveJobConversation = async (bookingId: string): Promise<void> =
   await invokeChat('archive_job_conversation', { booking_id: bookingId });
 };
 
-/** READ — direct DB query */
-export const fetchJobParticipants = async (bookingId: string, date: string): Promise<JobChatParticipant[]> => {
-  const participants: JobChatParticipant[] = [];
-
-  const { data: assignments } = await supabase
-    .from('booking_staff_assignments')
-    .select('staff_id, team_id')
-    .eq('booking_id', bookingId)
-    .eq('assignment_date', date);
-
-  if (assignments?.length) {
-    const staffIds = [...new Set(assignments.map(a => a.staff_id))];
-    const { data: staffData } = await supabase
-      .from('staff_members' as any)
-      .select('id, name, role')
-      .in('id', staffIds);
-
-    for (const s of (staffData || []) as any[]) {
-      const isTeamLeader = (s.role || '').toLowerCase().includes('ledare') || (s.role || '').toLowerCase().includes('leader');
-      participants.push({
-        id: s.id,
-        name: s.name,
-        role: isTeamLeader ? 'team_leader' : 'staff',
-      });
-    }
-  }
-
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('user_id, full_name, email');
-
-  for (const p of (profiles || [])) {
-    participants.push({
-      id: p.user_id,
-      name: p.full_name || p.email || 'Planerare',
-      role: 'planner',
+/** READ — routed through `mobile-app-api`. Backend resolves staff + planners with org isolation. */
+export const fetchJobParticipants = async (
+  bookingId: string,
+  date: string,
+): Promise<JobChatParticipant[]> => {
+  if (!bookingId) return [];
+  try {
+    const result = await invokeChat<{ participants: JobChatParticipant[] }>('get_job_participants', {
+      booking_id: bookingId,
+      date,
     });
+    return result?.participants || [];
+  } catch (err) {
+    console.error('Error fetching job participants:', err);
+    return [];
   }
-
-  return participants;
 };
