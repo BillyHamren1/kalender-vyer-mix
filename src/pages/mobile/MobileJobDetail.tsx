@@ -42,7 +42,8 @@ const MobileJobDetail = () => {
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, userPosition, startTimer, saveAndStopTimer } = useGeofencing(bookingsArr, staff?.id);
+  const { activeTimers, startSession, stopSession, geo, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  const userPosition = geo.userPosition;
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
@@ -87,46 +88,27 @@ const MobileJobDetail = () => {
   const handleTimerToggle = async () => {
     if (!id || !booking) return;
     if (currentTimer) {
-      const stopTime = new Date();
-      const startTimeDate = parseISO(currentTimer.startTime);
-      let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-      if (totalHours < 0) totalHours += 24;
-      const breakDeduction = totalHours > 5 ? 0.5 : 0;
-      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
-
-      const taskId = currentTimer.establishmentTaskId;
-      const taskTitle = currentTimer.establishmentTaskTitle;
-
-      // SAVE-THEN-STOP: hook ensures time_report is persisted before
-      // the timer is cleared (locally + on server). On failure the
-      // timer survives so the user can retry.
+      // STOP — unified engine handles break decision + save-then-stop.
       try {
-        await saveAndStopTimer(id, {
-          booking_id: id,
-          report_date: format(new Date(), 'yyyy-MM-dd'),
-          start_time: format(startTimeDate, 'HH:mm'),
-          end_time: format(stopTime, 'HH:mm'),
-          hours_worked: hoursWorked,
-          break_time: breakDeduction,
-          description: `Timer: ${booking.client}${taskTitle ? ` — ${taskTitle}` : ''}${breakDeduction > 0 ? ' (30 min break deducted)' : ''}`,
-          establishment_task_id: taskId,
-        });
-        invalidateTimeReports();
-        toast.success(`Time report saved: ${hoursWorked}h`);
+        const res = await stopSession({ kind: 'booking', bookingId: id, client: booking.client });
+        if (res.cancelled) return;
+        if (res.saved) {
+          invalidateTimeReports();
+          toast.success(`Time report saved: ${res.hoursWorked}h`);
+        }
       } catch (err: any) {
         toast.error(err.message || 'Could not save time report');
       }
     } else {
-      // Check distance before starting
+      // START — same engine, only the target descriptor differs.
       const doStart = () => {
-        startTimer(
-          id,
-          booking.client,
-          false,
-          selectedTaskId || undefined,
-          selectedTaskTitle || undefined
+        const ok = startSession(
+          { kind: 'booking', bookingId: id, client: booking.client },
+          { taskId: selectedTaskId || undefined, taskTitle: selectedTaskTitle || undefined },
         );
-        toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
+        if (ok) {
+          toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
+        }
       };
 
       const coords = booking.delivery_latitude && booking.delivery_longitude
