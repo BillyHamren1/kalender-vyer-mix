@@ -1,4 +1,22 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * Direct-message service — backward-compatible thin wrapper.
+ *
+ * Officiell väg för messaging-funktioner:
+ *   - DM send / read / archive / inbox / unread → `mobileApi` (mobileApiService)
+ *   - Attachments (chat)                        → `mobileApi.uploadChatAttachment`
+ *   - Job chat                                  → `mobileApi` (se jobChatService)
+ *   - Broadcasts                                → `mobileApi` (se broadcastService)
+ *   - Contacts                                  → `mobileApi.getContacts`
+ *   - Inbox aggregator                          → `mobileApi.getInboxAll`
+ *
+ * Alla anrop går genom edge-funktionen `mobile-app-api` som äger autentisering,
+ * org-isolering och multi-identitet (staff_id + user_id). Frontenden gör inga
+ * direkta DB-läsningar mot chat-tabeller.
+ *
+ * Den här filen finns kvar enbart för att inte bryta äldre call-sites.
+ * Nya komponenter ska importera `mobileApi` direkt.
+ */
+import { mobileApi } from './mobileApiService';
 
 export interface DirectMessage {
   id: string;
@@ -16,51 +34,86 @@ export interface DirectMessage {
   booking_id?: string | null;
 }
 
-/**
- * All chat WRITE operations are routed through the `mobile-app-api` edge function
- * (single backend layer for messaging logic). Reads continue against DB (RLS-protected).
- */
-async function invokeChat<T = any>(action: string, data: Record<string, unknown> = {}): Promise<T> {
-  const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
-    body: { action, data },
-  });
-  if (error) {
-    console.error(`[chat-api] ${action} failed:`, error);
-    throw error;
-  }
-  if (result && typeof result === 'object' && 'error' in result && result.error) {
-    console.error(`[chat-api] ${action} returned error:`, result.error);
-    throw new Error(String(result.error));
-  }
-  return result as T;
+export interface GroupedConversation {
+  recipientId: string;
+  recipientName: string;
+  lastMessage: string;
+  lastTimestamp: string;
+  unreadCount: number;
+  isSentByMe: boolean;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* READS                                                                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /**
- * Fetch conversation between two participants (sorted by time).
- * READ — routed through `mobile-app-api` (single backend layer for messaging).
- * Backend resolves caller identity from auth context and applies org isolation.
- * `allMyIds` is kept for signature compatibility but ignored server-side.
+ * Senaste sidan i en DM-tråd. Andra arg är behållet för backward-compat;
+ * server resolverar caller-identitet från auth-token.
  */
 export const fetchDirectMessages = async (
-  allMyIds: string[],
+  _allMyIds: string[],
   allPartnerIds: string[],
 ): Promise<DirectMessage[]> => {
   if (allPartnerIds.length === 0) return [];
-
+  // Caller-API:t passar in en lista av partner-id:n (UUID-spridning för en
+  // person). Senaste sidan hämtas för det första matchande partner-id:t —
+  // edge-funktionen normaliserar identiteten på serversidan.
   try {
-    const result = await invokeChat<{ messages: DirectMessage[] }>('get_dm_thread', {
-      partner_ids: allPartnerIds,
-    });
-    return result?.messages || [];
+    const result = await mobileApi.getDMThread(allPartnerIds[0]);
+    return (result?.messages as DirectMessage[]) || [];
   } catch (err) {
     console.error('Error fetching direct messages:', err);
     return [];
   }
 };
 
+/** DM-inbox grupperad per partner. */
+export const fetchDMInboxGrouped = async (_allMyIds: string[]): Promise<GroupedConversation[]> => {
+  try {
+    const result = await mobileApi.getDMInboxGrouped();
+    return (result?.conversations as GroupedConversation[]) || [];
+  } catch (err) {
+    console.error('Error fetching grouped DM inbox:', err);
+    return [];
+  }
+};
+
 /**
- * WRITE wrapper — sends a direct message via mobile-app-api.
+ * Flat lista härledd från grupperad inbox (en rad per partner).
+ * Föredra `fetchDMInboxGrouped` — denna är bara kvar för bakåtkompatibilitet.
  */
+export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
+  const grouped = await fetchDMInboxGrouped(allMyIds);
+  return grouped.map((c) => ({
+    id: `${c.recipientId}-${c.lastTimestamp}`,
+    sender_id: c.isSentByMe ? '' : c.recipientId,
+    sender_name: c.recipientName,
+    sender_type: 'staff',
+    recipient_id: c.isSentByMe ? c.recipientId : '',
+    recipient_name: c.recipientName,
+    content: c.lastMessage,
+    is_read: c.unreadCount === 0,
+    created_at: c.lastTimestamp,
+  }));
+};
+
+/** Antal olästa DMs för aktuell användare. */
+export const fetchUnreadDMCount = async (_allMyIds: string[]): Promise<number> => {
+  try {
+    const result = await mobileApi.getUnreadDMCount();
+    return result?.count || 0;
+  } catch (err) {
+    console.error('Error fetching unread DM count:', err);
+    return 0;
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* WRITES                                                                      */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/** Officiell signatur för att skicka DM. */
 export const sendDM = async (
   recipientId: string,
   recipientName: string,
@@ -72,20 +125,20 @@ export const sendDM = async (
     bookingId?: string;
   },
 ): Promise<void> => {
-  await invokeChat('send_direct_message', {
+  await mobileApi.sendDirectMessage({
     recipient_id: recipientId,
-    recipient_name: recipientName,
     content: content.trim(),
     file_url: options?.fileUrl,
     file_name: options?.fileName,
     file_type: options?.fileType,
     booking_id: options?.bookingId,
   });
+  // recipientName ignoreras: namnet hämtas server-side från staff/profile.
+  void recipientName;
 };
 
 /**
- * Backward-compatible signature kept so existing components don't break.
- * sender* args are ignored — backend resolves identity from auth.
+ * Bakåtkompatibel signatur. sender*-args ignoreras — backend resolverar identiteten.
  */
 export const sendDirectMessage = async (
   _senderId: string,
@@ -104,36 +157,51 @@ export const sendDirectMessage = async (
   await sendDM(recipientId, recipientName, content, options);
 };
 
+/** Markera meddelanden från `senderId` som lästa. */
+export const markDMRead = async (senderId: string): Promise<void> => {
+  await mobileApi.markDMRead(senderId);
+};
+
+/** Bakåtkompatibel signatur. */
+export const markDirectMessagesRead = async (
+  _allMyIds: string[],
+  senderId: string,
+): Promise<void> => {
+  await markDMRead(senderId);
+};
+
+/** Arkivera DM-tråd för aktuell användare. */
+export const archiveDM = async (partnerId: string): Promise<void> => {
+  await mobileApi.archiveDM(partnerId);
+};
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* ATTACHMENTS                                                                 */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /**
- * Upload chat attachment via mobile-app-api → chat-attachments bucket.
- * Returns URL + metadata ready to attach to a DM/job message.
+ * Laddar upp chat-bilaga via mobile-app-api → `chat-attachments`-bucket.
+ * Returnerar URL + metadata redo att bifogas på en DM eller jobbmeddelande.
  */
 export const uploadChatAttachment = async (
   file: File,
 ): Promise<{ url: string; path: string; fileName: string; fileType: string }> => {
   const base64 = await fileToBase64(file);
-  const result = await invokeChat<{
-    success: boolean;
-    url: string;
-    path: string;
-    file_name: string;
-    mime_type: string;
-  }>('upload_chat_attachment', {
+  const result = await mobileApi.uploadChatAttachment({
     file_name: file.name,
     file_type: file.type || 'application/octet-stream',
     file_data_base64: base64,
   });
   return {
     url: result.url,
-    path: result.path,
+    // path returneras inte i den smala mobileApi-typen; behåll URL som path-fallback.
+    path: (result as any).path ?? result.url,
     fileName: result.file_name,
-    fileType: result.mime_type,
+    fileType: result.file_type ?? (file.type || 'application/octet-stream'),
   };
 };
 
-/**
- * Backward-compatible alias for components that still call uploadDMFile.
- */
+/** Bakåtkompatibelt alias för komponenter som fortfarande använder `uploadDMFile`. */
 export const uploadDMFile = async (
   file: File,
   _senderId: string,
@@ -155,84 +223,3 @@ function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-
-/**
- * WRITE wrapper — mark messages from sender as read.
- */
-export const markDMRead = async (senderId: string): Promise<void> => {
-  await invokeChat('mark_dm_read', { sender_id: senderId });
-};
-
-/**
- * Backward-compatible signature.
- */
-export const markDirectMessagesRead = async (
-  _allMyIds: string[],
-  senderId: string,
-): Promise<void> => {
-  await markDMRead(senderId);
-};
-
-/**
- * WRITE wrapper — archive a DM thread for the current user.
- */
-export const archiveDM = async (partnerId: string): Promise<void> => {
-  await invokeChat('archive_dm', { partner_id: partnerId });
-};
-
-/**
- * Get unread DM count for the current user (READ — backend).
- * `allMyIds` kept for signature compatibility; backend uses auth context.
- */
-export const fetchUnreadDMCount = async (_allMyIds: string[]): Promise<number> => {
-  try {
-    const result = await invokeChat<{ count: number }>('get_unread_dm_count');
-    return result?.count || 0;
-  } catch (err) {
-    console.error('Error fetching unread DM count:', err);
-    return 0;
-  }
-};
-
-export interface GroupedConversation {
-  recipientId: string;
-  recipientName: string;
-  lastMessage: string;
-  lastTimestamp: string;
-  unreadCount: number;
-  isSentByMe: boolean;
-}
-
-/**
- * Get DM inbox grouped by conversation partner (READ — backend).
- * Backend resolves caller identities from auth and applies org isolation.
- */
-export const fetchDMInboxGrouped = async (_allMyIds: string[]): Promise<GroupedConversation[]> => {
-  try {
-    const result = await invokeChat<{ conversations: GroupedConversation[] }>('get_dm_inbox_grouped');
-    return result?.conversations || [];
-  } catch (err) {
-    console.error('Error fetching grouped DM inbox:', err);
-    return [];
-  }
-};
-
-/**
- * Get DM inbox for current user (READ — backend).
- * Returns a flat list derived from the grouped response (last message per partner).
- * Most callers should prefer `fetchDMInboxGrouped`. Kept for backward compatibility.
- */
-export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
-  const grouped = await fetchDMInboxGrouped(allMyIds);
-  return grouped.map((c) => ({
-    id: `${c.recipientId}-${c.lastTimestamp}`,
-    sender_id: c.isSentByMe ? '' : c.recipientId,
-    sender_name: c.recipientName,
-    sender_type: 'staff',
-    recipient_id: c.isSentByMe ? c.recipientId : '',
-    recipient_name: c.recipientName,
-    content: c.lastMessage,
-    is_read: c.unreadCount === 0,
-    created_at: c.lastTimestamp,
-  }));
-};
