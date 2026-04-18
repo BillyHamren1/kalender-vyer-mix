@@ -97,18 +97,26 @@ const GlobalActiveTimerBanner: React.FC = () => {
   /**
    * Persists the time report and (if needed) the end-of-day anomaly.
    * Used by both the direct-stop path and the dialog-confirmed path.
+   *
+   * IMPORTANT: ingen automatisk rast. Anroparen MÅSTE skicka in
+   * `breakHours` (0 om ingen rast eller för korta pass) som ett resultat
+   * av ett uttryckligt användarbeslut via StopBreakDecisionDialog.
+   * `breakAnomalyNote` skapar en time_report_anomaly för admin-uppföljning
+   * när användaren valde "markera som avvikelse" i stället för att gissa.
    */
   const persistStop = useCallback(async (
     key: string,
     timer: ActiveTimer,
     startTimeDate: Date,
     stopTime: Date,
+    breakHours: number,
+    breakAnomalyNote?: string,
     endOfDay?: { lastExitDate: Date; workDescription?: string; locationId?: string | null },
   ) => {
     let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
     if (totalHours < 0) totalHours += 24;
-    const breakDeduction = totalHours > 5 ? 0.5 : 0;
-    const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+    const safeBreak = Math.max(0, breakHours || 0);
+    const hoursWorked = Math.max(0, Number((totalHours - safeBreak).toFixed(2)));
 
     try {
       const tr = await mobileApi.createTimeReport({
@@ -117,18 +125,34 @@ const GlobalActiveTimerBanner: React.FC = () => {
         start_time: format(startTimeDate, 'HH:mm'),
         end_time: format(stopTime, 'HH:mm'),
         hours_worked: hoursWorked,
-        break_time: breakDeduction,
+        break_time: safeBreak,
         description: `Timer: ${timer.locationName || timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
         establishment_task_id: timer.establishmentTaskId,
         large_project_id: timer.largeProjectId,
       });
       toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+      const trId = (tr as any)?.time_report?.id;
+
+      // Användarvalt: "markera som avvikelse". Sparas som end-of-day anomaly
+      // så admin kan följa upp i stället för att vi gissar rast.
+      if (breakAnomalyNote) {
+        await mobileApi.createEndOfDayAnomaly({
+          started_at: startTimeDate.toISOString(),
+          ended_at: stopTime.toISOString(),
+          work_description: `Rast/avvikelse: ${breakAnomalyNote}`,
+          location_id: timer.locationId || undefined,
+          booking_id: key.startsWith('project-') ? undefined : key,
+          large_project_id: timer.largeProjectId,
+          time_report_id: trId,
+        }).catch(err => {
+          console.warn('Could not save break anomaly:', err);
+        });
+      }
 
       // If this is an end-of-day "Nej" path with custom end-time + description,
       // create an anomaly capturing what happened between the geofence exit
       // and the user-stated end time.
       if (endOfDay && endOfDay.workDescription) {
-        const trId = (tr as any)?.time_report?.id;
         // Try to capture current GPS for the position of the absence
         let lat: number | undefined;
         let lng: number | undefined;
