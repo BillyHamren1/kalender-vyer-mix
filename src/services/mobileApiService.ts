@@ -293,6 +293,16 @@ export const mobileApi = {
   getRecentBroadcasts: () =>
     callApi<{ broadcasts: any[] }>('get_recent_broadcasts'),
 
+  // Aggregated messaging activity (DMs + broadcasts + job messages) for dashboards.
+  // Official path for any admin/staff dashboard activity feeds — replaces direct
+  // frontend reads from direct_messages / broadcast_messages / job_messages.
+  getMessagingActivity: (opts?: { since_hours?: number; limit_per_kind?: number }) =>
+    callApi<{
+      direct_messages: Array<{ id: string; sender_name: string; recipient_name: string; content: string; created_at: string; sender_type: string; file_name?: string | null; file_type?: string | null }>;
+      broadcasts: Array<{ id: string; sender_name: string; content: string; category: string; audience: string; created_at: string }>;
+      job_messages: Array<{ id: string; sender_name: string; content: string; booking_id: string; created_at: string; file_name?: string | null; file_type?: string | null; bookings?: { client: string } | null }>;
+    }>('get_messaging_activity', opts || {}),
+
   sendJobMessage: (data: { booking_id: string; content: string; file_url?: string; file_name?: string; file_type?: string }) =>
     callApi<{ success: boolean; message: any }>('send_job_message', data),
 

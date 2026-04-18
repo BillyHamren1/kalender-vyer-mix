@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { format, subHours } from 'date-fns';
+import { mobileApi } from '@/services/mobileApiService';
 
 export interface StaffMessage {
   id: string;
@@ -138,70 +139,54 @@ export const fetchJobActivity = async (): Promise<JobActivityItem[]> => {
     });
   });
 
-  // Fetch recent direct messages
-  const { data: dms } = await supabase
-    .from('direct_messages')
-    .select('id, sender_name, recipient_name, content, created_at, sender_type')
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  // Messaging activity (DMs, broadcasts, job messages) is fetched via the
+  // centralized mobile-app-api edge function. No direct queries to messaging
+  // tables from the frontend — same auth/access path as the rest of chat.
+  try {
+    const msg = await mobileApi.getMessagingActivity({ since_hours: 24, limit_per_kind: 20 });
 
-  dms?.forEach((d: any) => {
-    const direction = `${d.sender_name} → ${d.recipient_name}`;
-    items.push({
-      id: `dm-${d.id}`,
-      type: 'direct_message',
-      author: d.sender_name,
-      content: d.content,
-      project_name: direction,
-      created_at: d.created_at,
+    msg.direct_messages?.forEach((d) => {
+      items.push({
+        id: `dm-${d.id}`,
+        type: 'direct_message',
+        author: d.sender_name,
+        content: d.content || (d.file_name ? `📎 ${d.file_name}` : ''),
+        project_name: `${d.sender_name} → ${d.recipient_name}`,
+        created_at: d.created_at,
+      });
     });
-  });
 
-  // Fetch recent broadcasts
-  const { data: broadcasts } = await supabase
-    .from('broadcast_messages')
-    .select('id, sender_name, content, category, audience, created_at')
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(20);
+    const audienceLabels: Record<string, string> = {
+      all_today: 'all personal idag',
+      job_staff: 'jobbteam',
+      active_staff: 'aktiv personal',
+      selected_staff: 'utvald personal',
+    };
 
-  const audienceLabels: Record<string, string> = {
-    all_today: 'all personal idag',
-    job_staff: 'jobbteam',
-    active_staff: 'aktiv personal',
-    selected_staff: 'utvald personal',
-  };
-
-  broadcasts?.forEach((b: any) => {
-    items.push({
-      id: `bc-${b.id}`,
-      type: 'broadcast',
-      author: b.sender_name,
-      content: b.content,
-      project_name: `Broadcast → ${audienceLabels[b.audience] || b.audience}`,
-      created_at: b.created_at,
+    msg.broadcasts?.forEach((b) => {
+      items.push({
+        id: `bc-${b.id}`,
+        type: 'broadcast',
+        author: b.sender_name,
+        content: b.content,
+        project_name: `Broadcast → ${audienceLabels[b.audience] || b.audience}`,
+        created_at: b.created_at,
+      });
     });
-  });
 
-  // Fetch recent job messages
-  const { data: jobMsgs } = await supabase
-    .from('job_messages')
-    .select('id, sender_name, content, booking_id, created_at, bookings!inner(client)')
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  jobMsgs?.forEach((jm: any) => {
-    items.push({
-      id: `jm-${jm.id}`,
-      type: 'job_message',
-      author: jm.sender_name,
-      content: jm.content,
-      project_name: (jm as any).bookings?.client || 'Jobbchatt',
-      created_at: jm.created_at,
+    msg.job_messages?.forEach((jm) => {
+      items.push({
+        id: `jm-${jm.id}`,
+        type: 'job_message',
+        author: jm.sender_name,
+        content: jm.content || (jm.file_name ? `📎 ${jm.file_name}` : ''),
+        project_name: jm.bookings?.client || 'Jobbchatt',
+        created_at: jm.created_at,
+      });
     });
-  });
+  } catch (err) {
+    console.error('Error fetching messaging activity:', err);
+  }
 
   items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   return items;
