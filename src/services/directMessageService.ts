@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { invokeChat } from '@/lib/chat/invokeChat';
 
 export interface DirectMessage {
   id: string;
@@ -17,23 +17,19 @@ export interface DirectMessage {
 }
 
 /**
- * All chat WRITE operations are routed through the `mobile-app-api` edge function
- * (single backend layer for messaging logic). Reads continue against DB (RLS-protected).
+ * All DM operations (read + write) are routed through `mobile-app-api`
+ * via the shared `invokeChat` helper. There is no direct DB access from
+ * this service — the edge function owns identity resolution and org isolation.
+ *
+ * Officiell väg per messaging-domän:
+ *   - DM            → mobileApi.* / invokeChat('send_direct_message' | 'get_dm_thread' | …)
+ *   - Job chat      → mobileApi.* / invokeChat('send_job_message' | 'get_job_messages' | …)
+ *   - Inbox         → mobileApi.getInboxAll() (single aggregate, used by both web + mobile)
+ *   - Unread        → mobileApi.getUnreadDMCount() / aggregated in getInboxAll
+ *   - Attachments   → mobileApi.uploadChatAttachment() / invokeChat('upload_chat_attachment')
+ *   - Archive       → invokeChat('archive_dm' | 'archive_job_conversation')
+ *   - Contacts      → mobileApi.getContacts() / invokeChat('get_contacts')
  */
-async function invokeChat<T = any>(action: string, data: Record<string, unknown> = {}): Promise<T> {
-  const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
-    body: { action, data },
-  });
-  if (error) {
-    console.error(`[chat-api] ${action} failed:`, error);
-    throw error;
-  }
-  if (result && typeof result === 'object' && 'error' in result && result.error) {
-    console.error(`[chat-api] ${action} returned error:`, result.error);
-    throw new Error(String(result.error));
-  }
-  return result as T;
-}
 
 /**
  * Fetch conversation between two participants (sorted by time).
