@@ -4162,29 +4162,61 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
 }
 
 async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, task_id, started_at } = data || {}
-  if (!location_id) {
+  const {
+    location_id,
+    booking_id,
+    large_project_id,
+    task_id,
+    started_at,
+    client_dedupe_key,
+  } = data || {}
+
+  // Exactly one of (location_id | booking_id | large_project_id) must be set.
+  const targets = [location_id, booking_id, large_project_id].filter(Boolean)
+  if (targets.length !== 1) {
     return new Response(
-      JSON.stringify({ error: 'location_id is required' }),
+      JSON.stringify({ error: 'Exactly one of location_id, booking_id, large_project_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  // Check no open entry already exists for this location
-  const { data: existing } = await supabase
+  // 1. Idempotency by client_dedupe_key — same key always returns same row.
+  if (client_dedupe_key) {
+    const { data: byKey } = await supabase
+      .from('location_time_entries')
+      .select('*')
+      .eq('staff_id', staffId)
+      .eq('client_dedupe_key', client_dedupe_key)
+      .limit(1)
+      .maybeSingle()
+    if (byKey) {
+      return new Response(
+        JSON.stringify({ already_active: true, entry: byKey, idempotent: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // 2. Check for an existing OPEN entry for this (staff, target) pair.
+  let existingQ = supabase
     .from('location_time_entries')
     .select('*')
     .eq('staff_id', staffId)
-    .eq('location_id', location_id)
     .is('exited_at', null)
     .limit(1)
-    .maybeSingle()
+  if (location_id) existingQ = existingQ.eq('location_id', location_id)
+  if (booking_id) existingQ = existingQ.eq('booking_id', booking_id)
+  if (large_project_id) existingQ = existingQ.eq('large_project_id', large_project_id)
+  const { data: existing } = await existingQ.maybeSingle()
 
   if (existing) {
     // Upgrade GPS entry to manual (user confirmed) if needed
     const updates: any = {}
     if (existing.source === 'gps') updates.source = 'manual'
     if (task_id && !existing.task_id) updates.task_id = task_id
+    if (client_dedupe_key && !existing.client_dedupe_key) {
+      updates.client_dedupe_key = client_dedupe_key
+    }
     if (Object.keys(updates).length > 0) {
       await supabase
         .from('location_time_entries')
@@ -4198,8 +4230,7 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     )
   }
 
-  // Allow caller to specify custom start time (arrival-prompt "Starta från XX:XX")
-  // Validation: must be within last 24h and not in the future
+  // 3. Resolve start time. Allow caller to specify (within last 24h, not in future).
   let enteredAtIso = new Date().toISOString()
   let entryDate = enteredAtIso.split('T')[0]
   if (started_at && typeof started_at === 'string') {
@@ -4207,36 +4238,44 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     const now = Date.now()
     if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
       enteredAtIso = parsed.toISOString()
-      // entry_date follows local Stockholm date of entered_at
       entryDate = new Date(parsed.getTime() + 60 * 60 * 1000).toISOString().split('T')[0]
     }
   }
 
+  // 4. Insert new open entry.
+  const insertPayload: any = {
+    organization_id: organizationId,
+    staff_id: staffId,
+    entry_date: entryDate,
+    entered_at: enteredAtIso,
+    source: 'manual',
+  }
+  if (location_id) insertPayload.location_id = location_id
+  if (booking_id) insertPayload.booking_id = booking_id
+  if (large_project_id) insertPayload.large_project_id = large_project_id
+  if (task_id) insertPayload.task_id = task_id
+  if (client_dedupe_key) insertPayload.client_dedupe_key = client_dedupe_key
+
   const { data: entry, error } = await supabase
     .from('location_time_entries')
-    .insert({
-      organization_id: organizationId,
-      staff_id: staffId,
-      location_id: location_id,
-      task_id: task_id || null,
-      entry_date: entryDate,
-      entered_at: enteredAtIso,
-      source: 'manual',
-    })
+    .insert(insertPayload)
     .select()
     .single()
 
   if (error) {
-    // 23505 = unique_violation (race: another device just inserted the open entry)
+    // 23505 = unique_violation — race where another insert won.
+    // Re-fetch and return the winning row so the client converges.
     if ((error as any)?.code === '23505') {
-      const { data: latest } = await supabase
+      let raceQ = supabase
         .from('location_time_entries')
         .select('*')
         .eq('staff_id', staffId)
-        .eq('location_id', location_id)
         .is('exited_at', null)
         .limit(1)
-        .maybeSingle()
+      if (location_id) raceQ = raceQ.eq('location_id', location_id)
+      if (booking_id) raceQ = raceQ.eq('booking_id', booking_id)
+      if (large_project_id) raceQ = raceQ.eq('large_project_id', large_project_id)
+      const { data: latest } = await raceQ.maybeSingle()
       if (latest) {
         return new Response(
           JSON.stringify({ already_active: true, entry: latest }),
@@ -4246,7 +4285,7 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     }
     console.error('Start location timer error:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to start location timer' }),
+      JSON.stringify({ error: 'Failed to start timer' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -4672,7 +4711,7 @@ async function handleUploadLagerFile(supabase: any, staffId: string, data: any, 
 }
 
 async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, entry_id } = data || {}
+  const { location_id, booking_id, large_project_id, entry_id } = data || {}
 
   let query = supabase
     .from('location_time_entries')
@@ -4685,9 +4724,13 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
     query = query.eq('id', entry_id)
   } else if (location_id) {
     query = query.eq('location_id', location_id)
+  } else if (booking_id) {
+    query = query.eq('booking_id', booking_id)
+  } else if (large_project_id) {
+    query = query.eq('large_project_id', large_project_id)
   } else {
     return new Response(
-      JSON.stringify({ error: 'location_id or entry_id required' }),
+      JSON.stringify({ error: 'location_id, booking_id, large_project_id or entry_id required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -4697,7 +4740,7 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
   if (error) {
     console.error('Stop location timer error:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to stop location timer' }),
+      JSON.stringify({ error: 'Failed to stop timer' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
