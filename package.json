@@ -24,7 +24,8 @@
     "ios:scanner:sync": "node scripts/build-ios.js scanner --sync-only",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:messaging": "bash scripts/test-messaging.sh"
+    "test:messaging": "bash scripts/test-messaging.sh",
+    "test:time-reporting": "bash scripts/test-time-reporting.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
