@@ -1083,21 +1083,26 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Server-side hours calculation when start/end are available
+  // Server-side hours calculation — identical rules as handleCreateTimeReport.
   let calculatedHours: number | null = null
   if (finalStartTime && finalEndTime) {
-    if (finalEndTime <= finalStartTime) {
+    const [sh, sm] = finalStartTime.split(':').map(Number)
+    const [eh, em] = finalEndTime.split(':').map(Number)
+    const startMinutes = sh * 60 + sm
+    const endMinutes = eh * 60 + em
+
+    if (startMinutes === endMinutes) {
       return new Response(
-        JSON.stringify({ error: 'Sluttid måste vara efter starttid' }),
+        JSON.stringify({ error: 'Sluttid kan inte vara samma som starttid' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    const [sh, sm] = finalStartTime.split(':').map(Number)
-    const [eh, em] = finalEndTime.split(':').map(Number)
+
+    // Night-shift parity with create: end < start crosses midnight.
     let rawHours = (eh + em / 60) - (sh + sm / 60)
     if (rawHours < 0) rawHours += 24
-    const breakHours = finalBreak / 60
-    calculatedHours = Math.round((rawHours - breakHours) * 100) / 100
+    // finalBreak is already in decimal hours.
+    calculatedHours = Math.round((rawHours - finalBreak) * 100) / 100
 
     if (calculatedHours <= 0) {
       return new Response(
