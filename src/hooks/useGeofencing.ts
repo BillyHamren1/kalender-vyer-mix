@@ -22,6 +22,10 @@ export interface ActiveTimer {
   largeProjectId?: string;   // if this is a project timer
   isStale?: boolean;         // older than 24h with no server match — needs user action
   staleReason?: 'age' | 'no_server_match';
+  /** Server has not yet confirmed the start. Banner should show "Synkroniserar…". */
+  pendingSync?: boolean;
+  /** Server-side id of the matching open location_time_entries row, once confirmed. */
+  serverEntryId?: string;
 }
 
 export interface GeofenceEvent {
