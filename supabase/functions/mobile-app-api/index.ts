@@ -360,6 +360,13 @@ Deno.serve(async (req) => {
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+      // Unified timer API (location/booking/large_project) — single source of truth
+      case 'start_timer':
+        return await handleStartTimer(supabase, staffId, data, organizationId)
+      case 'stop_timer':
+        return await handleStopTimer(supabase, staffId, data, organizationId)
+      case 'get_active_timers':
+        return await handleGetActiveTimers(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
       case 'create_lager_task':
