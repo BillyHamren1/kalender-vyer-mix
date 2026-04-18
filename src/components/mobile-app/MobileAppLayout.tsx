@@ -4,10 +4,12 @@ import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import ArrivalPromptDialog from './ArrivalPromptDialog';
+import StaleTimerDialog from './StaleTimerDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
+import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -97,6 +99,61 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
     setArrivalDialogOpen(false);
   }, [arrivalState, markResolved]);
 
+  // Periodic timer reconciliation against server (architectural decision §1, §7).
+  // Flags timers as stale instead of silently deleting; user decides via dialog.
+  const { staleTimers, dismissStale } = useTimerReconciliation(!!staff);
+  const [staleDialogOpen, setStaleDialogOpen] = useState(false);
+  useEffect(() => {
+    if (staleTimers.length > 0 && !eodActive && !arrivalDialogOpen) {
+      setStaleDialogOpen(true);
+    } else if (staleTimers.length === 0) {
+      setStaleDialogOpen(false);
+    }
+  }, [staleTimers.length, eodActive, arrivalDialogOpen]);
+
+  const handleStaleSave = useCallback(async (key: string) => {
+    const entry = staleTimers.find((s) => s.key === key);
+    if (!entry) return;
+    try {
+      const stopTime = new Date();
+      const startTime = new Date(entry.timer.startTime);
+      // Cap at 24h to avoid creating absurd reports
+      const cappedStop = stopTime.getTime() - startTime.getTime() > 24 * 3600 * 1000
+        ? new Date(startTime.getTime() + 24 * 3600 * 1000)
+        : stopTime;
+      const totalHours = (cappedStop.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+      const breakDeduction = totalHours > 5 ? 0.5 : 0;
+      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
+      await mobileApi.createTimeReport({
+        booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
+        report_date: format(cappedStop, 'yyyy-MM-dd'),
+        start_time: format(startTime, 'HH:mm'),
+        end_time: format(cappedStop, 'HH:mm'),
+        hours_worked: hoursWorked,
+        break_time: breakDeduction,
+        description: `Återställd timer: ${entry.timer.locationName || entry.timer.client}`,
+        large_project_id: entry.timer.largeProjectId,
+      });
+      if (entry.timer.locationId) {
+        try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
+      }
+      dismissStale(key);
+      toast.success('Tidrapport sparad och timer rensad');
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte spara tidrapport');
+    }
+  }, [staleTimers, dismissStale]);
+
+  const handleStaleDiscard = useCallback(async (key: string) => {
+    const entry = staleTimers.find((s) => s.key === key);
+    if (entry?.timer.locationId) {
+      try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
+    }
+    dismissStale(key);
+    toast.message('Timer kastad');
+  }, [staleTimers, dismissStale]);
+
   // Prefetch inbox data at app start so it's cached before user opens inbox
   useEffect(() => {
     if (staff) {
@@ -159,6 +216,15 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
           onDismiss={handleArrivalDismiss}
         />
       )}
+
+      {/* Stale timer warning — never silently delete; user must save or discard */}
+      <StaleTimerDialog
+        open={staleDialogOpen && staleTimers.length > 0}
+        staleTimers={staleTimers}
+        onSaveAndClose={handleStaleSave}
+        onDiscard={handleStaleDiscard}
+        onClose={() => setStaleDialogOpen(false)}
+      />
 
       <MobileBottomNav />
     </div>

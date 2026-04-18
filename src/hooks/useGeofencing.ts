@@ -19,6 +19,8 @@ export interface ActiveTimer {
   locationId?: string;       // if this is a fixed-location timer
   locationName?: string;
   largeProjectId?: string;   // if this is a project timer
+  isStale?: boolean;         // older than 24h with no server match — needs user action
+  staleReason?: 'age' | 'no_server_match';
 }
 
 export interface GeofenceEvent {
@@ -77,16 +79,17 @@ function loadTimers(): Map<string, ActiveTimer> {
     if (!raw) return new Map();
     const arr: [string, ActiveTimer][] = JSON.parse(raw);
     const map = new Map(arr);
-    
-    // Clean up stale timers older than 24 hours
+
+    // Per architectural decision: NEVER silently delete stale timers.
+    // Flag them so the user can decide (save / discard).
     const staleThreshold = Date.now() - 24 * 60 * 60 * 1000;
     for (const [key, timer] of map) {
-      if (new Date(timer.startTime).getTime() < staleThreshold) {
-        console.log('[Geofence] Removing stale timer:', key, timer.startTime);
-        map.delete(key);
+      if (new Date(timer.startTime).getTime() < staleThreshold && !timer.isStale) {
+        map.set(key, { ...timer, isStale: true, staleReason: 'age' });
+        console.warn('[Geofence] Flagged stale timer (>24h):', key, timer.startTime);
       }
     }
-    
+
     return map;
   } catch {
     return new Map();
