@@ -1,6 +1,11 @@
+// Web DM chat (admin/ops) — officiell väg:
+//   sendDM / markDMRead / uploadChatAttachment från `directMessageService`,
+//   som internt delegerar till `mobileApi` (mobile-app-api edge function).
+// Inga direkta DB-skrivningar från frontend; ingen användning av legacy
+// compat-aliasen `sendDirectMessage` / `uploadDMFile` / `markDirectMessagesRead`.
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
-import { sendDirectMessage, uploadDMFile, markDirectMessagesRead } from '@/services/directMessageService';
+import { sendDM, uploadChatAttachment, markDMRead } from '@/services/directMessageService';
 import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -54,9 +59,10 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   // Mark as read on open and invalidate inbox cache so badge updates
   useEffect(() => {
     if (allIds.length > 0 && staffId) {
-      markDirectMessagesRead(allIds, staffId).then(() => {
+      markDMRead(staffId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
         queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
+        queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
       });
     }
   }, [myId, staffId, queryClient]);
@@ -89,20 +95,24 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
 
       if (pendingFile) {
         setUploading(true);
-        const uploaded = await uploadDMFile(pendingFile.file, myId);
+        const uploaded = await uploadChatAttachment(pendingFile.file);
         fileData = { fileUrl: uploaded.url, fileName: uploaded.fileName, fileType: uploaded.fileType };
         setUploading(false);
       }
 
-      await sendDirectMessage(myId, myName, 'planner', staffId, staffName, msg || (pendingFile ? `📎 ${pendingFile.file.name}` : ''), {
-        ...fileData,
-        bookingId: taggedBooking?.bookingId,
-      });
+      await sendDM(
+        staffId,
+        staffName,
+        msg || (pendingFile ? `📎 ${pendingFile.file.name}` : ''),
+        { ...fileData, bookingId: taggedBooking?.bookingId },
+      );
 
       setMsg('');
       clearPendingFile();
       setTaggedBooking(null);
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
@@ -114,10 +124,10 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   const handleQuickSend = async (qm: string) => {
     setSending(true);
     try {
-      await sendDirectMessage(myId, myName, 'planner', staffId, staffName, qm, {
-        bookingId: taggedBooking?.bookingId,
-      });
+      await sendDM(staffId, staffName, qm, { bookingId: taggedBooking?.bookingId });
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
