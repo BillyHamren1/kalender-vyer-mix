@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { invokeChat } from '@/lib/chat/invokeChat';
 
 export interface JobMessage {
   id: string;
@@ -24,25 +24,12 @@ export interface JobChatParticipant {
 }
 
 /**
- * All chat WRITE operations are routed through the `mobile-app-api` edge function
- * (single backend layer for messaging logic). Reads continue against DB (RLS-protected).
+ * All job-chat operations route through `mobile-app-api` via the shared
+ * `invokeChat` helper. See `directMessageService.ts` header for the full
+ * "officiell väg" overview.
  */
-async function invokeChat<T = any>(action: string, data: Record<string, unknown> = {}): Promise<T> {
-  const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
-    body: { action, data },
-  });
-  if (error) {
-    console.error(`[chat-api] ${action} failed:`, error);
-    throw error;
-  }
-  if (result && typeof result === 'object' && 'error' in result && result.error) {
-    console.error(`[chat-api] ${action} returned error:`, result.error);
-    throw new Error(String(result.error));
-  }
-  return result as T;
-}
 
-/** READ — routed through `mobile-app-api` (single backend layer for messaging). */
+/** READ — routed through `mobile-app-api`. */
 export const fetchJobMessages = async (bookingId: string): Promise<JobMessage[]> => {
   if (!bookingId) return [];
   try {

@@ -1,4 +1,11 @@
-const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
+import { supabase } from '@/integrations/supabase/client';
+
+// Derive the edge-function URL from the configured Supabase client so we don't
+// duplicate the project URL in source. Same pattern as `useChatUpload`.
+// `supabaseUrl` is exposed by the JS SDK and reflects whatever was passed to
+// `createClient()` in `integrations/supabase/client.ts`, which itself is
+// driven by Vite env vars (`VITE_SUPABASE_URL`) at build time.
+const SUPABASE_URL = (supabase as unknown as { supabaseUrl: string }).supabaseUrl;
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
 
 const TOKEN_KEY = 'eventflow-mobile-token';
