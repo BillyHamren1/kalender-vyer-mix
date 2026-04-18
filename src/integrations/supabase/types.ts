@@ -6185,6 +6185,14 @@ export type Database = {
       }
     }
     Functions: {
+      archive_dm_thread: {
+        Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
+        Returns: number
+      }
+      archive_job_thread: {
+        Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
+        Returns: number
+      }
       auto_close_open_location_entries: { Args: never; Returns: number }
       claim_sync_jobs: {
         Args: { batch_limit?: number }
@@ -6257,6 +6265,14 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      unarchive_dm_thread: {
+        Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
+        Returns: number
+      }
+      unarchive_job_thread: {
+        Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
+        Returns: number
+      }
     }
     Enums: {
       anomaly_classification: "break" | "work"
