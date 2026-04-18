@@ -8,6 +8,12 @@ const TIMERS_KEY = 'eventflow-mobile-timers';
 const GPS_SETTINGS_KEY = 'eventflow-mobile-gps-settings';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
+/**
+ * Pending unified-timer starts that haven't synced to the server yet.
+ * Lets the user start a timer offline and have it appear server-side once
+ * connectivity returns. Keyed by the same `key` used in activeTimers.
+ */
+const PENDING_TIMER_STARTS_KEY = 'eventflow-pending-timer-starts';
 
 export interface ActiveTimer {
   bookingId: string;
@@ -19,6 +25,40 @@ export interface ActiveTimer {
   locationId?: string;       // if this is a fixed-location timer
   locationName?: string;
   largeProjectId?: string;   // if this is a project timer
+  /** Server `location_time_entries.id` once synced. Empty until pending-sync completes. */
+  serverEntryId?: string;
+  /** Stable per-press idempotency key (sent to server on retries). */
+  clientDedupeKey?: string;
+}
+
+interface PendingTimerStart {
+  key: string;
+  payload: {
+    location_id?: string;
+    booking_id?: string;
+    large_project_id?: string;
+    task_id?: string;
+    started_at: string;
+    client_dedupe_key: string;
+  };
+  attempts: number;
+  lastError?: string;
+}
+
+function loadPendingStarts(): Record<string, PendingTimerStart> {
+  try {
+    const raw = localStorage.getItem(PENDING_TIMER_STARTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+function writePendingStarts(map: Record<string, PendingTimerStart>) {
+  if (Object.keys(map).length === 0) {
+    localStorage.removeItem(PENDING_TIMER_STARTS_KEY);
+  } else {
+    localStorage.setItem(PENDING_TIMER_STARTS_KEY, JSON.stringify(map));
+  }
 }
 
 export interface GeofenceEvent {
