@@ -61,7 +61,7 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
     try {
       // Use suggested arrival time, or user-picked custom time
       const startedAt = result.usedSuggestedArrival ? arrivalState.arrived_at : result.startedAtIso;
-      await mobileApi.startLocationTimer(arrivalState.location_id, undefined, startedAt);
+      await mobileApi.startLocationTimer({ location_id: arrivalState.location_id, started_at: startedAt });
 
       // Optimistically reflect new timer in localStorage so banner updates immediately
       try {
