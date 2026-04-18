@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Navigation } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencing } from '@/hooks/useGeofencing';
+import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,8 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, orgLocations, startTimer, stopLocationTimerWithoutReport } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, geo, startSession, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [loading, setLoading] = useState(true);
@@ -89,45 +90,43 @@ const MobileLocationDetail = () => {
     return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  // Pure fixed-location presence target (no time_report on stop).
+  const locationTarget: WorkTarget | null = location
+    ? { kind: 'location', locationId: location.id, name: location.name, createsTimeReport: false }
+    : null;
+
   const handleStartTaskTimer = async (task: LagerTask) => {
-    if (!location) return;
+    if (!locationTarget) return;
     if (hasAnyTimer) {
       toast.error(t('timer.alreadyActive'));
       return;
     }
-    try {
-      await mobileApi.startLocationTimer({ location_id: location.id, task_id: task.id });
-      const ok = startTimer(locKey, location.name, false, task.id, task.title, location.id, location.name);
-      if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
-    } catch (e) {
-      console.error(e);
-      toast.error('Kunde inte starta timer');
-    }
+    const ok = startSession(locationTarget, { taskId: task.id, taskTitle: task.title });
+    if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
+    else toast.error('Kunde inte starta timer');
   };
 
   const handleStartGeneralTimer = async () => {
-    if (!location) return;
+    if (!locationTarget) return;
     if (hasAnyTimer) {
       toast.error(t('timer.alreadyActive'));
       return;
     }
-    try {
-      await mobileApi.startLocationTimer({ location_id: location.id });
-      const ok = startTimer(locKey, location.name, false, undefined, undefined, location.id, location.name);
-      if (ok) toast.success(`${t('timer.started')}: ${location.name}`);
-    } catch (e) {
-      console.error(e);
-      toast.error('Kunde inte starta timer');
-    }
+    const ok = startSession(locationTarget);
+    if (ok) toast.success(`${t('timer.started')}: ${locationTarget.name}`);
+    else toast.error('Kunde inte starta timer');
   };
 
   const handleStopTimer = async () => {
-    // Pure fixed-location presence — no time_report needed.
-    // Server first, then clear local; on failure the timer stays.
+    if (!locationTarget) return;
+    // Unified engine — pure presence: no time_report, only server-stop.
     try {
-      await stopLocationTimerWithoutReport(locKey);
-      toast.success(t('timer.stoppedCreateReport'));
-      navigate('/m/report');
+      const res = await stopSession(locationTarget);
+      if (res.cancelled) return;
+      if (res.saved) {
+        toast.success(t('timer.stoppedCreateReport'));
+        navigate('/m/report');
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte stoppa timer');
     }
@@ -422,6 +421,7 @@ const MobileLocationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {dialogs}
     </div>
   );
 };

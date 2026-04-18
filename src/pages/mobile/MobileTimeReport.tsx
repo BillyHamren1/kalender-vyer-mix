@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
-import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { ActiveTimer } from '@/hooks/useGeofencing';
+import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
@@ -33,7 +34,8 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, saveAndStopTimer, stopLocationTimerWithoutReport, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, stopSession, geo, dialogs } = useWorkSession(bookings, staff?.id);
+  const { orgLocations, startTimer } = geo;
 
   const fetchReports = async () => {
     try {
@@ -226,42 +228,37 @@ const MobileTimeReport = () => {
                 timer={timer}
                 isLocation={!!timer.locationId}
                 onStop={async () => {
-                  const stopTime = new Date();
-                  const startTimeDate = parseISO(timer.startTime);
+                  // UNIFIED ENGINE — same code path for booking, project,
+                  // and location timers. The hook handles break decision,
+                  // save-then-stop ordering, and pure-location presence.
+                  const target: WorkTarget = timer.locationId
+                    ? {
+                        kind: 'location',
+                        locationId: timer.locationId,
+                        name: timer.locationName || timer.client,
+                        // Location timers from the time-report screen are
+                        // pure presence — no time_report. Set createsTimeReport
+                        // = true here if you ever need to log work time.
+                        createsTimeReport: false,
+                      }
+                    : timer.largeProjectId
+                      ? {
+                          kind: 'project',
+                          largeProjectId: timer.largeProjectId,
+                          name: timer.client,
+                        }
+                      : { kind: 'booking', bookingId: key, client: timer.client };
 
-                  // Location-only timers: server-stop only, no time_report.
-                  if (timer.locationId) {
-                    try {
-                      await stopLocationTimerWithoutReport(key);
-                      toast.success('Timer stopped');
-                    } catch (err: any) {
-                      toast.error(err?.message || 'Could not stop timer');
-                    }
-                    return;
-                  }
-
-                  // Save-then-stop: hook persists time_report FIRST, then
-                  // closes server entry and clears local. Failure keeps timer.
-                  let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-                  if (totalHours < 0) totalHours += 24;
-                  const breakDeduction = totalHours > 5 ? 0.5 : 0;
-                  const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
                   try {
-                    await saveAndStopTimer(key, {
-                      booking_id: key.startsWith('project-') ? undefined : key,
-                      report_date: format(new Date(), 'yyyy-MM-dd'),
-                      start_time: format(startTimeDate, 'HH:mm'),
-                      end_time: format(stopTime, 'HH:mm'),
-                      hours_worked: hoursWorked,
-                      break_time: breakDeduction,
-                      description: `Timer: ${timer.locationName || timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
-                      establishment_task_id: timer.establishmentTaskId,
-                      large_project_id: timer.largeProjectId,
-                    });
-                    toast.success(`Time report saved: ${hoursWorked}h`);
-                    fetchReports();
+                    const res = await stopSession(target);
+                    if (res.cancelled) return;
+                    if (res.saved) {
+                      if (target.kind === 'location') toast.success('Timer stopped');
+                      else toast.success(`Time report saved: ${res.hoursWorked}h`);
+                      fetchReports();
+                    }
                   } catch (err: any) {
-                    toast.error(err.message || 'Could not save time report');
+                    toast.error(err?.message || 'Could not stop timer');
                   }
                 }}
               />
@@ -474,6 +471,7 @@ const MobileTimeReport = () => {
           )}
         </div>
       </div>
+      {dialogs}
     </div>
   );
 };
