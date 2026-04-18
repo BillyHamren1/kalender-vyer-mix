@@ -6287,6 +6287,10 @@ export type Database = {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
       }
+      tr_shift_interval: {
+        Args: { _date: string; _end: string; _start: string }
+        Returns: unknown
+      }
       unarchive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
