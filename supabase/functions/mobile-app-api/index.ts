@@ -5637,51 +5637,11 @@ function buildDMThreadOrFilter(myIds: string[], partnerIds: string[]): string {
   return conds.join(',')
 }
 
-/** Fetch a DM thread between caller and a partner (supports dual identity for both sides). */
-async function handleGetDMThread(
-  supabase: any,
-  staffId: string,
-  data: any,
-  organizationId: string,
-  userId: string | null,
-) {
-  const partnerIds: string[] = Array.isArray(data?.partner_ids) && data.partner_ids.length > 0
-    ? data.partner_ids.map((x: unknown) => String(x))
-    : (data?.partner_id ? [String(data.partner_id)] : [])
-
-  if (partnerIds.length === 0) {
-    return new Response(JSON.stringify({ error: 'partner_id or partner_ids is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
-
-  const myIds = [staffId]
-  if (userId && userId !== staffId) myIds.push(userId)
-
-  const orFilter = buildDMThreadOrFilter(myIds, partnerIds)
-
-  const { data: rows, error } = await supabase
-    .from('direct_messages')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .or(orFilter)
-    .order('created_at', { ascending: true })
-    .limit(500)
-
-  if (error) {
-    console.error('[get_dm_thread] error:', error)
-    return new Response(JSON.stringify({ error: 'Failed to fetch DM thread' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
-
-  // Hide messages this user has archived (per-user is_archived_by)
-  const messages = (rows || []).filter((m: any) => {
-    const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
-    return !myIds.some((id) => arr.includes(id))
-  })
-
-  return new Response(JSON.stringify({ messages }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-}
+// NOTE: handleGetDMThread is defined earlier (cursor-paginated implementation,
+// see ~line 3045). The duplicate non-paginated version that lived here was
+// removed to fix a "Identifier already declared" boot error in the deployed
+// Edge Function. The paginated version is the one wired into the dispatcher
+// for both `get_dm_thread` and `get_dm_messages` actions.
 
 /** Inbox view grouped by conversation partner (last message + unread count). */
 async function handleGetDMInboxGrouped(
