@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mobileApi, MobileBooking } from '@/services/mobileApiService';
-import { useGeofencing, ActiveTimer, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
+import { MobileBooking } from '@/services/mobileApiService';
+import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
+import { useWorkSession } from '@/hooks/useWorkSession';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
-import { format, parseISO, differenceInSeconds } from 'date-fns';
+import { parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2, ChevronDown } from 'lucide-react';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
