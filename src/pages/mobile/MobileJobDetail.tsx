@@ -293,6 +293,7 @@ const MobileJobDetail = () => {
           setDistanceWarning(null);
         }}
       />
+      {dialogs}
     </div>
   );
 };
