@@ -6274,6 +6274,10 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      mark_job_thread_read: {
+        Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
+        Returns: number
+      }
       unarchive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
