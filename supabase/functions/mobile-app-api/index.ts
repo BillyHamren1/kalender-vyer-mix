@@ -360,6 +360,13 @@ Deno.serve(async (req) => {
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+      // Unified timer API (location/booking/large_project) — single source of truth
+      case 'start_timer':
+        return await handleStartTimer(supabase, staffId, data, organizationId)
+      case 'stop_timer':
+        return await handleStopTimer(supabase, staffId, data, organizationId)
+      case 'get_active_timers':
+        return await handleGetActiveTimers(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
       case 'create_lager_task':
@@ -4488,7 +4495,213 @@ async function handleGetLocationTimeEntries(supabase: any, staffId: string, data
   )
 }
 
-async function handleStartTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
+// ==================== UNIFIED TIMER API ====================
+// Single source of truth: location_time_entries with one of
+// (location_id, booking_id, large_project_id) set.
+// Replaces the per-type endpoints for new clients while keeping the legacy
+// location-only endpoints alive for backward compatibility.
+
+type TimerSourceKind = 'location' | 'booking' | 'large_project'
+
+function resolveTimerKind(data: any): { kind: TimerSourceKind | null; id: string | null } {
+  if (data?.location_id) return { kind: 'location', id: String(data.location_id) }
+  if (data?.booking_id) return { kind: 'booking', id: String(data.booking_id) }
+  if (data?.large_project_id) return { kind: 'large_project', id: String(data.large_project_id) }
+  return { kind: null, id: null }
+}
+
+function clampStartedAt(started_at: unknown): { iso: string; date: string } {
+  let enteredAtIso = new Date().toISOString()
+  let entryDate = enteredAtIso.split('T')[0]
+  if (started_at && typeof started_at === 'string') {
+    const parsed = new Date(started_at)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      enteredAtIso = parsed.toISOString()
+      entryDate = new Date(parsed.getTime() + 60 * 60 * 1000).toISOString().split('T')[0]
+    }
+  }
+  return { iso: enteredAtIso, date: entryDate }
+}
+
+async function handleStartTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { kind, id } = resolveTimerKind(data)
+  if (!kind || !id) {
+    return new Response(
+      JSON.stringify({ error: 'One of location_id, booking_id, large_project_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const { task_id, started_at, client_dedupe_key } = data || {}
+
+  // Idempotency: if the same client_dedupe_key has already been used, return the existing entry
+  if (client_dedupe_key) {
+    const { data: existing } = await supabase
+      .from('location_time_entries')
+      .select('*')
+      .eq('staff_id', staffId)
+      .eq('client_dedupe_key', client_dedupe_key)
+      .limit(1)
+      .maybeSingle()
+    if (existing) {
+      return new Response(
+        JSON.stringify({ already_active: true, entry: existing }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // Look for an open entry of the same kind+id for this staff
+  let lookup = supabase
+    .from('location_time_entries')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+    .limit(1)
+
+  if (kind === 'location') lookup = lookup.eq('location_id', id)
+  if (kind === 'booking') lookup = lookup.eq('booking_id', id)
+  if (kind === 'large_project') lookup = lookup.eq('large_project_id', id)
+
+  const { data: existing } = await lookup.maybeSingle()
+
+  if (existing) {
+    const updates: any = {}
+    if (existing.source === 'gps') updates.source = 'manual'
+    if (task_id && !existing.task_id) updates.task_id = task_id
+    if (client_dedupe_key && !existing.client_dedupe_key) updates.client_dedupe_key = client_dedupe_key
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('location_time_entries').update(updates).eq('id', existing.id)
+      Object.assign(existing, updates)
+    }
+    return new Response(
+      JSON.stringify({ already_active: true, entry: existing }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { iso: enteredAtIso, date: entryDate } = clampStartedAt(started_at)
+
+  const insertRow: any = {
+    organization_id: organizationId,
+    staff_id: staffId,
+    task_id: task_id || null,
+    entry_date: entryDate,
+    entered_at: enteredAtIso,
+    source: kind === 'location' ? 'manual' : kind === 'booking' ? 'manual_job' : 'manual_project',
+    client_dedupe_key: client_dedupe_key || null,
+    location_id: kind === 'location' ? id : null,
+    booking_id: kind === 'booking' ? id : null,
+    large_project_id: kind === 'large_project' ? id : null,
+  }
+
+  const { data: entry, error } = await supabase
+    .from('location_time_entries')
+    .insert(insertRow)
+    .select()
+    .single()
+
+  if (error) {
+    if ((error as any)?.code === '23505') {
+      // Race or dedupe-key collision — fetch the now-existing row and return it
+      let q = supabase
+        .from('location_time_entries')
+        .select('*')
+        .eq('staff_id', staffId)
+        .is('exited_at', null)
+        .limit(1)
+      if (client_dedupe_key) q = q.eq('client_dedupe_key', client_dedupe_key)
+      else if (kind === 'location') q = q.eq('location_id', id)
+      else if (kind === 'booking') q = q.eq('booking_id', id)
+      else if (kind === 'large_project') q = q.eq('large_project_id', id)
+      const { data: latest } = await q.maybeSingle()
+      if (latest) {
+        return new Response(
+          JSON.stringify({ already_active: true, entry: latest }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+    console.error('start_timer error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to start timer' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, entry }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleStopTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { kind, id } = resolveTimerKind(data)
+  const { entry_id, ended_at } = data || {}
+
+  let query = supabase
+    .from('location_time_entries')
+    .update({ exited_at: ended_at && typeof ended_at === 'string' ? new Date(ended_at).toISOString() : new Date().toISOString() })
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+
+  if (entry_id) {
+    query = query.eq('id', entry_id)
+  } else if (kind === 'location') {
+    query = query.eq('location_id', id)
+  } else if (kind === 'booking') {
+    query = query.eq('booking_id', id)
+  } else if (kind === 'large_project') {
+    query = query.eq('large_project_id', id)
+  } else {
+    return new Response(
+      JSON.stringify({ error: 'entry_id or one of location_id/booking_id/large_project_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: updated, error } = await query.select().order('entered_at', { ascending: false }).limit(1).maybeSingle()
+
+  if (error) {
+    console.error('stop_timer error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to stop timer' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, entry: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetActiveTimers(supabase: any, staffId: string, organizationId: string) {
+  // Fetch every open timer for this staff so the client can rebuild its
+  // activeTimers map after reload / login / app reinstall.
+  const { data: entries, error } = await supabase
+    .from('location_time_entries')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+    .order('entered_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.error('get_active_timers error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch active timers' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ entries: entries || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
   const { from_address, from_latitude, from_longitude, description, auto_detected } = data || {}
 
   const { data: log, error } = await supabase

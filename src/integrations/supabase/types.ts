@@ -2099,12 +2099,15 @@ export type Database = {
       }
       location_time_entries: {
         Row: {
+          booking_id: string | null
+          client_dedupe_key: string | null
           created_at: string | null
           entered_at: string
           entry_date: string
           exited_at: string | null
           id: string
-          location_id: string
+          large_project_id: string | null
+          location_id: string | null
           organization_id: string
           source: string
           staff_id: string
@@ -2112,12 +2115,15 @@ export type Database = {
           total_minutes: number | null
         }
         Insert: {
+          booking_id?: string | null
+          client_dedupe_key?: string | null
           created_at?: string | null
           entered_at: string
           entry_date: string
           exited_at?: string | null
           id?: string
-          location_id: string
+          large_project_id?: string | null
+          location_id?: string | null
           organization_id: string
           source?: string
           staff_id: string
@@ -2125,12 +2131,15 @@ export type Database = {
           total_minutes?: number | null
         }
         Update: {
+          booking_id?: string | null
+          client_dedupe_key?: string | null
           created_at?: string | null
           entered_at?: string
           entry_date?: string
           exited_at?: string | null
           id?: string
-          location_id?: string
+          large_project_id?: string | null
+          location_id?: string | null
           organization_id?: string
           source?: string
           staff_id?: string
