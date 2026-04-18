@@ -284,9 +284,6 @@ export const mobileApi = {
   getJobParticipants: (bookingId: string, date: string) =>
     callApi<{ participants: { id: string; name: string; role: string }[] }>('get_job_participants', { booking_id: bookingId, date }),
 
-  getDMThread: (partnerIds: string[]) =>
-    callApi<{ messages: any[] }>('get_dm_thread', { partner_ids: partnerIds }),
-
   getDMInboxGrouped: () =>
     callApi<{ conversations: any[] }>('get_dm_inbox_grouped'),
 
