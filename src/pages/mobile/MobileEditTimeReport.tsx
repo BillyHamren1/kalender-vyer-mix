@@ -54,6 +54,8 @@ const MobileEditTimeReport = () => {
     fetchReport();
   }, [id]);
 
+  // === UNIFIED TIME MODEL — must match MobileTimeReport.tsx (create) ===
+  // break_time / overtime: decimal HOURS. Night shift: end < start crosses midnight.
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
     const [sh, sm] = startTime.split(':').map(Number);
@@ -63,6 +65,34 @@ const MobileEditTimeReport = () => {
     const breakHours = parseFloat(breakTime || '0');
     total -= breakHours;
     return Math.max(0, Math.round(total * 100) / 100);
+  };
+
+  const isNightShift = (() => {
+    if (!startTime || !endTime) return false;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    return (eh + em / 60) < (sh + sm / 60);
+  })();
+
+  const getValidationError = (): string | null => {
+    if (!startTime) return 'Start time is required';
+    if (!endTime) return 'End time is required';
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    if (sh * 60 + sm === eh * 60 + em) return 'End time cannot be the same as start time';
+
+    const breakHours = parseFloat(breakTime || '0');
+    if (breakHours < 0) return 'Break cannot be negative';
+    if (breakHours * 60 > 240) return 'Break cannot exceed 240 minutes';
+
+    const hours = calculateHours();
+    if (hours <= 0) return 'Worked hours after break must be more than 0';
+    if (hours > 16) return 'Worked hours cannot exceed 16 hours';
+
+    const ot = parseFloat(overtime || '0');
+    if (ot < 0) return 'Overtime cannot be negative';
+    if (ot > 16) return 'Overtime cannot exceed 16 hours';
+    return null;
   };
 
   const hasChanges = () => {
@@ -84,16 +114,13 @@ const MobileEditTimeReport = () => {
       return;
     }
 
-    if (!startTime || !endTime) {
-      toast.error('Start and end time are required');
+    const validationError = getValidationError();
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
     const hours = calculateHours();
-    if (hours <= 0) {
-      toast.error('Worked hours must be more than 0');
-      return;
-    }
 
     setSaving(true);
     try {
@@ -106,6 +133,7 @@ const MobileEditTimeReport = () => {
         start_time: startTime,
         end_time: endTime,
         hours_worked: hours,
+        // break_time in decimal HOURS (matches create + DB column).
         break_time: parseFloat(breakTime || '0'),
         overtime_hours: parseFloat(overtime || '0'),
         description: updatedDescription,
