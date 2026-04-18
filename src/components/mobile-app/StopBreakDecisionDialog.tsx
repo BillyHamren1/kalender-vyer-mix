@@ -193,7 +193,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
             }`}
           >
             <div className="font-semibold text-sm flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" />
               Markera som avvikelse
             </div>
             <div className="text-xs text-muted-foreground">
