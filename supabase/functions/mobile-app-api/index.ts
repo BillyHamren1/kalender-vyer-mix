@@ -3363,6 +3363,63 @@ async function handleGetBroadcasts(supabase: any, staffId: string, organizationI
   )
 }
 
+/**
+ * Aggregated messaging activity feed for the admin / staff dashboard.
+ * Returns recent direct_messages, broadcast_messages and job_messages for the
+ * caller's organization in a single round-trip. This is the official path —
+ * no frontend service should query these messaging tables directly.
+ *
+ * Auth: any authenticated caller in the org (web JWT or staff token). The
+ * data exposed here is the same the dashboard already showed; access control
+ * matches the rest of the messaging stack (org-scoped reads).
+ */
+async function handleGetMessagingActivity(
+  supabase: any,
+  organizationId: string,
+  data?: { since_hours?: number; limit_per_kind?: number },
+) {
+  const sinceHours = Math.min(Math.max(data?.since_hours ?? 24, 1), 24 * 7)
+  const limit = Math.min(Math.max(data?.limit_per_kind ?? 20, 1), 100)
+  const sinceIso = new Date(Date.now() - sinceHours * 60 * 60 * 1000).toISOString()
+
+  const [dmRes, bcRes, jmRes] = await Promise.all([
+    supabase
+      .from('direct_messages')
+      .select('id, sender_name, recipient_name, content, created_at, sender_type, file_name, file_type')
+      .eq('organization_id', organizationId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('broadcast_messages')
+      .select('id, sender_name, content, category, audience, created_at')
+      .eq('organization_id', organizationId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('job_messages')
+      .select('id, sender_name, content, booking_id, created_at, file_name, file_type, bookings!inner(client)')
+      .eq('organization_id', organizationId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  ])
+
+  if (dmRes.error) console.error('get_messaging_activity dm error:', dmRes.error)
+  if (bcRes.error) console.error('get_messaging_activity bc error:', bcRes.error)
+  if (jmRes.error) console.error('get_messaging_activity jm error:', jmRes.error)
+
+  return new Response(
+    JSON.stringify({
+      direct_messages: dmRes.data || [],
+      broadcasts: bcRes.data || [],
+      job_messages: jmRes.data || [],
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 async function handleMarkBroadcastRead(supabase: any, staffId: string, data: any, organizationId: string) {
   const { broadcast_id } = data
 
