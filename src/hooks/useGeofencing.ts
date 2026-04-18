@@ -547,9 +547,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
   const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
     const key = locationId ? `location-${locationId}` : bookingId;
-    // Block if another timer is already running (allow re-starting the same key)
+    // SOFT LOCK: parallel timers (location, booking, project) are valid signals.
+    // Only block re-starting the SAME key.
     const current = activeTimersRef.current;
-    if (current.size > 0 && !current.has(key)) {
+    if (current.has(key)) {
       return false;
     }
     setActiveTimers(prev => {

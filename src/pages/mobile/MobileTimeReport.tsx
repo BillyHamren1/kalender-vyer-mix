@@ -148,12 +148,8 @@ const MobileTimeReport = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (activeTimers.size > 0) {
-      const msg = 'You have an active timer. Stop it before creating a manual report.';
-      setValidationError(msg);
-      toast.error(msg);
-      return;
-    }
+    // SOFT LOCK: do not block manual reporting just because a timer is active.
+    // Real overlap is enforced server-side (and by DB trigger) using datetime intervals.
     const error = getValidationError();
     if (error) {
       setValidationError(error);
