@@ -1,20 +1,25 @@
 /**
- * Direct-message service — backward-compatible thin wrapper.
+ * Direct-message service — LEGACY WRAPPER (compat layer).
  *
- * Officiell väg för messaging-funktioner:
- *   - DM send / read / archive / inbox / unread → `mobileApi` (mobileApiService)
+ * Status: bibehållen för att stödja äldre call-sites som ännu inte migrerats:
+ *   - src/hooks/useDirectMessages.ts        (fetchDirectMessages)
+ *   - src/pages/CommunicationPage.tsx       (fetchDMInboxGrouped)
+ *   - src/components/FloatingInbox.tsx      (fetchDMInboxGrouped)
+ *   - src/components/ops-control/OpsActivityComms.tsx (fetchDMInboxGrouped)
+ *
+ * Officiell väg för NY kod (alla messaging-funktioner):
+ *   - DM send / read / archive / inbox / unread → `mobileApi` direkt
+ *     (mobileApiService.ts → mobile-app-api edge function)
  *   - Attachments (chat)                        → `mobileApi.uploadChatAttachment`
- *   - Job chat                                  → `mobileApi` (se jobChatService)
- *   - Broadcasts                                → `mobileApi` (se broadcastService)
- *   - Contacts                                  → `mobileApi.getContacts`
- *   - Inbox aggregator                          → `mobileApi.getInboxAll`
+ *   - Job chat                                  → `mobileApi.sendJobMessage` etc.
+ *   - Broadcasts                                → `mobileApi.sendBroadcast` etc.
  *
  * Alla anrop går genom edge-funktionen `mobile-app-api` som äger autentisering,
  * org-isolering och multi-identitet (staff_id + user_id). Frontenden gör inga
  * direkta DB-läsningar mot chat-tabeller.
  *
- * Den här filen finns kvar enbart för att inte bryta äldre call-sites.
- * Nya komponenter ska importera `mobileApi` direkt.
+ * NY KOD: importera `mobileApi` direkt — använd inte denna wrapper.
+ * Wrappern tas bort när alla call-sites ovan har migrerats.
  */
 import { mobileApi } from './mobileApiService';
 
