@@ -42,19 +42,18 @@ async function invokeChat<T = any>(action: string, data: Record<string, unknown>
   return result as T;
 }
 
-/** READ — direct DB query */
+/** READ — routed through `mobile-app-api` (single backend layer for messaging). */
 export const fetchJobMessages = async (bookingId: string): Promise<JobMessage[]> => {
-  const { data, error } = await supabase
-    .from('job_messages')
-    .select('*')
-    .eq('booking_id', bookingId)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching job messages:', error);
+  if (!bookingId) return [];
+  try {
+    const result = await invokeChat<{ messages: JobMessage[] }>('get_job_messages', {
+      booking_id: bookingId,
+    });
+    return result?.messages || [];
+  } catch (err) {
+    console.error('Error fetching job messages:', err);
     return [];
   }
-  return (data as JobMessage[]) || [];
 };
 
 /**
