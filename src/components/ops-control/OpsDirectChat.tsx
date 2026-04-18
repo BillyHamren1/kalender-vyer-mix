@@ -8,6 +8,7 @@ import { format, isToday } from 'date-fns';
 import { Send, X, MessageCircle, Zap, Paperclip, Image, FileText, Tag, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OpsTimelineAssignment } from '@/services/opsControlService';
+import { CHAT_UPLOAD_ACCEPT_ATTR, validateChatAttachment, isPreviewableType } from '@/lib/chat/uploadPolicy';
 
 const QUICK_MESSAGES = [
   'Försenad?',
@@ -25,7 +26,8 @@ interface Props {
   staffAssignments?: OpsTimelineAssignment[];
 }
 
-const isImageType = (type: string) => type.startsWith('image/');
+// Preview helper now comes from the shared upload policy.
+const isImageType = (type: string) => isPreviewableType(type);
 
 const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: Props) => {
   const { primaryId, displayName, allIds } = useMyIdentity();
@@ -62,8 +64,10 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Max filstorlek: 10 MB');
+    const v = validateChatAttachment(file);
+    if (!v.ok) {
+      toast.error(v.error || 'Filen kan inte laddas upp');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     const previewUrl = isImageType(file.type) ? URL.createObjectURL(file) : undefined;
@@ -318,7 +322,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            accept={CHAT_UPLOAD_ACCEPT_ATTR}
             className="hidden"
             onChange={handleFileSelect}
           />

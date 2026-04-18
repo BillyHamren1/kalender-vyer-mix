@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { getToken } from '@/services/mobileApiService';
+import { validateChatAttachment } from '@/lib/chat/uploadPolicy';
 
 const SUPABASE_URL = 'https://pihrhltinhewhoxefjxv.supabase.co';
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 
 export interface UploadedAttachment {
   url: string;
@@ -61,9 +61,8 @@ export const useChatUpload = () => {
   }, []);
 
   const uploadFile = useCallback(async (file: File) => {
-    if (file.size > MAX_BYTES) {
-      throw new Error('Filen är för stor (max 15 MB)');
-    }
+    const v = validateChatAttachment(file);
+    if (!v.ok) throw new Error(v.error || 'Filen kan inte laddas upp');
 
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
 
