@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useJobChat } from '@/hooks/useJobChat';
-import { sendJobMessage } from '@/services/jobChatService';
+import { sendJobMessage, markJobRead } from '@/services/jobChatService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -36,6 +36,16 @@ const OpsJobChat = ({ bookingId, bookingLabel, onClose }: Props) => {
     }
   }, [messages]);
 
+  // Mark conversation as read when admin opens it (clears unread badges in inbox).
+  useEffect(() => {
+    if (!bookingId) return;
+    markJobRead(bookingId)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
+      })
+      .catch(() => { /* non-fatal */ });
+  }, [bookingId, queryClient]);
+
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
     setSending(true);
@@ -51,7 +61,10 @@ const OpsJobChat = ({ bookingId, bookingLabel, onClose }: Props) => {
     }
   };
 
-  const activeMessages = messages.filter(m => !m.is_archived);
+  // Backend now uses per-user `is_archived_by` arrays exclusively. The legacy
+  // `is_archived` boolean is no longer set, so we don't filter on it here —
+  // the backend already excludes anything archived by the caller.
+  const activeMessages = messages;
   const staffCount = participants.filter(p => p.role !== 'planner').length;
   const plannerCount = participants.filter(p => p.role === 'planner').length;
 

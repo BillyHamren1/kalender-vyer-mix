@@ -51,15 +51,16 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
     }
   }, [messages]);
 
-  // Mark as read on open and invalidate inbox cache so badge updates
+  // Mark as read on open and invalidate inbox caches so badges update everywhere.
   useEffect(() => {
     if (allIds.length > 0 && staffId) {
       markDirectMessagesRead(allIds, staffId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
         queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
+        queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
       });
     }
-  }, [myId, staffId, queryClient]);
+  }, [myId, staffId, queryClient, allIds]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,7 +103,9 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       setMsg('');
       clearPendingFile();
       setTaggedBooking(null);
-      queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      // Invalidate the canonical chat caches (no longer ['direct-messages']).
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
@@ -117,7 +120,8 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       await sendDirectMessage(myId, myName, 'planner', staffId, staffName, qm, {
         bookingId: taggedBooking?.bookingId,
       });
-      queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {

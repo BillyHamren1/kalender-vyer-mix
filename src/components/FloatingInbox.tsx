@@ -23,18 +23,26 @@ const FloatingInbox = () => {
   const { data: conversations = [] } = useQuery({
     queryKey: ['dm-inbox-grouped', ...allIds],
     queryFn: () => fetchDMInboxGrouped(allIds),
-    enabled: allIds.length > 0 && isOpen,
-    refetchInterval: 10000,
+    // Always enabled when we know who the user is — otherwise the badge
+    // can't reflect unread until the panel has been opened at least once.
+    // The realtime channel below invalidates this query on new INSERTs
+    // so polling stays infrequent.
+    enabled: allIds.length > 0,
+    refetchInterval: isOpen ? 10_000 : 60_000,
   });
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
-  // Realtime badge update
+  // Realtime badge update — always-on (so the badge reacts even when panel is closed).
   useEffect(() => {
     if (allIds.length === 0) return;
     const channel = supabase
       .channel('floating-inbox-badge')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', ...allIds] });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages' }, () => {
+        // Read-receipt UPDATEs (is_read flip) need to refresh unread count too.
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', ...allIds] });
       })
       .subscribe();
