@@ -181,9 +181,8 @@ for each booking in bookings:
   }
   
   geofence.onExit = () => {
-    stopTimer(booking.id)
-    promptForBreakTime()  // Fråga om rast
-    submitTimeReport(booking.id)
+    // Save-then-stop: persist time_report FIRST, then stop the timer.
+    saveAndStopTimer(booking.id, { /* time_report payload */ })
     showNotification("Tidrapport sparad")
   }
 \`\`\`
