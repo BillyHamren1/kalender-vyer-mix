@@ -1222,27 +1222,38 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Overlap check for update — use final start/end times (already computed above)
-
+  // === Overlap check (UPDATE) ===
+  // Uses real datetime intervals so night shifts crossing midnight are
+  // compared correctly against same-day, previous-day and next-day reports.
   if (finalStartTime && finalEndTime) {
-    const { data: overlapping } = await supabase
-      .from('time_reports')
-      .select('id, start_time, end_time')
-      .eq('staff_id', staffId)
-      .eq('report_date', existing.report_date)
-      .neq('id', time_report_id)
-      .not('start_time', 'is', null)
-      .not('end_time', 'is', null)
+    const newInterval = buildShiftInterval(existing.report_date, finalStartTime, finalEndTime)
+    if (newInterval) {
+      // Widen window: a previous-day night shift may extend into report_date,
+      // and a same-day night shift extends into report_date + 1.
+      const baseDate = new Date(`${existing.report_date}T00:00:00Z`)
+      const prevDate = new Date(baseDate.getTime() - 86_400_000).toISOString().slice(0, 10)
+      const nextDate = new Date(baseDate.getTime() + 86_400_000).toISOString().slice(0, 10)
 
-    const hasOverlap = (overlapping || []).some((r: any) => {
-      return r.start_time < finalEndTime && r.end_time > finalStartTime
-    })
+      const { data: candidates } = await supabase
+        .from('time_reports')
+        .select('id, report_date, start_time, end_time')
+        .eq('staff_id', staffId)
+        .neq('id', time_report_id)
+        .in('report_date', [prevDate, existing.report_date, nextDate])
+        .not('start_time', 'is', null)
+        .not('end_time', 'is', null)
 
-    if (hasOverlap) {
-      return new Response(
-        JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall' }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      const hasOverlap = (candidates || []).some((r: any) => {
+        const other = buildShiftInterval(r.report_date, r.start_time, r.end_time)
+        return other ? intervalsOverlap(newInterval, other) : false
+      })
+
+      if (hasOverlap) {
+        return new Response(
+          JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall (inklusive nattskift över midnatt)' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
   }
 
@@ -1604,25 +1615,35 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     }
   }
 
-  // Overlap check before creating
+  // === Overlap check (CREATE) ===
+  // Same robust datetime-interval logic as update — handles night shifts and
+  // reports stored on neighboring report_dates that bleed into this day.
   if (start_time && end_time) {
-    const { data: overlapping } = await supabase
-      .from('time_reports')
-      .select('id, start_time, end_time')
-      .eq('staff_id', staffId)
-      .eq('report_date', report_date)
-      .not('start_time', 'is', null)
-      .not('end_time', 'is', null)
+    const newInterval = buildShiftInterval(report_date, start_time, end_time)
+    if (newInterval) {
+      const baseDate = new Date(`${report_date}T00:00:00Z`)
+      const prevDate = new Date(baseDate.getTime() - 86_400_000).toISOString().slice(0, 10)
+      const nextDate = new Date(baseDate.getTime() + 86_400_000).toISOString().slice(0, 10)
 
-    const hasOverlap = (overlapping || []).some((r: any) => {
-      return r.start_time < end_time && r.end_time > start_time
-    })
+      const { data: candidates } = await supabase
+        .from('time_reports')
+        .select('id, report_date, start_time, end_time')
+        .eq('staff_id', staffId)
+        .in('report_date', [prevDate, report_date, nextDate])
+        .not('start_time', 'is', null)
+        .not('end_time', 'is', null)
 
-    if (hasOverlap) {
-      return new Response(
-        JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall' }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      const hasOverlap = (candidates || []).some((r: any) => {
+        const other = buildShiftInterval(r.report_date, r.start_time, r.end_time)
+        return other ? intervalsOverlap(newInterval, other) : false
+      })
+
+      if (hasOverlap) {
+        return new Response(
+          JSON.stringify({ error: 'Du har redan en tidrapport som överlappar detta tidsintervall (inklusive nattskift över midnatt)' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
   }
 
