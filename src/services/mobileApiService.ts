@@ -391,31 +391,6 @@ export const mobileApi = {
   getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
 
-  // ===== Unified timer API (single source of truth: location_time_entries) =====
-  // Use these for ALL active timer types (location/booking/large_project).
-  // Pass exactly one of location_id / booking_id / large_project_id.
-  startTimer: (data: {
-    location_id?: string;
-    booking_id?: string;
-    large_project_id?: string;
-    task_id?: string;
-    started_at?: string;
-    /** Stable key per logical "start press" so retries are idempotent. */
-    client_dedupe_key?: string;
-  }) => callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_timer', data),
-
-  stopTimer: (data: {
-    entry_id?: string;
-    location_id?: string;
-    booking_id?: string;
-    large_project_id?: string;
-    ended_at?: string;
-  }) => callApi<{ success?: boolean; entry: any }>('stop_timer', data),
-
-  /** Returns ALL open timer rows (any kind) for the current staff. */
-  getActiveTimers: () =>
-    callApi<{ entries: any[] }>('get_active_timers'),
-
   // ===== Anomalies (background absence tracking) =====
   startAnomaly: (data: { location_id?: string; booking_id?: string; large_project_id?: string; started_at?: string }) =>
     callApi<{ success: boolean; anomaly: any; already_open?: boolean }>('start_anomaly', data),
