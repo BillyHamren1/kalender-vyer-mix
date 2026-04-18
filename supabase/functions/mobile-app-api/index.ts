@@ -38,6 +38,66 @@ function verifyPassword(inputPassword: string, storedHash: string): boolean {
   return inputHash === storedHash
 }
 
+// ============================================================================
+// UNIFIED TIME-INTERVAL HELPERS (used by create + update of time_reports)
+// ----------------------------------------------------------------------------
+// All shifts are modeled as real [start, end) datetime intervals in UTC ms.
+// Night shifts (end <= start as HH:MM) are interpreted as crossing midnight
+// (end belongs to report_date + 1). Two intervals overlap iff
+//   aStart < bEnd && bStart < aEnd
+// This is symmetric and correctly handles shifts that span midnight, and
+// reports stored on different report_dates that bleed into the same day.
+// ============================================================================
+
+/** Parse "HH:MM" (or "HH:MM:SS") to total minutes since 00:00. Null if invalid. */
+function parseHHMMtoMinutes(t: string | null | undefined): number | null {
+  if (!t || typeof t !== 'string') return null
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  if (!m) return null
+  const h = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return null
+  if (h < 0 || h > 23 || mm < 0 || mm > 59) return null
+  return h * 60 + mm
+}
+
+/**
+ * Build a UTC interval [startMs, endMs) for a time_report.
+ * - reportDate: 'YYYY-MM-DD'
+ * - startTime / endTime: 'HH:MM' (with optional :SS)
+ * - If endMinutes <= startMinutes the shift is treated as crossing midnight,
+ *   i.e. end is on reportDate + 1 day.
+ * Returns null when either time is missing/invalid.
+ */
+function buildShiftInterval(
+  reportDate: string,
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+): { startMs: number; endMs: number } | null {
+  if (!reportDate || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return null
+  const sMin = parseHHMMtoMinutes(startTime)
+  const eMin = parseHHMMtoMinutes(endTime)
+  if (sMin === null || eMin === null) return null
+
+  // Use UTC base to avoid timezone drift (we compare ms, not wall-clock dates).
+  const baseMs = Date.parse(`${reportDate}T00:00:00Z`)
+  if (!Number.isFinite(baseMs)) return null
+
+  const startMs = baseMs + sMin * 60_000
+  let endMs = baseMs + eMin * 60_000
+  // Night shift: end <= start means it rolls into the next day.
+  if (endMs <= startMs) endMs += 24 * 60 * 60_000
+  return { startMs, endMs }
+}
+
+/** True iff [a) and [b) intervals overlap (touching endpoints are OK). */
+function intervalsOverlap(
+  a: { startMs: number; endMs: number },
+  b: { startMs: number; endMs: number },
+): boolean {
+  return a.startMs < b.endMs && b.startMs < a.endMs
+}
+
 /**
  * Build a safe push-notification preview body for chat messages.
  * - Never throws on null/undefined inputs.
