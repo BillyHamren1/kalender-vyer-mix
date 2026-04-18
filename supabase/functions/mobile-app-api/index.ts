@@ -4724,7 +4724,11 @@ async function handleUploadChatAttachment(supabase: any, staffId: string, data: 
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // 2. Mime-type whitelist
+    // ────────────────────────────────────────────────────────────────────
+    // CHAT_UPLOAD_POLICY — keep in sync with `src/lib/chat/uploadPolicy.ts`
+    // (single source of truth for chat attachments). If you change one
+    // side, change the other too.
+    // ────────────────────────────────────────────────────────────────────
     const ALLOWED_MIME = new Set([
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
       'application/pdf',
@@ -4734,13 +4738,24 @@ async function handleUploadChatAttachment(supabase: any, staffId: string, data: 
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'text/plain', 'text/csv',
     ])
+    const ALLOWED_EXT = new Set([
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv',
+    ])
+    const MAX_BYTES = 15 * 1024 * 1024 // 15 MB
+    const MAX_MB = MAX_BYTES / (1024 * 1024)
+
     const mimeType = (file_type || 'application/octet-stream').toLowerCase()
-    if (!ALLOWED_MIME.has(mimeType)) {
-      return new Response(JSON.stringify({ error: `Unsupported mime type: ${mimeType}` }),
+    const lastDot = String(file_name).lastIndexOf('.')
+    const ext = lastDot >= 0 ? String(file_name).slice(lastDot).toLowerCase() : ''
+    const mimeOk = ALLOWED_MIME.has(mimeType)
+    const extOk = ext.length > 0 && ALLOWED_EXT.has(ext)
+    if (!mimeOk && !extOk) {
+      return new Response(JSON.stringify({ error: `Filtypen stöds inte (${mimeType || 'okänd'})` }),
         { status: 415, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // 3. Decode + size validation (max 15 MB)
+    // 3. Decode + size validation
     let binary: Uint8Array
     try {
       binary = Uint8Array.from(atob(file_data_base64), c => c.charCodeAt(0))
@@ -4748,13 +4763,12 @@ async function handleUploadChatAttachment(supabase: any, staffId: string, data: 
       return new Response(JSON.stringify({ error: 'Invalid base64 payload' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
-    const MAX_BYTES = 15 * 1024 * 1024
     if (binary.byteLength === 0) {
-      return new Response(JSON.stringify({ error: 'Empty file' }),
+      return new Response(JSON.stringify({ error: 'Filen är tom' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (binary.byteLength > MAX_BYTES) {
-      return new Response(JSON.stringify({ error: `File too large (max ${MAX_BYTES / (1024 * 1024)} MB)` }),
+      return new Response(JSON.stringify({ error: `Filen är för stor (max ${MAX_MB} MB)` }),
         { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
