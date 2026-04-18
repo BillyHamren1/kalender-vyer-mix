@@ -156,25 +156,27 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     } catch (err: any) {
       toast.error(err.message || 'Kunde inte spara tidrapport');
+      // Re-throw so caller knows persistence failed and keeps timer alive
+      throw err;
     }
   }, []);
 
-  const handleStop = useCallback(async (key: string, timer: ActiveTimer) => {
-    const stopTime = new Date();
-    const startTimeDate = parseISO(timer.startTime);
-
-    // Optimistically remove the timer from local storage so UI updates immediately
+  /**
+   * Save-then-stop: server is source of truth.
+   * Timer must NOT be removed locally before time_report is safely persisted.
+   * On error: timer stays active locally and on server so user can retry.
+   */
+  const clearTimerLocally = useCallback((key: string) => {
     const current = loadTimersFromStorage();
     current.delete(key);
     localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(current.entries())));
     setTimers(current);
     window.dispatchEvent(new Event('timer-state-changed'));
+  }, []);
 
-    if (timer.locationId) {
-      mobileApi.stopLocationTimer({ location_id: timer.locationId }).catch(err => {
-        console.warn('Failed to stop location timer on server:', err);
-      });
-    }
+  const handleStop = useCallback(async (key: string, timer: ActiveTimer) => {
+    const stopTime = new Date();
+    const startTimeDate = parseISO(timer.startTime);
 
     // Look up the most recent geofence exit. If the user left the workplace
     // before stopping the timer, ask them to confirm/adjust their end-time.
@@ -186,15 +188,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
       console.warn('Could not fetch last workplace exit:', err);
     }
 
-    // Only show dialog when:
-    //  - we have an exit timestamp
-    //  - the exit was AFTER the timer started (i.e. user actually left during this work session)
-    //  - the gap between exit and now is meaningful (>2 min)
     if (lastExit?.exited_at) {
       const exitDate = parseISO(lastExit.exited_at);
       const gapMin = (stopTime.getTime() - exitDate.getTime()) / 60000;
       const isWithinSession = exitDate.getTime() > startTimeDate.getTime();
       if (isWithinSession && gapMin >= 2) {
+        // Defer to dialog. Timer stays alive locally + on server until confirmed.
         setPendingStop({
           key,
           timer,
@@ -202,37 +201,69 @@ const GlobalActiveTimerBanner: React.FC = () => {
           lastExitIso: lastExit.exited_at,
           locationName: lastExit.location_name,
         });
-        return; // wait for dialog confirmation
+        return;
       }
     }
 
-    // No relevant exit — close any orphan anomalies (safety net) and save directly
+    // SAVE FIRST. Only on success do we clear the timer (local + server).
+    try {
+      await persistStop(key, timer, startTimeDate, stopTime);
+    } catch (err: any) {
+      // persistStop already toasts — keep timer alive for retry
+      console.warn('[Stop] persistStop failed, timer stays active:', err);
+      return;
+    }
+
+    // Best-effort: close orphan anomalies, then stop server-side location timer
     mobileApi.closeOpenAnomalies({ ended_at: stopTime.toISOString() }).catch(err => {
       console.warn('Failed to close open anomalies on stop:', err);
     });
-    await persistStop(key, timer, startTimeDate, stopTime);
-  }, [persistStop]);
+    if (timer.locationId) {
+      try {
+        await mobileApi.stopLocationTimer({ location_id: timer.locationId });
+      } catch (err) {
+        console.warn('Failed to stop location timer on server (timer cleared locally anyway):', err);
+      }
+    }
+    clearTimerLocally(key);
+  }, [persistStop, clearTimerLocally]);
 
   const handleDialogConfirm = useCallback(async (result: EndOfDayResult) => {
     if (!pendingStop) return;
     const stopTime = new Date(result.endedAtIso);
     const lastExitDate = parseISO(pendingStop.lastExitIso);
 
-    await persistStop(
-      pendingStop.key,
-      pendingStop.timer,
-      pendingStop.startTimeDate,
-      stopTime,
-      result.usedSuggestedExit
-        ? undefined
-        : {
-            lastExitDate,
-            workDescription: result.workDescription,
-            locationId: pendingStop.timer.locationId || null,
-          },
-    );
+    try {
+      await persistStop(
+        pendingStop.key,
+        pendingStop.timer,
+        pendingStop.startTimeDate,
+        stopTime,
+        result.usedSuggestedExit
+          ? undefined
+          : {
+              lastExitDate,
+              workDescription: result.workDescription,
+              locationId: pendingStop.timer.locationId || null,
+            },
+      );
+    } catch (err) {
+      // Save failed — keep dialog & timer alive for retry
+      console.warn('[Stop] dialog persistStop failed, timer stays active:', err);
+      return;
+    }
+
+    // Persisted OK — now clear server-side location timer + local timer
+    if (pendingStop.timer.locationId) {
+      try {
+        await mobileApi.stopLocationTimer({ location_id: pendingStop.timer.locationId });
+      } catch (err) {
+        console.warn('Failed to stop location timer on server (cleared locally anyway):', err);
+      }
+    }
+    clearTimerLocally(pendingStop.key);
     setPendingStop(null);
-  }, [pendingStop, persistStop]);
+  }, [pendingStop, persistStop, clearTimerLocally]);
 
   if (location.pathname === '/m/report') return null;
 
@@ -249,11 +280,22 @@ const GlobalActiveTimerBanner: React.FC = () => {
         <EndOfDayStopDialog
           open={!!pendingStop}
           onOpenChange={(open) => {
-            // Closing without confirming = treat as "use now as end time"
+            // Closing without confirming = treat as "use now as end time".
+            // Save-then-stop: only clear timer if persistStop succeeds.
             if (!open && pendingStop) {
               const stopTime = new Date();
-              persistStop(pendingStop.key, pendingStop.timer, pendingStop.startTimeDate, stopTime);
-              setPendingStop(null);
+              const ps = pendingStop;
+              persistStop(ps.key, ps.timer, ps.startTimeDate, stopTime)
+                .then(async () => {
+                  if (ps.timer.locationId) {
+                    try { await mobileApi.stopLocationTimer({ location_id: ps.timer.locationId }); } catch {}
+                  }
+                  clearTimerLocally(ps.key);
+                  setPendingStop(null);
+                })
+                .catch(() => {
+                  // keep dialog & timer for retry
+                });
             }
           }}
           lastExitIso={pendingStop.lastExitIso}
