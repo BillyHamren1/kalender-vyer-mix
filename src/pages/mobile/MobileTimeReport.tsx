@@ -33,7 +33,7 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, stopTimer, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, saveAndStopTimer, stopLocationTimerWithoutReport, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
 
   const fetchReports = async () => {
     try {
@@ -229,21 +229,25 @@ const MobileTimeReport = () => {
                   const stopTime = new Date();
                   const startTimeDate = parseISO(timer.startTime);
 
-                  // Location-only timers: just stop server-side; no time_report needed
+                  // Location-only timers: server-stop only, no time_report.
                   if (timer.locationId) {
-                    stopTimer(key);
-                    toast.success('Timer stopped');
+                    try {
+                      await stopLocationTimerWithoutReport(key);
+                      toast.success('Timer stopped');
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Could not stop timer');
+                    }
                     return;
                   }
 
-                  // Save-then-stop: persist time_report FIRST, then clear timer.
-                  // On failure, timer stays active so user can retry.
+                  // Save-then-stop: hook persists time_report FIRST, then
+                  // closes server entry and clears local. Failure keeps timer.
                   let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
                   if (totalHours < 0) totalHours += 24;
                   const breakDeduction = totalHours > 5 ? 0.5 : 0;
                   const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
                   try {
-                    await mobileApi.createTimeReport({
+                    await saveAndStopTimer(key, {
                       booking_id: key.startsWith('project-') ? undefined : key,
                       report_date: format(new Date(), 'yyyy-MM-dd'),
                       start_time: format(startTimeDate, 'HH:mm'),
@@ -254,7 +258,6 @@ const MobileTimeReport = () => {
                       establishment_task_id: timer.establishmentTaskId,
                       large_project_id: timer.largeProjectId,
                     });
-                    stopTimer(key);
                     toast.success(`Time report saved: ${hoursWorked}h`);
                     fetchReports();
                   } catch (err: any) {

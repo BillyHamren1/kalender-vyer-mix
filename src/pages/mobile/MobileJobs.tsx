@@ -29,7 +29,7 @@ const MobileJobs = () => {
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
 
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
@@ -44,11 +44,10 @@ const MobileJobs = () => {
         if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
         else toast.error(t('timer.alreadyActive'));
       } else {
-        const stopped = stopTimer(projectKey);
-        if (stopped) {
-          toast.success(t('timer.stoppedCreateReport'));
-          navigate('/m/report');
-        }
+        // Geofence EXIT — do NOT clear the timer here. Save-then-stop is enforced
+        // on /m/report (or via the global banner). Just navigate the user there.
+        toast.success(t('timer.stoppedCreateReport'));
+        navigate('/m/report');
       }
     } else if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
       const locKey = `location-${geofenceEvent.locationId}`;
@@ -66,11 +65,9 @@ const MobileJobs = () => {
         if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
         else toast.error(t('timer.alreadyActive'));
       } else {
-        const stopped = stopTimer(geofenceEvent.booking.id);
-        if (stopped) {
-          toast.success(t('timer.stoppedCreateReport'));
-          navigate('/m/report');
-        }
+        // Geofence EXIT — defer save-then-stop to /m/report.
+        toast.success(t('timer.stoppedCreateReport'));
+        navigate('/m/report');
       }
     }
     dismissGeofenceEvent();
@@ -135,15 +132,15 @@ const MobileJobs = () => {
     }
   };
 
-  // Timer toggle for standalone bookings
+  // Timer toggle for standalone bookings.
+  // STOP path: never clears local timer here — navigates user to /m/report
+  // where save-then-stop is enforced. The timer card stays visible until
+  // a time_report has actually been persisted on the server.
   const handleTimerToggle = (e: React.MouseEvent, booking: MobileBooking) => {
     e.stopPropagation();
     if (activeTimers.has(booking.id)) {
-      const stopped = stopTimer(booking.id);
-      if (stopped) {
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
     } else {
       if (hasAnyTimer) {
         toast.error(t('timer.alreadyActive'));
@@ -164,11 +161,8 @@ const MobileJobs = () => {
     e.stopPropagation();
     const projectKey = `project-${lpId}`;
     if (activeTimers.has(projectKey)) {
-      const stopped = stopTimer(projectKey);
-      if (stopped) {
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
     } else {
       if (hasAnyTimer) {
         toast.error(t('timer.alreadyActive'));
@@ -191,11 +185,8 @@ const MobileJobs = () => {
     e.stopPropagation();
     const locKey = `location-${loc.id}`;
     if (activeTimers.has(locKey)) {
-      const stopped = stopTimer(locKey);
-      if (stopped) {
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
     } else {
       if (hasAnyTimer) {
         toast.error(t('timer.alreadyActive'));

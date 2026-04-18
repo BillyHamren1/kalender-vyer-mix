@@ -41,7 +41,7 @@ const MobileJobDetail = () => {
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, userPosition, startTimer, stopTimer } = useGeofencing(bookingsArr, staff?.id);
+  const { activeTimers, userPosition, startTimer, saveAndStopTimer } = useGeofencing(bookingsArr, staff?.id);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
@@ -96,10 +96,11 @@ const MobileJobDetail = () => {
       const taskId = currentTimer.establishmentTaskId;
       const taskTitle = currentTimer.establishmentTaskTitle;
 
-      stopTimer(id);
-
+      // SAVE-THEN-STOP: hook ensures time_report is persisted before
+      // the timer is cleared (locally + on server). On failure the
+      // timer survives so the user can retry.
       try {
-        await mobileApi.createTimeReport({
+        await saveAndStopTimer(id, {
           booking_id: id,
           report_date: format(new Date(), 'yyyy-MM-dd'),
           start_time: format(startTimeDate, 'HH:mm'),
