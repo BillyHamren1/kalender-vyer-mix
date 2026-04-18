@@ -95,20 +95,24 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
 
       if (pendingFile) {
         setUploading(true);
-        const uploaded = await uploadDMFile(pendingFile.file, myId);
+        const uploaded = await uploadChatAttachment(pendingFile.file);
         fileData = { fileUrl: uploaded.url, fileName: uploaded.fileName, fileType: uploaded.fileType };
         setUploading(false);
       }
 
-      await sendDirectMessage(myId, myName, 'planner', staffId, staffName, msg || (pendingFile ? `📎 ${pendingFile.file.name}` : ''), {
-        ...fileData,
-        bookingId: taggedBooking?.bookingId,
-      });
+      await sendDM(
+        staffId,
+        staffName,
+        msg || (pendingFile ? `📎 ${pendingFile.file.name}` : ''),
+        { ...fileData, bookingId: taggedBooking?.bookingId },
+      );
 
       setMsg('');
       clearPendingFile();
       setTaggedBooking(null);
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
@@ -120,10 +124,10 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   const handleQuickSend = async (qm: string) => {
     setSending(true);
     try {
-      await sendDirectMessage(myId, myName, 'planner', staffId, staffName, qm, {
-        bookingId: taggedBooking?.bookingId,
-      });
+      await sendDM(staffId, staffName, qm, { bookingId: taggedBooking?.bookingId });
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
+      queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
