@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Navigation } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencing } from '@/hooks/useGeofencing';
+import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,8 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, orgLocations, startTimer, stopLocationTimerWithoutReport } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, geo, startSession, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [loading, setLoading] = useState(true);
