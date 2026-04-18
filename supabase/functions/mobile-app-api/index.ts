@@ -249,6 +249,17 @@ Deno.serve(async (req) => {
         return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'unarchive_dm':
         return await handleUnarchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      // ── Centralized chat reads (PROMPT 1) ──
+      case 'get_dm_thread':
+        return await handleGetDMThread(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'get_dm_inbox_grouped':
+        return await handleGetDMInboxGrouped(supabase, staffId, organizationId, staffOrg?.user_id || null)
+      case 'get_unread_dm_count':
+        return await handleGetUnreadDMCount(supabase, staffId, organizationId, staffOrg?.user_id || null)
+      case 'get_job_participants':
+        return await handleGetJobParticipants(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'get_recent_broadcasts':
+        return await handleGetRecentBroadcasts(supabase, organizationId)
       case 'upload_chat_attachment':
         return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
@@ -5473,3 +5484,243 @@ async function handleMarkArrivalResolved(supabase: any, staffId: string, data: a
   return new Response(JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Centralized chat READ handlers (PROMPT 1) — single backend layer for messaging
+// All apply: org isolation + dual-identity (staffId + userId) + auth required.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build conditions for a DM thread between caller (myIds) and a partner (partnerIds).
+ * Mirrors the previous client-side fetchDirectMessages OR-filter.
+ */
+function buildDMThreadOrFilter(myIds: string[], partnerIds: string[]): string {
+  const conds: string[] = []
+  for (const me of myIds) {
+    for (const partner of partnerIds) {
+      conds.push(`and(sender_id.eq.${me},recipient_id.eq.${partner})`)
+      conds.push(`and(sender_id.eq.${partner},recipient_id.eq.${me})`)
+    }
+  }
+  return conds.join(',')
+}
+
+/** Fetch a DM thread between caller and a partner (supports dual identity for both sides). */
+async function handleGetDMThread(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+  userId: string | null,
+) {
+  const partnerIds: string[] = Array.isArray(data?.partner_ids) && data.partner_ids.length > 0
+    ? data.partner_ids.map((x: unknown) => String(x))
+    : (data?.partner_id ? [String(data.partner_id)] : [])
+
+  if (partnerIds.length === 0) {
+    return new Response(JSON.stringify({ error: 'partner_id or partner_ids is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const myIds = [staffId]
+  if (userId && userId !== staffId) myIds.push(userId)
+
+  const orFilter = buildDMThreadOrFilter(myIds, partnerIds)
+
+  const { data: rows, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+    .order('created_at', { ascending: true })
+    .limit(500)
+
+  if (error) {
+    console.error('[get_dm_thread] error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch DM thread' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Hide messages this user has archived (per-user is_archived_by)
+  const messages = (rows || []).filter((m: any) => {
+    const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
+    return !myIds.some((id) => arr.includes(id))
+  })
+
+  return new Response(JSON.stringify({ messages }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/** Inbox view grouped by conversation partner (last message + unread count). */
+async function handleGetDMInboxGrouped(
+  supabase: any,
+  staffId: string,
+  organizationId: string,
+  userId: string | null,
+) {
+  const myIds = [staffId]
+  if (userId && userId !== staffId) myIds.push(userId)
+  const myIdSet = new Set(myIds)
+  const orFilter = myIds.map((id) => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',')
+
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .or(orFilter)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) {
+    console.error('[get_dm_inbox_grouped] error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch DM inbox' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  type Group = {
+    recipientId: string
+    recipientName: string
+    lastMessage: string
+    lastTimestamp: string
+    unreadCount: number
+    isSentByMe: boolean
+  }
+  const conv = new Map<string, Group>()
+
+  for (const m of (data || [])) {
+    const arch = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
+    if (myIds.some((id) => arch.includes(id))) continue
+
+    const isMe = myIdSet.has(m.sender_id)
+    const partnerId = isMe ? m.recipient_id : m.sender_id
+    const partnerName = isMe ? m.recipient_name : m.sender_name
+    if (myIdSet.has(partnerId)) continue
+
+    if (!conv.has(partnerId)) {
+      conv.set(partnerId, {
+        recipientId: partnerId,
+        recipientName: partnerName,
+        lastMessage: m.content,
+        lastTimestamp: m.created_at,
+        unreadCount: 0,
+        isSentByMe: isMe,
+      })
+    }
+    if (!isMe && !m.is_read) {
+      conv.get(partnerId)!.unreadCount++
+    }
+  }
+
+  const conversations = Array.from(conv.values()).sort(
+    (a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime(),
+  )
+
+  return new Response(JSON.stringify({ conversations }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/** Unread DM count for caller (sum across all identities). */
+async function handleGetUnreadDMCount(
+  supabase: any,
+  staffId: string,
+  organizationId: string,
+  userId: string | null,
+) {
+  const myIds = [staffId]
+  if (userId && userId !== staffId) myIds.push(userId)
+
+  const { count, error } = await supabase
+    .from('direct_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId)
+    .in('recipient_id', myIds)
+    .eq('is_read', false)
+
+  if (error) {
+    console.error('[get_unread_dm_count] error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch unread count' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(JSON.stringify({ count: count || 0 }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/** Resolve participants for a job chat (staff assigned for the date + planners). */
+async function handleGetJobParticipants(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+  userId: string | null,
+) {
+  const booking_id = data?.booking_id
+  const date = data?.date || new Date().toISOString().slice(0, 10)
+  if (!booking_id) {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
+  if (denied) return denied
+
+  const participants: { id: string; name: string; role: 'planner' | 'team_leader' | 'staff' }[] = []
+
+  const { data: assignments } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id')
+    .eq('booking_id', booking_id)
+    .eq('assignment_date', date)
+    .eq('organization_id', organizationId)
+
+  const staffIds = [...new Set((assignments || []).map((a: any) => a.staff_id))]
+  if (staffIds.length > 0) {
+    const { data: staffData } = await supabase
+      .from('staff_members')
+      .select('id, name, role')
+      .in('id', staffIds)
+      .eq('organization_id', organizationId)
+
+    for (const s of (staffData || []) as any[]) {
+      const r = String(s.role || '').toLowerCase()
+      const isLeader = r.includes('ledare') || r.includes('leader')
+      participants.push({ id: s.id, name: s.name, role: isLeader ? 'team_leader' : 'staff' })
+    }
+  }
+
+  // Planners in this org
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('user_id, full_name, email')
+    .eq('organization_id', organizationId)
+
+  for (const p of (profiles || []) as any[]) {
+    participants.push({
+      id: p.user_id,
+      name: p.full_name || p.email || 'Planerare',
+      role: 'planner',
+    })
+  }
+
+  return new Response(JSON.stringify({ participants }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/** Recent broadcasts in the org (no filtering — caller decides what to show). */
+async function handleGetRecentBroadcasts(supabase: any, organizationId: string) {
+  const { data, error } = await supabase
+    .from('broadcast_messages')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.error('[get_recent_broadcasts] error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch broadcasts' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ broadcasts: data || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+

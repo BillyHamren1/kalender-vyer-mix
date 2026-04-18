@@ -44,15 +44,18 @@ export const sendBroadcast = async (
 };
 
 export const fetchRecentBroadcasts = async (): Promise<BroadcastMessage[]> => {
-  const { data, error } = await supabase
-    .from('broadcast_messages' as any)
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (error) {
-    console.error('Error fetching broadcasts:', error);
+  // READ — routed through `mobile-app-api` (single backend layer for messaging).
+  try {
+    const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: { action: 'get_recent_broadcasts', data: {} },
+    });
+    if (error) {
+      console.error('Error fetching broadcasts:', error);
+      return [];
+    }
+    return (result?.broadcasts as BroadcastMessage[]) || [];
+  } catch (err) {
+    console.error('Error fetching broadcasts:', err);
     return [];
   }
-  return (data as unknown as BroadcastMessage[]) || [];
 };

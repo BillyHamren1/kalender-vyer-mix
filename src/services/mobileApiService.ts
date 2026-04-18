@@ -281,6 +281,21 @@ export const mobileApi = {
       { partner_id: partnerId, before: opts?.before, limit: opts?.limit },
     ),
 
+  getJobParticipants: (bookingId: string, date: string) =>
+    callApi<{ participants: { id: string; name: string; role: string }[] }>('get_job_participants', { booking_id: bookingId, date }),
+
+  getDMThread: (partnerIds: string[]) =>
+    callApi<{ messages: any[] }>('get_dm_thread', { partner_ids: partnerIds }),
+
+  getDMInboxGrouped: () =>
+    callApi<{ conversations: any[] }>('get_dm_inbox_grouped'),
+
+  getUnreadDMCount: () =>
+    callApi<{ count: number }>('get_unread_dm_count'),
+
+  getRecentBroadcasts: () =>
+    callApi<{ broadcasts: any[] }>('get_recent_broadcasts'),
+
   sendJobMessage: (data: { booking_id: string; content: string; file_url?: string; file_name?: string; file_type?: string }) =>
     callApi<{ success: boolean; message: any }>('send_job_message', data),
 

@@ -37,33 +37,25 @@ async function invokeChat<T = any>(action: string, data: Record<string, unknown>
 
 /**
  * Fetch conversation between two participants (sorted by time).
- * READ — direct DB query (RLS protected).
+ * READ — routed through `mobile-app-api` (single backend layer for messaging).
+ * Backend resolves caller identity from auth context and applies org isolation.
+ * `allMyIds` is kept for signature compatibility but ignored server-side.
  */
 export const fetchDirectMessages = async (
   allMyIds: string[],
   allPartnerIds: string[],
 ): Promise<DirectMessage[]> => {
-  if (allMyIds.length === 0 || allPartnerIds.length === 0) return [];
+  if (allPartnerIds.length === 0) return [];
 
-  const conditions: string[] = [];
-  for (const myId of allMyIds) {
-    for (const partnerId of allPartnerIds) {
-      conditions.push(`and(sender_id.eq.${myId},recipient_id.eq.${partnerId})`);
-      conditions.push(`and(sender_id.eq.${partnerId},recipient_id.eq.${myId})`);
-    }
-  }
-
-  const { data, error } = await supabase
-    .from('direct_messages')
-    .select('*')
-    .or(conditions.join(','))
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching direct messages:', error);
+  try {
+    const result = await invokeChat<{ messages: DirectMessage[] }>('get_dm_thread', {
+      partner_ids: allPartnerIds,
+    });
+    return result?.messages || [];
+  } catch (err) {
+    console.error('Error fetching direct messages:', err);
     return [];
   }
-  return (data as DirectMessage[]) || [];
 };
 
 /**
@@ -189,41 +181,17 @@ export const archiveDM = async (partnerId: string): Promise<void> => {
 };
 
 /**
- * Get unread DM count for a recipient (READ).
+ * Get unread DM count for the current user (READ — backend).
+ * `allMyIds` kept for signature compatibility; backend uses auth context.
  */
-export const fetchUnreadDMCount = async (allMyIds: string[]): Promise<number> => {
-  if (allMyIds.length === 0) return 0;
-
-  const orFilter = allMyIds.map(id => `recipient_id.eq.${id}`).join(',');
-  const { count, error } = await supabase
-    .from('direct_messages')
-    .select('id', { count: 'exact', head: true })
-    .or(orFilter)
-    .eq('is_read', false);
-
-  if (error) return 0;
-  return count || 0;
-};
-
-/**
- * Get DM inbox for a staff member (READ).
- */
-export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
-  if (allMyIds.length === 0) return [];
-
-  const orFilter = allMyIds.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',');
-  const { data, error } = await supabase
-    .from('direct_messages')
-    .select('*')
-    .or(orFilter)
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  if (error) {
-    console.error('Error fetching DM inbox:', error);
-    return [];
+export const fetchUnreadDMCount = async (_allMyIds: string[]): Promise<number> => {
+  try {
+    const result = await invokeChat<{ count: number }>('get_unread_dm_count');
+    return result?.count || 0;
+  } catch (err) {
+    console.error('Error fetching unread DM count:', err);
+    return 0;
   }
-  return (data as DirectMessage[]) || [];
 };
 
 export interface GroupedConversation {
@@ -236,54 +204,35 @@ export interface GroupedConversation {
 }
 
 /**
- * Get DM inbox grouped by conversation partner (READ).
+ * Get DM inbox grouped by conversation partner (READ — backend).
+ * Backend resolves caller identities from auth and applies org isolation.
  */
-export const fetchDMInboxGrouped = async (allMyIds: string[]): Promise<GroupedConversation[]> => {
-  if (allMyIds.length === 0) return [];
-
-  const myIdSet = new Set(allMyIds);
-  const orFilter = allMyIds.map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(',');
-
-  const { data, error } = await supabase
-    .from('direct_messages')
-    .select('*')
-    .or(orFilter)
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.error('Error fetching grouped DM inbox:', error);
+export const fetchDMInboxGrouped = async (_allMyIds: string[]): Promise<GroupedConversation[]> => {
+  try {
+    const result = await invokeChat<{ conversations: GroupedConversation[] }>('get_dm_inbox_grouped');
+    return result?.conversations || [];
+  } catch (err) {
+    console.error('Error fetching grouped DM inbox:', err);
     return [];
   }
+};
 
-  const msgs = (data as DirectMessage[]) || [];
-  const convMap = new Map<string, GroupedConversation>();
-
-  for (const m of msgs) {
-    const isMe = myIdSet.has(m.sender_id);
-    const partnerId = isMe ? m.recipient_id : m.sender_id;
-    const partnerName = isMe ? m.recipient_name : m.sender_name;
-
-    if (myIdSet.has(partnerId)) continue;
-
-    if (!convMap.has(partnerId)) {
-      convMap.set(partnerId, {
-        recipientId: partnerId,
-        recipientName: partnerName,
-        lastMessage: m.content,
-        lastTimestamp: m.created_at,
-        unreadCount: 0,
-        isSentByMe: isMe,
-      });
-    }
-
-    if (!isMe && !m.is_read) {
-      const conv = convMap.get(partnerId)!;
-      conv.unreadCount++;
-    }
-  }
-
-  return Array.from(convMap.values()).sort(
-    (a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()
-  );
+/**
+ * Get DM inbox for current user (READ — backend).
+ * Returns a flat list derived from the grouped response (last message per partner).
+ * Most callers should prefer `fetchDMInboxGrouped`. Kept for backward compatibility.
+ */
+export const fetchDMInbox = async (allMyIds: string[]): Promise<DirectMessage[]> => {
+  const grouped = await fetchDMInboxGrouped(allMyIds);
+  return grouped.map((c) => ({
+    id: `${c.recipientId}-${c.lastTimestamp}`,
+    sender_id: c.isSentByMe ? '' : c.recipientId,
+    sender_name: c.recipientName,
+    sender_type: 'staff',
+    recipient_id: c.isSentByMe ? c.recipientId : '',
+    recipient_name: c.recipientName,
+    content: c.lastMessage,
+    is_read: c.unreadCount === 0,
+    created_at: c.lastTimestamp,
+  }));
 };
