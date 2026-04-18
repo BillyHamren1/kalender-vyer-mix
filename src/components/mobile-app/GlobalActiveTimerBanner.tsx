@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
+import { StopBreakDecisionDialog, type StopBreakDecision } from './StopBreakDecisionDialog';
+import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
+import { shouldPromptForBreak } from '@/utils/breakPolicy';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
