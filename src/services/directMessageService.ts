@@ -37,33 +37,25 @@ async function invokeChat<T = any>(action: string, data: Record<string, unknown>
 
 /**
  * Fetch conversation between two participants (sorted by time).
- * READ — direct DB query (RLS protected).
+ * READ — routed through `mobile-app-api` (single backend layer for messaging).
+ * Backend resolves caller identity from auth context and applies org isolation.
+ * `allMyIds` is kept for signature compatibility but ignored server-side.
  */
 export const fetchDirectMessages = async (
   allMyIds: string[],
   allPartnerIds: string[],
 ): Promise<DirectMessage[]> => {
-  if (allMyIds.length === 0 || allPartnerIds.length === 0) return [];
+  if (allPartnerIds.length === 0) return [];
 
-  const conditions: string[] = [];
-  for (const myId of allMyIds) {
-    for (const partnerId of allPartnerIds) {
-      conditions.push(`and(sender_id.eq.${myId},recipient_id.eq.${partnerId})`);
-      conditions.push(`and(sender_id.eq.${partnerId},recipient_id.eq.${myId})`);
-    }
-  }
-
-  const { data, error } = await supabase
-    .from('direct_messages')
-    .select('*')
-    .or(conditions.join(','))
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching direct messages:', error);
+  try {
+    const result = await invokeChat<{ messages: DirectMessage[] }>('get_dm_thread', {
+      partner_ids: allPartnerIds,
+    });
+    return result?.messages || [];
+  } catch (err) {
+    console.error('Error fetching direct messages:', err);
     return [];
   }
-  return (data as DirectMessage[]) || [];
 };
 
 /**
