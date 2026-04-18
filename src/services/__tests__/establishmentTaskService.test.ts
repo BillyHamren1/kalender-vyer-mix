@@ -128,12 +128,17 @@ describe("establishmentTaskService", () => {
   });
 
   describe("updateEstablishmentTask", () => {
-    it("updates with partial fields", async () => {
+    it("updates with partial fields and syncs status when completed flips true", async () => {
       mockChain.eq.mockReturnValue(Promise.resolve({ error: null }));
 
       await updateEstablishmentTask("t1", { completed: true, notes: "Klart" });
 
-      expect(mockChain.update).toHaveBeenCalledWith({ completed: true, notes: "Klart" });
+      // Service auto-syncs status='done' whenever completed becomes true
+      expect(mockChain.update).toHaveBeenCalledWith({
+        completed: true,
+        notes: "Klart",
+        status: "done",
+      });
       expect(mockChain.eq).toHaveBeenCalledWith("id", "t1");
     });
   });
