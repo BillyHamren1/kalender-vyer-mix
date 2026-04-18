@@ -245,6 +245,17 @@ Deno.serve(async (req) => {
         return await handleArchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'unarchive_dm':
         return await handleUnarchiveDM(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      // ── Centralized chat reads (PROMPT 1) ──
+      case 'get_dm_thread':
+        return await handleGetDMThread(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'get_dm_inbox_grouped':
+        return await handleGetDMInboxGrouped(supabase, staffId, organizationId, staffOrg?.user_id || null)
+      case 'get_unread_dm_count':
+        return await handleGetUnreadDMCount(supabase, staffId, organizationId, staffOrg?.user_id || null)
+      case 'get_job_participants':
+        return await handleGetJobParticipants(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
+      case 'get_recent_broadcasts':
+        return await handleGetRecentBroadcasts(supabase, organizationId)
       case 'upload_chat_attachment':
         return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
