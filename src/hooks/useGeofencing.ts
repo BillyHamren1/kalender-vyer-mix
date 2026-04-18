@@ -654,36 +654,128 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     return () => window.removeEventListener('timer-sync-confirmed', handler);
   }, []);
 
-  const stopTimer = useCallback((bookingId: string): ActiveTimer | null => {
-    const stopped = activeTimersRef.current.get(bookingId) || null;
+  // ─────────────────────────────────────────────────────────────────────
+  // STOP API — save-then-stop is the only sanctioned shape.
+  //
+  // Three intentional verbs are exposed. The legacy free-form `stopTimer`
+  // is gone on purpose: it allowed call-sites to remove the timer locally
+  // BEFORE the time_report was safely persisted, which violates the
+  // architectural decision (server is source of truth, save-then-stop).
+  //
+  //   1. saveAndStopTimer(key, payload)
+  //        Canonical path for booking/project timers.
+  //        Order: createTimeReport → stop server entry → clear local state.
+  //        Throws on persistence failure → timer survives so the user can retry.
+  //
+  //   2. stopLocationTimerWithoutReport(key)
+  //        Only valid for pure fixed-location timers (no time_report needed,
+  //        e.g. closing a "Lager" presence row). Closes the server entry,
+  //        then clears local. Throws on failure.
+  //
+  //   3. cancelPendingTimer(key)
+  //        Only valid while the start has not yet synced to the server
+  //        (pendingSync === true). Drops the pending queue entry and clears
+  //        local — never touches the server because there is nothing there
+  //        to close.
+  // ─────────────────────────────────────────────────────────────────────
+
+  const _clearLocalTimer = useCallback((key: string) => {
     setActiveTimers(prev => {
       const next = new Map(prev);
-      next.delete(bookingId);
+      next.delete(key);
       return next;
     });
-    triggeredExitRef.current.add(bookingId);
-    triggeredEnterRef.current.add(bookingId);
-
-    // If the start hasn't even synced yet, just drop it from the queue.
-    if (stopped && isTimerPendingSync(bookingId)) {
-      removeFromQueue(bookingId);
-    }
-
-    // Tell the server to close the matching open entry — pick the right key.
-    if (stopped) {
-      const stopPayload: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string } = {};
-      if (stopped.serverEntryId) stopPayload.entry_id = stopped.serverEntryId;
-      else if (stopped.locationId) stopPayload.location_id = stopped.locationId;
-      else if (stopped.largeProjectId) stopPayload.large_project_id = stopped.largeProjectId;
-      else stopPayload.booking_id = stopped.bookingId;
-
-      mobileApi.stopLocationTimer(stopPayload).catch(err => {
-        console.warn('Failed to stop timer on server:', err);
-      });
-    }
-
-    return stopped;
+    triggeredExitRef.current.add(key);
+    triggeredEnterRef.current.add(key);
   }, []);
+
+  const _resolveStopPayload = useCallback((timer: ActiveTimer) => {
+    const payload: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string } = {};
+    if (timer.serverEntryId) payload.entry_id = timer.serverEntryId;
+    else if (timer.locationId) payload.location_id = timer.locationId;
+    else if (timer.largeProjectId) payload.large_project_id = timer.largeProjectId;
+    else payload.booking_id = timer.bookingId;
+    return payload;
+  }, []);
+
+  /**
+   * Save-then-stop. The ONLY sanctioned way to convert an active
+   * booking/project timer into a time_report.
+   *
+   * 1. POST the time_report to the server (mobile-app-api).
+   * 2. Close the matching open `location_time_entries` row.
+   * 3. Clear the local timer entry.
+   *
+   * If step 1 fails, the timer stays alive both locally and on the
+   * server so the user can retry. Throws the original error.
+   */
+  const saveAndStopTimer = useCallback(async (
+    key: string,
+    reportPayload: Parameters<typeof mobileApi.createTimeReport>[0],
+  ): Promise<ActiveTimer> => {
+    const timer = activeTimersRef.current.get(key);
+    if (!timer) throw new Error('No active timer for key: ' + key);
+
+    // 1. SAVE FIRST — never clear local state before this succeeds.
+    await mobileApi.createTimeReport(reportPayload);
+
+    // 2. Best-effort: close the server-side open entry. We do NOT
+    //    re-throw here because the time_report is already safely stored;
+    //    leaving an orphan open entry is recoverable by reconciliation.
+    if (isTimerPendingSync(key)) {
+      removeFromQueue(key);
+    } else {
+      try {
+        await mobileApi.stopLocationTimer(_resolveStopPayload(timer));
+      } catch (err) {
+        console.warn('[Stop] server entry close failed (report already saved):', err);
+      }
+    }
+
+    // 3. Clear local last.
+    _clearLocalTimer(key);
+    return timer;
+  }, [_clearLocalTimer, _resolveStopPayload]);
+
+  /**
+   * Close a pure fixed-location presence timer. No time_report is created
+   * (location-only timers are presence rows, not work logs). Throws if the
+   * server call fails so the UI can surface the error and keep the timer.
+   */
+  const stopLocationTimerWithoutReport = useCallback(async (key: string): Promise<ActiveTimer> => {
+    const timer = activeTimersRef.current.get(key);
+    if (!timer) throw new Error('No active timer for key: ' + key);
+    if (!timer.locationId) {
+      throw new Error('stopLocationTimerWithoutReport is only valid for fixed-location timers');
+    }
+
+    if (isTimerPendingSync(key)) {
+      removeFromQueue(key);
+    } else {
+      // Server first — only clear local on success.
+      await mobileApi.stopLocationTimer(_resolveStopPayload(timer));
+    }
+    _clearLocalTimer(key);
+    return timer;
+  }, [_clearLocalTimer, _resolveStopPayload]);
+
+  /**
+   * Drop a timer that has not yet synced to the server. Useful when a user
+   * starts a timer, immediately realises it was a mistake, and the network
+   * was offline so the server never saw it. Refuses to run if the start is
+   * already confirmed (use saveAndStopTimer / stopLocationTimerWithoutReport).
+   */
+  const cancelPendingTimer = useCallback((key: string): boolean => {
+    const timer = activeTimersRef.current.get(key);
+    if (!timer) return false;
+    if (!timer.pendingSync && !isTimerPendingSync(key)) {
+      console.warn('[cancelPendingTimer] refusing — timer is already server-confirmed:', key);
+      return false;
+    }
+    removeFromQueue(key);
+    _clearLocalTimer(key);
+    return true;
+  }, [_clearLocalTimer]);
 
   const dismissGeofenceEvent = useCallback(() => {
     const event = geofenceEvent;
@@ -706,7 +798,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     nearbyBookings,
     orgLocations,
     startTimer,
-    stopTimer,
+    saveAndStopTimer,
+    stopLocationTimerWithoutReport,
+    cancelPendingTimer,
     dismissGeofenceEvent,
   };
 }
+
