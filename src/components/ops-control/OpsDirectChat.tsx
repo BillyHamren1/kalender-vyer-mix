@@ -1,11 +1,11 @@
 // Web DM chat (admin/ops) — officiell väg:
-//   sendDM / markDMRead / uploadChatAttachment från `directMessageService`,
-//   som internt delegerar till `mobileApi` (mobile-app-api edge function).
-// Inga direkta DB-skrivningar från frontend; ingen användning av legacy
-// compat-aliasen `sendDirectMessage` / `uploadDMFile` / `markDirectMessagesRead`.
+//   `mobileApi` (mobile-app-api edge function) anropas DIREKT för alla
+//   skriv- och läsoperationer (sendDirectMessage / markDMRead /
+//   uploadChatAttachment). Ingen användning av directMessageService-wrappers
+//   eller legacy compat-aliaser. Ingen direkt DB-access.
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
-import { sendDM, uploadChatAttachment, markDMRead } from '@/services/directMessageService';
+import { mobileApi } from '@/services/mobileApiService';
 import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -59,13 +59,13 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   // Mark as read on open and invalidate inbox cache so badge updates
   useEffect(() => {
     if (allIds.length > 0 && staffId) {
-      markDMRead(staffId).then(() => {
+      mobileApi.markDMRead(staffId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
         queryClient.invalidateQueries({ queryKey: ['dm-unread-count'] });
         queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
-      });
+      }).catch(() => { /* non-fatal: read-state update */ });
     }
-  }, [myId, staffId, queryClient]);
+  }, [myId, staffId, allIds.length, queryClient]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,21 +91,30 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
     setSending(true);
 
     try {
-      let fileData: { fileUrl: string; fileName: string; fileType: string } | undefined;
+      let attachment: { file_url: string; file_name: string; file_type: string } | undefined;
 
       if (pendingFile) {
         setUploading(true);
-        const uploaded = await uploadChatAttachment(pendingFile.file);
-        fileData = { fileUrl: uploaded.url, fileName: uploaded.fileName, fileType: uploaded.fileType };
+        const base64 = await fileToBase64(pendingFile.file);
+        const uploaded = await mobileApi.uploadChatAttachment({
+          file_name: pendingFile.file.name,
+          file_type: pendingFile.file.type || 'application/octet-stream',
+          file_data_base64: base64,
+        });
+        attachment = {
+          file_url: uploaded.url,
+          file_name: uploaded.file_name,
+          file_type: uploaded.file_type ?? (pendingFile.file.type || 'application/octet-stream'),
+        };
         setUploading(false);
       }
 
-      await sendDM(
-        staffId,
-        staffName,
-        msg || (pendingFile ? `📎 ${pendingFile.file.name}` : ''),
-        { ...fileData, bookingId: taggedBooking?.bookingId },
-      );
+      await mobileApi.sendDirectMessage({
+        recipient_id: staffId,
+        content: (msg || (pendingFile ? `📎 ${pendingFile.file.name}` : '')).trim(),
+        ...(attachment ?? {}),
+        booking_id: taggedBooking?.bookingId,
+      });
 
       setMsg('');
       clearPendingFile();
@@ -113,6 +122,8 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
       queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
       queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
+      // Mute unused-name lint without changing UI behaviour.
+      void staffName;
     } catch {
       toast.error('Kunde inte skicka meddelande');
     } finally {
@@ -124,7 +135,11 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
   const handleQuickSend = async (qm: string) => {
     setSending(true);
     try {
-      await sendDM(staffId, staffName, qm, { bookingId: taggedBooking?.bookingId });
+      await mobileApi.sendDirectMessage({
+        recipient_id: staffId,
+        content: qm.trim(),
+        booking_id: taggedBooking?.bookingId,
+      });
       queryClient.invalidateQueries({ queryKey: ['direct-messages'] });
       queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped'] });
       queryClient.invalidateQueries({ queryKey: ['mobile-inbox-all'] });
@@ -134,6 +149,21 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       setSending(false);
     }
   };
+
+  // Local helper: convert a File to base64 (no data: prefix) for the
+  // mobile-app-api `upload_chat_attachment` action.
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const idx = result.indexOf(',');
+        resolve(idx >= 0 ? result.slice(idx + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
 
   const renderFilePreview = (m: { file_url?: string | null; file_name?: string | null; file_type?: string | null }, isOwn: boolean) => {
     if (!m.file_url) return null;
