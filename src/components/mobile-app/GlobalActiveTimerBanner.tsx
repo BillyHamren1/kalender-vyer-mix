@@ -339,22 +339,11 @@ const GlobalActiveTimerBanner: React.FC = () => {
         <EndOfDayStopDialog
           open={!!pendingStop}
           onOpenChange={(open) => {
-            // Closing without confirming = treat as "use now as end time".
-            // Save-then-stop: only clear timer if persistStop succeeds.
-            if (!open && pendingStop) {
-              const stopTime = new Date();
-              const ps = pendingStop;
-              persistStop(ps.key, ps.timer, ps.startTimeDate, stopTime)
-                .then(async () => {
-                  if (ps.timer.locationId) {
-                    try { await mobileApi.stopLocationTimer({ location_id: ps.timer.locationId }); } catch {}
-                  }
-                  clearTimerLocally(ps.key);
-                  setPendingStop(null);
-                })
-                .catch(() => {
-                  // keep dialog & timer for retry
-                });
+            // Closing without confirming = behåll timer + dialog tills användaren
+            // gör ett aktivt val. Inget tyst auto-stopp här (auto-rast är borttaget;
+            // ett tyst stopp skulle annars råka spara fel timmar).
+            if (!open) {
+              setPendingStop(null);
             }
           }}
           lastExitIso={pendingStop.lastExitIso}
@@ -362,6 +351,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
           onConfirm={handleDialogConfirm}
         />
       )}
+      <StopBreakDecisionDialog {...breakDecision.dialogProps} />
     </>
   );
 };
