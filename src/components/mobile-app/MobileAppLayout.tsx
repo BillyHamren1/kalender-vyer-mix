@@ -217,6 +217,15 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         />
       )}
 
+      {/* Stale timer warning — never silently delete; user must save or discard */}
+      <StaleTimerDialog
+        open={staleDialogOpen && staleTimers.length > 0}
+        staleTimers={staleTimers}
+        onSaveAndClose={handleStaleSave}
+        onDiscard={handleStaleDiscard}
+        onClose={() => setStaleDialogOpen(false)}
+      />
+
       <MobileBottomNav />
     </div>
   );
