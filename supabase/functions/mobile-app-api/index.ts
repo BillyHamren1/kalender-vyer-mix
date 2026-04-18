@@ -269,6 +269,10 @@ Deno.serve(async (req) => {
         return await handleUpdateTimeReport(supabase, staffId, data, organizationId)
       case 'delete_time_report':
         return await handleDeleteTimeReport(supabase, staffId, data, organizationId)
+      case 'admin_create_time_report':
+        return await handleAdminCreateTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_delete_time_report':
+        return await handleAdminDeleteTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
