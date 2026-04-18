@@ -238,7 +238,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
     };
     window.addEventListener('timer-state-changed', handler);
-    return () => window.removeEventListener('timer-state-changed', handler);
+    const syncedHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { key: string; serverEntryId: string; enteredAt?: string } | undefined;
+      if (!detail?.key || !detail.serverEntryId) return;
+      setActiveTimers(prev => {
+        const existing = prev.get(detail.key);
+        if (!existing) return prev;
+        const next = new Map(prev);
+        next.set(detail.key, { ...existing, serverEntryId: detail.serverEntryId, startTime: detail.enteredAt || existing.startTime });
+        return next;
+      });
+    };
+    window.addEventListener('timer-server-synced', syncedHandler as EventListener);
+    return () => {
+      window.removeEventListener('timer-state-changed', handler);
+      window.removeEventListener('timer-server-synced', syncedHandler as EventListener);
+    };
   }, []);
 
   // Mount: fetch org locations, restore ALL open server-side timers (any kind),
