@@ -197,51 +197,97 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     return () => window.removeEventListener('timer-state-changed', handler);
   }, []);
 
-  // Fetch organization locations once, then restore any active server-side timers
+  // Mount: fetch org locations, restore ALL open server-side timers (any kind),
+  // and flush the pending-start sync queue. This is the single rebuild step
+  // that makes the unified server source-of-truth authoritative.
   useEffect(() => {
     if (!staffId) return;
     let cancelled = false;
 
     (async () => {
       try {
-        // Fetch org locations
         const locRes = await mobileApi.getOrganizationLocations();
         if (cancelled) return;
         const locations = locRes.locations || [];
         setOrgLocations(locations);
 
-        // Fetch open (active) location_time_entries from server
-        const today = new Date().toISOString().split('T')[0];
-        const entriesRes = await mobileApi.getLocationTimeEntries({ date_from: today, limit: 50 });
+        // 1) Pull every open timer (location/booking/large_project) from server
+        let openEntries: any[] = [];
+        try {
+          const res = await mobileApi.getActiveTimers();
+          openEntries = (res.entries || []).filter((e: any) => !e.exited_at);
+        } catch (err) {
+          console.warn('[Timers] get_active_timers failed:', err);
+        }
         if (cancelled) return;
-        const openEntries = (entriesRes.entries || []).filter((e: any) => !e.exited_at);
 
-        // Only restore user-confirmed (manual) timers, NOT auto-GPS entries
-        const manualEntries = openEntries.filter((e: any) => e.source !== 'gps');
+        // Skip auto-GPS entries — those are background presence, not user timers
+        const userEntries = openEntries.filter((e: any) => e.source !== 'gps');
 
-        if (manualEntries.length > 0) {
+        if (userEntries.length > 0) {
           setActiveTimers(prev => {
             const next = new Map(prev);
-            for (const entry of manualEntries) {
-              const locKey = `location-${entry.location_id}`;
-              // Don't overwrite if user already has a local timer for this location
-              if (next.has(locKey)) continue;
-              const loc = locations.find((l: any) => l.id === entry.location_id);
-              next.set(locKey, {
-                bookingId: locKey,
-                client: loc?.name || 'Plats',
-                startTime: entry.entered_at,
-                isAutoStarted: false,
-                locationId: entry.location_id,
-                locationName: loc?.name || 'Plats',
-              });
-              // Mark as already triggered so geofence doesn't re-fire
-              triggeredEnterRef.current.add(locKey);
+            for (const entry of userEntries) {
+              let key: string | null = null;
+              let timer: ActiveTimer | null = null;
+
+              if (entry.location_id) {
+                key = `location-${entry.location_id}`;
+                const loc = locations.find((l: any) => l.id === entry.location_id);
+                timer = {
+                  bookingId: key,
+                  client: loc?.name || 'Plats',
+                  startTime: entry.entered_at,
+                  isAutoStarted: false,
+                  locationId: entry.location_id,
+                  locationName: loc?.name || 'Plats',
+                  serverEntryId: entry.id,
+                  clientDedupeKey: entry.client_dedupe_key || undefined,
+                };
+              } else if (entry.large_project_id) {
+                key = `project-${entry.large_project_id}`;
+                timer = {
+                  bookingId: key,
+                  client: 'Projekt',
+                  startTime: entry.entered_at,
+                  isAutoStarted: false,
+                  largeProjectId: entry.large_project_id,
+                  serverEntryId: entry.id,
+                  clientDedupeKey: entry.client_dedupe_key || undefined,
+                };
+              } else if (entry.booking_id) {
+                key = entry.booking_id;
+                timer = {
+                  bookingId: key,
+                  client: 'Jobb',
+                  startTime: entry.entered_at,
+                  isAutoStarted: false,
+                  serverEntryId: entry.id,
+                  clientDedupeKey: entry.client_dedupe_key || undefined,
+                };
+              }
+              if (!key || !timer) continue;
+              const existing = next.get(key);
+              if (existing) {
+                // Local copy wins for display name; sync server id + start time
+                next.set(key, {
+                  ...existing,
+                  startTime: existing.startTime || timer.startTime,
+                  serverEntryId: timer.serverEntryId,
+                  clientDedupeKey: existing.clientDedupeKey || timer.clientDedupeKey,
+                });
+              } else {
+                next.set(key, timer);
+              }
+              triggeredEnterRef.current.add(key);
             }
             return next;
           });
-          console.log('[Geofence] Restored', manualEntries.length, 'active manual timers');
+          console.log('[Timers] Restored', userEntries.length, 'open timers from server');
         }
+
+        // 2) Flush any pending optimistic starts (from offline / failed sync)
+        await syncPendingTimerStarts();
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
       }
@@ -249,6 +295,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     return () => { cancelled = true; };
   }, [staffId]);
+
+  // Retry pending starts whenever connectivity returns
+  useEffect(() => {
+    const onOnline = () => { syncPendingTimerStarts().catch(() => {}); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, []);
+
 
   // Cache geofence targets to localStorage for background geofence checks
   useEffect(() => {
