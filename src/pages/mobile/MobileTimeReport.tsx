@@ -148,12 +148,8 @@ const MobileTimeReport = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (activeTimers.size > 0) {
-      const msg = 'You have an active timer. Stop it before creating a manual report.';
-      setValidationError(msg);
-      toast.error(msg);
-      return;
-    }
+    // SOFT LOCK: do not block manual reporting just because a timer is active.
+    // Real overlap is enforced server-side (and by DB trigger) using datetime intervals.
     const error = getValidationError();
     if (error) {
       setValidationError(error);
@@ -232,13 +228,16 @@ const MobileTimeReport = () => {
                 onStop={async () => {
                   const stopTime = new Date();
                   const startTimeDate = parseISO(timer.startTime);
-                  stopTimer(key);
 
+                  // Location-only timers: just stop server-side; no time_report needed
                   if (timer.locationId) {
+                    stopTimer(key);
                     toast.success('Timer stopped');
                     return;
                   }
 
+                  // Save-then-stop: persist time_report FIRST, then clear timer.
+                  // On failure, timer stays active so user can retry.
                   let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
                   if (totalHours < 0) totalHours += 24;
                   const breakDeduction = totalHours > 5 ? 0.5 : 0;
@@ -255,6 +254,7 @@ const MobileTimeReport = () => {
                       establishment_task_id: timer.establishmentTaskId,
                       large_project_id: timer.largeProjectId,
                     });
+                    stopTimer(key);
                     toast.success(`Time report saved: ${hoursWorked}h`);
                     fetchReports();
                   } catch (err: any) {
