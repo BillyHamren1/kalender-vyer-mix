@@ -96,7 +96,7 @@ const MobileLocationDetail = () => {
       return;
     }
     try {
-      await mobileApi.startLocationTimer(location.id, task.id);
+      await mobileApi.startLocationTimer({ location_id: location.id, task_id: task.id });
       const ok = startTimer(locKey, location.name, false, task.id, task.title, location.id, location.name);
       if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
     } catch (e) {
@@ -112,7 +112,7 @@ const MobileLocationDetail = () => {
       return;
     }
     try {
-      await mobileApi.startLocationTimer(location.id);
+      await mobileApi.startLocationTimer({ location_id: location.id });
       const ok = startTimer(locKey, location.name, false, undefined, undefined, location.id, location.name);
       if (ok) toast.success(`${t('timer.started')}: ${location.name}`);
     } catch (e) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
+import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
 
 export const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
@@ -21,6 +22,10 @@ export interface ActiveTimer {
   largeProjectId?: string;   // if this is a project timer
   isStale?: boolean;         // older than 24h with no server match — needs user action
   staleReason?: 'age' | 'no_server_match';
+  /** Server has not yet confirmed the start. Banner should show "Synkroniserar…". */
+  pendingSync?: boolean;
+  /** Server-side id of the matching open location_time_entries row, once confirmed. */
+  serverEntryId?: string;
 }
 
 export interface GeofenceEvent {
@@ -182,28 +187,46 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // Only restore user-confirmed (manual) timers, NOT auto-GPS entries
         const manualEntries = openEntries.filter((e: any) => e.source !== 'gps');
 
+        // Restore ALL three timer types from server (architectural decision:
+        // server is source of truth — local map is just a cache).
         if (manualEntries.length > 0) {
           setActiveTimers(prev => {
             const next = new Map(prev);
             for (const entry of manualEntries) {
-              const locKey = `location-${entry.location_id}`;
-              // Don't overwrite if user already has a local timer for this location
-              if (next.has(locKey)) continue;
-              const loc = locations.find((l: any) => l.id === entry.location_id);
-              next.set(locKey, {
-                bookingId: locKey,
-                client: loc?.name || 'Plats',
+              let key: string | null = null;
+              const patch: Partial<ActiveTimer> = {
                 startTime: entry.entered_at,
                 isAutoStarted: false,
-                locationId: entry.location_id,
-                locationName: loc?.name || 'Plats',
-              });
-              // Mark as already triggered so geofence doesn't re-fire
-              triggeredEnterRef.current.add(locKey);
+                serverEntryId: entry.id,
+                pendingSync: false,
+              };
+              if (entry.location_id) {
+                key = `location-${entry.location_id}`;
+                const loc = locations.find((l: any) => l.id === entry.location_id);
+                patch.client = loc?.name || 'Plats';
+                patch.locationId = entry.location_id;
+                patch.locationName = loc?.name || 'Plats';
+              } else if (entry.large_project_id) {
+                key = `project-${entry.large_project_id}`;
+                patch.client = 'Projekt';
+                patch.largeProjectId = entry.large_project_id;
+              } else if (entry.booking_id) {
+                key = entry.booking_id;
+                patch.client = 'Uppdrag';
+              }
+              if (!key) continue;
+              const existing = next.get(key);
+              if (existing) {
+                // Local timer exists — adopt server start time + server id, but keep local label.
+                next.set(key, { ...existing, ...patch, client: existing.client });
+              } else {
+                next.set(key, { bookingId: key, ...patch } as ActiveTimer);
+              }
+              triggeredEnterRef.current.add(key);
             }
             return next;
           });
-          console.log('[Geofence] Restored', manualEntries.length, 'active manual timers');
+          console.log('[Geofence] Restored', manualEntries.length, 'active timers from server');
         }
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
@@ -549,51 +572,86 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
   const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
-    const key = locationId ? `location-${locationId}` : bookingId;
+    // Resolve a single canonical key per (target).
+    const key = locationId
+      ? `location-${locationId}`
+      : largeProjectId
+        ? `project-${largeProjectId}`
+        : bookingId;
+
     // SOFT LOCK: parallel timers (location, booking, project) are valid signals.
     // Only block re-starting the SAME key.
     const current = activeTimersRef.current;
     if (current.has(key)) {
       return false;
     }
+
+    const startedAtIso = customStartTime || new Date().toISOString();
+
+    // 1. Optimistic UI: mark timer as pendingSync until the server confirms.
     setActiveTimers(prev => {
       const next = new Map(prev);
       next.set(key, {
         bookingId: key,
         client,
-        startTime: customStartTime || new Date().toISOString(),
+        startTime: startedAtIso,
         isAutoStarted: isAuto,
         establishmentTaskId: taskId,
         establishmentTaskTitle: taskTitle,
         locationId,
         locationName,
         largeProjectId,
+        pendingSync: true,
       });
       return next;
     });
     triggeredEnterRef.current.add(key);
 
-    // If it's a fixed location manual start, call the API
-    if (locationId) {
-      mobileApi.startLocationTimer(locationId)
-        .then(res => {
-          // If timer was already active on server, use the server start time
-          if (res.already_active && res.entry?.entered_at) {
-            setActiveTimers(prev => {
-              const next = new Map(prev);
-              const existing = next.get(key);
-              if (existing) {
-                next.set(key, { ...existing, startTime: res.entry.entered_at });
-              }
-              return next;
-            });
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to start location timer on server:', err);
-        });
-    }
+    // 2. Push to the persistent sync queue. The queue retries on its own.
+    //    For project timers we also need a representative booking_id so the
+    //    server entry is linkable back to the project; we let booking_id stay
+    //    undefined for pure-project timers and rely on large_project_id alone.
+    const isPureBookingTimer = !locationId && !largeProjectId;
+    enqueueTimerStart({
+      timerKey: key,
+      locationId,
+      bookingId: isPureBookingTimer ? bookingId : undefined,
+      largeProjectId,
+      taskId,
+      startedAt: startedAtIso,
+    });
+
     return true;
+  }, []);
+
+  // 3. Reconcile when the queue confirms a start with the server.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        timerKey: string;
+        serverStartedAt?: string;
+        serverEntryId?: string;
+        alreadyActive?: boolean;
+      }>).detail;
+      if (!detail?.timerKey) return;
+      setActiveTimers(prev => {
+        const existing = prev.get(detail.timerKey);
+        if (!existing) return prev;
+        const next = new Map(prev);
+        next.set(detail.timerKey, {
+          ...existing,
+          pendingSync: false,
+          serverEntryId: detail.serverEntryId || existing.serverEntryId,
+          // If server reports an earlier (already-active) start, adopt it.
+          startTime: detail.alreadyActive && detail.serverStartedAt
+            ? detail.serverStartedAt
+            : existing.startTime,
+        });
+        return next;
+      });
+    };
+    window.addEventListener('timer-sync-confirmed', handler);
+    return () => window.removeEventListener('timer-sync-confirmed', handler);
   }, []);
 
   const stopTimer = useCallback((bookingId: string): ActiveTimer | null => {
@@ -604,13 +662,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       return next;
     });
     triggeredExitRef.current.add(bookingId);
-    // Keep bookingId in triggeredEnterRef so geofence doesn't re-trigger immediately
     triggeredEnterRef.current.add(bookingId);
 
-    // If it's a fixed location, stop on server
-    if (stopped?.locationId) {
-      mobileApi.stopLocationTimer({ location_id: stopped.locationId }).catch(err => {
-        console.warn('Failed to stop location timer on server:', err);
+    // If the start hasn't even synced yet, just drop it from the queue.
+    if (stopped && isTimerPendingSync(bookingId)) {
+      removeFromQueue(bookingId);
+    }
+
+    // Tell the server to close the matching open entry — pick the right key.
+    if (stopped) {
+      const stopPayload: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string } = {};
+      if (stopped.serverEntryId) stopPayload.entry_id = stopped.serverEntryId;
+      else if (stopped.locationId) stopPayload.location_id = stopped.locationId;
+      else if (stopped.largeProjectId) stopPayload.large_project_id = stopped.largeProjectId;
+      else stopPayload.booking_id = stopped.bookingId;
+
+      mobileApi.stopLocationTimer(stopPayload).catch(err => {
+        console.warn('Failed to stop timer on server:', err);
       });
     }
 

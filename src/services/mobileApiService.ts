@@ -389,8 +389,17 @@ export const mobileApi = {
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
-  startLocationTimer: (locationId: string, taskId?: string, startedAt?: string) =>
-    callApi<{ success?: boolean; already_active?: boolean; entry: any }>('start_location_timer', { location_id: locationId, task_id: taskId, started_at: startedAt }),
+  // Unified timer start. Exactly one of {location_id, booking_id, large_project_id} must be set.
+  // `client_dedupe_key` makes retries idempotent (same key => same row).
+  startLocationTimer: (params: {
+    location_id?: string;
+    booking_id?: string;
+    large_project_id?: string;
+    task_id?: string;
+    started_at?: string;
+    client_dedupe_key?: string;
+  }) =>
+    callApi<{ success?: boolean; already_active?: boolean; idempotent?: boolean; entry: any }>('start_location_timer', params),
 
   // Lager (internal Lager project) tasks
   getLagerTasks: () =>
@@ -421,7 +430,7 @@ export const mobileApi = {
   uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
     callApi<{ success: boolean; file: any }>('upload_lager_file', data),
 
-  stopLocationTimer: (data: { location_id?: string; entry_id?: string }) =>
+  stopLocationTimer: (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string }) =>
     callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
 
   dismissLocationEntry: (locationId: string) =>
