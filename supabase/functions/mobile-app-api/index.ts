@@ -260,6 +260,8 @@ Deno.serve(async (req) => {
         return await handleGetJobParticipants(supabase, staffId, data, organizationId, staffOrg?.user_id || null)
       case 'get_recent_broadcasts':
         return await handleGetRecentBroadcasts(supabase, organizationId)
+      case 'get_messaging_activity':
+        return await handleGetMessagingActivity(supabase, organizationId, data)
       case 'upload_chat_attachment':
         return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
