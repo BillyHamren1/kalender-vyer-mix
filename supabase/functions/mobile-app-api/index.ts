@@ -893,47 +893,47 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   }).map((b: any) => ({ ...b, is_read: (b.is_read_by || []).includes(staffId) }))
 
   // --- Process Job bookings (with last message + unread count) ---
+  // Unread is computed by the SQL helper `get_job_chat_summary` so we don't
+  // pull a row-capped slice into the function. Correct for any history size.
   let jobBookings: any[] = []
   const jobAssignmentData = jobAssignments.data || []
   if (jobAssignmentData.length > 0) {
     const bookingIds = [...new Set(jobAssignmentData.map((a: any) => a.booking_id))]
-    const [bookingsRes, msgsRes] = await Promise.all([
+    const myReaderIds = [staffId, ...(userId && userId !== staffId ? [userId] : [])]
+
+    const [bookingsRes, summaryRes] = await Promise.all([
       supabase
         .from('bookings')
         .select('id, client, status, rigdaydate, eventdate, rigdowndate')
         .in('id', bookingIds)
         .in('status', ['CONFIRMED', 'COMPLETED'])
         .order('rigdaydate', { ascending: false }),
-      // Pull recent messages once, then aggregate per booking in JS (fast, single round-trip)
-      supabase
-        .from('job_messages')
-        .select('booking_id, sender_id, content, created_at, read_by')
-        .in('booking_id', bookingIds)
-        .eq('organization_id', organizationId)
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false })
-        .limit(500),
+      supabase.rpc('get_job_chat_summary', {
+        _org_id: organizationId,
+        _booking_ids: bookingIds,
+        _my_ids: myReaderIds,
+      }),
     ])
 
-    const myReaderIds = new Set<string>([staffId, ...(userId ? [userId] : [])])
-    const agg = new Map<string, { last: any; unread: number }>()
-    for (const m of (msgsRes.data || [])) {
-      const cur = agg.get(m.booking_id) || { last: null, unread: 0 }
-      if (!cur.last) cur.last = m // first encountered = most recent (DESC sort)
-      const readers = Array.isArray(m.read_by) ? m.read_by : []
-      const isMine = myReaderIds.has(m.sender_id)
-      const readByMe = readers.some((r: any) => myReaderIds.has(r))
-      if (!isMine && !readByMe) cur.unread += 1
-      agg.set(m.booking_id, cur)
+    if (summaryRes.error) {
+      console.error('get_job_chat_summary failed:', summaryRes.error)
+    }
+    const summaryByBooking = new Map<string, { last_message_content: string | null; last_message_at: string | null; unread_count: number }>()
+    for (const row of (summaryRes.data || [])) {
+      summaryByBooking.set(row.booking_id, {
+        last_message_content: row.last_message_content,
+        last_message_at: row.last_message_at,
+        unread_count: Number(row.unread_count) || 0,
+      })
     }
 
     jobBookings = (bookingsRes.data || []).map((b: any) => {
-      const a = agg.get(b.id)
+      const s = summaryByBooking.get(b.id)
       return {
         ...b,
-        last_message_content: a?.last?.content ?? null,
-        last_message_at: a?.last?.created_at ?? null,
-        unread_count: a?.unread || 0,
+        last_message_content: s?.last_message_content ?? null,
+        last_message_at: s?.last_message_at ?? null,
+        unread_count: s?.unread_count ?? 0,
       }
     })
   }
