@@ -640,49 +640,55 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
   const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
-    const key = locationId ? `location-${locationId}` : bookingId;
+    const key = locationId
+      ? `location-${locationId}`
+      : largeProjectId
+        ? `project-${largeProjectId}`
+        : bookingId;
     // Block if another timer is already running (allow re-starting the same key)
     const current = activeTimersRef.current;
     if (current.size > 0 && !current.has(key)) {
       return false;
     }
+    const startedAt = customStartTime || new Date().toISOString();
+    const dedupeKey = `${key}:${startedAt}`;
+
     setActiveTimers(prev => {
       const next = new Map(prev);
       next.set(key, {
         bookingId: key,
         client,
-        startTime: customStartTime || new Date().toISOString(),
+        startTime: startedAt,
         isAutoStarted: isAuto,
         establishmentTaskId: taskId,
         establishmentTaskTitle: taskTitle,
         locationId,
         locationName,
         largeProjectId,
+        clientDedupeKey: dedupeKey,
       });
       return next;
     });
     triggeredEnterRef.current.add(key);
 
-    // If it's a fixed location manual start, call the API
-    if (locationId) {
-      mobileApi.startLocationTimer(locationId)
-        .then(res => {
-          // If timer was already active on server, use the server start time
-          if (res.already_active && res.entry?.entered_at) {
-            setActiveTimers(prev => {
-              const next = new Map(prev);
-              const existing = next.get(key);
-              if (existing) {
-                next.set(key, { ...existing, startTime: res.entry.entered_at });
-              }
-              return next;
-            });
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to start location timer on server:', err);
-        });
-    }
+    // Build server payload — exactly one of location/booking/large_project
+    const payload: any = {
+      task_id: taskId,
+      started_at: startedAt,
+      client_dedupe_key: dedupeKey,
+    };
+    if (locationId) payload.location_id = locationId;
+    else if (largeProjectId) payload.large_project_id = largeProjectId;
+    else payload.booking_id = bookingId;
+
+    // Enqueue + sync. Pending queue survives reload, retries on `online` event,
+    // and on next mount of useGeofencing.
+    const pending = loadPendingStarts();
+    pending[key] = { key, payload, attempts: 0 };
+    writePendingStarts(pending);
+
+    syncPendingTimerStarts().catch(() => {/* logged inside */});
+
     return true;
   }, []);
 
@@ -697,11 +703,27 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     // Keep bookingId in triggeredEnterRef so geofence doesn't re-trigger immediately
     triggeredEnterRef.current.add(bookingId);
 
-    // If it's a fixed location, stop on server
-    if (stopped?.locationId) {
-      mobileApi.stopLocationTimer({ location_id: stopped.locationId }).catch(err => {
-        console.warn('Failed to stop location timer on server:', err);
-      });
+    // Drop any pending start for this key (user stopped before sync completed)
+    const pending = loadPendingStarts();
+    if (pending[bookingId]) {
+      delete pending[bookingId];
+      writePendingStarts(pending);
+    }
+
+    // Stop on server using the unified API. Prefer the synced server entry id;
+    // fall back to source-id matching for the legacy paths.
+    if (stopped) {
+      const stopPayload: any = {};
+      if (stopped.serverEntryId) stopPayload.entry_id = stopped.serverEntryId;
+      else if (stopped.locationId) stopPayload.location_id = stopped.locationId;
+      else if (stopped.largeProjectId) stopPayload.large_project_id = stopped.largeProjectId;
+      else stopPayload.booking_id = stopped.bookingId;
+
+      if (stopPayload.entry_id || stopPayload.location_id || stopPayload.large_project_id || stopPayload.booking_id) {
+        mobileApi.stopTimer(stopPayload).catch(err => {
+          console.warn('[Timers] stop_timer failed:', err);
+        });
+      }
     }
 
     return stopped;
