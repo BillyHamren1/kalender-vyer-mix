@@ -61,6 +61,50 @@ function writePendingStarts(map: Record<string, PendingTimerStart>) {
   }
 }
 
+/**
+ * Drains the pending-start queue. For each entry, calls the unified
+ * `start_timer` endpoint with the original client_dedupe_key. Successful
+ * sync writes the server entry id back into the in-memory activeTimers map
+ * via a custom `timer-server-synced` event so multiple consumers stay in sync.
+ *
+ * Safe to call concurrently — server-side dedupes on (staff_id, client_dedupe_key).
+ */
+let _syncInFlight: Promise<void> | null = null;
+async function syncPendingTimerStarts(): Promise<void> {
+  if (_syncInFlight) return _syncInFlight;
+  _syncInFlight = (async () => {
+    const pending = loadPendingStarts();
+    const keys = Object.keys(pending);
+    if (keys.length === 0) return;
+
+    for (const key of keys) {
+      const item = pending[key];
+      try {
+        const res = await mobileApi.startTimer(item.payload);
+        const entry = (res as any)?.entry;
+        if (entry?.id) {
+          window.dispatchEvent(new CustomEvent('timer-server-synced', {
+            detail: { key, serverEntryId: entry.id, enteredAt: entry.entered_at },
+          }));
+        }
+        delete pending[key];
+      } catch (err: any) {
+        item.attempts = (item.attempts || 0) + 1;
+        item.lastError = err?.message || String(err);
+        pending[key] = item;
+        // Stop the loop on first failure — likely offline / outage
+        break;
+      }
+    }
+    writePendingStarts(pending);
+  })();
+  try {
+    await _syncInFlight;
+  } finally {
+    _syncInFlight = null;
+  }
+}
+
 export interface GeofenceEvent {
   type: 'enter' | 'exit';
   booking?: MobileBooking;
