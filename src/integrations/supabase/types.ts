@@ -6245,6 +6245,15 @@ export type Database = {
         Args: { _org_id: string }
         Returns: string
       }
+      get_job_chat_summary: {
+        Args: { _booking_ids: string[]; _my_ids: string[]; _org_id: string }
+        Returns: {
+          booking_id: string
+          last_message_at: string
+          last_message_content: string
+          unread_count: number
+        }[]
+      }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       handle_booking_move: {
         Args: {
@@ -6265,6 +6274,10 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      mark_job_thread_read: {
+        Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
+        Returns: number
+      }
       unarchive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
