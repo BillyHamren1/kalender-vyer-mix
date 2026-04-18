@@ -1043,20 +1043,25 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Determine final values for validation
+  // === UNIFIED TIME MODEL (must match handleCreateTimeReport) ===
+  // - break_time: decimal HOURS (e.g. 0.5 = 30 min). Same unit as DB column.
+  // - overtime_hours: decimal HOURS.
+  // - hours_worked: server-calculated, NEVER trust client value.
+  // - Night shift: end < start crosses midnight (rawHours += 24).
   const finalStartTime = start_time !== undefined ? start_time : existing.start_time
   const finalEndTime = end_time !== undefined ? end_time : existing.end_time
-  const finalBreak = break_time !== undefined ? parseInt(break_time) : (existing.break_time || 0)
-  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : (existing.overtime_hours || 0)
+  // FIX: parseFloat (hours) — was parseInt which truncated 0.5 -> 0 and broke break persistence on edit.
+  const finalBreak = break_time !== undefined ? parseFloat(break_time) : Number(existing.break_time || 0)
+  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : Number(existing.overtime_hours || 0)
 
-  // Validate break
+  // Validate break (decimal hours, max 4h = 240 min)
   if (isNaN(finalBreak) || finalBreak < 0) {
     return new Response(
       JSON.stringify({ error: 'Rast kan inte vara negativ' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-  if (finalBreak > 240) {
+  if (finalBreak * 60 > 240) {
     return new Response(
       JSON.stringify({ error: 'Rast kan inte överstiga 240 minuter' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
