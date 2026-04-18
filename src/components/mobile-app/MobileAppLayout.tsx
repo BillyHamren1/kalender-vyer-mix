@@ -122,24 +122,38 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         ? new Date(startTime.getTime() + 24 * 3600 * 1000)
         : stopTime;
       const totalHours = (cappedStop.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-      const breakDeduction = totalHours > 5 ? 0.5 : 0;
-      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+      // INGEN automatisk rast — stale-recovery sparar med break=0 och flaggar
+      // som anomaly så admin kan justera. Användaren kan inte längre fatta
+      // beslut om ett pass som var öppet i flera timmar utan tillsyn.
+      const hoursWorked = Math.max(0, Number(totalHours.toFixed(2)));
 
-      await mobileApi.createTimeReport({
+      const tr = await mobileApi.createTimeReport({
         booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
         report_date: format(cappedStop, 'yyyy-MM-dd'),
         start_time: format(startTime, 'HH:mm'),
         end_time: format(cappedStop, 'HH:mm'),
         hours_worked: hoursWorked,
-        break_time: breakDeduction,
+        break_time: 0,
         description: `Återställd timer: ${entry.timer.locationName || entry.timer.client}`,
         large_project_id: entry.timer.largeProjectId,
       });
+      // Skapa avvikelse så admin kan följa upp rast/sluttid manuellt.
+      const trId = (tr as any)?.time_report?.id;
+      mobileApi.createEndOfDayAnomaly({
+        started_at: startTime.toISOString(),
+        ended_at: cappedStop.toISOString(),
+        work_description: 'Återställd timer (stale) — rast och sluttid behöver verifieras',
+        location_id: entry.timer.locationId || undefined,
+        booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
+        large_project_id: entry.timer.largeProjectId,
+        time_report_id: trId,
+      }).catch(err => console.warn('Stale anomaly failed:', err));
+
       if (entry.timer.locationId) {
         try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
       }
       dismissStale(key);
-      toast.success('Tidrapport sparad och timer rensad');
+      toast.success('Tidrapport sparad och timer rensad — markerad som avvikelse för uppföljning');
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte spara tidrapport');
     }
