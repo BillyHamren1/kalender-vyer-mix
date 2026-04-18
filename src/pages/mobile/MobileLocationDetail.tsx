@@ -37,7 +37,7 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, orgLocations, startTimer, stopTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, orgLocations, startTimer, stopLocationTimerWithoutReport } = useGeofencing(bookings, staff?.id);
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [loading, setLoading] = useState(true);
@@ -121,11 +121,15 @@ const MobileLocationDetail = () => {
     }
   };
 
-  const handleStopTimer = () => {
-    const stopped = stopTimer(locKey);
-    if (stopped) {
+  const handleStopTimer = async () => {
+    // Pure fixed-location presence — no time_report needed.
+    // Server first, then clear local; on failure the timer stays.
+    try {
+      await stopLocationTimerWithoutReport(locKey);
       toast.success(t('timer.stoppedCreateReport'));
       navigate('/m/report');
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte stoppa timer');
     }
   };
 
