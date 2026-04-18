@@ -3,6 +3,7 @@ import { Plus, ArrowUp, Camera, X, Loader2, RotateCw, AlertCircle, FileText } fr
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useChatUpload } from './useChatUpload';
+import { CHAT_UPLOAD_ACCEPT_ATTR } from '@/lib/chat/uploadPolicy';
 
 interface Props {
   onSend: (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => Promise<void> | void;
@@ -139,7 +140,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
         <input
           ref={fileRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept={CHAT_UPLOAD_ACCEPT_ATTR}
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
