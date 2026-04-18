@@ -61,12 +61,15 @@ export const TIME_REPORTING_QUALITY_GATE = {
 
   /**
    * Backend-tester (deno test mot mobile-app-api edge function).
-   * Verifierar serverregler för time_reports + location_time_entries.
-   * Lägg till här när dedikerade Deno-tester finns för time-reporting-vägen.
+   * Verifierar serverkontraktet för time_reports + location_time_entries:
+   *   - Auth-guards på create/update/delete + admin-vägen
+   *   - Payload-validering (datum, tider, negativa break/overtime, equal start/end)
+   *   - Att approved-lock / overlap inte kan bypassas utan auth
+   *   - Idempotent timer-kontrakt (client_dedupe_key) och target-id-krav
+   *     för start_location_timer (location/booking/large_project)
    */
   backend: [
-    // (placeholder — lägg time-reporting-fokuserade Deno-tester här när
-    // de skrivs; messaging.test.ts ska INTE ingå i denna gate.)
+    'supabase/functions/mobile-app-api/timeReports.test.ts',
   ],
 } as const;
 
