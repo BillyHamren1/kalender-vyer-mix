@@ -221,4 +221,213 @@ UX-spärrar i frontend (TimeReportForm) får finnas för bättre upplevelse, men
 
 ---
 
+---
+
+# DEL 2 — Bakgrunds-/geofence-flödet (automatisk tidsregistrering)
+
+## 13. Varför finns geofence-timern?
+
+Personal **glömmer** logga in. De kommer till lagret, börjar jobba, glömmer trycka Play. Eller de jobbar en hel dag och glömmer stoppa. Geofence-flödet är **säkerhetsnätet** som säkerställer att vi har en sann bild av när personen faktiskt var på plats — även om de aldrig rör appen.
+
+Det är *inte* ersättning för manuell rapportering. Det är *parallell sanning* som vi sedan stämmer av mot.
+
+---
+
+## 14. Tre signaler som ger "var personen på plats?"
+
+| Signal | Källa | Skapas när |
+|---|---|---|
+| **GPS-ping i bakgrunden** | `useBackgroundLocationReporter` (Capgo background-geolocation) | Var ~30s när appen är öppen ELLER i bakgrunden, så länge personen gett tillstånd |
+| **Foreground geofence-event** | `useGeofencing` när appen är aktiv | Personen öppnar appen och är inom radien för en `organization_location` |
+| **Pending arrival** | Cachelagras i `eventflow-pending-arrivals` om appen var stängd vid ankomst | Nästa gång appen öppnas — triggar arrival-prompt |
+
+Alla tre leder till **samma sak**: en rad i `location_time_entries` med `location_id` satt och `source = 'gps'` (eller motsvarande automatisk markering).
+
+---
+
+## 15. Vad är en "ankomst" tekniskt?
+
+1. GPS-pingen rapporterar position till servern.
+2. Server kollar mot alla `organization_locations` för organisationen → finns det en plats inom dess `radius_meters`?
+3. Om ja **och** personen inte redan har en öppen `location_time_entry` på den platsen → skapa en ny entry:
+   ```
+   location_time_entries {
+     staff_id, location_id,
+     entered_at: now(),
+     source: 'gps',
+     client_dedupe_key: hash(staff+location+date)
+   }
+   ```
+4. Triggar pushnotis: "Du verkar vara på {Lager}. Starta din arbetsdag?" (via `arrival-reminder` cron, max 3 påminnelser).
+
+> Detta sker **oavsett om appen är i förgrunden eller bakgrunden**. Det är därför background-geolocation är kritiskt.
+
+---
+
+## 16. Vad händer när personen lämnar platsen?
+
+1. GPS-ping visar position **utanför** alla geofence-radier för den platsen.
+2. Server stänger den öppna `location_time_entries`-raden:
+   ```
+   exited_at = now()
+   ```
+3. **Inget rapport-skapande än.** Bara en stängd "närvaro-period".
+4. Om personen kommer tillbaka senare samma dag → ny entry skapas (vi grupperar inte automatiskt — flera in/ut samma dag = flera entries).
+
+**Specialfall — midnatt:** En öppen GPS-entry stängs automatiskt vid 23:59:59 och en ny öppnas 00:00:00 om personen fortfarande är där. Detta för att undvika dygnsöverskridande automatrapporter (som annars skulle kollidera med overlap-reglerna).
+
+**Specialfall — GPS dör / app dödas:** Om vi inte fått ping på >15 min och senaste position var inom radie → vi **stänger inte** entryn automatiskt. Vi vet inte om personen lämnat eller bara tappat signal. Stale entries hanteras manuellt av admin (se §19).
+
+---
+
+## 17. Från GPS-närvaro till tidrapport (auto-generering)
+
+> Detta är hjärtat: hur blir en passiv närvaro-logg en faktisk tidrapport?
+
+**DB-trigger `sync_location_entry_to_time_report`** körs när en `location_time_entries`-rad får `exited_at` satt:
+
+1. Räkna ut `hours_worked = (exited_at - entered_at)` minus auto-rast (0.5h om > 5h).
+2. Kolla: finns redan en **manuell** `time_report` för samma staff + datum som **täcker** detta intervall?
+   - Ja → gör inget. Manuell rapport vinner alltid.
+   - Nej → skapa automatiskt:
+     ```
+     time_reports {
+       staff_id, booking_id: NULL (eller location-internt projekt),
+       report_date, start_time, end_time, hours_worked,
+       source: 'location_auto',
+       approved: false,
+       description: 'Auto-genererad från geofence (Lager)'
+     }
+     ```
+3. Markeras tydligt i admin-UI med en grå badge "Auto" så det syns att den behöver granskas.
+
+**Viktigt:** Auto-rapporten är **alltid `approved=false`**. Personalen eller admin måste aktivt godkänna den. Detta skiljer sig från manuella rapporter som personalen skapat själv (de kan vara förvalda som "väntar godkännande" men är medvetet skapade).
+
+---
+
+## 18. Manuell timer vs geofence — hur samverkar de?
+
+**Regel:** Manuella timers (booking/project) trumfar alltid geofence.
+
+| Situation | Vad händer |
+|---|---|
+| Personen startar jobb-timer på ett kund-jobb medan de är på lagret | Båda timers körs parallellt. Lager-entryn är passiv närvaro, jobb-entryn är aktivt arbete. Vid stop av jobb-timern skapas en `time_report` på det jobbet. Lager-entryn fortsätter tills personen går. |
+| Personen lämnar lagret men jobb-timern är fortfarande aktiv | Lager-entryn stängs. Jobb-timern påverkas **inte** — den är manuell och fortsätter tills personen själv stoppar. |
+| Personen stoppar jobb-timern och rapporten täcker hela dagen | Auto-trigger ser att manuell rapport täcker tiden → genererar **ingen** auto-rapport från lager-entryn. |
+| Personen jobbar 08–17 men har bara manuell rapport 08–12 | Auto-trigger genererar en auto-rapport för 12–17 (eller hela 08–17 minus 08–12 → blir 12–17). Markeras som "Auto" + `approved=false`. |
+
+---
+
+## 19. Anomalies — när auto och manuell inte matchar
+
+`time_report_anomalies`-tabellen loggar diskrepanser som behöver mänskligt beslut:
+
+| Typ | Trigger | Vad personen ska svara |
+|---|---|---|
+| **Geofence utan rapport** | GPS visar närvaro >30 min, ingen manuell rapport, ingen auto-rapport (t.ex. för kort) | "Var det rast eller arbete?" |
+| **Rapport utan geofence** | Manuell rapport finns men GPS visar att personen aldrig var inom radien | "Jobbade du på distans? Beskriv." |
+| **Glapp i mitten** | Personen var på plats 08–17 men lämnade radien 12–13 | "Lunch?" → om ja, dras automatiskt från arbetstid |
+| **Flera korta ut/in** | Personen lämnade och kom tillbaka 5+ ggr på en dag | Visas som info, ingen blockering |
+| **Stale GPS-entry** | Öppen entry >24h utan exit | Admin-varning, inte personal |
+| **Avbruten GPS-tracking** | Inga pings på 2+ timmar mitt under aktiv närvaro | Loggas, ingen blockering |
+
+Anomalies visas i `MobileAnomalyClassificationDialog` när personen öppnar appen — **inte automatiskt vid skapande** (för att inte störa). De ligger i deras inkorg tills hanterade.
+
+---
+
+## 20. Pushnotis-flöde (arrival reminders)
+
+`arrival-reminder` Edge Function (cron, var 5 min):
+
+1. Hitta alla öppna `location_time_entries` med `source='gps'` där `entered_at > 10 min sedan`.
+2. För varje: kolla om personen har **aktiv manuell timer** på den platsen.
+   - Ja → ingen påminnelse.
+   - Nej → skicka push: "Du är på {Lager}. Starta din arbetsdag?"
+3. Max 3 påminnelser per närvaro-period (efter 10 min, 30 min, 60 min). Sedan tyst.
+4. Om personen trycker "Ignorera" → `eventflow-arrival-dismissed-{location_id}-{date}` cachas → inga fler påminnelser den dagen.
+
+---
+
+## 21. Reseregistrering (relaterat men separat)
+
+`travel_time_logs` skapas av `useTravelDetection` när:
+- Personen rör sig >X km/h i Y minuter, **och**
+- Det finns ett kommande jobb i deras schema, **och**
+- De är på väg mot jobbets adress (Haversine-distans minskar).
+
+Vid ankomst → reseloggen stängs. Visas som "Resa"-rad i admin tidrapportsvy, kopplad till destinationsprojektet. Räknas in i månadens totala timmar men är **inte** en `time_report` — egen tabell, egen logik.
+
+---
+
+## 22. Personalens upplevelse — hela dagen
+
+```
+07:45  Personen åker hemifrån
+       → useTravelDetection: travel_time_log skapas (källa: GPS-rörelse mot jobb-adress)
+
+08:12  Anländer lagret (inom 50m radie)
+       → Background-GPS rapporterar position
+       → Server skapar location_time_entries: source='gps', entered_at=08:12
+       → travel_time_log stängs
+       → Push: "Du är på Lager. Starta din arbetsdag?"
+
+08:13  Personen öppnar appen
+       → ArrivalPromptDialog visas
+       → Personen trycker "Ja, starta 08:12" (suggested time från geofence)
+       → Manuell location-timer startar med entered_at=08:12 (samma rad uppdateras eller ny manuell skapas)
+
+10:30  Personen åker till kundjobb
+       → Lämnar lager-radien → GPS-entry får exited_at=10:30
+       → Auto-rapport-trigger: ingen manuell rapport täcker 08:12–10:30 ÄN (timern är fortfarande aktiv) → vänta
+
+10:45  Anländer kund
+       → Personen trycker Play på jobbet i appen
+       → booking-timer startar (parallellt med location-timern som fortfarande är "aktiv" tekniskt)
+
+15:00  Personen trycker Stop på jobbet
+       → createTimeReport körs → time_report sparas (10:45–15:00, 4.25h, jobb XYZ)
+       → booking-timer-raden får exited_at
+
+15:20  Personen är tillbaka på lagret
+       → Ny GPS-entry skapas (15:20–...)
+
+17:00  Personen åker hem
+       → GPS-entry stängs (15:20–17:00)
+       → Manuell location-timer från morgonen är fortfarande aktiv enligt UI
+       → Personen trycker Stop i appen → createTimeReport för location-tiden
+       → MEN: överlappar med booking-timern 10:45–15:00!
+       → Server returnerar 409 med tydligt fel
+       → UI hjälper personen dela upp: 08:12–10:30 + 15:20–17:00 (lager) = 4.3h
+       → Två rapporter sparas, ingen overlap
+
+Nästa dag, admin granskar:
+- Lager-rapport 1 (08:12–10:30) — manuell, väntar godkännande
+- Jobb-rapport (10:45–15:00) — manuell, väntar godkännande
+- Lager-rapport 2 (15:20–17:00) — manuell, väntar godkännande
+- Reselogg 07:45–08:12 — auto, info
+- Inga anomalies eftersom allt täcks av manuella rapporter
+```
+
+---
+
+## 23. Vad som **inte** sker automatiskt (medvetet)
+
+- ❌ **Vi auto-stoppar aldrig en manuell timer** även om personen lämnat platsen. De kan ha glömt stoppa, men vi vet inte om de är på lunch eller hemma. Anomaly skapas istället.
+- ❌ **Vi auto-godkänner aldrig auto-rapporter.** `approved=false` alltid. Mänskligt beslut krävs.
+- ❌ **Vi raderar aldrig manuella rapporter** även om geofence motsäger dem. Anomaly skapas, admin beslutar.
+- ❌ **Vi skapar inte auto-rapporter för pass under 15 min.** För kort att vara meningsfullt → bara närvaro-logg.
+
+---
+
+## 24. Sammanfattning — två parallella sanningar
+
+| Lager | Vad det är | Vem äger | Skapas av |
+|---|---|---|---|
+| **Närvaro** (`location_time_entries` + `source='gps'`) | "Var personen fysiskt på plats?" | Servern, automatiskt | GPS-pings |
+| **Arbetstid** (`time_reports`) | "Vad ska personen få betalt för?" | Personalen + admin | Manuell rapport ELLER auto-trigger från närvaro |
+
+**Närvaro är fakta. Arbetstid är beslut.** Geofence ger oss fakta utan att personalen behöver göra något. Det skyddar både personalen (de glömmer inte registrera tid) och företaget (vi har spårbarhet).
+
+---
+
 *Detta dokument är levande. Uppdatera vid varje arkitekturbeslut som rör tidrapportering.*
