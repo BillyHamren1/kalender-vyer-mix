@@ -421,6 +421,7 @@ const MobileLocationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {dialogs}
     </div>
   );
 };
