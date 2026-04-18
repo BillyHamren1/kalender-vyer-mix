@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
-import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { ActiveTimer } from '@/hooks/useGeofencing';
+import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
@@ -33,7 +34,8 @@ const MobileTimeReport = () => {
   const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
-  const { activeTimers, saveAndStopTimer, stopLocationTimerWithoutReport, orgLocations, startTimer } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, stopSession, geo, dialogs } = useWorkSession(bookings, staff?.id);
+  const { orgLocations, startTimer } = geo;
 
   const fetchReports = async () => {
     try {
