@@ -1043,20 +1043,25 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Determine final values for validation
+  // === UNIFIED TIME MODEL (must match handleCreateTimeReport) ===
+  // - break_time: decimal HOURS (e.g. 0.5 = 30 min). Same unit as DB column.
+  // - overtime_hours: decimal HOURS.
+  // - hours_worked: server-calculated, NEVER trust client value.
+  // - Night shift: end < start crosses midnight (rawHours += 24).
   const finalStartTime = start_time !== undefined ? start_time : existing.start_time
   const finalEndTime = end_time !== undefined ? end_time : existing.end_time
-  const finalBreak = break_time !== undefined ? parseInt(break_time) : (existing.break_time || 0)
-  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : (existing.overtime_hours || 0)
+  // FIX: parseFloat (hours) — was parseInt which truncated 0.5 -> 0 and broke break persistence on edit.
+  const finalBreak = break_time !== undefined ? parseFloat(break_time) : Number(existing.break_time || 0)
+  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : Number(existing.overtime_hours || 0)
 
-  // Validate break
+  // Validate break (decimal hours, max 4h = 240 min)
   if (isNaN(finalBreak) || finalBreak < 0) {
     return new Response(
       JSON.stringify({ error: 'Rast kan inte vara negativ' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-  if (finalBreak > 240) {
+  if (finalBreak * 60 > 240) {
     return new Response(
       JSON.stringify({ error: 'Rast kan inte överstiga 240 minuter' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1078,21 +1083,26 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
     )
   }
 
-  // Server-side hours calculation when start/end are available
+  // Server-side hours calculation — identical rules as handleCreateTimeReport.
   let calculatedHours: number | null = null
   if (finalStartTime && finalEndTime) {
-    if (finalEndTime <= finalStartTime) {
+    const [sh, sm] = finalStartTime.split(':').map(Number)
+    const [eh, em] = finalEndTime.split(':').map(Number)
+    const startMinutes = sh * 60 + sm
+    const endMinutes = eh * 60 + em
+
+    if (startMinutes === endMinutes) {
       return new Response(
-        JSON.stringify({ error: 'Sluttid måste vara efter starttid' }),
+        JSON.stringify({ error: 'Sluttid kan inte vara samma som starttid' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    const [sh, sm] = finalStartTime.split(':').map(Number)
-    const [eh, em] = finalEndTime.split(':').map(Number)
+
+    // Night-shift parity with create: end < start crosses midnight.
     let rawHours = (eh + em / 60) - (sh + sm / 60)
     if (rawHours < 0) rawHours += 24
-    const breakHours = finalBreak / 60
-    calculatedHours = Math.round((rawHours - breakHours) * 100) / 100
+    // finalBreak is already in decimal hours.
+    calculatedHours = Math.round((rawHours - finalBreak) * 100) / 100
 
     if (calculatedHours <= 0) {
       return new Response(
