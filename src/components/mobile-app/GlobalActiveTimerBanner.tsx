@@ -201,12 +201,34 @@ const GlobalActiveTimerBanner: React.FC = () => {
     window.dispatchEvent(new Event('timer-state-changed'));
   }, []);
 
+  // Promise-baserad rast-dialog (uttryckligt användarbeslut, ingen auto-rast).
+  const breakDecision = useStopBreakDecision();
+
+  /**
+   * Avgör break_time enligt beslutsdokumentet:
+   *  - korta pass (<= tröskel): break = 0, ingen dialog
+   *  - långa pass: öppna dialog, vänta på explicit val
+   *  - om användaren avbryter dialogen: returnera null så stopp inte sker
+   */
+  const resolveBreakChoice = useCallback(
+    async (passHours: number, context: string | null):
+      Promise<{ breakHours: number; anomalyNote?: string } | null> => {
+      if (!shouldPromptForBreak(passHours)) {
+        return { breakHours: 0 };
+      }
+      const decision = await breakDecision.ask({ passHours, context });
+      if (!decision) return null;
+      if (decision.kind === 'break')    return { breakHours: decision.breakHours };
+      if (decision.kind === 'no_break') return { breakHours: 0 };
+      return { breakHours: 0, anomalyNote: decision.note };
+    },
+    [breakDecision],
+  );
+
   const handleStop = useCallback(async (key: string, timer: ActiveTimer) => {
     const stopTime = new Date();
     const startTimeDate = parseISO(timer.startTime);
 
-    // Look up the most recent geofence exit. If the user left the workplace
-    // before stopping the timer, ask them to confirm/adjust their end-time.
     let lastExit: { exited_at: string; location_id: string | null; location_name: string | null } | null = null;
     try {
       const res = await mobileApi.getLastWorkplaceExit();
@@ -220,7 +242,6 @@ const GlobalActiveTimerBanner: React.FC = () => {
       const gapMin = (stopTime.getTime() - exitDate.getTime()) / 60000;
       const isWithinSession = exitDate.getTime() > startTimeDate.getTime();
       if (isWithinSession && gapMin >= 2) {
-        // Defer to dialog. Timer stays alive locally + on server until confirmed.
         setPendingStop({
           key,
           timer,
@@ -232,16 +253,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     }
 
-    // SAVE FIRST. Only on success do we clear the timer (local + server).
+    // Be om explicit rast-beslut innan vi sparar något.
+    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+    if (totalHours < 0) totalHours += 24;
+    const choice = await resolveBreakChoice(totalHours, timer.locationName || timer.client);
+    if (!choice) return; // användaren avbröt — timer lever vidare
+
     try {
-      await persistStop(key, timer, startTimeDate, stopTime);
+      await persistStop(key, timer, startTimeDate, stopTime, choice.breakHours, choice.anomalyNote);
     } catch (err: any) {
-      // persistStop already toasts — keep timer alive for retry
       console.warn('[Stop] persistStop failed, timer stays active:', err);
       return;
     }
 
-    // Best-effort: close orphan anomalies, then stop server-side location timer
     mobileApi.closeOpenAnomalies({ ended_at: stopTime.toISOString() }).catch(err => {
       console.warn('Failed to close open anomalies on stop:', err);
     });
@@ -253,12 +277,20 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     }
     clearTimerLocally(key);
-  }, [persistStop, clearTimerLocally]);
+  }, [persistStop, clearTimerLocally, resolveBreakChoice]);
 
   const handleDialogConfirm = useCallback(async (result: EndOfDayResult) => {
     if (!pendingStop) return;
     const stopTime = new Date(result.endedAtIso);
     const lastExitDate = parseISO(pendingStop.lastExitIso);
+
+    let totalHours = (stopTime.getTime() - pendingStop.startTimeDate.getTime()) / (1000 * 60 * 60);
+    if (totalHours < 0) totalHours += 24;
+    const choice = await resolveBreakChoice(
+      totalHours,
+      pendingStop.timer.locationName || pendingStop.timer.client,
+    );
+    if (!choice) return;
 
     try {
       await persistStop(
@@ -266,6 +298,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
         pendingStop.timer,
         pendingStop.startTimeDate,
         stopTime,
+        choice.breakHours,
+        choice.anomalyNote,
         result.usedSuggestedExit
           ? undefined
           : {
@@ -275,12 +309,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
             },
       );
     } catch (err) {
-      // Save failed — keep dialog & timer alive for retry
       console.warn('[Stop] dialog persistStop failed, timer stays active:', err);
       return;
     }
 
-    // Persisted OK — now clear server-side location timer + local timer
     if (pendingStop.timer.locationId) {
       try {
         await mobileApi.stopLocationTimer({ location_id: pendingStop.timer.locationId });
@@ -290,7 +322,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
     }
     clearTimerLocally(pendingStop.key);
     setPendingStop(null);
-  }, [pendingStop, persistStop, clearTimerLocally]);
+  }, [pendingStop, persistStop, clearTimerLocally, resolveBreakChoice]);
 
   if (location.pathname === '/m/report') return null;
 
