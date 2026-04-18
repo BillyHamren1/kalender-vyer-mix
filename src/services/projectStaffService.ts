@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { mobileApi } from '@/services/mobileApiService';
 import { ProjectLaborCost, PlannedStaffMember, StaffTimeReport } from '@/types/projectStaff';
 
 export const fetchPlannedStaff = async (bookingId: string): Promise<PlannedStaffMember[]> => {
@@ -187,6 +188,12 @@ export const deleteLaborCost = async (id: string): Promise<void> => {
   }
 };
 
+// === Time-report writes go through the mobile-app-api edge function ===
+// projectStaffService MUST NOT write directly to time_reports. The edge
+// function enforces the same validation as the mobile flow (datetime
+// overlap, approved-lock, hours/break/overtime ranges) and is the single
+// authoritative write path. DB triggers are the ultimate backstop.
+
 export const createTimeReport = async (report: {
   booking_id: string;
   staff_id: string;
@@ -197,18 +204,23 @@ export const createTimeReport = async (report: {
   overtime_hours: number;
   description: string | null;
 }): Promise<StaffTimeReport> => {
-  const { data, error } = await supabase
-    .from('time_reports')
-    .insert(report)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating time report:', error);
-    throw error;
+  if (!report.start_time || !report.end_time) {
+    throw new Error('Start- och sluttid krävs');
   }
 
-  // Get staff name
+  const result = await mobileApi.adminCreateTimeReport({
+    target_staff_id: report.staff_id,
+    booking_id: report.booking_id,
+    report_date: report.report_date,
+    start_time: report.start_time,
+    end_time: report.end_time,
+    overtime_hours: report.overtime_hours || 0,
+    description: report.description || undefined,
+  });
+
+  const created = result.time_report;
+
+  // Fetch staff name for the returned StaffTimeReport shape used by the UI.
   const { data: staffMember } = await supabase
     .from('staff_members')
     .select('name')
@@ -216,23 +228,21 @@ export const createTimeReport = async (report: {
     .single();
 
   return {
-    ...data,
+    id: created.id,
+    staff_id: created.staff_id,
     staff_name: staffMember?.name || 'Okänd',
-    overtime_hours: data.overtime_hours || 0,
-    approved: data.approved || false,
-    approved_at: data.approved_at || null,
-    approved_by: data.approved_by || null
+    report_date: created.report_date,
+    start_time: created.start_time,
+    end_time: created.end_time,
+    hours_worked: created.hours_worked,
+    overtime_hours: created.overtime_hours || 0,
+    description: created.description,
+    approved: created.approved || false,
+    approved_at: created.approved_at || null,
+    approved_by: created.approved_by || null,
   };
 };
 
 export const deleteTimeReport = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('time_reports')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting time report:', error);
-    throw error;
-  }
+  await mobileApi.adminDeleteTimeReport(id);
 };

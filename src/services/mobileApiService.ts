@@ -126,10 +126,27 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   const isNative = typeof (window as any)?.Capacitor !== 'undefined';
   console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms, native: ${isNative}, url: ${FUNCTION_URL})`);
 
+  // Build headers. When there is no mobile token (web/admin caller), forward
+  // the Supabase web JWT so the edge function can verify the user via getClaims().
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (!token) {
+    try {
+      // Lazy import to avoid bundling supabase client into the mobile path twice.
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+    } catch (e) {
+      console.warn('[mobileApi] Could not attach web JWT:', e);
+    }
+  }
+
   try {
     const res = await fetch(FUNCTION_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ action, token, data }),
       signal: controller.signal,
     });
@@ -137,7 +154,8 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
     console.log(`[mobileApi] ← ${action} status=${res.status}`);
 
     if (res.status === 401) {
-      clearAuth();
+      // Only clear mobile auth if we were using the mobile token.
+      if (token) clearAuth();
       throw new Error('Session expired');
     }
 
@@ -211,6 +229,27 @@ export const mobileApi = {
 
   deleteTimeReport: (timeReportId: string) =>
     callApi<{ success: boolean }>('delete_time_report', { time_report_id: timeReportId }),
+
+  // === Admin / web-only endpoints ===
+  // These require the caller to be an authenticated web user with the
+  // 'admin' or 'projekt' app_role. They write time_reports on behalf of
+  // another staff member (target_staff_id) using the same validation rules
+  // as the mobile create/delete handlers.
+  adminCreateTimeReport: (data: {
+    target_staff_id: string;
+    booking_id?: string;
+    large_project_id?: string;
+    report_date: string;
+    start_time: string;
+    end_time: string;
+    overtime_hours?: number;
+    break_time?: number;
+    description?: string;
+    establishment_task_id?: string;
+  }) => callApi<{ success: boolean; time_report: any }>('admin_create_time_report', data),
+
+  adminDeleteTimeReport: (timeReportId: string) =>
+    callApi<{ success: boolean }>('admin_delete_time_report', { time_report_id: timeReportId }),
 
   getProjectComments: (bookingId: string) =>
     callApi<{ comments: any[] }>('get_project_comments', { booking_id: bookingId }),
