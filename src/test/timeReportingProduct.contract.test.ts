@@ -83,6 +83,11 @@ describe('Time reporting product (end-to-end contract)', () => {
     mockFetch = vi.fn();
     globalThis.fetch = mockFetch;
     localStorage.clear();
+    // Force a fresh module graph so the timerSyncQueue singleton state
+    // (the `flushing` flag and pending setTimeouts) does not leak between
+    // tests. Without this, a still-running flush from a previous test can
+    // swallow the next test's mocked fetch response.
+    vi.resetModules();
     // Authenticate the SDK so callApi attaches a token + reaches fetch().
     const mod = await import('../services/mobileApiService');
     mod.setAuth('token', ME);
