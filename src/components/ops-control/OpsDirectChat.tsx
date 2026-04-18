@@ -1,6 +1,11 @@
+// Web DM chat (admin/ops) — officiell väg:
+//   sendDM / markDMRead / uploadChatAttachment från `directMessageService`,
+//   som internt delegerar till `mobileApi` (mobile-app-api edge function).
+// Inga direkta DB-skrivningar från frontend; ingen användning av legacy
+// compat-aliasen `sendDirectMessage` / `uploadDMFile` / `markDirectMessagesRead`.
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
-import { sendDirectMessage, uploadDMFile, markDirectMessagesRead } from '@/services/directMessageService';
+import { sendDM, uploadChatAttachment, markDMRead } from '@/services/directMessageService';
 import { useMyIdentity } from '@/hooks/useMyIdentity';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
