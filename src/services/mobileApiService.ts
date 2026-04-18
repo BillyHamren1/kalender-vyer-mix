@@ -319,6 +319,15 @@ export const mobileApi = {
   getBroadcasts: () =>
     callApi<{ broadcasts: any[] }>('get_broadcasts'),
 
+  sendBroadcast: (data: {
+    content: string;
+    audience: 'all_today' | 'job_staff' | 'active_staff' | 'selected_staff';
+    category?: 'info' | 'weather' | 'schedule' | 'logistics' | 'urgent';
+    audience_booking_id?: string | null;
+    audience_staff_ids?: string[] | null;
+    sender_name?: string;
+  }) => callApi<{ success: boolean; broadcast: any }>('send_broadcast', data),
+
   markBroadcastRead: (broadcastId: string) =>
     callApi<{ success: boolean }>('mark_broadcast_read', { broadcast_id: broadcastId }),
 

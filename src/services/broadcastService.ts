@@ -1,4 +1,16 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * Broadcast service — del av den officiella centraliserade messaging-arkitekturen.
+ *
+ * Officiell väg:
+ *   - Send broadcast   → `mobileApi.sendBroadcast` (mobile-app-api: send_broadcast)
+ *   - Read broadcasts  → `mobileApi.getRecentBroadcasts` (mobile-app-api: get_recent_broadcasts)
+ *   - Mark as read     → `mobileApi.markBroadcastRead`
+ *
+ * Frontend skriver ALDRIG direkt mot `broadcast_messages`. Edge-funktionen
+ * `mobile-app-api` äger validering, org-scoping och auth — samma kontrakt
+ * som DM/jobbchatt/inbox.
+ */
+import { mobileApi } from '@/services/mobileApiService';
 
 export type BroadcastAudience = 'all_today' | 'job_staff' | 'active_staff' | 'selected_staff';
 export type BroadcastCategory = 'info' | 'weather' | 'schedule' | 'logistics' | 'urgent';
@@ -17,7 +29,7 @@ export interface BroadcastMessage {
 }
 
 export const sendBroadcast = async (
-  senderId: string,
+  _senderId: string,
   senderName: string,
   content: string,
   audience: BroadcastAudience,
@@ -25,34 +37,21 @@ export const sendBroadcast = async (
   audienceBookingId?: string,
   audienceStaffIds?: string[],
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('broadcast_messages' as any)
-    .insert({
-      sender_id: senderId,
-      sender_name: senderName,
-      content: content.trim(),
-      audience,
-      category,
-      audience_booking_id: audienceBookingId || null,
-      audience_staff_ids: audienceStaffIds || null,
-    });
-
-  if (error) {
-    console.error('Error sending broadcast:', error);
-    throw error;
-  }
+  // sender_id ignoreras med flit — backend identifierar avsändaren från auth-token/JWT.
+  // Vi behåller signaturen för bakåtkompatibilitet med befintliga callers.
+  await mobileApi.sendBroadcast({
+    content,
+    audience,
+    category,
+    audience_booking_id: audienceBookingId || null,
+    audience_staff_ids: audienceStaffIds || null,
+    sender_name: senderName,
+  });
 };
 
 export const fetchRecentBroadcasts = async (): Promise<BroadcastMessage[]> => {
-  // READ — routed through `mobile-app-api` (single backend layer for messaging).
   try {
-    const { data: result, error } = await supabase.functions.invoke('mobile-app-api', {
-      body: { action: 'get_recent_broadcasts', data: {} },
-    });
-    if (error) {
-      console.error('Error fetching broadcasts:', error);
-      return [];
-    }
+    const result = await mobileApi.getRecentBroadcasts();
     return (result?.broadcasts as BroadcastMessage[]) || [];
   } catch (err) {
     console.error('Error fetching broadcasts:', err);

@@ -262,6 +262,8 @@ Deno.serve(async (req) => {
         return await handleGetRecentBroadcasts(supabase, organizationId)
       case 'get_messaging_activity':
         return await handleGetMessagingActivity(supabase, organizationId, data)
+      case 'send_broadcast':
+        return await handleSendBroadcast(supabase, staffId, data, organizationId)
       case 'upload_chat_attachment':
         return await handleUploadChatAttachment(supabase, staffId, data, organizationId)
       case 'get_broadcasts':
@@ -3416,6 +3418,89 @@ async function handleGetMessagingActivity(
       broadcasts: bcRes.data || [],
       job_messages: jmRes.data || [],
     }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+/**
+ * Centralized broadcast send. Frontend never writes to broadcast_messages
+ * directly — all writes go through this handler so org-scoping, validation
+ * and auth match the rest of the messaging stack.
+ */
+async function handleSendBroadcast(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const content = typeof data?.content === 'string' ? data.content.trim() : ''
+  const audience = data?.audience as string | undefined
+  const category = (data?.category as string | undefined) || 'info'
+  const audienceBookingId = data?.audience_booking_id ?? null
+  const audienceStaffIds = Array.isArray(data?.audience_staff_ids) ? data.audience_staff_ids : null
+  const senderName = typeof data?.sender_name === 'string' && data.sender_name.trim().length > 0
+    ? data.sender_name.trim()
+    : 'Planerare'
+
+  const validAudiences = new Set(['all_today', 'job_staff', 'active_staff', 'selected_staff'])
+  const validCategories = new Set(['info', 'weather', 'schedule', 'logistics', 'urgent'])
+
+  if (!content) {
+    return new Response(
+      JSON.stringify({ error: 'content is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!audience || !validAudiences.has(audience)) {
+    return new Response(
+      JSON.stringify({ error: 'invalid audience' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!validCategories.has(category)) {
+    return new Response(
+      JSON.stringify({ error: 'invalid category' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (audience === 'job_staff' && !audienceBookingId) {
+    return new Response(
+      JSON.stringify({ error: 'audience_booking_id is required for job_staff' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (audience === 'selected_staff' && (!audienceStaffIds || audienceStaffIds.length === 0)) {
+    return new Response(
+      JSON.stringify({ error: 'audience_staff_ids is required for selected_staff' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('broadcast_messages')
+    .insert({
+      organization_id: organizationId,
+      sender_id: staffId,
+      sender_name: senderName,
+      content,
+      audience,
+      category,
+      audience_booking_id: audienceBookingId,
+      audience_staff_ids: audienceStaffIds,
+    })
+    .select('*')
+    .single()
+
+  if (error) {
+    console.error('send_broadcast error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to send broadcast' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, broadcast: inserted }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
