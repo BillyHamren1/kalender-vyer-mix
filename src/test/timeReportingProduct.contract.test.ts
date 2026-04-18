@@ -411,14 +411,17 @@ describe('Time reporting product (end-to-end contract)', () => {
 
     it('retry: nätverksfel TAR INTE bort timern ur kön (ingen tyst radering)', async () => {
       const queueMod = await import('../services/timerSyncQueue');
-      mockFetch.mockRejectedValueOnce(new TypeError('NetworkError'));
+      mockFetch.mockRejectedValue(new TypeError('NetworkError'));
 
       queueMod.enqueueTimerStart({
         timerKey: 'booking-flaky',
         bookingId: 'booking-flaky',
         startedAt: '2026-04-18T08:00:00Z',
       });
-      await queueMod.flushQueue();
+      // enqueueTimerStart fires-and-forgets a flush. Wait for that
+      // in-flight flush to settle (mock rejection → catch block runs →
+      // attempts incremented + queue saved) before asserting.
+      await new Promise((r) => setTimeout(r, 30));
 
       const remaining = queueMod.getPendingTimerStarts();
       const item = remaining.find((p) => p.timerKey === 'booking-flaky');
@@ -448,7 +451,7 @@ describe('Time reporting product (end-to-end contract)', () => {
 
     it('success: emittar timer-sync-confirmed med serverEntryId så UI kan adoptera servertid', async () => {
       const queueMod = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValueOnce(
+      mockFetch.mockResolvedValue(
         ok({ success: true, entry: { id: 'lte-x', entered_at: '2026-04-18T08:00:01Z' } }),
       );
 
@@ -461,7 +464,8 @@ describe('Time reporting product (end-to-end contract)', () => {
         bookingId: 'booking-confirm',
         startedAt: '2026-04-18T08:00:00Z',
       });
-      await queueMod.flushQueue();
+      // enqueueTimerStart fires the actual flush itself; wait for it to settle.
+      await new Promise((r) => setTimeout(r, 30));
 
       window.removeEventListener('timer-sync-confirmed', handler);
       expect(events.length).toBe(1);
