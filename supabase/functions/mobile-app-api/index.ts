@@ -2896,49 +2896,23 @@ async function handleMarkJobRead(supabase: any, staffId: string, data: any, orga
   const denied = await assertJobAccess(supabase, booking_id, staffId, organizationId, userId)
   if (denied) return denied
 
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
+  const ids = userId && userId !== staffId ? [staffId, userId] : [staffId]
 
-  // Fetch only un-read messages where caller is NOT yet in read_by.
-  // (read_by is JSONB, so we can't push the predicate fully into Postgres without
-  // an SQL function — but we limit columns + order to keep it cheap.)
-  const { data: rows, error } = await supabase
-    .from('job_messages')
-    .select('id, read_by')
-    .eq('booking_id', booking_id)
-    .eq('organization_id', organizationId)
-    .neq('sender_id', staffId)
-    .order('created_at', { ascending: false })
-    .limit(500)
+  // Atomic, idempotent, set-based update via SQL function.
+  // Replaces the per-row update loop so very long job-chats stay fast,
+  // and we never re-write rows that already include the caller in read_by.
+  const { data: updated, error } = await supabase.rpc('mark_job_thread_read', {
+    _org_id: organizationId,
+    _booking_id: booking_id,
+    _my_ids: ids,
+  })
 
   if (error) {
     return new Response(JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // Filter unread on the server, then issue a single chunked update per chunk
-  // (Postgrest supports `in.()` with up to ~1000 ids per request).
-  const unreadIds: string[] = []
-  const merged: Record<string, string[]> = {}
-  for (const r of (rows || [])) {
-    const arr = Array.isArray(r.read_by) ? r.read_by : []
-    if (ids.some(id => arr.includes(id))) continue
-    unreadIds.push(r.id)
-    merged[r.id] = Array.from(new Set([...arr, ...ids]))
-  }
-
-  // Issue updates in parallel — kept per-row because read_by is per-row JSONB.
-  // Bound concurrency at 25 to avoid PgBouncer congestion when there are many rows.
-  let updated = 0
-  for (let i = 0; i < unreadIds.length; i += 25) {
-    const batch = unreadIds.slice(i, i + 25)
-    await Promise.all(batch.map(id =>
-      supabase.from('job_messages').update({ read_by: merged[id] }).eq('id', id)
-    ))
-    updated += batch.length
-  }
-
-  return new Response(JSON.stringify({ success: true, updated }),
+  return new Response(JSON.stringify({ success: true, updated: Number(updated) || 0 }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
