@@ -26,6 +26,15 @@ export interface TravelCompletedInfo {
   toLng: number;
   hoursWorked: number;
   matchedBookingId: string | null;
+  /**
+   * 'work'         — server is confident this is billable (booking-matched
+   *                  destination, or manual user action).
+   * 'unclassified' — auto-detected travel without a booking match. Hours
+   *                  still recorded, but the user is asked in the dialog
+   *                  whether this was work or private. Until classified
+   *                  it's a soft assistant signal, not paid time.
+   */
+  classification: 'work' | 'personal' | 'unclassified';
 }
 
 // Haversine distance in meters
@@ -165,16 +174,21 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
         toLng: lng,
         hoursWorked: result.travel_log?.hours_worked || 0,
         matchedBookingId: result.travel_log?.destination_booking_id || null,
+        classification: result.travel_log?.classification || 'unclassified',
       });
 
       clearTravelState();
-      console.log('[TravelDetection] Travel stopped');
+      console.log('[TravelDetection] Travel stopped, classification:', result.travel_log?.classification);
     } catch (err) {
       console.error('[TravelDetection] Failed to stop travel:', err);
     }
   }, [clearTravelState]);
 
-  // Manual stop
+  // Manual stop — explicit user action ⇒ classify as 'work' (billable).
+  // Auto-stop (speed-based) goes through stopTravel without mark_payable,
+  // so the server defaults that path to 'unclassified' unless the
+  // destination matches a booking. This is the core split between
+  // "tidsgrundande resa" and "ren assistent-signal".
   const manualStopTravel = useCallback(async () => {
     const currentLogId = travelStateRef.current.activeTravelLogId;
     if (!currentLogId) return;
@@ -183,6 +197,7 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       const result = await mobileApi.stopTravelLog({
         travel_log_id: currentLogId,
         ...(lastPos ? { to_latitude: lastPos.lat, to_longitude: lastPos.lng } : {}),
+        mark_payable: true,
       });
 
       if (lastPos) {
