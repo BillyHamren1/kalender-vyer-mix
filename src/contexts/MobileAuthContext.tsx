@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } from '@/services/mobileApiService';
 import { isScannerApp } from '@/config/appMode';
+import { clearTimerSyncQueue } from '@/services/timerSyncQueue';
+import { clearLocalTimerSession } from '@/hooks/useGeofencing';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
