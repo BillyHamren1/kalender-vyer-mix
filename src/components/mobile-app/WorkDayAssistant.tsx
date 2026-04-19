@@ -272,16 +272,17 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
               </Button>
               <Button
                 onClick={() => {
-                  // Use the global "Avsluta dagen" button on the banner.
-                  // It runs the EOD reconciliation flow that already exists
-                  // inside useWorkSession — no duplication here.
+                  // Trigga EOD direkt via globalt event som banner lyssnar på.
+                  // Banner äger stop+EOD-flödet — vi duplicerar det inte här.
                   navigate('/m');
+                  window.dispatchEvent(new CustomEvent('request-end-day', {
+                    detail: { source: 'assistant_last_workplace_for_day' },
+                  }));
                   onAcknowledge();
-                  toast.message('Tryck på "Avsluta dagen" i toppen för att stänga dagen.');
                 }}
                 className="w-full sm:w-auto"
               >
-                Ta mig till "Avsluta dagen"
+                Avsluta dagen
               </Button>
             </DialogFooter>
           </DialogContent>
