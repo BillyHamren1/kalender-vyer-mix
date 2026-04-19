@@ -100,8 +100,8 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
                 rigEndTime={booking.rigEndTime ?? null}
                 eventStartTime={booking.eventStartTime ?? null}
                 eventEndTime={booking.eventEndTime ?? null}
-                rigdownStartTime={booking.rigdownStartTime ?? null}
-                rigdownEndTime={booking.rigdownEndTime ?? null}
+                rigdownStartTime={booking.rigDownStartTime ?? null}
+                rigdownEndTime={booking.rigDownEndTime ?? null}
                 onUpdated={() => window.location.reload()}
               />
             </CardContent>
