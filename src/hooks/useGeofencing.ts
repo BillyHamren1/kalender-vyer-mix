@@ -189,6 +189,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
         // Restore ALL three timer types from server (architectural decision:
         // server is source of truth — local map is just a cache).
+        const serverKeys = new Set<string>();
         if (manualEntries.length > 0) {
           setActiveTimers(prev => {
             const next = new Map(prev);
@@ -215,6 +216,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 patch.client = 'Uppdrag';
               }
               if (!key) continue;
+              serverKeys.add(key);
               const existing = next.get(key);
               if (existing) {
                 // Local timer exists — adopt server start time + server id, but keep local label.
@@ -228,6 +230,25 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           });
           console.log('[Geofence] Restored', manualEntries.length, 'active timers from server');
         }
+
+        // RECOVERY: clear stuck `pendingSync: true` for any local timer that
+        // is NOT in the persistent sync queue and NOT confirmed by server.
+        // Without this a missed `timer-sync-confirmed` event (e.g. listener
+        // mounted after dispatch, or resolved in another tab) would leave the
+        // banner showing "Synkroniserar…" forever.
+        setActiveTimers(prev => {
+          let mutated = false;
+          const next = new Map(prev);
+          for (const [key, t] of prev) {
+            if (!t.pendingSync) continue;
+            if (serverKeys.has(key)) continue; // handled above
+            if (isTimerPendingSync(key)) continue; // legitimately still queued
+            next.set(key, { ...t, pendingSync: false });
+            mutated = true;
+            console.warn('[Geofence] Cleared stuck pendingSync flag for', key);
+          }
+          return mutated ? next : prev;
+        });
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
       }
@@ -651,6 +672,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       });
     };
     window.addEventListener('timer-sync-confirmed', handler);
+
+    // ROBUSTNESS: on mount, sweep any timer flagged pendingSync that is
+    // NOT actually in the queue anymore — happens when the confirm event
+    // fired before this listener was attached (e.g. fast app reload).
+    setActiveTimers(prev => {
+      let mutated = false;
+      const next = new Map(prev);
+      for (const [k, t] of prev) {
+        if (t.pendingSync && !isTimerPendingSync(k)) {
+          next.set(k, { ...t, pendingSync: false });
+          mutated = true;
+        }
+      }
+      return mutated ? next : prev;
+    });
+
     return () => window.removeEventListener('timer-sync-confirmed', handler);
   }, []);
 
