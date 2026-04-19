@@ -196,6 +196,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/profile" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/time-history" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/inbox" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/my-flags" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileMyFlags /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
 
       {/* Main System Routes - Protected (wrapped in AuthProvider) */}
       <Route path="/*" element={
