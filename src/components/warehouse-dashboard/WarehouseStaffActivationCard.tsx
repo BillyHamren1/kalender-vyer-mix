@@ -10,6 +10,7 @@ import {
   type WarehouseScheduleView,
   type WarehouseStaffScheduleItem,
 } from '@/hooks/useWarehouseStaffScheduleOverview';
+import { extractUTCTime } from '@/utils/dateUtils';
 
 const eventTypeLabel = (type?: string) => {
   switch (type) {
@@ -55,8 +56,8 @@ const periodLabel = (date: Date, view: WarehouseScheduleView) => {
 
 const timeLabel = (item: WarehouseStaffScheduleItem) => {
   if (!item.startTime) return null;
-  const start = format(new Date(item.startTime), 'HH:mm');
-  const end = item.endTime ? format(new Date(item.endTime), 'HH:mm') : null;
+  const start = extractUTCTime(item.startTime);
+  const end = item.endTime ? extractUTCTime(item.endTime) : null;
   return end && end !== start ? `${start}–${end}` : start;
 };
 
