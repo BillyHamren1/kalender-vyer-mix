@@ -60,6 +60,10 @@ FRONTEND_TESTS=(
   # idempotency, EOD-dialog stays open vid save-fail, sekventiell EOD-
   # processing.
   "src/test/endDayHardening.contract.test.ts"
+  # Edge-case-härdning (PROMPT 5): 10 verkliga driftsscenarier — app-kill,
+  # nät dör under start/stop, reload, dubbeltryck, logout/login med aktiv
+  # session, korrupt kö, server-timeout, osäker target.
+  "src/test/edgeCaseHardening.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
