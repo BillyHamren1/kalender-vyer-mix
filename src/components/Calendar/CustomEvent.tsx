@@ -241,30 +241,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     );
   }
 
-  // Warehouse events: wrap in QuickTimeEditPopover for click-to-edit-time
+  // Warehouse events: single-click does NOTHING (previously opened a time-picker
+  // popover which felt accidental). Time edits go through double-click → details
+  // dialog or right-click context menu. Drag/resize still work via EventHoverCard.
   if (isWarehouseEvent && !readOnly) {
     return (
       <>
-        <QuickTimeEditPopover
-          event={{
-            id: event.id,
-            title: event.title,
-            start: event.start,
-            end: event.end,
-            bookingId: event.bookingId,
-            eventType: event.eventType,
-            resourceId: event.resourceId,
-          }}
-          onUpdate={onEventResize}
-          variant="warehouse"
-        >
-          <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-            <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
-              {eventCardContent}
-            </div>
-          </EventHoverCard>
-        </QuickTimeEditPopover>
-        
+        <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+          <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+            {eventCardContent}
+          </div>
+        </EventHoverCard>
+
         <MoveEventDateDialog
           open={showDateDialog}
           onOpenChange={(open) => {
