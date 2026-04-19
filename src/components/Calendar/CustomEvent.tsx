@@ -7,7 +7,8 @@ import { deleteCalendarEvent } from '@/services/eventService';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
-import QuickTimeEditPopover from './QuickTimeEditPopover';
+// QuickTimeEditPopover removed from warehouse events — single-click no longer
+// opens a time picker (felt accidental). Edits go via double-click / context menu.
 import MoveEventDateDialog from './MoveEventDateDialog';
 import './CustomEvent.css';
 
