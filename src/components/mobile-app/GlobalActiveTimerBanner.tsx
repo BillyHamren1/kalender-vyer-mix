@@ -130,7 +130,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
         establishment_task_id: timer.establishmentTaskId,
         large_project_id: timer.largeProjectId,
       });
-      toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+      toast.success(`Tidrapport sparad — ${hoursWorked} h`);
       const trId = (tr as any)?.time_report?.id;
 
       // Användarvalt: "markera som avvikelse". Sparas som end-of-day anomaly
@@ -182,7 +182,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
         });
       }
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara tidrapport');
+      toast.error(err.message || 'Kunde inte spara tidrapporten — timern är kvar så du kan försöka igen.');
       // Re-throw so caller knows persistence failed and keeps timer alive
       throw err;
     }
@@ -397,8 +397,8 @@ const TimerRow: React.FC<{
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Started {format(parseISO(timer.startTime), 'HH:mm')}
-          {timer.isAutoStarted && ' (auto)'}
+          Startad {format(parseISO(timer.startTime), 'HH:mm')}
+          {timer.isAutoStarted && ' (automatiskt)'}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
@@ -409,9 +409,10 @@ const TimerRow: React.FC<{
         variant="destructive"
         className="rounded-xl h-9 gap-1 text-xs font-semibold"
         onClick={() => onStop(timerKey, timer)}
+        title="Avsluta aktiviteten — sparar tidrapporten"
       >
         <Square className="w-3 h-3" />
-        Stop
+        Avsluta
       </Button>
     </div>
   );
