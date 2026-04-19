@@ -5206,6 +5206,7 @@ export type Database = {
       travel_time_logs: {
         Row: {
           auto_detected: boolean
+          classification: string
           created_at: string
           description: string | null
           destination_booking_id: string | null
@@ -5227,6 +5228,7 @@ export type Database = {
         }
         Insert: {
           auto_detected?: boolean
+          classification?: string
           created_at?: string
           description?: string | null
           destination_booking_id?: string | null
@@ -5248,6 +5250,7 @@ export type Database = {
         }
         Update: {
           auto_detected?: boolean
+          classification?: string
           created_at?: string
           description?: string | null
           destination_booking_id?: string | null
