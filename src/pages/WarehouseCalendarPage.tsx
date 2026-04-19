@@ -299,7 +299,18 @@ const WarehouseCalendarPage = () => {
       return stored;
     }
     // Default: lager-1 to lager-3 + warehouse-event (Transport)
-    return ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+    const base = stored ?? ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+    // Auto-include any lager column that has events on this day
+    const dayKey = format(date, 'yyyy-MM-dd');
+    const extras = new Set<string>();
+    for (const ev of combinedEvents) {
+      const evDay = format(new Date(ev.start), 'yyyy-MM-dd');
+      if (evDay !== dayKey) continue;
+      if (ev.resourceId && ev.resourceId.startsWith('lager-') && !base.includes(ev.resourceId)) {
+        extras.add(ev.resourceId);
+      }
+    }
+    return [...base, ...Array.from(extras)];
   };
 
   // Toggle team visibility for a specific day
