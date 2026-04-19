@@ -18,6 +18,8 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
+import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 
 interface LagerTask {
   id: string;
@@ -50,11 +52,17 @@ const MobileLocationDetail = () => {
   const [assignToMe, setAssignToMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [, setTick] = useState(0);
+  // Rule-based concurrency replaces the legacy "max one timer total" hard
+  // block. Two timers may coexist (e.g. Lager presence + active booking) —
+  // only incompatible kinds open the switch dialog.
+  const [pendingStart, setPendingStart] = useState<{ label: string; doStart: () => void } | null>(null);
+  const [conflictEval, setConflictEval] = useState<
+    Extract<StartEvaluation, { status: 'switch' }> | null
+  >(null);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
   const hasLocationTimer = activeTimers.has(locKey);
-  const hasAnyTimer = activeTimers.size > 0;
   const currentTimer = activeTimers.get(locKey);
 
   // tick for elapsed display
@@ -95,26 +103,73 @@ const MobileLocationDetail = () => {
     ? { kind: 'location', locationId: location.id, name: location.name, createsTimeReport: false }
     : null;
 
-  const handleStartTaskTimer = async (task: LagerTask) => {
+  /**
+   * Check rule-based concurrency, then either start, ignore, or open the
+   * switch dialog. Used by both the header play button and per-task starts.
+   */
+  const requestStart = (label: string, doStart: () => void) => {
     if (!locationTarget) return;
-    if (hasAnyTimer) {
-      toast.error(t('timer.alreadyActive'));
+    const evalResult = evaluateStartConflict(locationTarget, activeTimers);
+    if (evalResult.status === 'duplicate') return;
+    if (evalResult.status === 'allow') {
+      doStart();
       return;
     }
-    const ok = startSession(locationTarget, { taskId: task.id, taskTitle: task.title });
-    if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
-    else toast.error('Kunde inte starta timer');
+    setPendingStart({ label, doStart });
+    setConflictEval(evalResult);
   };
 
-  const handleStartGeneralTimer = async () => {
-    if (!locationTarget) return;
-    if (hasAnyTimer) {
-      toast.error(t('timer.alreadyActive'));
+  const cancelConflict = () => {
+    setPendingStart(null);
+    setConflictEval(null);
+  };
+
+  const confirmSwitch = async () => {
+    if (!pendingStart || !conflictEval) return;
+    const { conflict } = conflictEval;
+    const { doStart } = pendingStart;
+    cancelConflict();
+    const existing = activeTimers.get(conflict.key);
+    if (!existing) {
+      doStart();
       return;
     }
-    const ok = startSession(locationTarget);
-    if (ok) toast.success(`${t('timer.started')}: ${locationTarget.name}`);
-    else toast.error('Kunde inte starta timer');
+    const stopTarget: WorkTarget = existing.locationId
+      ? {
+          kind: 'location',
+          locationId: existing.locationId,
+          name: existing.locationName || existing.client,
+          createsTimeReport: false,
+        }
+      : existing.largeProjectId
+        ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
+        : { kind: 'booking', bookingId: conflict.key, client: existing.client };
+    try {
+      const res = await stopSession(stopTarget);
+      if (res.cancelled) return;
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte stoppa pågående timer');
+      return;
+    }
+    doStart();
+  };
+
+  const handleStartTaskTimer = (task: LagerTask) => {
+    if (!locationTarget) return;
+    requestStart(task.title, async () => {
+      const ok = startSession(locationTarget, { taskId: task.id, taskTitle: task.title });
+      if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
+      else toast.error('Kunde inte starta timer');
+    });
+  };
+
+  const handleStartGeneralTimer = () => {
+    if (!locationTarget) return;
+    requestStart(locationTarget.name, async () => {
+      const ok = startSession(locationTarget);
+      if (ok) toast.success(`${t('timer.started')}: ${locationTarget.name}`);
+      else toast.error('Kunde inte starta timer');
+    });
   };
 
   const handleStopTimer = async () => {
@@ -224,15 +279,13 @@ const MobileLocationDetail = () => {
                 <Square className="w-4 h-4" />
               </button>
             ) : (
-              !hasAnyTimer && (
-                <button
-                  onClick={() => handleStartTaskTimer(task)}
-                  className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
-                  aria-label="Starta timer"
-                >
-                  <Clock className="w-4 h-4" />
-                </button>
-              )
+              <button
+                onClick={() => handleStartTaskTimer(task)}
+                className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
+                aria-label="Starta timer"
+              >
+                <Clock className="w-4 h-4" />
+              </button>
             )
           ) : (
             <Button size="sm" variant="outline" onClick={() => handleClaim(task)} className="shrink-0">
@@ -272,13 +325,11 @@ const MobileLocationDetail = () => {
         rightAction={
           <button
             onClick={hasLocationTimer ? handleStopTimer : handleStartGeneralTimer}
-            disabled={!hasLocationTimer && hasAnyTimer}
             className={cn(
               "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
               hasLocationTimer
                 ? "bg-destructive text-destructive-foreground animate-pulse"
                 : "bg-primary-foreground text-primary",
-              !hasLocationTimer && hasAnyTimer && "opacity-40"
             )}
             aria-label={hasLocationTimer ? "Stoppa timer" : "Starta timer"}
           >
@@ -421,6 +472,13 @@ const MobileLocationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingStart?.label ?? ''}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
       {dialogs}
     </div>
   );
