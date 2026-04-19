@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -52,12 +53,15 @@ export default function CreateInternalTaskDialog({
   onSuccess,
 }: CreateInternalTaskDialogProps) {
   const qc = useQueryClient();
+  const today = format(new Date(), "yyyy-MM-dd");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("none");
   const [category, setCategory] = useState<string>("none");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(today);
+  const [endDate, setEndDate] = useState<string>(today);
+  const [startTime, setStartTime] = useState<string>("08:00");
+  const [endTime, setEndTime] = useState<string>("11:00");
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff-members-list"],
@@ -74,12 +78,15 @@ export default function CreateInternalTaskDialog({
 
   useEffect(() => {
     if (open) {
+      const t = format(new Date(), "yyyy-MM-dd");
       setTitle("");
       setDescription("");
       setAssignedTo("none");
       setCategory("none");
-      setStartDate("");
-      setEndDate("");
+      setStartDate(t);
+      setEndDate(t);
+      setStartTime("08:00");
+      setEndTime("11:00");
     }
   }, [open]);
 
@@ -90,13 +97,15 @@ export default function CreateInternalTaskDialog({
         description: description.trim() || null,
         assigned_to: assignedTo !== "none" ? assignedTo : null,
         category: category !== "none" ? category : null,
-        start_date: startDate || null,
-        end_date: endDate || startDate || null,
+        start_date: `${startDate}T${startTime}:00`,
+        end_date: `${endDate || startDate}T${endTime}:00`,
       }),
     onSuccess: () => {
-      toast.success("Lageruppgift skapad på projektet Lager");
+      toast.success("Lageruppgift skapad och placerad i lagerkalendern");
       qc.invalidateQueries({ queryKey: ["project-tasks"] });
       qc.invalidateQueries({ queryKey: ["warehouse-internal-tasks"] });
+      qc.invalidateQueries({ queryKey: ["warehouse-calendar-events"] });
+      qc.invalidateQueries({ queryKey: ["warehouse-events"] });
       onSuccess?.();
       onOpenChange(false);
     },
@@ -112,28 +121,42 @@ export default function CreateInternalTaskDialog({
       toast.error("Ange en titel");
       return;
     }
-    if (startDate && endDate && endDate < startDate) {
+    if (!startDate) {
+      toast.error("Ange startdatum");
+      return;
+    }
+    if (endDate && endDate < startDate) {
       toast.error("Slutdatum kan inte vara före startdatum");
+      return;
+    }
+    if (startDate === (endDate || startDate) && endTime <= startTime) {
+      toast.error("Sluttid måste vara efter starttid");
       return;
     }
     createMutation.mutate();
   };
 
+  const assignedStaffName =
+    assignedTo !== "none"
+      ? staff.find((s) => s.id === assignedTo)?.name
+      : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Skapa lageruppgift</DialogTitle>
           <DialogDescription>
-            Internt arbete som loggas på projektet <strong>Lager</strong> – samma
-            projekt som personalens tidregistrering går till. T.ex. städa, tvätta,
-            inköp eller planering. Datum är valfria.
+            Skapas på projektet <strong>Lager</strong> och placeras direkt i
+            lagerkalendern. Om du väljer ansvarig läggs uppgiften i samma
+            lagerteam som personen är planerad i — annars i nästa lediga
+            lagerteam.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Titel</Label>
+            <Label htmlFor="title">Titel *</Label>
             <Input
               id="title"
               value={title}
@@ -150,7 +173,7 @@ export default function CreateInternalTaskDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detaljer om uppgiften..."
-              rows={3}
+              rows={2}
             />
           </div>
 
@@ -192,24 +215,59 @@ export default function CreateInternalTaskDialog({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Startdatum (valfritt)</Label>
+              <Label htmlFor="startDate">Startdatum *</Label>
               <Input
                 id="startDate"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (!endDate || endDate < e.target.value) {
+                    setEndDate(e.target.value);
+                  }
+                }}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="endDate">Slutdatum (valfritt)</Label>
+              <Label htmlFor="endDate">Slutdatum</Label>
               <Input
                 id="endDate"
                 type="date"
                 value={endDate}
+                min={startDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startTime">Starttid</Label>
+              <Input
+                id="startTime"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endTime">Sluttid</Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {assignedStaffName && (
+            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <strong className="text-foreground">{assignedStaffName}</strong>{" "}
+              läggs i sitt redan planerade lagerteam för {startDate}. Om hen
+              inte är planerad placeras uppgiften i nästa lediga Lager-team.
+            </div>
+          )}
 
           <DialogFooter>
             <Button
