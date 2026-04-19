@@ -346,7 +346,7 @@ export default function CreateInternalTaskDialog({
             >
               Avbryt
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button type="submit" disabled={createMutation.isPending} className="bg-warehouse text-warehouse-foreground hover:bg-warehouse-hover">
               {createMutation.isPending ? "Skapar..." : "Skapa uppgift"}
             </Button>
           </DialogFooter>
