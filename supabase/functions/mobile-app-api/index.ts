@@ -350,6 +350,8 @@ Deno.serve(async (req) => {
         return await handleStopTravelLog(supabase, staffId, data, organizationId)
       case 'update_travel_log':
         return await handleUpdateTravelLog(supabase, staffId, data, organizationId)
+      case 'classify_travel_log':
+        return await handleClassifyTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
@@ -4926,6 +4928,18 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
     }
   }
 
+  // ── Classification policy ──
+  // We DO NOT silently mint "paid" travel time. Three semantic outcomes:
+  //   • destination matched a known booking      → 'work' (assistant is confident)
+  //   • caller passed mark_payable: true         → 'work' (explicit user action,
+  //                                                 e.g. manual stop dialog)
+  //   • everything else (auto-detected unknown)  → 'unclassified'
+  // Salary aggregations still sum hours_worked; admin/staff can later flip
+  // 'unclassified' rows to 'work' or 'personal' via classify_travel_log.
+  const explicitlyPayable = !!data?.mark_payable
+  const classification: 'work' | 'unclassified' =
+    destinationBookingId || explicitlyPayable ? 'work' : 'unclassified'
+
   const { data: updated, error } = await supabase
     .from('travel_time_logs')
     .update({
@@ -4936,6 +4950,7 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
       to_longitude: to_longitude || null,
       destination_booking_id: destinationBookingId,
       manual_project_name: destinationBookingId ? null : (to_address || null),
+      classification,
     })
     .eq('id', travel_log_id)
     .eq('staff_id', staffId)
@@ -4951,11 +4966,68 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
     )
   }
 
-  console.log(`Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}, matchedBooking: ${destinationBookingId}`)
+  console.log(
+    `Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}, ` +
+    `matchedBooking: ${destinationBookingId}, classification: ${classification}`
+  )
 
   return new Response(
     JSON.stringify({ success: true, travel_log: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+/**
+ * Classify a travel log as 'work' | 'personal' | 'unclassified'.
+ *
+ * This is the explicit decision path for resolving auto-detected travel logs
+ * (e.g. when the user picks "Detta var arbetsresa" / "Privat resa" in the
+ * TravelCompletedDialog). It NEVER touches hours_worked — only the semantic
+ * label that admins use to filter what to follow up on.
+ */
+async function handleClassifyTravelLog(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { travel_log_id, classification } = data || {}
+
+  if (!travel_log_id || typeof travel_log_id !== 'string') {
+    return new Response(
+      JSON.stringify({ error: 'travel_log_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  if (!['work', 'personal', 'unclassified'].includes(classification)) {
+    return new Response(
+      JSON.stringify({ error: 'classification must be one of: work, personal, unclassified' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { data: updated, error } = await supabase
+    .from('travel_time_logs')
+    .update({ classification })
+    .eq('id', travel_log_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Classify travel log error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to classify travel log' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  console.log(`Travel log ${travel_log_id} classified as: ${classification}`)
+
+  return new Response(
+    JSON.stringify({ success: true, travel_log: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
 

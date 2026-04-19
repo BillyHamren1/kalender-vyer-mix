@@ -87,7 +87,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .order('report_date', { ascending: false }),
         supabase
           .from('travel_time_logs')
-          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude')
+          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude, classification')
           .eq('staff_id', staffId)
           .gte('report_date', monthStart)
           .lte('report_date', monthEnd)
