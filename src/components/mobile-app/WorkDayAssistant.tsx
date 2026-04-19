@@ -315,7 +315,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
               </Button>
               <Button
                 onClick={() => {
-                  navigate('/m/anomalies');
+                  navigate('/m/report');
                   onAcknowledge();
                 }}
                 className="w-full sm:w-auto"
