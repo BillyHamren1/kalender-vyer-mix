@@ -70,11 +70,16 @@ const GlobalActiveTimerBanner: React.FC = () => {
 
   useEffect(() => {
     const handler = () => setTimers(loadTimersFromStorage());
+    // Filter cross-tab `storage` events: only react if our timer key
+    // changed. Avoids needless re-renders + reduces phantom-state risk.
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === null || e.key === TIMERS_KEY) handler();
+    };
     window.addEventListener('timer-state-changed', handler);
-    window.addEventListener('storage', handler);
+    window.addEventListener('storage', storageHandler);
     return () => {
       window.removeEventListener('timer-state-changed', handler);
-      window.removeEventListener('storage', handler);
+      window.removeEventListener('storage', storageHandler);
     };
   }, []);
 
