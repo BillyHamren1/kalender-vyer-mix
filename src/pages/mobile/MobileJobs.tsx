@@ -395,7 +395,10 @@ const MobileJobs = () => {
                             </p>
                           )}
                         </button>
-                        {(hasTimer || !hasAnyTimer) && (
+                        {(
+                          /* Always render — concurrency is handled by TimerConflictDialog */
+                          true
+                        ) && (
                           <button
                             onClick={(e) => handleLocationTimerToggle(e, loc)}
                             className={cn(
@@ -476,8 +479,8 @@ const MobileJobs = () => {
                         </p>
                       )}
                     </button>
-                    {/* Timer toggle button — only show if this card has timer OR no timer is running */}
-                    {(hasTimer || !hasAnyTimer) && (
+                    {/* Timer toggle button — always rendered; conflicts surface a dialog. */}
+                    {true && (
                       <button
                         onClick={(e) => handleTimerToggle(e, booking)}
                         className={cn(
@@ -546,8 +549,8 @@ const MobileJobs = () => {
                               </p>
                             )}
                           </button>
-                          {/* Timer toggle button — only show if this project has timer OR no timer is running */}
-                          {(hasProjectTimer || !hasAnyTimer) && (
+                          {/* Timer toggle button — always rendered; conflicts surface a dialog. */}
+                          {true && (
                             <button
                               onClick={(e) => handleProjectTimerToggle(e, lpId, group.name, group.entries)}
                               className={cn(
