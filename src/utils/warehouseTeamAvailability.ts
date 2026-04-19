@@ -56,6 +56,18 @@ export const distributeWarehouseEvents = (
 
   const placed = new Map<string, Map<string, { start: number; end: number }[]>>();
 
+  // Seed the occupancy map with explicit events so distribution avoids them.
+  for (const ev of explicit) {
+    const evStart = new Date(ev.start);
+    const evEnd = new Date(ev.end);
+    const dateKey = `${evStart.getUTCFullYear()}-${String(evStart.getUTCMonth() + 1).padStart(2, '0')}-${String(evStart.getUTCDate()).padStart(2, '0')}`;
+    if (!placed.has(dateKey)) placed.set(dateKey, new Map());
+    const dayMap = placed.get(dateKey)!;
+    if (!dayMap.has(ev.resourceId)) dayMap.set(ev.resourceId, []);
+    dayMap.get(ev.resourceId)!.push({ start: evStart.getTime(), end: evEnd.getTime() });
+    result.push(ev);
+  }
+
   for (const event of sorted) {
     const evStart = new Date(event.start);
     const evEnd = new Date(event.end);
