@@ -178,9 +178,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const locations = locRes.locations || [];
         setOrgLocations(locations);
 
-        // Fetch open (active) location_time_entries from server
-        const today = new Date().toISOString().split('T')[0];
-        const entriesRes = await mobileApi.getLocationTimeEntries({ date_from: today, limit: 50 });
+        // Fetch open (active) location_time_entries from server.
+        // ROBUSTHET: använd ett fönster på 2 dygn (igår + idag) så att en
+        // timer som startades sent kvällen innan en app-restart strax efter
+        // midnatt fortfarande hittas. Server-radens entry_date är yesterday
+        // även om vi just nu är klockan 00:30 idag.
+        const today = new Date();
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        const dateFrom = yesterday.toISOString().split('T')[0];
+        const entriesRes = await mobileApi.getLocationTimeEntries({ date_from: dateFrom, limit: 50 });
         if (cancelled) return;
         const openEntries = (entriesRes.entries || []).filter((e: any) => !e.exited_at);
 
