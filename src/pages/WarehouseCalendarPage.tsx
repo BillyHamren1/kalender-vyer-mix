@@ -36,6 +36,8 @@ const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'
       return 'inventory';
     case 'unpacking':
       return 'unpacking';
+    case 'internal_task':
+      return 'internal_task';
     default:
       return 'event';
   }
@@ -48,7 +50,10 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
     title: we.title,
     start: we.start_time,
     end: we.end_time,
-    resourceId: 'lager-1', // Placeholder — will be redistributed by distributeWarehouseEvents
+    // Preserve explicit resource (e.g. internal_task) — others get redistributed.
+    resourceId: we.resource_id && we.resource_id.startsWith('lager-')
+      ? we.resource_id
+      : 'lager-1',
     bookingId: we.booking_id,
     bookingNumber: we.booking_number || undefined,
     eventType: mapWarehouseEventType(we.event_type),
@@ -127,7 +132,7 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return JSON.parse(stored);
     }
-    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking'];
+    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking', 'internal_task'];
   });
 
   // Save event type filters to localStorage
@@ -290,11 +295,17 @@ const WarehouseCalendarPage = () => {
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
-    if (stored) {
-      return stored;
+    const base = stored ?? ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+    // Auto-include any lager column that has events on this day
+    const extras = new Set<string>();
+    for (const ev of combinedEvents) {
+      const evDay = format(new Date(ev.start), 'yyyy-MM-dd');
+      if (evDay !== dateKey) continue;
+      if (ev.resourceId && ev.resourceId.startsWith('lager-') && !base.includes(ev.resourceId)) {
+        extras.add(ev.resourceId);
+      }
     }
-    // Default: lager-1 to lager-3 + warehouse-event (Transport)
-    return ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+    return [...base, ...Array.from(extras)];
   };
 
   // Toggle team visibility for a specific day

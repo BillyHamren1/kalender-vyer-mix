@@ -38,11 +38,35 @@ export const distributeWarehouseEvents = (
     return [...result, ...lagerEvents];
   }
 
-  const sorted = [...lagerEvents].sort(
+  // Events with an explicit lager-resourceId (e.g. internal_task) keep their place.
+  const explicit: CalendarEvent[] = [];
+  const toDistribute: CalendarEvent[] = [];
+  const lagerIds = new Set(lagerResources.map(r => r.id));
+  for (const ev of lagerEvents) {
+    if (ev.eventType === 'internal_task' && ev.resourceId && lagerIds.has(ev.resourceId)) {
+      explicit.push(ev);
+    } else {
+      toDistribute.push(ev);
+    }
+  }
+
+  const sorted = [...toDistribute].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
   );
 
   const placed = new Map<string, Map<string, { start: number; end: number }[]>>();
+
+  // Seed the occupancy map with explicit events so distribution avoids them.
+  for (const ev of explicit) {
+    const evStart = new Date(ev.start);
+    const evEnd = new Date(ev.end);
+    const dateKey = `${evStart.getUTCFullYear()}-${String(evStart.getUTCMonth() + 1).padStart(2, '0')}-${String(evStart.getUTCDate()).padStart(2, '0')}`;
+    if (!placed.has(dateKey)) placed.set(dateKey, new Map());
+    const dayMap = placed.get(dateKey)!;
+    if (!dayMap.has(ev.resourceId)) dayMap.set(ev.resourceId, []);
+    dayMap.get(ev.resourceId)!.push({ start: evStart.getTime(), end: evEnd.getTime() });
+    result.push(ev);
+  }
 
   for (const event of sorted) {
     const evStart = new Date(event.start);

@@ -476,6 +476,56 @@ export interface CreateInternalTaskInput {
   category?: string | null;
 }
 
+/**
+ * Pick a lager-N team for the assignee on a given date:
+ * 1. If assignee is in staff_assignments for that date with a lager-team → use it.
+ * 2. Otherwise, find first lager-N (1..10) without conflicting internal_task in
+ *    [start, end). Auto-expands to lager-4, lager-5… as needed.
+ */
+const pickLagerTeamForInternalTask = async (
+  organizationId: string,
+  startISO: string,
+  endISO: string,
+  assignedStaffId: string | null
+): Promise<string> => {
+  const dateKey = startISO.slice(0, 10);
+
+  // 1. If staff is already on a lager-team that day, use that team.
+  if (assignedStaffId) {
+    const { data: existing } = await supabase
+      .from('staff_assignments')
+      .select('team_id')
+      .eq('staff_id', assignedStaffId)
+      .eq('assignment_date', dateKey);
+    const lagerTeam = (existing || [])
+      .map(r => r.team_id)
+      .find(t => typeof t === 'string' && t.startsWith('lager-'));
+    if (lagerTeam) return lagerTeam;
+  }
+
+  // 2. Find first lager-N without overlap on that day.
+  const { data: dayEvents } = await supabase
+    .from('warehouse_calendar_events')
+    .select('resource_id, start_time, end_time')
+    .gte('start_time', `${dateKey}T00:00:00`)
+    .lt('start_time', `${dateKey}T23:59:59`);
+
+  const startMs = new Date(startISO).getTime();
+  const endMs = new Date(endISO).getTime();
+
+  for (let n = 1; n <= 10; n++) {
+    const id = `lager-${n}`;
+    const overlaps = (dayEvents || []).some(ev => {
+      if (ev.resource_id !== id) return false;
+      const s = new Date(ev.start_time).getTime();
+      const e = new Date(ev.end_time).getTime();
+      return startMs < e && endMs > s;
+    });
+    if (!overlaps) return id;
+  }
+  return 'lager-1';
+};
+
 export const createInternalWarehouseTask = async (
   input: CreateInternalTaskInput
 ): Promise<{ id: string }> => {
@@ -484,20 +534,49 @@ export const createInternalWarehouseTask = async (
     throw new Error('Lagerprojektet (Lager) saknas. Ladda om sidan eller kontakta admin.');
   }
 
-  const { data, error } = await supabase
+  // Default times: today 08:00–11:00 if not specified
+  const startDateStr = input.start_date || new Date().toISOString().slice(0, 10);
+  const endDateStr = input.end_date || startDateStr;
+  const startISO = `${startDateStr}T08:00:00`;
+  const endISO = `${endDateStr}T11:00:00`;
+
+  const { data: task, error } = await supabase
     .from('project_tasks')
     .insert({
       project_id: project.id,
       title: input.title,
       description: input.description ?? null,
       assigned_to: input.assigned_to ?? null,
-      start_date: input.start_date ? new Date(input.start_date).toISOString() : null,
-      end_date: input.end_date ? new Date(input.end_date).toISOString() : null,
+      start_date: new Date(startISO).toISOString(),
+      end_date: new Date(endISO).toISOString(),
       category: input.category ?? null,
     } as any)
     .select('id')
     .single();
 
   if (error) throw error;
-  return data as { id: string };
+
+  // Place in calendar — pick smart lager-team
+  try {
+    const resourceId = await pickLagerTeamForInternalTask(
+      project.organization_id,
+      startISO,
+      endISO,
+      input.assigned_to ?? null
+    );
+
+    await supabase.from('warehouse_calendar_events').insert({
+      title: input.title,
+      start_time: new Date(startISO).toISOString(),
+      end_time: new Date(endISO).toISOString(),
+      resource_id: resourceId,
+      event_type: 'internal_task',
+      manually_adjusted: true,
+      organization_id: project.organization_id,
+    } as any);
+  } catch (err) {
+    console.error('Failed to create warehouse calendar event for internal task:', err);
+  }
+
+  return task as { id: string };
 };
