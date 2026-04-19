@@ -103,16 +103,16 @@ export const WorkdayFlagsAdminSection = ({ staffId, monthStart, monthEnd }: Prop
       icon={AlertTriangle}
       title="Arbetsdagsavvikelser"
       subtitle={`${openCount} öppna · ${needsInputCount} väntar på personalsvar`}
-      headerRight={
+    >
+      <div className="flex justify-end -mt-2 mb-2">
         <button
           type="button"
           onClick={() => setExpanded((x) => !x)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {expanded ? <>Dölj <ChevronUp className="h-3 w-3" /></> : <>Visa <ChevronDown className="h-3 w-3" /></>}
         </button>
-      }
-    >
+      </div>
       {!expanded ? null : (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
