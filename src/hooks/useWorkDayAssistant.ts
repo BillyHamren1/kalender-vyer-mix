@@ -100,6 +100,13 @@ export interface WorkDayAssistantInput {
    * assistant from generating noise during legitimate movement.
    */
   isTravelling?: boolean;
+  /**
+   * When true, suppress NEW prompts (e.g. arrival dialog, stale-timer dialog,
+   * travel-completed dialog or end-of-day flow is already showing). Existing
+   * decision stays surfaced — we just don't elbow our way in front of another
+   * critical prompt. Mobile layout passes this in.
+   */
+  isQuiet?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────
