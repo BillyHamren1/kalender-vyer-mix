@@ -346,7 +346,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (fullWidth) {
       return `${timeColumnWidth}px repeat(${resources.length}, 1fr)`;
     }
-    const colWidths = resources.map(r => `${getTeamColumnWidth(r.id)}px`).join(' ');
+    const colWidths = resources.map(() => `${teamColumnWidth}px`).join(' ');
     return `${timeColumnWidth}px ${colWidths}`;
   };
 
