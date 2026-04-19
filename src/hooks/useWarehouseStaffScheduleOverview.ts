@@ -84,6 +84,14 @@ export function useWarehouseStaffScheduleOverview(
         ),
       );
 
+      const fieldTeamIds = Array.from(
+        new Set(
+          (assignments || [])
+            .map((assignment) => assignment.team_id)
+            .filter((teamId) => typeof teamId === 'string' && teamId.startsWith('team-')),
+        ),
+      );
+
       const warehouseEvents = lagerTeamIds.length
         ? await supabase
             .from('warehouse_calendar_events')
@@ -95,9 +103,20 @@ export function useWarehouseStaffScheduleOverview(
 
       if (warehouseEvents.error) throw warehouseEvents.error;
 
+      const fieldEvents = fieldTeamIds.length
+        ? await supabase
+            .from('calendar_events')
+            .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address')
+            .in('resource_id', fieldTeamIds)
+            .gte('start_time', `${startKey}T00:00:00`)
+            .lt('start_time', `${endExclusiveKey}T00:00:00`)
+        : { data: [], error: null };
+
+      if (fieldEvents.error) throw fieldEvents.error;
+
       const eventsByDateAndResource = new Map<string, Array<any>>();
 
-      (warehouseEvents.data || []).forEach((event) => {
+      [...(warehouseEvents.data || []), ...(fieldEvents.data || [])].forEach((event) => {
         const dateKey = event.start_time.slice(0, 10);
         const mapKey = `${dateKey}__${event.resource_id}`;
         const current = eventsByDateAndResource.get(mapKey) || [];
@@ -110,15 +129,39 @@ export function useWarehouseStaffScheduleOverview(
         if (!group) return;
 
         if (assignment.team_id.startsWith('team-')) {
-          group.items.push({
-            id: `plan-${assignment.id}`,
-            date: assignment.assignment_date,
-            title: `${teamLabel(assignment.team_id)} – Planeringspass`,
-            kind: 'planning',
-            resourceId: assignment.team_id,
-            resourceLabel: teamLabel(assignment.team_id),
-            startTime: null,
-            endTime: null,
+          const mapKey = `${assignment.assignment_date}__${assignment.team_id}`;
+          const matchingEvents = eventsByDateAndResource.get(mapKey) || [];
+
+          if (matchingEvents.length === 0) {
+            group.items.push({
+              id: `plan-${assignment.id}`,
+              date: assignment.assignment_date,
+              title: `Ute i fält – ${teamLabel(assignment.team_id)}`,
+              kind: 'planning',
+              resourceId: assignment.team_id,
+              resourceLabel: teamLabel(assignment.team_id),
+              eventType: 'field',
+              startTime: null,
+              endTime: null,
+            });
+            return;
+          }
+
+          matchingEvents.forEach((event) => {
+            group.items.push({
+              id: `field-${assignment.id}-${event.id}`,
+              date: assignment.assignment_date,
+              title: `Ute i fält – ${event.title}`,
+              kind: 'planning',
+              resourceId: event.resource_id,
+              resourceLabel: teamLabel(event.resource_id),
+              eventType: event.event_type || 'field',
+              startTime: event.start_time,
+              endTime: event.end_time,
+              bookingId: event.booking_id,
+              bookingNumber: event.booking_number,
+              deliveryAddress: event.delivery_address,
+            });
           });
           return;
         }

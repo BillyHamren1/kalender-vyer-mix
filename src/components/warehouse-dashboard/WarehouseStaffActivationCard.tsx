@@ -20,7 +20,9 @@ const eventTypeLabel = (type?: string) => {
     case 'unpacking': return 'Uppackning';
     case 'internal_task': return 'Lageruppgift';
     case 'warehouse_shift': return 'Lagerpass';
-    default: return type === 'transport' ? 'Transport' : 'Planering';
+    case 'field': return 'Ute i fält';
+    case 'transport': return 'Transport';
+    default: return 'Ute i fält';
   }
 };
 
@@ -34,8 +36,10 @@ const eventDotClass = (type?: string) => {
     case 'internal_task':
     case 'warehouse_shift':
       return 'bg-warehouse';
+    case 'field':
+      return 'bg-emerald-500';
     default:
-      return 'bg-muted-foreground';
+      return 'bg-emerald-500';
   }
 };
 
