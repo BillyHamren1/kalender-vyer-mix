@@ -596,6 +596,15 @@ const MobileJobs = () => {
         }}
       />
 
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingStart?.label ?? ''}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
+
+      {workSessionDialogs}
     </div>
   );
 };
