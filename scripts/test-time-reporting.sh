@@ -41,15 +41,17 @@ cd "$ROOT"
 
 FRONTEND_TESTS=(
   "src/test/timeReportingProduct.contract.test.ts"
+  # Arbetsdagsmotorn: ingen auto-rast, save-then-stop, end-activity vs end-day,
+  # gemensam session-motor, travel-separation, workday_flags, assistent-beslut.
+  "src/test/workDayEngine.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
 BACKEND_TESTS=(
-  # Dedikerade Deno-tester för time-reporting-vägen i mobile-app-api.
-  # Verifierar auth-guards, payload-validering, admin-vägen och
-  # idempotent timer-kontrakt. Frontend-sviten täcker den lyckade
-  # DB-vägen via mockad mobileApi.
+  # time_reports skrivvägen: auth, payload, admin-vägen, idempotent timers.
   "supabase/functions/mobile-app-api/timeReports.test.ts"
+  # workday_flags skrivvägen: auth, vokabulär, resolution_source-katalog.
+  "supabase/functions/mobile-app-api/workdayFlags.test.ts"
 )
 
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }

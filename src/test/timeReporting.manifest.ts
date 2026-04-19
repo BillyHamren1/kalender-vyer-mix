@@ -16,12 +16,12 @@
  *
  * BAKGRUND
  * ────────
- * Tidrapporteringen vilar på fyra arkitekturbeslut (se memory-filer):
+ * Tidrapporteringen vilar på arkitekturbeslut (se memory-filer):
  *
  *   1. mem://architecture/time-reporting-write-path-v1
- *      `mobile-app-api` är ENDA officiell skrivväg för time_reports
- *      (create/update/delete). Den gamla `time-reports` edge-funktionen
- *      är retired (HTTP 410). DB-triggers är yttersta backstop.
+ *      `mobile-app-api` är ENDA officiell skrivväg för time_reports.
+ *      Den gamla `time-reports` edge-funktionen är retired (HTTP 410).
+ *      DB-triggers är yttersta backstop.
  *
  *   2. mem://features/field-staff/unified-timer-architecture-v1
  *      Alla tre timer-typer (location / booking / project) skrivs till
@@ -38,6 +38,21 @@
  *   4. mem://features/field-staff/anomaly-tracking-v1
  *      Stale/anomali-detektering visar varningar — raderar aldrig data.
  *
+ *   5. mem://features/field-staff/work-session-engine-v1
+ *      `useWorkSession` är gemensam motor för booking/project/location.
+ *      INGEN automatisk rast längre; assistenten ställer frågor.
+ *
+ *   6. mem://features/field-staff/end-day-vs-end-activity-v1
+ *      Två explicita stoppvägar: stopSession (en signal) vs endDay
+ *      (alla signaler + EOD-rekonciliering).
+ *
+ *   7. mem://features/field-staff/workday-flags-v1
+ *      `workday_flags` är förstklassig store för arbetsdags-osäkerhet.
+ *      Skild från `time_report_anomalies`. Ändrar aldrig rapporterad tid.
+ *
+ *   8. mem://features/field-staff/travel-time-in-reports-v1
+ *      Travel-loggar är SEPARATA från arbetstid; egen API-väg.
+ *
  * Lägg till nya time-reporting-tester här OCH i scripts/test-time-reporting.sh.
  */
 export const TIME_REPORTING_QUALITY_GATE = {
@@ -48,28 +63,31 @@ export const TIME_REPORTING_QUALITY_GATE = {
    *   - Booking / project / location timer start-flöde
    *   - Pending-start retry/sync, save-then-stop recovery
    *   - Stale-warning (ingen tyst radering)
+   *   - Arbetsdagsmotorn: ingen auto-rast, assistent-beslut, end-activity vs
+   *     end-day, gemensam session-motor, travel-separation, workday-flags
    */
   frontend: [
-    // Samlad produktnivå-svit — primär kontraktssvit för tidrapportering.
+    // Samlad produktnivå-svit för time-reports skrivvägen.
     'src/test/timeReportingProduct.contract.test.ts',
 
-    // Befintliga rena beräknings/summering-tester (planeringsstaff,
-    // labor cost-summor, formatters). Ingår i samma quality gate så
-    // gränssnittet mellan beräkning och write-path verifieras parallellt.
+    // Arbetsdagsmotorn — assistent-beslut, save-then-stop, travel,
+    // workday_flags och end-activity vs end-day-kontraktet.
+    'src/test/workDayEngine.contract.test.ts',
+
+    // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],
 
   /**
    * Backend-tester (deno test mot mobile-app-api edge function).
-   * Verifierar serverkontraktet för time_reports + location_time_entries:
-   *   - Auth-guards på create/update/delete + admin-vägen
-   *   - Payload-validering (datum, tider, negativa break/overtime, equal start/end)
-   *   - Att approved-lock / overlap inte kan bypassas utan auth
-   *   - Idempotent timer-kontrakt (client_dedupe_key) och target-id-krav
-   *     för start_location_timer (location/booking/large_project)
+   * Verifierar serverkontraktet:
+   *   - time_reports CRUD (auth, payload-validering, ingen bypass)
+   *   - workday_flags CRUD (auth, vokabulär, resolution_source-katalog)
+   *   - timer-relaterade endpoints kräver auth + giltig payload
    */
   backend: [
     'supabase/functions/mobile-app-api/timeReports.test.ts',
+    'supabase/functions/mobile-app-api/workdayFlags.test.ts',
   ],
 } as const;
 
