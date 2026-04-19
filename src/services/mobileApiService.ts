@@ -503,6 +503,13 @@ export const mobileApi = {
     to_address?: string;
     to_latitude?: number;
     to_longitude?: number;
+    /**
+     * If true, the server records this travel log as 'work' (billable)
+     * even when the destination doesn't match a known booking. Pass this
+     * when the stop is the result of an explicit user action (e.g. manual
+     * stop button or "Detta var arbetsresa" in TravelCompletedDialog).
+     */
+    mark_payable?: boolean;
   }) => callApi<{ success: boolean; travel_log: any }>('stop_travel_log', data),
 
   updateTravelLog: (data: {
@@ -510,6 +517,16 @@ export const mobileApi = {
     description?: string;
     manual_project_name?: string;
   }) => callApi<{ success: boolean; travel_log: any }>('update_travel_log', data),
+
+  /**
+   * Set semantic classification for an existing travel log. Pure label —
+   * does not change hours_worked. Used by TravelCompletedDialog and the
+   * admin "follow up unclassified travel" flow.
+   */
+  classifyTravelLog: (data: {
+    travel_log_id: string;
+    classification: 'work' | 'personal' | 'unclassified';
+  }) => callApi<{ success: boolean; travel_log: any }>('classify_travel_log', data),
 
   getTravelLogs: (limit?: number) =>
     callApi<{ travel_logs: MobileTravelLog[] }>('get_travel_logs', { limit }),
