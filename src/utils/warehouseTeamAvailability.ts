@@ -38,7 +38,19 @@ export const distributeWarehouseEvents = (
     return [...result, ...lagerEvents];
   }
 
-  const sorted = [...lagerEvents].sort(
+  // Events with an explicit lager-resourceId (e.g. internal_task) keep their place.
+  const explicit: CalendarEvent[] = [];
+  const toDistribute: CalendarEvent[] = [];
+  const lagerIds = new Set(lagerResources.map(r => r.id));
+  for (const ev of lagerEvents) {
+    if (ev.eventType === 'internal_task' && ev.resourceId && lagerIds.has(ev.resourceId)) {
+      explicit.push(ev);
+    } else {
+      toDistribute.push(ev);
+    }
+  }
+
+  const sorted = [...toDistribute].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
   );
 
