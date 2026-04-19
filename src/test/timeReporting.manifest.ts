@@ -74,6 +74,9 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // workday_flags och end-activity vs end-day-kontraktet.
     'src/test/workDayEngine.contract.test.ts',
 
+    // End-of-day-stop-dialogens regelset (tid-rullning, beskrivningskrav).
+    'src/test/endOfDayStop.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],

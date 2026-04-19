@@ -13,6 +13,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
 import { AnomalyDialog } from './AnomalyDialog';
+import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
 
@@ -756,6 +757,12 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           </div>
         )}
       </PremiumCard>
+
+      <WorkdayFlagsAdminSection
+        staffId={staffId}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
+      />
 
       <AnomalyDialog
         open={!!anomalyDate}
