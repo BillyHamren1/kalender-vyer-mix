@@ -758,6 +758,12 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         )}
       </PremiumCard>
 
+      <WorkdayFlagsAdminSection
+        staffId={staffId}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
+      />
+
       <AnomalyDialog
         open={!!anomalyDate}
         onOpenChange={(open) => !open && setAnomalyDate(null)}
