@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
 import { ActiveTimer } from '@/hooks/useGeofencing';
-import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
+import { useWorkSession } from '@/hooks/useWorkSession';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { buildStopTarget, getTimerRole } from '@/lib/timerRole';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
