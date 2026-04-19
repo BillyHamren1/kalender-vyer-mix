@@ -142,21 +142,22 @@ const EventWrapper: React.FC<{
     e.dataTransfer.effectAllowed = 'move';
   }, [event, readOnly]);
 
+  const hasOverlap = !!(overlapLayout && overlapLayout.totalColumns > 1);
+  const cascadeOffset = hasOverlap ? (overlapLayout!.column ?? 0) * 14 : 0;
+  const baseZ = hasOverlap ? 25 + (overlapLayout!.column ?? 0) : 25;
+
   return (
     <div
       draggable={!readOnly}
       onDragStart={handleDragStart}
+      className={hasOverlap ? 'cascaded-event' : undefined}
       style={{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
-        left: overlapLayout && overlapLayout.totalColumns > 1
-          ? `calc(${(overlapLayout.column * 100) / overlapLayout.totalColumns}% + 2px)`
-          : '4px',
-        width: overlapLayout && overlapLayout.totalColumns > 1
-          ? `calc(${100 / overlapLayout.totalColumns}% - 4px)`
-          : 'calc(100% - 8px)',
-        zIndex: 25,
+        left: `calc(4px + ${cascadeOffset}px)`,
+        width: `calc(100% - 8px - ${cascadeOffset}px)`,
+        zIndex: baseZ,
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
       }}
