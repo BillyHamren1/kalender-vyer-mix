@@ -33,6 +33,10 @@ const MobileJobs = () => {
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+  // Stop verbs come through the unified work-session engine so the
+  // conflict dialog can ask the engine to cleanly stop the conflicting
+  // timer (save-then-stop or pure-presence stop) before we start the new one.
+  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
