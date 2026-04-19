@@ -216,9 +216,10 @@ export function useWarehouseStaffScheduleOverview(
           return { staff, items: deduped };
         })
         .sort((a, b) => {
-          if (a.staff.isCurrentlyActive !== b.staff.isCurrentlyActive) {
-            return a.staff.isCurrentlyActive ? -1 : 1;
-          }
+          // Tillgängliga (utan poster) först, bokade under
+          const aAvailable = a.items.length === 0;
+          const bAvailable = b.items.length === 0;
+          if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
           return a.staff.name.localeCompare(b.staff.name, 'sv');
         });
     },
