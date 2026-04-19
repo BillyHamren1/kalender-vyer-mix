@@ -273,6 +273,7 @@
   padding: 0;
   position: relative;
   overflow: visible;
+  border-left: 1px solid hsl(var(--border) / 0.6);
   border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
   transition: background 0.2s ease;
@@ -311,9 +312,21 @@
   flex-direction: column;
   flex-wrap: nowrap;
   gap: 1px;
-  overflow: visible;
   align-items: center;
   align-content: flex-start;
+  max-height: 76px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.assigned-staff-header-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.assigned-staff-header-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 2px;
 }
 
 /* Time Labels Column */
