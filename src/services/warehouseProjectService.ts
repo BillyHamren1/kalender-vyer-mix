@@ -470,7 +470,10 @@ export const fetchInternalWarehouseProject = async (): Promise<InternalLagerProj
 export interface CreateInternalTaskInput {
   title: string;
   description?: string | null;
+  /** Backwards-compat single assignee */
   assigned_to?: string | null;
+  /** Preferred: assign one or more staff members */
+  assigned_to_ids?: string[] | null;
   start_date?: string | null;
   end_date?: string | null;
   category?: string | null;
