@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2 } from 'lucide-react';
+import { Square, Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
-import { StopBreakDecisionDialog, type StopBreakDecision } from './StopBreakDecisionDialog';
-import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
-import { shouldPromptForBreak } from '@/utils/breakPolicy';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
@@ -32,11 +32,33 @@ interface PendingStop {
   locationName: string | null;
 }
 
+/**
+ * GlobalActiveTimerBanner — visar aktiva timers + driver Avsluta-flödet.
+ *
+ * ROBUSTHET (Fas 1): All persistens går nu via useWorkSession.stopSession.
+ * Den här komponenten har INGEN egen createTimeReport / closeOpenAnomalies
+ * / break-dialog-logik längre — den bara samlar in användarens val (vanligt
+ * stopp, EOD-dialog) och delegerar.
+ *
+ * ROBUSTHET (Fas 2): Vid 'request-end-day' med flera aktiva timers körs
+ * de SEKVENTIELLT — en break-dialog/EOD-dialog per timer. En "saving"-
+ * lock håller dialogen öppen tills sparet faktiskt lyckats, så användaren
+ * inte stänger ner appen mitt i ett halv-skickat anrop.
+ */
 const GlobalActiveTimerBanner: React.FC = () => {
   const location = useLocation();
+  const { staff } = useMobileAuth();
+  const { data: bookings = [] } = useMobileBookings();
+  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+
+  // Sequential EOD queue: keys waiting to be processed one-by-one
+  const eodQueueRef = useRef<string[]>([]);
+  const eodProcessingRef = useRef(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -63,6 +85,13 @@ const GlobalActiveTimerBanner: React.FC = () => {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && parsed.key && parsed.timer && parsed.startTimeIso && parsed.lastExitIso) {
+        // Only restore if the timer is still active locally; otherwise
+        // it was already saved by another path and the pendingStop is stale.
+        const current = loadTimersFromStorage();
+        if (!current.has(parsed.key)) {
+          localStorage.removeItem(PENDING_STOP_KEY);
+          return;
+        }
         setPendingStop({
           key: parsed.key,
           timer: parsed.timer,
@@ -95,140 +124,18 @@ const GlobalActiveTimerBanner: React.FC = () => {
   }, [pendingStop]);
 
   /**
-   * Persists the time report and (if needed) the end-of-day anomaly.
-   * Used by both the direct-stop path and the dialog-confirmed path.
-   *
-   * IMPORTANT: ingen automatisk rast. Anroparen MÅSTE skicka in
-   * `breakHours` (0 om ingen rast eller för korta pass) som ett resultat
-   * av ett uttryckligt användarbeslut via StopBreakDecisionDialog.
-   * `breakAnomalyNote` skapar en time_report_anomaly för admin-uppföljning
-   * när användaren valde "markera som avvikelse" i stället för att gissa.
+   * Vanligt Avsluta-tryck. Om det finns ett geofence-exit som ligger i
+   * sessionen och är >= 2 min gammalt → öppna EOD-dialogen i stället
+   * för att tyst använda "nu" som sluttid. Annars delegera direkt till
+   * useWorkSession.stopSession (som hanterar break-dialog + persistens).
    */
-  const persistStop = useCallback(async (
-    key: string,
-    timer: ActiveTimer,
-    startTimeDate: Date,
-    stopTime: Date,
-    breakHours: number,
-    breakAnomalyNote?: string,
-    endOfDay?: { lastExitDate: Date; workDescription?: string; locationId?: string | null },
-  ) => {
-    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-    if (totalHours < 0) totalHours += 24;
-    const safeBreak = Math.max(0, breakHours || 0);
-    const hoursWorked = Math.max(0, Number((totalHours - safeBreak).toFixed(2)));
-
-    try {
-      const tr = await mobileApi.createTimeReport({
-        booking_id: key.startsWith('project-') ? undefined : key,
-        report_date: format(stopTime, 'yyyy-MM-dd'),
-        start_time: format(startTimeDate, 'HH:mm'),
-        end_time: format(stopTime, 'HH:mm'),
-        hours_worked: hoursWorked,
-        break_time: safeBreak,
-        description: `Timer: ${timer.locationName || timer.client}${timer.establishmentTaskTitle ? ` — ${timer.establishmentTaskTitle}` : ''}`,
-        establishment_task_id: timer.establishmentTaskId,
-        large_project_id: timer.largeProjectId,
-      });
-      toast.success(`Tidrapport sparad — ${hoursWorked} h`);
-      const trId = (tr as any)?.time_report?.id;
-
-      // Användarvalt: "markera som avvikelse". Sparas som end-of-day anomaly
-      // så admin kan följa upp i stället för att vi gissar rast.
-      if (breakAnomalyNote) {
-        await mobileApi.createEndOfDayAnomaly({
-          started_at: startTimeDate.toISOString(),
-          ended_at: stopTime.toISOString(),
-          work_description: `Rast/avvikelse: ${breakAnomalyNote}`,
-          location_id: timer.locationId || undefined,
-          booking_id: key.startsWith('project-') ? undefined : key,
-          large_project_id: timer.largeProjectId,
-          time_report_id: trId,
-        }).catch(err => {
-          console.warn('Could not save break anomaly:', err);
-        });
-      }
-
-      // If this is an end-of-day "Nej" path with custom end-time + description,
-      // create an anomaly capturing what happened between the geofence exit
-      // and the user-stated end time.
-      if (endOfDay && endOfDay.workDescription) {
-        // Try to capture current GPS for the position of the absence
-        let lat: number | undefined;
-        let lng: number | undefined;
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            if (!navigator.geolocation) return reject(new Error('no geolocation'));
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000, maximumAge: 60000 });
-          });
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
-        } catch {
-          // Position is best-effort; anomaly is still useful without it
-        }
-
-        await mobileApi.createEndOfDayAnomaly({
-          started_at: endOfDay.lastExitDate.toISOString(),
-          ended_at: stopTime.toISOString(),
-          work_description: endOfDay.workDescription,
-          end_location_lat: lat,
-          end_location_lng: lng,
-          location_id: endOfDay.locationId || timer.locationId || undefined,
-          booking_id: key.startsWith('project-') ? undefined : key,
-          large_project_id: timer.largeProjectId,
-          time_report_id: trId,
-        }).catch(err => {
-          console.warn('Could not save end-of-day anomaly:', err);
-        });
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara tidrapporten — timern är kvar så du kan försöka igen.');
-      // Re-throw so caller knows persistence failed and keeps timer alive
-      throw err;
-    }
-  }, []);
-
-  /**
-   * Save-then-stop: server is source of truth.
-   * Timer must NOT be removed locally before time_report is safely persisted.
-   * On error: timer stays active locally and on server so user can retry.
-   */
-  const clearTimerLocally = useCallback((key: string) => {
-    const current = loadTimersFromStorage();
-    current.delete(key);
-    localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(current.entries())));
-    setTimers(current);
-    window.dispatchEvent(new Event('timer-state-changed'));
-  }, []);
-
-  // Promise-baserad rast-dialog (uttryckligt användarbeslut, ingen auto-rast).
-  const breakDecision = useStopBreakDecision();
-
-  /**
-   * Avgör break_time enligt beslutsdokumentet:
-   *  - korta pass (<= tröskel): break = 0, ingen dialog
-   *  - långa pass: öppna dialog, vänta på explicit val
-   *  - om användaren avbryter dialogen: returnera null så stopp inte sker
-   */
-  const resolveBreakChoice = useCallback(
-    async (passHours: number, context: string | null):
-      Promise<{ breakHours: number; anomalyNote?: string } | null> => {
-      if (!shouldPromptForBreak(passHours)) {
-        return { breakHours: 0 };
-      }
-      const decision = await breakDecision.ask({ passHours, context });
-      if (!decision) return null;
-      if (decision.kind === 'break')    return { breakHours: decision.breakHours };
-      if (decision.kind === 'no_break') return { breakHours: 0 };
-      return { breakHours: 0, anomalyNote: decision.note };
-    },
-    [breakDecision],
-  );
-
   const handleStop = useCallback(async (key: string, timer: ActiveTimer) => {
+    if (savingKeys.has(key)) return; // already saving, ignore double-tap
+
     const stopTime = new Date();
     const startTimeDate = parseISO(timer.startTime);
 
+    // Check if user already left the workplace earlier
     let lastExit: { exited_at: string; location_id: string | null; location_name: string | null } | null = null;
     try {
       const res = await mobileApi.getLastWorkplaceExit();
@@ -253,36 +160,100 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     }
 
-    // Be om explicit rast-beslut innan vi sparar något.
-    let totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
-    if (totalHours < 0) totalHours += 24;
-    const choice = await resolveBreakChoice(totalHours, timer.locationName || timer.client);
-    if (!choice) return; // användaren avbröt — timer lever vidare
-
+    // No EOD dialog needed — delegate to the unified engine.
+    setSavingKeys(prev => new Set(prev).add(key));
     try {
-      await persistStop(key, timer, startTimeDate, stopTime, choice.breakHours, choice.anomalyNote);
+      await stopSession(timerToTarget(key, timer));
     } catch (err: any) {
-      console.warn('[Stop] persistStop failed, timer stays active:', err);
-      return;
+      toast.error(err?.message || 'Kunde inte spara — försök igen.');
+    } finally {
+      setSavingKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
+  }, [savingKeys, stopSession]);
 
-    mobileApi.closeOpenAnomalies({ ended_at: stopTime.toISOString() }).catch(err => {
-      console.warn('Failed to close open anomalies on stop:', err);
-    });
-    if (timer.locationId) {
-      try {
-        await mobileApi.stopLocationTimer({ location_id: timer.locationId });
-      } catch (err) {
-        console.warn('Failed to stop location timer on server (timer cleared locally anyway):', err);
+  /**
+   * EOD-dialogen är klar. Användaren har valt sluttid (kanske "nu", kanske
+   * geofence-exit, kanske annan tid + beskrivning). Vi delegerar till
+   * useWorkSession.stopSession med endOfDayContext + stopAtIso. Dialogen
+   * hålls öppen tills sparet lyckas (auto-retry-vänligt UX).
+   */
+  const handleDialogConfirm = useCallback(async (result: EndOfDayResult) => {
+    if (!pendingStop) return;
+    const target = timerToTarget(pendingStop.key, pendingStop.timer);
+
+    setSavingKeys(prev => new Set(prev).add(pendingStop.key));
+    try {
+      await stopSession(target, {
+        stopAtIso: result.endedAtIso,
+        endOfDayContext: result.usedSuggestedExit
+          ? undefined
+          : {
+              lastExitIso: pendingStop.lastExitIso,
+              endedAtIso: result.endedAtIso,
+              workDescription: result.workDescription,
+            },
+      });
+      setPendingStop(null); // success → close dialog
+    } catch (err: any) {
+      // Auto-retry behaviour: keep dialog open, surface a toast, let user
+      // press Spara again. Server is unchanged so retry is safe.
+      toast.error(err?.message || 'Kunde inte spara — försök igen.');
+      throw err; // re-throw so dialog's submitting state resolves correctly
+    } finally {
+      setSavingKeys(prev => {
+        const next = new Set(prev);
+        next.delete(pendingStop.key);
+        return next;
+      });
+    }
+  }, [pendingStop, stopSession]);
+
+  // Sequential EOD processor — drains the queue one timer at a time.
+  const processNextEod = useCallback(async () => {
+    if (eodProcessingRef.current) return;
+    eodProcessingRef.current = true;
+    try {
+      while (eodQueueRef.current.length > 0) {
+        const key = eodQueueRef.current.shift()!;
+        const current = loadTimersFromStorage();
+        const timer = current.get(key);
+        if (!timer) continue;
+        // Wait until any in-flight save for this key finishes before opening
+        // its dialog (handleStop sets savingKeys synchronously).
+        await new Promise<void>((resolve) => {
+          handleStop(key, timer).finally(resolve);
+        });
+        // If handleStop opened the EOD dialog, wait for it to close before
+        // moving to the next timer in the queue.
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            if (!pendingStopRef.current) {
+              resolve();
+            } else {
+              setTimeout(check, 250);
+            }
+          };
+          check();
+        });
       }
+    } finally {
+      eodProcessingRef.current = false;
     }
-    clearTimerLocally(key);
-  }, [persistStop, clearTimerLocally, resolveBreakChoice]);
+  }, [handleStop]);
 
-  // Lyssna på globalt event från WorkDayAssistant (`last_workplace_for_day`).
-  // Triggar EOD-flödet på den ENDA aktiva timern (vanligaste fallet kvällstid).
-  // Om flera timers är aktiva — överlåt till användaren via banner-knappen,
-  // assistenten ska inte gissa vilken som ska stängas först.
+  // Mirror pendingStop into a ref so the queue processor can poll it
+  // without re-creating itself on every state change.
+  const pendingStopRef = useRef<PendingStop | null>(null);
+  useEffect(() => {
+    pendingStopRef.current = pendingStop;
+  }, [pendingStop]);
+
+  // request-end-day: enqueue ALL active timers and process sequentially.
+  // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
     const onRequestEndDay = () => {
       const entries = Array.from(timers.entries());
@@ -290,61 +261,16 @@ const GlobalActiveTimerBanner: React.FC = () => {
         toast.message('Inga aktiva timers — dagen är redan stängd.');
         return;
       }
-      if (entries.length > 1) {
-        toast.message('Flera timers aktiva — välj vilken du vill avsluta i listan ovan.');
-        return;
+      // Avoid duplicate queueing if user fires the event twice
+      const queued = new Set(eodQueueRef.current);
+      for (const [key] of entries) {
+        if (!queued.has(key)) eodQueueRef.current.push(key);
       }
-      const [key, timer] = entries[0];
-      handleStop(key, timer);
+      void processNextEod();
     };
     window.addEventListener('request-end-day', onRequestEndDay);
     return () => window.removeEventListener('request-end-day', onRequestEndDay);
-  }, [timers, handleStop]);
-
-  const handleDialogConfirm = useCallback(async (result: EndOfDayResult) => {
-    if (!pendingStop) return;
-    const stopTime = new Date(result.endedAtIso);
-    const lastExitDate = parseISO(pendingStop.lastExitIso);
-
-    let totalHours = (stopTime.getTime() - pendingStop.startTimeDate.getTime()) / (1000 * 60 * 60);
-    if (totalHours < 0) totalHours += 24;
-    const choice = await resolveBreakChoice(
-      totalHours,
-      pendingStop.timer.locationName || pendingStop.timer.client,
-    );
-    if (!choice) return;
-
-    try {
-      await persistStop(
-        pendingStop.key,
-        pendingStop.timer,
-        pendingStop.startTimeDate,
-        stopTime,
-        choice.breakHours,
-        choice.anomalyNote,
-        result.usedSuggestedExit
-          ? undefined
-          : {
-              lastExitDate,
-              workDescription: result.workDescription,
-              locationId: pendingStop.timer.locationId || null,
-            },
-      );
-    } catch (err) {
-      console.warn('[Stop] dialog persistStop failed, timer stays active:', err);
-      return;
-    }
-
-    if (pendingStop.timer.locationId) {
-      try {
-        await mobileApi.stopLocationTimer({ location_id: pendingStop.timer.locationId });
-      } catch (err) {
-        console.warn('Failed to stop location timer on server (cleared locally anyway):', err);
-      }
-    }
-    clearTimerLocally(pendingStop.key);
-    setPendingStop(null);
-  }, [pendingStop, persistStop, clearTimerLocally, resolveBreakChoice]);
+  }, [timers, processNextEod]);
 
   if (location.pathname === '/m/report') return null;
 
@@ -353,7 +279,13 @@ const GlobalActiveTimerBanner: React.FC = () => {
       {timers.size > 0 && (
         <div className="px-5 pt-3 space-y-2">
           {Array.from(timers.entries()).map(([key, timer]) => (
-            <TimerRow key={key} timerKey={key} timer={timer} onStop={handleStop} />
+            <TimerRow
+              key={key}
+              timerKey={key}
+              timer={timer}
+              isSaving={savingKeys.has(key)}
+              onStop={handleStop}
+            />
           ))}
         </div>
       )}
@@ -362,9 +294,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
           open={!!pendingStop}
           onOpenChange={(open) => {
             // Closing without confirming = behåll timer + dialog tills användaren
-            // gör ett aktivt val. Inget tyst auto-stopp här (auto-rast är borttaget;
-            // ett tyst stopp skulle annars råka spara fel timmar).
-            if (!open) {
+            // gör ett aktivt val. Dialogen hindrar själv stängning under save.
+            if (!open && !savingKeys.has(pendingStop.key)) {
               setPendingStop(null);
             }
           }}
@@ -373,7 +304,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
           onConfirm={handleDialogConfirm}
         />
       )}
-      <StopBreakDecisionDialog {...breakDecision.dialogProps} />
+      {workSessionDialogs}
     </>
   );
 };
@@ -381,8 +312,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
 const TimerRow: React.FC<{
   timerKey: string;
   timer: ActiveTimer;
+  isSaving: boolean;
   onStop: (key: string, timer: ActiveTimer) => void;
-}> = ({ timerKey, timer, onStop }) => {
+}> = ({ timerKey, timer, isSaving, onStop }) => {
   const elapsed = differenceInSeconds(new Date(), parseISO(timer.startTime));
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
@@ -409,10 +341,11 @@ const TimerRow: React.FC<{
         variant="destructive"
         className="rounded-xl h-9 gap-1 text-xs font-semibold"
         onClick={() => onStop(timerKey, timer)}
+        disabled={isSaving}
         title="Avsluta aktiviteten — sparar tidrapporten"
       >
-        <Square className="w-3 h-3" />
-        Avsluta
+        {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
+        {isSaving ? 'Sparar…' : 'Avsluta'}
       </Button>
     </div>
   );
