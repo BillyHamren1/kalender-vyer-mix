@@ -305,16 +305,19 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     });
 
     it('aktiv resa SUPPRESSAR activity_leave (rörelsen är förklarad)', () => {
+      // Använd state.now konsekvent — annars blir outsideMin negativt.
+      const now = Date.parse('2026-04-18T09:00:00Z');
       const target: CachedTarget = {
         key: 'booking-1', name: 'Site', lat: 59.0, lng: 18.0, radius: 150, type: 'booking',
       };
-      const farPos = { lat: 59.1, lng: 18.1, accuracy: 10, timestamp: Date.now() } as any;
-      const outsideSince = new Map([['booking-1', Date.now() - 30 * 60_000]]);
+      const farPos = { lat: 59.1, lng: 18.1, accuracy: 10, timestamp: now } as any;
+      const outsideSince = new Map([['booking-1', now - 30 * 60_000]]);
 
       const stateTravelling = makeState({
+        now,
         latestPosition: farPos,
         cachedTargets: [target],
-        timers: [{ key: 'booking-1', timer: activeTimer({ startTime: new Date().toISOString(), bookingId: 'b1' }) }],
+        timers: [{ key: 'booking-1', timer: activeTimer({ startTime: new Date(now - 60 * 60_000).toISOString(), bookingId: 'b1' }) }],
         outsideSinceByTimer: outsideSince,
         isTravelling: true,
       });
