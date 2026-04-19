@@ -336,6 +336,10 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
       // ── 1) Unclassified anomalies waiting (server-derived) ──
       // Lowest urgency but highest signal-to-noise — the user already left
       // a gap in their work and admin needs the classification anyway.
+      //
+      // PROMPT 6: also persist this as a workday_flag so the staff member
+      // can find it later in /m/my-flags even if they dismiss the prompt.
+      // The flag is fire-and-forget; assistant UX still works without it.
       if (
         pendingAnomalies.count > 0 &&
         pendingAnomalies.oldestStartedAtIso &&
@@ -346,6 +350,17 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
           count: pendingAnomalies.count,
           oldestStartedAtIso: pendingAnomalies.oldestStartedAtIso,
         };
+        // Best-effort persist — don't block the prompt on it.
+        const flagDate = pendingAnomalies.oldestStartedAtIso.slice(0, 10);
+        mobileApi.createWorkdayFlag({
+          flag_type: 'presence_without_report',
+          flag_date: flagDate,
+          title: `${pendingAnomalies.count} oklassad${pendingAnomalies.count === 1 ? ' frånvaro' : 'e frånvaron'} att reda ut`,
+          description: 'Geofence-vistelse som inte hör till någon rapport. Klassa som rast eller arbete.',
+          severity: 'warning',
+          needs_user_input: true,
+          assistant_decision_kind: 'unclassified_anomaly',
+        }).catch((err) => console.warn('[Assistant] flag persist failed:', err));
         setDecision(next);
         return;
       }
