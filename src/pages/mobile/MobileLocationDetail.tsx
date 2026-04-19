@@ -279,15 +279,13 @@ const MobileLocationDetail = () => {
                 <Square className="w-4 h-4" />
               </button>
             ) : (
-              !hasAnyTimer && (
-                <button
-                  onClick={() => handleStartTaskTimer(task)}
-                  className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
-                  aria-label="Starta timer"
-                >
-                  <Clock className="w-4 h-4" />
-                </button>
-              )
+              <button
+                onClick={() => handleStartTaskTimer(task)}
+                className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
+                aria-label="Starta timer"
+              >
+                <Clock className="w-4 h-4" />
+              </button>
             )
           ) : (
             <Button size="sm" variant="outline" onClick={() => handleClaim(task)} className="shrink-0">
@@ -327,13 +325,11 @@ const MobileLocationDetail = () => {
         rightAction={
           <button
             onClick={hasLocationTimer ? handleStopTimer : handleStartGeneralTimer}
-            disabled={!hasLocationTimer && hasAnyTimer}
             className={cn(
               "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
               hasLocationTimer
                 ? "bg-destructive text-destructive-foreground animate-pulse"
                 : "bg-primary-foreground text-primary",
-              !hasLocationTimer && hasAnyTimer && "opacity-40"
             )}
             aria-label={hasLocationTimer ? "Stoppa timer" : "Starta timer"}
           >
@@ -476,6 +472,13 @@ const MobileLocationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingStart?.label ?? ''}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
       {dialogs}
     </div>
   );
