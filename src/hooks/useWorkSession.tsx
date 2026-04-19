@@ -35,7 +35,7 @@
  * ---------------------------------------------------------------------
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import {
@@ -45,6 +45,9 @@ import {
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
 import { StopBreakDecisionDialog } from '@/components/mobile-app/StopBreakDecisionDialog';
+import { EndOfDayStopDialog, type EndOfDayResult } from '@/components/mobile-app/EndOfDayStopDialog';
+import { buildStopTarget } from '@/lib/timerRole';
+import { toast } from 'sonner';
 import React from 'react';
 
 // ─────────────────────────────────────────────────────────────────────
