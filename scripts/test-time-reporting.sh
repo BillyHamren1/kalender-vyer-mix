@@ -50,6 +50,9 @@ FRONTEND_TESTS=(
   # Recovery-kontrakt: dedupe-start, retry på nätverksfel, EOD pendingStop
   # survival. Låser in robusthetsgarantierna inför Fas 1+2.
   "src/test/timeReportingRecovery.contract.test.ts"
+  # Start-härdning (PROMPT 2): payload-dedupe per target-typ, offline-survival
+  # av payload-fält över crash, logout/login-cleanup för cross-user-säkerhet.
+  "src/test/timeReportingStartHardening.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
