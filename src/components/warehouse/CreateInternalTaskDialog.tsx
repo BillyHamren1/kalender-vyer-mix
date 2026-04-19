@@ -200,7 +200,7 @@ export default function CreateInternalTaskDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-between font-normal"
+                  className="w-full justify-between font-normal focus-visible:ring-warehouse focus-visible:ring-offset-0"
                 >
                   <span className="text-muted-foreground">
                     {assignedIds.length === 0
