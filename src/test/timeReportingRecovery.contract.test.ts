@@ -197,6 +197,19 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
    * i synk med komponenten — om kontraktet ändras bryts detta test och
    * vi tvingas uppdatera båda. Det är poängen.
    */
+  const TIMERS_KEY = 'eventflow-mobile-timers';
+
+  function loadActiveTimerKeys(): Set<string> {
+    try {
+      const raw = localStorage.getItem(TIMERS_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw) as [string, unknown][];
+      return new Set(arr.map(([k]) => k));
+    } catch {
+      return new Set();
+    }
+  }
+
   function restorePendingStop():
     | { key: string; locationName: string | null; lastExitIso: string }
     | null {
@@ -205,6 +218,14 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (parsed && parsed.key && parsed.timer && parsed.startTimeIso && parsed.lastExitIso) {
+        // Banner contract (Fas 2): if the timer no longer exists locally,
+        // the pendingStop is stale (it was already saved by another path).
+        // Skip restore and clean up — never resurrect a phantom dialog.
+        const activeKeys = loadActiveTimerKeys();
+        if (!activeKeys.has(parsed.key)) {
+          localStorage.removeItem(PENDING_STOP_KEY);
+          return null;
+        }
         return {
           key: parsed.key,
           locationName: parsed.locationName ?? null,
@@ -218,7 +239,7 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
     }
   }
 
-  it('giltig payload återupptas: key + lastExitIso bevaras', () => {
+  it('giltig payload + aktiv timer återupptas: key + lastExitIso bevaras', () => {
     const payload = {
       key: 'project-zzz',
       timer: {
@@ -233,12 +254,36 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
       locationName: 'Lager',
     };
     localStorage.setItem(PENDING_STOP_KEY, JSON.stringify(payload));
+    // Mirror the active timer in the timers map — banner only restores
+    // dialogs for timers that are still alive locally.
+    localStorage.setItem(
+      TIMERS_KEY,
+      JSON.stringify([['project-zzz', payload.timer]]),
+    );
 
     const restored = restorePendingStop();
     expect(restored).not.toBeNull();
     expect(restored!.key).toBe('project-zzz');
     expect(restored!.lastExitIso).toBe('2026-04-19T16:30:00Z');
     expect(restored!.locationName).toBe('Lager');
+  });
+
+  it('giltig payload men timer borta → pendingStop städas (ingen phantom-dialog)', () => {
+    // Scenario: user pressed Avsluta, save succeeded, app crashed before
+    // pendingStop key was cleared. On next mount we must NOT resurrect
+    // a dialog for an already-saved timer.
+    const payload = {
+      key: 'orphan-key',
+      timer: { bookingId: 'orphan-key', client: 'X', startTime: '2026-04-19T07:00:00Z', isAutoStarted: false },
+      startTimeIso: '2026-04-19T07:00:00Z',
+      lastExitIso: '2026-04-19T16:30:00Z',
+      locationName: null,
+    };
+    localStorage.setItem(PENDING_STOP_KEY, JSON.stringify(payload));
+    // Note: TIMERS_KEY is intentionally NOT set — timer is gone.
+
+    expect(restorePendingStop()).toBeNull();
+    expect(localStorage.getItem(PENDING_STOP_KEY)).toBeNull();
   });
 
   it('saknad payload → returnerar null, kraschar inte', () => {
