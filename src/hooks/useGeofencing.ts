@@ -20,6 +20,15 @@ export interface ActiveTimer {
   locationId?: string;       // if this is a fixed-location timer
   locationName?: string;
   largeProjectId?: string;   // if this is a project timer
+  /**
+   * For LOCATION timers only: explicitly mark whether this timer is a
+   * pure presence signal (true / undefined → no time_report on stop) or
+   * promoted to a reportable work session (false → save-then-stop with
+   * a time_report). Frozen at start time. See src/lib/timerRole.ts for
+   * the canonical classification rules — every stop surface MUST go
+   * through that helper instead of re-deriving the role from the key.
+   */
+  presenceOnly?: boolean;
   isStale?: boolean;         // older than 24h with no server match — needs user action
   staleReason?: 'age' | 'no_server_match';
   /** Server has not yet confirmed the start. Banner should show "Synkroniserar…". */
@@ -601,6 +610,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         locationId,
         locationName,
         largeProjectId,
+        // Pure-location timers default to PRESENCE — see timerRole.ts.
+        // Booking and project timers stay reportable (presenceOnly=false).
+        presenceOnly: locationId ? true : false,
         pendingSync: true,
       });
       return next;
