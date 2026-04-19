@@ -60,18 +60,29 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
       window.clearInterval(id);
     };
   }, []);
-  const { decision: assistantDecision, acknowledge: ackAssistant } = useWorkDayAssistant({
-    enabled: !!staff,
-    latestPosition,
-    activeTimers: activeTimersForAssistant,
-    isTravelling: travelState.isMoving,
-  });
-
   // Arrival prompt — same source-of-truth used by push-cron.
   // Pause polling while the dialog is open OR while end-of-day dialog is active.
   const [arrivalDialogOpen, setArrivalDialogOpen] = useState(false);
   const [, setArrivalSubmitting] = useState(false);
   const { state: arrivalState, refresh: refreshArrival, markResolved } = useArrivalPrompt(!!staff, arrivalDialogOpen || eodActive);
+
+  // Periodic timer reconciliation against server (architectural decision §1, §7).
+  // Flags timers as stale instead of silently deleting; user decides via dialog.
+  const { staleTimers, dismissStale } = useTimerReconciliation(!!staff);
+  const [staleDialogOpen, setStaleDialogOpen] = useState(false);
+
+  // Proactive workday assistant — interpretation layer over raw signals.
+  // Tystas medan ett annat kritiskt UI redan tar uppmärksamhet (arrival,
+  // stale-recovery, travel-completed) så vi inte staplar dialoger på
+  // användaren. Ingen prompting under aktiv resa heller — det är redan
+  // täckt av `isTravelling`-suppression i regelmotorn.
+  const { decision: assistantDecision, acknowledge: ackAssistant } = useWorkDayAssistant({
+    enabled: !!staff,
+    latestPosition,
+    activeTimers: activeTimersForAssistant,
+    isTravelling: travelState.isMoving,
+    isQuiet: arrivalDialogOpen || staleDialogOpen || !!completedTravel,
+  });
 
   useEffect(() => {
     if (eodActive) return; // Don't stack dialogs
@@ -124,10 +135,6 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
     setArrivalDialogOpen(false);
   }, [arrivalState, markResolved]);
 
-  // Periodic timer reconciliation against server (architectural decision §1, §7).
-  // Flags timers as stale instead of silently deleting; user decides via dialog.
-  const { staleTimers, dismissStale } = useTimerReconciliation(!!staff);
-  const [staleDialogOpen, setStaleDialogOpen] = useState(false);
   useEffect(() => {
     if (staleTimers.length > 0 && !eodActive && !arrivalDialogOpen) {
       setStaleDialogOpen(true);
