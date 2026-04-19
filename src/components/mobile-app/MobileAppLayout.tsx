@@ -5,11 +5,13 @@ import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import ArrivalPromptDialog from './ArrivalPromptDialog';
 import StaleTimerDialog from './StaleTimerDialog';
+import { WorkDayAssistant } from './WorkDayAssistant';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
+import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -31,8 +33,6 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
 
   // EOD reconciliation now runs inside useWorkSession (mounted by
   // GlobalActiveTimerBanner) and no longer persists a localStorage flag.
-  // The arrival prompt suppression below uses a static `false` so it stays
-  // backward-compatible while we keep the suppression hook in place.
   const eodActive = false;
 
   // Arrival prompt — same source-of-truth used by push-cron.

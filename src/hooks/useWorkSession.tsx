@@ -4,7 +4,7 @@
  *
  * One time-reporting engine, three target types.
  *
- * Architectural decision (Prompt 2 + 3):
+ * Architectural decision (Prompt 2):
  *   • Booking, large-project and location timers MUST share the same
  *     start/stop/break/anomaly logic.
  *   • The ONLY thing that differs per type is which target id the
@@ -15,29 +15,27 @@
  *     StopBreakDecisionDialog and require an explicit user choice.
  *   • Save-then-stop is the only sanctioned conversion of an active timer
  *     into a time_report.
- *   • Two distinct stop verbs at the UI level:
- *       - stopSession(target)  → "Avsluta aktivitet" (one signal, day stays open)
- *       - endDay()             → "Avsluta dagen"     (close ALL signals, then
- *                                                     reconcile workplace exit
- *                                                     and create anomalies for
- *                                                     anything we can't be sure of)
  *
  * ---------------------------------------------------------------------
  * SHARED CORE (identical for all three types)
  *   • startSession()             — optimistic local + enqueue server start
  *   • stopSession()              — prompt for break, then save-or-skip-then-stop
  *   • cancelPendingSession()     — drop a still-unsynced start
- *   • endDay()                   — stopSession across ALL active timers + EOD
- *   • dialog rendering           — break + end-of-day prompts
+ *   • dialog rendering           — <StopBreakDecisionDialog />
  *
  * TARGET-SPECIFIC MAPPING (the only allowed branch)
  *   • resolveTargetKey()         — booking_id | project-{id} | location-{id}
  *   • resolveReportPayload()     — adds booking_id OR large_project_id
  *   • shouldCreateTimeReport()   — false ONLY for pure location presence
+ *
+ * Anything else that wants to start/stop a timer in the mobile app MUST
+ * go through this hook. Direct calls to mobileApi.startLocationTimer /
+ * mobileApi.stopLocationTimer / mobileApi.createTimeReport from feature
+ * code are the legacy shape and must be migrated.
  * ---------------------------------------------------------------------
  */
 
-import React, { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import {
@@ -47,7 +45,7 @@ import {
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
 import { StopBreakDecisionDialog } from '@/components/mobile-app/StopBreakDecisionDialog';
-import { EndOfDayStopDialog, type EndOfDayResult } from '@/components/mobile-app/EndOfDayStopDialog';
+import React from 'react';
 
 // ─────────────────────────────────────────────────────────────────────
 // Target descriptors — the ONLY per-type variation allowed.
@@ -97,34 +95,6 @@ function shouldCreateTimeReport(target: WorkTarget): boolean {
   return true;
 }
 
-/**
- * Reverse-engineer a WorkTarget from an ActiveTimer + key. Used by
- * endDay() so we can iterate the live timer map without forcing call-sites
- * to pass target descriptors for things they didn't start themselves
- * (e.g. an auto-started location presence timer).
- */
-function targetFromTimer(key: string, timer: ActiveTimer): WorkTarget {
-  if (timer.locationId) {
-    return {
-      kind: 'location',
-      locationId: timer.locationId,
-      name: timer.locationName || timer.client,
-      // EndDay treats location presence as pure presence — no time_report.
-      // The user already used "Avsluta aktivitet" on the timer screen if
-      // they wanted to convert presence to a logged report.
-      createsTimeReport: false,
-    };
-  }
-  if (timer.largeProjectId) {
-    return {
-      kind: 'project',
-      largeProjectId: timer.largeProjectId,
-      name: timer.client,
-    };
-  }
-  return { kind: 'booking', bookingId: key, client: timer.client };
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // Engine
 // ─────────────────────────────────────────────────────────────────────
@@ -144,19 +114,6 @@ export interface StopSessionResult {
   cancelled?: boolean;
 }
 
-export interface EndDayResult {
-  /** Number of timers we attempted to stop. */
-  attempted: number;
-  /** Number that successfully saved + cleared. */
-  saved: number;
-  /** Number the user cancelled mid-flow (timer kept alive). */
-  cancelled: number;
-  /** Number that errored (timer kept alive — user can retry). */
-  failed: number;
-  /** True if the EOD reconciliation dialog was shown to the user. */
-  reconciliationShown: boolean;
-}
-
 export function useWorkSession(
   bookings: MobileBooking[],
   staffId?: string,
@@ -172,16 +129,60 @@ export function useWorkSession(
     cancelPendingTimer,
   } = geo;
 
-  // ───── End-of-day reconciliation dialog state ─────
-  // After every active timer has been stopped, we check if the user left
-  // their last workplace before stopping. If so we open EndOfDayStopDialog
-  // to let them confirm the real end-time and (when relevant) describe
-  // what they did between geofence-exit and stop. If they don't reply
-  // we DO NOT silently fudge anything — we just leave the dialog open.
-  const [eodPrompt, setEodPrompt] = useState<{
-    lastExitIso: string;
-    locationName: string | null;
-  } | null>(null);
+  /**
+   * START — same for all three target types.
+   * Maps target → key + start args, then defers to the server-anchored
+   * sync queue inside useGeofencing.
+   */
+  const startSession = useCallback(
+    (target: WorkTarget, opts: StartSessionOptions = {}): boolean => {
+      const key = resolveTargetKey(target);
+
+      // SOFT LOCK: only block re-starting the same key. Parallel timers
+      // across different target types are valid signals.
+      if (activeTimers.has(key)) return false;
+
+      if (target.kind === 'booking') {
+        return startTimer(
+          target.bookingId,
+          target.client,
+          false,
+          opts.taskId,
+          opts.taskTitle,
+          undefined,
+          undefined,
+          undefined,
+          opts.startedAtIso,
+        );
+      }
+      if (target.kind === 'project') {
+        return startTimer(
+          key,
+          target.name,
+          false,
+          opts.taskId,
+          opts.taskTitle,
+          undefined,
+          undefined,
+          target.largeProjectId,
+          opts.startedAtIso,
+        );
+      }
+      // location
+      return startTimer(
+        key,
+        target.name,
+        false,
+        opts.taskId,
+        opts.taskTitle,
+        target.locationId,
+        target.name,
+        undefined,
+        opts.startedAtIso,
+      );
+    },
+    [activeTimers, startTimer],
+  );
 
   /**
    * STOP — same for all three target types.
@@ -295,196 +296,6 @@ export function useWorkSession(
   );
 
   /**
-   * START — same for all three target types.
-   * Maps target → key + start args, then defers to the server-anchored
-   * sync queue inside useGeofencing.
-   */
-  const startSession = useCallback(
-    (target: WorkTarget, opts: StartSessionOptions = {}): boolean => {
-      const key = resolveTargetKey(target);
-
-      // SOFT LOCK: only block re-starting the same key. Parallel timers
-      // across different target types are valid signals.
-      if (activeTimers.has(key)) return false;
-
-      if (target.kind === 'booking') {
-        return startTimer(
-          target.bookingId,
-          target.client,
-          false,
-          opts.taskId,
-          opts.taskTitle,
-          undefined,
-          undefined,
-          undefined,
-          opts.startedAtIso,
-        );
-      }
-      if (target.kind === 'project') {
-        return startTimer(
-          key,
-          target.name,
-          false,
-          opts.taskId,
-          opts.taskTitle,
-          undefined,
-          undefined,
-          target.largeProjectId,
-          opts.startedAtIso,
-        );
-      }
-      // location
-      return startTimer(
-        key,
-        target.name,
-        false,
-        opts.taskId,
-        opts.taskTitle,
-        target.locationId,
-        target.name,
-        undefined,
-        opts.startedAtIso,
-      );
-    },
-    [activeTimers, startTimer],
-  );
-
-  /**
-   * END THE DAY — explicit "I'm done for today" verb.
-   *
-   * Distinct from stopSession() which closes ONE activity. endDay():
-   *
-   *   1. Snapshots all currently-active timers.
-   *   2. Runs stopSession() on each one through the SAME unified core
-   *      — break prompt per long pass, save-then-stop, anomaly when the
-   *      user picks "markera som avvikelse". Order is sequential because
-   *      the dialogs would otherwise race.
-   *   3. After all stops are attempted, fetches the staff member's last
-   *      workplace exit. If there's a meaningful gap (≥ 2 min) between
-   *      that exit and "now", opens EndOfDayStopDialog so the user can
-   *      either confirm the geofence-exit time or describe what they did
-   *      between the exit and now (which is persisted as an end-of-day
-   *      anomaly via createEndOfDayAnomaly).
-   *   4. NEVER silently discards or modifies time. If a timer fails to
-   *      save it stays alive and can be retried — same guarantee as the
-   *      single-activity stop.
-   */
-  const endDay = useCallback(async (): Promise<EndDayResult> => {
-    // 1) Snapshot — clone so we iterate a stable list even though the
-    // map mutates as we clear timers.
-    const snapshot = Array.from(activeTimers.entries()).map(([key, timer]) => ({
-      key,
-      timer,
-      target: targetFromTimer(key, timer),
-    }));
-
-    let saved = 0;
-    let cancelled = 0;
-    let failed = 0;
-
-    // 2) Stop each activity sequentially through the unified core. The
-    // break dialog needs the user's full attention — running these in
-    // parallel would visually stack dialogs and cause race conditions.
-    for (const { target } of snapshot) {
-      try {
-        const res = await stopSession(target);
-        if (res.cancelled) cancelled += 1;
-        else if (res.saved) saved += 1;
-        else failed += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-
-    // 3) End-of-day reconciliation against last geofence-exit.
-    let reconciliationShown = false;
-    try {
-      const res = await mobileApi.getLastWorkplaceExit();
-      const lastExit = res.last_exit;
-      if (lastExit?.exited_at) {
-        const exitDate = parseISO(lastExit.exited_at);
-        const gapMin = (Date.now() - exitDate.getTime()) / 60000;
-        // Only ask about the gap if it's meaningful AND today (not e.g.
-        // a stale exit from yesterday morning that shouldn't trigger UI).
-        if (gapMin >= 2 && gapMin <= 12 * 60) {
-          setEodPrompt({
-            lastExitIso: lastExit.exited_at,
-            locationName: lastExit.location_name,
-          });
-          reconciliationShown = true;
-        }
-      }
-    } catch (err) {
-      console.warn('[WorkSession] EOD reconciliation lookup failed:', err);
-    }
-
-    // 4) Close any open background-anomaly windows so the day is tidy.
-    // This is independent of the EOD dialog: anomalies opened by the
-    // background tracker are conceptually "the day is over now".
-    mobileApi
-      .closeOpenAnomalies({ ended_at: new Date().toISOString() })
-      .catch((err) => console.warn('[WorkSession] closeOpenAnomalies failed:', err));
-
-    return {
-      attempted: snapshot.length,
-      saved,
-      cancelled,
-      failed,
-      reconciliationShown,
-    };
-  }, [activeTimers, stopSession]);
-
-  /**
-   * Confirm callback for EndOfDayStopDialog. Persists the post-exit
-   * description as an anomaly so admin sees exactly what happened
-   * between the geofence exit and the user-stated end time. We do NOT
-   * touch any time_reports here — they were already saved during endDay().
-   */
-  const handleEodConfirm = useCallback(
-    async (result: EndOfDayResult) => {
-      if (!eodPrompt) return;
-      const exitDate = parseISO(eodPrompt.lastExitIso);
-      const stopTime = new Date(result.endedAtIso);
-      // "Ja, använd geofence-exit" → no anomaly needed (exit already
-      // captured by background tracker; nothing unaccounted for).
-      if (result.usedSuggestedExit || !result.workDescription) {
-        setEodPrompt(null);
-        return;
-      }
-      try {
-        // Best-effort GPS for the anomaly endpoint.
-        let lat: number | undefined;
-        let lng: number | undefined;
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            if (!navigator.geolocation) return reject(new Error('no geolocation'));
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              timeout: 4000,
-              maximumAge: 60_000,
-            });
-          });
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
-        } catch {
-          // best-effort
-        }
-        await mobileApi.createEndOfDayAnomaly({
-          started_at: exitDate.toISOString(),
-          ended_at: stopTime.toISOString(),
-          work_description: result.workDescription,
-          end_location_lat: lat,
-          end_location_lng: lng,
-        });
-      } catch (err) {
-        console.warn('[WorkSession] EOD anomaly persist failed (non-fatal):', err);
-      } finally {
-        setEodPrompt(null);
-      }
-    },
-    [eodPrompt],
-  );
-
-  /**
    * Drop a timer that has not yet synced to the server. Intentionally
    * the same shape regardless of target type.
    */
@@ -503,27 +314,12 @@ export function useWorkSession(
   );
 
   /**
-   * The dialogs MUST be rendered by callers so the prompts are mounted
-   * in their tree. Returned as a ready-to-render fragment so call-sites
-   * don't have to know which dialogs the engine uses internally.
+   * The dialog element MUST be rendered by callers so the break prompt
+   * is mounted in their tree. Returned as a ready-to-render fragment
+   * so call-sites don't have to know about StopBreakDecisionDialog.
    */
   const dialogs = (
-    <>
-      <StopBreakDecisionDialog {...breakDecision.dialogProps} />
-      {eodPrompt && (
-        <EndOfDayStopDialog
-          open={!!eodPrompt}
-          onOpenChange={(open) => {
-            // Closing without confirming = user wants to handle it later.
-            // No silent fallback — they can re-open via "Avsluta dagen".
-            if (!open) setEodPrompt(null);
-          }}
-          lastExitIso={eodPrompt.lastExitIso}
-          locationName={eodPrompt.locationName}
-          onConfirm={handleEodConfirm}
-        />
-      )}
-    </>
+    <StopBreakDecisionDialog {...breakDecision.dialogProps} />
   );
 
   return {
@@ -534,7 +330,6 @@ export function useWorkSession(
     // unified engine
     startSession,
     stopSession,
-    endDay,
     cancelPendingSession,
     getActiveTimer,
 
