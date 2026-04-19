@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, addDays, parseISO, setHours, setMinutes } from "date-fns";
 
 // Warehouse event types — only packing + return are shown in the warehouse calendar
-export type WarehouseEventType = 'packing' | 'return';
+export type WarehouseEventType = 'packing' | 'return' | 'internal_task';
 
 // Default rules for warehouse events
 const WAREHOUSE_RULES: Record<WarehouseEventType, {
