@@ -197,6 +197,19 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
    * i synk med komponenten — om kontraktet ändras bryts detta test och
    * vi tvingas uppdatera båda. Det är poängen.
    */
+  const TIMERS_KEY = 'eventflow-mobile-timers';
+
+  function loadActiveTimerKeys(): Set<string> {
+    try {
+      const raw = localStorage.getItem(TIMERS_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw) as [string, unknown][];
+      return new Set(arr.map(([k]) => k));
+    } catch {
+      return new Set();
+    }
+  }
+
   function restorePendingStop():
     | { key: string; locationName: string | null; lastExitIso: string }
     | null {
@@ -205,6 +218,14 @@ describe('Recovery / EOD pendingStop — survival över app-omstart', () => {
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (parsed && parsed.key && parsed.timer && parsed.startTimeIso && parsed.lastExitIso) {
+        // Banner contract (Fas 2): if the timer no longer exists locally,
+        // the pendingStop is stale (it was already saved by another path).
+        // Skip restore and clean up — never resurrect a phantom dialog.
+        const activeKeys = loadActiveTimerKeys();
+        if (!activeKeys.has(parsed.key)) {
+          localStorage.removeItem(PENDING_STOP_KEY);
+          return null;
+        }
         return {
           key: parsed.key,
           locationName: parsed.locationName ?? null,
