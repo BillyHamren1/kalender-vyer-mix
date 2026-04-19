@@ -81,9 +81,10 @@ export const IncomingPackingList: React.FC = () => {
 
       const { data: bookings, error } = await supabase
         .from('bookings')
-        .select('id, client, booking_number, eventdate, deliveryaddress, organization_id')
+        .select('id, client, booking_number, eventdate, deliveryaddress, organization_id, is_internal')
         .in('id', missingIds)
         .neq('status', 'CANCELLED')
+        .neq('is_internal', true)
         .order('eventdate', { ascending: true });
 
       if (error || !bookings) return [];
