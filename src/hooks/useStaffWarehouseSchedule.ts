@@ -122,33 +122,31 @@ export function useStaffWarehouseSchedule(staffId: string | null, date: Date, vi
         const startISO = `${dateStr}T00:00:00`;
         const endISO = `${dateStr}T23:59:59`;
         resources.forEach(resourceId => {
-          lagerFetches.push(
-            supabase
+          lagerFetches.push((async () => {
+            const { data, error } = await supabase
               .from('warehouse_calendar_events')
               .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address')
               .eq('resource_id', resourceId)
               .gte('start_time', startISO)
-              .lte('start_time', endISO)
-              .then(({ data, error }) => {
-                if (error) throw error;
-                (data || []).forEach((e: any) => {
-                  items.push({
-                    id: `wh-${e.id}`,
-                    date: dateStr,
-                    startTime: e.start_time,
-                    endTime: e.end_time,
-                    title: e.title,
-                    kind: 'warehouse',
-                    eventType: e.event_type,
-                    resourceId: e.resource_id,
-                    resourceLabel: teamLabel(e.resource_id),
-                    bookingId: e.booking_id,
-                    bookingNumber: e.booking_number,
-                    deliveryAddress: e.delivery_address,
-                  });
-                });
-              })
-          );
+              .lte('start_time', endISO);
+            if (error) throw error;
+            (data || []).forEach((e: any) => {
+              items.push({
+                id: `wh-${e.id}`,
+                date: dateStr,
+                startTime: e.start_time,
+                endTime: e.end_time,
+                title: e.title,
+                kind: 'warehouse',
+                eventType: e.event_type,
+                resourceId: e.resource_id,
+                resourceLabel: teamLabel(e.resource_id),
+                bookingId: e.booking_id,
+                bookingNumber: e.booking_number,
+                deliveryAddress: e.delivery_address,
+              });
+            });
+          })());
         });
       });
 
