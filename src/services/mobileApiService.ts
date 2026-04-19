@@ -155,8 +155,16 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     if (res.status === 401) {
       // Only clear mobile auth if we were using the mobile token.
-      if (token) clearAuth();
-      throw new Error('Session expired');
+      if (token) {
+        clearAuth();
+        // Notify app so any active mobile session can redirect to login
+        window.dispatchEvent(new CustomEvent('mobile-session-expired'));
+      }
+      // Use a typed error so callers / React Query can ignore silently
+      const err: any = new Error('Session expired');
+      err.code = 'SESSION_EXPIRED';
+      err.silent = true;
+      throw err;
     }
 
     let json: any;
