@@ -87,6 +87,16 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // cross-user-säkerhet. Låser fast Starta dag i verklig drift.
     'src/test/timeReportingStartHardening.contract.test.ts',
 
+    // Aktiv-tid-härdning (PROMPT 3): pendingSync-recovery, storage-event
+    // filtrering, sync-queue-idempotens.
+    'src/test/activeSessionHardening.contract.test.ts',
+
+    // Avsluta-dag-härdning (PROMPT 4): save-then-stop-ordning, server-
+    // side idempotency så retry efter nätverksfel inte ger dubbelrapport
+    // eller 409, EOD-dialog stays open vid save-fail, sekventiell EOD-
+    // processing.
+    'src/test/endDayHardening.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],

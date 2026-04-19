@@ -1628,6 +1628,57 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     }
   }
 
+  // === Soft idempotency (PROMPT 4 — Avsluta dag) ===
+  // The mobile "End Day" flow MUST never lose time. If the network drops
+  // between a successful insert and the response reaching the client, the
+  // client retries via saveAndStopTimer. Without this guard the retry
+  // hits the overlap check below and returns a confusing 409, leaving
+  // the timer alive locally even though the report is safe on the server.
+  //
+  // We treat any time_report from the same staff with the IDENTICAL
+  // key fields (booking_id/large_project_id, report_date, start_time,
+  // end_time, hours_worked) created in the last 90 seconds as a duplicate
+  // of THIS request — return it as success so the client can clear the
+  // timer instead of retrying forever. 90 s comfortably covers realistic
+  // mobile network timeouts (typical fetch timeout ≤ 30 s).
+  try {
+    const cutoffIso = new Date(Date.now() - 90_000).toISOString()
+    let dedupeQuery = supabase
+      .from('time_reports')
+      .select('*')
+      .eq('staff_id', staffId)
+      .eq('report_date', report_date)
+      .eq('start_time', start_time)
+      .eq('end_time', end_time)
+      .eq('hours_worked', calculatedHours)
+      .gte('created_at', cutoffIso)
+      .limit(1)
+
+    if (resolvedBookingId) {
+      dedupeQuery = dedupeQuery.eq('booking_id', resolvedBookingId)
+    } else {
+      dedupeQuery = dedupeQuery.is('booking_id', null)
+    }
+    if (resolvedLargeProjectId) {
+      dedupeQuery = dedupeQuery.eq('large_project_id', resolvedLargeProjectId)
+    } else {
+      dedupeQuery = dedupeQuery.is('large_project_id', null)
+    }
+
+    const { data: existing } = await dedupeQuery.maybeSingle()
+    if (existing) {
+      console.log(`[create_time_report] idempotent hit — returning existing ${existing.id} for staff ${staffId}`)
+      return new Response(
+        JSON.stringify({ success: true, time_report: existing, idempotent: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  } catch (dedupeErr) {
+    // Non-fatal — fall through to normal create path. Better to risk
+    // returning a 409 than to drop the user's time entirely.
+    console.warn('[create_time_report] dedupe lookup failed:', dedupeErr)
+  }
+
   // === Overlap check (CREATE) ===
   // Same robust datetime-interval logic as update — handles night shifts and
   // reports stored on neighboring report_dates that bleed into this day.
