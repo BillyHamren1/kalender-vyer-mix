@@ -46,92 +46,34 @@ import {
   type GpsPosition,
   haversineDistance,
 } from '@/hooks/useGeofencing';
+import {
+  nextAssistantDecision,
+  ACTIVITY_LEAVE_FAR_METERS,
+  DAYSTART_QUIET_HOURS_FROM,
+  DAYSTART_QUIET_HOURS_TO,
+  EVENING_FROM,
+  EVENING_TO,
+  type CachedTarget,
+  type AssistantDecision as PureAssistantDecision,
+  type DecisionKind as PureDecisionKind,
+} from '@/lib/workDayDecisions';
 
 // ─────────────────────────────────────────────────────────────────────
-// Constants — tunable assistant policy
+// Constants no longer duplicated here — see src/lib/workDayDecisions.ts
 // ─────────────────────────────────────────────────────────────────────
-
-const ACTIVITY_LEAVE_FAR_METERS = 300; // user must be ≥300 m outside the geofence
-const ACTIVITY_LEAVE_LONG_MINUTES = 10; // ...and have been outside for ≥10 min
-const LONG_PASS_HOURS = 5; // matches breakPolicy.BREAK_PROMPT_THRESHOLD_HOURS
-const DAYSTART_QUIET_HOURS_FROM = 4; // 04:00–11:00 = morning window
-const DAYSTART_QUIET_HOURS_TO = 11;
-const EVENING_FROM = 17; // 17:00 onwards = "looks like end of day"
-const EVENING_TO = 28; // wraps past midnight (24+4) so late-night still counts
-const LAST_WORKPLACE_GAP_MIN = 15;
-const LAST_WORKPLACE_GAP_MAX_HOURS = 12;
-
-// Cooldown per decision type so we don't spam the same prompt.
-const COOLDOWNS_MS: Record<DecisionKind, number> = {
-  daystart: 8 * 3600 * 1000, // ask at most once per 8h
-  activity_leave: 30 * 60 * 1000, // 30 min between leave-prompts per timer
-  last_workplace_for_day: 60 * 60 * 1000, // once an hour at most
-  long_pass_no_break: 60 * 60 * 1000, // remind hourly while open
-  unclassified_anomaly: 4 * 3600 * 1000, // remind every 4h while open
-};
 
 const TICK_INTERVAL_MS = 30_000; // re-evaluate every 30s
 
-// ─────────────────────────────────────────────────────────────────────
-// Decision types — what UI surface should react to
-// ─────────────────────────────────────────────────────────────────────
-
-export type DecisionKind =
-  | 'daystart'
-  | 'activity_leave'
-  | 'last_workplace_for_day'
-  | 'long_pass_no_break'
-  | 'unclassified_anomaly';
-
-export interface DaystartDecision {
-  kind: 'daystart';
-  /** ISO of the first significant signal seen today (movement / arrival). */
-  firstSignalIso: string;
-  /** Did the assistant see an arrival at a known workplace too? */
-  arrivedAtWorkplace: boolean;
-}
-
-export interface ActivityLeaveDecision {
-  kind: 'activity_leave';
-  /** Active timer key the user appears to have walked away from. */
-  timerKey: string;
-  timer: ActiveTimer;
-  /** How far user is currently from the timer's geofence (meters). */
-  distanceMeters: number;
-  /** How long since they crossed out of the geofence (ISO + minutes). */
-  outsideSinceIso: string;
-  outsideMinutes: number;
-}
-
-export interface LastWorkplaceForDayDecision {
-  kind: 'last_workplace_for_day';
-  /** ISO of last server-recorded workplace exit. */
-  lastExitIso: string;
-  /** Friendly label of the workplace they left, if available. */
-  locationName: string | null;
-}
-
-export interface LongPassNoBreakDecision {
-  kind: 'long_pass_no_break';
-  timerKey: string;
-  timer: ActiveTimer;
-  passHours: number;
-}
-
-export interface UnclassifiedAnomalyDecision {
-  kind: 'unclassified_anomaly';
-  /** Number of pending anomalies waiting for break/work classification. */
-  count: number;
-  /** Most recent anomaly's window so the UI can show a hint. */
-  oldestStartedAtIso: string;
-}
-
-export type AssistantDecision =
-  | DaystartDecision
-  | ActivityLeaveDecision
-  | LastWorkplaceForDayDecision
-  | LongPassNoBreakDecision
-  | UnclassifiedAnomalyDecision;
+// Re-export pure types so existing UI imports keep working.
+export type DecisionKind = PureDecisionKind;
+export type AssistantDecision = PureAssistantDecision;
+export type {
+  DaystartDecision,
+  ActivityLeaveDecision,
+  LastWorkplaceForDayDecision,
+  LongPassNoBreakDecision,
+  UnclassifiedAnomalyDecision,
+} from '@/lib/workDayDecisions';
 
 // ─────────────────────────────────────────────────────────────────────
 // Hook input
@@ -161,17 +103,8 @@ export interface WorkDayAssistantInput {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Internal helpers
+// Internal helpers (CachedTarget type lives in workDayDecisions.ts)
 // ─────────────────────────────────────────────────────────────────────
-
-interface CachedTarget {
-  key: string;
-  name: string;
-  lat: number;
-  lng: number;
-  radius: number;
-  type: 'fixed' | 'project' | 'booking';
-}
 
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
 
@@ -214,7 +147,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   const outsideSinceRef = useRef<Map<string, number>>(new Map());
 
   // Cooldowns per decision kind — prevents prompt spam.
-  const lastShownRef = useRef<Map<string, number>>(new Map());
+  const lastShownRef = useRef<Map<PureDecisionKind, number>>(new Map());
 
   // First significant signal of the day — used by the daystart interpretation.
   const firstSignalTodayRef = useRef<{ iso: string; arrivedAtWorkplace: boolean } | null>(null);
@@ -318,6 +251,11 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   }, [enabled, latestPosition]);
 
   // ───── Main interpretation tick ─────
+  // The wrapper handles only the SIDE-EFFECTS that the pure decision engine
+  // can't (or shouldn't): updating outsideSince trackers, persisting an
+  // unclassified-anomaly flag to the server, and committing setDecision.
+  // The actual rule resolution is delegated to nextAssistantDecision so the
+  // contract suite can lock the rules without mocking React.
   useEffect(() => {
     if (!enabled) return;
 
@@ -326,80 +264,14 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
       if (decision) return;
 
       const now = Date.now();
-      const nowDate = new Date(now);
 
-      const isCooldownExpired = (kind: DecisionKind) => {
-        const last = lastShownRef.current.get(kind) || 0;
-        return now - last >= COOLDOWNS_MS[kind];
-      };
-
-      // ── 1) Unclassified anomalies waiting (server-derived) ──
-      // Lowest urgency but highest signal-to-noise — the user already left
-      // a gap in their work and admin needs the classification anyway.
-      //
-      // PROMPT 6: also persist this as a workday_flag so the staff member
-      // can find it later in /m/my-flags even if they dismiss the prompt.
-      // The flag is fire-and-forget; assistant UX still works without it.
-      if (
-        pendingAnomalies.count > 0 &&
-        pendingAnomalies.oldestStartedAtIso &&
-        isCooldownExpired('unclassified_anomaly')
-      ) {
-        const next: UnclassifiedAnomalyDecision = {
-          kind: 'unclassified_anomaly',
-          count: pendingAnomalies.count,
-          oldestStartedAtIso: pendingAnomalies.oldestStartedAtIso,
-        };
-        // Best-effort persist — don't block the prompt on it.
-        const flagDate = pendingAnomalies.oldestStartedAtIso.slice(0, 10);
-        mobileApi.createWorkdayFlag({
-          flag_type: 'presence_without_report',
-          flag_date: flagDate,
-          title: `${pendingAnomalies.count} oklassad${pendingAnomalies.count === 1 ? ' frånvaro' : 'e frånvaron'} att reda ut`,
-          description: 'Geofence-vistelse som inte hör till någon rapport. Klassa som rast eller arbete.',
-          severity: 'warning',
-          needs_user_input: true,
-          assistant_decision_kind: 'unclassified_anomaly',
-        }).catch((err) => console.warn('[Assistant] flag persist failed:', err));
-        setDecision(next);
-        return;
-      }
-
-      // ── 2) Long pass without registered break ──
-      // We can't see "registered break" because breaks are only entered AT
-      // stop-time. Interpretation: timer has been open > LONG_PASS_HOURS.
-      // We surface a gentle nudge — the user can stop now and answer the
-      // break question, or dismiss and keep working.
-      for (const { key, timer } of timersList) {
-        if (timer.isStale) continue; // stale dialog handles this
-        const passHours =
-          (now - new Date(timer.startTime).getTime()) / 3600_000;
-        if (passHours >= LONG_PASS_HOURS && isCooldownExpired('long_pass_no_break')) {
-          const next: LongPassNoBreakDecision = {
-            kind: 'long_pass_no_break',
-            timerKey: key,
-            timer,
-            passHours,
-          };
-          setDecision(next);
-          return;
-        }
-      }
-
-      // ── 3) Activity-leave (per active timer) ──
-      // Only fires if user is FAR (≥300 m outside the radius) AND has been
-      // outside for ≥10 min — chosen explicitly to keep prompt count low.
-      //
-      // SUPPRESSED while a travel session is active: being far from a
-      // worksite is naturally explained by travel, so we don't pile a
-      // "verkar du lämnat aktiviteten?" prompt on top of the travel banner.
-      // The travel log itself is the semantic record of that movement.
+      // Side-effect 1: outsideSince tracking (the pure engine reads this map
+      // but does not mutate it — keeps the rule deterministic from inputs).
+      const targets = readCachedTargets();
       if (latestPosition && timersList.length > 0 && !isTravelling) {
-        const targets = readCachedTargets();
-        for (const { key, timer } of timersList) {
+        for (const { key } of timersList) {
           const target = targets.find((t) => t.key === key);
           if (!target) continue;
-
           const distance = haversineDistance(
             latestPosition.lat,
             latestPosition.lng,
@@ -407,85 +279,55 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
             target.lng,
           );
           const outsideThreshold = (target.radius || 150) + ACTIVITY_LEAVE_FAR_METERS;
-
           if (distance >= outsideThreshold) {
-            // Track when they crossed out
             if (!outsideSinceRef.current.has(key)) {
               outsideSinceRef.current.set(key, now);
-              continue; // need to be outside long enough — re-check next tick
-            }
-            const since = outsideSinceRef.current.get(key)!;
-            const outsideMin = (now - since) / 60_000;
-            if (
-              outsideMin >= ACTIVITY_LEAVE_LONG_MINUTES &&
-              isCooldownExpired('activity_leave')
-            ) {
-              const next: ActivityLeaveDecision = {
-                kind: 'activity_leave',
-                timerKey: key,
-                timer,
-                distanceMeters: Math.round(distance),
-                outsideSinceIso: new Date(since).toISOString(),
-                outsideMinutes: Math.round(outsideMin),
-              };
-              setDecision(next);
-              return;
             }
           } else {
-            // Came back inside — reset
             outsideSinceRef.current.delete(key);
           }
         }
       } else if (isTravelling) {
-        // Reset all outside-since trackers while travelling so we don't
-        // pop a leave-prompt the moment the travel banner clears.
         outsideSinceRef.current.clear();
       }
 
-      // ── 4) Last workplace for the day ──
-      // Interpretation: it's evening, the user has no active timers, and
-      // there's a stale workplace-exit we never reconciled. We don't end
-      // the day for them — we just SUGGEST they do it.
-      if (
-        timersList.length === 0 &&
-        lastExit &&
-        isEveningWindow(nowDate) &&
-        isCooldownExpired('last_workplace_for_day')
-      ) {
-        const exitMs = new Date(lastExit.iso).getTime();
-        const gapMin = (now - exitMs) / 60_000;
-        if (
-          gapMin >= LAST_WORKPLACE_GAP_MIN &&
-          gapMin <= LAST_WORKPLACE_GAP_MAX_HOURS * 60
-        ) {
-          const next: LastWorkplaceForDayDecision = {
-            kind: 'last_workplace_for_day',
-            lastExitIso: lastExit.iso,
-            locationName: lastExit.name,
-          };
-          setDecision(next);
-          return;
-        }
+      // Side-effect 2: ask the pure rule engine what to do next.
+      const next = nextAssistantDecision({
+        now,
+        enabled,
+        latestPosition,
+        timers: timersList,
+        cachedTargets: targets as CachedTarget[],
+        lastExit,
+        pendingAnomalies,
+        isTravelling,
+        lastShownByKind: lastShownRef.current,
+        outsideSinceByTimer: outsideSinceRef.current,
+        firstSignalToday: firstSignalTodayRef.current,
+      });
+
+      if (!next) return;
+
+      // Side-effect 3: persist a workday_flag for unclassified anomalies so
+      // the staff member can find them in /m/my-flags even if they dismiss
+      // the assistant prompt. Best-effort — never blocks UI.
+      if (next.kind === 'unclassified_anomaly') {
+        const flagDate = next.oldestStartedAtIso.slice(0, 10);
+        mobileApi
+          .createWorkdayFlag({
+            flag_type: 'presence_without_report',
+            flag_date: flagDate,
+            title: `${next.count} oklassad${next.count === 1 ? ' frånvaro' : 'e frånvaron'} att reda ut`,
+            description:
+              'Geofence-vistelse som inte hör till någon rapport. Klassa som rast eller arbete.',
+            severity: 'warning',
+            needs_user_input: true,
+            assistant_decision_kind: 'unclassified_anomaly',
+          })
+          .catch((err) => console.warn('[Assistant] flag persist failed:', err));
       }
 
-      // ── 5) Daystart greeting ──
-      // Lowest urgency. Surface only in the morning window and only if we
-      // haven't shown it today and there are no active timers (otherwise
-      // the user clearly already started without our help).
-      if (
-        timersList.length === 0 &&
-        isMorningWindow(nowDate) &&
-        firstSignalTodayRef.current &&
-        isCooldownExpired('daystart')
-      ) {
-        const next: DaystartDecision = {
-          kind: 'daystart',
-          firstSignalIso: firstSignalTodayRef.current.iso,
-          arrivedAtWorkplace: firstSignalTodayRef.current.arrivedAtWorkplace,
-        };
-        setDecision(next);
-        return;
-      }
+      setDecision(next);
     };
 
     evaluate();
