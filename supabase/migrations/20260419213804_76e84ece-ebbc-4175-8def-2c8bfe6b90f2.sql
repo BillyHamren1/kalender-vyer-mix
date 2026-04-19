@@ -1,0 +1,2 @@
+ALTER TABLE public.warehouse_calendar_events DROP CONSTRAINT IF EXISTS warehouse_calendar_events_event_type_check;
+ALTER TABLE public.warehouse_calendar_events ADD CONSTRAINT warehouse_calendar_events_event_type_check CHECK (event_type = ANY (ARRAY['packing'::text, 'delivery'::text, 'event'::text, 'return'::text, 'inventory'::text, 'unpacking'::text, 'internal_task'::text]));
