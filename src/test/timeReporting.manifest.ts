@@ -97,6 +97,12 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // processing.
     'src/test/endDayHardening.contract.test.ts',
 
+    // Edge-case-härdning (PROMPT 5): 10 verkliga driftsscenarier som
+    // dödar förtroendet — app-kill direkt efter start, nät dör under
+    // start/stop, reload mid-session, dubbeltryck, logout/login med
+    // aktiv session, korrupt kö, server-timeout, osäker target.
+    'src/test/edgeCaseHardening.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],

@@ -70,11 +70,18 @@ const GlobalActiveTimerBanner: React.FC = () => {
 
   useEffect(() => {
     const handler = () => setTimers(loadTimersFromStorage());
+    // Cross-tab/storage events: ONLY react when our timer key changed.
+    // Without this filter every unrelated localStorage write (theme,
+    // chat draft, etc.) re-renders the banner and re-reads the timers,
+    // which has caused phantom "flicker" / sync-state confusion.
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === null || e.key === TIMERS_KEY) handler();
+    };
     window.addEventListener('timer-state-changed', handler);
-    window.addEventListener('storage', handler);
+    window.addEventListener('storage', storageHandler);
     return () => {
       window.removeEventListener('timer-state-changed', handler);
-      window.removeEventListener('storage', handler);
+      window.removeEventListener('storage', storageHandler);
     };
   }, []);
 
