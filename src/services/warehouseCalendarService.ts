@@ -26,19 +26,27 @@ const WAREHOUSE_RULES: Record<WarehouseEventType, {
     startHour: 8,
     startMinute: 0,
     durationHours: 3
+  },
+  internal_task: {
+    basedOn: 'rigDate',
+    startHour: 8,
+    startMinute: 0,
+    durationHours: 3
   }
 };
 
 // Event type labels in Swedish
 export const WAREHOUSE_EVENT_LABELS: Record<WarehouseEventType, string> = {
   packing: 'Packning',
-  return: 'Retur'
+  return: 'Retur',
+  internal_task: 'Lageruppgift'
 };
 
 // Event type colors — must NOT overlap with planning colors (green/yellow/red)
 export const WAREHOUSE_EVENT_COLORS: Record<WarehouseEventType, string> = {
   packing: '#E9D5FF',    // Lavender/purple
-  return: '#C4B5FD'      // Violet
+  return: '#C4B5FD',     // Violet
+  internal_task: '#FEF3C7' // Amber soft
 };
 
 interface BookingData {
