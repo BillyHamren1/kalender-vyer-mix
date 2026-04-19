@@ -45,7 +45,22 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Dialog state for date move — LEGACY: still uses local state,
   // but now gated by editController for conflict prevention
   const [showDateDialog, setShowDateDialog] = useState(false);
-  const availableResources = useMemo(() => loadResourcesFromStorage(), []);
+  const { teamResources: warehouseTeamResources } = useWarehouseResources();
+
+  // Check if this is a warehouse event (covers all warehouse calendar resources)
+  const isWarehouseEvent =
+    event.resourceId === 'warehouse' ||
+    event.resourceId === 'warehouse-event' ||
+    event.resourceId?.startsWith('lager-');
+
+  // Use warehouse resources (Lager 1–N + Transport) for warehouse events,
+  // otherwise the regular planning resources (Team 1–N).
+  const availableResources = useMemo(
+    () => isWarehouseEvent
+      ? warehouseTeamResources.filter(r => r.id !== 'warehouse-event')
+      : loadResourcesFromStorage(),
+    [isWarehouseEvent, warehouseTeamResources]
+  );
 
   const eventColor = getEventColor(event.eventType);
 
