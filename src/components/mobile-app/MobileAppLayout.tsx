@@ -31,18 +31,9 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
 
-  // Track whether the end-of-day stop dialog is active so we don't stack dialogs.
-  const [eodActive, setEodActive] = useState<boolean>(() => {
-    try { return !!localStorage.getItem('eventflow-pending-stop'); } catch { return false; }
-  });
-  useEffect(() => {
-    const check = () => {
-      try { setEodActive(!!localStorage.getItem('eventflow-pending-stop')); } catch {}
-    };
-    window.addEventListener('storage', check);
-    const id = window.setInterval(check, 1000);
-    return () => { window.removeEventListener('storage', check); window.clearInterval(id); };
-  }, []);
+  // EOD reconciliation now runs inside useWorkSession (mounted by
+  // GlobalActiveTimerBanner) and no longer persists a localStorage flag.
+  const eodActive = false;
 
   // Arrival prompt — same source-of-truth used by push-cron.
   // Pause polling while the dialog is open OR while end-of-day dialog is active.
