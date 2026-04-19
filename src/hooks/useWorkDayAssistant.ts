@@ -103,17 +103,8 @@ export interface WorkDayAssistantInput {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Internal helpers
+// Internal helpers (CachedTarget type lives in workDayDecisions.ts)
 // ─────────────────────────────────────────────────────────────────────
-
-interface CachedTarget {
-  key: string;
-  name: string;
-  lat: number;
-  lng: number;
-  radius: number;
-  type: 'fixed' | 'project' | 'booking';
-}
 
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
 
