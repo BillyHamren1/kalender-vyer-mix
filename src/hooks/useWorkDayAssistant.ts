@@ -100,6 +100,13 @@ export interface WorkDayAssistantInput {
    * assistant from generating noise during legitimate movement.
    */
   isTravelling?: boolean;
+  /**
+   * When true, suppress NEW prompts (e.g. arrival dialog, stale-timer dialog,
+   * travel-completed dialog or end-of-day flow is already showing). Existing
+   * decision stays surfaced — we just don't elbow our way in front of another
+   * critical prompt. Mobile layout passes this in.
+   */
+  isQuiet?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -140,7 +147,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   /** Tell the assistant the user has handled this decision (clears it + cooldown). */
   acknowledge: () => void;
 } {
-  const { enabled, latestPosition, activeTimers, isTravelling = false } = input;
+  const { enabled, latestPosition, activeTimers, isTravelling = false, isQuiet = false } = input;
 
   // Outside-geofence trackers per timer key — when the user crossed out,
   // measured against the last cached target list.
@@ -262,6 +269,8 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
     const evaluate = () => {
       // If a decision is already surfaced, don't replace it — UI handles it.
       if (decision) return;
+      // Suppress new prompts while another critical dialog/flow is open.
+      if (isQuiet) return;
 
       const now = Date.now();
 
@@ -341,6 +350,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
     pendingAnomalies,
     lastExit,
     isTravelling,
+    isQuiet,
   ]);
 
   const acknowledge = () => {

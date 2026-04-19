@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
 import { ActiveTimer } from '@/hooks/useGeofencing';
-import { useWorkSession } from '@/hooks/useWorkSession';
+import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { buildStopTarget, getTimerRole } from '@/lib/timerRole';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -230,25 +229,36 @@ const MobileTimeReport = () => {
                 isLocation={!!timer.locationId}
                 onStop={async () => {
                   // UNIFIED ENGINE — same code path for booking, project,
-                  // and location timers. Role classification (presence vs
-                  // reportable) lives in src/lib/timerRole.ts so this stop
-                  // surface, the GlobalActiveTimerBanner, and the location
-                  // detail screen all behave identically.
-                  const target = buildStopTarget(key, timer);
-                  const role = getTimerRole(timer);
+                  // and location timers. The hook handles break decision,
+                  // save-then-stop ordering, and pure-location presence.
+                  const target: WorkTarget = timer.locationId
+                    ? {
+                        kind: 'location',
+                        locationId: timer.locationId,
+                        name: timer.locationName || timer.client,
+                        // Location timers from the time-report screen are
+                        // pure presence — no time_report. Set createsTimeReport
+                        // = true here if you ever need to log work time.
+                        createsTimeReport: false,
+                      }
+                    : timer.largeProjectId
+                      ? {
+                          kind: 'project',
+                          largeProjectId: timer.largeProjectId,
+                          name: timer.client,
+                        }
+                      : { kind: 'booking', bookingId: key, client: timer.client };
+
                   try {
                     const res = await stopSession(target);
                     if (res.cancelled) return;
                     if (res.saved) {
-                      if (role.kind === 'location' && role.presenceOnly) {
-                        toast.success('Aktivitet avslutad');
-                      } else {
-                        toast.success(`Tidrapport sparad: ${res.hoursWorked}h`);
-                      }
+                      if (target.kind === 'location') toast.success('Timer stopped');
+                      else toast.success(`Time report saved: ${res.hoursWorked}h`);
                       fetchReports();
                     }
                   } catch (err: any) {
-                    toast.error(err?.message || 'Kunde inte avsluta aktiviteten');
+                    toast.error(err?.message || 'Could not stop timer');
                   }
                 }}
               />

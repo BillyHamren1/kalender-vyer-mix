@@ -52,7 +52,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
-  const { stopSession, endDay, dialogs: workSessionDialogs } = useWorkSession(
+  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(
     bookings,
     staff?.id,
   );
@@ -267,30 +267,19 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto" disabled={submitting}>
+              <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
                 Inte än
               </Button>
               <Button
-                onClick={async () => {
-                  // Run the SAME endDay verb the banner button uses, so the
-                  // user's path is identical regardless of where they confirm.
-                  setSubmitting(true);
-                  try {
-                    const res = await endDay();
-                    if (res.cancelled) {
-                      // user backed out of break dialog mid-flow — keep the
-                      // assistant prompt closed so we don't loop.
-                    }
-                    // EndOfDayStopDialog (mounted via workSessionDialogs)
-                    // handles its own confirmation toast.
-                  } catch (err: any) {
-                    toast.error(err?.message || 'Kunde inte avsluta dagen');
-                  } finally {
-                    setSubmitting(false);
-                    onAcknowledge();
-                  }
+                onClick={() => {
+                  // Trigga EOD direkt via globalt event som banner lyssnar på.
+                  // Banner äger stop+EOD-flödet — vi duplicerar det inte här.
+                  navigate('/m');
+                  window.dispatchEvent(new CustomEvent('request-end-day', {
+                    detail: { source: 'assistant_last_workplace_for_day' },
+                  }));
+                  onAcknowledge();
                 }}
-                disabled={submitting}
                 className="w-full sm:w-auto"
               >
                 Avsluta dagen
