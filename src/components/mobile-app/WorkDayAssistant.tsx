@@ -52,7 +52,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
-  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(
+  const { stopSession, endDay, dialogs: workSessionDialogs } = useWorkSession(
     bookings,
     staff?.id,
   );
