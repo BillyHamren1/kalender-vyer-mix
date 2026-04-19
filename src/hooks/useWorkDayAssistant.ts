@@ -207,7 +207,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   /** Tell the assistant the user has handled this decision (clears it + cooldown). */
   acknowledge: () => void;
 } {
-  const { enabled, latestPosition, activeTimers } = input;
+  const { enabled, latestPosition, activeTimers, isTravelling = false } = input;
 
   // Outside-geofence trackers per timer key — when the user crossed out,
   // measured against the last cached target list.
@@ -374,7 +374,12 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
       // ── 3) Activity-leave (per active timer) ──
       // Only fires if user is FAR (≥300 m outside the radius) AND has been
       // outside for ≥10 min — chosen explicitly to keep prompt count low.
-      if (latestPosition && timersList.length > 0) {
+      //
+      // SUPPRESSED while a travel session is active: being far from a
+      // worksite is naturally explained by travel, so we don't pile a
+      // "verkar du lämnat aktiviteten?" prompt on top of the travel banner.
+      // The travel log itself is the semantic record of that movement.
+      if (latestPosition && timersList.length > 0 && !isTravelling) {
         const targets = readCachedTargets();
         for (const { key, timer } of timersList) {
           const target = targets.find((t) => t.key === key);
@@ -416,6 +421,10 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
             outsideSinceRef.current.delete(key);
           }
         }
+      } else if (isTravelling) {
+        // Reset all outside-since trackers while travelling so we don't
+        // pop a leave-prompt the moment the travel banner clears.
+        outsideSinceRef.current.clear();
       }
 
       // ── 4) Last workplace for the day ──
