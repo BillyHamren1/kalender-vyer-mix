@@ -53,6 +53,13 @@ FRONTEND_TESTS=(
   # Start-härdning (PROMPT 2): payload-dedupe per target-typ, offline-survival
   # av payload-fält över crash, logout/login-cleanup för cross-user-säkerhet.
   "src/test/timeReportingStartHardening.contract.test.ts"
+  # Aktiv-tid-härdning (PROMPT 3): pendingSync-recovery + storage-filter +
+  # sync-queue-idempotens.
+  "src/test/activeSessionHardening.contract.test.ts"
+  # Avsluta-dag-härdning (PROMPT 4): save-then-stop-ordning, server-side
+  # idempotency, EOD-dialog stays open vid save-fail, sekventiell EOD-
+  # processing.
+  "src/test/endDayHardening.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
