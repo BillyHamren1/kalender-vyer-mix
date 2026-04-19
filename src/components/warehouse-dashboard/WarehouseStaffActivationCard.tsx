@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
+import StaffScheduleView from './StaffScheduleView';
 
 const StaffDetailDialog = ({
   staff,
@@ -52,66 +53,78 @@ const StaffDetailDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-base">{staff.name}</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-base">{staff.name}</DialogTitle>
+            {staff.isCurrentlyActive ? (
+              <Badge variant="outline" className="border-warehouse/40 text-warehouse">
+                {staff.activation?.activation_type === 'permanent'
+                  ? 'Aktiv – tillsvidare'
+                  : `Aktiv t.o.m. ${staff.activation?.end_date}`}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">Inaktiv</Badge>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
+          {/* Activation controls */}
           {staff.isCurrentlyActive ? (
-            <>
-              <div className="text-sm text-muted-foreground">
-                {staff.activation?.activation_type === 'permanent'
-                  ? 'Aktiverad tillsvidare'
-                  : `Aktiverad t.o.m. ${staff.activation?.end_date}`}
-              </div>
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={handleDeactivate}
-              >
-                Avaktivera
-              </Button>
-            </>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleDeactivate}
+            >
+              Avaktivera
+            </Button>
           ) : (
-            <>
-              <Button className="w-full" onClick={handleActivatePermanent}>
+            <div className="space-y-2">
+              <Button size="sm" className="w-full bg-warehouse hover:bg-warehouse-hover text-white" onClick={handleActivatePermanent}>
                 Aktivera tillsvidare
               </Button>
-
-              <div className="border-t pt-3 space-y-3">
-                <p className="text-sm font-medium">Aktivera för period</p>
+              <div className="border rounded-md p-2 space-y-2">
+                <p className="text-xs font-medium">Aktivera för period</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs">Startdatum</Label>
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Från</Label>
                     <Input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-7 text-xs"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Slutdatum</Label>
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Till</Label>
                     <Input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-7 text-xs"
                     />
                   </div>
                 </div>
                 <Button
                   variant="outline"
-                  className="w-full"
+                  size="sm"
+                  className="w-full h-7 text-xs"
                   onClick={handleActivateTemporary}
                   disabled={!endDate}
                 >
                   Aktivera för period
                 </Button>
               </div>
-            </>
+            </div>
           )}
+
+          {/* Schedule */}
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-foreground tracking-wide mb-2">Schema</p>
+            <StaffScheduleView staffId={staff.id} staffName={staff.name} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
