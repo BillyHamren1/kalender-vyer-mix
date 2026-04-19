@@ -4,7 +4,7 @@
  *
  * One time-reporting engine, three target types.
  *
- * Architectural decision (Prompt 2):
+ * Architectural decision (Prompt 2 + robustness Phase 1):
  *   • Booking, large-project and location timers MUST share the same
  *     start/stop/break/anomaly logic.
  *   • The ONLY thing that differs per type is which target id the
@@ -15,11 +15,18 @@
  *     StopBreakDecisionDialog and require an explicit user choice.
  *   • Save-then-stop is the only sanctioned conversion of an active timer
  *     into a time_report.
+ *   • End-of-day context (custom end time, post-exit anomaly) is a first-
+ *     class option on stopSession — callers (EOD dialog, banner, request-
+ *     end-day handler) MUST NOT roll their own persistStop path.
  *
  * ---------------------------------------------------------------------
  * SHARED CORE (identical for all three types)
  *   • startSession()             — optimistic local + enqueue server start
- *   • stopSession()              — prompt for break, then save-or-skip-then-stop
+ *   • stopSession(target, opts?) — prompt for break (unless caller passes
+ *                                  an explicit choice), then save-or-skip-
+ *                                  then-stop. Optionally records an
+ *                                  end-of-day anomaly when caller supplies
+ *                                  endOfDayContext.
  *   • cancelPendingSession()     — drop a still-unsynced start
  *   • dialog rendering           — <StopBreakDecisionDialog />
  *
@@ -95,6 +102,33 @@ function shouldCreateTimeReport(target: WorkTarget): boolean {
   return true;
 }
 
+/**
+ * Build a WorkTarget from an existing ActiveTimer entry. Used by callers
+ * (banner, request-end-day handler) that hold a raw ActiveTimer rather
+ * than a typed target — keeps the per-type branch in ONE place.
+ */
+export function timerToTarget(key: string, timer: ActiveTimer): WorkTarget {
+  if (timer.largeProjectId) {
+    return {
+      kind: 'project',
+      largeProjectId: timer.largeProjectId,
+      name: timer.client,
+    };
+  }
+  if (timer.locationId) {
+    return {
+      kind: 'location',
+      locationId: timer.locationId,
+      name: timer.locationName || timer.client,
+      // Banner timers for fixed locations historically wrote a time_report
+      // (legacy persistStop did so unconditionally). Preserve that behaviour
+      // so we don't silently start dropping presence-as-work entries.
+      createsTimeReport: true,
+    };
+  }
+  return { kind: 'booking', bookingId: key, client: timer.client };
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Engine
 // ─────────────────────────────────────────────────────────────────────
@@ -105,6 +139,44 @@ export interface StartSessionOptions {
   /** Optional task this session is logged against. */
   taskId?: string;
   taskTitle?: string;
+}
+
+/**
+ * End-of-day context. Set when the user is closing a timer LATER than
+ * they actually left the workplace, so we both save the time report at
+ * the chosen end-time AND record what they did between the geofence exit
+ * and the chosen end-time as an anomaly for admin follow-up.
+ */
+export interface EndOfDayContext {
+  /** ISO when the user left the workplace (geofence exit). */
+  lastExitIso: string;
+  /** ISO timestamp the user picked as actual end time. */
+  endedAtIso: string;
+  /**
+   * Free-text describing what happened between lastExit and endedAt
+   * (e.g. "Hämtade material på Bauhaus"). Only set when user did NOT
+   * accept the suggested geofence-exit time.
+   */
+  workDescription?: string;
+}
+
+/**
+ * Lets a caller skip the break dialog by providing the choice up-front.
+ * Used by flows that already gathered the answer in their own UI (or
+ * legitimately know the pass is too short to need one).
+ */
+export type ExplicitBreakChoice =
+  | { kind: 'break'; breakHours: number }
+  | { kind: 'no_break' }
+  | { kind: 'anomaly'; note: string };
+
+export interface StopSessionOptions {
+  /** Override "now" as the stop time (used by EOD dialog). */
+  stopAtIso?: string;
+  /** Skip the dialog by passing an explicit decision. */
+  breakChoice?: ExplicitBreakChoice;
+  /** End-of-day post-exit context, see EndOfDayContext. */
+  endOfDayContext?: EndOfDayContext;
 }
 
 export interface StopSessionResult {
@@ -187,27 +259,34 @@ export function useWorkSession(
   /**
    * STOP — same for all three target types.
    *
-   *   1. Compute pass length.
-   *   2. If pass > prompt threshold → open StopBreakDecisionDialog and
-   *      WAIT for an explicit user decision (break / no_break / anomaly).
-   *      Short passes are saved with break = 0 directly (no dialog).
-   *   3. If the target produces a time_report (booking/project, and
-   *      location only when createsTimeReport=true): SAVE FIRST via the
+   *   1. Compute pass length using stopAtIso (default: now).
+   *   2. Determine break:
+   *        a) caller passed `breakChoice` → use it directly, no dialog
+   *        b) pass below threshold → break = 0, no dialog
+   *        c) otherwise → open StopBreakDecisionDialog and AWAIT a
+   *           decision (break / no_break / anomaly). User dismissal
+   *           returns { cancelled:true } and the timer stays alive.
+   *   3. If the target produces a time_report: SAVE FIRST via the
    *      hook's saveAndStopTimer. On failure → timer survives so the user
    *      can retry. NEVER clear local first.
    *   4. If the target does NOT produce a time_report (pure location
-   *      presence): just close the server entry via
-   *      stopLocationTimerWithoutReport. Same save-then-clear ordering.
-   *   5. If the user picked "anomaly", create an end-of-day anomaly so
-   *      admin can follow up — never silently fudge the numbers.
+   *      presence, createsTimeReport=false): just close the server entry.
+   *   5. Persist anomalies (best-effort, non-fatal):
+   *        • break-anomaly note → time_report_anomaly tagged to this report
+   *        • endOfDayContext.workDescription → end-of-day anomaly bridging
+   *          geofence-exit → user-stated end time (with best-effort GPS).
+   *   6. Close any leftover open anomalies.
    */
   const stopSession = useCallback(
-    async (target: WorkTarget): Promise<StopSessionResult> => {
+    async (
+      target: WorkTarget,
+      opts: StopSessionOptions = {},
+    ): Promise<StopSessionResult> => {
       const key = resolveTargetKey(target);
       const timer = activeTimers.get(key);
       if (!timer) return { saved: false };
 
-      const stopTime = new Date();
+      const stopTime = opts.stopAtIso ? new Date(opts.stopAtIso) : new Date();
       const startTimeDate = parseISO(timer.startTime);
       let totalHours =
         (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
@@ -223,7 +302,10 @@ export function useWorkSession(
       // STEP 2 — explicit break decision, no auto-deduct.
       let breakHours = 0;
       let anomalyNote: string | undefined;
-      if (shouldPromptForBreak(totalHours)) {
+      if (opts.breakChoice) {
+        if (opts.breakChoice.kind === 'break') breakHours = opts.breakChoice.breakHours;
+        else if (opts.breakChoice.kind === 'anomaly') anomalyNote = opts.breakChoice.note;
+      } else if (shouldPromptForBreak(totalHours)) {
         const decision = await breakDecision.ask({
           passHours: totalHours,
           context: contextLabel,
@@ -241,10 +323,11 @@ export function useWorkSession(
       );
 
       // STEP 3/4 — branch ONLY on whether a time_report should be created.
+      let savedReportId: string | undefined;
       try {
         if (shouldCreateTimeReport(target)) {
           const targetFields = resolveReportTargetFields(target);
-          await saveAndStopTimer(key, {
+          const stopped = await saveAndStopTimer(key, {
             ...targetFields,
             report_date: format(stopTime, 'yyyy-MM-dd'),
             start_time: format(startTimeDate, 'HH:mm'),
@@ -258,6 +341,7 @@ export function useWorkSession(
             }`,
             establishment_task_id: timer.establishmentTaskId,
           });
+          savedReportId = (stopped as any)?.serverEntryId;
         } else {
           await stopLocationTimerWithoutReport(key);
         }
@@ -267,7 +351,7 @@ export function useWorkSession(
         throw err;
       }
 
-      // STEP 5 — anomaly is best-effort; report is already saved.
+      // STEP 5a — break-as-anomaly (user picked "markera som avvikelse").
       if (anomalyNote) {
         try {
           const targetFields = resolveReportTargetFields(target);
@@ -279,11 +363,56 @@ export function useWorkSession(
               target.kind === 'location' ? target.locationId : undefined,
             booking_id: targetFields.booking_id,
             large_project_id: targetFields.large_project_id,
+            time_report_id: savedReportId,
           });
         } catch (err) {
-          console.warn('[WorkSession] anomaly persist failed (non-fatal):', err);
+          console.warn('[WorkSession] break-anomaly persist failed (non-fatal):', err);
         }
       }
+
+      // STEP 5b — end-of-day post-exit context. Captures what happened
+      // between the geofence exit and the user-stated end time.
+      if (opts.endOfDayContext?.workDescription) {
+        let lat: number | undefined;
+        let lng: number | undefined;
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) return reject(new Error('no geolocation'));
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000, maximumAge: 60000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch {
+          // Position is best-effort; anomaly is still useful without it
+        }
+
+        try {
+          const targetFields = resolveReportTargetFields(target);
+          await mobileApi.createEndOfDayAnomaly({
+            started_at: opts.endOfDayContext.lastExitIso,
+            ended_at: stopTime.toISOString(),
+            work_description: opts.endOfDayContext.workDescription,
+            end_location_lat: lat,
+            end_location_lng: lng,
+            location_id:
+              target.kind === 'location'
+                ? target.locationId
+                : timer.locationId || undefined,
+            booking_id: targetFields.booking_id,
+            large_project_id: targetFields.large_project_id,
+            time_report_id: savedReportId,
+          });
+        } catch (err) {
+          console.warn('[WorkSession] end-of-day anomaly persist failed (non-fatal):', err);
+        }
+      }
+
+      // STEP 6 — close leftover anomalies (best-effort).
+      mobileApi
+        .closeOpenAnomalies({ ended_at: stopTime.toISOString() })
+        .catch((err) => {
+          console.warn('[WorkSession] closeOpenAnomalies failed (non-fatal):', err);
+        });
 
       return { saved: true, hoursWorked };
     },
