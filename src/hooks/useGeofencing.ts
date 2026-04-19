@@ -610,6 +610,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         locationId,
         locationName,
         largeProjectId,
+        // Pure-location timers default to PRESENCE — see timerRole.ts.
+        // Booking and project timers stay reportable (presenceOnly=false).
+        presenceOnly: locationId ? true : false,
         pendingSync: true,
       });
       return next;
