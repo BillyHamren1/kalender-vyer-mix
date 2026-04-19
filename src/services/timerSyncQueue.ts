@@ -126,6 +126,18 @@ export function removeFromQueue(timerKey: string) {
   saveQueue(queue);
 }
 
+/**
+ * Wipe ALL pending timer-start jobs. Called on logout / user switch so
+ * the queue can never fire one user's pending start against another
+ * user's session token.
+ *
+ * SAFETY: this drops local intent only. Any start that already reached
+ * the server is unaffected and remains source-of-truth on the server.
+ */
+export function clearTimerSyncQueue() {
+  saveQueue([]);
+}
+
 let flushing = false;
 let flushTimeoutId: number | null = null;
 
