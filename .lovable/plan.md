@@ -1,32 +1,18 @@
 
+**Problem:** Personalen visar 10:00–16:00 men kalendern visar 08:00–14:00 för samma event.
 
-## Problem
-1. **Fel namn i team-väljaren**: `CustomEvent.tsx` använder `loadResourcesFromStorage()` (planeringsteam: Team 1–10 + Live) även för warehouse-händelser. Den ska använda warehouse-resurserna (Lager 1–10 + Transport).
-2. **Team-byte fungerar inte**: I `MoveEventDateDialog.handleMove` uppdateras endast `start_time`/`end_time` i `warehouse_calendar_events` — `resourceId` (kolumn `resource_id`) skrivs aldrig till databasen för warehouse-händelser.
+**Orsak:** I `useWarehouseStaffScheduleOverview.ts` används `event.start_time` direkt i en `Date(...)`-konvertering via UI:t (eller liknande lokal tolkning). Resten av kalendern använder UTC-tid (se `extractUTCTime` i `dateUtils`) — `calendar_events.start_time` lagras som UTC-ISO och kalendern renderar med `getUTCHours()`. När vi i schemaöversikten skickar rå `start_time`-sträng och formaterar med lokal tidzon (Europe/Stockholm = UTC+2 i april) blir det +2h skift → 08 blir 10.
 
-## Lösning
+**Verifiering jag behöver göra först:**
+1. Läs `WarehouseStaffActivationCard.tsx` för att se hur `startTime`/`endTime` formateras till "10:00–16:00".
+2. Bekräfta att andra kalendervyer använder UTC (de gör det enligt `TimeGrid.tsx` rad ~270 och `extractUTCTime`).
 
-### Fil 1: `src/components/Calendar/CustomEvent.tsx`
-- Importera `useWarehouseResources` från `@/hooks/useWarehouseResources`.
-- Härled `availableResources` baserat på om händelsen är warehouse (`isWarehouseEvent`):
-  - Warehouse → `teamResources` från `useWarehouseResources()` (Lager 1–10, Transport).
-  - Annars → behåll `loadResourcesFromStorage()` (Team 1–10).
-- Filtrera bort pseudo-resurser som inte ska vara giltiga drop-targets (t.ex. `warehouse-event` om det är "Transport"-raden, behåll lagerteam + transport).
+**Fix (1 fil, ev. 2):**
+- I `WarehouseStaffActivationCard.tsx`: byt lokal `format(new Date(startTime), 'HH:mm')` (eller motsvarande) till UTC-baserad formatering, t.ex. `extractUTCTime(startTime).slice(0,5)` från `@/utils/dateUtils`. Detta matchar hur kalendern renderar tider.
 
-### Fil 2: `src/components/Calendar/MoveEventDateDialog.tsx`
-- I warehouse-grenen (`isWarehouseEvent`): inkludera `resource_id: selectedResourceId` i update-payload när användaren har valt ett annat team.
-- Uppdatera även den optimistiska UI-uppdateringen (det görs redan via `selectedResourceId !== event.resourceId`, men kontrollera att raden faktiskt skriver det nya id:t på warehouse-events).
-- Säkerställ att toast-meddelandet "→ {teamName}" plockar rätt namn från `resources`-listan (kommer fungera när rätt resurser skickas in).
+Inga datamodeller eller hooks ändras. Endast presentationsformatering byts från lokal tid → UTC, så 08–14 visas konsekvent.
 
-## Tekniska detaljer
-- Tabellen `warehouse_calendar_events` har kolumnen `resource_id` (snake_case). Update-payloaden får alltså:
-  ```ts
-  { start_time, end_time, resource_id: selectedResourceId, manually_adjusted: true, has_source_changes: false }
-  ```
-  endast om `selectedResourceId && selectedResourceId !== event.resourceId`.
-- `useWarehouseResources` exporterar `teamResources` redan sorterad (lager-1…N, transport, warehouse-event sist). Vi använder den listan rakt av i selecten.
-
-## Resultat
-- Dialogen "Flytta eller kopiera händelse" i warehouse-kalendern visar **Lager 1, Lager 2, …, Transport** istället för Team 1, Team 2, …, Live.
-- Att välja ett annat lagerteam och klicka "Flytta" sparar nu det nya `resource_id` i `warehouse_calendar_events` och händelsen flyttas korrekt mellan lagerkolumnerna.
-
+**Plan:**
+1. Inspektera `WarehouseStaffActivationCard.tsx` för exakt formatkod.
+2. Ersätt lokal tidsformatering med `extractUTCTime` (samma helper som resten av kalendern).
+3. Be användaren bekräfta att tiderna nu matchar kalendern.
