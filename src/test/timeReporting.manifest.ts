@@ -77,6 +77,11 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // End-of-day-stop-dialogens regelset (tid-rullning, beskrivningskrav).
     'src/test/endOfDayStop.contract.test.ts',
 
+    // Recovery-kontrakt: dedupe-start, retry på nätverksfel, EOD pendingStop
+    // survival över app-omstart. Låser in robusthetsgarantierna som Fas 1+2
+    // inte får bryta.
+    'src/test/timeReportingRecovery.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],

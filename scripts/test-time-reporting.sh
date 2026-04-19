@@ -47,6 +47,9 @@ FRONTEND_TESTS=(
   # End-of-day-stop-dialogens regelset (suggested vs custom, natt-rullning,
   # beskrivningskrav).
   "src/test/endOfDayStop.contract.test.ts"
+  # Recovery-kontrakt: dedupe-start, retry på nätverksfel, EOD pendingStop
+  # survival. Låser in robusthetsgarantierna inför Fas 1+2.
+  "src/test/timeReportingRecovery.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
