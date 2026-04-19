@@ -10,6 +10,7 @@ import EventHoverCard from './EventHoverCard';
 // QuickTimeEditPopover removed from warehouse events — single-click no longer
 // opens a time picker (felt accidental). Edits go via double-click / context menu.
 import MoveEventDateDialog from './MoveEventDateDialog';
+import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
 interface CustomEventProps {
@@ -44,7 +45,22 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Dialog state for date move — LEGACY: still uses local state,
   // but now gated by editController for conflict prevention
   const [showDateDialog, setShowDateDialog] = useState(false);
-  const availableResources = useMemo(() => loadResourcesFromStorage(), []);
+  const { teamResources: warehouseTeamResources } = useWarehouseResources();
+
+  // Check if this is a warehouse event (covers all warehouse calendar resources)
+  const isWarehouseEvent =
+    event.resourceId === 'warehouse' ||
+    event.resourceId === 'warehouse-event' ||
+    event.resourceId?.startsWith('lager-');
+
+  // Use warehouse resources (Lager 1–N + Transport) for warehouse events,
+  // otherwise the regular planning resources (Team 1–N).
+  const availableResources = useMemo(
+    () => isWarehouseEvent
+      ? warehouseTeamResources.filter(r => r.id !== 'warehouse-event')
+      : loadResourcesFromStorage(),
+    [isWarehouseEvent, warehouseTeamResources]
+  );
 
   const eventColor = getEventColor(event.eventType);
 
@@ -92,12 +108,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [event.id]);
 
-  // Check if this is a warehouse event (covers all warehouse calendar resources)
-  const isWarehouseEvent =
-    event.resourceId === 'warehouse' ||
-    event.resourceId === 'warehouse-event' ||
-    event.resourceId?.startsWith('lager-');
-  
   // Check if this is a warehouse event with source changes
   const hasSourceChanges = event.extendedProps?.has_source_changes === true && 
                            event.extendedProps?.manually_adjusted !== true;

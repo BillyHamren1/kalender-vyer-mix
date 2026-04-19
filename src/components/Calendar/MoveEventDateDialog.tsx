@@ -98,14 +98,18 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const isWarehouseEvent = !!event.eventType && WAREHOUSE_TYPES.includes(event.eventType);
 
       if (isWarehouseEvent) {
+        const whPayload: any = {
+          start_time: newStartISO,
+          end_time: newEndISO,
+          manually_adjusted: true,
+          has_source_changes: false,
+        };
+        if (selectedResourceId && selectedResourceId !== event.resourceId) {
+          whPayload.resource_id = selectedResourceId;
+        }
         const { error: whErr } = await supabase
           .from('warehouse_calendar_events')
-          .update({
-            start_time: newStartISO,
-            end_time: newEndISO,
-            manually_adjusted: true,
-            has_source_changes: false,
-          })
+          .update(whPayload)
           .eq('id', event.id);
         if (whErr) throw whErr;
       } else {
