@@ -116,8 +116,18 @@ const MobileJobs = () => {
     return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
   };
 
-  // Check if any timer is already running
-  const hasAnyTimer = activeTimers.size > 0;
+  // Rule-based concurrency state. The old `hasAnyTimer` hard block has
+  // been replaced by `evaluateStartConflict()` — see src/lib/timerConcurrency.ts
+  // for the matrix. Compatible parallel timers (e.g. Lager presence + active
+  // booking) start silently; incompatible starts open a switch dialog.
+  const [pendingStart, setPendingStart] = useState<{
+    target: WorkTarget;
+    label: string;
+    doStart: () => void;
+  } | null>(null);
+  const [conflictEval, setConflictEval] = useState<
+    Extract<StartEvaluation, { status: 'switch' }> | null
+  >(null);
 
   // Distance warning state
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
@@ -139,6 +149,76 @@ const MobileJobs = () => {
     }
   };
 
+  /**
+   * Try to start a new timer. Pure rule-based concurrency:
+   *   • allow     → run distance check + start immediately
+   *   • duplicate → silent (button shouldn't be visible anyway)
+   *   • switch    → open TimerConflictDialog so the user picks
+   */
+  const requestStart = (
+    target: WorkTarget,
+    label: string,
+    coords: { lat: number; lng: number } | null,
+    doStart: () => void,
+  ) => {
+    const evalResult = evaluateStartConflict(target, activeTimers);
+    if (evalResult.status === 'duplicate') return;
+
+    const wrappedStart = () => checkDistanceAndStart(coords, label, doStart);
+
+    if (evalResult.status === 'allow') {
+      wrappedStart();
+      return;
+    }
+    // switch — keep the requested start in memory and ask the user.
+    setPendingStart({ target, label, doStart: wrappedStart });
+    setConflictEval(evalResult);
+  };
+
+  const cancelConflict = () => {
+    setPendingStart(null);
+    setConflictEval(null);
+  };
+
+  /**
+   * The user picked "Stoppa & byt" in the conflict dialog. We resolve the
+   * conflicting timer through the unified work-session engine so the same
+   * save-then-stop / break-prompt rules apply, then start the new one.
+   */
+  const confirmSwitch = async () => {
+    if (!pendingStart || !conflictEval) return;
+    const { conflict } = conflictEval;
+    const { doStart } = pendingStart;
+    cancelConflict();
+
+    // Build a WorkTarget for the conflicting timer so stopSession can
+    // dispatch correctly (booking / project / location).
+    const existing = activeTimers.get(conflict.key);
+    if (!existing) {
+      doStart();
+      return;
+    }
+    const stopTarget: WorkTarget = existing.locationId
+      ? {
+          kind: 'location',
+          locationId: existing.locationId,
+          name: existing.locationName || existing.client,
+          createsTimeReport: false,
+        }
+      : existing.largeProjectId
+        ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
+        : { kind: 'booking', bookingId: conflict.key, client: existing.client };
+
+    try {
+      const res = await stopSession(stopTarget);
+      if (res.cancelled) return; // user backed out of the break dialog
+    } catch (err: any) {
+      toast.error(err?.message || t('timer.alreadyActive'));
+      return;
+    }
+    doStart();
+  };
+
   // Timer toggle for standalone bookings.
   // STOP path: never clears local timer here — navigates user to /m/report
   // where save-then-stop is enforced. The timer card stays visible until
@@ -148,19 +228,16 @@ const MobileJobs = () => {
     if (activeTimers.has(booking.id)) {
       toast.success(t('timer.stoppedCreateReport'));
       navigate('/m/report');
-    } else {
-      if (hasAnyTimer) {
-        toast.error(t('timer.alreadyActive'));
-        return;
-      }
-      const coords = booking.delivery_latitude && booking.delivery_longitude
-        ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
-        : null;
-      checkDistanceAndStart(coords, booking.client, () => {
-        startTimer(booking.id, booking.client, false);
-        toast.success(`${t('timer.started')}: ${booking.client}`);
-      });
+      return;
     }
+    const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
+    const coords = booking.delivery_latitude && booking.delivery_longitude
+      ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
+      : null;
+    requestStart(target, booking.client, coords, () => {
+      startTimer(booking.id, booking.client, false);
+      toast.success(`${t('timer.started')}: ${booking.client}`);
+    });
   };
 
   // Timer toggle for projects — no coords readily available, start directly
@@ -170,21 +247,18 @@ const MobileJobs = () => {
     if (activeTimers.has(projectKey)) {
       toast.success(t('timer.stoppedCreateReport'));
       navigate('/m/report');
-    } else {
-      if (hasAnyTimer) {
-        toast.error(t('timer.alreadyActive'));
-        return;
-      }
-      // Use first booking with coordinates as project location
-      const withCoords = entries.find(e => e.booking.delivery_latitude && e.booking.delivery_longitude);
-      const coords = withCoords
-        ? { lat: withCoords.booking.delivery_latitude!, lng: withCoords.booking.delivery_longitude! }
-        : null;
-      checkDistanceAndStart(coords, name, () => {
-        startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
-        toast.success(`${t('timer.started')}: ${name}`);
-      });
+      return;
     }
+    const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
+    // Use first booking with coordinates as project location
+    const withCoords = entries.find(e => e.booking.delivery_latitude && e.booking.delivery_longitude);
+    const coords = withCoords
+      ? { lat: withCoords.booking.delivery_latitude!, lng: withCoords.booking.delivery_longitude! }
+      : null;
+    requestStart(target, name, coords, () => {
+      startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
+      toast.success(`${t('timer.started')}: ${name}`);
+    });
   };
 
   // Timer toggle for fixed locations (e.g. Lager)
@@ -194,17 +268,19 @@ const MobileJobs = () => {
     if (activeTimers.has(locKey)) {
       toast.success(t('timer.stoppedCreateReport'));
       navigate('/m/report');
-    } else {
-      if (hasAnyTimer) {
-        toast.error(t('timer.alreadyActive'));
-        return;
-      }
-      const coords = loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : null;
-      checkDistanceAndStart(coords, loc.name, () => {
-        startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
-        toast.success(`${t('timer.started')}: ${loc.name}`);
-      });
+      return;
     }
+    const target: WorkTarget = {
+      kind: 'location',
+      locationId: loc.id,
+      name: loc.name,
+      createsTimeReport: false,
+    };
+    const coords = loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : null;
+    requestStart(target, loc.name, coords, () => {
+      startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
+      toast.success(`${t('timer.started')}: ${loc.name}`);
+    });
   };
 
   // Elapsed time display
