@@ -399,9 +399,11 @@ export function useWorkSession(
       const flagDate = result.endedAtIso.slice(0, 10);
       try {
         await mobileApi.createWorkdayFlag({
-          flag_type: result.usedSuggestedExit
-            ? 'end_of_day_confirmed'
-            : 'end_of_day_overridden',
+          // 'unclear_day_end' is the existing vocabulary entry that
+          // covers EOD reconciliation outcomes. The title/severity tell
+          // admin whether the user accepted the suggested exit time or
+          // overrode it; we don't need a separate flag_type for that.
+          flag_type: 'unclear_day_end',
           flag_date: flagDate,
           title: result.usedSuggestedExit
             ? 'Dagen avslutad — exit-tid bekräftad'
