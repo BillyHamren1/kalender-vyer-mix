@@ -89,6 +89,12 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [staff?.id]);
 
   const login = useCallback(async (email: string, password: string) => {
+    // ROBUSTHET: defensive cleanup innan vi byter user. Om förra sessionen
+    // lämnade kvar timers eller pending starts i localStorage får de absolut
+    // inte attribuera sig till den nya användaren.
+    clearTimerSyncQueue();
+    clearLocalTimerSession();
+
     const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
@@ -104,6 +110,11 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const { unregisterPushNotifications } = await import('@/services/pushNotificationService');
       unregisterPushNotifications();
     }
+    // ROBUSTHET: töm timer-state INNAN vi rensar auth, så att en pågående
+    // sync-flush mot servern inte hinner skapa en orphaned entry tagged till
+    // den utloggande användaren med en stale token.
+    clearTimerSyncQueue();
+    clearLocalTimerSession();
     clearAuth();
     setStaff(null);
   }, []);
