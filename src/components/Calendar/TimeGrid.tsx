@@ -520,8 +520,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 2,
-                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
-                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
+                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
                 ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {})
               }}
               onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
@@ -556,8 +556,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 3,
-                width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
-                minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`
+                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
               }}
             >
               <div className="staff-header-assignment-area">
@@ -623,8 +623,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
                   gridColumn: index + 2,
-                  width: fullWidth ? 'auto' : `${getTeamColumnWidth(resource.id)}px`,
-                  minWidth: fullWidth ? '120px' : `${getTeamColumnWidth(resource.id)}px`,
+                  width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                  minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
                   position: 'relative'
                 }}
               >
@@ -647,7 +647,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                         event={event}
                         position={position}
                         overlapLayout={overlapMap.get(event.id)}
-                        teamColumnWidth={getTeamColumnWidth(resource.id)}
+                        teamColumnWidth={teamColumnWidth}
                         onEventClick={handleBookingEventClick}
                         onEventResize={onEventResize}
                         readOnly={readOnly}
