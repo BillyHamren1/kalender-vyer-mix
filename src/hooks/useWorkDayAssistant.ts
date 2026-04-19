@@ -144,6 +144,20 @@ export interface WorkDayAssistantInput {
   latestPosition: GpsPosition | null;
   /** Active timers from useGeofencing — read-only here. */
   activeTimers: Map<string, ActiveTimer>;
+  /**
+   * Whether the user is currently in an active travel session
+   * (useTravelDetection.travelState.isMoving).
+   *
+   * This is used as an INTERPRETIVE SIGNAL to suppress the
+   * `activity_leave` decision: if the user is far from a worksite *and*
+   * is currently travelling, the geofence-exit is naturally explained by
+   * travel — we don't need to ask "verkar du lämnat aktiviteten?".
+   *
+   * Travel logs themselves remain semantically separate from time
+   * reports. This flag does NOT change pay logic; it only prevents the
+   * assistant from generating noise during legitimate movement.
+   */
+  isTravelling?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────
