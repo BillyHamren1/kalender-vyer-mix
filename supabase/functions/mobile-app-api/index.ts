@@ -354,6 +354,13 @@ Deno.serve(async (req) => {
         return await handleClassifyTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
+      // ── workday_flags (PROMPT 6 — anomaly model v2) ──
+      case 'create_workday_flag':
+        return await handleCreateWorkdayFlag(supabase, staffId, data, organizationId)
+      case 'list_workday_flags':
+        return await handleListWorkdayFlags(supabase, staffId, data, organizationId)
+      case 'resolve_workday_flag':
+        return await handleResolveWorkdayFlag(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
