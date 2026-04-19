@@ -82,6 +82,11 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // inte får bryta.
     'src/test/timeReportingRecovery.contract.test.ts',
 
+    // Aktiv-tid hardening: stuck pendingSync rensas, storage-event-filter,
+    // idempotent flush. Säkrar att en startad session inte fastnar i
+    // "Synkroniserar…" eller hamnar i spök/dubbelt state vid reload.
+    'src/test/activeSessionHardening.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],

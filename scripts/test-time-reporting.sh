@@ -50,6 +50,9 @@ FRONTEND_TESTS=(
   # Recovery-kontrakt: dedupe-start, retry på nätverksfel, EOD pendingStop
   # survival. Låser in robusthetsgarantierna inför Fas 1+2.
   "src/test/timeReportingRecovery.contract.test.ts"
+  # Aktiv-tid-hardening: stuck pendingSync, storage-event-filter, idempotent
+  # cleanup. Säkrar att en startad session förblir stabil.
+  "src/test/activeSessionHardening.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
