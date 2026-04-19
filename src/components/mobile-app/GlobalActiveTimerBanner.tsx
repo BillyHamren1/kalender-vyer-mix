@@ -5,27 +5,20 @@
  * Floating list of active timers shown on every mobile route except
  * `/m/report` (where the dedicated cards already do the same job).
  *
- * Architectural decision (Prompt 2):
+ * Two stop verbs side by side (Prompt 3):
  *
- *   This banner is just another STOP SURFACE. It MUST go through the
- *   unified work-session engine — `useWorkSession.stopSession()` — for
- *   exactly the same break-prompt + save-then-stop + presence handling
- *   as the time-report page and location detail. Stopping the same
- *   timer from the banner, the report page, or the location screen now
- *   produces an identical outcome.
+ *   • per row → "Avsluta aktivitet"  (calls stopSession on that timer)
+ *   • footer  → "Avsluta dagen"      (calls endDay — stops every timer
+ *                                     and triggers EOD reconciliation)
  *
- *   The legacy implementation called `mobileApi.createTimeReport()`
- *   directly with `key.startsWith('project-')` as the proxy for
- *   "is this a location?". That misclassified location timers
- *   (`location-…` keys) as bookings and silently produced bogus
- *   time_reports. That whole code path is gone.
- *
- *   Role classification (presence vs reportable) is now done in ONE
- *   place — `src/lib/timerRole.ts` — and re-used everywhere.
+ * Both verbs go through the unified `useWorkSession` engine so the
+ * break-prompt + save-then-stop + presence handling are identical no
+ * matter which surface the user touches. Role classification (presence
+ * vs reportable) lives in `src/lib/timerRole.ts`.
  */
 import React, { useState, useEffect } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2 } from 'lucide-react';
+import { Square, Building2, MoonStar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
@@ -39,8 +32,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const location = useLocation();
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, stopSession, endDay, dialogs } = useWorkSession(bookings, staff?.id);
   const [, setTick] = useState(0);
+  const [endingDay, setEndingDay] = useState(false);
 
   // 1Hz tick so the elapsed counters stay live. activeTimers itself
   // updates via the engine — we don't poll localStorage anymore.
@@ -50,23 +44,40 @@ const GlobalActiveTimerBanner: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeTimers.size]);
 
-  const handleStop = async (key: string, timer: ActiveTimer) => {
+  const handleStopActivity = async (key: string, timer: ActiveTimer) => {
     const target = buildStopTarget(key, timer);
     const role = getTimerRole(timer);
     try {
       const res = await stopSession(target);
       if (res.cancelled) return;
       if (res.saved) {
-        // Same UX language as the time-report screen so users learn
-        // one model, not three.
         if (role.kind === 'location' && role.presenceOnly) {
-          toast.success('Timer stopped');
+          toast.success('Aktivitet avslutad');
         } else {
-          toast.success(`Time report saved: ${res.hoursWorked}h`);
+          toast.success(`Tidrapport sparad: ${res.hoursWorked}h`);
         }
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Could not stop timer');
+      toast.error(err?.message || 'Kunde inte avsluta aktiviteten');
+    }
+  };
+
+  const handleEndDay = async () => {
+    if (endingDay) return;
+    setEndingDay(true);
+    try {
+      const res = await endDay();
+      if (res.cancelled) return;
+      if (!res.eodPromptShown && res.stoppedCount === 0) {
+        toast.message('Inga aktiva timers — dagen är redan avslutad');
+      } else if (!res.eodPromptShown) {
+        toast.success(`Dagen avslutad — ${res.stoppedCount} aktivitet${res.stoppedCount === 1 ? '' : 'er'} stoppad${res.stoppedCount === 1 ? '' : 'e'}`);
+      }
+      // If eodPromptShown=true, EndOfDayStopDialog handles its own toast.
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte avsluta dagen');
+    } finally {
+      setEndingDay(false);
     }
   };
 
@@ -77,8 +88,17 @@ const GlobalActiveTimerBanner: React.FC = () => {
       {activeTimers.size > 0 && (
         <div className="px-5 pt-3 space-y-2">
           {Array.from(activeTimers.entries()).map(([key, timer]) => (
-            <TimerRow key={key} timerKey={key} timer={timer} onStop={handleStop} />
+            <TimerRow key={key} timerKey={key} timer={timer} onStop={handleStopActivity} />
           ))}
+          <Button
+            variant="outline"
+            onClick={handleEndDay}
+            disabled={endingDay}
+            className="w-full rounded-xl h-10 gap-2 text-sm font-semibold border-primary/30 text-primary hover:bg-primary/10"
+          >
+            {endingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoonStar className="w-4 h-4" />}
+            Avsluta dagen
+          </Button>
         </div>
       )}
       {dialogs}
@@ -106,9 +126,9 @@ const TimerRow: React.FC<{
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Started {format(parseISO(timer.startTime), 'HH:mm')}
+          Startad {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
-          {isLocation && role.presenceOnly && ' · presence'}
+          {isLocation && role.presenceOnly && ' · närvaro'}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
@@ -121,7 +141,7 @@ const TimerRow: React.FC<{
         onClick={() => onStop(timerKey, timer)}
       >
         <Square className="w-3 h-3" />
-        Stop
+        Avsluta
       </Button>
     </div>
   );
