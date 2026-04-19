@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { Check, ChevronDown, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createInternalWarehouseTask } from "@/services/warehouseProjectService";
@@ -27,6 +35,7 @@ import {
   WAREHOUSE_TASK_CATEGORY_LABELS,
   WarehouseTaskCategory,
 } from "@/types/warehouseProject";
+import { cn } from "@/lib/utils";
 
 interface CreateInternalTaskDialogProps {
   open: boolean;
@@ -56,12 +65,13 @@ export default function CreateInternalTaskDialog({
   const today = format(new Date(), "yyyy-MM-dd");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>("none");
+  const [assignedIds, setAssignedIds] = useState<string[]>([]);
   const [category, setCategory] = useState<string>("none");
   const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(today);
   const [startTime, setStartTime] = useState<string>("08:00");
   const [endTime, setEndTime] = useState<string>("11:00");
+  const [staffPickerOpen, setStaffPickerOpen] = useState(false);
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff-members-list"],
@@ -81,7 +91,7 @@ export default function CreateInternalTaskDialog({
       const t = format(new Date(), "yyyy-MM-dd");
       setTitle("");
       setDescription("");
-      setAssignedTo("none");
+      setAssignedIds([]);
       setCategory("none");
       setStartDate(t);
       setEndDate(t);
@@ -90,12 +100,22 @@ export default function CreateInternalTaskDialog({
     }
   }, [open]);
 
+  const toggleAssignee = (id: string) => {
+    setAssignedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const removeAssignee = (id: string) => {
+    setAssignedIds((prev) => prev.filter((x) => x !== id));
+  };
+
   const createMutation = useMutation({
     mutationFn: async () =>
       createInternalWarehouseTask({
         title: title.trim(),
         description: description.trim() || null,
-        assigned_to: assignedTo !== "none" ? assignedTo : null,
+        assigned_to_ids: assignedIds.length > 0 ? assignedIds : null,
         category: category !== "none" ? category : null,
         start_date: `${startDate}T${startTime}:00`,
         end_date: `${endDate || startDate}T${endTime}:00`,
@@ -136,10 +156,7 @@ export default function CreateInternalTaskDialog({
     createMutation.mutate();
   };
 
-  const assignedStaffName =
-    assignedTo !== "none"
-      ? staff.find((s) => s.id === assignedTo)?.name
-      : null;
+  const selectedStaff = staff.filter((s) => assignedIds.includes(s.id));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,9 +165,8 @@ export default function CreateInternalTaskDialog({
           <DialogTitle>Skapa lageruppgift</DialogTitle>
           <DialogDescription>
             Skapas på projektet <strong>Lager</strong> och placeras direkt i
-            lagerkalendern. Om du väljer ansvarig läggs uppgiften i samma
-            lagerteam som personen är planerad i — annars i nästa lediga
-            lagerteam.
+            lagerkalendern. Tilldela en eller flera personer — varje person
+            hamnar i sitt redan planerade lagerteam (eller nästa lediga).
           </DialogDescription>
         </DialogHeader>
 
@@ -177,40 +193,101 @@ export default function CreateInternalTaskDialog({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Kategori</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj kategori..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ingen kategori</SelectItem>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {WAREHOUSE_TASK_CATEGORY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Tilldela personal</Label>
+            <Popover open={staffPickerOpen} onOpenChange={setStaffPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                >
+                  <span className="text-muted-foreground">
+                    {assignedIds.length === 0
+                      ? "Välj en eller flera..."
+                      : `${assignedIds.length} ${assignedIds.length === 1 ? "person vald" : "personer valda"}`}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <ScrollArea className="max-h-64">
+                  <div className="p-1">
+                    {staff.length === 0 && (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Ingen aktiv personal
+                      </div>
+                    )}
+                    {staff.map((s) => {
+                      const checked = assignedIds.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleAssignee(s.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            checked && "bg-accent/40"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-4 w-4 items-center justify-center rounded-sm border",
+                              checked
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-input"
+                            )}
+                          >
+                            {checked && <Check className="h-3 w-3" />}
+                          </div>
+                          <span className="flex-1 text-left">{s.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
 
-            <div className="space-y-2">
-              <Label>Ansvarig</Label>
-              <Select value={assignedTo} onValueChange={setAssignedTo}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj ansvarig..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ingen vald</SelectItem>
-                  {staff.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {selectedStaff.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedStaff.map((s) => (
+                  <Badge
+                    key={s.id}
+                    variant="secondary"
+                    className="gap-1 pr-1"
+                  >
+                    {s.name}
+                    <button
+                      type="button"
+                      onClick={() => removeAssignee(s.id)}
+                      className="ml-0.5 rounded-sm hover:bg-background/50 p-0.5"
+                      aria-label={`Ta bort ${s.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Kategori</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj kategori..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ingen kategori</SelectItem>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {WAREHOUSE_TASK_CATEGORY_LABELS[c]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -260,14 +337,6 @@ export default function CreateInternalTaskDialog({
               />
             </div>
           </div>
-
-          {assignedStaffName && (
-            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <strong className="text-foreground">{assignedStaffName}</strong>{" "}
-              läggs i sitt redan planerade lagerteam för {startDate}. Om hen
-              inte är planerad placeras uppgiften i nästa lediga Lager-team.
-            </div>
-          )}
 
           <DialogFooter>
             <Button
