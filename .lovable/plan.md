@@ -1,18 +1,20 @@
 
-**Problem:** Personalen visar 10:00–16:00 men kalendern visar 08:00–14:00 för samma event.
+**Mål:** Komprimera staff-kort i `WarehouseStaffActivationCard.tsx` rejält och ta bort "X poster"-raden.
 
-**Orsak:** I `useWarehouseStaffScheduleOverview.ts` används `event.start_time` direkt i en `Date(...)`-konvertering via UI:t (eller liknande lokal tolkning). Resten av kalendern använder UTC-tid (se `extractUTCTime` i `dateUtils`) — `calendar_events.start_time` lagras som UTC-ISO och kalendern renderar med `getUTCHours()`. När vi i schemaöversikten skickar rå `start_time`-sträng och formaterar med lokal tidzon (Europe/Stockholm = UTC+2 i april) blir det +2h skift → 08 blir 10.
+**Ändringar (1 fil: `src/components/warehouse-dashboard/WarehouseStaffActivationCard.tsx`):**
 
-**Verifiering jag behöver göra först:**
-1. Läs `WarehouseStaffActivationCard.tsx` för att se hur `startTime`/`endTime` formateras till "10:00–16:00".
-2. Bekräfta att andra kalendervyer använder UTC (de gör det enligt `TimeGrid.tsx` rad ~270 och `extractUTCTime`).
+1. **Ta bort "X poster / Ledig"-raden** under namnet helt.
+2. **Komprimera staff-grupp-kortet:**
+   - `p-3` → `p-2`
+   - `mb-2` (header) → `mb-1`
+   - Namn: `text-sm` → `text-xs font-semibold`
+3. **Komprimera Aktiv-badge:** mindre padding, `text-[10px]`, ingen extra höjd.
+4. **Komprimera ScheduleItemRow:**
+   - `px-2 py-1.5` → `px-1.5 py-0.5`
+   - `gap-2` → `gap-1.5`
+   - Tidsstämpel + titel på samma rad redan — minska radavstånd `mt-0.5` → `mt-0`
+   - Meta-rad (UTE I FÄLT • TEAM 1 • #P-...): `text-[10px]` → `text-[9px]`, `gap-1.5` → `gap-1`
+5. **Komprimera yttre container:** `p-4` → `p-2`, `space-y-3` → `space-y-1.5`, header `p-4 pb-3` → `p-3 pb-2`.
+6. **Date-grupperingsblock (vecka/månad):** `p-2` → `p-1.5`, `mb-1` → `mb-0.5`.
 
-**Fix (1 fil, ev. 2):**
-- I `WarehouseStaffActivationCard.tsx`: byt lokal `format(new Date(startTime), 'HH:mm')` (eller motsvarande) till UTC-baserad formatering, t.ex. `extractUTCTime(startTime).slice(0,5)` från `@/utils/dateUtils`. Detta matchar hur kalendern renderar tider.
-
-Inga datamodeller eller hooks ändras. Endast presentationsformatering byts från lokal tid → UTC, så 08–14 visas konsekvent.
-
-**Plan:**
-1. Inspektera `WarehouseStaffActivationCard.tsx` för exakt formatkod.
-2. Ersätt lokal tidsformatering med `extractUTCTime` (samma helper som resten av kalendern).
-3. Be användaren bekräfta att tiderna nu matchar kalendern.
+Resultat: kortet i screenshoten krymper från ~110px → ~55px höjd. Ingen logikändring, endast spacing/typografi.
