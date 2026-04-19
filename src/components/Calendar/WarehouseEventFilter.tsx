@@ -2,10 +2,10 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen, Wrench, PartyPopper, PackageMinus } from 'lucide-react';
+import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen, Wrench, PartyPopper, PackageMinus, ListTodo } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigDown';
+export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigDown' | 'internal_task';
 
 interface WarehouseEventFilterProps {
   activeFilters: WarehouseEventTypeFilter[];
@@ -23,6 +23,7 @@ const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.El
   { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-violet-600' },
   { id: 'inventory', label: 'Inventering', icon: ClipboardList, color: 'text-cyan-600' },
   { id: 'unpacking', label: 'Uppackning', icon: PackageOpen, color: 'text-slate-500' },
+  { id: 'internal_task', label: 'Lageruppgift', icon: ListTodo, color: 'text-amber-600' },
 ];
 
 const WarehouseEventFilter: React.FC<WarehouseEventFilterProps> = ({
