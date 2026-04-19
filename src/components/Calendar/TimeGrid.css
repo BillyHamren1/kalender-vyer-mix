@@ -308,8 +308,9 @@
 
 .assigned-staff-header-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 1px;
   overflow: visible;
   align-items: center;
   align-content: flex-start;
