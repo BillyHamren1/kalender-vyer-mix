@@ -143,8 +143,15 @@ const EventWrapper: React.FC<{
   }, [event, readOnly]);
 
   const hasOverlap = !!(overlapLayout && overlapLayout.totalColumns > 1);
-  const cascadeOffset = hasOverlap ? (overlapLayout!.column ?? 0) * 14 : 0;
-  const baseZ = hasOverlap ? 25 + (overlapLayout!.column ?? 0) : 25;
+  const overlapColumn = overlapLayout?.column ?? 0;
+  const overlapCount = overlapLayout?.totalColumns ?? 1;
+  const overlapWidthPercent = hasOverlap ? 60 : 100;
+  const maxLeftPercent = hasOverlap ? 40 : 0;
+  const leftPercent = hasOverlap && overlapCount > 1
+    ? (overlapColumn / (overlapCount - 1)) * maxLeftPercent
+    : 0;
+  const horizontalInset = 4;
+  const baseZ = hasOverlap ? 25 + overlapColumn : 25;
 
   return (
     <div
@@ -155,8 +162,8 @@ const EventWrapper: React.FC<{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
-        left: `calc(4px + ${cascadeOffset}px)`,
-        width: `calc(100% - 8px - ${cascadeOffset}px)`,
+        left: `${horizontalInset + (leftPercent / 100) * Math.max(teamColumnWidth - horizontalInset * 2, 0)}px`,
+        width: `calc(${overlapWidthPercent}% - ${horizontalInset * 2}px)`,
         zIndex: baseZ,
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
