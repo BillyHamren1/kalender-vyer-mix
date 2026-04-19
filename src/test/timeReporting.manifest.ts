@@ -82,6 +82,11 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // inte får bryta.
     'src/test/timeReportingRecovery.contract.test.ts',
 
+    // Start-härdning (PROMPT 2): payload per target-typ, offline-survival
+    // av payload-fält över crash/restart, logout/login-cleanup för
+    // cross-user-säkerhet. Låser fast Starta dag i verklig drift.
+    'src/test/timeReportingStartHardening.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],
