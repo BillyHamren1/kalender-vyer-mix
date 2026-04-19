@@ -534,11 +534,13 @@ export const createInternalWarehouseTask = async (
     throw new Error('Lagerprojektet (Lager) saknas. Ladda om sidan eller kontakta admin.');
   }
 
-  // Default times: today 08:00–11:00 if not specified
-  const startDateStr = input.start_date || new Date().toISOString().slice(0, 10);
-  const endDateStr = input.end_date || startDateStr;
-  const startISO = `${startDateStr}T08:00:00`;
-  const endISO = `${endDateStr}T11:00:00`;
+  // Accept either pure date (yyyy-MM-dd) or full ISO datetime
+  const toISO = (v: string | null | undefined, fallbackTime: string): string => {
+    if (!v) return `${new Date().toISOString().slice(0, 10)}T${fallbackTime}`;
+    return v.length === 10 ? `${v}T${fallbackTime}` : v;
+  };
+  const startISO = toISO(input.start_date, '08:00:00');
+  const endISO = toISO(input.end_date || input.start_date, '11:00:00');
 
   const { data: task, error } = await supabase
     .from('project_tasks')
@@ -556,16 +558,17 @@ export const createInternalWarehouseTask = async (
 
   if (error) throw error;
 
-  // Place in calendar — pick smart lager-team
-  try {
-    const resourceId = await pickLagerTeamForInternalTask(
-      project.organization_id,
-      startISO,
-      endISO,
-      input.assigned_to ?? null
-    );
+  // Place in calendar — pick smart lager-team. Surface errors instead of swallowing.
+  const resourceId = await pickLagerTeamForInternalTask(
+    project.organization_id,
+    startISO,
+    endISO,
+    input.assigned_to ?? null
+  );
 
-    await supabase.from('warehouse_calendar_events').insert({
+  const { error: calErr } = await supabase
+    .from('warehouse_calendar_events')
+    .insert({
       title: input.title,
       start_time: new Date(startISO).toISOString(),
       end_time: new Date(endISO).toISOString(),
@@ -574,8 +577,10 @@ export const createInternalWarehouseTask = async (
       manually_adjusted: true,
       organization_id: project.organization_id,
     } as any);
-  } catch (err) {
-    console.error('Failed to create warehouse calendar event for internal task:', err);
+
+  if (calErr) {
+    console.error('Failed to create warehouse calendar event for internal task:', calErr);
+    throw new Error(`Uppgiften skapades men kunde inte placeras i kalendern: ${calErr.message}`);
   }
 
   return task as { id: string };
