@@ -44,6 +44,9 @@ FRONTEND_TESTS=(
   # Arbetsdagsmotorn: ingen auto-rast, save-then-stop, end-activity vs end-day,
   # gemensam session-motor, travel-separation, workday_flags, assistent-beslut.
   "src/test/workDayEngine.contract.test.ts"
+  # End-of-day-stop-dialogens regelset (suggested vs custom, natt-rullning,
+  # beskrivningskrav).
+  "src/test/endOfDayStop.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
