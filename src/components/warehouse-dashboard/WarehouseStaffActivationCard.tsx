@@ -65,7 +65,7 @@ const ScheduleItemRow = ({ item }: { item: WarehouseStaffScheduleItem }) => {
   const time = timeLabel(item);
 
   return (
-    <div className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors">
+    <div className="flex items-start gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-muted/40 transition-colors">
       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${eventDotClass(item.eventType)}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
@@ -76,7 +76,7 @@ const ScheduleItemRow = ({ item }: { item: WarehouseStaffScheduleItem }) => {
           )}
           <span className="truncate text-sm text-foreground">{item.title}</span>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+        <div className="mt-0 flex flex-wrap items-center gap-1 text-[9px] uppercase tracking-wide text-muted-foreground">
           <span>{eventTypeLabel(item.eventType)}</span>
           <span>•</span>
           <span>{item.resourceLabel}</span>
