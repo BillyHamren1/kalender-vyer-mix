@@ -254,6 +254,31 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           });
           console.log('[Geofence] Restored', manualEntries.length, 'active timers from server');
         }
+
+        // RECOVERY SWEEP (PROMPT 3 hardening): clear stuck pendingSync flags
+        // for local timers that are NOT on the server AND NOT in the local
+        // sync queue — those flags can otherwise stay forever if a sync
+        // confirmation event was dispatched before the listener was mounted.
+        // Doing this AFTER the server restore guarantees we don't accidentally
+        // unflag a timer that's genuinely still mid-flight in the queue.
+        const serverKeys = new Set<string>();
+        for (const e of manualEntries) {
+          if (e.location_id) serverKeys.add(`location-${e.location_id}`);
+          else if (e.large_project_id) serverKeys.add(`project-${e.large_project_id}`);
+          else if (e.booking_id) serverKeys.add(e.booking_id);
+        }
+        setActiveTimers(prev => {
+          let mutated = false;
+          const next = new Map(prev);
+          for (const [k, t] of prev) {
+            if (t.pendingSync && !serverKeys.has(k) && !isTimerPendingSync(k)) {
+              next.set(k, { ...t, pendingSync: false });
+              mutated = true;
+              console.warn('[Geofence] Cleared stuck pendingSync for orphan timer:', k);
+            }
+          }
+          return mutated ? next : prev;
+        });
       } catch (err) {
         console.warn('Failed to fetch org locations / active timers:', err);
       }
