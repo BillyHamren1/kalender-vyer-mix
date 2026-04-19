@@ -88,6 +88,7 @@ import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
 import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
 import MobileInbox from "./pages/mobile/MobileInbox";
+import MobileMyFlags from "./pages/mobile/MobileMyFlags";
 import MobileCompleteJob from "./pages/mobile/MobileCompleteJob";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
