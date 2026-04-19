@@ -545,13 +545,19 @@ export const createInternalWarehouseTask = async (
   const startISO = toISO(input.start_date, '08:00:00');
   const endISO = toISO(input.end_date || input.start_date, '11:00:00');
 
+  // Normalize assignees: prefer assigned_to_ids, fall back to single assigned_to.
+  const assigneeIds: string[] = (input.assigned_to_ids && input.assigned_to_ids.length > 0)
+    ? input.assigned_to_ids
+    : (input.assigned_to ? [input.assigned_to] : []);
+
   const { data: task, error } = await supabase
     .from('project_tasks')
     .insert({
       project_id: project.id,
       title: input.title,
       description: input.description ?? null,
-      assigned_to: input.assigned_to ?? null,
+      assigned_to: assigneeIds[0] ?? null,
+      assigned_to_ids: assigneeIds.length > 0 ? assigneeIds : null,
       start_date: new Date(startISO).toISOString(),
       end_date: new Date(endISO).toISOString(),
       category: input.category ?? null,
@@ -561,25 +567,36 @@ export const createInternalWarehouseTask = async (
 
   if (error) throw error;
 
-  // Place in calendar — pick smart lager-team. Surface errors instead of swallowing.
-  const resourceId = await pickLagerTeamForInternalTask(
-    project.organization_id,
-    startISO,
-    endISO,
-    input.assigned_to ?? null
-  );
+  // Pick a lager-team per assignee so each person ends up in their own
+  // planned lager-column. If no assignees, place a single event in the first
+  // available lager team.
+  const teamsToInsert: string[] = [];
+  if (assigneeIds.length === 0) {
+    teamsToInsert.push(
+      await pickLagerTeamForInternalTask(project.organization_id, startISO, endISO, null)
+    );
+  } else {
+    for (const sid of assigneeIds) {
+      const team = await pickLagerTeamForInternalTask(
+        project.organization_id, startISO, endISO, sid
+      );
+      if (!teamsToInsert.includes(team)) teamsToInsert.push(team);
+    }
+  }
+
+  const events = teamsToInsert.map(resourceId => ({
+    title: input.title,
+    start_time: new Date(startISO).toISOString(),
+    end_time: new Date(endISO).toISOString(),
+    resource_id: resourceId,
+    event_type: 'internal_task',
+    manually_adjusted: true,
+    organization_id: project.organization_id,
+  }));
 
   const { error: calErr } = await supabase
     .from('warehouse_calendar_events')
-    .insert({
-      title: input.title,
-      start_time: new Date(startISO).toISOString(),
-      end_time: new Date(endISO).toISOString(),
-      resource_id: resourceId,
-      event_type: 'internal_task',
-      manually_adjusted: true,
-      organization_id: project.organization_id,
-    } as any);
+    .insert(events as any);
 
   if (calErr) {
     console.error('Failed to create warehouse calendar event for internal task:', calErr);
