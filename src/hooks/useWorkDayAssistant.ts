@@ -46,92 +46,34 @@ import {
   type GpsPosition,
   haversineDistance,
 } from '@/hooks/useGeofencing';
+import {
+  nextAssistantDecision,
+  ACTIVITY_LEAVE_FAR_METERS,
+  DAYSTART_QUIET_HOURS_FROM,
+  DAYSTART_QUIET_HOURS_TO,
+  EVENING_FROM,
+  EVENING_TO,
+  type CachedTarget,
+  type AssistantDecision as PureAssistantDecision,
+  type DecisionKind as PureDecisionKind,
+} from '@/lib/workDayDecisions';
 
 // ─────────────────────────────────────────────────────────────────────
-// Constants — tunable assistant policy
+// Constants no longer duplicated here — see src/lib/workDayDecisions.ts
 // ─────────────────────────────────────────────────────────────────────
-
-const ACTIVITY_LEAVE_FAR_METERS = 300; // user must be ≥300 m outside the geofence
-const ACTIVITY_LEAVE_LONG_MINUTES = 10; // ...and have been outside for ≥10 min
-const LONG_PASS_HOURS = 5; // matches breakPolicy.BREAK_PROMPT_THRESHOLD_HOURS
-const DAYSTART_QUIET_HOURS_FROM = 4; // 04:00–11:00 = morning window
-const DAYSTART_QUIET_HOURS_TO = 11;
-const EVENING_FROM = 17; // 17:00 onwards = "looks like end of day"
-const EVENING_TO = 28; // wraps past midnight (24+4) so late-night still counts
-const LAST_WORKPLACE_GAP_MIN = 15;
-const LAST_WORKPLACE_GAP_MAX_HOURS = 12;
-
-// Cooldown per decision type so we don't spam the same prompt.
-const COOLDOWNS_MS: Record<DecisionKind, number> = {
-  daystart: 8 * 3600 * 1000, // ask at most once per 8h
-  activity_leave: 30 * 60 * 1000, // 30 min between leave-prompts per timer
-  last_workplace_for_day: 60 * 60 * 1000, // once an hour at most
-  long_pass_no_break: 60 * 60 * 1000, // remind hourly while open
-  unclassified_anomaly: 4 * 3600 * 1000, // remind every 4h while open
-};
 
 const TICK_INTERVAL_MS = 30_000; // re-evaluate every 30s
 
-// ─────────────────────────────────────────────────────────────────────
-// Decision types — what UI surface should react to
-// ─────────────────────────────────────────────────────────────────────
-
-export type DecisionKind =
-  | 'daystart'
-  | 'activity_leave'
-  | 'last_workplace_for_day'
-  | 'long_pass_no_break'
-  | 'unclassified_anomaly';
-
-export interface DaystartDecision {
-  kind: 'daystart';
-  /** ISO of the first significant signal seen today (movement / arrival). */
-  firstSignalIso: string;
-  /** Did the assistant see an arrival at a known workplace too? */
-  arrivedAtWorkplace: boolean;
-}
-
-export interface ActivityLeaveDecision {
-  kind: 'activity_leave';
-  /** Active timer key the user appears to have walked away from. */
-  timerKey: string;
-  timer: ActiveTimer;
-  /** How far user is currently from the timer's geofence (meters). */
-  distanceMeters: number;
-  /** How long since they crossed out of the geofence (ISO + minutes). */
-  outsideSinceIso: string;
-  outsideMinutes: number;
-}
-
-export interface LastWorkplaceForDayDecision {
-  kind: 'last_workplace_for_day';
-  /** ISO of last server-recorded workplace exit. */
-  lastExitIso: string;
-  /** Friendly label of the workplace they left, if available. */
-  locationName: string | null;
-}
-
-export interface LongPassNoBreakDecision {
-  kind: 'long_pass_no_break';
-  timerKey: string;
-  timer: ActiveTimer;
-  passHours: number;
-}
-
-export interface UnclassifiedAnomalyDecision {
-  kind: 'unclassified_anomaly';
-  /** Number of pending anomalies waiting for break/work classification. */
-  count: number;
-  /** Most recent anomaly's window so the UI can show a hint. */
-  oldestStartedAtIso: string;
-}
-
-export type AssistantDecision =
-  | DaystartDecision
-  | ActivityLeaveDecision
-  | LastWorkplaceForDayDecision
-  | LongPassNoBreakDecision
-  | UnclassifiedAnomalyDecision;
+// Re-export pure types so existing UI imports keep working.
+export type DecisionKind = PureDecisionKind;
+export type AssistantDecision = PureAssistantDecision;
+export type {
+  DaystartDecision,
+  ActivityLeaveDecision,
+  LastWorkplaceForDayDecision,
+  LongPassNoBreakDecision,
+  UnclassifiedAnomalyDecision,
+} from '@/lib/workDayDecisions';
 
 // ─────────────────────────────────────────────────────────────────────
 // Hook input
