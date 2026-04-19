@@ -2,7 +2,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
 import { useMobileTimeReports, useMobileTravelLogs } from '@/hooks/useMobileData';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare, Car, Globe } from 'lucide-react';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare, Car, Globe, AlertTriangle } from 'lucide-react';
 import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';

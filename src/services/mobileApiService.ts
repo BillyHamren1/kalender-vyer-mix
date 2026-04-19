@@ -549,4 +549,74 @@ export const mobileApi = {
 
   markArrivalResolved: (data: { location_id: string; arrived_at: string }) =>
     callApi<{ success: boolean }>('mark_arrival_resolved', data),
+
+  // ── Workday flags (PROMPT 6 — anomaly model v2) ─────────────────────
+  // Workday flags are the first-class store for "system saw something it
+  // can't safely decide on its own". They never modify reported time —
+  // they only annotate, prompt the staff member, and let admins follow up.
+  // See workday_flags migration for the full vocabulary.
+  createWorkdayFlag: (data: {
+    flag_type: WorkdayFlagType;
+    flag_date: string; // YYYY-MM-DD
+    title: string;
+    description?: string;
+    severity?: 'info' | 'warning' | 'error';
+    needs_user_input?: boolean;
+    assistant_decision_kind?: string;
+    related_time_report_id?: string;
+    related_booking_id?: string;
+    related_large_project_id?: string;
+    related_location_id?: string;
+    related_anomaly_id?: string;
+    context?: Record<string, unknown>;
+  }) => callApi<{ success: boolean; flag: WorkdayFlag }>('create_workday_flag', data),
+
+  listWorkdayFlags: (params?: { resolved?: boolean; limit?: number }) =>
+    callApi<{ flags: WorkdayFlag[] }>('list_workday_flags', params || {}),
+
+  resolveWorkdayFlag: (data: {
+    flag_id: string;
+    resolution_source: 'staff' | 'admin' | 'auto';
+    resolution_note?: string;
+  }) => callApi<{ success: boolean; flag: WorkdayFlag }>('resolve_workday_flag', data),
 };
+
+// Workday flag vocabulary mirrored from the migration's CHECK constraint.
+export type WorkdayFlagType =
+  | 'missing_break'
+  | 'unclear_day_end'
+  | 'presence_without_report'
+  | 'activity_ended_day_continues'
+  | 'geofence_presence_mismatch'
+  | 'team_time_deviation'
+  | 'unreasonable_travel'
+  | 'time_gap'
+  | 'missing_report'
+  | 'long_day'
+  | 'overlapping_times';
+
+export interface WorkdayFlag {
+  id: string;
+  organization_id: string;
+  staff_id: string;
+  flag_type: WorkdayFlagType;
+  severity: 'info' | 'warning' | 'error';
+  flag_date: string;
+  title: string;
+  description: string | null;
+  needs_user_input: boolean;
+  assistant_decision_kind: string | null;
+  related_time_report_id: string | null;
+  related_booking_id: string | null;
+  related_large_project_id: string | null;
+  related_location_id: string | null;
+  related_anomaly_id: string | null;
+  context: Record<string, unknown>;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolution_source: 'staff' | 'admin' | 'auto' | null;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

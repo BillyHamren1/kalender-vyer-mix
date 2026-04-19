@@ -5866,6 +5866,120 @@ export type Database = {
           },
         ]
       }
+      workday_flags: {
+        Row: {
+          assistant_decision_kind: string | null
+          context: Json
+          created_at: string
+          description: string | null
+          flag_date: string
+          flag_type: string
+          id: string
+          needs_user_input: boolean
+          organization_id: string
+          related_anomaly_id: string | null
+          related_booking_id: string | null
+          related_large_project_id: string | null
+          related_location_id: string | null
+          related_time_report_id: string | null
+          resolution_note: string | null
+          resolution_source: string | null
+          resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          staff_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assistant_decision_kind?: string | null
+          context?: Json
+          created_at?: string
+          description?: string | null
+          flag_date: string
+          flag_type: string
+          id?: string
+          needs_user_input?: boolean
+          organization_id: string
+          related_anomaly_id?: string | null
+          related_booking_id?: string | null
+          related_large_project_id?: string | null
+          related_location_id?: string | null
+          related_time_report_id?: string | null
+          resolution_note?: string | null
+          resolution_source?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          staff_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assistant_decision_kind?: string | null
+          context?: Json
+          created_at?: string
+          description?: string | null
+          flag_date?: string
+          flag_type?: string
+          id?: string
+          needs_user_input?: boolean
+          organization_id?: string
+          related_anomaly_id?: string | null
+          related_booking_id?: string | null
+          related_large_project_id?: string | null
+          related_location_id?: string | null
+          related_time_report_id?: string | null
+          resolution_note?: string | null
+          resolution_source?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          staff_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workday_flags_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workday_flags_related_anomaly_id_fkey"
+            columns: ["related_anomaly_id"]
+            isOneToOne: false
+            referencedRelation: "time_report_anomalies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workday_flags_related_large_project_id_fkey"
+            columns: ["related_large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workday_flags_related_location_id_fkey"
+            columns: ["related_location_id"]
+            isOneToOne: false
+            referencedRelation: "organization_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workday_flags_related_time_report_id_fkey"
+            columns: ["related_time_report_id"]
+            isOneToOne: false
+            referencedRelation: "time_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       confirmed_bookings: {

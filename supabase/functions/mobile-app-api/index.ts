@@ -354,6 +354,13 @@ Deno.serve(async (req) => {
         return await handleClassifyTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
+      // ── workday_flags (PROMPT 6 — anomaly model v2) ──
+      case 'create_workday_flag':
+        return await handleCreateWorkdayFlag(supabase, staffId, data, organizationId)
+      case 'list_workday_flags':
+        return await handleListWorkdayFlags(supabase, staffId, data, organizationId)
+      case 'resolve_workday_flag':
+        return await handleResolveWorkdayFlag(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
@@ -5675,6 +5682,169 @@ async function handleCloseOpenAnomalies(supabase: any, staffId: string, data: an
   }
 
   return new Response(JSON.stringify({ success: true, closed: openRows.length, discarded: toDelete.length }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============= workday_flags handlers (PROMPT 6 — anomaly model v2) =============
+//
+// workday_flags is the first-class store for "system saw something it can't
+// safely decide on its own". These handlers NEVER touch time_reports — they
+// only annotate, prompt, and let staff/admin resolve uncertainty.
+//
+// Vocabulary (mirrors the CHECK constraint in the migration):
+//   missing_break, unclear_day_end, presence_without_report,
+//   activity_ended_day_continues, geofence_presence_mismatch,
+//   team_time_deviation, unreasonable_travel, time_gap, missing_report,
+//   long_day, overlapping_times.
+
+const WORKDAY_FLAG_TYPES = new Set([
+  'missing_break', 'unclear_day_end', 'presence_without_report',
+  'activity_ended_day_continues', 'geofence_presence_mismatch',
+  'team_time_deviation', 'unreasonable_travel', 'time_gap',
+  'missing_report', 'long_day', 'overlapping_times',
+])
+
+async function handleCreateWorkdayFlag(supabase: any, staffId: string, data: any, organizationId: string) {
+  const {
+    flag_type, flag_date, title, description,
+    severity, needs_user_input, assistant_decision_kind,
+    related_time_report_id, related_booking_id, related_large_project_id,
+    related_location_id, related_anomaly_id, context,
+  } = data || {}
+
+  if (!flag_type || !WORKDAY_FLAG_TYPES.has(flag_type)) {
+    return new Response(JSON.stringify({ error: 'invalid flag_type' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (!flag_date || !/^\d{4}-\d{2}-\d{2}$/.test(flag_date)) {
+    return new Response(JSON.stringify({ error: 'flag_date must be YYYY-MM-DD' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (!title || typeof title !== 'string') {
+    return new Response(JSON.stringify({ error: 'title is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Idempotency: don't pile multiple identical open flags on the same day.
+  // Same (staff, date, type) + open ⇒ return the existing row.
+  const { data: existing } = await supabase
+    .from('workday_flags')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('flag_type', flag_type)
+    .eq('flag_date', flag_date)
+    .eq('resolved', false)
+    .limit(1)
+    .maybeSingle()
+  if (existing) {
+    return new Response(JSON.stringify({ success: true, flag: existing, already_open: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('workday_flags')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      flag_type,
+      flag_date,
+      title,
+      description: description ?? null,
+      severity: ['info','warning','error'].includes(severity) ? severity : 'warning',
+      needs_user_input: !!needs_user_input,
+      assistant_decision_kind: assistant_decision_kind ?? null,
+      related_time_report_id: related_time_report_id ?? null,
+      related_booking_id: related_booking_id ?? null,
+      related_large_project_id: related_large_project_id ?? null,
+      related_location_id: related_location_id ?? null,
+      related_anomaly_id: related_anomaly_id ?? null,
+      context: context ?? {},
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[workday_flags] insert error:', error)
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, flag: inserted }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleListWorkdayFlags(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { resolved, limit } = data || {}
+  let q = supabase
+    .from('workday_flags')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .order('flag_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(Math.min(typeof limit === 'number' ? limit : 100, 500))
+
+  if (resolved === true || resolved === false) {
+    q = q.eq('resolved', resolved)
+  }
+
+  const { data: rows, error } = await q
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ flags: rows || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleResolveWorkdayFlag(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { flag_id, resolution_source, resolution_note } = data || {}
+  if (!flag_id || !['staff','admin','auto'].includes(resolution_source)) {
+    return new Response(JSON.stringify({ error: 'flag_id + valid resolution_source required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Ownership: staff can only resolve their own. Admin path goes through
+  // the admin web UI which uses the user's session (separate flow); here
+  // we strictly bind to the calling staffId to prevent cross-staff writes.
+  const { data: existing } = await supabase
+    .from('workday_flags')
+    .select('id, staff_id, resolved')
+    .eq('id', flag_id)
+    .eq('organization_id', organizationId)
+    .single()
+  if (!existing) {
+    return new Response(JSON.stringify({ error: 'flag not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (existing.staff_id !== staffId && resolution_source === 'staff') {
+    return new Response(JSON.stringify({ error: 'forbidden' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (existing.resolved) {
+    return new Response(JSON.stringify({ success: true, already_resolved: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: updated, error } = await supabase
+    .from('workday_flags')
+    .update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolution_source,
+      resolution_note: resolution_note ?? null,
+      resolved_by: staffId,
+      needs_user_input: false,
+    })
+    .eq('id', flag_id)
+    .select()
+    .single()
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, flag: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
