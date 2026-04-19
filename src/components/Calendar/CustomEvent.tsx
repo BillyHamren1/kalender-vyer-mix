@@ -10,6 +10,7 @@ import EventHoverCard from './EventHoverCard';
 // QuickTimeEditPopover removed from warehouse events — single-click no longer
 // opens a time picker (felt accidental). Edits go via double-click / context menu.
 import MoveEventDateDialog from './MoveEventDateDialog';
+import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
 interface CustomEventProps {
