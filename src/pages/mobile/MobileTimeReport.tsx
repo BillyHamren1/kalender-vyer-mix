@@ -230,32 +230,21 @@ const MobileTimeReport = () => {
                 isLocation={!!timer.locationId}
                 onStop={async () => {
                   // UNIFIED ENGINE — same code path for booking, project,
-                  // and location timers. The hook handles break decision,
-                  // save-then-stop ordering, and pure-location presence.
-                  const target: WorkTarget = timer.locationId
-                    ? {
-                        kind: 'location',
-                        locationId: timer.locationId,
-                        name: timer.locationName || timer.client,
-                        // Location timers from the time-report screen are
-                        // pure presence — no time_report. Set createsTimeReport
-                        // = true here if you ever need to log work time.
-                        createsTimeReport: false,
-                      }
-                    : timer.largeProjectId
-                      ? {
-                          kind: 'project',
-                          largeProjectId: timer.largeProjectId,
-                          name: timer.client,
-                        }
-                      : { kind: 'booking', bookingId: key, client: timer.client };
-
+                  // and location timers. Role classification (presence vs
+                  // reportable) lives in src/lib/timerRole.ts so this stop
+                  // surface, the GlobalActiveTimerBanner, and the location
+                  // detail screen all behave identically.
+                  const target = buildStopTarget(key, timer);
+                  const role = getTimerRole(timer);
                   try {
                     const res = await stopSession(target);
                     if (res.cancelled) return;
                     if (res.saved) {
-                      if (target.kind === 'location') toast.success('Timer stopped');
-                      else toast.success(`Time report saved: ${res.hoursWorked}h`);
+                      if (role.kind === 'location' && role.presenceOnly) {
+                        toast.success('Timer stopped');
+                      } else {
+                        toast.success(`Time report saved: ${res.hoursWorked}h`);
+                      }
                       fetchReports();
                     }
                   } catch (err: any) {
