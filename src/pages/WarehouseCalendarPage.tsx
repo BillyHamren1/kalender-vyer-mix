@@ -36,6 +36,8 @@ const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'
       return 'inventory';
     case 'unpacking':
       return 'unpacking';
+    case 'internal_task':
+      return 'internal_task';
     default:
       return 'event';
   }
@@ -48,7 +50,10 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
     title: we.title,
     start: we.start_time,
     end: we.end_time,
-    resourceId: 'lager-1', // Placeholder — will be redistributed by distributeWarehouseEvents
+    // Preserve explicit resource (e.g. internal_task) — others get redistributed.
+    resourceId: we.resource_id && we.resource_id.startsWith('lager-')
+      ? we.resource_id
+      : 'lager-1',
     bookingId: we.booking_id,
     bookingNumber: we.booking_number || undefined,
     eventType: mapWarehouseEventType(we.event_type),
