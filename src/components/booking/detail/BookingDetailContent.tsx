@@ -4,7 +4,9 @@ import { Booking } from '@/types/booking';
 import { ClientInformation } from '../ClientInformation';
 import { DeliveryInformationCard } from '../DeliveryInformationCard';
 import ProjectAssignmentCard from '../ProjectAssignmentCard';
-import { ScheduleCard } from '../ScheduleCard';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { CalendarIcon } from 'lucide-react';
+import ProjectScheduleEditable from '@/components/project/ProjectScheduleEditable';
 import { ProductsList } from '../ProductsList';
 import { AttachmentsList } from '../AttachmentsList';
 import { InternalNotes } from '../InternalNotes';
@@ -75,16 +77,35 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
         </div>
         
         <div className="space-y-6">
-          <ScheduleCard 
-            bookingId={booking.id}
-            rigDates={rigDates}
-            eventDates={eventDates}
-            rigDownDates={rigDownDates}
-            onAddDate={onAddDate}
-            onRemoveDate={onRemoveDate}
-            onEditDate={onEditDate}
-            booking={booking}
-          />
+          {/*
+            Schedule layout — shared with project view (ProjectScheduleEditable).
+            All three slots (RIGG / EVENT / NEDRIVNING) are ALWAYS visible, even
+            when empty. Single-source-of-truth: update flows directly through
+            updateBookingDatesViaApi — no separate "+ Add date" widget.
+          */}
+          <Card className="shadow-sm">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="flex items-center gap-1.5 text-base">
+                <CalendarIcon className="h-4 w-4" />
+                <span>Schema</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-1 px-4 pb-4">
+              <ProjectScheduleEditable
+                bookingId={booking.id}
+                rigDate={rigDates[0] ?? null}
+                eventDate={eventDates[0] ?? null}
+                rigdownDate={rigDownDates[0] ?? null}
+                rigStartTime={booking.rigStartTime ?? null}
+                rigEndTime={booking.rigEndTime ?? null}
+                eventStartTime={booking.eventStartTime ?? null}
+                eventEndTime={booking.eventEndTime ?? null}
+                rigdownStartTime={booking.rigDownStartTime ?? null}
+                rigdownEndTime={booking.rigDownEndTime ?? null}
+                onUpdated={() => window.location.reload()}
+              />
+            </CardContent>
+          </Card>
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}
