@@ -241,14 +241,14 @@ const MobileTimeReport = () => {
                     if (res.cancelled) return;
                     if (res.saved) {
                       if (role.kind === 'location' && role.presenceOnly) {
-                        toast.success('Timer stopped');
+                        toast.success('Aktivitet avslutad');
                       } else {
-                        toast.success(`Time report saved: ${res.hoursWorked}h`);
+                        toast.success(`Tidrapport sparad: ${res.hoursWorked}h`);
                       }
                       fetchReports();
                     }
                   } catch (err: any) {
-                    toast.error(err?.message || 'Could not stop timer');
+                    toast.error(err?.message || 'Kunde inte avsluta aktiviteten');
                   }
                 }}
               />
