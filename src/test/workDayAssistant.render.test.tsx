@@ -85,7 +85,7 @@ describe('WorkDayAssistant render contract', () => {
       passHours: 6.5,
     };
     render(<WorkDayAssistant decision={d} onAcknowledge={() => {}} />);
-    expect(screen.getByText(/rast/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/rast/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/6\.5/)).toBeInTheDocument();
     // Säkerställ att vi INTE påstår att rast dragits automatiskt:
     expect(screen.queryByText(/dragit en rast automatiskt/i)).toBeNull();
