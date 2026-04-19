@@ -209,6 +209,9 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
           toLng: lastPos.lng,
           hoursWorked: result.travel_log?.hours_worked || 0,
           matchedBookingId: result.travel_log?.destination_booking_id || null,
+          // Manual stop is always treated as work — server enforces the
+          // same classification because we passed mark_payable: true.
+          classification: result.travel_log?.classification || 'work',
         });
       }
 
