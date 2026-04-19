@@ -279,6 +279,28 @@ const GlobalActiveTimerBanner: React.FC = () => {
     clearTimerLocally(key);
   }, [persistStop, clearTimerLocally, resolveBreakChoice]);
 
+  // Lyssna på globalt event från WorkDayAssistant (`last_workplace_for_day`).
+  // Triggar EOD-flödet på den ENDA aktiva timern (vanligaste fallet kvällstid).
+  // Om flera timers är aktiva — överlåt till användaren via banner-knappen,
+  // assistenten ska inte gissa vilken som ska stängas först.
+  useEffect(() => {
+    const onRequestEndDay = () => {
+      const entries = Array.from(timers.entries());
+      if (entries.length === 0) {
+        toast.message('Inga aktiva timers — dagen är redan stängd.');
+        return;
+      }
+      if (entries.length > 1) {
+        toast.message('Flera timers aktiva — välj vilken du vill avsluta i listan ovan.');
+        return;
+      }
+      const [key, timer] = entries[0];
+      handleStop(key, timer);
+    };
+    window.addEventListener('request-end-day', onRequestEndDay);
+    return () => window.removeEventListener('request-end-day', onRequestEndDay);
+  }, [timers, handleStop]);
+
   const handleDialogConfirm = useCallback(async (result: EndOfDayResult) => {
     if (!pendingStop) return;
     const stopTime = new Date(result.endedAtIso);
