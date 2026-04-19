@@ -483,6 +483,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
     latestPosition,
     pendingAnomalies,
     lastExit,
+    isTravelling,
   ]);
 
   const acknowledge = () => {

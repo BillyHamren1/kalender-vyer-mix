@@ -27,13 +27,45 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   const queryClient = useQueryClient();
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
 
-  // Travel detection — runs globally regardless of active page
+  // Travel detection — runs globally regardless of active page.
+  // travel_time_logs lives in its own table and is semantically separate
+  // from time_reports; the assistant uses `travelState.isMoving` as a soft
+  // signal to suppress noise (e.g. "verkar du lämnat aktiviteten?" while
+  // the user is legitimately driving).
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
 
   // EOD reconciliation now runs inside useWorkSession (mounted by
   // GlobalActiveTimerBanner) and no longer persists a localStorage flag.
   const eodActive = false;
+
+  // Proactive workday assistant — interpretation layer over raw signals.
+  // Reads activeTimers from localStorage so we don't double-mount geofencing.
+  const [activeTimersForAssistant, setActiveTimersForAssistant] =
+    useState<Map<string, ActiveTimer>>(new Map());
+  useEffect(() => {
+    const load = () => {
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-timers');
+        setActiveTimersForAssistant(new Map(raw ? JSON.parse(raw) : []));
+      } catch {
+        setActiveTimersForAssistant(new Map());
+      }
+    };
+    load();
+    window.addEventListener('timer-state-changed', load);
+    const id = window.setInterval(load, 15_000);
+    return () => {
+      window.removeEventListener('timer-state-changed', load);
+      window.clearInterval(id);
+    };
+  }, []);
+  const { decision: assistantDecision, acknowledge: ackAssistant } = useWorkDayAssistant({
+    enabled: !!staff,
+    latestPosition,
+    activeTimers: activeTimersForAssistant,
+    isTravelling: travelState.isMoving,
+  });
 
   // Arrival prompt — same source-of-truth used by push-cron.
   // Pause polling while the dialog is open OR while end-of-day dialog is active.
@@ -232,6 +264,9 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         onDiscard={handleStaleDiscard}
         onClose={() => setStaleDialogOpen(false)}
       />
+
+      {/* Proactive workday assistant — only shows ONE prompt at a time */}
+      <WorkDayAssistant decision={assistantDecision} onAcknowledge={ackAssistant} />
 
       <MobileBottomNav />
     </div>
