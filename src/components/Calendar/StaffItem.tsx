@@ -72,10 +72,12 @@ const StaffItem: React.FC<StaffItemProps> = ({
           title={staff.name}
         >
           <div 
-            className="px-2.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
+            className="px-2 rounded-full text-[11px] font-medium leading-tight shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
             style={{ 
               backgroundColor: staffColor,
               color: textColor,
+              paddingTop: '0px',
+              paddingBottom: '0px',
             }}
           >
             {getFirstName(staff.name)}
