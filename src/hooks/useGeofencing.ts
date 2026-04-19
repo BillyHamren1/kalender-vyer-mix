@@ -105,6 +105,26 @@ function saveTimers(timers: Map<string, ActiveTimer>) {
   localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(timers.entries())));
 }
 
+/**
+ * Wipe the local active-timer cache + all related sidecar state.
+ *
+ * Called on logout / user switch so user A's cached timers can never
+ * be displayed under user B's session, and so background-arrival
+ * payloads from a previous session don't auto-trigger for the new user.
+ *
+ * SAFETY: this is a local-only wipe. Server-side open entries remain
+ * authoritative and will be re-restored on the next mount via the
+ * `getLocationTimeEntries` query in useGeofencing.
+ */
+export function clearLocalTimerSession() {
+  localStorage.removeItem(TIMERS_KEY);
+  localStorage.removeItem(GEOFENCE_TARGETS_KEY);
+  localStorage.removeItem(PENDING_ARRIVALS_KEY);
+  localStorage.removeItem('eventflow-pending-stop');
+  // Notify any listening hook/banner so they re-read storage immediately.
+  window.dispatchEvent(new Event('timer-state-changed'));
+}
+
 export function getGpsSettings(): GpsSettings {
   try {
     const raw = localStorage.getItem(GPS_SETTINGS_KEY);
