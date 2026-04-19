@@ -132,7 +132,7 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return JSON.parse(stored);
     }
-    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking'];
+    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking', 'internal_task'];
   });
 
   // Save event type filters to localStorage
