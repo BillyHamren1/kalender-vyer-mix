@@ -27,7 +27,8 @@ interface Body {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const PROJECT_REF = (Deno.env.get('SUPABASE_PROJECT_REF') ?? SUPABASE_URL.replace('https://', '').split('.')[0])
-const MGMT_TOKEN = Deno.env.get('SUPABASE_MANAGEMENT_API_TOKEN') // optional — only required for log-source backfill
+// Reserved prefix `SUPABASE_` is blocked for user secrets — use SUPA_MGMT_API_TOKEN.
+const MGMT_TOKEN = Deno.env.get('SUPA_MGMT_API_TOKEN') ?? Deno.env.get('SUPABASE_MANAGEMENT_API_TOKEN')
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
