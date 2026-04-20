@@ -89,6 +89,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const heartbeatTimerRef = useRef<number | null>(null);
   const lastKnownPosRef = useRef<{ lat: number; lng: number; accuracy: number | null; speed: number | null } | null>(null);
   const staffIdRef = useRef<string | null | undefined>(staffId);
+  const startedRef = useRef(false);
   const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
   // Track which targets we're currently inside (to avoid duplicate pending arrivals)
   const insideRef = useRef<Set<string>>(new Set());
@@ -97,7 +98,15 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
 
   useEffect(() => {
-    if (!staffId) return;
+    // CRITICAL: Start tracker ONCE per app lifetime. Do NOT stop it just because
+    // staffId becomes null (token refresh, brief session loss). iOS kills the
+    // background service permanently if we call stop(), and "Allow always"
+    // permission can't bring it back without manual app re-open.
+    // Pings while staffId is null are simply skipped at the report layer;
+    // GPS keeps flowing and we resume reporting as soon as staffId returns.
+    if (startedRef.current) return;
+    if (!staffId) return; // wait for first login, then never stop
+    startedRef.current = true;
 
     // Reset inside tracking on new session
     insideRef.current.clear();
