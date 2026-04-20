@@ -125,6 +125,20 @@ export default function TravelCompletedDialog({ info, onDismiss, onAcceptedVisit
           )}
         </div>
 
+        {/* Smart-karta — kontextuella förslag (Scenario A/B/C) */}
+        {suggestion && !smartResolved && (
+          <SmartArrivalSuggestion
+            suggestion={suggestion}
+            travel={info}
+            onAcceptedVisit={(v) => {
+              onAcceptedVisit?.(v);
+              setSmartResolved(true);
+              onDismiss();
+            }}
+            onResolved={() => setSmartResolved(true)}
+          />
+        )}
+
         {/* Optional comment */}
         {!info.matchedBookingId && (
           <div className="mb-5">
