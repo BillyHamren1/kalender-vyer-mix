@@ -349,9 +349,16 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const firstStart = timeline[0]?.start_time;
   const lastEnd = [...timeline].reverse().find(t => t.end_time)?.end_time;
 
-  // First location
+  // First location — prefer travel start address, fall back to first GPS ping
   const firstTravel = travelSegments.find(t => t.from_latitude && t.from_longitude);
-  const startAddress = firstTravel?.from_address || 'Okänd startplats';
+  const firstGps = gpsPoints[0];
+  const startAddress =
+    firstTravel?.from_address ||
+    (firstGps ? `📍 ${firstGps.lat.toFixed(5)}, ${firstGps.lng.toFixed(5)} (GPS ${firstGps.recorded_at.slice(11, 16)})` : 'Okänd startplats');
+  const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
+  const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
+
+  const hasMapData = mapPoints.length > 0 || gpsPoints.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -375,20 +382,26 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         <div className="flex items-center gap-2 text-sm bg-muted/50 p-3 rounded-lg">
           <MapPin className="h-4 w-4 text-primary shrink-0" />
           <span className="font-medium">Startplats:</span>
-          <span className="text-muted-foreground">{startAddress}</span>
-          {firstTravel?.from_latitude && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              {firstTravel.from_latitude.toFixed(5)}, {firstTravel.from_longitude?.toFixed(5)}
+          <span className="text-muted-foreground truncate">{startAddress}</span>
+          {startLat !== null && startLng !== null && firstTravel?.from_latitude && (
+            <span className="text-xs text-muted-foreground ml-auto shrink-0">
+              {startLat.toFixed(5)}, {startLng.toFixed(5)}
             </span>
           )}
         </div>
 
         {/* Map */}
-        {mapPoints.length > 0 ? (
+        {hasMapData ? (
           <div ref={mapContainer} className="w-full h-[300px] rounded-lg border" />
         ) : (
           <div className="w-full h-[200px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
             Inga geopositioner rapporterade
+          </div>
+        )}
+
+        {gpsPoints.length > 0 && (
+          <div className="text-xs text-muted-foreground -mt-1">
+            GPS-spår: {gpsPoints.length} positioner ({gpsPoints[0].recorded_at.slice(11, 16)} – {gpsPoints[gpsPoints.length - 1].recorded_at.slice(11, 16)})
           </div>
         )}
 
