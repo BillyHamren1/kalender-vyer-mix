@@ -39,8 +39,8 @@ const StaffTimeReports: React.FC = () => {
   const { data: staffList = [], isLoading } = useQuery({
     queryKey: ['staff-time-reports-day', dateStr],
     queryFn: async (): Promise<StaffWithDayReport[]> => {
-      // Fetch all reports + travel for the day in parallel
-      const [reportsRes, travelRes] = await Promise.all([
+      // Fetch reports + travel + location-based time (e.g. Lager) in parallel
+      const [reportsRes, travelRes, locationRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('staff_id, booking_id, hours_worked, start_time, end_time')
@@ -50,13 +50,45 @@ const StaffTimeReports: React.FC = () => {
           .select('staff_id, hours_worked')
           .eq('report_date', dateStr)
           .not('end_time', 'is', null),
+        supabase
+          .from('location_time_entries')
+          .select('staff_id, location_id, entered_at, exited_at, total_minutes')
+          .eq('entry_date', dateStr),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
       if (travelRes.error) throw travelRes.error;
+      if (locationRes.error) throw locationRes.error;
 
       const reports = reportsRes.data || [];
       const travel = travelRes.data || [];
+      const locationEntries = locationRes.data || [];
+
+      // Resolve location -> internal booking (e.g. Lager) for project label
+      const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
+      const locationBookingMap = new Map<string, { booking_id: string; label: string }>();
+      if (locationIds.length > 0) {
+        const [{ data: internalProjects }, { data: locations }] = await Promise.all([
+          supabase
+            .from('projects')
+            .select('booking_id, location_id, name')
+            .eq('is_internal', true)
+            .in('location_id', locationIds),
+          supabase
+            .from('organization_locations')
+            .select('id, name')
+            .in('id', locationIds),
+        ]);
+        const locNameMap = new Map((locations || []).map(l => [l.id, l.name]));
+        (internalProjects || []).forEach(p => {
+          if (p.location_id && p.booking_id) {
+            locationBookingMap.set(p.location_id, {
+              booking_id: p.booking_id,
+              label: locNameMap.get(p.location_id) || p.name || 'Lager',
+            });
+          }
+        });
+      }
 
       // Fetch booking labels
       const bookingIds = [...new Set(reports.map(r => r.booking_id).filter(Boolean))];
