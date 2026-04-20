@@ -364,23 +364,34 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
     }
   }, [isIos, runScanLoop]);
 
+  // Stable refs so the lifecycle effect doesn't restart the camera on every
+  // parent render. Without this, `onPackingDetected` (inline arrow in parent)
+  // gets a new identity each render → new handleDetected → new runScanLoop →
+  // new startCamera → effect re-runs → camera restarts continuously.
+  const startCameraRef = useRef(startCamera);
+  const stopCameraRef = useRef(stopCamera);
+  startCameraRef.current = startCamera;
+  stopCameraRef.current = stopCamera;
+
   useEffect(() => {
     mountedRef.current = true;
     if (!isActive) {
       setError(null);
       setItems([]);
-      stopCamera();
+      stopCameraRef.current();
       return () => {
         mountedRef.current = false;
-        stopCamera();
+        stopCameraRef.current();
       };
     }
-    void startCamera();
+    void startCameraRef.current();
     return () => {
       mountedRef.current = false;
-      stopCamera();
+      stopCameraRef.current();
     };
-  }, [isActive, startCamera, stopCamera]);
+    // Intentionally only depend on `isActive` — start/stop are read via refs
+    // to prevent restart loops when parent re-renders.
+  }, [isActive]);
 
   if (!isActive) return null;
 
