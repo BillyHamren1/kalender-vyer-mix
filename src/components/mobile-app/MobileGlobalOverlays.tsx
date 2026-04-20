@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
-import ArrivalPromptDialog from './ArrivalPromptDialog';
+import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -11,11 +11,14 @@ import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
+import type { ArrivalTarget } from '@/types/arrivalTarget';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
@@ -37,6 +40,11 @@ const MobileGlobalOverlays: React.FC = () => {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
+  const { data: bookings = [] } = useMobileBookings();
+
+  // UNIFIED work-session engine — same start/stop motor as the rest of
+  // the mobile app. Used to start a timer for ANY arrival kind.
+  const { startSession } = useWorkSession(bookings, staff?.id);
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
@@ -85,40 +93,49 @@ const MobileGlobalOverlays: React.FC = () => {
     isQuiet: arrivalDialogOpen || staleDialogOpen || !!completedTravel,
   });
 
+  const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
+
   useEffect(() => {
     if (eodActive) return;
-    if (arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at) {
+    if (arrivalState?.should_prompt && arrivalTarget) {
       setArrivalDialogOpen(true);
     }
-  }, [arrivalState?.should_prompt, arrivalState?.location_id, arrivalState?.arrived_at, eodActive]);
+  }, [arrivalState?.should_prompt, arrivalTarget, eodActive]);
+
+  /**
+   * Map an ArrivalTarget → WorkTarget. The WorkSession engine is what
+   * actually creates the timer/server entry, so the arrival flow is
+   * IDENTICAL for location/project/booking — only the target shape differs.
+   */
+  const arrivalToWorkTarget = useCallback((t: ArrivalTarget): WorkTarget | null => {
+    if (t.kind === 'location') {
+      return { kind: 'location', locationId: t.target_id, name: t.label };
+    }
+    if (t.kind === 'project') {
+      return { kind: 'project', largeProjectId: t.target_id, name: t.label };
+    }
+    if (t.kind === 'booking') {
+      return { kind: 'booking', bookingId: t.target_id, client: t.label };
+    }
+    return null;
+  }, []);
 
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
-    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
+    if (!arrivalTarget) return;
     setArrivalSubmitting(true);
     try {
-      const startedAt = result.usedSuggestedArrival ? arrivalState.arrived_at : result.startedAtIso;
-      await mobileApi.startLocationTimer({ location_id: arrivalState.location_id, started_at: startedAt });
+      const startedAt = result.usedSuggestedArrival ? arrivalTarget.arrived_at : result.startedAtIso;
+      const workTarget = arrivalToWorkTarget(arrivalTarget);
+      if (!workTarget) throw new Error('Okänd ankomsttyp');
 
-      try {
-        const TIMERS_KEY = 'eventflow-mobile-timers';
-        const raw = localStorage.getItem(TIMERS_KEY);
-        const map = new Map<string, ActiveTimer>(raw ? JSON.parse(raw) : []);
-        const key = `location-${arrivalState.location_id}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            startTime: startedAt,
-            client: arrivalState.location_name || 'Arbetsplats',
-            locationId: arrivalState.location_id,
-            locationName: arrivalState.location_name || 'Arbetsplats',
-            isAutoStarted: false,
-          } as ActiveTimer);
-          localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(map.entries())));
-          window.dispatchEvent(new Event('timer-state-changed'));
-        }
-      } catch {}
+      const ok = startSession(workTarget, { startedAtIso: startedAt });
+      if (!ok) {
+        toast.message('Timer redan aktiv för platsen');
+      } else {
+        toast.success('Timer startad');
+      }
 
-      await markResolved(arrivalState.location_id, arrivalState.arrived_at);
-      toast.success('Timer startad');
+      await markResolved(arrivalTarget);
       setArrivalDialogOpen(false);
       refreshArrival();
     } catch (err: any) {
@@ -126,13 +143,13 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalState, markResolved, refreshArrival]);
+  }, [arrivalTarget, arrivalToWorkTarget, startSession, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
-    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
-    await markResolved(arrivalState.location_id, arrivalState.arrived_at);
+    if (!arrivalTarget) return;
+    await markResolved(arrivalTarget);
     setArrivalDialogOpen(false);
-  }, [arrivalState, markResolved]);
+  }, [arrivalTarget, markResolved]);
 
   useEffect(() => {
     if (staleTimers.length > 0 && !eodActive && !arrivalDialogOpen) {
@@ -216,12 +233,11 @@ const MobileGlobalOverlays: React.FC = () => {
         <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
       )}
 
-      {arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at && (
-        <ArrivalPromptDialog
+      {arrivalState?.should_prompt && arrivalTarget && (
+        <UnifiedArrivalPrompt
           open={arrivalDialogOpen}
           onOpenChange={setArrivalDialogOpen}
-          arrivedAtIso={arrivalState.arrived_at}
-          locationName={arrivalState.location_name || 'Arbetsplats'}
+          target={arrivalTarget}
           onConfirm={handleArrivalConfirm}
           onDismiss={handleArrivalDismiss}
         />

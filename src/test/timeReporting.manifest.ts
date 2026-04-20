@@ -116,6 +116,16 @@ export const TIME_REPORTING_QUALITY_GATE = {
 
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
+
+    // Unified arrival-prompt parity (location/project/booking): säkerställer
+    // att de tre target-kindarna alltid renderas med IDENTISK CTA-struktur,
+    // skickar samma payload till onConfirm/onDismiss och visar rätt label.
+    // Skydd mot att UI-flöden för Lager / projekt / bokning glider isär.
+    'src/test/unifiedArrivalPrompt.parity.test.tsx',
+    // useArrivalPrompt-hook: server-respons normaliseras till generisk
+    // target-shape oavsett kind, legacy location-only payloads tolkas
+    // bakåtkompatibelt, markResolved skickar generiskt API.
+    'src/test/arrivalPromptHook.parity.test.ts',
   ],
 
   /**
@@ -124,6 +134,7 @@ export const TIME_REPORTING_QUALITY_GATE = {
    *   - time_reports CRUD (auth, payload-validering, ingen bypass)
    *   - workday_flags CRUD (auth, vokabulär, resolution_source-katalog)
    *   - timer-relaterade endpoints kräver auth + giltig payload
+   *   - arrival API parity över location/project/booking
    */
   backend: [
     'supabase/functions/mobile-app-api/timeReports.test.ts',
@@ -133,6 +144,10 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // (kommande) close-stale-location-entries cron-funktion. Tester
     // som beror på cron-funktionen är ignored tills den levereras.
     'supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts',
+    // Unified arrival API parity: report_arrival, mark_arrival_resolved,
+    // get_arrival_state — auth & validation-yta identisk för location,
+    // project och booking.
+    'supabase/functions/mobile-app-api/arrivalParity_test.ts',
   ],
 } as const;
 

@@ -1,20 +1,18 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
+import type { ArrivalState, ArrivalTarget } from '@/types/arrivalTarget';
 
-export interface ArrivalState {
-  should_prompt: boolean;
-  arrived_at: string | null;
-  location_id: string | null;
-  location_name: string | null;
-  prompts_sent: number;
-}
+export type { ArrivalState, ArrivalTarget } from '@/types/arrivalTarget';
 
 const POLL_INTERVAL_MS = 60_000;
 
 /**
  * Polls the server for "should I show an arrival prompt?".
- * Same source-of-truth used by the push-cron job, so logic is identical
- * regardless of whether the user opens the app via push or manually.
+ *
+ * UNIFIED: works identically for fixed locations, large projects and
+ * plain bookings. Always read `state.target` — the legacy `location_*`
+ * fields are kept only so older code paths keep compiling and now mirror
+ * `target` when `target.kind === 'location'`.
  *
  * `pausePolling` should be true while the user is interacting with the
  * arrival dialog so polling doesn't yank state from under them.
@@ -34,7 +32,25 @@ export function useArrivalPrompt(staffAuthenticated: boolean, pausePolling = fal
     inFlightRef.current = true;
     try {
       const result = await mobileApi.getArrivalState();
-      setState(result);
+      // Normalize: ensure `target` is present even on legacy responses.
+      const target: ArrivalTarget | null = result.target
+        ? (result.target as ArrivalTarget)
+        : (result.location_id && result.arrived_at)
+          ? {
+              kind: 'location',
+              target_id: result.location_id,
+              label: result.location_name || 'Arbetsplats',
+              arrived_at: result.arrived_at,
+            }
+          : null;
+      setState({
+        should_prompt: !!result.should_prompt,
+        target,
+        prompts_sent: result.prompts_sent ?? 0,
+        arrived_at: result.arrived_at ?? null,
+        location_id: result.location_id ?? null,
+        location_name: result.location_name ?? null,
+      });
     } catch (err) {
       console.warn('[useArrivalPrompt] fetch failed:', err);
     } finally {
@@ -63,9 +79,18 @@ export function useArrivalPrompt(staffAuthenticated: boolean, pausePolling = fal
     };
   }, [staffAuthenticated, fetchState]);
 
-  const markResolved = useCallback(async (locationId: string, arrivedAt: string) => {
+  /**
+   * Resolve an arrival prompt server-side. Accepts the unified target.
+   * Falls back to the legacy location-only API when target.kind === 'location'
+   * for backward compatibility with older server builds.
+   */
+  const markResolved = useCallback(async (target: ArrivalTarget) => {
     try {
-      await mobileApi.markArrivalResolved({ location_id: locationId, arrived_at: arrivedAt });
+      await mobileApi.markArrivalResolved({
+        target_type: target.kind,
+        target_id: target.target_id,
+        arrived_at: target.arrived_at,
+      });
     } catch (err) {
       console.warn('[useArrivalPrompt] markResolved failed:', err);
     }
