@@ -271,8 +271,7 @@ const MobileJobs = () => {
       name: loc.name,
       createsTimeReport: false,
     };
-    const coords = loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : null;
-    requestStart(target, loc.name, coords, () => {
+    requestStart(target, loc.name, () => {
       startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
       toast.success(`${t('timer.started')}: ${loc.name}`);
     });
