@@ -101,10 +101,20 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                     <Icon className="w-3 h-3" />
                   </div>
 
-                  {/* Time */}
-                  <div className="w-10 shrink-0 text-[10px] font-mono text-muted-foreground">
-                    {job.startTime ? format(new Date(job.startTime), 'HH:mm') : '—'}
-                  </div>
+                  {/* Date + Time */}
+                  {(() => {
+                    const { primary, range } = getDateRange(job);
+                    return (
+                      <div className="w-14 shrink-0 text-[10px] leading-tight">
+                        <div className="font-semibold text-foreground truncate" title={range || undefined}>
+                          {range || primary}
+                        </div>
+                        <div className="font-mono text-muted-foreground">
+                          {job.startTime ? format(new Date(job.startTime), 'HH:mm') : '—'}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Job info */}
                   <div className="flex-1 min-w-0">
