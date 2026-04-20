@@ -160,8 +160,10 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
         // Notify app so any active mobile session can redirect to login
         window.dispatchEvent(new CustomEvent('mobile-session-expired'));
       }
-      // Use a typed error so callers / React Query can ignore silently
-      const err: any = new Error('Session expired');
+      // Use AbortError so React Query / global error overlays ignore it silently.
+      // A stale mobile token in a web session is expected and must not surface
+      // as a runtime error.
+      const err: any = new DOMException('Session expired', 'AbortError');
       err.code = 'SESSION_EXPIRED';
       err.silent = true;
       throw err;
