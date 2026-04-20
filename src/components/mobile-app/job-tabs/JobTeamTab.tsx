@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { mobileApi } from '@/services/mobileApiService';
-import { Users, Phone, Mail, Loader2 } from 'lucide-react';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { Users, Phone, MessageSquare, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface JobTeamTabProps {
@@ -8,6 +10,8 @@ interface JobTeamTabProps {
 }
 
 const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
+  const navigate = useNavigate();
+  const { staff } = useMobileAuth();
   const [team, setTeam] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
