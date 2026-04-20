@@ -60,6 +60,9 @@ const MobileLocationDetail = () => {
   const [conflictEval, setConflictEval] = useState<
     Extract<StartEvaluation, { status: 'switch' }> | null
   >(null);
+  // Distance-warning dialog state — populated by startSessionWithDistanceCheck
+  // when the user is outside the location's geofence radius.
+  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
