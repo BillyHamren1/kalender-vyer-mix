@@ -311,7 +311,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = mapPoints.length > 0 || gpsPoints.length > 0;
+  const hasMapData = passPins.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -352,9 +352,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         )}
 
-        {gpsPoints.length > 0 && (
+        {passPins.length > 0 && (
           <div className="text-xs text-muted-foreground -mt-1">
-            GPS-spår: {gpsPoints.length} positioner ({gpsPoints[0].recorded_at.slice(11, 16)} – {gpsPoints[gpsPoints.length - 1].recorded_at.slice(11, 16)})
+            🟢 In · 🔴 Ut · {passPins.length} positioner från {gpsPoints.length} GPS-pings
           </div>
         )}
 
@@ -408,20 +408,21 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         </div>
 
-        {/* All geocodes summary */}
-        {mapPoints.length > 0 && (
+        {/* In/Out positions per pass */}
+        {passPins.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Alla geopositioner</h4>
+            <h4 className="text-sm font-semibold">In- och utloggningar</h4>
             <div className="grid grid-cols-1 gap-1 text-xs">
-              {mapPoints.map((p, i) => (
+              {passPins.map((p, i) => (
                 <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/30">
                   <div
                     className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                    style={{ backgroundColor: p.color }}
+                    style={{ backgroundColor: p.kind === 'in' ? '#10b981' : '#ef4444' }}
                   >
                     {i + 1}
                   </div>
-                  <span className="truncate flex-1">{p.label}</span>
+                  <span className="font-medium shrink-0">{p.label} {p.time}</span>
+                  <span className="truncate flex-1 text-muted-foreground">{p.passLabel}</span>
                   <span className="text-muted-foreground shrink-0">
                     {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
                   </span>
