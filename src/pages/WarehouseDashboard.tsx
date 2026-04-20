@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Plus, Package } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
