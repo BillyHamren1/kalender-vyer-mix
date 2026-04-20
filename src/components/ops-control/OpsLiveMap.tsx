@@ -26,8 +26,8 @@ interface Props {
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
 
 function getStaffStatus(loc: StaffLocation, mapJobs: OpsMapJob[]): StaffStatus {
+  if (loc.isOffline) return 'idle';
   if (loc.isWorking) return 'on_site';
-  // If staff is assigned to a booking that has started
   const job = mapJobs.find(j => j.bookingId === loc.bookingId);
   if (job?.isActive) return 'on_way';
   if (loc.bookingId) return 'on_way';
