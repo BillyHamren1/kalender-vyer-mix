@@ -45,18 +45,21 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
   const [showCustom, setShowCustom] = useState(false);
   const [customTime, setCustomTime] = useState('');
 
-  useEffect(() => {
-    if (open) {
-      setSubmitting(false);
-      setShowCustom(false);
-      setCustomTime(format(new Date(), 'HH:mm'));
-    }
-  }, [open]);
-
   const arrivedDate = (() => {
     try { return parseISO(arrivedAtIso); } catch { return new Date(); }
   })();
   const arrivalLabel = format(arrivedDate, 'HH:mm');
+
+  useEffect(() => {
+    if (open) {
+      setSubmitting(false);
+      setShowCustom(false);
+      // Default custom-time to detected arrival, not "now" — makes
+      // backdating obvious if the user opens the picker.
+      setCustomTime(format(arrivedDate, 'HH:mm'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, arrivedAtIso]);
 
   const handleAcceptArrival = async () => {
     setSubmitting(true);
