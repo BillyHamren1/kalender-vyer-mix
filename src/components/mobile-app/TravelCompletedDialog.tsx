@@ -27,6 +27,7 @@ import type { UnplannedVisit } from '@/hooks/useUnplannedSiteVisit';
 interface TravelCompletedDialogProps {
   info: TravelCompletedInfo;
   onDismiss: () => void;
+  onAcceptedVisit?: (visit: UnplannedVisit) => void;
 }
 
 function formatDuration(hours: number): string {
@@ -36,9 +37,11 @@ function formatDuration(hours: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-export default function TravelCompletedDialog({ info, onDismiss }: TravelCompletedDialogProps) {
+export default function TravelCompletedDialog({ info, onDismiss, onAcceptedVisit }: TravelCompletedDialogProps) {
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [smartResolved, setSmartResolved] = useState(false);
+  const { suggestion } = useArrivalContext(info, !smartResolved);
 
   const needsClassification = info.classification === 'unclassified' && !info.matchedBookingId;
 
