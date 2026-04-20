@@ -5,6 +5,8 @@ import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
+import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
+import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -92,6 +94,11 @@ const MobileGlobalOverlays: React.FC = () => {
     isTravelling: travelState.isMoving,
     isQuiet: arrivalDialogOpen || staleDialogOpen || !!completedTravel,
   });
+
+  // End-day-on-arrival-home — quiet suggestion when a trip ends inside the
+  // silently-inferred home location and a workplace timer is still open.
+  const { suggestion: endDayHomeSuggestion, dismissSuggestion: dismissEndDayHome, acceptSuggestion: acceptEndDayHome } =
+    useEndDayOnArrivalHome(completedTravel, activeTimersForAssistant);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
@@ -252,6 +259,14 @@ const MobileGlobalOverlays: React.FC = () => {
       />
 
       <WorkDayAssistant decision={assistantDecision} onAcknowledge={ackAssistant} />
+
+      {endDayHomeSuggestion && !arrivalDialogOpen && !staleDialogOpen && (
+        <EndDayOnArrivalHomeDialog
+          suggestion={endDayHomeSuggestion}
+          onAccept={acceptEndDayHome}
+          onDismiss={dismissEndDayHome}
+        />
+      )}
     </>
   );
 };
