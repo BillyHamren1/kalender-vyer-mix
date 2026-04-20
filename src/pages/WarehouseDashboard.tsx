@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Plus, Package } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 
 import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
+import WarehouseStaffTimeline from "@/components/warehouse-dashboard/WarehouseStaffTimeline";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
@@ -30,6 +31,12 @@ const WarehouseDashboard = () => {
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
+
+  // Timeline date state
+  const [timelineDate, setTimelineDate] = useState<Date>(new Date());
+  const goToNextDay = useCallback(() => setTimelineDate((d) => addDays(d, 1)), []);
+  const goToPrevDay = useCallback(() => setTimelineDate((d) => addDays(d, -1)), []);
+  const goToToday = useCallback(() => setTimelineDate(new Date()), []);
 
   // Realtime subscriptions for warehouse dashboard
   useRealtimeInvalidation({
@@ -182,6 +189,16 @@ const WarehouseDashboard = () => {
           {/* Recent packnings widgets */}
           <div className="mb-6">
             <WarehouseRecentPackingsWidgets />
+          </div>
+
+          {/* Tidsöversikt – timeline (full bredd) */}
+          <div className="mb-6 hidden lg:block">
+            <WarehouseStaffTimeline
+              date={timelineDate}
+              onNextDay={goToNextDay}
+              onPrevDay={goToPrevDay}
+              onToday={goToToday}
+            />
           </div>
 
           {/* Staff Activation + Transport */}
