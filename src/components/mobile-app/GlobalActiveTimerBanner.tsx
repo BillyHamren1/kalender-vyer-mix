@@ -56,6 +56,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  /** Set after a successful per-row stop so we can ask "what's next?". */
+  const [nextActionFor, setNextActionFor] = useState<{ name: string } | null>(null);
 
   // Sequential EOD queue: keys waiting to be processed one-by-one
   const eodQueueRef = useRef<string[]>([]);
