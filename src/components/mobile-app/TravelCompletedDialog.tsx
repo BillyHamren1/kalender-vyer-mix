@@ -3,6 +3,9 @@ import { MapPin, Clock, MessageSquare, Check, X, Briefcase, Home, Sparkles } fro
 import { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
+import { useArrivalContext } from '@/hooks/useArrivalContext';
+import SmartArrivalSuggestion from './SmartArrivalSuggestion';
+import type { UnplannedVisit } from '@/hooks/useUnplannedSiteVisit';
 
 /**
  * TravelCompletedDialog
@@ -24,6 +27,7 @@ import { toast } from 'sonner';
 interface TravelCompletedDialogProps {
   info: TravelCompletedInfo;
   onDismiss: () => void;
+  onAcceptedVisit?: (visit: UnplannedVisit) => void;
 }
 
 function formatDuration(hours: number): string {
@@ -33,9 +37,11 @@ function formatDuration(hours: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-export default function TravelCompletedDialog({ info, onDismiss }: TravelCompletedDialogProps) {
+export default function TravelCompletedDialog({ info, onDismiss, onAcceptedVisit }: TravelCompletedDialogProps) {
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [smartResolved, setSmartResolved] = useState(false);
+  const { suggestion } = useArrivalContext(info, !smartResolved);
 
   const needsClassification = info.classification === 'unclassified' && !info.matchedBookingId;
 
@@ -118,6 +124,20 @@ export default function TravelCompletedDialog({ info, onDismiss }: TravelComplet
             </span>
           )}
         </div>
+
+        {/* Smart-karta — kontextuella förslag (Scenario A/B/C) */}
+        {suggestion && !smartResolved && (
+          <SmartArrivalSuggestion
+            suggestion={suggestion}
+            travel={info}
+            onAcceptedVisit={(v) => {
+              onAcceptedVisit?.(v);
+              setSmartResolved(true);
+              onDismiss();
+            }}
+            onResolved={() => setSmartResolved(true)}
+          />
+        )}
 
         {/* Optional comment */}
         {!info.matchedBookingId && (

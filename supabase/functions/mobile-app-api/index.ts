@@ -415,6 +415,17 @@ Deno.serve(async (req) => {
         return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
       case 'report_arrival':
         return await handleReportArrival(supabase, staffId, data, organizationId)
+      // ── Smart-karta (arrival context) ──
+      case 'accept_unplanned_site_visit':
+        return await handleAcceptUnplannedSiteVisit(supabase, staffId, data, organizationId)
+      case 'end_unplanned_site_visit':
+        return await handleEndUnplannedSiteVisit(supabase, staffId, data, organizationId)
+      case 'register_break_from_travel':
+        return await handleRegisterBreakFromTravel(supabase, staffId, data, organizationId)
+      case 'link_purchase_intent_to_project':
+        return await handleLinkPurchaseIntent(supabase, staffId, data, organizationId)
+      case 'reject_arrival_suggestion':
+        return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -6697,3 +6708,265 @@ async function handleGetRecentBroadcasts(supabase: any, organizationId: string) 
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+
+// ============================================================================
+// Smart-karta — arrival-context handlers
+// ----------------------------------------------------------------------------
+// Scenario A: user accepted that the arrival is related to a planned booking
+// they are NOT assigned to. We:
+//   1. Mark the travel_log with related_booking_id + comment
+//   2. Open a location_time_entry for that booking (presence signal only)
+//   3. Mark the arrival_context_suggestions row as accepted
+//   4. Create a workday_flag of severity 'info' so admin sees the visit
+// We never create a booking_staff_assignment.
+// ============================================================================
+
+async function handleAcceptUnplannedSiteVisit(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { suggestion_id, travel_log_id, booking_id, note } = data || {}
+
+  if (!booking_id || typeof booking_id !== 'string') {
+    return new Response(JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const trimmedNote = typeof note === 'string' ? note.trim().slice(0, 200) : ''
+  if (trimmedNote.length < 3) {
+    return new Response(JSON.stringify({ error: 'Note must be at least 3 characters' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const nowIso = new Date().toISOString()
+  const today = nowIso.slice(0, 10)
+
+  // 1. Annotate travel_log
+  if (travel_log_id) {
+    await supabase
+      .from('travel_time_logs')
+      .update({
+        related_booking_id: booking_id,
+        related_booking_note: trimmedNote,
+      })
+      .eq('id', travel_log_id)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+  }
+
+  // 2. Open a location_time_entry (idempotent: re-use any open one for same booking)
+  let entry: any = null
+  const { data: openEntry } = await supabase
+    .from('location_time_entries')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('booking_id', booking_id)
+    .is('exited_at', null)
+    .limit(1)
+    .maybeSingle()
+  if (openEntry) {
+    entry = openEntry
+  } else {
+    const { data: inserted, error: insErr } = await supabase
+      .from('location_time_entries')
+      .insert({
+        organization_id: organizationId,
+        staff_id: staffId,
+        booking_id,
+        entered_at: nowIso,
+        entry_date: today,
+        source: 'arrival_context_unplanned_visit',
+      })
+      .select()
+      .single()
+    if (insErr) {
+      console.error('[accept_unplanned_site_visit] entry insert error:', insErr)
+    } else {
+      entry = inserted
+    }
+  }
+
+  // 3. Mark suggestion accepted
+  if (suggestion_id) {
+    await supabase
+      .from('arrival_context_suggestions')
+      .update({ decision: 'accepted', decided_at: nowIso })
+      .eq('id', suggestion_id)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+  }
+
+  // 4. Workday flag for admin visibility (info-only, no user input needed)
+  await supabase
+    .from('workday_flags')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      flag_type: 'presence_without_report',
+      severity: 'info',
+      flag_date: today,
+      title: 'Besök vid planerat jobb utan tilldelning',
+      description: trimmedNote,
+      needs_user_input: false,
+      assistant_decision_kind: 'arrival_context_unplanned_visit',
+      related_booking_id: booking_id,
+      context: { source: 'arrival_context', travel_log_id: travel_log_id || null },
+    })
+    .then(() => {}, (e: any) => console.warn('[accept_unplanned_site_visit] flag insert failed:', e))
+
+  return new Response(JSON.stringify({ success: true, entry }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleEndUnplannedSiteVisit(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { entry_id } = data || {}
+  if (!entry_id) {
+    return new Response(JSON.stringify({ error: 'entry_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const { data: updated, error } = await supabase
+    .from('location_time_entries')
+    .update({ exited_at: new Date().toISOString() })
+    .eq('id', entry_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('exited_at', null)
+    .select()
+    .maybeSingle()
+  if (error) {
+    console.error('[end_unplanned_site_visit] error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to close visit' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, entry: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * Scenario B: user said "this stop was lunch". If they have an open
+ * time_report for today, bump break_time (hours, capped 5–90 min). If no
+ * open report, just mark the suggestion accepted — no time_report is
+ * created automatically.
+ */
+async function handleRegisterBreakFromTravel(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { suggestion_id, duration_minutes } = data || {}
+  const nowIso = new Date().toISOString()
+  const today = nowIso.slice(0, 10)
+
+  const minutes = Math.max(5, Math.min(90, Math.round(Number(duration_minutes) || 30)))
+  const hours = +(minutes / 60).toFixed(2)
+
+  // Find today's open / latest time_report for staff
+  const { data: reports } = await supabase
+    .from('time_reports')
+    .select('id, break_time')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .eq('report_date', today)
+    .order('start_time', { ascending: false })
+    .limit(1)
+
+  let updatedReportId: string | null = null
+  if (reports && reports.length > 0) {
+    const r = reports[0]
+    const newBreak = +(Number(r.break_time || 0) + hours).toFixed(2)
+    await supabase
+      .from('time_reports')
+      .update({ break_time: newBreak })
+      .eq('id', r.id)
+    updatedReportId = r.id
+  }
+
+  if (suggestion_id) {
+    await supabase
+      .from('arrival_context_suggestions')
+      .update({ decision: 'accepted', decided_at: nowIso, payload: { break_minutes: minutes } })
+      .eq('id', suggestion_id)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+  }
+
+  return new Response(JSON.stringify({
+    success: true,
+    minutes,
+    updated_time_report_id: updatedReportId,
+  }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * Scenario C: user said the supply-store visit was for a specific project.
+ * We just record the intent on travel_log + suggestion. Receipt upload
+ * is handled by existing pipeline elsewhere.
+ */
+async function handleLinkPurchaseIntent(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { suggestion_id, travel_log_id, booking_id, large_project_id, location_id, supplier_name } = data || {}
+  const nowIso = new Date().toISOString()
+
+  if (travel_log_id) {
+    await supabase
+      .from('travel_time_logs')
+      .update({
+        related_booking_id: booking_id || null,
+        related_booking_note: supplier_name ? `Inköp ${supplier_name}` : 'Inköp',
+      })
+      .eq('id', travel_log_id)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+  }
+
+  if (suggestion_id) {
+    await supabase
+      .from('arrival_context_suggestions')
+      .update({
+        decision: 'accepted',
+        decided_at: nowIso,
+        payload: {
+          purchase_target: { booking_id, large_project_id, location_id },
+          supplier_name,
+        },
+      })
+      .eq('id', suggestion_id)
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+  }
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+async function handleRejectArrivalSuggestion(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { suggestion_id } = data || {}
+  if (!suggestion_id) {
+    return new Response(JSON.stringify({ error: 'suggestion_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  await supabase
+    .from('arrival_context_suggestions')
+    .update({ decision: 'rejected', decided_at: new Date().toISOString() })
+    .eq('id', suggestion_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}

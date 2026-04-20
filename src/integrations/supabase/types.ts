@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      arrival_context_suggestions: {
+        Row: {
+          confidence: number
+          created_at: string
+          decided_at: string | null
+          decision: string | null
+          id: string
+          kind: string
+          lat: number
+          lng: number
+          organization_id: string
+          payload: Json
+          staff_id: string
+          travel_log_id: string | null
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          decided_at?: string | null
+          decision?: string | null
+          id?: string
+          kind: string
+          lat: number
+          lng: number
+          organization_id: string
+          payload?: Json
+          staff_id: string
+          travel_log_id?: string | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          decided_at?: string | null
+          decision?: string | null
+          id?: string
+          kind?: string
+          lat?: number
+          lng?: number
+          organization_id?: string
+          payload?: Json
+          staff_id?: string
+          travel_log_id?: string | null
+        }
+        Relationships: []
+      }
       arrival_prompt_log: {
         Row: {
           arrived_at: string
@@ -5314,6 +5359,8 @@ export type Database = {
           id: string
           manual_project_name: string | null
           organization_id: string
+          related_booking_id: string | null
+          related_booking_note: string | null
           report_date: string
           staff_id: string
           start_time: string
@@ -5336,6 +5383,8 @@ export type Database = {
           id?: string
           manual_project_name?: string | null
           organization_id?: string
+          related_booking_id?: string | null
+          related_booking_note?: string | null
           report_date?: string
           staff_id: string
           start_time?: string
@@ -5358,6 +5407,8 @@ export type Database = {
           id?: string
           manual_project_name?: string | null
           organization_id?: string
+          related_booking_id?: string | null
+          related_booking_note?: string | null
           report_date?: string
           staff_id?: string
           start_time?: string

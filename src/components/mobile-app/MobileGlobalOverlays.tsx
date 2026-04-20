@@ -6,7 +6,9 @@ import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
 import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
+import UnplannedVisitBanner from './UnplannedVisitBanner';
 import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
+import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -99,6 +101,10 @@ const MobileGlobalOverlays: React.FC = () => {
   // silently-inferred home location and a workplace timer is still open.
   const { suggestion: endDayHomeSuggestion, dismissSuggestion: dismissEndDayHome, acceptSuggestion: acceptEndDayHome } =
     useEndDayOnArrivalHome(completedTravel, activeTimersForAssistant);
+
+  // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
+  const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
+    useUnplannedSiteVisit(latestPosition);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
@@ -234,10 +240,15 @@ const MobileGlobalOverlays: React.FC = () => {
       {/* Visual banners — render at mount position in the JSX tree */}
       <GlobalActiveTimerBanner />
       <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
+      {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
 
       {/* Portaled dialogs */}
       {completedTravel && (
-        <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
+        <TravelCompletedDialog
+          info={completedTravel}
+          onDismiss={dismissCompletedTravel}
+          onAcceptedVisit={startUnplannedVisit}
+        />
       )}
 
       {arrivalState?.should_prompt && arrivalTarget && (
