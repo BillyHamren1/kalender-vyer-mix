@@ -3,6 +3,9 @@ import { MapPin, Clock, MessageSquare, Check, X, Briefcase, Home, Sparkles } fro
 import { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
+import { useArrivalContext } from '@/hooks/useArrivalContext';
+import SmartArrivalSuggestion from './SmartArrivalSuggestion';
+import type { UnplannedVisit } from '@/hooks/useUnplannedSiteVisit';
 
 /**
  * TravelCompletedDialog
