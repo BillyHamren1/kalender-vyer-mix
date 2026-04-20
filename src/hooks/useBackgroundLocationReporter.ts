@@ -283,31 +283,6 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
         }
-      // Web: use navigator.geolocation
-      if (!navigator.geolocation) return;
-
-      const onPosition = (pos: GeolocationPosition) => {
-        handlePosition(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          pos.coords.accuracy ?? null,
-          pos.coords.speed ?? null,
-        );
-      };
-
-      watchIdRef.current = navigator.geolocation.watchPosition(onPosition, (err) => {
-        console.warn('[BGLocation] watch error:', err.message);
-      }, {
-        enableHighAccuracy: true,
-        maximumAge: 30000,
-        timeout: 15000,
-      });
-
-      return () => {
-        if (watchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(watchIdRef.current);
-          watchIdRef.current = null;
-        }
       };
     }
   }, [staffId]);
