@@ -73,6 +73,15 @@ FRONTEND_TESTS=(
   # survival över app-omstart.
   "src/test/endDayReconciliation.contract.test.ts"
   "src/test/projectStaff.test.ts"
+  # Unified arrival prompt (parity-suite): låser fast att Lager / stort
+  # projekt / vanlig bokning visar EXAKT samma promptstruktur, samma CTA,
+  # samma payload till onConfirm/onDismiss. Utan dessa tester driver de
+  # tre kindarna isär igen.
+  "src/test/unifiedArrivalPrompt.parity.test.tsx"
+  # useArrivalPrompt — generisk target-shape: server/legacy normalisering
+  # och markResolved skickar (target_type, target_id, arrived_at) för
+  # alla tre kindar.
+  "src/test/arrivalPromptHook.parity.test.ts"
 )
 
 BACKEND_TESTS=(
@@ -84,6 +93,10 @@ BACKEND_TESTS=(
   # location_time_entries. Auth-guard mot cron + kontrakt för stop-endpoint.
   # Tester som beror på (kommande) close-stale-location-entries är ignored.
   "supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts"
+  # Unified arrival API parity (location/project/booking): report_arrival,
+  # mark_arrival_resolved och get_arrival_state måste behandla alla tre
+  # target-kindar likadant på auth/validation-ytan.
+  "supabase/functions/mobile-app-api/arrivalParity_test.ts"
 )
 
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
