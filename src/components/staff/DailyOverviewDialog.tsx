@@ -182,7 +182,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
   // Initialize / update map
   useEffect(() => {
-    if (!open || !mapContainer.current || !mapboxToken || mapPoints.length === 0) return;
+    if (!open || !mapContainer.current || !mapboxToken) return;
+    if (mapPoints.length === 0 && gpsPoints.length === 0) return;
 
     // Clean up previous
     markersRef.current.forEach(m => m.remove());
@@ -193,20 +194,53 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
+    const center: [number, number] = mapPoints[0]
+      ? [mapPoints[0].lng, mapPoints[0].lat]
+      : [gpsPoints[0].lng, gpsPoints[0].lat];
+
     const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [mapPoints[0].lng, mapPoints[0].lat],
+      center,
       zoom: 11,
     });
 
     m.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     m.on('load', () => {
-      // Fit bounds
+      // Fit bounds across both work/travel markers and GPS trail
       const bounds = new mapboxgl.LngLatBounds();
       mapPoints.forEach(p => bounds.extend([p.lng, p.lat]));
-      m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+      gpsPoints.forEach(p => bounds.extend([p.lng, p.lat]));
+      if (!bounds.isEmpty()) {
+        m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+      }
+
+      // GPS trail polyline (drawn first so route lines & markers sit on top)
+      if (gpsPoints.length >= 2) {
+        m.addSource('gps-trail', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: gpsPoints.map(p => [p.lng, p.lat]),
+            },
+          },
+        });
+        m.addLayer({
+          id: 'gps-trail-line',
+          type: 'line',
+          source: 'gps-trail',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#6366f1',
+            'line-width': 4,
+            'line-opacity': 0.6,
+          },
+        });
+      }
 
       // Add route lines for travel segments
       let segIdx = 0;
@@ -270,6 +304,30 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           .addTo(m);
         markersRef.current.push(marker);
       });
+
+      // First/last GPS markers when there are no travel/work markers (lager-only days)
+      if (mapPoints.length === 0 && gpsPoints.length > 0) {
+        const first = gpsPoints[0];
+        const last = gpsPoints[gpsPoints.length - 1];
+        const mkDot = (color: string, label: string) => {
+          const el = document.createElement('div');
+          el.style.width = '18px';
+          el.style.height = '18px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = color;
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          return new mapboxgl.Marker(el).setPopup(new mapboxgl.Popup({ offset: 20 }).setText(label));
+        };
+        markersRef.current.push(
+          mkDot('#10b981', `Första GPS ${first.recorded_at.slice(11, 16)}`).setLngLat([first.lng, first.lat]).addTo(m)
+        );
+        if (last !== first) {
+          markersRef.current.push(
+            mkDot('#ef4444', `Sista GPS ${last.recorded_at.slice(11, 16)}`).setLngLat([last.lng, last.lat]).addTo(m)
+          );
+        }
+      }
     });
 
     map.current = m;
@@ -282,7 +340,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, mapPoints, travelSegments]);
+  }, [open, mapboxToken, mapPoints, travelSegments, gpsPoints]);
 
   if (!date) return null;
 
