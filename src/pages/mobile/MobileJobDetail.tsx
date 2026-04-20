@@ -41,7 +41,7 @@ const MobileJobDetail = () => {
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startSession, stopSession, geo, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  const { activeTimers, startSession, startSessionWithDistanceCheck, stopSession, geo, dialogs } = useWorkSession(bookingsArr, staff?.id);
   const userPosition = geo.userPosition;
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
