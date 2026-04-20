@@ -1,85 +1,54 @@
 
 
-## Lager-tidsöversikt (timeline) på Lagerdashboard
+## Fix: personalen syns inte på OpsLiveMap
 
-### Vad som ska ändras
-Dagens "Personal & schema"-kort (`WarehouseStaffActivationCard`) är en kompakt listvy. Jag ersätter den vyn med en **timeline-baserad tidsöversikt** för lagret som är 1:1 visuellt och funktionellt jämförbar med `OpsStaffTimeline` på `/ops-control` (bilden du visade).
+### Verifierat med data
+- 13 staff har `staff_locations` med giltiga lat/lng (kluster vid Märsta ~59.49,17.85 och Bålsta ~59.65,17.72).
+- Statsraden visar korrekt "13 personal · 12 på plats" → datat når komponenten.
+- Men WebGL-lagren (`ops-staff-marker-layer`) ritar inte ut markörerna på kartan.
+
+### Trolig orsak
+`OpsLiveMap` använder WebGL-`circle`-lager (inte HTML-markörer) för staff. Det är skört av tre skäl:
+
+1. **`m.isStyleLoaded()`-guard utan retry.** Effekten på rad 274–275 hoppar tidigt om stilen inte är klar. När `styleRevision` bumpas via `style.load` är `locations` ofta fortfarande `[]` (queryt klart senare), så effekten kör igen — men ibland med tom data, och nästa körning sker innan `isStyleLoaded` blir true igen.
+2. **Layers återanvänds men source-datan kan bli stale efter `setStyle()`** (kart-stil-toggle). `setStyle` rensar alla layers/sources; `getSource(STAFF_SOURCE_ID)` returnerar undefined och vi `addSource` igen — men layers återanvänds inte, alla kontroller är `if (!m.getLayer(...))` → ok. Men om `isStyleLoaded()` är false vid omkörning hoppar vi och layers återskapas aldrig.
+3. **GPS-status missvisar.** "Recent GPS"-pricken kräver `lastReportTime` < 5 min, men `lastReportTime` = `time_reports.created_at` (sätts en gång när timern startas — inte en GPS-puls). Status-färgen baseras på `isWorking` (har time_report idag) → de flesta blir `on_site` (grönt) men markeras grått om bokning saknas. `isOffline`-flaggan beräknas men används inte i färgen.
 
 ### Vad jag bygger
 
-**1. Ny komponent: `src/components/warehouse-dashboard/WarehouseStaffTimeline.tsx`**
-En lager-anpassad kopia av `OpsStaffTimeline` med samma layout:
-- **Header**: "TIDSÖVERSIKT" + dag-navigering (◀ Idag ▶) + räknare (`X tilldelade`, `Y lediga`, ev. `Z konflikter`).
-- **Sticky timrad** 06–24 (samma som ops).
-- **Personal grupperad per Lagerteam** (`Lager 1`, `Lager 2`, …). Personal utan lagerteam för dagen hamnar under "Ej tilldelade lagerteam".
-- **Block per pass** med samma färgkoder anpassade för lager:
-  - Packning (primary), Utleverans (grön), Retur (amber), Inventering (sky), Uppackning (cyan), Internt lagerpass (warehouse-färg), Transport (slate).
-- **Hover-tooltip** med titel, tid, adress, typ — samma `OpsAssignmentTooltip`-stil (eller en lokal motsvarighet, se nedan).
-- **"Nu"-linje** (röd vertikal) endast på dagens datum.
-- **Klick på block** → navigerar till passets detaljvy:
-  - Packning/uppackning → `/warehouse/packing/:packingId`
-  - Internt lagerpass → öppnar uppgiftsdialog
-  - Transport → `/warehouse/transport`
-  - Övrigt med booking → `/booking/:id`
-- **Drag-och-släpp utelämnas i v1** (lager har inte samma "tilldela till bokning"-flöde från denna vy — kan läggas till senare). Texten "Dra personal..." byts ut mot info om antal pass.
+**1. Robust layer-rendering i `OpsLiveMap.tsx`**
+- Ersätt `if (!isStyleLoaded()) return;` med en kö: om stilen inte är klar, registrera engångs-`once('idle', ...)` som kör samma render-funktion. Garanterar att layers alltid landar.
+- Lägg till `console.debug('[OpsLiveMap] render staff', { count, sample })` i render-effekten så vi i konsollen direkt ser om datan når Mapbox.
+- Säkerställ att layers läggs ovanpå basemap-symboler genom att skicka `beforeId` = första symbol-laget (om finns), så markörer aldrig döljs av road-labels.
 
-**2. Datakälla — återanvänder befintlig hook**
-`useWarehouseStaffScheduleOverview(staffWithActivations, date, 'day')` returnerar redan exakt det vi behöver per person:
-- `id`, `title`, `eventType`, `startTime`, `endTime`, `resourceLabel` (= team-namn), `bookingNumber`, `bookingId`, `packingId`.
+**2. Fallback: HTML-markörer om WebGL-lager fallerar**
+- Efter `addLayer`-blocket: kolla `m.getLayer(STAFF_MARKER_LAYER_ID)`. Om det saknas (mycket ovanligt men möjligt vid style-race) → fall tillbaka till `mapboxgl.Marker` med samma styling som `StaffMapView` redan använder. Markörerna sparas i en ref för cleanup.
 
-Mappning till timeline-modellen:
-```text
-WarehouseStaffScheduleItem  →  TimelineAssignment
-- startTime/endTime         →  block-position på timrad
-- eventType                 →  färg + typ-etikett
-- title                     →  block-text
-- resourceLabel ("Lager 2") →  team-grupp för personen
-- bookingNumber             →  visas i tooltip
-```
+**3. Korrekt status-färg per faktisk GPS-färskhet**
+- `getStaffStatus` får ny logik:
+  - `isOffline` (>10 min sedan GPS) → grå "Inaktiv"
+  - `isWorking` (har time_report idag) → grön "På plats"  
+  - `bookingId` med `isActive` → gul "På väg"
+  - annars → grå "Inaktiv"
+- "Recent GPS"-pricken (gröna lilla satellit-indikator) baseras nu på `loc.isOffline === false` istället för `lastReportTime`. Det matchar verkligheten — vi har faktisk `updated_at` i datan.
 
-För team-gruppering används personens **primära lagerteam** för dagen (från `staff_assignments` där `team_id LIKE 'lager-%'`). Är hen inte tilldelad ett team men har pass → "Ej tilldelade lagerteam".
-
-**3. Hook: `src/hooks/useWarehouseStaffTimeline.ts`** (ny)
-Tunn wrapper som:
-- Hämtar lagerpersonal via `useWarehouseStaffActivations`
-- Hämtar dag-schema via `useWarehouseStaffScheduleOverview(..., 'day')`
-- Hämtar dagens `staff_assignments` för team_id (filtrerat på `lager-%`)
-- Returnerar `WarehouseTimelineStaff[]` med samma form som `OpsTimelineStaff`:
-  ```ts
-  { id, name, color, role, status, assignments[], hasConflict,
-    currentJob, nextJob, teamId, teamName }
-  ```
-- Markerar `hasConflict` när två block överlappar i tid.
-
-**4. Integration i `WarehouseDashboard.tsx`**
-Jag flyttar `WarehouseStaffActivationCard` ut ur `grid-cols-2` och lägger den nya `WarehouseStaffTimeline` som en **bred sektion ovanför** transportkortet:
-```text
-[ Inbox ]
-[ IncomingPackingList ]
-[ Recent packings widgets ]
-[ ░░░░░ TIDSÖVERSIKT (full bredd) ░░░░░ ]   ← NY
-[ Personal & schema (kompakt) | Transporter ]
-```
-Den gamla listan behålls som sekundär detaljvy men i halv bredd. Vill du senare ta bort den helt — bara att kommentera ut.
+**4. Lägg `isOffline` i feature-properties**
+- Skickas till layern och används i `circle-opacity` (offline = 0.55) så användaren ser direkt vilka som är "kalla" pricar utan att klicka.
 
 ### Berörda filer
-- `src/components/warehouse-dashboard/WarehouseStaffTimeline.tsx` (ny — kopierar struktur från `OpsStaffTimeline`)
-- `src/components/warehouse-dashboard/WarehouseAssignmentTooltip.tsx` (ny — lager-anpassad tooltip)
-- `src/hooks/useWarehouseStaffTimeline.ts` (ny — sammanställer data)
-- `src/pages/WarehouseDashboard.tsx` (lägger in ny sektion + omplacerar gamla kortet)
+- `src/components/ops-control/OpsLiveMap.tsx` — robust render + HTML-fallback + status-fix
+- `src/services/planningDashboardService.ts` — exponera `isOffline` (finns redan i `StaffLocation`-typen, säkerställ att alla code-paths sätter det korrekt; en av två branches saknar fältet idag)
 
 ### Inte i denna ändring
-- Ingen drag-och-släpp för tilldelning (hanteras via lagerkalendern).
-- Ingen ändring av `OpsStaffTimeline` (det är planning-domänen).
-- Ingen DB- eller edge-funktion-ändring.
-- Mobilvyn på lagerdashboarden påverkas inte (timeline är desktop-orienterad — visas dold på `<lg`).
+- Ingen ändring av `staff_locations`-schema, ingen DB-migration.
+- Ingen ändring av GPS-rapporteringsfrekvens (kvar på 30 s från mobilen).
+- `StaffMapView`/`WarehouseStaffTimeline` rörs inte.
 
 ### QA efter implementation
-1. Öppna `/warehouse` → "TIDSÖVERSIKT"-sektionen visas över befintliga kort.
-2. Personal grupperas under `Lager 1`, `Lager 2` osv enligt dagens `staff_assignments`.
-3. Varje pass syns som färgat block på rätt tid; "Nu"-linjen syns idag.
-4. Hover på block → tooltip med titel/tid/adress/typ.
-5. Klick på packningsblock → `/warehouse/packing/:id`; klick på transportblock → transportlistan.
-6. Byt dag med ◀▶/Idag → datat uppdateras; "Nu"-linje försvinner på andra dagar.
-7. Två överlappande pass på samma person → varningsikon + ljus destruktiv bakgrund på raden.
+1. Öppna `/ops-control` → 12–13 färgade markörer ska synas vid Märsta + Bålsta-klustren.
+2. Hovra på en markör → tooltip + popup öppnas.
+3. Toggla satellit-/kart-stil → markörerna stannar kvar (inte tomt efter style-byte).
+4. Stäng laptop, vänta 11+ min, öppna igen → de markörer som inte uppdaterats blir ljusgrå/halvtransparenta (offline).
+5. Konsoll: `[OpsLiveMap] render staff { count: 13, sample: ... }` ska loggas vid varje uppdatering.
+6. Klicka på en markör → staff-panelen öppnas till höger med namn, status, senast uppdaterad.
 
