@@ -240,10 +240,15 @@ const MobileGlobalOverlays: React.FC = () => {
       {/* Visual banners — render at mount position in the JSX tree */}
       <GlobalActiveTimerBanner />
       <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
+      {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
 
       {/* Portaled dialogs */}
       {completedTravel && (
-        <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
+        <TravelCompletedDialog
+          info={completedTravel}
+          onDismiss={dismissCompletedTravel}
+          onAcceptedVisit={startUnplannedVisit}
+        />
       )}
 
       {arrivalState?.should_prompt && arrivalTarget && (
