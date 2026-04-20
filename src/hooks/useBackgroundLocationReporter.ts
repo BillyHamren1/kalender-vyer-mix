@@ -80,12 +80,21 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  * Exposes `latestPosition` so other hooks (e.g. useTravelDetection)
  * can consume GPS data without creating their own watcher.
  */
+const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
+const HEARTBEAT_INTERVAL_MS = 60_000;  // forced ping even if phone is still
+
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
   const watchIdRef = useRef<number | null>(null);
+  const heartbeatTimerRef = useRef<number | null>(null);
+  const lastKnownPosRef = useRef<{ lat: number; lng: number; accuracy: number | null; speed: number | null } | null>(null);
+  const staffIdRef = useRef<string | null | undefined>(staffId);
   const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
   // Track which targets we're currently inside (to avoid duplicate pending arrivals)
   const insideRef = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync so heartbeat survives auth-token refreshes without restart
+  useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
 
   useEffect(() => {
     if (!staffId) return;
@@ -103,9 +112,12 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         timestamp: Date.now(),
       });
 
+      // Cache for heartbeat
+      lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
+
       // Throttle API reports to every 30s
       const now = Date.now();
-      if (now - lastReportRef.current < 30000) {
+      if (now - lastReportRef.current < REPORT_THROTTLE_MS) {
         // Still run geofence check even when throttled
         checkBackgroundGeofences(latitude, longitude);
         return;
@@ -119,6 +131,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // Run geofence check
       checkBackgroundGeofences(latitude, longitude);
     };
+
+    // Heartbeat: force a ping every 60s using last known position so we can
+    // distinguish "phone still alive but stationary" from "app dead".
+    const sendHeartbeat = () => {
+      const pos = lastKnownPosRef.current;
+      const sid = staffIdRef.current;
+      if (!pos || !sid) return;
+      lastReportRef.current = Date.now();
+      mobileApi.reportLocation({
+        latitude: pos.lat,
+        longitude: pos.lng,
+        accuracy: pos.accuracy,
+        speed: pos.speed,
+      }).catch((error) => {
+        console.warn('[BGLocation] heartbeat error:', error?.message || error);
+      });
+    };
+    heartbeatTimerRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
@@ -186,7 +216,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           backgroundTitle: 'EventFlow Time',
           requestPermissions: true,
           stale: false,
-          distanceFilter: 20,
+          // Smaller distanceFilter = more pings even with small movement.
+          // Heartbeat handles the truly stationary case.
+          distanceFilter: 10,
         },
         (location, error) => {
           if (stopped) return;
@@ -208,13 +240,17 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           }
         },
       ).then(() => {
-        console.log('[BGLocation] background tracking started');
+        console.log('[BGLocation] background tracking started (distanceFilter=10, heartbeat=60s)');
       }).catch((err) => {
         console.warn('[BGLocation] Failed to start:', err?.message || err);
       });
 
       return () => {
         stopped = true;
+        if (heartbeatTimerRef.current !== null) {
+          window.clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = null;
+        }
         BackgroundGeolocation.stop().catch(() => {});
       };
     } else {
@@ -239,6 +275,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       });
 
       return () => {
+        if (heartbeatTimerRef.current !== null) {
+          window.clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = null;
+        }
         if (watchIdRef.current !== null) {
           navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
