@@ -108,7 +108,10 @@ describe('Location presence lifecycle — open rows must always close', () => {
     const src = read('supabase/functions/mobile-app-api/index.ts');
     const fnStart = src.indexOf('async function handleStopLocationTimer');
     expect(fnStart).toBeGreaterThan(-1);
-    const fnBody = src.slice(fnStart, fnStart + 2500);
+    // Slice only this function (cut at next top-level `^async function` or `^function`)
+    const after = src.slice(fnStart + 1);
+    const nextFn = after.search(/\n(async\s+)?function\s+\w+/);
+    const fnBody = nextFn === -1 ? after : after.slice(0, nextFn);
 
     // The query must NOT filter by source — both 'gps' and 'manual' rows
     // must be eligible to close. If a `.eq('source', 'gps')` ever appears,
