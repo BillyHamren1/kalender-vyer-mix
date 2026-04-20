@@ -138,6 +138,7 @@ export interface OpsJobQueueItem {
   client: string;
   eventDate: string | null;
   rigDate: string | null;
+  rigDownDate: string | null;
   deliveryAddress: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -368,7 +369,7 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
   // Get bookings active today — ONLY confirmed bookings that are assigned to a project
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_number, client, eventdate, rigdaydate, deliveryaddress, delivery_latitude, delivery_longitude, status, viewed, updated_at')
+    .select('id, booking_number, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, delivery_latitude, delivery_longitude, status, viewed, updated_at')
     .or(`rigdaydate.eq.${today},eventdate.eq.${today},rigdowndate.eq.${today}`)
     .eq('status', 'CONFIRMED')
     .eq('assigned_to_project', true)
@@ -430,6 +431,7 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
         client: b.client,
         eventDate: b.eventdate,
         rigDate: b.rigdaydate,
+        rigDownDate: (b as any).rigdowndate ?? null,
         deliveryAddress: b.deliveryaddress,
         latitude: b.delivery_latitude,
         longitude: b.delivery_longitude,

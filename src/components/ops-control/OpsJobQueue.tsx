@@ -3,7 +3,7 @@ import { OpsJobQueueItem } from '@/services/opsControlService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Clock, Eye, RefreshCw, MapPin, Users, Send, ChevronRight, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow, parseISO } from 'date-fns';
 import { sendAdminMessage } from '@/services/staffDashboardService';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,22 @@ const issueConfig = {
   starting_soon: { icon: Clock, label: 'Startar snart', cls: 'text-muted-foreground bg-muted', rowCls: '' },
   unopened: { icon: Eye, label: 'Ej öppnad', cls: 'text-muted-foreground bg-muted', rowCls: '' },
   recently_modified: { icon: RefreshCw, label: 'Ändrad', cls: 'text-blue-600 bg-blue-500/10', rowCls: '' },
+};
+
+const fmtShort = (d: Date) => format(d, 'd/M');
+const labelForDate = (d: Date) => isToday(d) ? 'Idag' : isTomorrow(d) ? 'Imorgon' : fmtShort(d);
+
+const getDateRange = (job: OpsJobQueueItem): { primary: string; range: string | null } => {
+  const dates = [job.rigDate, job.eventDate, job.rigDownDate]
+    .filter(Boolean)
+    .map(d => parseISO(d as string))
+    .filter(d => !isNaN(d.getTime()));
+  if (dates.length === 0) return { primary: '—', range: null };
+  const min = new Date(Math.min(...dates.map(d => d.getTime())));
+  const max = new Date(Math.max(...dates.map(d => d.getTime())));
+  const primary = labelForDate(min);
+  const range = min.getTime() !== max.getTime() ? `${fmtShort(min)}–${fmtShort(max)}` : null;
+  return { primary, range };
 };
 
 const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
@@ -85,10 +101,20 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                     <Icon className="w-3 h-3" />
                   </div>
 
-                  {/* Time */}
-                  <div className="w-10 shrink-0 text-[10px] font-mono text-muted-foreground">
-                    {job.startTime ? format(new Date(job.startTime), 'HH:mm') : '—'}
-                  </div>
+                  {/* Date + Time */}
+                  {(() => {
+                    const { primary, range } = getDateRange(job);
+                    return (
+                      <div className="w-14 shrink-0 text-[10px] leading-tight">
+                        <div className="font-semibold text-foreground truncate" title={range || undefined}>
+                          {range || primary}
+                        </div>
+                        <div className="font-mono text-muted-foreground">
+                          {job.startTime ? format(new Date(job.startTime), 'HH:mm') : '—'}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Job info */}
                   <div className="flex-1 min-w-0">
@@ -124,6 +150,17 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                         <span className="font-medium text-foreground">Personal:</span> {job.assignedStaffNames.join(', ')}
                       </div>
                     )}
+                    {(() => {
+                      const parts: string[] = [];
+                      if (job.rigDate) parts.push(`Etablering: ${fmtShort(parseISO(job.rigDate))}`);
+                      if (job.eventDate) parts.push(`Event: ${fmtShort(parseISO(job.eventDate))}`);
+                      if (job.rigDownDate) parts.push(`Avetablering: ${fmtShort(parseISO(job.rigDownDate))}`);
+                      return parts.length > 0 ? (
+                        <div className="text-[10px] text-muted-foreground">
+                          {parts.join(' · ')}
+                        </div>
+                      ) : null;
+                    })()}
                     {job.startTime && job.endTime && (
                       <div className="text-[10px] text-muted-foreground">
                         {job.eventType || 'Jobb'} · {format(new Date(job.startTime), 'HH:mm')}–{format(new Date(job.endTime), 'HH:mm')}
