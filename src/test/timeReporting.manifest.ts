@@ -103,6 +103,17 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // aktiv session, korrupt kö, server-timeout, osäker target.
     'src/test/edgeCaseHardening.contract.test.ts',
 
+    // Location-presence livscykel (A–K): GPS/manuell entry måste alltid
+    // stängas via rätt verb (saveAndStopTimer / stopLocationTimerWithoutReport
+    // / endDay). Regressionsskydd för Ranjan-fallet (manuell entry hängde
+    // efter utlogg) och de 7 öppna raderna 20 april.
+    'src/test/locationPresenceLifecycle.contract.test.ts',
+
+    // End-of-day reconciliation (L–R): EOD stänger alla aktiva timrar
+    // och presence-rader, save-then-stop atomicitet, server-idempotens
+    // vid dubbel-submit, dialog stays open vid fel, pending-stop survival.
+    'src/test/endDayReconciliation.contract.test.ts',
+
     // Befintliga rena beräknings/summering-tester.
     'src/test/projectStaff.test.ts',
   ],
@@ -117,6 +128,11 @@ export const TIME_REPORTING_QUALITY_GATE = {
   backend: [
     'supabase/functions/mobile-app-api/timeReports.test.ts',
     'supabase/functions/mobile-app-api/workdayFlags.test.ts',
+    // Stale-entry auto-close (S–Z): server-side stängningsregler för
+    // hängande location_time_entries. Kontrakt mot mobile-app-api +
+    // (kommande) close-stale-location-entries cron-funktion. Tester
+    // som beror på cron-funktionen är ignored tills den levereras.
+    'supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts',
   ],
 } as const;
 
