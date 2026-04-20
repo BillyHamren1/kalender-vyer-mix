@@ -1,53 +1,55 @@
 
 
-## Fix: tydlig "Avsluta dagen"-knapp i timer-bannern
+## Problem
 
-### Vad som faktiskt finns idag
-- TimerRow har bara **en** röd "Avsluta"-knapp → kör `handleStop` (per-timer EOD-check, sparar bara den raden).
-- Det finns INGEN "Avsluta dagen"-knapp i UI:t.
-- "Avsluta dagen" finns bara som ett event (`request-end-day`) som dispatchas från `WorkDayAssistant` när den triggar `last_workplace_for_day`-prompten.
-- Resultat: om assistenten inte triggar har användaren ingen knapp att avsluta dagen med → upplevs som att appen "fortsätter registrera".
+Det finns två mobil-shells:
+- `MobileAppLayout` (web-läge `/m/*` via `App.tsx`) — har assistenten, ankomst-prompt, stale-dialog, travel-banner, global timer-banner.
+- `TimeAppLayout` (native EventFlow Time-shell, `VITE_APP_MODE='time'`) — har **inget** av detta. Bara header-slot + bottom nav.
 
-### Vad jag bygger
+På riktiga mobilappen kör du `TimeAppShell` → `TimeAppLayout` → därför är assistenten tyst.
 
-**1. Lägg till en "Avsluta dagen"-knapp i `GlobalActiveTimerBanner`**
-- Visas under timer-listan (under alla `TimerRow`) när `timers.size >= 1`.
-- Sekundär stil (outline) så den inte konkurrerar visuellt med per-rad "Avsluta".
-- onClick → `window.dispatchEvent(new CustomEvent('request-end-day'))` (samma event som assistenten redan använder, så vi går genom samma sekventiella EOD-kö).
-- Disabled när `savingKeys.size > 0` eller `eodProcessingRef.current === true`.
+## Fix: lyft alla globala mobil-flöden till en gemensam wrapper
 
-**2. Förtydliga rad-knappens etikett**
-- Byt "Avsluta" → "Avsluta aktivitet" på TimerRow så det blir uppenbart att den bara stoppar EN sak.
-- Titeln (tooltip) förblir den nuvarande förklaringen.
+### Vad jag gör
 
-**3. Säkerställ att event-flödet fungerar även när bannern är montered men listan är tom**
-- Bannern monteras alltid (ligger i `MobileAppLayout`). Knappen renderas bara när det finns timers. Om alla timers redan är stoppade behövs inte knappen.
+**1. Skapa `src/components/mobile-app/MobileGlobalOverlays.tsx`**
+En ren komponent som äger ALLA globala mobil-flöden:
+- `useBackgroundLocationReporter`
+- `useTravelDetection` + `TravelBanner` + `TravelCompletedDialog`
+- `useArrivalPrompt` + `ArrivalPromptDialog`
+- `useTimerReconciliation` + `StaleTimerDialog`
+- `useWorkDayAssistant` + `WorkDayAssistant`
+- `GlobalActiveTimerBanner`
+- inbox-prefetch
 
-### Layout
-```text
-┌────────────────────────────────────┐
-│ 🏢 Lager Stockholm     01:23:45    │
-│ Startad 07:27          [Avsluta aktivitet] │
-├────────────────────────────────────┤
-│ 🏢 Projekt X          00:42:10    │
-│ Startad 09:00          [Avsluta aktivitet] │
-├────────────────────────────────────┤
-│        [ Avsluta dagen ]            │  ← NY, sekundär
-└────────────────────────────────────┘
-```
+Logiken flyttas 1:1 ur dagens `MobileAppLayout` (med samma `isQuiet`-koppling och samma handlers — ingen beteendeförändring).
+
+**2. Montera den i `TimeAppLayout`**
+`TimeAppLayout` renderar `<MobileGlobalOverlays />` precis som `MobileAppLayout` gör idag. Banners/timer-banner placeras överst i scroll-containern; dialoger renderas på root-nivå (de portar sig själva via Radix).
+
+**3. Förenkla `MobileAppLayout`**
+`MobileAppLayout` ersätter sin lokala kopia av samma kod med `<MobileGlobalOverlays />`. Då finns det bara EN sanning — ingen risk att shells driftar isär igen.
+
+### Varför detta och inte "kopiera in koden i TimeAppLayout"
+- En shared komponent garanterar att framtida ändringar (nya assistent-prompts, nya dialoger) automatiskt syns i båda shells.
+- Inga nya hooks, inget nytt context. Bara en flytt + en ny montering.
 
 ### Berörda filer
-- `src/components/mobile-app/GlobalActiveTimerBanner.tsx` — ny knapp + ändrad etikett
+- `src/components/mobile-app/MobileGlobalOverlays.tsx` (ny — flyttar nuvarande logik från MobileAppLayout)
+- `src/shells/time/TimeAppLayout.tsx` (monterar `<MobileGlobalOverlays />` + tar bort sin egen `useBackgroundLocationReporter` så den inte dubbelmonteras)
+- `src/components/mobile-app/MobileAppLayout.tsx` (ersätter lokal kod med `<MobileGlobalOverlays />`)
 
 ### Inte i denna ändring
-- Ingen ändring av EOD-logiken eller `useWorkSession`
-- Ingen ändring av `WorkDayAssistant`
-- Ingen ändring av eventnamn (`request-end-day` återanvänds)
-- Inga nya kontraktstester behövs (befintligt `request-end-day`-event används)
+- Ingen ändring av `useWorkDayAssistant`-regler eller cooldowns.
+- Inga nya prompttyper.
+- Ingen ändring av `MobileBottomNav` eller header-slot.
+- Ingen DB- eller edge-funktion-ändring.
 
 ### QA efter implementation
-1. Starta en location-timer i Lager → verifiera att "Avsluta dagen"-knappen syns i bannern.
-2. Tryck "Avsluta aktivitet" → bara den raden stängs; knappen "Avsluta dagen" försvinner när sista timer är stängd.
-3. Med 2+ aktiva timers, tryck "Avsluta dagen" → EOD-kön drar dem sekventiellt (en dialog i taget).
-4. Med 1 aktiv timer som har geofence-exit >2 min → "Avsluta dagen" öppnar EndOfDayStopDialog för den.
+1. Logga in i Time-appen (`VITE_APP_MODE='time'`) — kontrollera att `GlobalActiveTimerBanner` syns när timer är igång.
+2. Gå in i geofence till Lager → `ArrivalPromptDialog` ska poppa (inkl. "Starta från ankomsttid"-knappen).
+3. Lämna geofence och vänta — `WorkDayAssistant` ska kunna trigga `activity_leave` / `last_workplace_for_day`.
+4. Stale timer (timer > 24h gammal från servern) → `StaleTimerDialog` ska poppa.
+5. Kör en faktisk resa → `TravelBanner` ska visas, vid stopp → `TravelCompletedDialog`.
+6. Kontrollera att inga dialoger dubbelmonteras (web-`/m/*` ska inte längre rendera två kopior).
 
