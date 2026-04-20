@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
+import { NextActionDialog } from './NextActionDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
@@ -55,6 +56,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  /** Set after a successful per-row stop so we can ask "what's next?". */
+  const [nextActionFor, setNextActionFor] = useState<{ name: string } | null>(null);
 
   // Sequential EOD queue: keys waiting to be processed one-by-one
   const eodQueueRef = useRef<string[]>([]);
@@ -170,7 +173,14 @@ const GlobalActiveTimerBanner: React.FC = () => {
     // No EOD dialog needed — delegate to the unified engine.
     setSavingKeys(prev => new Set(prev).add(key));
     try {
-      await stopSession(timerToTarget(key, timer));
+      const res = await stopSession(timerToTarget(key, timer));
+      // After a successful save, ask user what's next so the day isn't broken.
+      // Skip when the stop was cancelled (break-dialog dismissed) or while
+      // the global EOD queue is draining (those timers are already on their
+      // way out — no need to re-ask).
+      if (res && !res.cancelled && !eodProcessingRef.current) {
+        setNextActionFor({ name: timer.locationName || timer.client || 'aktiviteten' });
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte spara — försök igen.');
     } finally {
@@ -309,6 +319,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
           lastExitIso={pendingStop.lastExitIso}
           locationName={pendingStop.locationName}
           onConfirm={handleDialogConfirm}
+        />
+      )}
+      {nextActionFor && (
+        <NextActionDialog
+          open={!!nextActionFor}
+          closedActivityName={nextActionFor.name}
+          onOpenChange={(open) => {
+            if (!open) setNextActionFor(null);
+          }}
         />
       )}
       {workSessionDialogs}
