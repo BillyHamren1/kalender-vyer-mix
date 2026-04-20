@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
-import ArrivalPromptDialog from './ArrivalPromptDialog';
+import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -11,11 +11,14 @@ import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
+import { useMobileBookings } from '@/hooks/useMobileBookings';
+import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
+import type { ArrivalTarget } from '@/types/arrivalTarget';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
