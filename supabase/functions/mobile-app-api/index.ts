@@ -1067,6 +1067,70 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     large_projects: undefined,
   }))
 
+  // ── Lager / location-presence sessions ─────────────────────────────
+  // location_time_entries (closed, with total_minutes) are NOT stored in
+  // time_reports, but they ARE working time the user reported via "start
+  // day at warehouse". Surface them as virtual MobileTimeReport rows so
+  // they appear in the user's own time reports list (mobile) alongside
+  // booking/project reports — matching what the admin already sees.
+  const { data: locEntries } = await supabase
+    .from('location_time_entries')
+    .select('id, entered_at, exited_at, total_minutes, location_id, booking_id, large_project_id, organization_locations(name), bookings(id, client, booking_number), large_projects(id, name)')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .not('exited_at', 'is', null)
+    .not('total_minutes', 'is', null)
+    .order('entered_at', { ascending: false })
+    .limit(200)
+
+  const virtualReports = (locEntries || []).map((e: any) => {
+    const start = new Date(e.entered_at)
+    const end = new Date(e.exited_at)
+    const hours = Number(((e.total_minutes ?? 0) / 60).toFixed(2))
+    const reportDate = new Date(
+      start.getFullYear(), start.getMonth(), start.getDate(),
+    )
+    // yyyy-mm-dd in local time of the start
+    const yyyy = reportDate.getFullYear()
+    const mm = String(reportDate.getMonth() + 1).padStart(2, '0')
+    const dd = String(reportDate.getDate()).padStart(2, '0')
+    const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
+    const locName = e.organization_locations?.name || 'Lager'
+    const projectName = e.large_projects?.name || null
+    const bookingClient = e.bookings?.client || null
+
+    return {
+      // Prefix id so it cannot collide with real time_reports.id and so
+      // the edit/delete flows (which look the row up via getTimeReports)
+      // can detect "this is a presence row, not editable here".
+      id: `loc-${e.id}`,
+      booking_id: e.booking_id || '',
+      large_project_id: e.large_project_id || null,
+      large_project_name: projectName || (bookingClient ? null : locName),
+      report_date: `${yyyy}-${mm}-${dd}`,
+      start_time: hhmm(start),
+      end_time: hhmm(end),
+      hours_worked: hours,
+      overtime_hours: 0,
+      break_time: 0,
+      description: `Närvaro: ${locName}`,
+      approved: false,
+      created_at: e.entered_at,
+      bookings: e.bookings
+        ? { id: e.bookings.id, client: e.bookings.client, booking_number: e.bookings.booking_number }
+        : null,
+      // Marker so clients can hide edit/delete UI for presence rows.
+      source_kind: 'location_presence',
+    }
+  })
+
+  // Merge + sort newest-first by report_date then start_time
+  const allReports = [...enriched, ...virtualReports].sort((a: any, b: any) => {
+    if (a.report_date !== b.report_date) return b.report_date.localeCompare(a.report_date)
+    return (b.start_time || '').localeCompare(a.start_time || '')
+  })
+
   // Fetch travel logs in parallel
   const { data: travelLogs } = await supabase
     .from('travel_time_logs')
@@ -1078,7 +1142,7 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
     .limit(200)
 
   return new Response(
-    JSON.stringify({ time_reports: enriched, travel_logs: travelLogs || [] }),
+    JSON.stringify({ time_reports: allReports, travel_logs: travelLogs || [] }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
