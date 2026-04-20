@@ -74,7 +74,7 @@ export function useUnplannedSiteVisit(latestPosition: GpsPosition | null) {
   // Auto-stop on geofence exit
   useEffect(() => {
     if (!visit || !latestPosition) return;
-    const d = distMeters(visit.lat, visit.lng, latestPosition.latitude, latestPosition.longitude);
+    const d = distMeters(visit.lat, visit.lng, latestPosition.lat, latestPosition.lng);
     if (d > EXIT_RADIUS_M) {
       void end();
     }
