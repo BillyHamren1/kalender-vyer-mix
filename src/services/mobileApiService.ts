@@ -615,6 +615,84 @@ export const mobileApi = {
     resolution_source: 'staff' | 'admin' | 'auto';
     resolution_note?: string;
   }) => callApi<{ success: boolean; flag: WorkdayFlag }>('resolve_workday_flag', data),
+
+  // ── Smart-karta (arrival context) ──────────────────────────────────
+  acceptUnplannedSiteVisit: (data: {
+    suggestion_id?: string;
+    travel_log_id?: string;
+    booking_id: string;
+    note: string;
+  }) => callApi<{ success: boolean; entry: any }>('accept_unplanned_site_visit', data),
+
+  endUnplannedSiteVisit: (data: { entry_id: string }) =>
+    callApi<{ success: boolean; entry: any }>('end_unplanned_site_visit', data),
+
+  registerBreakFromTravel: (data: { suggestion_id?: string; duration_minutes: number }) =>
+    callApi<{ success: boolean; minutes: number; updated_time_report_id: string | null }>(
+      'register_break_from_travel',
+      data,
+    ),
+
+  linkPurchaseIntentToProject: (data: {
+    suggestion_id?: string;
+    travel_log_id?: string;
+    booking_id?: string;
+    large_project_id?: string;
+    location_id?: string;
+    supplier_name?: string;
+  }) => callApi<{ success: boolean }>('link_purchase_intent_to_project', data),
+
+  rejectArrivalSuggestion: (data: { suggestion_id: string }) =>
+    callApi<{ success: boolean }>('reject_arrival_suggestion', data),
+
+  /**
+   * Calls the dedicated classify-arrival-context edge function.
+   * Returns kind='unknown' on any error so the caller can fall back silently.
+   */
+  classifyArrivalContext: async (data: {
+    travel_log_id?: string | null;
+    lat: number;
+    lng: number;
+    arrived_at?: string;
+    to_address?: string | null;
+  }) => {
+    try {
+      const staffRaw = localStorage.getItem(STAFF_KEY);
+      const staff = staffRaw ? JSON.parse(staffRaw) : null;
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!staff?.id || !token) {
+        return { kind: 'unknown' as const, confidence: 0, payload: {}, suggestion_id: null };
+      }
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/classify-arrival-context`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            staff_id: staff.id,
+            organization_id: staff.organization_id,
+            ...data,
+          }),
+        },
+      );
+      if (!res.ok) {
+        return { kind: 'unknown' as const, confidence: 0, payload: {}, suggestion_id: null };
+      }
+      return (await res.json()) as {
+        kind: 'unplanned_job_candidate' | 'meal_break' | 'supply_store' | 'unknown';
+        confidence: number;
+        payload: Record<string, unknown>;
+        suggestion_id: string | null;
+        suppressed_reason?: string;
+      };
+    } catch (err) {
+      console.warn('[classifyArrivalContext] failed:', err);
+      return { kind: 'unknown' as const, confidence: 0, payload: {}, suggestion_id: null };
+    }
+  },
 };
 
 // Workday flag vocabulary mirrored from the migration's CHECK constraint.
