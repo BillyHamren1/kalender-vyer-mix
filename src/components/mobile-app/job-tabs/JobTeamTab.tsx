@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { mobileApi } from '@/services/mobileApiService';
-import { Users, Phone, Mail, Loader2 } from 'lucide-react';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { Users, Phone, MessageSquare, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface JobTeamTabProps {
@@ -8,6 +10,8 @@ interface JobTeamTabProps {
 }
 
 const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
+  const navigate = useNavigate();
+  const { staff } = useMobileAuth();
   const [team, setTeam] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -62,15 +66,25 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
                   <Phone className="w-4 h-4 text-primary" />
                 </button>
               )}
-              {member.email && (
-                <button
-                  type="button"
-                  onClick={() => { window.open(`mailto:${member.email}`, '_system') || (window.location.href = `mailto:${member.email}`); }}
-                  className="p-2 rounded-lg hover:bg-muted transition-colors"
-                >
-                  <Mail className="w-4 h-4 text-primary" />
-                </button>
-              )}
+              {(() => {
+                const partnerId = member.id || member.staff_id;
+                const isSelf = staff && partnerId && String(partnerId) === String(staff.id);
+                if (!partnerId || isSelf) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate('/m/inbox', {
+                        state: { openDmWith: { id: String(partnerId), name: member.name || 'Kollega' } },
+                      })
+                    }
+                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    aria-label={`Skicka meddelande till ${member.name}`}
+                  >
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
