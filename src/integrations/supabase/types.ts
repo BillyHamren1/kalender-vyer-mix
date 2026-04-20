@@ -20,36 +20,42 @@ export type Database = {
           created_at: string
           id: string
           last_prompt_at: string | null
-          location_id: string
+          location_id: string | null
           organization_id: string
           prompt_count: number
           resolved: boolean
           resolved_at: string | null
           staff_id: string
+          target_id: string | null
+          target_type: string | null
         }
         Insert: {
           arrived_at: string
           created_at?: string
           id?: string
           last_prompt_at?: string | null
-          location_id: string
+          location_id?: string | null
           organization_id: string
           prompt_count?: number
           resolved?: boolean
           resolved_at?: string | null
           staff_id: string
+          target_id?: string | null
+          target_type?: string | null
         }
         Update: {
           arrived_at?: string
           created_at?: string
           id?: string
           last_prompt_at?: string | null
-          location_id?: string
+          location_id?: string | null
           organization_id?: string
           prompt_count?: number
           resolved?: boolean
           resolved_at?: string | null
           staff_id?: string
+          target_id?: string | null
+          target_type?: string | null
         }
         Relationships: []
       }
