@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,18 +45,21 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
   const [showCustom, setShowCustom] = useState(false);
   const [customTime, setCustomTime] = useState('');
 
-  useEffect(() => {
-    if (open) {
-      setSubmitting(false);
-      setShowCustom(false);
-      setCustomTime(format(new Date(), 'HH:mm'));
-    }
-  }, [open]);
-
   const arrivedDate = (() => {
     try { return parseISO(arrivedAtIso); } catch { return new Date(); }
   })();
   const arrivalLabel = format(arrivedDate, 'HH:mm');
+
+  useEffect(() => {
+    if (open) {
+      setSubmitting(false);
+      setShowCustom(false);
+      // Default custom-time to detected arrival, not "now" — makes
+      // backdating obvious if the user opens the picker.
+      setCustomTime(format(arrivedDate, 'HH:mm'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, arrivedAtIso]);
 
   const handleAcceptArrival = async () => {
     setSubmitting(true);
@@ -115,7 +118,7 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
@@ -156,65 +159,65 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
           )}
         </div>
 
-        <DialogFooter className="gap-2 flex-col sm:flex-row">
-          {!showCustom ? (
-            <>
-              <Button
-                variant="ghost"
-                onClick={handleDismiss}
-                disabled={submitting}
-                className="w-full sm:w-auto"
-              >
-                Inte nu
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleStartNow}
-                disabled={submitting}
-                className="w-full sm:w-auto"
-              >
-                Starta nu
-              </Button>
-              <Button
-                onClick={handleAcceptArrival}
-                disabled={submitting}
-                className="w-full sm:w-auto"
-              >
-                {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Starta från {arrivalLabel}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setShowCustom(false)}
-                disabled={submitting}
-                className="w-full sm:w-auto"
-              >
-                Tillbaka
-              </Button>
-              <Button
-                onClick={handleSubmitCustom}
-                disabled={submitting || !customIso}
-                className="w-full sm:w-auto"
-              >
-                {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Starta
-              </Button>
-            </>
-          )}
-        </DialogFooter>
-
-        {!showCustom && (
-          <button
-            type="button"
-            className="mt-2 text-xs text-muted-foreground underline self-center"
-            onClick={() => setShowCustom(true)}
-            disabled={submitting}
-          >
-            Anpassa tid
-          </button>
+        {/* Explicit CTA stack — do NOT use DialogFooter here, its
+            flex-col-reverse on mobile makes ordering fragile and was
+            hiding/de-emphasizing the primary backdate button. */}
+        {!showCustom ? (
+          <div className="mt-4 flex flex-col gap-2">
+            <Button
+              onClick={handleAcceptArrival}
+              disabled={submitting}
+              className="w-full"
+              size="lg"
+            >
+              {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Starta från {arrivalLabel}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleStartNow}
+              disabled={submitting}
+              className="w-full"
+            >
+              Starta nu
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleDismiss}
+              disabled={submitting}
+              className="w-full"
+            >
+              Inte nu
+            </Button>
+            <button
+              type="button"
+              className="mt-1 text-xs text-muted-foreground underline self-center"
+              onClick={() => setShowCustom(true)}
+              disabled={submitting}
+            >
+              Anpassa tid
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col gap-2">
+            <Button
+              onClick={handleSubmitCustom}
+              disabled={submitting || !customIso}
+              className="w-full"
+              size="lg"
+            >
+              {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Starta
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowCustom(false)}
+              disabled={submitting}
+              className="w-full"
+            >
+              Tillbaka
+            </Button>
+          </div>
         )}
       </DialogContent>
     </Dialog>
