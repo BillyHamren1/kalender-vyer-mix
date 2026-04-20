@@ -432,40 +432,56 @@ const MobileTimeReport = () => {
                     <span className="text-xs font-semibold text-foreground">{dateLabel}</span>
                     <span className="text-xs text-muted-foreground">{formatHoursMinutes(totalHours)}</span>
                   </div>
-                  {reports.map(r => (
-                    <button
-                      key={r.id}
-                      onClick={() => navigate(`/m/report/${r.id}/edit`)}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-muted/20 text-left active:opacity-70 transition-opacity"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {r.large_project_name || r.bookings?.client || 'Okänt jobb'}
-                        </p>
-                        {r.description && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>
+                  {reports.map(r => {
+                    const isPresence = r.source_kind === 'location_presence';
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          // Presence rows (Lager / location time) are read-only —
+                          // they live in location_time_entries, not time_reports.
+                          if (isPresence) return;
+                          navigate(`/m/report/${r.id}/edit`);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-opacity",
+                          isPresence
+                            ? "border-border/60 bg-accent/30 cursor-default"
+                            : "border-border/60 bg-muted/20 active:opacity-70"
                         )}
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {r.start_time && r.end_time
-                            ? `${r.start_time.slice(0, 5)} – ${r.end_time.slice(0, 5)}`
-                            : ''}
-                          {r.break_time > 0 ? ` · ${r.break_time} h rast` : ''}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-foreground tabular-nums">
-                          {formatHoursMinutes(r.hours_worked)}
-                        </p>
-                        {r.overtime_hours > 0 && (
-                          <p className="text-[10px] text-muted-foreground">+{r.overtime_hours} h övertid</p>
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1.5">
+                            {isPresence && <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />}
+                            {r.large_project_name || r.bookings?.client || 'Okänt jobb'}
+                          </p>
+                          {r.description && (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {r.start_time && r.end_time
+                              ? `${r.start_time.slice(0, 5)} – ${r.end_time.slice(0, 5)}`
+                              : ''}
+                            {r.break_time > 0 ? ` · ${r.break_time} h rast` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-foreground tabular-nums">
+                            {formatHoursMinutes(r.hours_worked)}
+                          </p>
+                          {r.overtime_hours > 0 && (
+                            <p className="text-[10px] text-muted-foreground">+{r.overtime_hours} h övertid</p>
+                          )}
+                          {r.approved && (
+                            <Check className="w-3.5 h-3.5 text-primary inline-block" />
+                          )}
+                        </div>
+                        {!isPresence && (
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                         )}
-                        {r.approved && (
-                          <Check className="w-3.5 h-3.5 text-primary inline-block" />
-                        )}
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })
