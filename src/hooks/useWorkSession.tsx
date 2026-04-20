@@ -430,6 +430,88 @@ export function useWorkSession(
   );
 
   /**
+   * Resolve coordinates + display label for a target by looking up
+   * bookings / orgLocations. Returns null when target has no usable coords.
+   *
+   *   booking  → bookings.find(b.id===bookingId).delivery_lat/lng
+   *   project  → first sub-booking with coords (large_project_id match)
+   *   location → orgLocations.find(l.id===locationId).lat/lng
+   */
+  const resolveTargetCoords = useCallback(
+    (target: WorkTarget): { lat: number; lng: number; label: string } | null => {
+      if (target.kind === 'booking') {
+        const b = bookings.find((x) => x.id === target.bookingId);
+        if (b?.delivery_latitude && b?.delivery_longitude) {
+          return { lat: b.delivery_latitude, lng: b.delivery_longitude, label: target.client };
+        }
+        return null;
+      }
+      if (target.kind === 'project') {
+        const sub = bookings.find(
+          (x) =>
+            x.large_project_id === target.largeProjectId &&
+            x.delivery_latitude &&
+            x.delivery_longitude,
+        );
+        if (sub) {
+          return { lat: sub.delivery_latitude!, lng: sub.delivery_longitude!, label: target.name };
+        }
+        return null;
+      }
+      // location
+      const loc = orgLocations.find((l) => l.id === target.locationId);
+      if (loc?.latitude && loc?.longitude) {
+        return { lat: loc.latitude, lng: loc.longitude, label: target.name };
+      }
+      return null;
+    },
+    [bookings, orgLocations],
+  );
+
+  /**
+   * Centralised "are you really on site?" guard.
+   *
+   *   • No GPS / no target coords → start directly (we cannot guess).
+   *   • Inside radius             → start directly.
+   *   • Outside radius            → call onNeedConfirm with a confirm()
+   *     callback. Caller renders a dialog and invokes confirm() if the
+   *     user wants to start anyway. Returns true when started immediately,
+   *     false when confirmation is pending.
+   *
+   * Radius matches the geofence detector (getGpsSettings().radius || ENTER_RADIUS).
+   */
+  const startSessionWithDistanceCheck = useCallback(
+    (
+      target: WorkTarget,
+      opts: StartSessionOptions = {},
+      onNeedConfirm?: (data: {
+        placeName: string;
+        distance: number;
+        confirm: () => void;
+      }) => void,
+    ): boolean => {
+      const coords = resolveTargetCoords(target);
+      const radius = getGpsSettings().radius || ENTER_RADIUS;
+
+      if (userPosition && coords) {
+        const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
+        if (dist > radius && onNeedConfirm) {
+          onNeedConfirm({
+            placeName: coords.label,
+            distance: dist,
+            confirm: () => {
+              startSession(target, opts);
+            },
+          });
+          return false;
+        }
+      }
+      return startSession(target, opts);
+    },
+    [resolveTargetCoords, userPosition, startSession],
+  );
+
+  /**
    * Drop a timer that has not yet synced to the server. Intentionally
    * the same shape regardless of target type.
    */
