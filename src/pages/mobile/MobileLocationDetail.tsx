@@ -20,6 +20,7 @@ import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSec
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
 import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
 interface LagerTask {
   id: string;
