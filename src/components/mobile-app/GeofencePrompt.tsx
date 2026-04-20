@@ -47,7 +47,14 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
       : event.booking?.client || '';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+      style={{
+        // Lyft ovanför mobilens bottom-tab (~64px) + safe-area inset.
+        // På sm: och uppåt centreras dialogen så detta påverkar inte desktop.
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5.5rem)',
+      }}
+    >
       <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
         <div className={cn(
