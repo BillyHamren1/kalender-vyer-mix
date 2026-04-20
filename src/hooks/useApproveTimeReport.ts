@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 const ALL_TIME_REPORT_QUERY_KEYS = [
   'pending-time-reports',
+  'time-report-approval-dashboard',
   'economy-time-reports',
   'economy-overview',
   'project-time-reports',

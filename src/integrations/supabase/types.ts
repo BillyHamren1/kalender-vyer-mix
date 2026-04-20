@@ -5087,6 +5087,9 @@ export type Database = {
           location_id: string | null
           organization_id: string
           overtime_hours: number | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_comment: string | null
           report_date: string
           source: string
           source_entry_id: string | null
@@ -5110,6 +5113,9 @@ export type Database = {
           location_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_comment?: string | null
           report_date: string
           source?: string
           source_entry_id?: string | null
@@ -5133,6 +5139,9 @@ export type Database = {
           location_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_comment?: string | null
           report_date?: string
           source?: string
           source_entry_id?: string | null
@@ -5344,8 +5353,62 @@ export type Database = {
           },
         ]
       }
+      travel_time_edit_log: {
+        Row: {
+          created_at: string
+          edited_by_id: string | null
+          edited_by_name: string
+          edited_by_type: string
+          id: string
+          new_values: Json
+          organization_id: string
+          previous_values: Json
+          travel_log_id: string
+        }
+        Insert: {
+          created_at?: string
+          edited_by_id?: string | null
+          edited_by_name: string
+          edited_by_type?: string
+          id?: string
+          new_values?: Json
+          organization_id: string
+          previous_values?: Json
+          travel_log_id: string
+        }
+        Update: {
+          created_at?: string
+          edited_by_id?: string | null
+          edited_by_name?: string
+          edited_by_type?: string
+          id?: string
+          new_values?: Json
+          organization_id?: string
+          previous_values?: Json
+          travel_log_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_time_edit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "travel_time_edit_log_travel_log_id_fkey"
+            columns: ["travel_log_id"]
+            isOneToOne: false
+            referencedRelation: "travel_time_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       travel_time_logs: {
         Row: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
           auto_detected: boolean
           classification: string
           created_at: string
@@ -5359,6 +5422,9 @@ export type Database = {
           id: string
           manual_project_name: string | null
           organization_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_comment: string | null
           related_booking_id: string | null
           related_booking_note: string | null
           report_date: string
@@ -5370,6 +5436,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           auto_detected?: boolean
           classification?: string
           created_at?: string
@@ -5383,6 +5452,9 @@ export type Database = {
           id?: string
           manual_project_name?: string | null
           organization_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_comment?: string | null
           related_booking_id?: string | null
           related_booking_note?: string | null
           report_date?: string
@@ -5394,6 +5466,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           auto_detected?: boolean
           classification?: string
           created_at?: string
@@ -5407,6 +5482,9 @@ export type Database = {
           id?: string
           manual_project_name?: string | null
           organization_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_comment?: string | null
           related_booking_id?: string | null
           related_booking_note?: string | null
           report_date?: string
