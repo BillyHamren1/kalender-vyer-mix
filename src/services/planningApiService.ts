@@ -126,9 +126,14 @@ export const fetchAllEconomyDataMulti = (bookingIds: string[]): Promise<Record<s
  * Planning never writes dates locally — all changes go through this API.
  */
 export const updateBookingDatesViaApi = (bookingId: string, data: {
+  // Legacy single-date fields (kept for backward compatibility — first date in array)
   rigdaydate?: string | null;
   eventdate?: string | null;
   rigdowndate?: string | null;
+  // Full multi-date arrays — preferred when project has multiple days per phase
+  rig_dates?: string[] | null;
+  event_dates?: string[] | null;
+  rigdown_dates?: string[] | null;
   rig_start_time?: string | null;
   rig_end_time?: string | null;
   event_start_time?: string | null;

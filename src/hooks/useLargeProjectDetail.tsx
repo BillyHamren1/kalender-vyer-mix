@@ -22,6 +22,8 @@ import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
 import { bridgeProjectTaskToExecution, ensureBridgeAndSync } from "@/services/projectTaskBridgeService";
+import { expandPeriodToDates, propagateProjectDatesToBookings, DateType } from "@/services/largeProjectScheduleSync";
+import { supabase } from "@/integrations/supabase/client";
 
 export const useLargeProjectDetail = (projectId: string) => {
   const queryClient = useQueryClient();
@@ -245,10 +247,11 @@ export const useLargeProjectDetail = (projectId: string) => {
     onError: () => toast.error('Kunde inte ta bort bokning'),
   });
 
-  // Gantt mutation
+  // Gantt mutation — also syncs project date arrays + propagates to all sub-bookings
   const saveGanttMutation = useMutation({
-    mutationFn: (steps: GanttStep[]) =>
-      saveLargeProjectGanttSteps(
+    mutationFn: async (steps: GanttStep[]) => {
+      // 1. Save Gantt steps (period model: one start + one end per phase)
+      await saveLargeProjectGanttSteps(
         projectId,
         steps.map(s => ({
           key: s.key,
@@ -257,12 +260,57 @@ export const useLargeProjectDetail = (projectId: string) => {
           end_date: s.end_date,
           is_milestone: s.is_milestone,
         }))
-      ),
+      );
+
+      // 2. Expand each phase period → full date array on the project
+      // 3. Propagate full arrays to every linked sub-booking + regenerate calendar events
+      const ganttToProjectField: Record<string, { proj: 'start_date' | 'event_date' | 'end_date'; type: DateType }> = {
+        establishment: { proj: 'start_date', type: 'rig' },
+        event: { proj: 'event_date', type: 'event' },
+        deestablishment: { proj: 'end_date', type: 'rigDown' },
+      };
+
+      const projectUpdates: Record<string, string[]> = {};
+      const propagations: Array<Promise<void>> = [];
+
+      // Fetch linked booking ids once
+      const { data: linkedBookings } = await supabase
+        .from('large_project_bookings')
+        .select('booking_id')
+        .eq('large_project_id', projectId);
+      const bookingIds = (linkedBookings || []).map(b => b.booking_id);
+
+      for (const step of steps) {
+        const map = ganttToProjectField[step.key];
+        if (!map) continue;
+        const dates = expandPeriodToDates(step.start_date, step.end_date);
+        if (dates.length === 0) continue;
+        projectUpdates[map.proj] = dates;
+        if (bookingIds.length > 0) {
+          propagations.push(
+            propagateProjectDatesToBookings({
+              bookingIds,
+              dateType: map.type,
+              dates,
+            })
+          );
+        }
+      }
+
+      if (Object.keys(projectUpdates).length > 0) {
+        await updateLargeProject(projectId, projectUpdates as any);
+      }
+      await Promise.all(propagations);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project-gantt', projectId] });
-      toast.success('Schema sparat');
+      queryClient.invalidateQueries({ queryKey: ['large-project', projectId] });
+      toast.success('Schema sparat och synkat till bokningar');
     },
-    onError: () => toast.error('Kunde inte spara schema'),
+    onError: (err: Error) => {
+      console.error('Save Gantt error:', err);
+      toast.error('Kunde inte spara schema');
+    },
   });
 
   return {
