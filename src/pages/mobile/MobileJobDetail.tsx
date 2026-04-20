@@ -41,9 +41,9 @@ const MobileJobDetail = () => {
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startSession, startSessionWithDistanceCheck, stopSession, geo, dialogs } = useWorkSession(bookingsArr, staff?.id);
-  const userPosition = geo.userPosition;
-  
+  const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+
+
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
   // Get user's assigned pending tasks for the task picker
