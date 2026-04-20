@@ -496,6 +496,16 @@ const MobileLocationDetail = () => {
         onCancel={cancelConflict}
         onSwitch={confirmSwitch}
       />
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={() => {
+          distanceWarning?.onConfirm();
+          setDistanceWarning(null);
+        }}
+      />
       {dialogs}
     </div>
   );
