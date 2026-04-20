@@ -11,7 +11,7 @@ import { useTravelDetection } from '@/hooks/useTravelDetection';
 import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
-import { useMobileBookings } from '@/hooks/useMobileBookings';
+import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
