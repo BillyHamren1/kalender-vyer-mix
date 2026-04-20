@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileInbox } from '@/hooks/useMobileInbox';
