@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * activeSessionHardening.contract.test.ts
  * ───────────────────────────────────────

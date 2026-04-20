@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * timeReportingRecovery.contract.test.ts
  * ───────────────────────────────────────

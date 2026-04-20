@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * edgeCaseHardening.contract.test.ts
  * ──────────────────────────────────

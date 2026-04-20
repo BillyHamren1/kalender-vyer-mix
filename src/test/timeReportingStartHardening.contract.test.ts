@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * timeReportingStartHardening.contract.test.ts
  * ────────────────────────────────────────────
