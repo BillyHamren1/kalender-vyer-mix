@@ -44,7 +44,7 @@ const StaffDayBacktrackDialog = ({ open, onOpenChange, staffId, staffName, date 
     let cancelled = false;
 
     (async () => {
-      const { data: tokenData } = await supabase.functions.invoke('get-mapbox-token');
+      const { data: tokenData } = await supabase.functions.invoke('mapbox-token');
       if (cancelled || !tokenData?.token || !mapContainer.current) return;
       mapboxgl.accessToken = tokenData.token;
 
