@@ -155,30 +155,71 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     return items.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   }, [travelSegments, workEntries]);
 
-  // All geocoded points for the map
-  const mapPoints = useMemo(() => {
-    const points: Array<{ lat: number; lng: number; label: string; type: 'start' | 'end' | 'work'; color: string }> = [];
-    let colorIdx = 0;
+  // Find GPS point closest in time to a given HH:MM time on this day.
+  // Returns null if nothing within ±15 min — avoids putting a pin on a
+  // ping from hours away.
+  const findGpsAt = useMemo(() => {
+    return (hhmm: string | null): GpsPoint | null => {
+      if (!hhmm || !date || gpsPoints.length === 0) return null;
+      const target = new Date(`${date}T${hhmm.length === 5 ? hhmm + ':00' : hhmm}`).getTime();
+      if (Number.isNaN(target)) return null;
+      let best: GpsPoint | null = null;
+      let bestDelta = Infinity;
+      for (const p of gpsPoints) {
+        const t = new Date(p.recorded_at).getTime();
+        const delta = Math.abs(t - target);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          best = p;
+        }
+      }
+      // 15 min tolerance — outside that, we'd be guessing.
+      return bestDelta <= 15 * 60 * 1000 ? best : null;
+    };
+  }, [gpsPoints, date]);
 
-    for (const t of travelSegments) {
-      const color = ROUTE_COLORS[colorIdx % ROUTE_COLORS.length];
-      if (t.from_latitude && t.from_longitude) {
-        points.push({ lat: t.from_latitude, lng: t.from_longitude, label: t.from_address || 'Start', type: 'start', color });
-      }
-      if (t.to_latitude && t.to_longitude) {
-        points.push({ lat: t.to_latitude, lng: t.to_longitude, label: t.to_address || 'Mål', type: 'end', color });
-      }
-      colorIdx++;
-    }
+  // Per-pass in/out coordinates derived from staff_location_history.
+  // One pin pair (green = login / red = logout) per timeline row.
+  const passPins = useMemo(() => {
+    const pins: Array<{
+      label: string;
+      kind: 'in' | 'out';
+      lat: number;
+      lng: number;
+      time: string; // HH:MM
+      passLabel: string; // for popup
+    }> = [];
 
     for (const w of workEntries) {
-      if (w.delivery_lat && w.delivery_lng) {
-        points.push({ lat: w.delivery_lat, lng: w.delivery_lng, label: w.booking_client, type: 'work', color: '#6366f1' });
+      const inP = findGpsAt(w.start_time);
+      const outP = findGpsAt(w.end_time);
+      const passLabel = w.booking_client + (w.booking_number ? ` (#${w.booking_number})` : '');
+      if (inP && w.start_time) {
+        pins.push({ label: 'Inloggning', kind: 'in', lat: inP.lat, lng: inP.lng, time: w.start_time.slice(0, 5), passLabel });
+      }
+      if (outP && w.end_time) {
+        pins.push({ label: 'Utloggning', kind: 'out', lat: outP.lat, lng: outP.lng, time: w.end_time.slice(0, 5), passLabel });
       }
     }
 
-    return points;
-  }, [travelSegments, workEntries]);
+    for (const t of travelSegments) {
+      const inP = t.from_latitude && t.from_longitude
+        ? { lat: t.from_latitude, lng: t.from_longitude }
+        : findGpsAt(t.start_time);
+      const outP = t.to_latitude && t.to_longitude
+        ? { lat: t.to_latitude, lng: t.to_longitude }
+        : findGpsAt(t.end_time);
+      const passLabel = `Resa ${[t.from_address, t.to_address].filter(Boolean).join(' → ') || ''}`.trim();
+      if (inP && t.start_time) {
+        pins.push({ label: 'Avresa', kind: 'in', lat: inP.lat, lng: inP.lng, time: t.start_time.slice(0, 5), passLabel });
+      }
+      if (outP && t.end_time) {
+        pins.push({ label: 'Ankomst', kind: 'out', lat: outP.lat, lng: outP.lng, time: t.end_time.slice(0, 5), passLabel });
+      }
+    }
+
+    return pins;
+  }, [workEntries, travelSegments, findGpsAt]);
 
   // Initialize / update map
   useEffect(() => {
