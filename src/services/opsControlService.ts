@@ -138,6 +138,7 @@ export interface OpsJobQueueItem {
   client: string;
   eventDate: string | null;
   rigDate: string | null;
+  rigDownDate: string | null;
   deliveryAddress: string | null;
   latitude: number | null;
   longitude: number | null;
