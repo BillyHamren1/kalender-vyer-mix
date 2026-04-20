@@ -233,12 +233,11 @@ const MobileGlobalOverlays: React.FC = () => {
         <TravelCompletedDialog info={completedTravel} onDismiss={dismissCompletedTravel} />
       )}
 
-      {arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at && (
-        <ArrivalPromptDialog
+      {arrivalState?.should_prompt && arrivalTarget && (
+        <UnifiedArrivalPrompt
           open={arrivalDialogOpen}
           onOpenChange={setArrivalDialogOpen}
-          arrivedAtIso={arrivalState.arrived_at}
-          locationName={arrivalState.location_name || 'Arbetsplats'}
+          target={arrivalTarget}
           onConfirm={handleArrivalConfirm}
           onDismiss={handleArrivalDismiss}
         />
