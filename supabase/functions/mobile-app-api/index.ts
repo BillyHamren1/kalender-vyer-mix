@@ -413,6 +413,8 @@ Deno.serve(async (req) => {
         return await handleGetArrivalState(supabase, staffId, organizationId)
       case 'mark_arrival_resolved':
         return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
+      case 'report_arrival':
+        return await handleReportArrival(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
