@@ -121,13 +121,21 @@ Deno.test('A: assignad → suppress (returnerar unknown utan prompt)', async () 
     ],
     assignments: [{ booking_id: 'bk-2' }],
   })
-  const r = await classifyArrival(supa as any, null, {
-    staff_id: STAFF,
-    organization_id: ORG,
-    lat: STORGATAN_LAT,
-    lng: STORGATAN_LNG,
-  })
-  assertEquals(r.kind, 'unknown')
+  // Stub fetch so AI fallback (Lovable AI Gateway) cannot influence result
+  const origFetch = globalThis.fetch
+  globalThis.fetch = (() =>
+    Promise.resolve(new Response('{}', { status: 500 }))) as any
+  try {
+    const r = await classifyArrival(supa as any, null, {
+      staff_id: STAFF,
+      organization_id: ORG,
+      lat: STORGATAN_LAT,
+      lng: STORGATAN_LNG,
+    })
+    assertEquals(r.kind, 'unknown')
+  } finally {
+    globalThis.fetch = origFetch
+  }
 })
 
 Deno.test('B: restaurang kl 12:15 → meal_break', async () => {
