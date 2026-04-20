@@ -524,9 +524,13 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="font-semibold text-sm truncate text-foreground">
-              {report.bookings?.client || 'Unknown job'}
+              {report.large_project_name || report.bookings?.client || 'Unknown job'}
             </p>
-            {isApproved ? (
+            {isPresence ? (
+              <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                Presence
+              </span>
+            ) : isApproved ? (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
                 <Check className="w-2.5 h-2.5" /> Approved
               </span>
@@ -545,7 +549,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {!isApproved && !editing && (
+          {!isApproved && !editing && !isPresence && (
             <>
               <button onClick={() => setEditing(true)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                 <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
