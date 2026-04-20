@@ -102,6 +102,10 @@ const MobileGlobalOverlays: React.FC = () => {
   const { suggestion: endDayHomeSuggestion, dismissSuggestion: dismissEndDayHome, acceptSuggestion: acceptEndDayHome } =
     useEndDayOnArrivalHome(completedTravel, activeTimersForAssistant);
 
+  // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
+  const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
+    useUnplannedSiteVisit(latestPosition);
+
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
   useEffect(() => {
