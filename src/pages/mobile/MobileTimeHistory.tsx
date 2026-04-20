@@ -522,11 +522,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
             <p className="font-semibold text-sm truncate text-foreground">
               {report.large_project_name || report.bookings?.client || 'Unknown job'}
             </p>
-            {isPresence ? (
-              <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                Presence
-              </span>
-            ) : isApproved ? (
+            {isApproved ? (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
                 <Check className="w-2.5 h-2.5" /> Approved
               </span>
