@@ -1,55 +1,56 @@
 
 
-## Problem
+## Visa datum direkt i Jobbkö-raden
 
-Det finns två mobil-shells:
-- `MobileAppLayout` (web-läge `/m/*` via `App.tsx`) — har assistenten, ankomst-prompt, stale-dialog, travel-banner, global timer-banner.
-- `TimeAppLayout` (native EventFlow Time-shell, `VITE_APP_MODE='time'`) — har **inget** av detta. Bara header-slot + bottom nav.
+### Vad som saknas idag
+I jobbkö-raden (`OpsJobQueue.tsx`) syns bara klockslag (`HH:mm`) — inget datum. När jobbet ligger på en annan dag än idag, eller när rig/event/down ligger på olika dagar, måste man expandera och gå in i bokningen för att se datumet. Det ger ingen överblick.
 
-På riktiga mobilappen kör du `TimeAppShell` → `TimeAppLayout` → därför är assistenten tyst.
+Datafältet finns redan: `OpsJobQueueItem` har `eventDate`, `rigDate`, `startTime`, `endTime` (bara `rigDownDate` saknas i typen — läggs till).
 
-## Fix: lyft alla globala mobil-flöden till en gemensam wrapper
+### Vad jag bygger
 
-### Vad jag gör
+**1. Visa datum + tid på huvudraden**
+Ersätter dagens smala `HH:mm`-kolumn med en kompakt datum/tid-stapel:
 
-**1. Skapa `src/components/mobile-app/MobileGlobalOverlays.tsx`**
-En ren komponent som äger ALLA globala mobil-flöden:
-- `useBackgroundLocationReporter`
-- `useTravelDetection` + `TravelBanner` + `TravelCompletedDialog`
-- `useArrivalPrompt` + `ArrivalPromptDialog`
-- `useTimerReconciliation` + `StaleTimerDialog`
-- `useWorkDayAssistant` + `WorkDayAssistant`
-- `GlobalActiveTimerBanner`
-- inbox-prefetch
+```text
+┌─────────────────────────────────────────────────────┐
+│ ⚠  20/4  #2603-31R1 Westmans … 👥 0  Saknar personal│
+│    08:00                                             │
+└─────────────────────────────────────────────────────┘
+```
 
-Logiken flyttas 1:1 ur dagens `MobileAppLayout` (med samma `isQuiet`-koppling och samma handlers — ingen beteendeförändring).
+- Rad 1: `dd/M` (t.ex. `20/4`) — fet, mindre stil
+- Rad 2: `HH:mm` — monospace, dämpad
+- Om datumet är **idag** → visa "Idag" istället för datum (kortare, tydligare).
+- Om datumet är **imorgon** → "Imorgon".
+- Om jobbet sträcker sig över flera dagar (rig ≠ event ≠ down) → visa intervall `20/4–22/4`.
 
-**2. Montera den i `TimeAppLayout`**
-`TimeAppLayout` renderar `<MobileGlobalOverlays />` precis som `MobileAppLayout` gör idag. Banners/timer-banner placeras överst i scroll-containern; dialoger renderas på root-nivå (de portar sig själva via Radix).
+**2. Datum-källa**
+Använder första tillgängliga datum i ordningen: `rigDate || eventDate || rigDownDate`. För intervallet beräknas `min/max` av alla tre fälten.
 
-**3. Förenkla `MobileAppLayout`**
-`MobileAppLayout` ersätter sin lokala kopia av samma kod med `<MobileGlobalOverlays />`. Då finns det bara EN sanning — ingen risk att shells driftar isär igen.
+**3. Expanderad vy: visa hela schemat**
+I expanderingen läggs en kompakt rad till:
+```text
+Etablering: 20/4 · Event: 21/4 · Avetablering: 22/4
+```
+Faser utan datum hoppas över. Detta ger full överblick utan att öppna jobbet.
 
-### Varför detta och inte "kopiera in koden i TimeAppLayout"
-- En shared komponent garanterar att framtida ändringar (nya assistent-prompts, nya dialoger) automatiskt syns i båda shells.
-- Inga nya hooks, inget nytt context. Bara en flytt + en ny montering.
+**4. Lägg till `rigDownDate` i datakällan**
+- `OpsJobQueueItem`: nytt fält `rigDownDate: string | null`
+- `fetchOpsJobQueue`: hämta `rigdowndate` från bookings-select och inkludera i resultatet
 
 ### Berörda filer
-- `src/components/mobile-app/MobileGlobalOverlays.tsx` (ny — flyttar nuvarande logik från MobileAppLayout)
-- `src/shells/time/TimeAppLayout.tsx` (monterar `<MobileGlobalOverlays />` + tar bort sin egen `useBackgroundLocationReporter` så den inte dubbelmonteras)
-- `src/components/mobile-app/MobileAppLayout.tsx` (ersätter lokal kod med `<MobileGlobalOverlays />`)
+- `src/services/opsControlService.ts` — lägg till `rigDownDate` i typ + hämta `rigdowndate`
+- `src/components/ops-control/OpsJobQueue.tsx` — ny datum/tid-kolumn + datumrad i expanderingen
 
 ### Inte i denna ändring
-- Ingen ändring av `useWorkDayAssistant`-regler eller cooldowns.
-- Inga nya prompttyper.
-- Ingen ändring av `MobileBottomNav` eller header-slot.
-- Ingen DB- eller edge-funktion-ändring.
+- Ingen ändring av filtrering eller sortering
+- Ingen ändring av övriga ops-control-vyer (timeline/karta)
+- Ingen DB-/edge-funktion-ändring
 
 ### QA efter implementation
-1. Logga in i Time-appen (`VITE_APP_MODE='time'`) — kontrollera att `GlobalActiveTimerBanner` syns när timer är igång.
-2. Gå in i geofence till Lager → `ArrivalPromptDialog` ska poppa (inkl. "Starta från ankomsttid"-knappen).
-3. Lämna geofence och vänta — `WorkDayAssistant` ska kunna trigga `activity_leave` / `last_workplace_for_day`.
-4. Stale timer (timer > 24h gammal från servern) → `StaleTimerDialog` ska poppa.
-5. Kör en faktisk resa → `TravelBanner` ska visas, vid stopp → `TravelCompletedDialog`.
-6. Kontrollera att inga dialoger dubbelmonteras (web-`/m/*` ska inte längre rendera två kopior).
+1. Öppna `/ops-control` → varje rad i Jobbkö visar datum (Idag/Imorgon/dd-M) + tid.
+2. Jobb där rig och event är olika dagar → datumet visas som intervall `20/4–21/4`.
+3. Expandera ett jobb → schemaraden visar Etablering/Event/Avetablering med rätt datum.
+4. Jobb utan tider → datumet visas ändå, "—" där tiden saknas.
 
