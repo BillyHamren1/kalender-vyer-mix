@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { OpsTimelineStaff } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
-import { X, MapPin, Clock, Briefcase, ChevronRight, MessageCircle } from 'lucide-react';
+import { X, MapPin, Clock, Briefcase, ChevronRight, MessageCircle, History } from 'lucide-react';
 import { format } from 'date-fns';
+import StaffDayBacktrackDialog from './StaffDayBacktrackDialog';
 
 interface Props {
   staff: OpsTimelineStaff;
@@ -23,6 +25,7 @@ const statusColors = {
 
 const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
   const navigate = useNavigate();
+  const [backtrackOpen, setBacktrackOpen] = useState(false);
 
   return (
     <div className="fixed inset-y-0 right-0 w-80 bg-card border-l border-border shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-200">
@@ -157,12 +160,27 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
           </button>
         )}
         <button
+          className="w-full text-xs font-medium bg-muted text-foreground rounded-lg py-1.5 hover:bg-muted/80 transition-colors flex items-center justify-center gap-1"
+          onClick={() => setBacktrackOpen(true)}
+        >
+          <History className="w-3.5 h-3.5" />
+          Backtracka dag
+        </button>
+        <button
           className="w-full text-xs font-medium text-primary hover:underline"
           onClick={() => navigate(`/staff/${staff.id}`)}
         >
           Öppna personalprofil →
         </button>
       </div>
+
+      <StaffDayBacktrackDialog
+        open={backtrackOpen}
+        onOpenChange={setBacktrackOpen}
+        staffId={staff.id}
+        staffName={staff.name}
+        date={format(new Date(), 'yyyy-MM-dd')}
+      />
     </div>
   );
 };

@@ -147,3 +147,6 @@ verify_jwt = false
 
 [functions.process-sync-jobs]
 verify_jwt = false
+
+[functions.backfill-location-history]
+verify_jwt = false
