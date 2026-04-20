@@ -415,6 +415,17 @@ Deno.serve(async (req) => {
         return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
       case 'report_arrival':
         return await handleReportArrival(supabase, staffId, data, organizationId)
+      // ── Smart-karta (arrival context) ──
+      case 'accept_unplanned_site_visit':
+        return await handleAcceptUnplannedSiteVisit(supabase, staffId, data, organizationId)
+      case 'end_unplanned_site_visit':
+        return await handleEndUnplannedSiteVisit(supabase, staffId, data, organizationId)
+      case 'register_break_from_travel':
+        return await handleRegisterBreakFromTravel(supabase, staffId, data, organizationId)
+      case 'link_purchase_intent_to_project':
+        return await handleLinkPurchaseIntent(supabase, staffId, data, organizationId)
+      case 'reject_arrival_suggestion':
+        return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
