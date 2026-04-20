@@ -216,7 +216,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           backgroundTitle: 'EventFlow Time',
           requestPermissions: true,
           stale: false,
-          distanceFilter: 20,
+          // Smaller distanceFilter = more pings even with small movement.
+          // Heartbeat handles the truly stationary case.
+          distanceFilter: 10,
         },
         (location, error) => {
           if (stopped) return;
@@ -238,16 +240,49 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           }
         },
       ).then(() => {
-        console.log('[BGLocation] background tracking started');
+        console.log('[BGLocation] background tracking started (distanceFilter=10, heartbeat=60s)');
       }).catch((err) => {
         console.warn('[BGLocation] Failed to start:', err?.message || err);
       });
 
       return () => {
         stopped = true;
+        if (heartbeatTimerRef.current !== null) {
+          window.clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = null;
+        }
         BackgroundGeolocation.stop().catch(() => {});
       };
     } else {
+      // Web: use navigator.geolocation
+      if (!navigator.geolocation) return;
+
+      const onPosition = (pos: GeolocationPosition) => {
+        handlePosition(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy ?? null,
+          pos.coords.speed ?? null,
+        );
+      };
+
+      watchIdRef.current = navigator.geolocation.watchPosition(onPosition, (err) => {
+        console.warn('[BGLocation] watch error:', err.message);
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 15000,
+      });
+
+      return () => {
+        if (heartbeatTimerRef.current !== null) {
+          window.clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = null;
+        }
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
       // Web: use navigator.geolocation
       if (!navigator.geolocation) return;
 
