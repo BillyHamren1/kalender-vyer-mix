@@ -234,10 +234,7 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
-    const coords = booking.delivery_latitude && booking.delivery_longitude
-      ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
-      : null;
-    requestStart(target, booking.client, coords, () => {
+    requestStart(target, booking.client, () => {
       startTimer(booking.id, booking.client, false);
       toast.success(`${t('timer.started')}: ${booking.client}`);
     });
