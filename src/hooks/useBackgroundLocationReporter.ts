@@ -287,16 +287,8 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         timeout: 15000,
       });
 
-      return () => {
-        if (heartbeatTimerRef.current !== null) {
-          window.clearInterval(heartbeatTimerRef.current);
-          heartbeatTimerRef.current = null;
-        }
-        if (watchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(watchIdRef.current);
-          watchIdRef.current = null;
-        }
-      };
+      // Same policy as native: keep watcher alive for app lifetime.
+      return () => {};
     }
   }, [staffId]);
 
