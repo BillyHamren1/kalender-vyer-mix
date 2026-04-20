@@ -2,7 +2,7 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { updateBookingDatesViaApi } from "@/services/planningApiService";
+import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -349,49 +349,41 @@ const LargeProjectLayout = () => {
               endStartTime={derivedTimes.endStart}
               endEndTime={derivedTimes.endEnd}
               onUpdateScheduleMulti={async (dateType, dates, startTime, endTime) => {
-                // 1. Update project-level dates (array)
+                // 1. Update project-level date arrays
                 const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
                 await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
 
-                // 2. Propagate first date + times to all linked bookings
+                // 2. Sync Gantt step (period = min/max of array) so Gantt always reflects project
+                try {
+                  const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
+                  const ganttKey = ganttKeyMap[dateType];
+                  const { start, end } = arrayToPeriod(dates);
+                  if (start && end) {
+                    await supabase
+                      .from('large_project_gantt_steps')
+                      .update({ start_date: start, end_date: end })
+                      .eq('large_project_id', id!)
+                      .eq('step_key', ganttKey);
+                    queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+                  }
+                } catch (err) {
+                  console.warn('Could not sync Gantt period from schedule cards:', err);
+                }
+
+                // 3. Propagate FULL array + times to all sub-bookings (+ regenerate calendar events)
                 const bookingIds = bookings.map(b => b.booking_id);
-                const firstDate = dates.length > 0 ? dates[0] : null;
-                if (!firstDate) {
+                if (dates.length === 0 || bookingIds.length === 0) {
                   queryClient.invalidateQueries({ queryKey: ['large-project', id] });
                   return;
                 }
                 try {
-                  const fieldMap = {
-                    rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-                    event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-                    rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-                  };
-                  const fields = fieldMap[dateType];
-                  await Promise.all(
-                    bookingIds.map(bid => {
-                      const updateData: Record<string, string | null> = { [fields.date]: firstDate };
-                      if (startTime) updateData[fields.start] = `${firstDate}T${startTime}:00Z`;
-                      if (endTime) updateData[fields.end] = `${firstDate}T${endTime}:00Z`;
-                      return updateBookingDatesViaApi(bid, updateData);
-                    })
-                  );
-
-                  // 3. Trigger calendar sync per booking
-                  const { data: { user } } = await supabase.auth.getUser();
-                  let orgId: string | undefined;
-                  if (user) {
-                    const { data: profile } = await supabase.from('profiles').select('organization_id').eq('user_id', user.id).single();
-                    orgId = profile?.organization_id ?? undefined;
-                  }
-                  await Promise.all(
-                    bookingIds.map(bid =>
-                      supabase.functions.invoke('import-bookings', {
-                        body: { booking_id: bid, syncMode: 'single', organization_id: orgId, localOnly: true, skip_review: true },
-                      })
-                    )
-                  );
-
-                  // 4. Refresh data
+                  await propagateProjectDatesToBookings({
+                    bookingIds,
+                    dateType,
+                    dates,
+                    startTime,
+                    endTime,
+                  });
                   queryClient.invalidateQueries({ queryKey: ['large-project', id] });
                   toast.success('Schema uppdaterat för alla bokningar');
                 } catch (err) {
