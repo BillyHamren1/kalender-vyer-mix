@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Plus, Package } from "lucide-react";
+import { addDays } from "date-fns";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +12,7 @@ import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 
 import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
+import WarehouseStaffTimeline from "@/components/warehouse-dashboard/WarehouseStaffTimeline";
 import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
