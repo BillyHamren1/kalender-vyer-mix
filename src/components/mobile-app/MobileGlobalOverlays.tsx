@@ -40,6 +40,11 @@ const MobileGlobalOverlays: React.FC = () => {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
+  const { data: bookings = [] } = useMobileBookings();
+
+  // UNIFIED work-session engine — same start/stop motor as the rest of
+  // the mobile app. Used to start a timer for ANY arrival kind.
+  const { startSession } = useWorkSession(bookings, staff?.id);
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
