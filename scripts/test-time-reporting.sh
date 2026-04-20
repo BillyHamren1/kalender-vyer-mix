@@ -64,6 +64,14 @@ FRONTEND_TESTS=(
   # nät dör under start/stop, reload, dubbeltryck, logout/login med aktiv
   # session, korrupt kö, server-timeout, osäker target.
   "src/test/edgeCaseHardening.contract.test.ts"
+  # Location-presence livscykel (A–K): regressionsskydd för Ranjan-fallet +
+  # de 7 öppna raderna 20 april. Verifierar att alla stop-vägar stänger
+  # location_time_entries oavsett source (gps/manual).
+  "src/test/locationPresenceLifecycle.contract.test.ts"
+  # End-of-day reconciliation (L–R): EOD stänger allt, save-then-stop
+  # atomicitet, server-idempotens, dialog stays open vid fel, pending-stop
+  # survival över app-omstart.
+  "src/test/endDayReconciliation.contract.test.ts"
   "src/test/projectStaff.test.ts"
 )
 
@@ -72,6 +80,10 @@ BACKEND_TESTS=(
   "supabase/functions/mobile-app-api/timeReports.test.ts"
   # workday_flags skrivvägen: auth, vokabulär, resolution_source-katalog.
   "supabase/functions/mobile-app-api/workdayFlags.test.ts"
+  # Stale-entry auto-close (S–Z): server-side stängningsregler för
+  # location_time_entries. Auth-guard mot cron + kontrakt för stop-endpoint.
+  # Tester som beror på (kommande) close-stale-location-entries är ignored.
+  "supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts"
 )
 
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
