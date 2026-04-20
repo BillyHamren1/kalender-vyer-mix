@@ -160,19 +160,32 @@ const MobileLocationDetail = () => {
 
   const handleStartTaskTimer = (task: LagerTask) => {
     if (!locationTarget) return;
-    requestStart(task.title, async () => {
-      const ok = startSession(locationTarget, { taskId: task.id, taskTitle: task.title });
-      if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
-      else toast.error('Kunde inte starta timer');
+    requestStart(task.title, () => {
+      const opts = { taskId: task.id, taskTitle: task.title };
+      const successToast = () => toast.success(`${t('timer.started')}: ${task.title}`);
+      const started = startSessionWithDistanceCheck(locationTarget, opts, ({ placeName, distance, confirm }) => {
+        setDistanceWarning({
+          placeName,
+          distance,
+          onConfirm: () => { confirm(); successToast(); },
+        });
+      });
+      if (started) successToast();
     });
   };
 
   const handleStartGeneralTimer = () => {
     if (!locationTarget) return;
-    requestStart(locationTarget.name, async () => {
-      const ok = startSession(locationTarget);
-      if (ok) toast.success(`${t('timer.started')}: ${locationTarget.name}`);
-      else toast.error('Kunde inte starta timer');
+    requestStart(locationTarget.name, () => {
+      const successToast = () => toast.success(`${t('timer.started')}: ${locationTarget.name}`);
+      const started = startSessionWithDistanceCheck(locationTarget, {}, ({ placeName, distance, confirm }) => {
+        setDistanceWarning({
+          placeName,
+          distance,
+          onConfirm: () => { confirm(); successToast(); },
+        });
+      });
+      if (started) successToast();
     });
   };
 
