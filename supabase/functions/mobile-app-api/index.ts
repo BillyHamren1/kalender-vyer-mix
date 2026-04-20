@@ -6212,106 +6212,186 @@ function stockholmDate(iso: string): string {
   return new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' })
 }
 
+/**
+ * Resolve a generic arrival target into a human-readable label + address.
+ * Used so the prompt UI is identical regardless of target kind.
+ */
+async function resolveArrivalTargetLabel(
+  supabase: any,
+  organizationId: string,
+  targetType: 'location' | 'project' | 'booking',
+  targetId: string,
+): Promise<{ label: string; address: string | null }> {
+  try {
+    if (targetType === 'location') {
+      const { data } = await supabase
+        .from('organization_locations')
+        .select('name, address')
+        .eq('id', targetId)
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+      return { label: data?.name || 'Arbetsplats', address: data?.address || null }
+    }
+    if (targetType === 'project') {
+      const { data } = await supabase
+        .from('large_projects')
+        .select('name, address')
+        .eq('id', targetId)
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+      return { label: data?.name || 'Projekt', address: data?.address || null }
+    }
+    // booking
+    const { data } = await supabase
+      .from('bookings')
+      .select('client, deliveryaddress')
+      .eq('id', targetId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    return { label: data?.client || 'Uppdrag', address: data?.deliveryaddress || null }
+  } catch {
+    return { label: 'Arbetsplats', address: null }
+  }
+}
+
+/**
+ * Generic arrival state — works the same way for location, project and booking
+ * arrivals. Looks for the most recent UNRESOLVED arrival_prompt_log entry for
+ * this staff (across all target kinds) and decides whether to prompt.
+ *
+ * Backwards compatibility: also honours legacy `location_time_entries` rows
+ * (open, source='gps') as implicit location-arrivals so existing fixed-location
+ * data keeps working without re-recording.
+ */
 async function handleGetArrivalState(supabase: any, staffId: string, organizationId: string) {
-  // Find the most recent open geofence entry for this staff
-  const { data: openEntry } = await supabase
-    .from('location_time_entries')
-    .select('location_id, entered_at, organization_locations(name)')
+  // 1. Most recent unresolved arrival from the generic log (any target kind).
+  const { data: log } = await supabase
+    .from('arrival_prompt_log')
+    .select('id, target_type, target_id, location_id, arrived_at, prompt_count, resolved')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .is('exited_at', null)
-    .order('entered_at', { ascending: false })
+    .eq('resolved', false)
+    .order('arrived_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (!openEntry) {
+  let targetType: 'location' | 'project' | 'booking' | null = null
+  let targetId: string | null = null
+  let arrivedAt: string | null = null
+  let promptCount = 0
+
+  if (log) {
+    targetType = (log.target_type as any) || (log.location_id ? 'location' : null)
+    targetId = (log.target_id as string | null) || (log.location_id as string | null)
+    arrivedAt = log.arrived_at as string
+    promptCount = log.prompt_count ?? 0
+  } else {
+    // 2. Legacy fallback: open GPS location_time_entries → implicit location arrival.
+    const { data: openEntry } = await supabase
+      .from('location_time_entries')
+      .select('location_id, entered_at')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('exited_at', null)
+      .not('location_id', 'is', null)
+      .order('entered_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (openEntry) {
+      targetType = 'location'
+      targetId = openEntry.location_id as string
+      arrivedAt = openEntry.entered_at as string
+    }
+  }
+
+  if (!targetType || !targetId || !arrivedAt) {
     return new Response(JSON.stringify({
-      should_prompt: false, arrived_at: null, location_id: null, location_name: null, prompts_sent: 0,
+      should_prompt: false,
+      target: null,
+      prompts_sent: 0,
+      // legacy mirror
+      arrived_at: null, location_id: null, location_name: null,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  const arrivedAt = openEntry.entered_at as string
-  // Use Stockholm-local date so cross-midnight shifts don't get the wrong day.
+  // 3. "Already covered" check — same rule for all kinds.
+  //    Resolved if there is an OPEN time_report OR a CLOSED report on the
+  //    Stockholm calendar date of arrival whose start_time <= arrival HH:mm.
   const arrivedDateStockholm = stockholmDate(arrivedAt)
+  const arrivedHHMM = new Date(arrivedAt).toLocaleTimeString('sv-SE', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm', hour12: false,
+  })
 
-  // Resolved if EITHER:
-  //  a) An OPEN time_report exists for this staff (covers any active timer), OR
-  //  b) A CLOSED time_report exists for the arrival date whose start_time is
-  //     AFTER this geofence arrival (i.e. the report already covers this arrival).
-  // This allows multiple visits per day to each get their own prompt.
   const { data: openReports } = await supabase
     .from('time_reports')
     .select('id')
     .eq('staff_id', staffId)
     .is('end_time', null)
     .limit(1)
-
-  const { data: laterReports } = await supabase
+  const { data: dayReports } = await supabase
     .from('time_reports')
     .select('id, start_time')
     .eq('staff_id', staffId)
     .eq('report_date', arrivedDateStockholm)
     .not('start_time', 'is', null)
     .limit(20)
-
-  // arrived_at HH:mm in Stockholm — compare against report.start_time (HH:mm string)
-  const arrivedHHMM = new Date(arrivedAt).toLocaleTimeString('sv-SE', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm', hour12: false,
-  })
-  const coveringReport = (laterReports || []).find((r: any) => {
+  const coveringReport = (dayReports || []).find((r: any) => {
     const s = String(r.start_time || '').slice(0, 5)
     return s && s <= arrivedHHMM
   })
 
+  const { label, address } = await resolveArrivalTargetLabel(supabase, organizationId, targetType, targetId)
+
   if ((openReports && openReports.length > 0) || coveringReport) {
     return new Response(JSON.stringify({
       should_prompt: false,
+      target: { kind: targetType, target_id: targetId, label, arrived_at: arrivedAt, address },
+      prompts_sent: promptCount,
+      // legacy mirror
       arrived_at: arrivedAt,
-      location_id: openEntry.location_id,
-      location_name: (openEntry as any).organization_locations?.name || null,
-      prompts_sent: 0,
+      location_id: targetType === 'location' ? targetId : null,
+      location_name: targetType === 'location' ? label : null,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // Check prompt log for THIS specific arrival (composite key staff/location/arrived_at)
-  // — old resolved logs from previous geofence-entries don't apply.
-  const { data: log } = await supabase
-    .from('arrival_prompt_log')
-    .select('prompt_count, resolved')
-    .eq('staff_id', staffId)
-    .eq('location_id', openEntry.location_id)
-    .eq('arrived_at', arrivedAt)
-    .maybeSingle()
-
-  const resolved = log?.resolved === true
-
   return new Response(JSON.stringify({
-    should_prompt: !resolved,
+    should_prompt: true,
+    target: { kind: targetType, target_id: targetId, label, arrived_at: arrivedAt, address },
+    prompts_sent: promptCount,
+    // legacy mirror — only populated for location kind so existing UI keeps working
     arrived_at: arrivedAt,
-    location_id: openEntry.location_id,
-    location_name: (openEntry as any).organization_locations?.name || null,
-    prompts_sent: log?.prompt_count ?? 0,
+    location_id: targetType === 'location' ? targetId : null,
+    location_name: targetType === 'location' ? label : null,
   }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
 /**
- * Marks the arrival prompt as resolved (user took an action: started timer or dismissed).
- * Cron-job and the in-app polling both stop showing prompts after this.
+ * Marks an arrival prompt as resolved (user took an action: started timer,
+ * adjusted time, or dismissed). Works identically for all three target kinds.
+ *
+ * Accepts BOTH the new generic shape `{ target_type, target_id, arrived_at }`
+ * and the legacy `{ location_id, arrived_at }` shape so older clients keep
+ * working during rollout.
  */
 async function handleMarkArrivalResolved(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, arrived_at } = data || {}
-  if (!location_id || !arrived_at) {
-    return new Response(JSON.stringify({ error: 'location_id and arrived_at required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const targetType: 'location' | 'project' | 'booking' | undefined =
+    data?.target_type || (data?.location_id ? 'location' : undefined)
+  const targetId: string | undefined = data?.target_id || data?.location_id
+  const arrivedAt: string | undefined = data?.arrived_at
+
+  if (!targetType || !targetId || !arrivedAt) {
+    return new Response(JSON.stringify({
+      error: 'target_type, target_id and arrived_at are required (location_id+arrived_at also accepted for backwards compat)'
+    }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // Upsert: if no row exists yet (e.g. cron hasn't run for this entry), create one as resolved
   const { data: existing } = await supabase
     .from('arrival_prompt_log')
     .select('id')
     .eq('staff_id', staffId)
-    .eq('location_id', location_id)
-    .eq('arrived_at', arrived_at)
+    .eq('target_type', targetType)
+    .eq('target_id', targetId)
+    .eq('arrived_at', arrivedAt)
     .maybeSingle()
 
   if (existing) {
@@ -6325,8 +6405,11 @@ async function handleMarkArrivalResolved(supabase: any, staffId: string, data: a
       .insert({
         organization_id: organizationId,
         staff_id: staffId,
-        location_id,
-        arrived_at,
+        target_type: targetType,
+        target_id: targetId,
+        // legacy mirror: keep location_id populated for location arrivals
+        location_id: targetType === 'location' ? targetId : null,
+        arrived_at: arrivedAt,
         prompt_count: 0,
         resolved: true,
         resolved_at: new Date().toISOString(),
@@ -6334,6 +6417,84 @@ async function handleMarkArrivalResolved(supabase: any, staffId: string, data: a
   }
 
   return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * Generic arrival registration — called by the mobile app the moment a
+ * geofence enter fires (for ANY target kind: location, project, booking).
+ *
+ * Idempotent on (staff, target, arrived_at): repeated calls within a small
+ * window return the existing row so we never get duplicate prompts.
+ *
+ * For `kind=location` this is mostly redundant with `report_location` (the
+ * GPS path already inserts a location_time_entries row). But registering it
+ * explicitly here keeps the contract identical for all three kinds, which is
+ * the whole point of the unification.
+ */
+async function handleReportArrival(supabase: any, staffId: string, data: any, organizationId: string) {
+  const kind: 'location' | 'project' | 'booking' | undefined = data?.kind
+  const targetId: string | undefined = data?.target_id
+  const arrivedAtRaw: string | undefined = data?.arrived_at
+
+  if (!kind || !['location', 'project', 'booking'].includes(kind) || !targetId) {
+    return new Response(JSON.stringify({ error: 'kind and target_id are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Validate arrived_at: must be a valid past timestamp within the last 24h.
+  let arrivedAt = new Date().toISOString()
+  if (arrivedAtRaw) {
+    const parsed = new Date(arrivedAtRaw)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      arrivedAt = parsed.toISOString()
+    }
+  }
+
+  // Dedupe: if there is already an UNRESOLVED log row for the same
+  // (staff, target, ~arrived_at) within the last 6h, return it instead of
+  // creating a new one. This makes repeated geofence pings safe.
+  const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000).toISOString()
+  const { data: existing } = await supabase
+    .from('arrival_prompt_log')
+    .select('id, arrived_at, prompt_count, resolved')
+    .eq('staff_id', staffId)
+    .eq('target_type', kind)
+    .eq('target_id', targetId)
+    .eq('resolved', false)
+    .gte('arrived_at', sixHoursAgo)
+    .order('arrived_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    return new Response(JSON.stringify({ success: true, arrival: existing, idempotent: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('arrival_prompt_log')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      target_type: kind,
+      target_id: targetId,
+      location_id: kind === 'location' ? targetId : null,
+      arrived_at: arrivedAt,
+      prompt_count: 0,
+      resolved: false,
+    })
+    .select('id, arrived_at, prompt_count, resolved')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[mobile-app-api] report_arrival insert error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to register arrival' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(JSON.stringify({ success: true, arrival: inserted }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
