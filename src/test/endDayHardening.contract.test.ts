@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * endDayHardening.contract.test.ts
  * ─────────────────────────────────

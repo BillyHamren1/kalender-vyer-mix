@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import type {
