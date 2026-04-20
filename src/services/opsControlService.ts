@@ -431,6 +431,7 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
         client: b.client,
         eventDate: b.eventdate,
         rigDate: b.rigdaydate,
+        rigDownDate: (b as any).rigdowndate ?? null,
         deliveryAddress: b.deliveryaddress,
         latitude: b.delivery_latitude,
         longitude: b.delivery_longitude,
