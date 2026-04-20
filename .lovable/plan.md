@@ -1,63 +1,31 @@
 
 
-## Mål
-"Är du säker?"-frågan vid timer-start utanför geofence ska **alltid** trigga, oavsett startyta — inte bara i två av tre filer.
+## Diagnos
 
-## Status idag
-| Yta | Distance-warning |
-|---|---|
-| MobileJobs (jobblistan) | ✅ Finns |
-| MobileJobDetail (jobbsidan) | ✅ Finns |
-| MobileLocationDetail (lagersidan: lager-task + general timer) | ❌ Saknas |
-| Övriga `startSession`-anrop (banner, assistent, framtida ytor) | ❌ Inget skydd |
+Dialogen "Dagöversikt" visar **"Inga geopositioner rapporterade"** trots att GPS faktiskt loggas (206 rader idag i `staff_location_history`).
 
-Logiken är dessutom **kopierad** i de två befintliga ytorna → svår att underhålla, lätt att glömma.
+**Roten till problemet:** `DailyOverviewDialog` hämtar **inte** GPS-historik alls. Den visar bara koordinater som finns i `travel_time_logs` (start/slut-adresser för resor). Eftersom användaren idag bara har lager-pass (inga resor) finns 0 rader i `travel_time_logs` → tom karta + "Okänd startplats".
 
-## Fix (3 små steg)
+GPS-datan finns redan på rätt ställe — `staff_location_history` får 206 rader/dag — men dialogen läser fel källa. Admin-vyn "Rörelse"-knappen (StaffMovementMap) använder rätt källa (`get_movement_for_day`) och fungerar.
 
-### 1. Centralisera i `useWorkSession`
-Lägg till en gemensam helper i `useWorkSession.tsx`:
+## Lösning
 
-```ts
-// Returnerar coords för ett target genom att slå upp i bookings/orgLocations.
-// startSessionWithDistanceCheck(target, opts, onNeedConfirm) →
-//   • inom radien eller utan koordinater eller utan GPS → startar direkt
-//   • utanför radien → kallar onNeedConfirm({ placeName, distance, confirm })
-//     istället för att starta. Konsumenten visar dialogen och kallar confirm().
-```
+Koppla in `staff_location_history` som primär källa i `DailyOverviewDialog`:
 
-`useWorkSession` har redan `bookings` + tillgång till `geo.userPosition`. Lägg till `orgLocations` från `useGeofencing` (finns redan internt) i exponerad form, så vi kan slå upp coords för alla tre target-typer:
-- `booking` → `bookings.find(b.id===…).delivery_latitude/longitude`
-- `project` → första underliggande booking med coords (samma logik som idag i MobileJobs)
-- `location` → `orgLocations.find(l.id===…).latitude/longitude`
+1. **Hämta GPS-trail** — Anropa `mobileApi.getMovementForDay(staffId, date)` när dialogen öppnas (samma endpoint som StaffMovementMap använder).
+2. **Rita polylinje på kartan** — Lägg till en GeoJSON `LineString` med GPS-punkterna ovanpå befintliga travel/work-markers. Ger en kontinuerlig rörelsespår över dagen.
+3. **Härled "Startplats"** — När `from_address` saknas i travel_time_logs, använd första GPS-punktens koordinater + reverse-geocoding via Mapbox (eller bara visa "📍 lat, lng" som fallback).
+4. **Visa kartan även utan resor** — Ändra villkoret så kartan visas så fort `gpsPoints.length > 0` ELLER `mapPoints.length > 0` (idag krävs det senare).
+5. **Uppdatera tom-state-text** — Om varken GPS eller travel finns: behåll "Inga geopositioner rapporterade".
 
-### 2. Använd i alla startytor
-- **MobileJobs**: ersätt lokala `checkDistanceAndStart` → använd `startSessionWithDistanceCheck`. Behåll `requestStart` (concurrency), kalla nya helpern inuti `doStart`.
-- **MobileJobDetail**: ersätt inline `if (dist > ENTER_RADIUS)` → samma helper.
-- **MobileLocationDetail**: lägg till `DistanceWarningDialog` + använd helpern både i `handleStartTaskTimer` och `handleStartGeneralTimer`.
+## Tekniska detaljer
 
-Resultatet: dialogen renderas där (1 instans per sida räcker, identiskt med idag), men beslutet att visa den fattas på ett enda ställe.
+- **Fil:** `src/components/staff/DailyOverviewDialog.tsx`
+- Ny `useEffect` som anropar `mobileApi.getMovementForDay(staffId, date)` när `open` blir `true`.
+- Ny state `gpsPoints: { lat, lng, recorded_at }[]`.
+- I map-init: addera `gps-trail` source/layer (line, accent-färg, opacity 0.7) före befintliga route-lines.
+- Bounds-fit utökas med GPS-punkterna.
+- Behörighet: `getMovementForDay` kräver admin-roll för att läsa annans data — admins som öppnar dialogen från `StaffTimeReportDetail` har redan det.
 
-### 3. Försiktig fallback
-- Om `userPosition` saknas (GPS av) → starta direkt utan dialog (oförändrat beteende — vi kan inte gissa).
-- Om target saknar coords → starta direkt (oförändrat).
-- Radie = `getGpsSettings().radius || ENTER_RADIUS` (samma som geofence-detektorn använder, så frågan kommer i samma takt som geofence inte triggar enter).
-
-## Filer som ändras
-- `src/hooks/useWorkSession.tsx` — ny exporterad helper + expose coords-uppslag.
-- `src/pages/mobile/MobileJobs.tsx` — ta bort lokal `checkDistanceAndStart`.
-- `src/pages/mobile/MobileJobDetail.tsx` — ta bort inline distance-check.
-- `src/pages/mobile/MobileLocationDetail.tsx` — lägg till `DistanceWarningDialog` + använd helpern (huvudfix för användarens scenario om det handlar om lagerstart).
-
-## Test (utöver din quality gate)
-Lägg till ett kontraktstest i `src/test/`:
-- Start utanför radien → helper returnerar `needsConfirm` med rätt distance/placeName, ingen `startTimer`-call.
-- Start innanför radien → ingen confirm, `startTimer` anropas direkt.
-- Saknad GPS / saknade coords → ingen confirm, startar direkt.
-- Test för alla tre target-typer (booking, project, location).
-
-## Vad som INTE ändras
-- `DistanceWarningDialog`-komponenten (oförändrad UI).
-- Geofence auto-enter-prompt (orörd).
-- Concurrency-flöde (`evaluateStartConflict`/`TimerConflictDialog`) — kompletterar fortfarande, distance-check körs *efter* concurrency-OK precis som idag.
+Inga DB-ändringar behövs — datan finns redan.
 
