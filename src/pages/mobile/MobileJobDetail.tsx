@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
-import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import { useWorkSession } from '@/hooks/useWorkSession';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
