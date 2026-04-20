@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2 } from 'lucide-react';
+import { Square, Building2, Loader2, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -304,6 +304,16 @@ const GlobalActiveTimerBanner: React.FC = () => {
               onStop={handleStop}
             />
           ))}
+          <Button
+            variant="outline"
+            className="w-full rounded-2xl h-11 gap-2 text-sm font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
+            disabled={savingKeys.size > 0}
+            title="Avsluta hela arbetsdagen — stänger alla aktiva timers och kör dagsavstämning"
+          >
+            <LogOut className="w-4 h-4" />
+            Avsluta dagen
+          </Button>
         </div>
       )}
       {pendingStop && (
@@ -371,7 +381,7 @@ const TimerRow: React.FC<{
         title="Avsluta aktiviteten — sparar tidrapporten"
       >
         {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
-        {isSaving ? 'Sparar…' : 'Avsluta'}
+        {isSaving ? 'Sparar…' : 'Avsluta aktivitet'}
       </Button>
     </div>
   );
