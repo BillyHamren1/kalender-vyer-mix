@@ -150,6 +150,17 @@ const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
                         <span className="font-medium text-foreground">Personal:</span> {job.assignedStaffNames.join(', ')}
                       </div>
                     )}
+                    {(() => {
+                      const parts: string[] = [];
+                      if (job.rigDate) parts.push(`Etablering: ${fmtShort(parseISO(job.rigDate))}`);
+                      if (job.eventDate) parts.push(`Event: ${fmtShort(parseISO(job.eventDate))}`);
+                      if (job.rigDownDate) parts.push(`Avetablering: ${fmtShort(parseISO(job.rigDownDate))}`);
+                      return parts.length > 0 ? (
+                        <div className="text-[10px] text-muted-foreground">
+                          {parts.join(' · ')}
+                        </div>
+                      ) : null;
+                    })()}
                     {job.startTime && job.endTime && (
                       <div className="text-[10px] text-muted-foreground">
                         {job.eventType || 'Jobb'} · {format(new Date(job.startTime), 'HH:mm')}–{format(new Date(job.endTime), 'HH:mm')}
