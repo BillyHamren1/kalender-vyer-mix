@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
-import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import { useWorkSession } from '@/hooks/useWorkSession';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
@@ -42,9 +41,9 @@ const MobileJobDetail = () => {
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startSession, stopSession, geo, dialogs } = useWorkSession(bookingsArr, staff?.id);
-  const userPosition = geo.userPosition;
-  
+  const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+
+
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
   // Get user's assigned pending tasks for the task picker
@@ -101,28 +100,23 @@ const MobileJobDetail = () => {
       }
     } else {
       // START — same engine, only the target descriptor differs.
-      const doStart = () => {
-        const ok = startSession(
-          { kind: 'booking', bookingId: id, client: booking.client },
-          { taskId: selectedTaskId || undefined, taskTitle: selectedTaskTitle || undefined },
-        );
-        if (ok) {
-          toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
-        }
-      };
+      // Distance check is centralized in useWorkSession so all start
+      // surfaces (jobs list, job detail, location detail) behave identically.
+      const target = { kind: 'booking' as const, bookingId: id, client: booking.client };
+      const opts = { taskId: selectedTaskId || undefined, taskTitle: selectedTaskTitle || undefined };
+      const successToast = () => toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
 
-      const coords = booking.delivery_latitude && booking.delivery_longitude
-        ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
-        : null;
-
-      if (userPosition && coords) {
-        const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
-        if (dist > ENTER_RADIUS) {
-          setDistanceWarning({ placeName: booking.client, distance: dist, onConfirm: doStart });
-          return;
-        }
-      }
-      doStart();
+      const started = startSessionWithDistanceCheck(target, opts, ({ placeName, distance, confirm }) => {
+        setDistanceWarning({
+          placeName,
+          distance,
+          onConfirm: () => {
+            confirm();
+            successToast();
+          },
+        });
+      });
+      if (started) successToast();
     }
   };
 

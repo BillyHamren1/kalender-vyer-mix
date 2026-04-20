@@ -20,6 +20,7 @@ import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSec
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
 import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
 interface LagerTask {
   id: string;
@@ -39,7 +40,7 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, geo, startSession, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, geo, startSession, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
   const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
@@ -59,6 +60,9 @@ const MobileLocationDetail = () => {
   const [conflictEval, setConflictEval] = useState<
     Extract<StartEvaluation, { status: 'switch' }> | null
   >(null);
+  // Distance-warning dialog state — populated by startSessionWithDistanceCheck
+  // when the user is outside the location's geofence radius.
+  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
@@ -156,19 +160,32 @@ const MobileLocationDetail = () => {
 
   const handleStartTaskTimer = (task: LagerTask) => {
     if (!locationTarget) return;
-    requestStart(task.title, async () => {
-      const ok = startSession(locationTarget, { taskId: task.id, taskTitle: task.title });
-      if (ok) toast.success(`${t('timer.started')}: ${task.title}`);
-      else toast.error('Kunde inte starta timer');
+    requestStart(task.title, () => {
+      const opts = { taskId: task.id, taskTitle: task.title };
+      const successToast = () => toast.success(`${t('timer.started')}: ${task.title}`);
+      const started = startSessionWithDistanceCheck(locationTarget, opts, ({ placeName, distance, confirm }) => {
+        setDistanceWarning({
+          placeName,
+          distance,
+          onConfirm: () => { confirm(); successToast(); },
+        });
+      });
+      if (started) successToast();
     });
   };
 
   const handleStartGeneralTimer = () => {
     if (!locationTarget) return;
-    requestStart(locationTarget.name, async () => {
-      const ok = startSession(locationTarget);
-      if (ok) toast.success(`${t('timer.started')}: ${locationTarget.name}`);
-      else toast.error('Kunde inte starta timer');
+    requestStart(locationTarget.name, () => {
+      const successToast = () => toast.success(`${t('timer.started')}: ${locationTarget.name}`);
+      const started = startSessionWithDistanceCheck(locationTarget, {}, ({ placeName, distance, confirm }) => {
+        setDistanceWarning({
+          placeName,
+          distance,
+          onConfirm: () => { confirm(); successToast(); },
+        });
+      });
+      if (started) successToast();
     });
   };
 
@@ -478,6 +495,16 @@ const MobileLocationDetail = () => {
         newTargetLabel={pendingStart?.label ?? ''}
         onCancel={cancelConflict}
         onSwitch={confirmSwitch}
+      />
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={() => {
+          distanceWarning?.onConfirm();
+          setDistanceWarning(null);
+        }}
       />
       {dialogs}
     </div>

@@ -36,7 +36,9 @@ const MobileJobs = () => {
   // Stop verbs come through the unified work-session engine so the
   // conflict dialog can ask the engine to cleanly stop the conflicting
   // timer (save-then-stop or pure-presence stop) before we start the new one.
-  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  // resolveTargetCoords is the SINGLE source for "where is this target?" lookups
+  // used by the centralized distance-warning check.
+  const { stopSession, resolveTargetCoords, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
@@ -129,21 +131,20 @@ const MobileJobs = () => {
     Extract<StartEvaluation, { status: 'switch' }> | null
   >(null);
 
-  // Distance warning state
+  // Distance warning state — dialog is rendered once per page; the
+  // decision to *show* it lives in useWorkSession.resolveTargetCoords +
+  // ENTER_RADIUS so all start-surfaces behave identically.
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
-  const checkDistanceAndStart = (
-    coords: { lat: number; lng: number } | null,
-    placeName: string,
-    doStart: () => void
-  ) => {
+  const checkDistanceAndStart = (target: WorkTarget, label: string, doStart: () => void) => {
+    const coords = resolveTargetCoords(target);
     if (!userPosition || !coords) {
       doStart();
       return;
     }
     const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
     if (dist > ENTER_RADIUS) {
-      setDistanceWarning({ placeName, distance: dist, onConfirm: doStart });
+      setDistanceWarning({ placeName: coords.label || label, distance: dist, onConfirm: doStart });
     } else {
       doStart();
     }
@@ -158,13 +159,12 @@ const MobileJobs = () => {
   const requestStart = (
     target: WorkTarget,
     label: string,
-    coords: { lat: number; lng: number } | null,
     doStart: () => void,
   ) => {
     const evalResult = evaluateStartConflict(target, activeTimers);
     if (evalResult.status === 'duplicate') return;
 
-    const wrappedStart = () => checkDistanceAndStart(coords, label, doStart);
+    const wrappedStart = () => checkDistanceAndStart(target, label, doStart);
 
     if (evalResult.status === 'allow') {
       wrappedStart();
@@ -231,10 +231,7 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
-    const coords = booking.delivery_latitude && booking.delivery_longitude
-      ? { lat: booking.delivery_latitude, lng: booking.delivery_longitude }
-      : null;
-    requestStart(target, booking.client, coords, () => {
+    requestStart(target, booking.client, () => {
       startTimer(booking.id, booking.client, false);
       toast.success(`${t('timer.started')}: ${booking.client}`);
     });
@@ -250,12 +247,7 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
-    // Use first booking with coordinates as project location
-    const withCoords = entries.find(e => e.booking.delivery_latitude && e.booking.delivery_longitude);
-    const coords = withCoords
-      ? { lat: withCoords.booking.delivery_latitude!, lng: withCoords.booking.delivery_longitude! }
-      : null;
-    requestStart(target, name, coords, () => {
+    requestStart(target, name, () => {
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
       toast.success(`${t('timer.started')}: ${name}`);
     });
@@ -276,8 +268,7 @@ const MobileJobs = () => {
       name: loc.name,
       createsTimeReport: false,
     };
-    const coords = loc.latitude && loc.longitude ? { lat: loc.latitude, lng: loc.longitude } : null;
-    requestStart(target, loc.name, coords, () => {
+    requestStart(target, loc.name, () => {
       startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
       toast.success(`${t('timer.started')}: ${loc.name}`);
     });
