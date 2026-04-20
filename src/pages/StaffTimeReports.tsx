@@ -165,6 +165,43 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(t.staff_id, a);
       }
 
+      // Location-based time (e.g. Lager via "Starta dag på Lager")
+      for (const e of locationEntries) {
+        const a = byStaff.get(e.staff_id) || {
+          total_hours: 0,
+          reports_count: 0,
+          has_open_report: false,
+          earliest_start: null,
+          latest_end: null,
+          projects: new Map(),
+        };
+        const isOpen = !e.exited_at;
+        const hours = e.total_minutes
+          ? e.total_minutes / 60
+          : isOpen
+            ? Math.max(0, (Date.now() - new Date(e.entered_at).getTime()) / 3_600_000)
+            : 0;
+        a.total_hours += hours;
+        a.reports_count += 1;
+        if (isOpen) a.has_open_report = true;
+        const startHHMM = format(new Date(e.entered_at), 'HH:mm:ss');
+        if (!a.earliest_start || startHHMM < a.earliest_start) a.earliest_start = startHHMM;
+        if (!isOpen && e.exited_at) {
+          const endHHMM = format(new Date(e.exited_at), 'HH:mm:ss');
+          if (!a.latest_end || endHHMM > a.latest_end) a.latest_end = endHHMM;
+        }
+        const locInfo = locationBookingMap.get(e.location_id);
+        const projectKey = locInfo?.booking_id || `loc:${e.location_id}`;
+        const projectLabel = locInfo?.label || 'Lager';
+        const existing = a.projects.get(projectKey);
+        a.projects.set(projectKey, {
+          label: projectLabel,
+          is_open: (existing?.is_open || false) || isOpen,
+          total_hours: (existing?.total_hours || 0) + hours,
+        });
+        byStaff.set(e.staff_id, a);
+      }
+
       const staffIds = [...byStaff.keys()];
       if (staffIds.length === 0) return [];
 
