@@ -155,35 +155,78 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     return items.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   }, [travelSegments, workEntries]);
 
-  // All geocoded points for the map
-  const mapPoints = useMemo(() => {
-    const points: Array<{ lat: number; lng: number; label: string; type: 'start' | 'end' | 'work'; color: string }> = [];
-    let colorIdx = 0;
+  // Find GPS point closest in time to a given HH:MM time on this day.
+  // Returns null if nothing within ±15 min — avoids putting a pin on a
+  // ping from hours away.
+  const findGpsAt = useMemo(() => {
+    return (hhmm: string | null): GpsPoint | null => {
+      if (!hhmm || !date || gpsPoints.length === 0) return null;
+      const target = new Date(`${date}T${hhmm.length === 5 ? hhmm + ':00' : hhmm}`).getTime();
+      if (Number.isNaN(target)) return null;
+      let best: GpsPoint | null = null;
+      let bestDelta = Infinity;
+      for (const p of gpsPoints) {
+        const t = new Date(p.recorded_at).getTime();
+        const delta = Math.abs(t - target);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          best = p;
+        }
+      }
+      // 15 min tolerance — outside that, we'd be guessing.
+      return bestDelta <= 15 * 60 * 1000 ? best : null;
+    };
+  }, [gpsPoints, date]);
 
-    for (const t of travelSegments) {
-      const color = ROUTE_COLORS[colorIdx % ROUTE_COLORS.length];
-      if (t.from_latitude && t.from_longitude) {
-        points.push({ lat: t.from_latitude, lng: t.from_longitude, label: t.from_address || 'Start', type: 'start', color });
-      }
-      if (t.to_latitude && t.to_longitude) {
-        points.push({ lat: t.to_latitude, lng: t.to_longitude, label: t.to_address || 'Mål', type: 'end', color });
-      }
-      colorIdx++;
-    }
+  // Per-pass in/out coordinates derived from staff_location_history.
+  // One pin pair (green = login / red = logout) per timeline row.
+  const passPins = useMemo(() => {
+    const pins: Array<{
+      label: string;
+      kind: 'in' | 'out';
+      lat: number;
+      lng: number;
+      time: string; // HH:MM
+      passLabel: string; // for popup
+    }> = [];
 
     for (const w of workEntries) {
-      if (w.delivery_lat && w.delivery_lng) {
-        points.push({ lat: w.delivery_lat, lng: w.delivery_lng, label: w.booking_client, type: 'work', color: '#6366f1' });
+      const inP = findGpsAt(w.start_time);
+      const outP = findGpsAt(w.end_time);
+      const passLabel = w.booking_client + (w.booking_number ? ` (#${w.booking_number})` : '');
+      if (inP && w.start_time) {
+        pins.push({ label: 'Inloggning', kind: 'in', lat: inP.lat, lng: inP.lng, time: w.start_time.slice(0, 5), passLabel });
+      }
+      if (outP && w.end_time) {
+        pins.push({ label: 'Utloggning', kind: 'out', lat: outP.lat, lng: outP.lng, time: w.end_time.slice(0, 5), passLabel });
       }
     }
 
-    return points;
-  }, [travelSegments, workEntries]);
+    for (const t of travelSegments) {
+      const inP = t.from_latitude && t.from_longitude
+        ? { lat: t.from_latitude, lng: t.from_longitude }
+        : findGpsAt(t.start_time);
+      const outP = t.to_latitude && t.to_longitude
+        ? { lat: t.to_latitude, lng: t.to_longitude }
+        : findGpsAt(t.end_time);
+      const passLabel = `Resa ${[t.from_address, t.to_address].filter(Boolean).join(' → ') || ''}`.trim();
+      if (inP && t.start_time) {
+        pins.push({ label: 'Avresa', kind: 'in', lat: inP.lat, lng: inP.lng, time: t.start_time.slice(0, 5), passLabel });
+      }
+      if (outP && t.end_time) {
+        pins.push({ label: 'Ankomst', kind: 'out', lat: outP.lat, lng: outP.lng, time: t.end_time.slice(0, 5), passLabel });
+      }
+    }
 
-  // Initialize / update map
+    return pins;
+  }, [workEntries, travelSegments, findGpsAt]);
+
+  // Initialize / update map — show ONLY login/logout pins per pass.
+  // No polyline, no full-day GPS trail. Each pin is the GPS ping that was
+  // closest to the timer's start_time / end_time (within 15 min).
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
-    if (mapPoints.length === 0 && gpsPoints.length === 0) return;
+    if (passPins.length === 0) return;
 
     // Clean up previous
     markersRef.current.forEach(m => m.remove());
@@ -194,9 +237,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
-    const center: [number, number] = mapPoints[0]
-      ? [mapPoints[0].lng, mapPoints[0].lat]
-      : [gpsPoints[0].lng, gpsPoints[0].lat];
+    const center: [number, number] = [passPins[0].lng, passPins[0].lat];
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
@@ -208,126 +249,38 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     m.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     m.on('load', () => {
-      // Fit bounds across both work/travel markers and GPS trail
       const bounds = new mapboxgl.LngLatBounds();
-      mapPoints.forEach(p => bounds.extend([p.lng, p.lat]));
-      gpsPoints.forEach(p => bounds.extend([p.lng, p.lat]));
+      passPins.forEach(p => bounds.extend([p.lng, p.lat]));
       if (!bounds.isEmpty()) {
-        m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+        m.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       }
 
-      // GPS trail polyline (drawn first so route lines & markers sit on top)
-      if (gpsPoints.length >= 2) {
-        m.addSource('gps-trail', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: gpsPoints.map(p => [p.lng, p.lat]),
-            },
-          },
-        });
-        m.addLayer({
-          id: 'gps-trail-line',
-          type: 'line',
-          source: 'gps-trail',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#6366f1',
-            'line-width': 4,
-            'line-opacity': 0.6,
-          },
-        });
-      }
-
-      // Add route lines for travel segments
-      let segIdx = 0;
-      for (const t of travelSegments) {
-        if (t.from_latitude && t.from_longitude && t.to_latitude && t.to_longitude) {
-          const color = ROUTE_COLORS[segIdx % ROUTE_COLORS.length];
-          const sourceId = `route-${segIdx}`;
-          m.addSource(sourceId, {
-            type: 'geojson',
-            data: {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: [
-                  [t.from_longitude, t.from_latitude],
-                  [t.to_longitude, t.to_latitude],
-                ],
-              },
-            },
-          });
-          m.addLayer({
-            id: `route-line-${segIdx}`,
-            type: 'line',
-            source: sourceId,
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': color,
-              'line-width': 3,
-              'line-dasharray': [2, 2],
-            },
-          });
-          segIdx++;
-        }
-      }
-
-      // Add markers
-      mapPoints.forEach((p, i) => {
+      passPins.forEach((p, i) => {
         const el = document.createElement('div');
-        el.style.width = '28px';
-        el.style.height = '28px';
+        el.style.width = '24px';
+        el.style.height = '24px';
         el.style.borderRadius = '50%';
-        el.style.backgroundColor = p.color;
+        el.style.backgroundColor = p.kind === 'in' ? '#10b981' : '#ef4444';
         el.style.border = '3px solid white';
         el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
         el.style.display = 'flex';
         el.style.alignItems = 'center';
         el.style.justifyContent = 'center';
         el.style.color = 'white';
-        el.style.fontSize = '11px';
+        el.style.fontSize = '10px';
         el.style.fontWeight = 'bold';
         el.textContent = String(i + 1);
 
         const marker = new mapboxgl.Marker(el)
           .setLngLat([p.lng, p.lat])
           .setPopup(
-            new mapboxgl.Popup({ offset: 25 }).setHTML(
-              `<strong>${p.label}</strong><br/><span style="font-size:11px;color:#666">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>`
+            new mapboxgl.Popup({ offset: 22 }).setHTML(
+              `<strong>${p.label} ${p.time}</strong><br/><span style="font-size:11px">${p.passLabel}</span><br/><span style="font-size:10px;color:#666">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>`
             )
           )
           .addTo(m);
         markersRef.current.push(marker);
       });
-
-      // First/last GPS markers when there are no travel/work markers (lager-only days)
-      if (mapPoints.length === 0 && gpsPoints.length > 0) {
-        const first = gpsPoints[0];
-        const last = gpsPoints[gpsPoints.length - 1];
-        const mkDot = (color: string, label: string) => {
-          const el = document.createElement('div');
-          el.style.width = '18px';
-          el.style.height = '18px';
-          el.style.borderRadius = '50%';
-          el.style.backgroundColor = color;
-          el.style.border = '3px solid white';
-          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-          return new mapboxgl.Marker(el).setPopup(new mapboxgl.Popup({ offset: 20 }).setText(label));
-        };
-        markersRef.current.push(
-          mkDot('#10b981', `Första GPS ${first.recorded_at.slice(11, 16)}`).setLngLat([first.lng, first.lat]).addTo(m)
-        );
-        if (last !== first) {
-          markersRef.current.push(
-            mkDot('#ef4444', `Sista GPS ${last.recorded_at.slice(11, 16)}`).setLngLat([last.lng, last.lat]).addTo(m)
-          );
-        }
-      }
     });
 
     map.current = m;
@@ -340,7 +293,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, mapPoints, travelSegments, gpsPoints]);
+  }, [open, mapboxToken, passPins]);
 
   if (!date) return null;
 
@@ -358,7 +311,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = mapPoints.length > 0 || gpsPoints.length > 0;
+  const hasMapData = passPins.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -399,9 +352,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         )}
 
-        {gpsPoints.length > 0 && (
+        {passPins.length > 0 && (
           <div className="text-xs text-muted-foreground -mt-1">
-            GPS-spår: {gpsPoints.length} positioner ({gpsPoints[0].recorded_at.slice(11, 16)} – {gpsPoints[gpsPoints.length - 1].recorded_at.slice(11, 16)})
+            🟢 In · 🔴 Ut · {passPins.length} positioner från {gpsPoints.length} GPS-pings
           </div>
         )}
 
@@ -455,20 +408,21 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         </div>
 
-        {/* All geocodes summary */}
-        {mapPoints.length > 0 && (
+        {/* In/Out positions per pass */}
+        {passPins.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Alla geopositioner</h4>
+            <h4 className="text-sm font-semibold">In- och utloggningar</h4>
             <div className="grid grid-cols-1 gap-1 text-xs">
-              {mapPoints.map((p, i) => (
+              {passPins.map((p, i) => (
                 <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/30">
                   <div
                     className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                    style={{ backgroundColor: p.color }}
+                    style={{ backgroundColor: p.kind === 'in' ? '#10b981' : '#ef4444' }}
                   >
                     {i + 1}
                   </div>
-                  <span className="truncate flex-1">{p.label}</span>
+                  <span className="font-medium shrink-0">{p.label} {p.time}</span>
+                  <span className="truncate flex-1 text-muted-foreground">{p.passLabel}</span>
                   <span className="text-muted-foreground shrink-0">
                     {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
                   </span>
