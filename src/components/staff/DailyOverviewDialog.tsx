@@ -7,8 +7,15 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { supabase } from '@/integrations/supabase/client';
+import { mobileApi } from '@/services/mobileApiService';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+interface GpsPoint {
+  lat: number;
+  lng: number;
+  recorded_at: string;
+}
 
 interface TravelSegment {
   id: string;
