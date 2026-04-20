@@ -138,15 +138,12 @@ const MobileJobs = () => {
 
   const checkDistanceAndStart = (target: WorkTarget, label: string, doStart: () => void) => {
     const coords = resolveTargetCoords(target);
-    const radius = (typeof window !== 'undefined' && window.localStorage)
-      ? ENTER_RADIUS // getGpsSettings handled inside engine; for legacy parity we use ENTER_RADIUS here
-      : ENTER_RADIUS;
     if (!userPosition || !coords) {
       doStart();
       return;
     }
     const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
-    if (dist > radius) {
+    if (dist > ENTER_RADIUS) {
       setDistanceWarning({ placeName: coords.label || label, distance: dist, onConfirm: doStart });
     } else {
       doStart();
