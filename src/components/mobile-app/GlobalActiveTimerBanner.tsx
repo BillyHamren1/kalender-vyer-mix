@@ -321,6 +321,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
           onConfirm={handleDialogConfirm}
         />
       )}
+      {nextActionFor && (
+        <NextActionDialog
+          open={!!nextActionFor}
+          closedActivityName={nextActionFor.name}
+          onOpenChange={(open) => {
+            if (!open) setNextActionFor(null);
+          }}
+        />
+      )}
       {workSessionDialogs}
     </>
   );
