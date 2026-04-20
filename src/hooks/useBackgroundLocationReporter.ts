@@ -80,12 +80,21 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  * Exposes `latestPosition` so other hooks (e.g. useTravelDetection)
  * can consume GPS data without creating their own watcher.
  */
+const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
+const HEARTBEAT_INTERVAL_MS = 60_000;  // forced ping even if phone is still
+
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
   const watchIdRef = useRef<number | null>(null);
+  const heartbeatTimerRef = useRef<number | null>(null);
+  const lastKnownPosRef = useRef<{ lat: number; lng: number; accuracy: number | null; speed: number | null } | null>(null);
+  const staffIdRef = useRef<string | null | undefined>(staffId);
   const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
   // Track which targets we're currently inside (to avoid duplicate pending arrivals)
   const insideRef = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync so heartbeat survives auth-token refreshes without restart
+  useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
 
   useEffect(() => {
     if (!staffId) return;
