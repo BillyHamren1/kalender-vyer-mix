@@ -545,9 +545,11 @@ export function useWorkSession(
 
     // unified engine
     startSession,
+    startSessionWithDistanceCheck,
     stopSession,
     cancelPendingSession,
     getActiveTimer,
+    resolveTargetCoords,
 
     // mount in tree
     dialogs,
