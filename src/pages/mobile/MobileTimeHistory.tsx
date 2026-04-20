@@ -541,7 +541,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {!isApproved && !editing && !isPresence && (
+          {!isApproved && !editing && (
             <>
               <button onClick={() => setEditing(true)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                 <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
