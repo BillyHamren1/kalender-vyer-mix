@@ -4335,6 +4335,96 @@ export type Database = {
           },
         ]
       }
+      staff_home_observations: {
+        Row: {
+          cluster_key: string
+          created_at: string
+          dwell_minutes: number
+          id: string
+          lat: number
+          lng: number
+          observed_date: string
+          organization_id: string
+          staff_id: string
+        }
+        Insert: {
+          cluster_key: string
+          created_at?: string
+          dwell_minutes?: number
+          id?: string
+          lat: number
+          lng: number
+          observed_date: string
+          organization_id: string
+          staff_id: string
+        }
+        Update: {
+          cluster_key?: string
+          created_at?: string
+          dwell_minutes?: number
+          id?: string
+          lat?: number
+          lng?: number
+          observed_date?: string
+          organization_id?: string
+          staff_id?: string
+        }
+        Relationships: []
+      }
+      staff_inferred_home_locations: {
+        Row: {
+          cluster_key: string
+          confidence: number
+          created_at: string
+          id: string
+          kind: string
+          last_observed_at: string
+          lat: number
+          lng: number
+          nights_observed: number
+          organization_id: string
+          radius_m: number
+          staff_id: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          cluster_key: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          kind: string
+          last_observed_at?: string
+          lat: number
+          lng: number
+          nights_observed?: number
+          organization_id: string
+          radius_m?: number
+          staff_id: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          cluster_key?: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          last_observed_at?: string
+          lat?: number
+          lng?: number
+          nights_observed?: number
+          organization_id?: string
+          radius_m?: number
+          staff_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
       staff_job_affinity: {
         Row: {
           affinity_score: number | null
