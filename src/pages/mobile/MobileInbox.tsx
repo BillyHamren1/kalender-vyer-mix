@@ -49,12 +49,32 @@ const formatTime = (ts: string) => {
 
 const MobileInbox = () => {
   const { staff } = useMobileAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { dmConversations, broadcasts, jobConversations, isLoading, markBroadcastReadOptimistic, markJobReadOptimistic, refetchAll } = useMobileInbox();
   const [view, setView] = useState<View>('list');
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
   const [activeJob, setActiveJob] = useState<{ bookingId: string; client: string } | null>(null);
   const [activeBroadcast, setActiveBroadcast] = useState<BroadcastItem | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  // Deep-link: open a DM thread when navigated with state { openDmWith: { id, name } }.
+  // Used by e.g. JobTeamTab's "message" button to jump straight into a chat.
+  useEffect(() => {
+    const target = (location.state as any)?.openDmWith as { id: string; name: string } | undefined;
+    if (!target?.id) return;
+    const existing = dmConversations.find(d => d.partner_id === target.id) as DMConversation | undefined;
+    setActiveDM(existing || {
+      partner_id: target.id,
+      partner_name: target.name || 'Kollega',
+      last_message: null,
+      unread_count: 0,
+      messages: [],
+    });
+    setView('dm');
+    // Clear state so back-nav doesn't reopen the chat
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, dmConversations, navigate, location.pathname]);
 
   // Sort + bucket DM conversations
   const { activeDMs, archivedDMs } = useMemo(() => {
