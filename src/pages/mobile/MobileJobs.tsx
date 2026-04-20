@@ -36,7 +36,9 @@ const MobileJobs = () => {
   // Stop verbs come through the unified work-session engine so the
   // conflict dialog can ask the engine to cleanly stop the conflicting
   // timer (save-then-stop or pure-presence stop) before we start the new one.
-  const { stopSession, startSessionWithDistanceCheck, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  // resolveTargetCoords is the SINGLE source for "where is this target?" lookups
+  // used by the centralized distance-warning check.
+  const { stopSession, resolveTargetCoords, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
