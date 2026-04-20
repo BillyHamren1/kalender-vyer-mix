@@ -93,40 +93,49 @@ const MobileGlobalOverlays: React.FC = () => {
     isQuiet: arrivalDialogOpen || staleDialogOpen || !!completedTravel,
   });
 
+  const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
+
   useEffect(() => {
     if (eodActive) return;
-    if (arrivalState?.should_prompt && arrivalState.location_id && arrivalState.arrived_at) {
+    if (arrivalState?.should_prompt && arrivalTarget) {
       setArrivalDialogOpen(true);
     }
-  }, [arrivalState?.should_prompt, arrivalState?.location_id, arrivalState?.arrived_at, eodActive]);
+  }, [arrivalState?.should_prompt, arrivalTarget, eodActive]);
+
+  /**
+   * Map an ArrivalTarget → WorkTarget. The WorkSession engine is what
+   * actually creates the timer/server entry, so the arrival flow is
+   * IDENTICAL for location/project/booking — only the target shape differs.
+   */
+  const arrivalToWorkTarget = useCallback((t: ArrivalTarget): WorkTarget | null => {
+    if (t.kind === 'location') {
+      return { kind: 'location', locationId: t.target_id, name: t.label };
+    }
+    if (t.kind === 'project') {
+      return { kind: 'project', largeProjectId: t.target_id, name: t.label };
+    }
+    if (t.kind === 'booking') {
+      return { kind: 'booking', bookingId: t.target_id, client: t.label };
+    }
+    return null;
+  }, []);
 
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
-    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
+    if (!arrivalTarget) return;
     setArrivalSubmitting(true);
     try {
-      const startedAt = result.usedSuggestedArrival ? arrivalState.arrived_at : result.startedAtIso;
-      await mobileApi.startLocationTimer({ location_id: arrivalState.location_id, started_at: startedAt });
+      const startedAt = result.usedSuggestedArrival ? arrivalTarget.arrived_at : result.startedAtIso;
+      const workTarget = arrivalToWorkTarget(arrivalTarget);
+      if (!workTarget) throw new Error('Okänd ankomsttyp');
 
-      try {
-        const TIMERS_KEY = 'eventflow-mobile-timers';
-        const raw = localStorage.getItem(TIMERS_KEY);
-        const map = new Map<string, ActiveTimer>(raw ? JSON.parse(raw) : []);
-        const key = `location-${arrivalState.location_id}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            startTime: startedAt,
-            client: arrivalState.location_name || 'Arbetsplats',
-            locationId: arrivalState.location_id,
-            locationName: arrivalState.location_name || 'Arbetsplats',
-            isAutoStarted: false,
-          } as ActiveTimer);
-          localStorage.setItem(TIMERS_KEY, JSON.stringify(Array.from(map.entries())));
-          window.dispatchEvent(new Event('timer-state-changed'));
-        }
-      } catch {}
+      const ok = startSession(workTarget, { startedAtIso: startedAt });
+      if (!ok) {
+        toast.message('Timer redan aktiv för platsen');
+      } else {
+        toast.success('Timer startad');
+      }
 
-      await markResolved(arrivalState.location_id, arrivalState.arrived_at);
-      toast.success('Timer startad');
+      await markResolved(arrivalTarget);
       setArrivalDialogOpen(false);
       refreshArrival();
     } catch (err: any) {
@@ -134,13 +143,13 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalState, markResolved, refreshArrival]);
+  }, [arrivalTarget, arrivalToWorkTarget, startSession, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
-    if (!arrivalState?.location_id || !arrivalState.arrived_at) return;
-    await markResolved(arrivalState.location_id, arrivalState.arrived_at);
+    if (!arrivalTarget) return;
+    await markResolved(arrivalTarget);
     setArrivalDialogOpen(false);
-  }, [arrivalState, markResolved]);
+  }, [arrivalTarget, markResolved]);
 
   useEffect(() => {
     if (staleTimers.length > 0 && !eodActive && !arrivalDialogOpen) {
