@@ -7,8 +7,15 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { supabase } from '@/integrations/supabase/client';
+import { mobileApi } from '@/services/mobileApiService';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+interface GpsPoint {
+  lat: number;
+  lng: number;
+  recorded_at: string;
+}
 
 interface TravelSegment {
   id: string;
@@ -61,6 +68,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
+  const [gpsPoints, setGpsPoints] = useState<GpsPoint[]>([]);
 
   // Fetch mapbox token
   useEffect(() => {
@@ -78,6 +86,27 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     };
     if (open && !mapboxToken) fetchToken();
   }, [open, mapboxToken]);
+
+  // Fetch GPS trail (staff_location_history) for the day
+  useEffect(() => {
+    if (!open || !date || !staffId) return;
+    let cancelled = false;
+    mobileApi
+      .getMovementForDay(staffId, date)
+      .then((res) => {
+        if (cancelled) return;
+        setGpsPoints(
+          (res.points || []).map((p) => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at }))
+        );
+      })
+      .catch((e) => {
+        console.error('Failed to fetch GPS trail:', e);
+        if (!cancelled) setGpsPoints([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date, staffId]);
 
   // Sorted timeline
   const timeline = useMemo(() => {
@@ -153,7 +182,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
   // Initialize / update map
   useEffect(() => {
-    if (!open || !mapContainer.current || !mapboxToken || mapPoints.length === 0) return;
+    if (!open || !mapContainer.current || !mapboxToken) return;
+    if (mapPoints.length === 0 && gpsPoints.length === 0) return;
 
     // Clean up previous
     markersRef.current.forEach(m => m.remove());
@@ -164,20 +194,53 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
+    const center: [number, number] = mapPoints[0]
+      ? [mapPoints[0].lng, mapPoints[0].lat]
+      : [gpsPoints[0].lng, gpsPoints[0].lat];
+
     const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [mapPoints[0].lng, mapPoints[0].lat],
+      center,
       zoom: 11,
     });
 
     m.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     m.on('load', () => {
-      // Fit bounds
+      // Fit bounds across both work/travel markers and GPS trail
       const bounds = new mapboxgl.LngLatBounds();
       mapPoints.forEach(p => bounds.extend([p.lng, p.lat]));
-      m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+      gpsPoints.forEach(p => bounds.extend([p.lng, p.lat]));
+      if (!bounds.isEmpty()) {
+        m.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+      }
+
+      // GPS trail polyline (drawn first so route lines & markers sit on top)
+      if (gpsPoints.length >= 2) {
+        m.addSource('gps-trail', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: gpsPoints.map(p => [p.lng, p.lat]),
+            },
+          },
+        });
+        m.addLayer({
+          id: 'gps-trail-line',
+          type: 'line',
+          source: 'gps-trail',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#6366f1',
+            'line-width': 4,
+            'line-opacity': 0.6,
+          },
+        });
+      }
 
       // Add route lines for travel segments
       let segIdx = 0;
@@ -241,6 +304,30 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           .addTo(m);
         markersRef.current.push(marker);
       });
+
+      // First/last GPS markers when there are no travel/work markers (lager-only days)
+      if (mapPoints.length === 0 && gpsPoints.length > 0) {
+        const first = gpsPoints[0];
+        const last = gpsPoints[gpsPoints.length - 1];
+        const mkDot = (color: string, label: string) => {
+          const el = document.createElement('div');
+          el.style.width = '18px';
+          el.style.height = '18px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = color;
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          return new mapboxgl.Marker(el).setPopup(new mapboxgl.Popup({ offset: 20 }).setText(label));
+        };
+        markersRef.current.push(
+          mkDot('#10b981', `Första GPS ${first.recorded_at.slice(11, 16)}`).setLngLat([first.lng, first.lat]).addTo(m)
+        );
+        if (last !== first) {
+          markersRef.current.push(
+            mkDot('#ef4444', `Sista GPS ${last.recorded_at.slice(11, 16)}`).setLngLat([last.lng, last.lat]).addTo(m)
+          );
+        }
+      }
     });
 
     map.current = m;
@@ -253,7 +340,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, mapPoints, travelSegments]);
+  }, [open, mapboxToken, mapPoints, travelSegments, gpsPoints]);
 
   if (!date) return null;
 
@@ -262,9 +349,16 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const firstStart = timeline[0]?.start_time;
   const lastEnd = [...timeline].reverse().find(t => t.end_time)?.end_time;
 
-  // First location
+  // First location — prefer travel start address, fall back to first GPS ping
   const firstTravel = travelSegments.find(t => t.from_latitude && t.from_longitude);
-  const startAddress = firstTravel?.from_address || 'Okänd startplats';
+  const firstGps = gpsPoints[0];
+  const startAddress =
+    firstTravel?.from_address ||
+    (firstGps ? `📍 ${firstGps.lat.toFixed(5)}, ${firstGps.lng.toFixed(5)} (GPS ${firstGps.recorded_at.slice(11, 16)})` : 'Okänd startplats');
+  const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
+  const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
+
+  const hasMapData = mapPoints.length > 0 || gpsPoints.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -288,20 +382,26 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         <div className="flex items-center gap-2 text-sm bg-muted/50 p-3 rounded-lg">
           <MapPin className="h-4 w-4 text-primary shrink-0" />
           <span className="font-medium">Startplats:</span>
-          <span className="text-muted-foreground">{startAddress}</span>
-          {firstTravel?.from_latitude && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              {firstTravel.from_latitude.toFixed(5)}, {firstTravel.from_longitude?.toFixed(5)}
+          <span className="text-muted-foreground truncate">{startAddress}</span>
+          {startLat !== null && startLng !== null && firstTravel?.from_latitude && (
+            <span className="text-xs text-muted-foreground ml-auto shrink-0">
+              {startLat.toFixed(5)}, {startLng.toFixed(5)}
             </span>
           )}
         </div>
 
         {/* Map */}
-        {mapPoints.length > 0 ? (
+        {hasMapData ? (
           <div ref={mapContainer} className="w-full h-[300px] rounded-lg border" />
         ) : (
           <div className="w-full h-[200px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
             Inga geopositioner rapporterade
+          </div>
+        )}
+
+        {gpsPoints.length > 0 && (
+          <div className="text-xs text-muted-foreground -mt-1">
+            GPS-spår: {gpsPoints.length} positioner ({gpsPoints[0].recorded_at.slice(11, 16)} – {gpsPoints[gpsPoints.length - 1].recorded_at.slice(11, 16)})
           </div>
         )}
 
