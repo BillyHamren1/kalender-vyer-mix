@@ -22,6 +22,22 @@ const issueConfig = {
   recently_modified: { icon: RefreshCw, label: 'Ändrad', cls: 'text-blue-600 bg-blue-500/10', rowCls: '' },
 };
 
+const fmtShort = (d: Date) => format(d, 'd/M');
+const labelForDate = (d: Date) => isToday(d) ? 'Idag' : isTomorrow(d) ? 'Imorgon' : fmtShort(d);
+
+const getDateRange = (job: OpsJobQueueItem): { primary: string; range: string | null } => {
+  const dates = [job.rigDate, job.eventDate, job.rigDownDate]
+    .filter(Boolean)
+    .map(d => parseISO(d as string))
+    .filter(d => !isNaN(d.getTime()));
+  if (dates.length === 0) return { primary: '—', range: null };
+  const min = new Date(Math.min(...dates.map(d => d.getTime())));
+  const max = new Date(Math.max(...dates.map(d => d.getTime())));
+  const primary = labelForDate(min);
+  const range = min.getTime() !== max.getTime() ? `${fmtShort(min)}–${fmtShort(max)}` : null;
+  return { primary, range };
+};
+
 const OpsJobQueue = ({ jobs, isLoading, onFocusJob, onOpenChat }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
