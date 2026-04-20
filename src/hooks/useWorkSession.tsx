@@ -202,6 +202,8 @@ export function useWorkSession(
     saveAndStopTimer,
     stopLocationTimerWithoutReport,
     cancelPendingTimer,
+    userPosition,
+    orgLocations,
   } = geo;
 
   /**
