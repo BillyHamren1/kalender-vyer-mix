@@ -131,21 +131,23 @@ const MobileJobs = () => {
     Extract<StartEvaluation, { status: 'switch' }> | null
   >(null);
 
-  // Distance warning state
+  // Distance warning state — dialog is rendered once per page; the
+  // decision to *show* it lives in useWorkSession.resolveTargetCoords +
+  // ENTER_RADIUS so all start-surfaces behave identically.
   const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
-  const checkDistanceAndStart = (
-    coords: { lat: number; lng: number } | null,
-    placeName: string,
-    doStart: () => void
-  ) => {
+  const checkDistanceAndStart = (target: WorkTarget, label: string, doStart: () => void) => {
+    const coords = resolveTargetCoords(target);
+    const radius = (typeof window !== 'undefined' && window.localStorage)
+      ? ENTER_RADIUS // getGpsSettings handled inside engine; for legacy parity we use ENTER_RADIUS here
+      : ENTER_RADIUS;
     if (!userPosition || !coords) {
       doStart();
       return;
     }
     const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
-    if (dist > ENTER_RADIUS) {
-      setDistanceWarning({ placeName, distance: dist, onConfirm: doStart });
+    if (dist > radius) {
+      setDistanceWarning({ placeName: coords.label || label, distance: dist, onConfirm: doStart });
     } else {
       doStart();
     }
@@ -160,13 +162,12 @@ const MobileJobs = () => {
   const requestStart = (
     target: WorkTarget,
     label: string,
-    coords: { lat: number; lng: number } | null,
     doStart: () => void,
   ) => {
     const evalResult = evaluateStartConflict(target, activeTimers);
     if (evalResult.status === 'duplicate') return;
 
-    const wrappedStart = () => checkDistanceAndStart(coords, label, doStart);
+    const wrappedStart = () => checkDistanceAndStart(target, label, doStart);
 
     if (evalResult.status === 'allow') {
       wrappedStart();
