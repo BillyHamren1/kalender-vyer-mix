@@ -32,6 +32,12 @@ const WarehouseDashboard = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
 
+  // Timeline date state
+  const [timelineDate, setTimelineDate] = useState<Date>(new Date());
+  const goToNextDay = useCallback(() => setTimelineDate((d) => addDays(d, 1)), []);
+  const goToPrevDay = useCallback(() => setTimelineDate((d) => addDays(d, -1)), []);
+  const goToToday = useCallback(() => setTimelineDate(new Date()), []);
+
   // Realtime subscriptions for warehouse dashboard
   useRealtimeInvalidation({
     channelName: 'warehouse-page-realtime',
