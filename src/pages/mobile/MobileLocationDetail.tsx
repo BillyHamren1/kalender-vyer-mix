@@ -40,7 +40,7 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, geo, startSession, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, geo, startSession, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
   const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
