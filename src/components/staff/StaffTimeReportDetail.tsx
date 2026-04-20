@@ -139,6 +139,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         const lpName = r.bookings?.large_project_id
           ? lpNameMap.get(r.bookings.large_project_id)
           : null;
+        // Internal warehouse booking uses a synthetic booking_number ("LAGER-xxxxxxxx")
+        // that is a technical id, not a real project number — hide it in the UI.
+        const rawBookingNumber = r.bookings?.booking_number || null;
+        const isInternalLager =
+          typeof rawBookingNumber === 'string' && rawBookingNumber.startsWith('LAGER-');
         return {
           id: r.id,
           report_date: r.report_date,
@@ -149,7 +154,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           description: r.description,
           approved: r.approved,
           booking_client: lpName || r.bookings?.client || '-',
-          booking_number: lpName ? null : (r.bookings?.booking_number || null),
+          booking_number: lpName || isInternalLager ? null : rawBookingNumber,
           booking_id: r.booking_id || null,
           type: 'work' as const,
         };
