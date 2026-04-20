@@ -547,18 +547,44 @@ export const mobileApi = {
   toggleEstablishmentTask: (taskId: string) =>
     callApi<{ success: boolean; completed: boolean }>('toggle_establishment_task', { task_id: taskId }),
 
-  // Arrival prompt (B-flow) — same source-of-truth used by push-cron
+  // Arrival prompt — UNIFIED across location/project/booking targets.
+  // Server returns BOTH the new generic `target` shape and (for legacy
+  // location-only callers) the deprecated `location_id` / `location_name`
+  // fields. New code should read `target`.
   getArrivalState: () =>
     callApi<{
       should_prompt: boolean;
+      target: {
+        kind: 'location' | 'project' | 'booking';
+        target_id: string;
+        label: string;
+        arrived_at: string;
+        address?: string | null;
+      } | null;
+      prompts_sent: number;
+      // legacy mirror — location only
       arrived_at: string | null;
       location_id: string | null;
       location_name: string | null;
-      prompts_sent: number;
     }>('get_arrival_state'),
 
-  markArrivalResolved: (data: { location_id: string; arrived_at: string }) =>
-    callApi<{ success: boolean }>('mark_arrival_resolved', data),
+  // Accepts BOTH the new generic shape and the legacy location-only shape.
+  markArrivalResolved: (data:
+    | { target_type: 'location' | 'project' | 'booking'; target_id: string; arrived_at: string }
+    | { location_id: string; arrived_at: string }
+  ) => callApi<{ success: boolean }>('mark_arrival_resolved', data),
+
+  /**
+   * Register a generic arrival signal on the server. Idempotent on
+   * (staff, target, ~arrived_at). Use this from the geofence enter handler
+   * for project/booking arrivals so the server-side prompt logic and
+   * push-cron see the arrival exactly as they see fixed-location arrivals.
+   */
+  reportArrival: (data: {
+    kind: 'location' | 'project' | 'booking';
+    target_id: string;
+    arrived_at?: string;
+  }) => callApi<{ success: boolean; arrival: any; idempotent?: boolean }>('report_arrival', data),
 
   // ── Workday flags (PROMPT 6 — anomaly model v2) ─────────────────────
   // Workday flags are the first-class store for "system saw something it

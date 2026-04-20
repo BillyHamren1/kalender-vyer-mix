@@ -535,6 +535,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
+          // UNIFIED arrival registration — same server log as fixed locations.
+          mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
+            .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
           setGeofenceEvent({
             type: 'enter',
             booking,
@@ -566,6 +569,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
+          // UNIFIED arrival registration for plain bookings.
+          mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: new Date().toISOString() })
+            .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
           setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking', arrivalTimestamp: Date.now() });
         }
 
