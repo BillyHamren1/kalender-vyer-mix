@@ -439,6 +439,10 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
   const [validationError, setValidationError] = useState<string | null>(null);
   const { invalidateTimeReports } = useInvalidateMobileData();
   const isApproved = !!report.approved;
+  // Presence rows come from location_time_entries (warehouse / fixed locations).
+  // They live outside the time_reports table → cannot be edited or deleted from
+  // the mobile UI. Treat them as approved+read-only for visual purposes.
+  const isPresence = (report as any).source_kind === 'location_presence';
 
   const calculateEditHours = (): number => {
     if (!editStart || !editEnd) return 0;
