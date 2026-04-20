@@ -629,7 +629,8 @@ export type WorkdayFlagType =
   | 'time_gap'
   | 'missing_report'
   | 'long_day'
-  | 'overlapping_times';
+  | 'overlapping_times'
+  | 'home_arrival_end_day_adjusted';
 
 export interface WorkdayFlag {
   id: string;

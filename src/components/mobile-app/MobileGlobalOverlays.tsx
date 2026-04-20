@@ -5,6 +5,8 @@ import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
+import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
+import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
