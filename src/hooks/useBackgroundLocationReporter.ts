@@ -112,9 +112,12 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         timestamp: Date.now(),
       });
 
+      // Cache for heartbeat
+      lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
+
       // Throttle API reports to every 30s
       const now = Date.now();
-      if (now - lastReportRef.current < 30000) {
+      if (now - lastReportRef.current < REPORT_THROTTLE_MS) {
         // Still run geofence check even when throttled
         checkBackgroundGeofences(latitude, longitude);
         return;
@@ -128,6 +131,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // Run geofence check
       checkBackgroundGeofences(latitude, longitude);
     };
+
+    // Heartbeat: force a ping every 60s using last known position so we can
+    // distinguish "phone still alive but stationary" from "app dead".
+    const sendHeartbeat = () => {
+      const pos = lastKnownPosRef.current;
+      const sid = staffIdRef.current;
+      if (!pos || !sid) return;
+      lastReportRef.current = Date.now();
+      mobileApi.reportLocation({
+        latitude: pos.lat,
+        longitude: pos.lng,
+        accuracy: pos.accuracy,
+        speed: pos.speed,
+      }).catch((error) => {
+        console.warn('[BGLocation] heartbeat error:', error?.message || error);
+      });
+    };
+    heartbeatTimerRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
