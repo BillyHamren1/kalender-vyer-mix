@@ -39,8 +39,8 @@ const StaffTimeReports: React.FC = () => {
   const { data: staffList = [], isLoading } = useQuery({
     queryKey: ['staff-time-reports-day', dateStr],
     queryFn: async (): Promise<StaffWithDayReport[]> => {
-      // Fetch all reports + travel for the day in parallel
-      const [reportsRes, travelRes] = await Promise.all([
+      // Fetch reports + travel + location-based time (e.g. Lager) in parallel
+      const [reportsRes, travelRes, locationRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('staff_id, booking_id, hours_worked, start_time, end_time')
@@ -50,13 +50,45 @@ const StaffTimeReports: React.FC = () => {
           .select('staff_id, hours_worked')
           .eq('report_date', dateStr)
           .not('end_time', 'is', null),
+        supabase
+          .from('location_time_entries')
+          .select('staff_id, location_id, entered_at, exited_at, total_minutes')
+          .eq('entry_date', dateStr),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
       if (travelRes.error) throw travelRes.error;
+      if (locationRes.error) throw locationRes.error;
 
       const reports = reportsRes.data || [];
       const travel = travelRes.data || [];
+      const locationEntries = locationRes.data || [];
+
+      // Resolve location -> internal booking (e.g. Lager) for project label
+      const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
+      const locationBookingMap = new Map<string, { booking_id: string; label: string }>();
+      if (locationIds.length > 0) {
+        const [{ data: internalProjects }, { data: locations }] = await Promise.all([
+          supabase
+            .from('projects')
+            .select('booking_id, location_id, name')
+            .eq('is_internal', true)
+            .in('location_id', locationIds),
+          supabase
+            .from('organization_locations')
+            .select('id, name')
+            .in('id', locationIds),
+        ]);
+        const locNameMap = new Map((locations || []).map(l => [l.id, l.name]));
+        (internalProjects || []).forEach(p => {
+          if (p.location_id && p.booking_id) {
+            locationBookingMap.set(p.location_id, {
+              booking_id: p.booking_id,
+              label: locNameMap.get(p.location_id) || p.name || 'Lager',
+            });
+          }
+        });
+      }
 
       // Fetch booking labels
       const bookingIds = [...new Set(reports.map(r => r.booking_id).filter(Boolean))];
@@ -131,6 +163,43 @@ const StaffTimeReports: React.FC = () => {
         };
         a.total_hours += t.hours_worked || 0;
         byStaff.set(t.staff_id, a);
+      }
+
+      // Location-based time (e.g. Lager via "Starta dag på Lager")
+      for (const e of locationEntries) {
+        const a = byStaff.get(e.staff_id) || {
+          total_hours: 0,
+          reports_count: 0,
+          has_open_report: false,
+          earliest_start: null,
+          latest_end: null,
+          projects: new Map(),
+        };
+        const isOpen = !e.exited_at;
+        const hours = e.total_minutes
+          ? e.total_minutes / 60
+          : isOpen
+            ? Math.max(0, (Date.now() - new Date(e.entered_at).getTime()) / 3_600_000)
+            : 0;
+        a.total_hours += hours;
+        a.reports_count += 1;
+        if (isOpen) a.has_open_report = true;
+        const startHHMM = format(new Date(e.entered_at), 'HH:mm:ss');
+        if (!a.earliest_start || startHHMM < a.earliest_start) a.earliest_start = startHHMM;
+        if (!isOpen && e.exited_at) {
+          const endHHMM = format(new Date(e.exited_at), 'HH:mm:ss');
+          if (!a.latest_end || endHHMM > a.latest_end) a.latest_end = endHHMM;
+        }
+        const locInfo = locationBookingMap.get(e.location_id);
+        const projectKey = locInfo?.booking_id || `loc:${e.location_id}`;
+        const projectLabel = locInfo?.label || 'Lager';
+        const existing = a.projects.get(projectKey);
+        a.projects.set(projectKey, {
+          label: projectLabel,
+          is_open: (existing?.is_open || false) || isOpen,
+          total_hours: (existing?.total_hours || 0) + hours,
+        });
+        byStaff.set(e.staff_id, a);
       }
 
       const staffIds = [...byStaff.keys()];
