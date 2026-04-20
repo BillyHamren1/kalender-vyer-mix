@@ -250,12 +250,7 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
-    // Use first booking with coordinates as project location
-    const withCoords = entries.find(e => e.booking.delivery_latitude && e.booking.delivery_longitude);
-    const coords = withCoords
-      ? { lat: withCoords.booking.delivery_latitude!, lng: withCoords.booking.delivery_longitude! }
-      : null;
-    requestStart(target, name, coords, () => {
+    requestStart(target, name, () => {
       startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
       toast.success(`${t('timer.started')}: ${name}`);
     });
