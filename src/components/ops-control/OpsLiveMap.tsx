@@ -26,8 +26,8 @@ interface Props {
 type StaffStatus = 'on_site' | 'on_way' | 'idle';
 
 function getStaffStatus(loc: StaffLocation, mapJobs: OpsMapJob[]): StaffStatus {
+  if (loc.isOffline) return 'idle';
   if (loc.isWorking) return 'on_site';
-  // If staff is assigned to a booking that has started
   const job = mapJobs.find(j => j.bookingId === loc.bookingId);
   if (job?.isActive) return 'on_way';
   if (loc.bookingId) return 'on_way';
@@ -272,7 +272,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
   // Render staff as WebGL layers so positions stay locked at any browser zoom level
   useEffect(() => {
-    if (!mapReady || !map.current || !map.current.isStyleLoaded()) return;
+    if (!mapReady || !map.current) return;
 
     const m = map.current;
     const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
@@ -282,11 +282,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       type: 'FeatureCollection',
       features: staffWithCoords.map(loc => {
         const status = getStaffStatus(loc, mapJobs);
-        const hasRecentGps = Boolean(
-          loc.isGps &&
-          loc.lastReportTime &&
-          Date.now() - new Date(loc.lastReportTime).getTime() < 5 * 60_000,
-        );
+        const hasRecentGps = Boolean(loc.isGps && !loc.isOffline);
 
         return {
           type: 'Feature',
@@ -300,127 +296,183 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             color: statusStyles[status].color,
             isHighlighted: assignedIds.has(loc.id) ? 1 : 0,
             hasRecentGps: hasRecentGps ? 1 : 0,
+            isOffline: loc.isOffline ? 1 : 0,
           },
         };
       }),
     } as GeoJSON.FeatureCollection<GeoJSON.Point>;
 
-    const source = m.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    if (source) {
-      source.setData(staffGeoJson);
-    } else {
-      m.addSource(STAFF_SOURCE_ID, {
-        type: 'geojson',
-        data: staffGeoJson,
-      });
-    }
+    console.debug('[OpsLiveMap] render staff', {
+      count: staffWithCoords.length,
+      total: locations.length,
+      sample: staffWithCoords[0]?.name,
+    });
 
-    if (!m.getLayer(STAFF_HIGHLIGHT_LAYER_ID)) {
-      m.addLayer({
-        id: STAFF_HIGHLIGHT_LAYER_ID,
-        type: 'circle',
-        source: STAFF_SOURCE_ID,
-        filter: ['==', ['get', 'isHighlighted'], 1],
-        paint: {
-          'circle-radius': 17,
-          'circle-color': 'hsl(184, 55%, 38%)',
-          'circle-opacity': 0.22,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-          'circle-stroke-opacity': 0.85,
-        },
-      });
-    }
+    let cancelled = false;
+    let cleanupHandlers: (() => void) | null = null;
 
-    if (!m.getLayer(STAFF_MARKER_LAYER_ID)) {
-      m.addLayer({
-        id: STAFF_MARKER_LAYER_ID,
-        type: 'circle',
-        source: STAFF_SOURCE_ID,
-        paint: {
-          'circle-radius': 13,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 1,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 3,
-          'circle-stroke-opacity': 1,
-        },
-      });
-    }
+    const applyLayers = () => {
+      if (cancelled || !map.current) return;
+      const mm = map.current;
+      if (!mm.isStyleLoaded()) {
+        mm.once('idle', applyLayers);
+        return;
+      }
 
-    if (!m.getLayer(STAFF_LABEL_LAYER_ID)) {
-      m.addLayer({
-        id: STAFF_LABEL_LAYER_ID,
-        type: 'symbol',
-        source: STAFF_SOURCE_ID,
-        layout: {
-          'text-field': ['get', 'initial'],
-          'text-size': 11,
-          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-        },
-        paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': 'rgba(0,0,0,0.08)',
-          'text-halo-width': 0.5,
-        },
-      });
-    }
+      const source = mm.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData(staffGeoJson);
+      } else {
+        mm.addSource(STAFF_SOURCE_ID, { type: 'geojson', data: staffGeoJson });
+      }
 
-    if (!m.getLayer(STAFF_GPS_DOT_LAYER_ID)) {
-      m.addLayer({
-        id: STAFF_GPS_DOT_LAYER_ID,
-        type: 'circle',
-        source: STAFF_SOURCE_ID,
-        filter: ['==', ['get', 'hasRecentGps'], 1],
-        paint: {
-          'circle-radius': 4,
-          'circle-color': '#22c55e',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1.5,
-          'circle-translate': [8, -8],
-          'circle-opacity': 1,
-        },
-      });
-    }
+      let beforeId: string | undefined;
+      try {
+        const layers = mm.getStyle()?.layers || [];
+        const firstSymbol = layers.find(l => l.type === 'symbol');
+        beforeId = firstSymbol?.id;
+      } catch { /* ignore */ }
 
-    const handleStaffClick = (event: mapboxgl.MapLayerMouseEvent) => {
-      const feature = event.features?.[0];
-      const staffId = feature?.properties?.id;
-      if (!staffId) return;
+      if (!mm.getLayer(STAFF_HIGHLIGHT_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_HIGHLIGHT_LAYER_ID,
+          type: 'circle',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isHighlighted'], 1],
+          paint: {
+            'circle-radius': 17,
+            'circle-color': 'hsl(184, 55%, 38%)',
+            'circle-opacity': 0.22,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+            'circle-stroke-opacity': 0.85,
+          },
+        }, beforeId);
+      }
 
-      const location = locations.find(loc => loc.id === staffId);
-      if (!location) return;
+      if (!mm.getLayer(STAFF_MARKER_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_MARKER_LAYER_ID,
+          type: 'circle',
+          source: STAFF_SOURCE_ID,
+          paint: {
+            'circle-radius': 13,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': ['case', ['==', ['get', 'isOffline'], 1], 0.55, 1],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3,
+            'circle-stroke-opacity': 1,
+          },
+        }, beforeId);
+      }
 
-      setStaffPanel(location);
-      setSelectedJob(null);
+      if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_LABEL_LAYER_ID,
+          type: 'symbol',
+          source: STAFF_SOURCE_ID,
+          layout: {
+            'text-field': ['get', 'initial'],
+            'text-size': 11,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.08)',
+            'text-halo-width': 0.5,
+          },
+        });
+      }
+
+      if (!mm.getLayer(STAFF_GPS_DOT_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_GPS_DOT_LAYER_ID,
+          type: 'circle',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'hasRecentGps'], 1],
+          paint: {
+            'circle-radius': 4,
+            'circle-color': '#22c55e',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1.5,
+            'circle-translate': [8, -8],
+            'circle-opacity': 1,
+          },
+        });
+      }
+
+      // Fallback: HTML markers if WebGL layer didn't register
+      if (!mm.getLayer(STAFF_MARKER_LAYER_ID)) {
+        console.warn('[OpsLiveMap] WebGL layer missing, falling back to HTML markers');
+        staffMarkersRef.current.forEach(mk => mk.remove());
+        staffMarkersRef.current = [];
+        staffWithCoords.forEach(loc => {
+          const status = getStaffStatus(loc, mapJobs);
+          const el = document.createElement('div');
+          el.style.cssText = `
+            width: 26px; height: 26px; border-radius: 50%;
+            background: ${statusStyles[status].color};
+            border: 3px solid white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+            color: white; font-weight: 700; font-size: 11px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: ${loc.isOffline ? 0.55 : 1};
+          `;
+          el.textContent = loc.name.charAt(0).toUpperCase();
+          el.addEventListener('click', () => {
+            setStaffPanel(loc);
+            setSelectedJob(null);
+          });
+          const mk = new mapboxgl.Marker({ element: el })
+            .setLngLat([loc.longitude!, loc.latitude!])
+            .addTo(mm);
+          staffMarkersRef.current.push(mk);
+        });
+      }
+
+      const handleStaffClick = (event: mapboxgl.MapLayerMouseEvent) => {
+        const feature = event.features?.[0];
+        const staffId = feature?.properties?.id;
+        if (!staffId) return;
+        const location = locations.find(loc => loc.id === staffId);
+        if (!location) return;
+        setStaffPanel(location);
+        setSelectedJob(null);
+      };
+
+      const handleMouseEnter = () => {
+        mm.getCanvas().style.cursor = 'pointer';
+      };
+
+      const handleMouseLeave = () => {
+        mm.getCanvas().style.cursor = '';
+      };
+
+      mm.on('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
+      mm.on('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
+      mm.on('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
+      mm.on('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+      mm.on('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
+      mm.on('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+
+      cleanupHandlers = () => {
+        if (!map.current) return;
+        map.current.off('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
+        map.current.off('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
+        map.current.off('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
+        map.current.off('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+        map.current.off('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
+        map.current.off('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+      };
     };
 
-    const handleMouseEnter = () => {
-      m.getCanvas().style.cursor = 'pointer';
-    };
-
-    const handleMouseLeave = () => {
-      m.getCanvas().style.cursor = '';
-    };
-
-    m.on('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
-    m.on('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
-    m.on('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
-    m.on('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
-    m.on('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
-    m.on('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+    applyLayers();
 
     return () => {
-      if (!map.current) return;
-
-      map.current.off('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
-      map.current.off('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
-      map.current.off('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
-      map.current.off('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
-      map.current.off('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
-      map.current.off('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
+      cancelled = true;
+      cleanupHandlers?.();
     };
   }, [mapReady, locations, mapJobs, selectedJob, styleRevision]);
 
