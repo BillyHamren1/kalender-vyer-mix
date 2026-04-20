@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * endDayReconciliation.contract.test.ts
  * ─────────────────────────────────────

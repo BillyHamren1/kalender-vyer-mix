@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * locationPresenceLifecycle.contract.test.ts
  * ──────────────────────────────────────────
