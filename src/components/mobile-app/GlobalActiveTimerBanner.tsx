@@ -173,7 +173,14 @@ const GlobalActiveTimerBanner: React.FC = () => {
     // No EOD dialog needed — delegate to the unified engine.
     setSavingKeys(prev => new Set(prev).add(key));
     try {
-      await stopSession(timerToTarget(key, timer));
+      const res = await stopSession(timerToTarget(key, timer));
+      // After a successful save, ask user what's next so the day isn't broken.
+      // Skip when the stop was cancelled (break-dialog dismissed) or while
+      // the global EOD queue is draining (those timers are already on their
+      // way out — no need to re-ask).
+      if (res && !res.cancelled && !eodProcessingRef.current) {
+        setNextActionFor({ name: timer.locationName || timer.client || 'aktiviteten' });
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte spara — försök igen.');
     } finally {
