@@ -62,13 +62,6 @@ export interface MobileTimeReport {
     client: string;
     booking_number: string | null;
   } | null;
-  /**
-   * Optional discriminator. When 'location_presence', this row was synthesised
-   * from a closed location_time_entries row (warehouse / fixed-location time)
-   * and is read-only — the user cannot edit/delete it from the time-reports UI.
-   * Real time_reports do not set this field.
-   */
-  source_kind?: 'location_presence';
 }
 
 export interface MobileTravelLog {

@@ -439,10 +439,6 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
   const [validationError, setValidationError] = useState<string | null>(null);
   const { invalidateTimeReports } = useInvalidateMobileData();
   const isApproved = !!report.approved;
-  // Presence rows come from location_time_entries (warehouse / fixed locations).
-  // They live outside the time_reports table → cannot be edited or deleted from
-  // the mobile UI. Treat them as approved+read-only for visual purposes.
-  const isPresence = (report as any).source_kind === 'location_presence';
 
   const calculateEditHours = (): number => {
     if (!editStart || !editEnd) return 0;
@@ -526,11 +522,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
             <p className="font-semibold text-sm truncate text-foreground">
               {report.large_project_name || report.bookings?.client || 'Unknown job'}
             </p>
-            {isPresence ? (
-              <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                Presence
-              </span>
-            ) : isApproved ? (
+            {isApproved ? (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
                 <Check className="w-2.5 h-2.5" /> Approved
               </span>
@@ -549,7 +541,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {!isApproved && !editing && !isPresence && (
+          {!isApproved && !editing && (
             <>
               <button onClick={() => setEditing(true)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                 <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
