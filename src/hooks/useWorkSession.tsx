@@ -48,6 +48,9 @@ import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import {
   useGeofencing,
   ActiveTimer,
+  haversineDistance,
+  ENTER_RADIUS,
+  getGpsSettings,
 } from '@/hooks/useGeofencing';
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
