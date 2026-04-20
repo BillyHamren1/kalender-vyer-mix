@@ -133,11 +133,15 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
       lastReportRef.current = now;
 
-      mobileApi.reportLocation({ latitude, longitude, accuracy, speed }).catch((error) => {
-        console.warn('[BGLocation] report error:', error?.message || error);
-      });
+      // Skip API call if no staffId (token refresh / logged out) — but keep
+      // GPS watcher alive so we resume instantly when session returns.
+      if (staffIdRef.current) {
+        mobileApi.reportLocation({ latitude, longitude, accuracy, speed }).catch((error) => {
+          console.warn('[BGLocation] report error:', error?.message || error);
+        });
+      }
 
-      // Run geofence check
+      // Run geofence check (works without staffId — purely local)
       checkBackgroundGeofences(latitude, longitude);
     };
 
