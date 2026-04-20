@@ -68,6 +68,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
+  const [gpsPoints, setGpsPoints] = useState<GpsPoint[]>([]);
 
   // Fetch mapbox token
   useEffect(() => {
@@ -85,6 +86,27 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     };
     if (open && !mapboxToken) fetchToken();
   }, [open, mapboxToken]);
+
+  // Fetch GPS trail (staff_location_history) for the day
+  useEffect(() => {
+    if (!open || !date || !staffId) return;
+    let cancelled = false;
+    mobileApi
+      .getMovementForDay(staffId, date)
+      .then((res) => {
+        if (cancelled) return;
+        setGpsPoints(
+          (res.points || []).map((p) => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at }))
+        );
+      })
+      .catch((e) => {
+        console.error('Failed to fetch GPS trail:', e);
+        if (!cancelled) setGpsPoints([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date, staffId]);
 
   // Sorted timeline
   const timeline = useMemo(() => {
