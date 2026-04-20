@@ -258,13 +258,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         console.warn('[BGLocation] Failed to start:', err?.message || err);
       });
 
+      // NOTE: No cleanup that stops BackgroundGeolocation. Once started, the
+      // tracker must live for the entire app lifetime. Stopping it would
+      // cause iOS to kill the background service permanently until the user
+      // manually re-opens the app — even with "Allow always" permission.
       return () => {
-        stopped = true;
-        if (heartbeatTimerRef.current !== null) {
-          window.clearInterval(heartbeatTimerRef.current);
-          heartbeatTimerRef.current = null;
-        }
-        BackgroundGeolocation.stop().catch(() => {});
+        // Intentionally empty: keep heartbeat + tracker running across
+        // staffId changes, token refreshes, and component unmounts.
       };
     } else {
       // Web: use navigator.geolocation
