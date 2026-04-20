@@ -1,195 +1,100 @@
 
-## Fixa ankomstflödet så ALLA platstyper behandlas exakt likadant
 
-### Problemet som ska bort
-Koden behandlar idag samma verkliga händelse på tre olika sätt:
+## Lär systemet vad "hem" betyder — tyst, från dag 2
 
-- **Fasta platser / Lager**: `report_location` skapar direkt en serverrad i `location_time_entries` med `source='gps'`.
-- **Projekt / vanliga bokningar**: `useGeofencing` visar en lokal prompt och startar timer först när användaren bekräftar.
-- **Arrival polling / push-påminnelse**: `useArrivalPrompt` + `handleGetArrivalState` fungerar bara för `location_id`, alltså fasta platser.
+### Vad användaren får
 
-Det är exakt den splitten jag tar bort.
+**1. Systemet lär sig hemma snabbt och tyst**
+Redan efter **andra natten** på samma plats antar systemet att det är hemma. Ingen fråga, ingen notis, ingen bekräftelseruta. Hemma är helt enkelt där hen sover.
 
-## Målet
-En användare som anländer till:
-- Lager
-- stort projekt
-- medelprojekt / vanlig bokning
+Om hen åker på affärsresa och sover på hotell — andra natten på hotellet räknas hotellet som hem temporärt. När hen är hemma igen växlar det automatiskt tillbaka. Allt sker i bakgrunden.
 
-ska gå genom **samma ankomstmodell**:
+**2. Ett mjukare dagsslutsförslag**
+När en resa avslutas och destinationen matchar hemplatsen, **och** användaren tidigare under dagen var aktiv på en arbetsplats utan att ha avslutat dagen, så får hen **en enda lugn fråga** — utan att appen nämner "hem":
 
-1. systemet registrerar en server-side “ankomstsignal”
-2. samma promptlogik avgör om användaren ska få fråga
-3. samma UI visas
-4. samma val finns: starta från ankomst, starta nu, anpassa tid, inte nu
-5. samma start-API används
-6. samma testmatris gäller för alla platstyper
+> 🏁 **Avsluta dagen?**
+> Jag misstänker att du avslutade din arbetsdag när du lämnade *Plats X* kl **17:42**.
+> Stämmer detta och du vill rapportera din tid?
+>
+> [Ja, rapportera till 17:42] [Nej, jag ska tillbaka] [Anpassa tid]
 
-## Vad jag bygger
+- **Ja** → kör samma `endDay`-flöde som "Avsluta dagen"-knappen, sluttiden satt till när hen lämnade arbetsplatsen.
+- **Nej** → tystar förslaget för dagen. Timern tickar vidare, vanlig kvällsbanner gäller.
+- **Anpassa tid** → tidsväljare, sen samma `endDay`.
 
-### 1. Inför ett gemensamt “arrival target”-kontrakt
-Jag standardiserar ankomstdata överallt till en gemensam form, t.ex.:
+**3. Inget händer automatiskt**
+Systemet stoppar fortfarande aldrig timern utan ett aktivt val. Om hen inte svarar på frågan ligger timern kvar och kvällsbannern tar över som förut.
 
-```text
-kind: 'location' | 'project' | 'booking'
-target_id: string
-label: string
-arrived_at: ISO
-address?: string
-```
+**4. Hemplatsen är osynlig för användaren**
+Ingen "Mina platser → Hem"-vy. Ingen karta. Ordet "hem" syns aldrig i UI:t — hemplatsen är en intern signal som bara används som *trigger* för förslaget. Texten användaren ser handlar bara om arbetsplatsen hen lämnade.
 
-Detta används i:
-- geofence-event från klienten
-- arrival polling
-- push-reminders
-- confirm/dismiss
-- tester
+### Var i appen
 
-Så UI och server slutar tänka “lager vs projekt” och börjar tänka “arbetsplats/target”.
+- Ingen ny inställningssida.
+- Ny dialog `EndDayOnArrivalHomeDialog` triggad direkt efter `TravelCompletedDialog` när villkoren är uppfyllda.
+- Lärningen sker server-side via en daglig cron.
 
-### 2. Gör servern till samma source-of-truth för ALLA ankomster
-Jag flyttar bort särlogiken där bara fasta platser skapar riktig serverstate vid GPS-ankomst.
+### Tekniska bitar
 
-Istället bygger jag ett gemensamt serverflöde där ankomst registreras för:
-- `location_id`
-- `large_project_id`
-- `booking_id`
+**Datamodell**
+- `staff_inferred_home_locations` (staff_id, organization_id, lat, lng, radius_m, kind: `'primary' | 'temporary'`, valid_from, valid_until, confidence, last_observed_at, nights_observed). Endast server-skriven. RLS: ägaren kan läsa.
+- `staff_home_observations` (staff_id, observed_date, lat, lng, dwell_minutes). Råmaterial. Raderas efter 30 dagar.
 
-med exakt samma regler för:
-- öppen ankomst
-- resolved/dismissed
-- prompt_count
-- arrived_at
-- idempotens
+**Lärningsmotor (cron, dagligen)**
+Edge function `infer-home-location` aggregerar nattvistelser (02–05) från `staff_location_history` och klustrar med grid-snap (~100 m).
 
-Det innebär att dagens `arrival_prompt_log`-tänk generaliseras från bara `location_id` till alla target-typer.
+- **Primary**: andra natten i rad på samma kluster → skrivs som `primary` direkt.
+- **Temporary**: andra natten i rad på ett kluster som avviker från primary → skrivs som `temporary` med rullande `valid_until`.
+- **Återgång**: en natt på primary igen → temporary expireras automatiskt.
+- **Idempotens**: uppsert på (staff_id, kluster).
 
-### 3. Ersätt dagens location-specifika arrival state med ett generiskt API
-Nuvarande:
-- `get_arrival_state`
-- `mark_arrival_resolved`
+**Dagsslutsförslaget**
+Ny hook `useEndDayOnArrivalHome` lyssnar på `useTravelDetection.travelCompletedInfo`:
+1. Hämta aktiv inferred home (temporary före primary).
+2. Haversine: destination ≤ `radius_m`.
+3. Finns öppen timer eller arbetsplats-närvaro tidigare idag som aldrig stängdes?
+4. Om ja → öppna dialog. Föreslagen sluttid och platsnamn = senaste `location_time_entries.exited_at` + tillhörande plats, fallback timer-slut / `travel_log.start_time`.
 
-är hårdkodade till `location_id`.
+Dialogen återanvänder `endDay` i `useWorkSession`.
 
-Jag bygger om dem så de returnerar och hanterar:
-- target type
-- target id
-- namn/label
-- arrived_at
-- prompts_sent
-- should_prompt
+**Copy-konstant**
+Texten "Jag misstänker att du avslutade din arbetsdag när du lämnade {plats} kl {tid}. Stämmer detta och du vill rapportera din tid?" hålls i en konstant i dialogfilen — inga referenser till "hem" i UI-strängar.
 
-Då kan både polling och cron använda exakt samma regelmotor för lager, projekt och bokning.
+**Workday-flagga**
+Om "Anpassa tid" avviker mer än 30 min från resans starttid → `workday_flags`-rad `home_arrival_end_day_adjusted` (intern term, syns inte för användaren).
 
-### 4. En enda promptkomponent för all ankomst
-Jag återanvänder och generaliserar promptupplevelsen så den blir identisk oavsett target.
+**Tystnadsregler**
+- Max en gång per dag.
+- Suppressas om `last_workplace_for_day`-assistenten redan körts samma dag.
+- Suppressas om ingen inferred home finns ännu (cold start).
 
-UI ska:
-- visa samma språk och samma CTA-struktur
-- visa targetnamn oavsett om det är Lager, Projekt X eller Kund Y
-- erbjuda samma val:
-  - Starta från ankomsttid
-  - Starta nu
-  - Anpassa tid
-  - Inte nu
+### Berörda filer
 
-Jag tar bort den logiska skillnaden mellan:
-- `GeofencePrompt` för booking/project/fixed
-- `ArrivalPromptDialog` för fixed/location
+- `src/hooks/useEndDayOnArrivalHome.ts` (ny)
+- `src/components/mobile-app/EndDayOnArrivalHomeDialog.tsx` (ny)
+- `src/components/mobile-app/MobileGlobalOverlays.tsx` (montera dialogen)
+- `supabase/functions/infer-home-location/index.ts` (ny, cron)
+- `supabase/functions/mobile-app-api/index.ts` (lägg till `get_active_home_location`)
+- Ny migration: tabellerna + RLS + cron-schema
+- Tester i `src/test/` och `supabase/functions/infer-home-location/`
 
-och gör ett gemensamt ankomstflöde istället för två parallella.
+### Tester
 
-### 5. Start ska gå via samma work-session-engine för alla tre typer
-När användaren bekräftar ankomst ska start ske via samma motor:
-- samma target-mappning
-- samma startSession/startTimer-princip
-- samma backdating-regel
-- samma optimistic/sync-path
+1. Hem identisk med arbetsplats → inget förslag.
+2. Resa hem efter aktiv arbetsdag → förslag visas med korrekt platsnamn och sluttid.
+3. Resa hem utan tidigare arbetsdag → inget förslag.
+4. **Andra natten på samma plats** → primary skapas. Första natten ensam → ingen primary.
+5. **Andra natten på hotell** → temporary skapas, primary ignoreras. Återgång hem → temporary expireras.
+6. Användare väljer "Nej, jag ska tillbaka" → tyst resten av dagen.
+7. Cold start: ny användare första natten → inget förslag, ingen krasch.
+8. Cron körs två gånger samma dag → exakt en rad per kluster.
+9. Copy-test: dialogen innehåller aldrig orden "hem", "hemma" eller "bostad".
 
-Det betyder att `MobileJobs.tsx`, `MobileGlobalOverlays.tsx` och relaterade call-sites ska sluta ha separata branches för “fixed/project/booking” i ankomstögonblicket.
+### Vad detta INTE gör
 
-### 6. Samma semantik för vad ankomst betyder
-Jag gör ankomstlogiken konsekvent:
-
-- **Ankomst** = systemet har sett att användaren kommit till en arbetsplats
-- **Timerstart** = användaren väljer om arbetstid ska börja från ankomst, nu eller egen tid
-- **Dismiss** = prompten markeras som löst för just den ankomsten, inte generellt för platsen
-
-Detta ska gälla likadant för alla targets.
-
-### 7. Hårda regressionstester för likabehandling
-Jag bygger om/utökar testerna så de uttryckligen bevisar att plats-typerna beter sig identiskt.
-
-#### Frontend-kontrakt
-Nya/uppdaterade tester för att verifiera att:
-- booking, project och location producerar samma promptmodell
-- samma knappar finns för alla
-- samma starttid skickas vidare när man väljer:
-  - ankomsttid
-  - nu
-  - egen tid
-- dismiss fungerar lika för alla
-
-#### Backend-kontrakt
-Tester för att verifiera att:
-- arrival state kan skapas/läsas/resolvas för alla tre target-typer
-- prompt-logik inte längre är låst till `location_id`
-- samma “already resolved / already covered by report”-regler gäller för alla
-- idempotens fungerar per target och arrival timestamp
-
-#### End-to-end scenarier
-Testmatris för samma scenario på alla tre typer:
-
-1. Anländ 30 min tidigt
-2. Välj “Starta från ankomst”
-3. Välj “Starta nu”
-4. Välj “Anpassa tid”
-5. Välj “Inte nu”
-6. Få ny prompt senare
-7. Ha redan aktiv timer
-8. Ha redan täckande time_report
-
-Målet är att samma scenario ska ge samma beteende, bara med annat targetnamn.
-
-## Berörda filer
-Minst dessa delar behöver ändras:
-
-- `src/hooks/useGeofencing.ts`
-- `src/components/mobile-app/GeofencePrompt.tsx`
-- `src/components/mobile-app/ArrivalPromptDialog.tsx`
-- `src/components/mobile-app/MobileGlobalOverlays.tsx`
-- `src/pages/mobile/MobileJobs.tsx`
-- `src/hooks/useWorkSession.tsx`
-- `src/services/mobileApiService.ts`
-- `supabase/functions/mobile-app-api/index.ts`
-- `supabase/functions/arrival-reminder/index.ts`
-- relevanta testfiler i `src/test/`
-- relevanta edge-function-tester i `supabase/functions/mobile-app-api/`
-
-## Teknisk design
-```text
-GPS/geofence hit
-  -> create/update unified arrival signal on server
-  -> get_arrival_state returns generic target
-  -> one prompt UI renders
-  -> user picks start strategy
-  -> unified work-session start
-  -> arrival marked resolved
-```
-
-### Viktig implementation-not
-Jag kommer inte nöja mig med att “göra projekt mer som lager” eller tvärtom.
-Jag kommer istället:
-- centralisera arrival-modellen
-- ta bort typ-specifika specialfall i prompt/start-flödet
-- låsa likabehandlingen med tester
-
-## QA efter implementation
-1. Anländ till Lager → exakt samma promptstruktur som för projekt.
-2. Anländ till stort projekt → exakt samma promptstruktur som för Lager.
-3. Anländ till vanlig bokning → exakt samma promptstruktur som för Lager.
-4. Välj “Starta från ankomst” på alla tre → samma backdating-beteende.
-5. Välj “Inte nu” på alla tre → samma resolve/dismiss-beteende.
-6. Polling + push-reminder ska fungera för alla tre target-typer.
-7. Samma kontraktstester ska passera för location/project/booking med identiska förväntningar.
+- Nämner inte hemma i något UI.
+- Visar inte hemadressen någonstans.
+- Skapar inte automatiskt sluttider.
+- Delar inte hemadressen med admin eller andra användare.
+- Ersätter inte kvällsbannern — det är ett vänligare alternativ som kommer **före** den.
 
