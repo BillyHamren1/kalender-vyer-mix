@@ -191,6 +191,16 @@ const WarehouseDashboard = () => {
             <WarehouseRecentPackingsWidgets />
           </div>
 
+          {/* Tidsöversikt – timeline (full bredd) */}
+          <div className="mb-6 hidden lg:block">
+            <WarehouseStaffTimeline
+              date={timelineDate}
+              onNextDay={goToNextDay}
+              onPrevDay={goToPrevDay}
+              onToday={goToToday}
+            />
+          </div>
+
           {/* Staff Activation + Transport */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WarehouseStaffActivationCard />
