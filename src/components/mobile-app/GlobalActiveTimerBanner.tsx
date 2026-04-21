@@ -300,7 +300,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   return (
     <>
       {timers.size > 0 && (
-        <div className="px-5 pt-3 space-y-2">
+        <div className="relative z-20 px-5 pt-3 space-y-2">
           {Array.from(timers.entries()).map(([key, timer]) => (
             <TimerRow
               key={key}
@@ -310,9 +310,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
               onStop={handleStop}
             />
           ))}
+        </div>
+      )}
+      {/* "Avsluta dagen" — fixed längst ner ovanför bottennaven så den
+          aldrig hamnar bakom innehåll eller dubblerar timer-raderna. */}
+      {timers.size > 0 && location.pathname !== '/m/report' && (
+        <div className="fixed bottom-20 left-0 right-0 z-30 px-5 pointer-events-none">
           <Button
-            variant="outline"
-            className="w-full rounded-2xl h-11 gap-2 text-sm font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            variant="default"
+            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
             onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
             disabled={savingKeys.size > 0}
             title="Avsluta hela arbetsdagen — stänger alla aktiva timers och kör dagsavstämning"
