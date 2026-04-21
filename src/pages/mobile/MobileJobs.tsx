@@ -174,7 +174,114 @@ const MobileJobs = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
-        ) : sortedDates.length === 0 && locationJobs.length === 0 && shifts.length === 0 ? (
+        ) : (
+          <>
+          {/* Calendar — toggleable Day/Week/Month */}
+          <div className="space-y-3">
+            <CalendarViewToggle value={viewMode} onChange={setViewMode} />
+            <CalendarDateNav
+              viewMode={viewMode}
+              selectedDate={selectedDate}
+              onChange={setSelectedDate}
+            />
+            {viewMode === 'day' && (
+              <MobileDayView
+                date={selectedDate}
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+                onShowWeek={() => setViewMode('week')}
+              />
+            )}
+            {viewMode === 'week' && (
+              <MobileWeekView
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+              />
+            )}
+            {viewMode === 'month' && (
+              <MobileMonthView
+                selectedDate={selectedDate}
+                onSelectDate={(d) => { setSelectedDate(d); setViewMode('day'); }}
+                shifts={shifts}
+              />
+            )}
+          </div>
+
+          {/* Fixed location jobs (e.g. Lager) */}
+          {locationJobs.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Fixed locations
+                </h2>
+              </div>
+              <div className="space-y-2">
+                {locationJobs.map(loc => {
+                  const locKey = `location-${loc.id}`;
+                  const hasTimer = activeTimers.has(locKey);
+                  const timer = activeTimers.get(locKey);
+
+                  return (
+                    <div
+                      key={loc.id}
+                      className={cn(
+                        "w-full rounded-2xl border bg-card p-3.5 transition-all duration-150",
+                        hasTimer
+                          ? "border-primary/30 shadow-md ring-1 ring-primary/10"
+                          : "border-primary/20 shadow-md",
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => navigate(`/m/location/${loc.id}`)}
+                          className="flex-1 min-w-0 text-left active:opacity-70"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Building2 className="w-3.5 h-3.5 text-primary/70" />
+                            <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
+                              LOCATION
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
+                            {loc.name}
+                          </h3>
+                          {loc.address && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
+                              <span className="truncate">{loc.address}</span>
+                            </div>
+                          )}
+                          {hasTimer && timer && (
+                            <p className="text-xs font-mono text-primary font-bold mt-1">
+                              ⏱ {formatElapsed(timer.startTime)}
+                            </p>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => handleLocationTimerToggle(e, loc)}
+                          className={cn(
+                            "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                            hasTimer
+                              ? "bg-destructive text-destructive-foreground shadow-md"
+                              : "bg-primary/10 text-primary hover:bg-primary/20"
+                          )}
+                        >
+                          {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          </>
+        )}
+      </div>
+
           <div className="text-center py-20 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto">
               <Calendar className="w-7 h-7 text-muted-foreground/40" />
