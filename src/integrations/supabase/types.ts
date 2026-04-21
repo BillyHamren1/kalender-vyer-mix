@@ -4580,6 +4580,10 @@ export type Database = {
       staff_locations: {
         Row: {
           accuracy: number | null
+          last_address: string | null
+          last_address_at: string | null
+          last_address_lat: number | null
+          last_address_lng: number | null
           latitude: number
           location_since: string | null
           longitude: number
@@ -4590,6 +4594,10 @@ export type Database = {
         }
         Insert: {
           accuracy?: number | null
+          last_address?: string | null
+          last_address_at?: string | null
+          last_address_lat?: number | null
+          last_address_lng?: number | null
           latitude: number
           location_since?: string | null
           longitude: number
@@ -4600,6 +4608,10 @@ export type Database = {
         }
         Update: {
           accuracy?: number | null
+          last_address?: string | null
+          last_address_at?: string | null
+          last_address_lat?: number | null
+          last_address_lng?: number | null
           latitude?: number
           location_since?: string | null
           longitude?: number
