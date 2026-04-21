@@ -16,13 +16,36 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-const RESOURCE_ID = "team-tasks";
+const DEFAULT_RESOURCE_ID = "team-tasks";
+const TRANSPORT_RESOURCE_ID = "transport";
 
 const TASK_TYPE_LABEL: Record<string, string> = {
   crew: "Fält",
   pm: "PL",
   logistics: "Logistik",
   admin: "Admin",
+};
+
+/**
+ * Decide which calendar column an activity should land in.
+ * Transport/logistics activities → "transport" column (visible in personal kalender).
+ * Everything else → generic "team-tasks" overlay column.
+ */
+const resolveResourceId = (task: TaskRow): string => {
+  const cat = (task.category || "").toLowerCase();
+  const type = (task.task_type || "").toLowerCase();
+  const title = (task.title || "").toLowerCase();
+  if (
+    type === "logistics" ||
+    cat.includes("transport") ||
+    cat.includes("logistik") ||
+    title.includes("transport") ||
+    title.includes("lastning") ||
+    title.includes("lossning")
+  ) {
+    return TRANSPORT_RESOURCE_ID;
+  }
+  return DEFAULT_RESOURCE_ID;
 };
 
 interface TaskRow {
@@ -78,7 +101,7 @@ const buildEventPayload = async (task: TaskRow) => {
     title,
     start_time: `${startDate}T${startTime.length === 5 ? startTime + ":00" : startTime}`,
     end_time: `${endDate}T${endTime.length === 5 ? endTime + ":00" : endTime}`,
-    resource_id: RESOURCE_ID,
+    resource_id: resolveResourceId(task),
     event_type: "activity",
     booking_id: calendarBookingId,
     booking_number: bookingNumber,
