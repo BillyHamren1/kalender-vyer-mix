@@ -370,16 +370,22 @@ export async function flushLocationQueue(): Promise<void> {
           };
         });
         saveQueue(after);
+        const msg = err?.message || String(err);
+        patchStatus({
+          lastErrorAt: Date.now(),
+          lastErrorMessage: msg,
+        });
         console.warn(
           '[LocationSync] batch upload failed, will retry:',
           chunk.length,
           'points,',
-          err?.message || err,
+          msg,
         );
       }
     }
   } finally {
     flushing = false;
+    patchStatus({ isFlushing: false });
     scheduleNextFlush();
   }
 }
