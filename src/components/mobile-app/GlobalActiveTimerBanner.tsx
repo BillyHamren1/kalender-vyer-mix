@@ -290,7 +290,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        toast.message('Inga aktiva timers — dagen är redan stängd.');
+        window.dispatchEvent(new CustomEvent('workday-ended'));
+        toast.message('Inga aktiva timers — arbetsdagen avslutades.');
         return;
       }
       // Avoid duplicate queueing if user fires the event twice
