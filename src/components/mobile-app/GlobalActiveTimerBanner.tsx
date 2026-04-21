@@ -259,6 +259,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     } finally {
       eodProcessingRef.current = false;
+      // EOD queue drained — workday is over. Clear the day-timer so the
+      // header pill disappears. If any stop failed, the user will see the
+      // timer return on next render (reconcile picks it up again).
+      if (loadTimersFromStorage().size === 0) {
+        window.dispatchEvent(new CustomEvent('workday-ended'));
+      }
     }
   }, [handleStop]);
 
