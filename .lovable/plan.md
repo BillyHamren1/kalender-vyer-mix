@@ -2,71 +2,90 @@
 
 ## Mål
 
-När användaren lämnar dagens **sista planerade pass**: behandla det precis som vilken EXIT som helst (stoppa aktivitetstimer, starta restimer), MEN skicka dessutom en push + visa en in-app-prompt: *"Det ser ut som att du avslutat dagens sista uppdrag. Vill du avsluta dagen?"*. Användarens svar avgör vad som händer med den nystartade restimern.
+Server-side cron stänger övergivna timers varje natt. När användaren öppnar appen morgonen efter får hen en dialog med **konkreta tidsförslag** baserat på faktisk GPS-historik och kan bekräfta vilken tid som var den verkliga sluttiden — istället för att blint acceptera en gissad +8h-stängning.
 
 ## Flödet
 
 ```text
-EXIT från sista pass
-   ├─► Aktivitetstimer stoppas (befintligt save-then-stop)
-   ├─► Restimer startar (befintligt useTravelDetection — INGEN ändring)
-   └─► NEW: useLastShiftEndPrompt detekterar "sista pass idag" och triggar:
-          • Push (Capacitor LocalNotifications + ev. FCM om appen är bakgrundad)
-          • In-app dialog: LastShiftEndPrompt
+Natt 03:00 UTC
+   └─► close-stale-workday-entries cron körs
+          ├─► Stänger location_time_entries (entered_at + 8h, provisionellt)
+          ├─► Stänger travel_time_logs (started_at + 1h)
+          ├─► Stänger time_reports
+          └─► Skriver workday_flag: auto_closed_overnight
+                med context.suggested_end_times = [
+                  { kind: 'left_workplace', label: 'Du åkte från Bauhaus', time: '17:42', source_id },
+                  { kind: 'stopped_en_route', label: 'Du stannade vid OKQ8 Solna', time: '18:05', lat, lng },
+                  { kind: 'arrived_home', label: 'Du kom hem', time: '18:32', lat, lng }
+                ]
+
+Morgon — användaren öppnar appen
+   └─► useWorkdayFlagPrompt visar StaleDayCorrectionDialog
+          "Din arbetsdag stängdes automatiskt. När slutade du egentligen?"
+          [ ] 17:42 — Du åkte från Bauhaus
+          [ ] 18:05 — Du stannade vid OKQ8 Solna (på väg hem)
+          [ ] 18:32 — Du kom hem
+          [ ] Annan tid (tidsväljare)
+          [ Avbryt ]    [ Bekräfta ]
+   └─► Vid bekräftelse: justerar exited_at/end_time + markerar flag som löst
 ```
 
-**LastShiftEndPrompt — tre val:**
+## Tidsförslag — datakällor
 
-| Val | Vad händer |
-|---|---|
-| **Ja, avsluta dagen** | 1) Stoppa restimern direkt (`stopTravel` med nuvarande GPS som dest, klassas som `personal` → ingen arbetstid). 2) Dispatch `request-end-day` → befintligt EOD-flöde stänger ev. kvarvarande timers. 3) Skriv `workday_flag: ended_after_last_shift` (info, ej allvarlig). |
-| **Nej, jag jobbar vidare** | Ingen ändring. Restimer fortsätter rulla. Prompten tystas resten av dagen. Nästa geofence-ENTER fungerar som vanligt. |
-| **Påminn senare (15 min)** | Snooze. Restimer rullar. Ny prompt om 15 min om inget hänt. |
+Cron-funktionen bygger `suggested_end_times` per användare/dag genom att kombinera:
 
-Om användaren ignorerar prompten helt och en geofence-ENTER på en känd arbetsplats inträffar inom 60 min → prompten dismissas tyst (de jobbar uppenbarligen vidare).
+1. **Sista geofence-EXIT** (från `staff_locations` eller senaste `workplace-exit` event sparat) — `kind: 'left_workplace'`. Det här är primärförslaget.
+2. **Längre stopp under resa** — slå upp `staff_locations`-pings för dagen efter sista EXIT. Identifiera punkter där användaren stod stilla > 10 min (radius < 50m). Reverse-geocoda via befintlig Mapbox-token för läsbar etikett. Max 2 stopp.
+3. **Hemankomst** — om `staff_inferred_home_locations` finns för användaren, hitta första ping inom 100m av hemmet efter sista EXIT — `kind: 'arrived_home'`.
 
-## Detektering — "sista pass idag"
+Alla förslag sparas i `workday_flags.context` som JSON-array. Inga nya tabeller.
 
-Ny hook: `src/hooks/useLastShiftEndDetection.ts`
-- Lyssnar på `eventflow-stop-travel`-event är fel signal — vi behöver istället lyssna på **timer-stopp som triggas av geofence-EXIT**. Lägg in en custom event `activity-timer-stopped-by-exit` som dispatchas från `useGeofencing` när den kallar `saveAndStopTimer` p.g.a. EXIT.
-- Hooken hämtar `useScheduledShifts()` och kollar:
-  - Var den just stoppade timern kopplad till dagens **senaste** `shift.end_time` (inom ±2h tolerans)?
-  - Finns inga fler `shifts` med `start_time > now` idag?
-- Om ja båda → öppna prompten + skicka push.
+## Server-side cron — `close-stale-workday-entries`
 
-## Push-leverans
+**Fil:** `supabase/functions/close-stale-workday-entries/index.ts`
+- Auth: `x-cron-secret` header mot `CRON_SECRET` env.
+- Per organization, hittar öppna entries äldre än 14h.
+- Stänger med provisionell sluttid (entered_at + 8h, clamped till slutet av entry_date).
+- Bygger `suggested_end_times` (se ovan) genom att queryera `staff_locations` för dygnet.
+- Skriver `workday_flag` med `kind: 'auto_closed_overnight'`, `severity: 'warning'`, `needs_user_input: true`, `context: { provisional_end_iso, suggested_end_times: [...], affected_entries: [{table, id}] }`.
+- Schemalägger morgon-push via befintlig `send-push-notification`-funktion (delivery_at = imorgon 07:30 i org-tidszon).
 
-- Använd befintliga `pushNotificationService.ts`-infrastrukturen (FCM redan integrerad).
-- För lokalt fall (appen i förgrunden): visa bara dialogen, ingen push behövs.
-- För bakgrundsfall: skicka via Capacitor `LocalNotifications` (lägga till `@capacitor/local-notifications`) med tap-action som öppnar appen och triggar dialogen.
-- Notisen är **lokalt schemalagd** — ingen serverside-edge-function behövs eftersom triggern är klient-side (geofence-EXIT).
+**pg_cron:** schemalagt 02:00 UTC dagligen via `cron.schedule` + `net.http_post` med `x-cron-secret`.
+
+## Klient — `StaleDayCorrectionDialog`
+
+**Fil:** `src/components/mobile-app/StaleDayCorrectionDialog.tsx`
+- Triggas från `useWorkdayFlagPrompt` när `kind === 'auto_closed_overnight'` och `needs_user_input = true`.
+- Visar lista med radio-knappar för varje förslag i `context.suggested_end_times` + "Annan tid" (tidsväljare).
+- Vid bekräftelse: anropar ny endpoint `mobile-app-api/correctStaleDayEnd` med `{flag_id, chosen_end_iso}`.
+- Backend justerar relevanta `location_time_entries.exited_at` / `travel_time_logs.ended_at` / `time_reports.end_time` (de som listades i `affected_entries`), räknar om `total_minutes`, markerar flaggan som `resolved_at = now()`, `resolution_kind = 'user_corrected'`.
 
 ## Filer
 
 **Nya:**
-- `src/hooks/useLastShiftEndDetection.ts` — lyssnar på exit-event + scheduledShifts, beslutar om prompt.
-- `src/components/mobile-app/LastShiftEndPrompt.tsx` — dialogen med tre knappar.
+- `supabase/functions/close-stale-workday-entries/index.ts`
+- `supabase/functions/close-stale-workday-entries/index.test.ts`
+- `src/components/mobile-app/StaleDayCorrectionDialog.tsx`
+- `src/hooks/useStaleDayCorrection.ts` (lyssnar på workday_flags realtime, öppnar dialog)
 
 **Ändras:**
-- `src/hooks/useGeofencing.ts` — dispatcha `activity-timer-stopped-by-exit`-event efter att EXIT-stoppet sparats (med `{ timerKey, bookingId, stoppedAtIso }`).
-- `src/components/mobile-app/MobileGlobalOverlays.tsx` — montera `useLastShiftEndDetection` + rendera `<LastShiftEndPrompt />`.
-- `src/services/pushNotificationService.ts` — exponera `scheduleLocalNotification(title, body)` wrapper.
-- `package.json` — lägg till `@capacitor/local-notifications`.
+- `supabase/config.toml` — registrera funktionen
+- `supabase/functions/mobile-app-api/index.ts` — ny route `correctStaleDayEnd`
+- `supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts` — avmarkera U/V/W/Y/Z, peka mot nya funktionen
+- `src/components/mobile-app/MobileGlobalOverlays.tsx` — montera `useStaleDayCorrection`
+- `src/components/admin/workdayFlagLabels.ts` (eller motsv.) — etikett för `auto_closed_overnight`
 
-**Inga DB-migrationer.** `workday_flag: ended_after_last_shift` använder befintlig tabell.
+**Secrets:** `CRON_SECRET` (32-byte slumpsträng)
 
-## Edge cases
-
-- **Restimer redan stoppad** (användaren tappade nät, geofence-ENTER på lager hann före): prompten visas inte, allt är redan reglerat.
-- **Användaren har flera pass kvar idag men hoppar över ett**: vi triggar bara på sista `shift.end_time`. Hoppade pass detekteras separat (utanför scope).
-- **Ingen `shifts`-data alls** (offline/fel): prompten triggar inte. Befintligt `last_workplace_for_day`-fallback (kvällsfönster) tar vid.
-- **Samma pass har flera EXIT/ENTER** (toalettpaus utanför geofence): prompten visas max 1 ggr/dag — `localStorage`-suppress per datum.
+**Inga DB-migrationer** — alla tabeller finns (`location_time_entries`, `travel_time_logs`, `time_reports`, `workday_flags`, `staff_locations`, `staff_inferred_home_locations`).
 
 ## Validering
 
-- **A**: Sista pass slutar 17:00, användaren EXIT 16:50 → timer stoppas, restimer startar, prompt + push visas inom 5 sek.
-- **B**: Användaren trycker "Ja, avsluta dagen" → restimer stängs som personal, EOD körs, dagstimer rensas.
-- **C**: Användaren trycker "Nej" → restimer rullar, prompten visas inte igen idag.
-- **D**: Användaren ignorerar prompten, kör till annat lager (geofence-ENTER) inom 60 min → prompt försvinner tyst.
-- **E**: Användaren har två pass kvar — EXIT från det näst sista triggar **inte** prompten.
+- **A**: Användare lämnar Bauhaus 17:42, stannar vid OKQ8 18:05, kommer hem 18:32, glömmer logga ut. Cron kör 03:00, skapar flag med 3 förslag.
+- **B**: Användaren öppnar appen 07:00, ser dialog, väljer "17:42 — Du åkte från Bauhaus". Backend justerar `exited_at` till 17:42, räknar om minuter, löser flaggan.
+- **C**: Användaren väljer "Annan tid" → tidsväljare → 18:00. Samma effekt med custom-tid.
+- **D**: Inga staff_locations-pings finns (telefon avstängd) → bara `left_workplace`-förslaget visas + "Annan tid".
+- **E**: Cron körs två gånger samma natt → andra körningen no-op (alla redan stängda).
+- **F**: Org A:s entries påverkar inte org B.
+- **G**: Anrop utan `x-cron-secret` → 401.
 
