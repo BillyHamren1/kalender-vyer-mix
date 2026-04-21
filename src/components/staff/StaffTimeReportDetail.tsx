@@ -16,6 +16,7 @@ import { AnomalyDialog } from './AnomalyDialog';
 import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
+import { StaffLatestPing, type LatestPing } from './StaffLatestPing';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
@@ -518,6 +519,32 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
   const weekRangeLabel = `${format(weekStart, 'd MMM', { locale: sv })} – ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
 
+  // Latest GPS ping for this staff (header row). One snapshot per page open;
+  // refetches on realtime invalidation through the parent query keys.
+  const { data: latestPing } = useQuery({
+    queryKey: ['staff-latest-ping', staffId],
+    queryFn: async (): Promise<LatestPing | null> => {
+      const { data } = await supabase
+        .from('staff_locations')
+        .select('latitude, longitude, updated_at, last_address')
+        .eq('staff_id', staffId)
+        .maybeSingle();
+      if (!data) return null;
+      // Best-effort backfill if address missing.
+      if (data.last_address == null && data.latitude != null && data.longitude != null) {
+        supabase.functions
+          .invoke('reverse-geocode-staff', { body: { staff_ids: [staffId] } })
+          .catch(() => {});
+      }
+      return {
+        address: data.last_address ?? null,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+        updated_at: data.updated_at ?? null,
+      };
+    },
+  });
+
   return (
     <>
       <PremiumCard
@@ -525,6 +552,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         title={`Vecka ${isoWeek}`}
         subtitle={`${weekRangeLabel} · ${formatHoursMinutes(totalHours)} totalt`}
       >
+        {/* Latest GPS ping header */}
+        <div className="mb-3">
+          <StaffLatestPing ping={latestPing} />
+        </div>
+
         {/* Week navigation */}
         <div className="flex items-center justify-between gap-2 mb-4">
           <Button
