@@ -11,7 +11,8 @@ import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { LiveDuration } from './LiveDuration';
-import type { DaySegment, SegmentKind } from '@/pages/StaffTimeReports';
+import { StaffLatestPing } from './StaffLatestPing';
+import type { DaySegment, SegmentKind, LatestPing } from '@/pages/StaffTimeReports';
 
 interface ProjectInfo {
   booking_id: string;
@@ -32,6 +33,7 @@ interface StaffWithDayReport {
   latest_end: string | null;
   projects: ProjectInfo[];
   segments: DaySegment[];
+  latestPing: LatestPing | null;
 }
 
 const segmentIcon = (kind: SegmentKind) => {

@@ -74,6 +74,7 @@ const StaffTimeReports: React.FC = () => {
       { table: 'time_reports', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'travel_time_logs', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'location_time_entries', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'staff_locations', events: ['INSERT', 'UPDATE'] },
     ],
     queryKeys: [['staff-time-reports-day', dateStr]],
     debounceMs: 400,
