@@ -2747,44 +2747,41 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .eq('staff_id', staffId)
     .order('report_date', { ascending: false })
 
-  // Fetch establishment tasks assigned to this staff member for this booking
-  // Primary: assigned_to_ids (array contains staffId)
-  // Fallback: legacy assigned_to (single field)
+  // Fetch ALL establishment tasks for this booking — staff sees activities as
+  // info even if they're not personally assigned. Tasks where this staff member
+  // IS in assigned_to_ids get is_mine=true so the client can highlight them.
   const { data: rawEstablishmentTasks } = await supabase
     .from('establishment_tasks')
     .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time, status')
     .eq('booking_id', booking_id)
-    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
     .order('start_date', { ascending: true })
     .order('sort_order', { ascending: true })
 
   // SAFEGUARD: Normalize tasks — ensure assigned_to_ids is always populated,
-  // fix legacy tasks that only have assigned_to, and sync completed/status
+  // fix legacy tasks that only have assigned_to, sync completed/status, and
+  // tag is_mine for the requesting staff member.
   const establishmentTasks = (rawEstablishmentTasks || []).map((task: any) => {
     const needsFix: Record<string, any> = {}
 
-    // Fix 1: Legacy task with assigned_to but empty/missing assigned_to_ids
     if (task.assigned_to && (!task.assigned_to_ids || task.assigned_to_ids.length === 0)) {
       needsFix.assigned_to_ids = [task.assigned_to]
       task.assigned_to_ids = [task.assigned_to]
-      console.log(`[safeguard] Task ${task.id}: backfilled assigned_to_ids from assigned_to`)
     }
 
-    // Fix 2: completed/status mismatch
     if (task.completed && task.status !== 'done') {
       needsFix.status = 'done'
       task.status = 'done'
-      console.log(`[safeguard] Task ${task.id}: synced status to 'done'`)
     } else if (!task.completed && task.status === 'done') {
       needsFix.status = 'not_started'
       task.status = 'not_started'
-      console.log(`[safeguard] Task ${task.id}: synced status to 'not_started'`)
     }
 
-    // Apply fixes asynchronously (fire-and-forget, don't block response)
     if (Object.keys(needsFix).length > 0) {
       supabase.from('establishment_tasks').update(needsFix).eq('id', task.id).then(() => {})
     }
+
+    const ids: string[] = Array.isArray(task.assigned_to_ids) ? task.assigned_to_ids : []
+    task.is_mine = ids.includes(staffId) || task.assigned_to === staffId
 
     return task
   })
