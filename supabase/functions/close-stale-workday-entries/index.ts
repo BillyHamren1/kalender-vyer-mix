@@ -102,12 +102,13 @@ async function buildSuggestions(
     });
   }
 
-  // (2) Long stops in staff_locations after the last exit (or after dayStart)
+  // (2) Long stops in staff_location_history after the last exit (or after dayStart)
   const fromTs = lastExitRow?.exited_at || startIso;
   const { data: pings } = await supabase
-    .from("staff_locations_history")
-    .select("latitude, longitude, recorded_at")
+    .from("staff_location_history")
+    .select("lat, lng, recorded_at")
     .eq("staff_id", staffId)
+    .eq("organization_id", organizationId)
     .gte("recorded_at", fromTs)
     .lt("recorded_at", dayEnd.toISOString())
     .order("recorded_at", { ascending: true })
@@ -122,8 +123,8 @@ async function buildSuggestions(
       while (
         j < pings.length &&
         distMeters(
-          { lat: a.latitude, lng: a.longitude },
-          { lat: pings[j].latitude, lng: pings[j].longitude },
+          { lat: Number(a.lat), lng: Number(a.lng) },
+          { lat: Number(pings[j].lat), lng: Number(pings[j].lng) },
         ) < 50
       ) {
         j++;
@@ -136,8 +137,8 @@ async function buildSuggestions(
           kind: "stopped_en_route",
           label: `Du stannade på vägen (${Math.round(dwellMs / 60000)} min)`,
           time_iso: a.recorded_at,
-          lat: a.latitude,
-          lng: a.longitude,
+          lat: Number(a.lat),
+          lng: Number(a.lng),
         });
         stops++;
       }
@@ -159,15 +160,18 @@ async function buildSuggestions(
   if (home && pings && pings.length > 0) {
     const arrival = pings.find(
       (p: any) =>
-        distMeters({ lat: p.latitude, lng: p.longitude }, { lat: home.lat, lng: home.lng }) < 100,
+        distMeters(
+          { lat: Number(p.lat), lng: Number(p.lng) },
+          { lat: Number(home.lat), lng: Number(home.lng) },
+        ) < 100,
     );
     if (arrival) {
       suggestions.push({
         kind: "arrived_home",
         label: "Du kom hem",
         time_iso: arrival.recorded_at,
-        lat: arrival.latitude,
-        lng: arrival.longitude,
+        lat: Number(arrival.lat),
+        lng: Number(arrival.lng),
       });
     }
   }
@@ -270,14 +274,14 @@ async function processOrganization(supabase: any, organizationId: string) {
   // ── B. travel_time_logs open and stale ──
   const { data: openTravel } = await supabase
     .from("travel_time_logs")
-    .select("id, staff_id, started_at, report_date")
+    .select("id, staff_id, start_time, report_date")
     .eq("organization_id", organizationId)
     .is("end_time", null)
-    .lt("started_at", horizonIso);
+    .lt("start_time", horizonIso);
 
   for (const row of openTravel || []) {
     const endedAt = new Date(
-      new Date(row.started_at).getTime() + PROVISIONAL_TRAVEL_HOURS * 60 * 60 * 1000,
+      new Date(row.start_time).getTime() + PROVISIONAL_TRAVEL_HOURS * 60 * 60 * 1000,
     ).toISOString();
     const hours = PROVISIONAL_TRAVEL_HOURS;
     const { error } = await supabase
@@ -290,13 +294,13 @@ async function processOrganization(supabase: any, organizationId: string) {
       continue;
     }
     travelClosed++;
-    const suggestions = await buildSuggestions(supabase, row.staff_id, organizationId, row.started_at);
+    const suggestions = await buildSuggestions(supabase, row.staff_id, organizationId, row.start_time);
     await writeFlag(
       supabase,
       organizationId,
       row.staff_id,
       "auto_closed_travel",
-      row.report_date || row.started_at.slice(0, 10),
+      row.report_date || row.start_time.slice(0, 10),
       endedAt,
       suggestions,
       [{ table: "travel_time_logs", id: row.id }],
