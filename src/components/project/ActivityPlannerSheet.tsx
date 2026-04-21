@@ -665,6 +665,19 @@ const ActivityPlannerSheet = ({
           </div>
         </div>
 
+        {/* Calendar sync */}
+        <label className="flex items-center gap-2 cursor-pointer text-xs px-2 py-1.5 rounded-md border border-dashed border-border hover:bg-accent/40">
+          <Checkbox
+            checked={row.syncToCalendar}
+            onCheckedChange={(checked) => updateRow(row.id, { syncToCalendar: !!checked })}
+            className="h-3.5 w-3.5"
+          />
+          <span className="flex-1">📅 Synca med personalkalender</span>
+          {row.syncToCalendar && (
+            <span className="text-[10px] text-muted-foreground">visas i kalendern</span>
+          )}
+        </label>
+
         {/* Assignee */}
         {staffPool.length > 0 && (
           <div>
