@@ -4361,16 +4361,18 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       const seen = new Set<string>()
       for (const r of (bsaRows || [])) {
         const b = r.bookings
-        if (b?.delivery_latitude != null && b?.delivery_longitude != null) {
+        if (!b) continue
+        // Booking address (only if no parent large project — otherwise the
+        // large project address is authoritative for geofencing).
+        if (!b.large_project_id && b.delivery_latitude != null && b.delivery_longitude != null) {
           const key = `b:${b.id}`
           if (!seen.has(key)) {
             seen.add(key)
             targets.push({ kind: 'booking', id: b.id, lat: b.delivery_latitude, lng: b.delivery_longitude })
           }
         }
-      }
-      for (const r of (lpsRows || [])) {
-        const lp = r.large_projects
+        // Large project address — derived from today's booking assignment.
+        const lp = b.large_projects
         if (lp?.address_latitude != null && lp?.address_longitude != null) {
           const key = `p:${lp.id}`
           if (!seen.has(key)) {
