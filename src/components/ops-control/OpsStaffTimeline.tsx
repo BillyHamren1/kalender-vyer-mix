@@ -29,8 +29,17 @@ const NAME_COL_W = 180;
 
 function timeToPercent(timeStr: string | null): number | null {
   if (!timeStr) return null;
-  const d = new Date(timeStr);
-  const h = d.getHours() + d.getMinutes() / 60;
+  // Använd RÅ klocktid ur ISO-strängen (utan tz-konvertering) så att Ops-
+  // timeline matchar personalkalendern exakt. Se opsControlService.extractClockTime.
+  const m = timeStr.match(/[T ](\d{2}):(\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10) + parseInt(m[2], 10) / 60;
+  return Math.max(0, Math.min(100, ((h - HOUR_START) / TOTAL_HOURS) * 100));
+}
+
+function nowPercent(): number {
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
   return Math.max(0, Math.min(100, ((h - HOUR_START) / TOTAL_HOURS) * 100));
 }
 
