@@ -2235,6 +2235,8 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string | null
+          geofence_mode: string
+          geofence_polygon: Json | null
           id: string
           is_active: boolean
           latitude: number
@@ -2248,6 +2250,8 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string | null
+          geofence_mode?: string
+          geofence_polygon?: Json | null
           id?: string
           is_active?: boolean
           latitude: number
@@ -2261,6 +2265,8 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string | null
+          geofence_mode?: string
+          geofence_polygon?: Json | null
           id?: string
           is_active?: boolean
           latitude?: number
