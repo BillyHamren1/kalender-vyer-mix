@@ -101,7 +101,7 @@ const buildEventPayload = async (task: TaskRow) => {
     title,
     start_time: `${startDate}T${startTime.length === 5 ? startTime + ":00" : startTime}`,
     end_time: `${endDate}T${endTime.length === 5 ? endTime + ":00" : endTime}`,
-    resource_id: RESOURCE_ID,
+    resource_id: resolveResourceId(task),
     event_type: "activity",
     booking_id: calendarBookingId,
     booking_number: bookingNumber,
