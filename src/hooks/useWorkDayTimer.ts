@@ -20,6 +20,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { parseISO, differenceInSeconds } from 'date-fns';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
+import {
+  clearWorkdayEnded,
+  hasWorkdayEndedToday,
+  WORKDAY_ENDED_STATE_CHANGED_EVENT,
+} from '@/services/workdayState';
 
 const WORKDAY_KEY = 'eventflow-workday-start';
 const TIMERS_KEY = 'eventflow-mobile-timers';
@@ -74,8 +79,14 @@ function reconcile(): string | null {
   const stored = readWorkdayStart();
   const earliest = earliestActiveStart(timers);
 
+   if (hasWorkdayEndedToday() && !earliest) {
+    if (stored) writeWorkdayStart(null);
+    return null;
+   }
+
   // Auto-start: at least one active timer but no workday start saved.
   if (!stored && earliest) {
+    clearWorkdayEnded();
     writeWorkdayStart(earliest);
     return earliest;
   }
@@ -86,6 +97,7 @@ function reconcile(): string | null {
     const storedTs = parseISO(stored).getTime();
     const earliestTs = parseISO(earliest).getTime();
     if (Number.isFinite(storedTs) && Number.isFinite(earliestTs) && earliestTs < storedTs) {
+      clearWorkdayEnded();
       writeWorkdayStart(earliest);
       return earliest;
     }
@@ -124,11 +136,13 @@ export function useWorkDayTimer() {
     window.addEventListener('timer-state-changed', refresh);
     window.addEventListener('workday-timer-changed', refresh);
     window.addEventListener('workday-ended', onWorkdayEnded);
+    window.addEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, refresh);
     window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('timer-state-changed', refresh);
       window.removeEventListener('workday-timer-changed', refresh);
       window.removeEventListener('workday-ended', onWorkdayEnded);
+      window.removeEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, refresh);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
