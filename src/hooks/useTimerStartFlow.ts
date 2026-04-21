@@ -31,6 +31,7 @@ import {
   haversineDistance,
   ENTER_RADIUS,
 } from '@/hooks/useGeofencing';
+import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
 import type { MobileBooking } from '@/services/mobileApiService';
 
 export interface RequestStartOptions {
