@@ -25,7 +25,7 @@ import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.t
 
 const SUPABASE_URL = Deno.env.get("VITE_SUPABASE_URL")!;
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
-const STALE_FN_URL = `${SUPABASE_URL}/functions/v1/close-stale-location-entries`;
+const STALE_FN_URL = `${SUPABASE_URL}/functions/v1/close-stale-workday-entries`;
 
 const log = (code: string, msg: string) => console.log(`  [${code}] ${msg}`);
 
@@ -98,21 +98,18 @@ Deno.test.ignore("W: cron stänger entry_date < idag till 23:59 + flagga", async
 //    If the function does not exist yet, the platform returns 404; we accept
 //    that as evidence the surface is not exposed publicly.
 // ─────────────────────────────────────────────────────────────────────────────
-Deno.test("X: anonym anrop till close-stale-location-entries är spärrat (eller ej exponerat)", async () => {
-  log("X", "cron endpoint must not allow client bypass");
-  try {
-    const { status } = await callStale();
-    // Acceptable outcomes:
-    //   401/403 = auth-guard active
-    //   404     = function not yet deployed (no public surface)
-    assert(
-      status === 401 || status === 403 || status === 404,
-      `expected 401/403/404, got ${status}`,
-    );
-  } catch (err) {
-    // Network-level rejection is also acceptable as "not exposed".
-    log("X", `network reject acceptable: ${(err as Error).message}`);
-  }
+Deno.test("X: anonym anrop till close-stale-workday-entries är spärrat (401)", async () => {
+  log("X", "cron endpoint must reject anonymous calls");
+  const res = await fetch(STALE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await res.text();
+  assert(
+    res.status === 401 || res.status === 403,
+    `expected 401/403, got ${res.status}`,
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
