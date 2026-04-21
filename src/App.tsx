@@ -55,6 +55,7 @@ import CommunicationPage from "./pages/CommunicationPage";
 import OpsControlCenter from "./pages/OpsControlCenter";
 import NotFound from "./pages/NotFound";
 import SyncReconciliation from "./pages/SyncReconciliation";
+import StaffLiveDebug from "./pages/admin/StaffLiveDebug";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
 import TransportResponse from "./pages/TransportResponse";
@@ -265,6 +266,7 @@ const WebRoutes: React.FC = () => {
 
             {/* Hidden admin sync tool */}
             <Route path="/admin/sync" element={<ProtectedRoute><MainSystemLayout><SyncReconciliation /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/admin/staff-live" element={<ProtectedRoute><MainSystemLayout><StaffLiveDebug /></MainSystemLayout></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
