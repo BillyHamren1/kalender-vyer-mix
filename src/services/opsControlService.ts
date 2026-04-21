@@ -312,6 +312,8 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
             teamId: a.team_id,
             startTime: ev.start_time || null,
             endTime: ev.end_time || null,
+            startClock: extractClockTime(ev.start_time),
+            endClock: extractClockTime(ev.end_time),
             eventType: ev.event_type || null,
             deliveryAddress: ev.delivery_address || booking?.deliveryaddress || null,
             bookingNumber: booking?.booking_number || null,
