@@ -29,12 +29,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
 import {
   nextAssistantDecision,
   COOLDOWNS_MS,
   type WorkDayState,
   type CachedTarget,
 } from '@/lib/workDayDecisions';
+
+const read = (p: string) => fs.readFileSync(p, 'utf-8');
 
 // ─────────────────────────────────────────────────────────────────────
 // State factory — keep tests terse; only override what each scenario needs.
