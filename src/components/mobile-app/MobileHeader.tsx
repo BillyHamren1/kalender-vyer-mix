@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import WorkDayHeaderTimer from './WorkDayHeaderTimer';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
@@ -36,15 +37,24 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
   return slot;
 };
 
-/** Wraps header markup with a portal to the slot, falling back to inline. */
+/** Wraps header markup with a portal to the slot, falling back to inline.
+ *  Always overlays the WorkDayHeaderTimer pill in the top-right corner so
+ *  every screen — regardless of header variant — surfaces the day timer.
+ */
 const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
   const content = (
     <div
-      className="bg-primary shadow-sm"
+      className="relative bg-primary shadow-sm"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       {children}
+      <div
+        className="pointer-events-none absolute right-3 z-10"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
+      >
+        <WorkDayHeaderTimer />
+      </div>
     </div>
   );
   if (slot) return createPortal(content, slot);
