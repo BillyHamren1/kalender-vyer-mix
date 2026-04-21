@@ -639,6 +639,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       if (dist <= loc.radius_meters && !hasTimer && !triggeredEnterRef.current.has(locKey)) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
+        // Arrival at a known fixed location (warehouse) ends any open travel row.
+        emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
         setGeofenceEvent({
           type: 'enter',
           distance: Math.round(dist),
