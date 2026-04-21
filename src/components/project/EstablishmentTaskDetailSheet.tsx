@@ -358,24 +358,61 @@ const EstablishmentTaskDetailSheet = ({
     setEditingTitle(false);
   };
 
+  const isCalendarSynced = !!(taskDbData as any)?.calendar_event_id;
+
+  const reSyncIfNeeded = async () => {
+    if (!task || !isCalendarSynced) return;
+    try {
+      await syncActivityToCalendar(task.id);
+    } catch (err) {
+      console.error("[TaskDetail] re-sync failed:", err);
+    }
+  };
+
   const handleStartDateChange = async (val: string) => {
     setStartDateDraft(val);
-    if (val) await handleFieldUpdate({ start_date: val });
+    if (val) {
+      await handleFieldUpdate({ start_date: val });
+      await reSyncIfNeeded();
+    }
   };
 
   const handleEndDateChange = async (val: string) => {
     setEndDateDraft(val);
-    if (val) await handleFieldUpdate({ end_date: val });
+    if (val) {
+      await handleFieldUpdate({ end_date: val });
+      await reSyncIfNeeded();
+    }
   };
 
   const handleStartTimeChange = async (val: string) => {
     setStartTimeDraft(val);
     await handleFieldUpdate({ start_time: val || null } as any);
+    await reSyncIfNeeded();
   };
 
   const handleEndTimeChange = async (val: string) => {
     setEndTimeDraft(val);
     await handleFieldUpdate({ end_time: val || null } as any);
+    await reSyncIfNeeded();
+  };
+
+  const handleToggleCalendarSync = async (checked: boolean) => {
+    if (!task) return;
+    try {
+      if (checked) {
+        await syncActivityToCalendar(task.id);
+        toast.success("Synkad till personalkalendern");
+      } else {
+        await removeActivityFromCalendar(task.id);
+        toast.success("Borttagen från kalendern");
+      }
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+    } catch (err) {
+      console.error("[TaskDetail] toggle sync failed:", err);
+      toast.error("Kunde inte uppdatera kalendersynk");
+    }
   };
 
   const handleBlockersBlur = async () => {
