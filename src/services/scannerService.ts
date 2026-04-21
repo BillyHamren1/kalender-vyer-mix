@@ -13,21 +13,43 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
   const token = getToken();
 
   console.log(`[scanner-api] → ${action}`, Object.keys(params).length > 0 ? params : '');
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, token, ...params })
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, token, ...params })
+    });
+  } catch (networkErr: any) {
+    console.error(`[scanner-api] ✗ network error for ${action}:`, networkErr?.message);
+    throw new Error('Nätverksfel — kontrollera anslutningen');
+  }
 
   if (response.status === 401) {
+    let debugCode = 'AUTH_UNKNOWN';
+    try {
+      const body = await response.clone().json();
+      debugCode = body?.debugCode || debugCode;
+      console.warn(`[scanner-api] ✗ 401 ${action} debugCode=${debugCode} msg=${body?.error}`);
+    } catch {
+      console.warn(`[scanner-api] ✗ 401 ${action} (no body)`);
+    }
     clearAuth();
-    throw new Error('Session expired');
+    // Redirect to login so user gets a clear path forward instead of a silent failure on every scan.
+    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      setTimeout(() => { window.location.href = '/login'; }, 300);
+    }
+    throw new Error('Session expired — logga in igen');
   }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(errorData.error || `API error: ${response.status}`);
+    console.error(`[scanner-api] ✗ ${response.status} ${action}`, errorData);
+    const err: any = new Error(errorData.error || `API error: ${response.status}`);
+    err.debugCode = errorData.debugCode;
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();

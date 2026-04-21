@@ -6,32 +6,35 @@ const corsHeaders = {
 }
 
 // Verify base64 token (same format as mobile-app-api)
-const TOKEN_EXPIRY_HOURS = 24
+// Scanner sessions live in warehouse where users rarely log out — give them 30 days.
+const TOKEN_EXPIRY_HOURS = 24 * 30
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string } {
+function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string; reason?: string } {
   try {
     const payload = JSON.parse(atob(token))
     if (!payload.staffId || !payload.expiresAt) {
-      return { valid: false, error: 'Invalid token format' }
+      return { valid: false, error: 'Invalid token format', reason: 'bad_format' }
     }
     if (Date.now() > payload.expiresAt) {
-      return { valid: false, error: 'Token expired' }
+      return { valid: false, error: 'Token expired', reason: 'expired' }
     }
     return { valid: true, staffId: payload.staffId }
   } catch {
-    return { valid: false, error: 'Invalid token' }
+    return { valid: false, error: 'Invalid token', reason: 'parse_error' }
   }
 }
 
 // Verify token and return staff record with organization_id
 async function authenticateRequest(supabase: any, token: string | undefined) {
   if (!token) {
-    throw { status: 401, message: 'Token required' }
+    console.warn('[scanner-api auth] 401 reason=missing_token')
+    throw { status: 401, message: 'Token required', reason: 'missing_token' }
   }
 
   const tokenResult = verifyToken(token)
   if (!tokenResult.valid) {
-    throw { status: 401, message: tokenResult.error || 'Invalid or expired token' }
+    console.warn(`[scanner-api auth] 401 reason=${tokenResult.reason} tokenLen=${token.length}`)
+    throw { status: 401, message: tokenResult.error || 'Invalid or expired token', reason: tokenResult.reason }
   }
 
   const staffId = tokenResult.staffId!
@@ -44,7 +47,8 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
     .single()
 
   if (error || !staffMember) {
-    throw { status: 401, message: 'Staff member not found' }
+    console.warn(`[scanner-api auth] 401 reason=staff_not_found staffId=${staffId} dbError=${error?.message ?? 'none'}`)
+    throw { status: 401, message: 'Staff member not found', reason: 'staff_not_found' }
   }
 
   return {
@@ -145,7 +149,10 @@ Deno.serve(async (req) => {
       auth = await authenticateRequest(supabase, token)
     } catch (authErr: any) {
       return new Response(
-        JSON.stringify({ error: authErr.message || 'Unauthorized' }),
+        JSON.stringify({
+          error: authErr.message || 'Unauthorized',
+          debugCode: `AUTH_${(authErr.reason || 'unknown').toUpperCase()}`,
+        }),
         { status: authErr.status || 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -317,6 +324,7 @@ Deno.serve(async (req) => {
 
       case 'verify_product': {
         const { packingId, sku: serialNumber, verifiedBy } = params
+        console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
         // STATUS FLOW: First scan → set to in_progress
         await transitionToInProgress(supabase, packingId, ORG_ID)
@@ -392,13 +400,19 @@ Deno.serve(async (req) => {
           const status = allocateResponse.status
           const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
           if (status === 404) {
-            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet` })
+            console.warn('[verify_product] WMS_404', { serialNumber, bookingNumber, orgId: ORG_ID })
+            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet`, debugCode: 'WMS_404' })
           }
           if (status === 409) {
-            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad' })
+            console.warn('[verify_product] WMS_409', { serialNumber, bookingNumber, body: errBody })
+            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
           }
-          console.error('Inventory API error:', status, errBody)
-          return json({ success: false, error: errBody.error || `Lagerfel (${status})` })
+          if (status === 401 || status === 403) {
+            console.error('[verify_product] WMS_AUTH failure — check PRICELIST_API_KEY / x-organization-id', { status, orgId: ORG_ID })
+            return json({ success: false, error: 'Lagersystemet avvisade autentiseringen (kontakta admin)', debugCode: `WMS_${status}` })
+          }
+          console.error('[verify_product] WMS_ERROR', { status, body: errBody })
+          return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
         }
 
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
