@@ -1,38 +1,39 @@
 
 
-## Korrigera Jānis tider — resa och Westmans
+## Korrigera Raivis dubbelräknade tid
 
-### Vad som är fel
+### Rotorsak
 
-1. **Resa → Holmträskvägen 19** slutar kl 10:05 (UTC 08:05) — ska sluta **08:22 svensk tid** (UTC 06:22)
-2. **Westmans booking-timer** startar kl 08:24 (UTC 06:24) — ska starta **08:22 svensk tid** (UTC 06:22)
+Raivis har en **felaktig time_report** (id `0e25aeef`) som refererar till Lager-bokningen (`6fd6e6da`) men har exakt samma tider som Westmans-posten (08:22→11:20, 2.97h). Denna rad ska inte finnas — den dubbelräknar nästan 3 timmar.
 
-### Åtgärder (två UPDATE-satser)
+Dessutom finns ett systemiskt problem i `StaffTimeReports.tsx`: **total_hours summerar time_reports + location_time_entries utan att exkludera skuggade (duplicerade) poster**. Segment-dedupen (rad 279) förhindrar att dubbla rader *visas*, men `total_hours` på rad 256 läggs till *innan* dedup-kontrollen.
 
-**1. Korrigera resans sluttid**
+### Åtgärder
+
+**1. Ta bort den felaktiga time_report-raden**
+
+Radera `time_report` med id `0e25aeef-b1c7-4ba0-a311-0bc42bf1d43b` — det är en dubblettpost med fel booking-koppling som ger +2.97h extra.
+
 ```sql
-UPDATE travel_time_logs
-SET end_time = '2026-04-21 06:22:00+00'::timestamptz,
-    hours_worked = EXTRACT(EPOCH FROM ('2026-04-21 06:22:00+00'::timestamptz - start_time)) / 3600.0
-WHERE id = '1b680bf3-2aea-4753-a70f-2d0765cdff32';
+DELETE FROM time_reports WHERE id = '0e25aeef-b1c7-4ba0-a311-0bc42bf1d43b';
 ```
-Ändrar sluttid från 10:05 → 08:22 (svensk tid). Resan blir ca 1h 6min istället för 2h 49min.
 
-**2. Korrigera Westmans starttid**
-```sql
-UPDATE location_time_entries
-SET entered_at = '2026-04-21 06:22:00+00'::timestamptz
-WHERE id = '97fe14f4-70ae-4a77-9edd-f3789895e59c';
-```
-Ändrar start från 08:24 → 08:22 (svensk tid). `total_minutes` räknas om automatiskt (genererad kolumn).
+**2. Fixa total_hours-beräkningen i StaffTimeReports.tsx**
+
+Flytta `a.total_hours += r.hours_worked` så att den bara körs om raden **inte** skuggas av en location_time_entry. Idag läggs timmar till på rad 256 innan skugg-kontrollen på rad 279.
+
+Ändring i `src/pages/StaffTimeReports.tsx`, ca rad 254-296:
+- Flytta `total_hours`-adderingen till EFTER `isReportShadowedByLTE`-kontrollen
+- Om en time_report skuggas av en LTE, hoppa över den helt (inklusive hours)
 
 ### Resultat efter korrigering
 
-| Rad | Tid (svensk) | Duration |
-|---|---|---|
-| Lager | 06:58 → 07:15 | 17 min |
-| Resa → Holmträskvägen 19 | 07:15 → 08:22 | ~1h 7min |
-| 2603-31R1 · Westmans | 08:22 → 10:16 | ~1h 54min |
-| Resa | 10:16 → 12:07 | ~1h 51min |
-| Lager | 11:03 → 12:07 | ~1h 3min |
+| Källa | Timmar |
+|---|---|
+| time_reports (utan dublett) | 0.32 + 2.97 + 0.50 = 3.79h |
+| location_time_entries | 0.32 + 2.97 + 0.50 + ~3.2h (pågår) = ~7.0h |
+| travel | 1.10h |
+| **Deduplicerat totalt** | ~8.1h (korrekt vid 14:40) |
+
+Med den fixade beräkningslogiken räknas bara location_time_entries för poster som finns i båda tabellerna, och resor läggs till separat.
 
