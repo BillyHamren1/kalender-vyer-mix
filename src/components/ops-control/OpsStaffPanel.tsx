@@ -70,10 +70,10 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
                     <MapPin className="w-3 h-3" /> {staff.currentJob.deliveryAddress}
                   </span>
                 )}
-                {staff.currentJob.startTime && staff.currentJob.endTime && (
+                {staff.currentJob.startClock && staff.currentJob.endClock && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                     <Clock className="w-3 h-3" />
-                    {format(new Date(staff.currentJob.startTime), 'HH:mm')}–{format(new Date(staff.currentJob.endTime), 'HH:mm')}
+                    {staff.currentJob.startClock}–{staff.currentJob.endClock}
                   </span>
                 )}
               </div>
