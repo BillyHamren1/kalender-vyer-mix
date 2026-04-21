@@ -4342,18 +4342,17 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     if (goodAccuracy && stationary) {
       const today = new Date().toISOString().split('T')[0]
 
-      // Pull today's assigned bookings (with coords) and projects (with coords).
-      const [{ data: bsaRows }, { data: lpsRows }] = await Promise.all([
-        supabase
-          .from('booking_staff_assignments')
-          .select('booking_id, bookings:booking_id(id, delivery_latitude, delivery_longitude, large_project_id)')
-          .eq('staff_id', staffId)
-          .eq('assignment_date', today),
-        supabase
-          .from('large_project_staff')
-          .select('large_project_id, large_projects:large_project_id(id, address_latitude, address_longitude)')
-          .eq('staff_id', staffId),
-      ])
+      // Pull today's assigned bookings (with coords). Projects are derived from
+      // the SAME booking_staff_assignments — a staff member is only auto-checked
+      // into a large project on a day they actually have an assignment to one of
+      // its bookings. Membership in `large_project_staff` alone is NOT enough,
+      // otherwise people get checked in to projects/warehouses at night just for
+      // being on the team roster.
+      const { data: bsaRows } = await supabase
+        .from('booking_staff_assignments')
+        .select('booking_id, bookings:booking_id(id, delivery_latitude, delivery_longitude, large_project_id, large_projects:large_project_id(id, address_latitude, address_longitude))')
+        .eq('staff_id', staffId)
+        .eq('assignment_date', today)
 
       type Target =
         | { kind: 'booking'; id: string; lat: number; lng: number }
@@ -4362,16 +4361,18 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       const seen = new Set<string>()
       for (const r of (bsaRows || [])) {
         const b = r.bookings
-        if (b?.delivery_latitude != null && b?.delivery_longitude != null) {
+        if (!b) continue
+        // Booking address (only if no parent large project — otherwise the
+        // large project address is authoritative for geofencing).
+        if (!b.large_project_id && b.delivery_latitude != null && b.delivery_longitude != null) {
           const key = `b:${b.id}`
           if (!seen.has(key)) {
             seen.add(key)
             targets.push({ kind: 'booking', id: b.id, lat: b.delivery_latitude, lng: b.delivery_longitude })
           }
         }
-      }
-      for (const r of (lpsRows || [])) {
-        const lp = r.large_projects
+        // Large project address — derived from today's booking assignment.
+        const lp = b.large_projects
         if (lp?.address_latitude != null && lp?.address_longitude != null) {
           const key = `p:${lp.id}`
           if (!seen.has(key)) {
