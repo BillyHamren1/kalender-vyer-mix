@@ -14,6 +14,7 @@ import { CalendarIcon, Plus, Package, Trash2, Copy, SplitSquareHorizontal, Minim
 import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import { syncActivityToCalendar } from "@/services/activityCalendarSyncService";
 import type { TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
@@ -88,6 +89,8 @@ interface ActivityRow {
   /** Maps real product ID → how many units assigned to this row (for split products) */
   productQuantities: Record<string, number>;
   source: 'product' | 'manual';
+  /** When true, after the task is created we also create a calendar_events row */
+  syncToCalendar: boolean;
 }
 
 /** Parse a virtual unit ID like "abc__unit_3" → { realId: "abc", unitIndex: 3 } */
@@ -121,6 +124,7 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
     productIds: [],
     productQuantities: {},
     source: 'manual',
+    syncToCalendar: false,
   };
 }
 
