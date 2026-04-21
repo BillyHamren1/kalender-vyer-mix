@@ -1964,16 +1964,37 @@ serve(async (req) => {
         }
 
         // Handle CANCELLED bookings - process if exists locally, skip if new
-        if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
+          if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
           if (existingBooking) {
             // Existing booking is now CANCELLED - we need to update and remove calendar events
             console.log(`CANCELLED booking ${externalBooking.id} exists locally → updating status and removing calendar events`)
+              const { data: cancelledProjects } = await supabase
+                .from('projects')
+                .select('id')
+                .eq('booking_id', existingBooking.id)
+                .neq('status', 'cancelled')
+                .limit(1);
+
+              const { data: cancelledJobs } = await supabase
+                .from('jobs')
+                .select('id')
+                .eq('booking_id', existingBooking.id)
+                .not('status', 'in', '("completed","cancelled")')
+                .limit(1);
+
+              const keepManuallyHiddenCancelled =
+                existingBooking.assigned_to_project === true &&
+                (!cancelledProjects || cancelledProjects.length === 0) &&
+                (!cancelledJobs || cancelledJobs.length === 0);
             
             // Update booking status to CANCELLED
             const { error: updateError } = await supabase
               .from('bookings')
               .update({
                 status: 'CANCELLED',
+                  assigned_to_project: keepManuallyHiddenCancelled ? true : existingBooking.assigned_to_project ?? false,
+                  assigned_project_id: keepManuallyHiddenCancelled ? (existingBooking.assigned_project_id ?? null) : existingBooking.assigned_project_id ?? null,
+                  assigned_project_name: keepManuallyHiddenCancelled ? (existingBooking.assigned_project_name ?? null) : existingBooking.assigned_project_name ?? null,
                 version: (existingBooking.version || 1) + 1,
                 updated_at: new Date().toISOString()
               })
@@ -2725,8 +2746,19 @@ serve(async (req) => {
             
             const activeProject = localProject && localProject.length > 0 ? localProject[0] : null;
             const activeJob = localJob && localJob.length > 0 ? localJob[0] : null;
+
+            const keepManuallyHiddenCancelled =
+              bookingStatus === 'CANCELLED' &&
+              existingBooking.assigned_to_project === true &&
+              !activeProject &&
+              !activeJob;
             
-            if (activeProject) {
+            if (keepManuallyHiddenCancelled) {
+              console.log(`[Preserve Flags] Booking ${bookingData.id} is manually hidden cancelled booking - preserving hidden state`);
+              updateData.assigned_to_project = true;
+              updateData.assigned_project_id = existingBooking.assigned_project_id ?? null;
+              updateData.assigned_project_name = existingBooking.assigned_project_name ?? null;
+            } else if (activeProject) {
               console.log(`[Preserve Flags] Booking ${bookingData.id} has local project ${activeProject.id} (${activeProject.status}) - preserving assignment flags`);
               updateData.assigned_to_project = true;
               updateData.assigned_project_id = activeProject.id;
