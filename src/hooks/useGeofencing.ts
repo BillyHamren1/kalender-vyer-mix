@@ -500,6 +500,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
     };
 
+    // Today (local YYYY-MM-DD) — bookings/projects only auto-prompt if user is
+    // assigned TODAY. Geofence is for warehouses + jobs you're scheduled on,
+    // never for jobs planned weeks ahead.
+    const todayLocal = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    })();
+    const isAssignedToday = (b: MobileBooking) =>
+      Array.isArray(b.assignment_dates) && b.assignment_dates.includes(todayLocal);
+
     // Check bookings — consolidate large project bookings
     const triggeredProjects = new Set<string>();
 
