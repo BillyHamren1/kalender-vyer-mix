@@ -324,6 +324,7 @@ Deno.serve(async (req) => {
 
       case 'verify_product': {
         const { packingId, sku: serialNumber, verifiedBy } = params
+        console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
         // STATUS FLOW: First scan → set to in_progress
         await transitionToInProgress(supabase, packingId, ORG_ID)
