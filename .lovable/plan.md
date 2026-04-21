@@ -1,39 +1,48 @@
 
+Målet är att ändra beteendet från “Ta bort” till ett konsekvent avbokningsflöde:
 
-## Korrigera Raivis dubbelräknade tid
+1. Byt åtgärden i projektlistan från radering till avbokning
+- I projektlistan och projektets action-menu ska “Ta bort” inte längre anropa `deleteProject` / `deleteJob`.
+- Istället ska klicket sätta status till `cancelled` för projekt/jobb.
+- Text/UI uppdateras så handlingen tydligt betyder “Avboka / dölj från projekt”.
 
-### Rotorsak
+2. Dölj avbokade från standardvyn, men behåll dem i systemet
+- Standardfiltret i projektlistan ska fortsatt exkludera `status === 'cancelled'`.
+- Avbokade ska bara visas när användaren aktivt väljer filtret “Avbokade”.
+- Ingen soft-delete ska ske i detta flöde, så historik, kommentarer och filer finns kvar.
 
-Raivis har en **felaktig time_report** (id `0e25aeef`) som refererar till Lager-bokningen (`6fd6e6da`) men har exakt samma tider som Westmans-posten (08:22→11:20, 2.97h). Denna rad ska inte finnas — den dubbelräknar nästan 3 timmar.
+3. Stoppa återkomsten från import/synk
+- `import-bookings` har idag logik som för avbokade bokningar kan sätta `assigned_to_project` tillbaka till `false` om det fortfarande finns avbokade projekt/jobb kopplade. Det gör att samma bokning kommer tillbaka igen i inbox/projektflödet.
+- Den logiken ska justeras så avbokade bokningar med avbokade länkade projekt/jobb förblir “hanterade/dolda” och inte återintroduceras i projektinboxen.
+- Detta måste följa befintlig policy: avbokade objekt ska bevaras, inte raderas.
 
-Dessutom finns ett systemiskt problem i `StaffTimeReports.tsx`: **total_hours summerar time_reports + location_time_entries utan att exkludera skuggade (duplicerade) poster**. Segment-dedupen (rad 279) förhindrar att dubbla rader *visas*, men `total_hours` på rad 256 läggs till *innan* dedup-kontrollen.
+4. Synka UI-komponenterna så de följer samma regel
+- `DashboardCancelledBookings`: knappen ska inte radera posten utan markera/dess länkade objekt som redan hanterade och dolda.
+- `ProjectActionMenu`, `UnifiedProjectList`, `ProjectLayout` och motsvarande jobb-vyer ska använda samma avbokningslogik.
+- Toasts, knapptext och bekräftelsedialoger ska säga “Avbokad”/“Dold från projekt” istället för “borttagen”.
 
-### Åtgärder
+5. Säkerställ återaktivering när bokningen blir bekräftad igen
+- Nuvarande livscykelregel där en bokning som blir `CONFIRMED` återaktiverar länkade `cancelled` projekt/jobb ska behållas.
+- Justeringen får alltså inte bryta återaktiveringsflödet; den ska bara stoppa att avbokade poster dyker upp om och om igen innan dess.
 
-**1. Ta bort den felaktiga time_report-raden**
+6. Validering efter implementation
+- Scenario A: klick på åtgärden i projektlistan -> status blir `cancelled`, posten försvinner från “Alla aktiva”.
+- Scenario B: synk/import körs -> posten kommer inte tillbaka i “Nya bokningar” eller aktiv projektlista.
+- Scenario C: filtret “Avbokade” visar posten.
+- Scenario D: om extern bokning åter blir `CONFIRMED` -> projekt/jobb återaktiveras och blir synliga igen.
 
-Radera `time_report` med id `0e25aeef-b1c7-4ba0-a311-0bc42bf1d43b` — det är en dubblettpost med fel booking-koppling som ger +2.97h extra.
+Tekniska filer som behöver ändras
+- `src/components/project/UnifiedProjectList.tsx`
+- `src/components/project/ProjectActionMenu.tsx`
+- `src/pages/project/ProjectLayout.tsx`
+- `src/components/dashboard/DashboardCancelledBookings.tsx`
+- `src/services/projectService.ts`
+- `src/services/jobService.ts`
+- `supabase/functions/import-bookings/index.ts`
 
-```sql
-DELETE FROM time_reports WHERE id = '0e25aeef-b1c7-4ba0-a311-0bc42bf1d43b';
-```
-
-**2. Fixa total_hours-beräkningen i StaffTimeReports.tsx**
-
-Flytta `a.total_hours += r.hours_worked` så att den bara körs om raden **inte** skuggas av en location_time_entry. Idag läggs timmar till på rad 256 innan skugg-kontrollen på rad 279.
-
-Ändring i `src/pages/StaffTimeReports.tsx`, ca rad 254-296:
-- Flytta `total_hours`-adderingen till EFTER `isReportShadowedByLTE`-kontrollen
-- Om en time_report skuggas av en LTE, hoppa över den helt (inklusive hours)
-
-### Resultat efter korrigering
-
-| Källa | Timmar |
-|---|---|
-| time_reports (utan dublett) | 0.32 + 2.97 + 0.50 = 3.79h |
-| location_time_entries | 0.32 + 2.97 + 0.50 + ~3.2h (pågår) = ~7.0h |
-| travel | 1.10h |
-| **Deduplicerat totalt** | ~8.1h (korrekt vid 14:40) |
-
-Med den fixade beräkningslogiken räknas bara location_time_entries för poster som finns i båda tabellerna, och resor läggs till separat.
+Förväntad implementation
+- Lägg till/återanvänd tydliga statusfunktioner för avbokning i service-lagret istället för delete-funktionerna.
+- Uppdatera alla call sites till dessa statusfunktioner.
+- Justera importlogiken så avbokade och redan hanterade bokningar inte återöppnas i projektinboxen.
+- Behåll soft-delete enbart för verklig radering/arkivfall, inte för normal avbokning.
 
