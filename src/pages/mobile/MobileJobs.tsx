@@ -157,16 +157,8 @@ const MobileJobs = () => {
         }
       />
 
-      {activeTimers.size > 0 && (
-        <div className="mx-5 -mt-2 mb-1 px-3 py-2 rounded-xl bg-primary/10 border border-primary/15">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-primary text-xs font-semibold">
-              {activeTimers.size} {t('jobs.activeTimer')}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* "X aktiv timer"-bannern borttagen — GlobalActiveTimerBanner visar
+          redan varje timer som egen rad högst upp, så detta var dubbelinfo. */}
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
