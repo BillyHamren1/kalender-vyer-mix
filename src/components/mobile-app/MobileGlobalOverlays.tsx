@@ -6,8 +6,10 @@ import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
 import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
+import LastShiftEndPrompt from './LastShiftEndPrompt';
 import UnplannedVisitBanner from './UnplannedVisitBanner';
 import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
+import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
@@ -117,6 +119,15 @@ const MobileGlobalOverlays: React.FC = () => {
   // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
   const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
     useUnplannedSiteVisit(latestPosition);
+
+  // Last-shift-end prompt — when staff exits a geofence that maps to today's
+  // final planned shift, ask if they want to end the day. Travel timer still
+  // starts as usual (handled by useTravelDetection).
+  const {
+    exitContext: lastShiftExit,
+    dismiss: dismissLastShift,
+    snooze: snoozeLastShift,
+  } = useLastShiftEndDetection(!!staff);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
@@ -307,6 +318,15 @@ const MobileGlobalOverlays: React.FC = () => {
           suggestion={endDayHomeSuggestion}
           onAccept={acceptEndDayHome}
           onDismiss={dismissEndDayHome}
+        />
+      )}
+
+      {lastShiftExit && !arrivalDialogOpen && !staleDialogOpen && !endDayHomeSuggestion && (
+        <LastShiftEndPrompt
+          context={lastShiftExit}
+          latestPosition={latestPosition}
+          onDismiss={dismissLastShift}
+          onSnooze={snoozeLastShift}
         />
       )}
     </>
