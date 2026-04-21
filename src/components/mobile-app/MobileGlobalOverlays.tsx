@@ -16,7 +16,10 @@ import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
+import { type WorkTarget } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -46,9 +49,18 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
-  // UNIFIED work-session engine — same start/stop motor as the rest of
-  // the mobile app. Used to start a timer for ANY arrival kind.
-  const { startSession } = useWorkSession(bookings, staff?.id);
+  // UNIFIED start flow — same conflict + distance + start machinery as
+  // every other start-surface in the mobile app. Direct startSession()
+  // calls from arrival flow are forbidden.
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
