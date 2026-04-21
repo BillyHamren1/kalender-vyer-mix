@@ -500,6 +500,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
     };
 
+    // Today (local YYYY-MM-DD) — bookings/projects only auto-prompt if user is
+    // assigned TODAY. Geofence is for warehouses + jobs you're scheduled on,
+    // never for jobs planned weeks ahead.
+    const todayLocal = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    })();
+    const isAssignedToday = (b: MobileBooking) =>
+      Array.isArray(b.assignment_dates) && b.assignment_dates.includes(todayLocal);
+
     // Check bookings — consolidate large project bookings
     const triggeredProjects = new Set<string>();
 
@@ -533,6 +546,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
+          // Only auto-prompt if user is assigned to ANY of this project's
+          // bookings today. Otherwise just being near the address shouldn't
+          // suggest logging in.
+          const assignedToday = bookings.some(
+            (b) => b.large_project_id === lpId && isAssignedToday(b),
+          );
+          if (!assignedToday) continue;
+
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           // UNIFIED arrival registration — same server log as fixed locations.
@@ -567,6 +588,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
+          // Only auto-prompt if assigned to this booking today.
+          if (!isAssignedToday(booking)) continue;
+
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           // UNIFIED arrival registration for plain bookings.
