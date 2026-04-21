@@ -2,93 +2,71 @@
 
 ## Mål
 
-Mobilappen ska veta **exakt när** varje jobb är planerat för **just denna personal** (per event/fas) — inte bokningens generella tider — och visa hela dagen som en lodrät tidslinje (timmar 06–22) där varje pass ligger på sin planerade tid. Den nya kalendervyn **ersätter** den platta jobblistan på startskärmen.
+När användaren lämnar dagens **sista planerade pass**: behandla det precis som vilken EXIT som helst (stoppa aktivitetstimer, starta restimer), MEN skicka dessutom en push + visa en in-app-prompt: *"Det ser ut som att du avslutat dagens sista uppdrag. Vill du avsluta dagen?"*. Användarens svar avgör vad som händer med den nystartade restimern.
 
-## Datakälla — vad räknas som "planerad tid"
+## Flödet
 
-Personalens planering ligger i `calendar_events` (rader skapade från Planning-kalendern via `staff_assignments` + `booking_staff_assignments`). En `calendar_events`-rad har:
-- `start_time`, `end_time` (ISO timestamps — **detta är den auktoritativa tiden för personalen**)
-- `booking_id`, `booking_number`, `title`, `delivery_address`, `event_type` (rig/event/rigdown/övrigt)
-- `resource_id` (team) och `source_date`
-
-Varje event-rad blir **ett separat pass** i appen. En personal som har rig 07–10 + event 14–18 på samma bokning får **två separata kort** på tidslinjen.
-
-Koppling personal ↔ calendar_event sker via `booking_staff_assignments` (BSA): `staff_id + booking_id + assignment_date`. Vi joinar BSA → calendar_events där `ce.booking_id = bsa.booking_id` och `DATE(ce.start_time) = bsa.assignment_date`.
-
-## Backend — `mobile-app-api` `handleGetBookings`
-
-**Fil:** `supabase/functions/mobile-app-api/index.ts`
-
-Idag returnerar funktionen en lista av bokningar för dagen. Ändras till att returnera en lista av **planerade pass** (en rad per `calendar_events`-träff för personalen):
-
-```ts
-type ScheduledShift = {
-  shift_id: string;            // calendar_events.id
-  booking_id: string;
-  booking_number: string | null;
-  title: string;               // ce.title
-  event_type: 'rig' | 'event' | 'rigdown' | 'other';
-  start_time: string;          // ISO, från calendar_events
-  end_time: string;            // ISO, från calendar_events
-  delivery_address: string | null;
-  delivery_latitude: number | null;
-  delivery_longitude: number | null;
-  client: string;
-  is_internal: boolean;
-  internal_type: string | null;
-  // befintliga bokningsfält som appen redan använder behålls
-};
+```text
+EXIT från sista pass
+   ├─► Aktivitetstimer stoppas (befintligt save-then-stop)
+   ├─► Restimer startar (befintligt useTravelDetection — INGEN ändring)
+   └─► NEW: useLastShiftEndPrompt detekterar "sista pass idag" och triggar:
+          • Push (Capacitor LocalNotifications + ev. FCM om appen är bakgrundad)
+          • In-app dialog: LastShiftEndPrompt
 ```
 
-- Ny respons-property `shifts` i sidan av befintlig `bookings` (bakåtkompatibilitet under övergång). Appen migreras till `shifts` i samma PR.
-- Interna lager-pass har inte calendar_events och visas inte i tidslinjen — bara via befintlig "Lager"-ingång (oförändrad).
+**LastShiftEndPrompt — tre val:**
 
-## Frontend — ny dagskalender
+| Val | Vad händer |
+|---|---|
+| **Ja, avsluta dagen** | 1) Stoppa restimern direkt (`stopTravel` med nuvarande GPS som dest, klassas som `personal` → ingen arbetstid). 2) Dispatch `request-end-day` → befintligt EOD-flöde stänger ev. kvarvarande timers. 3) Skriv `workday_flag: ended_after_last_shift` (info, ej allvarlig). |
+| **Nej, jag jobbar vidare** | Ingen ändring. Restimer fortsätter rulla. Prompten tystas resten av dagen. Nästa geofence-ENTER fungerar som vanligt. |
+| **Påminn senare (15 min)** | Snooze. Restimer rullar. Ny prompt om 15 min om inget hänt. |
 
-**Ny fil:** `src/components/mobile-app/DayTimeline.tsx`
+Om användaren ignorerar prompten helt och en geofence-ENTER på en känd arbetsplats inträffar inom 60 min → prompten dismissas tyst (de jobbar uppenbarligen vidare).
 
-- Lodrät tidslinje 06:00–22:00 (auto-utöka om pass ligger utanför).
-- 1 timme = fast pixelhöjd (64px). Nu-linje (semantic `--destructive`) som uppdateras varje minut och auto-scrollar till "nu" vid mount.
-- Varje pass renderas som ett absolut-positionerat kort (`top = (start - dayStart) * pxPerMinute`, `height = duration * pxPerMinute`), tap → öppnar befintlig bokningsdetalj.
-- Färgkod per `event_type`:
-  - rig → `--primary`
-  - event → `--accent`
-  - rigdown → `--secondary`
-  - other → `--muted`
-- Överlappande pass läggs sida-vid-sida (50/50 bredd) — enkel kollisionsdetektering.
-- Aktiv timer (om något pass är igång) får `ring-2 ring-primary` + pulserande prick.
+## Detektering — "sista pass idag"
 
-**Hook:** `src/hooks/useScheduledShifts.ts`
-- Läser `shifts` från `mobile-app-api`.
-- Realtime: subscribar på `calendar_events` + `booking_staff_assignments` (filtrerat på org) → invalidera vid ändring så planerad tid uppdateras live om planeraren flyttar passet.
+Ny hook: `src/hooks/useLastShiftEndDetection.ts`
+- Lyssnar på `eventflow-stop-travel`-event är fel signal — vi behöver istället lyssna på **timer-stopp som triggas av geofence-EXIT**. Lägg in en custom event `activity-timer-stopped-by-exit` som dispatchas från `useGeofencing` när den kallar `saveAndStopTimer` p.g.a. EXIT.
+- Hooken hämtar `useScheduledShifts()` och kollar:
+  - Var den just stoppade timern kopplad till dagens **senaste** `shift.end_time` (inom ±2h tolerans)?
+  - Finns inga fler `shifts` med `start_time > now` idag?
+- Om ja båda → öppna prompten + skicka push.
 
-**Ersätt:** `src/components/mobile-app/MobileHome.tsx` (eller motsvarande startskärm)
-- Den platta jobblistan byts ut mot `<DayTimeline shifts={shifts} />`.
-- Header behåller dagsdatum + befintlig dagstimer/"Starta dagen".
-- Tom dag → centrerad illustration + "Inga planerade pass idag".
+## Push-leverans
 
-## Felhantering / edge cases
+- Använd befintliga `pushNotificationService.ts`-infrastrukturen (FCM redan integrerad).
+- För lokalt fall (appen i förgrunden): visa bara dialogen, ingen push behövs.
+- För bakgrundsfall: skicka via Capacitor `LocalNotifications` (lägga till `@capacitor/local-notifications`) med tap-action som öppnar appen och triggar dialogen.
+- Notisen är **lokalt schemalagd** — ingen serverside-edge-function behövs eftersom triggern är klient-side (geofence-EXIT).
 
-- Pass som spänner över midnatt: klipps vid 23:59 i dagens vy.
-- Pass utan koordinater: korten fungerar ändå (tap → detalj), men "Navigera"-knappen i detaljen är disabled.
-- Om BSA finns men `calendar_events` saknas (osynkat): visas en banner "X jobb saknar planerad tid — kontakta planeraren", **inte** i tidslinjen.
+## Filer
 
-## Filer som rörs
+**Nya:**
+- `src/hooks/useLastShiftEndDetection.ts` — lyssnar på exit-event + scheduledShifts, beslutar om prompt.
+- `src/components/mobile-app/LastShiftEndPrompt.tsx` — dialogen med tre knappar.
 
-- `supabase/functions/mobile-app-api/index.ts` — ny `shifts`-respons i `handleGetBookings`
-- `src/components/mobile-app/DayTimeline.tsx` — ny komponent
-- `src/components/mobile-app/MobileHome.tsx` — ersätter listan med tidslinjen
-- `src/hooks/useScheduledShifts.ts` — ny hook + realtime-subscription
-- `src/types/mobile.ts` (eller motsv.) — `ScheduledShift`-typ
+**Ändras:**
+- `src/hooks/useGeofencing.ts` — dispatcha `activity-timer-stopped-by-exit`-event efter att EXIT-stoppet sparats (med `{ timerKey, bookingId, stoppedAtIso }`).
+- `src/components/mobile-app/MobileGlobalOverlays.tsx` — montera `useLastShiftEndDetection` + rendera `<LastShiftEndPrompt />`.
+- `src/services/pushNotificationService.ts` — exponera `scheduleLocalNotification(title, body)` wrapper.
+- `package.json` — lägg till `@capacitor/local-notifications`.
 
-**Inga DB-migrationer.** All data finns redan i `calendar_events` + `booking_staff_assignments`.
+**Inga DB-migrationer.** `workday_flag: ended_after_last_shift` använder befintlig tabell.
+
+## Edge cases
+
+- **Restimer redan stoppad** (användaren tappade nät, geofence-ENTER på lager hann före): prompten visas inte, allt är redan reglerat.
+- **Användaren har flera pass kvar idag men hoppar över ett**: vi triggar bara på sista `shift.end_time`. Hoppade pass detekteras separat (utanför scope).
+- **Ingen `shifts`-data alls** (offline/fel): prompten triggar inte. Befintligt `last_workplace_for_day`-fallback (kvällsfönster) tar vid.
+- **Samma pass har flera EXIT/ENTER** (toalettpaus utanför geofence): prompten visas max 1 ggr/dag — `localStorage`-suppress per datum.
 
 ## Validering
 
-- **A**: Personal har rig 07–10 + event 14–18 på samma bokning → två separata kort på tidslinjen.
-- **B**: Två olika bokningar överlappar 13–15 → korten renderas sida-vid-sida.
-- **C**: Planeraren flyttar event 14:00 → 15:00 → mobilappens tidslinje uppdateras live via realtime.
-- **D**: Tom dag → empty-state.
-- **E**: Tap på pass → öppnar befintlig bokningsdetalj med rätt `booking_id`.
-- **F**: Nu-linje rör sig minutvis, auto-scroll till nu vid första rendering.
+- **A**: Sista pass slutar 17:00, användaren EXIT 16:50 → timer stoppas, restimer startar, prompt + push visas inom 5 sek.
+- **B**: Användaren trycker "Ja, avsluta dagen" → restimer stängs som personal, EOD körs, dagstimer rensas.
+- **C**: Användaren trycker "Nej" → restimer rullar, prompten visas inte igen idag.
+- **D**: Användaren ignorerar prompten, kör till annat lager (geofence-ENTER) inom 60 min → prompt försvinner tyst.
+- **E**: Användaren har två pass kvar — EXIT från det näst sista triggar **inte** prompten.
 
