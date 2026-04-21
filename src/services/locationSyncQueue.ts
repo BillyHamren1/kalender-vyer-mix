@@ -242,35 +242,63 @@ export async function flushLocationQueue(): Promise<void> {
     // Process oldest-first so timeline ordering on the server is stable.
     due.sort((a, b) => a.createdAt - b.createdAt);
 
-    for (const item of due) {
+    // Chunk to keep the request payload reasonable and to bound retry blast
+    // radius if the server rejects a single batch.
+    const CHUNK = 100;
+    for (let i = 0; i < due.length; i += CHUNK) {
+      const chunk = due.slice(i, i + CHUNK);
       try {
-        await mobileApi.reportLocation({
-          latitude: item.latitude,
-          longitude: item.longitude,
-          accuracy: item.accuracy,
-          speed: item.speed,
-        });
+        const res = await mobileApi.uploadLocationBatch(
+          chunk.map(p => ({
+            id: p.id,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            accuracy: p.accuracy,
+            speed: p.speed,
+            source: p.source,
+            recordedAt: p.recordedAt,
+          })),
+        );
 
-        // Success — drop from queue. (We don't keep "uploaded" rows
-        // around; the server is the source of truth.)
-        const after = loadQueue().filter(p => p.id !== item.id);
-        saveQueue(after);
-      } catch (err: any) {
+        const acceptedIds = new Set(res?.accepted || []);
+        const rejectedIds = new Set((res?.rejected || []).map(r => r.id));
+
+        // Drop accepted points; bump attempts for rejected so we back off.
         const after = loadQueue();
-        const idx = after.findIndex(p => p.id === item.id);
-        if (idx >= 0) {
-          const attempts = after[idx].attempts + 1;
-          after[idx] = {
-            ...after[idx],
-            status: 'failed',
+        const next: PendingLocationPoint[] = [];
+        for (const row of after) {
+          if (acceptedIds.has(row.id)) continue; // confirmed by server
+          if (rejectedIds.has(row.id)) {
+            const attempts = row.attempts + 1;
+            next.push({
+              ...row,
+              status: 'failed',
+              attempts,
+              nextAttemptAt: Date.now() + backoffFor(attempts),
+            });
+            continue;
+          }
+          next.push(row);
+        }
+        saveQueue(next);
+      } catch (err: any) {
+        // Whole-chunk failure (network / 5xx) — retry with backoff.
+        const chunkIds = new Set(chunk.map(p => p.id));
+        const after = loadQueue().map(p => {
+          if (!chunkIds.has(p.id)) return p;
+          const attempts = p.attempts + 1;
+          return {
+            ...p,
+            status: 'failed' as LocationPointStatus,
             attempts,
             nextAttemptAt: Date.now() + backoffFor(attempts),
           };
-          saveQueue(after);
-        }
+        });
+        saveQueue(after);
         console.warn(
-          '[LocationSync] upload failed, will retry:',
-          item.id,
+          '[LocationSync] batch upload failed, will retry:',
+          chunk.length,
+          'points,',
           err?.message || err,
         );
       }

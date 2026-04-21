@@ -344,6 +344,8 @@ Deno.serve(async (req) => {
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
       case 'report_location':
         return await handleReportLocation(supabase, staffId, data, organizationId)
+      case 'upload_location_batch':
+        return await handleUploadLocationBatch(supabase, staffId, data, organizationId)
       case 'create_travel_log':
         return await handleStartTravelLog(supabase, staffId, data, organizationId)
       case 'stop_travel_log':
@@ -4453,6 +4455,235 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   return new Response(
     JSON.stringify({ success: true, at_location: atLocation }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ── BATCH LOCATION UPLOAD ──
+// Designed for the offline-first GPS sync queue on the mobile app.
+// Accepts an array of GPS points captured while the device may have been
+// offline, throttled, or backgrounded. Each point carries its own client-side
+// id (for idempotent receipts) and the original `recordedAt` timestamp.
+//
+// Behaviour:
+//   1. All points are inserted into staff_location_history with their original
+//      recordedAt. Duplicate (staff_id, recorded_at) rows are skipped silently
+//      so repeated flushes never create double history.
+//   2. Only the *latest* point (max recordedAt) updates staff_locations so the
+//      live presence row reflects the freshest known position — replaying old
+//      points must never move the staff "back in time" on the map.
+//   3. Returns `{ accepted: [ids] }` so the client can drop confirmed points
+//      from its local queue. Points that fail individually are reported in
+//      `rejected: [{ id, reason }]`.
+//   4. Geofence side-effects are intentionally NOT run here — the foreground
+//      `report_location` path remains the single source for arrival prompts.
+//      Replaying a 4-hour-old GPS trail must not retroactively trigger
+//      arrival/exit logic.
+async function handleUploadLocationBatch(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const points = Array.isArray(data?.points) ? data.points : null
+  if (!points || points.length === 0) {
+    return new Response(
+      JSON.stringify({ error: 'points[] is required and must be non-empty' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  if (points.length > 500) {
+    return new Response(
+      JSON.stringify({ error: 'batch too large (max 500 points)' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const accepted: string[] = []
+  const rejected: { id: string; reason: string }[] = []
+
+  type ValidPoint = {
+    id: string
+    latitude: number
+    longitude: number
+    accuracy: number | null
+    speed: number | null
+    source: string | null
+    recordedAt: string
+    recordedMs: number
+  }
+
+  const valid: ValidPoint[] = []
+
+  for (const p of points) {
+    const id = typeof p?.id === 'string' && p.id.length > 0 ? p.id : null
+    if (!id) {
+      rejected.push({ id: 'unknown', reason: 'missing id' })
+      continue
+    }
+    if (typeof p?.latitude !== 'number' || typeof p?.longitude !== 'number') {
+      rejected.push({ id, reason: 'invalid coordinates' })
+      continue
+    }
+    if (Math.abs(p.latitude) > 90 || Math.abs(p.longitude) > 180) {
+      rejected.push({ id, reason: 'coordinates out of range' })
+      continue
+    }
+    const recordedAt =
+      typeof p?.recordedAt === 'string' && p.recordedAt.length > 0
+        ? p.recordedAt
+        : new Date().toISOString()
+    const recordedMs = new Date(recordedAt).getTime()
+    if (!Number.isFinite(recordedMs)) {
+      rejected.push({ id, reason: 'invalid recordedAt' })
+      continue
+    }
+    valid.push({
+      id,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      accuracy: typeof p.accuracy === 'number' ? p.accuracy : null,
+      speed: typeof p.speed === 'number' ? p.speed : null,
+      source: typeof p.source === 'string' ? p.source : null,
+      recordedAt,
+      recordedMs,
+    })
+  }
+
+  if (valid.length === 0) {
+    return new Response(
+      JSON.stringify({ accepted, rejected }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Process oldest-first so timeline stays monotonic.
+  valid.sort((a, b) => a.recordedMs - b.recordedMs)
+
+  // ── 1. Insert into history with idempotent dedupe ──
+  // We can't rely on a unique index existing on (staff_id, recorded_at), so we
+  // pre-filter against existing rows in the affected window. This costs one
+  // extra round-trip but keeps the endpoint safe to call repeatedly.
+  const earliest = new Date(valid[0].recordedMs - 1000).toISOString()
+  const latest = new Date(valid[valid.length - 1].recordedMs + 1000).toISOString()
+
+  let existingTimestamps = new Set<number>()
+  try {
+    const { data: existingRows } = await supabase
+      .from('staff_location_history')
+      .select('recorded_at')
+      .eq('staff_id', staffId)
+      .gte('recorded_at', earliest)
+      .lte('recorded_at', latest)
+    if (Array.isArray(existingRows)) {
+      existingTimestamps = new Set(
+        existingRows
+          .map((r: any) => new Date(r.recorded_at).getTime())
+          .filter((n: number) => Number.isFinite(n)),
+      )
+    }
+  } catch (lookupErr) {
+    console.warn('[mobile-app-api] upload_location_batch dedupe lookup failed:', lookupErr)
+  }
+
+  const rowsToInsert: any[] = []
+  for (const p of valid) {
+    // Treat any history row within the same second as a duplicate.
+    const sameSecond = Math.floor(p.recordedMs / 1000) * 1000
+    const isDup =
+      existingTimestamps.has(p.recordedMs) || existingTimestamps.has(sameSecond)
+    if (isDup) {
+      // Still mark accepted — the server already has this point.
+      accepted.push(p.id)
+      continue
+    }
+    rowsToInsert.push({
+      organization_id: organizationId,
+      staff_id: staffId,
+      lat: p.latitude,
+      lng: p.longitude,
+      accuracy: p.accuracy,
+      speed: p.speed,
+      recorded_at: p.recordedAt,
+    })
+    accepted.push(p.id)
+    existingTimestamps.add(p.recordedMs)
+  }
+
+  if (rowsToInsert.length > 0) {
+    const { error: insertErr } = await supabase
+      .from('staff_location_history')
+      .insert(rowsToInsert)
+    if (insertErr) {
+      console.error('[mobile-app-api] upload_location_batch history insert error:', insertErr)
+      return new Response(
+        JSON.stringify({ error: 'Failed to write location history' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+  }
+
+  // ── 2. Update staff_locations with the LATEST point only ──
+  // Replaying old points must never overwrite a fresher live position.
+  const newest = valid[valid.length - 1]
+  try {
+    const { data: existing } = await supabase
+      .from('staff_locations')
+      .select('latitude, longitude, location_since, updated_at')
+      .eq('staff_id', staffId)
+      .maybeSingle()
+
+    const existingUpdatedMs = existing?.updated_at
+      ? new Date(existing.updated_at).getTime()
+      : 0
+
+    if (newest.recordedMs >= existingUpdatedMs) {
+      let locationSince: string
+      if (existing && existing.latitude != null && existing.longitude != null) {
+        const dist = haversineMeters(
+          existing.latitude,
+          existing.longitude,
+          newest.latitude,
+          newest.longitude,
+        )
+        locationSince =
+          dist > 100
+            ? newest.recordedAt
+            : (existing.location_since || newest.recordedAt)
+      } else {
+        locationSince = newest.recordedAt
+      }
+
+      const { error: upsertErr } = await supabase
+        .from('staff_locations')
+        .upsert(
+          {
+            staff_id: staffId,
+            organization_id: organizationId,
+            latitude: newest.latitude,
+            longitude: newest.longitude,
+            accuracy: newest.accuracy,
+            speed: newest.speed,
+            updated_at: newest.recordedAt,
+            location_since: locationSince,
+          },
+          { onConflict: 'staff_id' },
+        )
+      if (upsertErr) {
+        console.warn('[mobile-app-api] upload_location_batch staff_locations upsert error:', upsertErr)
+      }
+    }
+  } catch (presenceErr) {
+    console.warn('[mobile-app-api] upload_location_batch presence update failed:', presenceErr)
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      accepted,
+      rejected,
+      received: accepted.length,
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
 

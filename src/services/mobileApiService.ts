@@ -413,6 +413,25 @@ export const mobileApi = {
     speed?: number | null;
   }) => callApi<{ success: boolean; at_location?: { id: string; name: string } | null }>('report_location', data),
 
+  // Batch upload of GPS points from the offline-first sync queue.
+  // Each point carries its own client id + recordedAt so the server can
+  // dedupe and the client can drop confirmed points from local storage.
+  uploadLocationBatch: (points: Array<{
+    id: string;
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    speed: number | null;
+    source: string;
+    recordedAt: string;
+  }>) =>
+    callApi<{
+      success: boolean;
+      accepted: string[];
+      rejected: { id: string; reason: string }[];
+      received: number;
+    }>('upload_location_batch', { points }),
+
   // Organization locations (fixed places)
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
