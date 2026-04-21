@@ -390,14 +390,56 @@ export async function flushLocationQueue(): Promise<void> {
   }
 }
 
-// Auto-flush triggers — only wired up in browser/WebView contexts.
+// ── AUTO-FLUSH TRIGGERS ──
+// Mirror the timer queue's recovery surface so GPS points have at least as
+// many resync opportunities as timer starts. Each trigger is no-op safe:
+//   - flushLocationQueue() guards against concurrent runs via `flushing`
+//   - successful uploads are idempotent on the server (dedupe by recorded_at)
+//   - failed chunks back off and retry on the next trigger
+//
+// We intentionally DO NOT touch timerSyncQueue here — it manages its own
+// online/focus/module-load triggers in src/services/timerSyncQueue.ts.
 if (typeof window !== 'undefined') {
+  // Network back online — most common offline → online recovery.
   window.addEventListener('online', () => {
     void flushLocationQueue();
   });
+
+  // Tab/window regains focus (web + foregrounded WebView).
   window.addEventListener('focus', () => {
     void flushLocationQueue();
   });
-  // Resume any leftover work from the previous session.
+
+  // Tab becomes visible again — fires when user switches back from another
+  // app on mobile WebView even when `focus` doesn't (iOS PWA quirk).
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void flushLocationQueue();
+      }
+    });
+  }
+
+  // Native app foreground (Capacitor). Best-effort dynamic import so this
+  // file stays usable in pure-web tests where @capacitor/app isn't installed.
+  // Critical on iOS where `focus` / `visibilitychange` are unreliable when
+  // the app resumes from a long background period.
+  void (async () => {
+    try {
+      const { App } = await import('@capacitor/app');
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) void flushLocationQueue();
+      });
+      App.addListener('resume', () => {
+        void flushLocationQueue();
+      });
+    } catch {
+      // Not running under Capacitor — fine, web triggers above cover it.
+    }
+  })();
+
+  // App start — resume any leftover work from the previous session
+  // (offline period, force-quit, crash, etc.).
   void flushLocationQueue();
 }
+
