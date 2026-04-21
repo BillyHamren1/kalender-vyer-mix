@@ -7,7 +7,20 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
+
+export type SegmentKind = 'location' | 'booking' | 'travel';
+
+export interface DaySegment {
+  id: string;
+  kind: SegmentKind;
+  label: string;
+  start: string; // ISO timestamp
+  end: string | null; // ISO timestamp or null if open
+  isOpen: boolean;
+  hours: number;
+}
 
 interface ProjectInfo {
   booking_id: string;
@@ -27,7 +40,17 @@ interface StaffWithDayReport {
   earliest_start: string | null;
   latest_end: string | null;
   projects: ProjectInfo[];
+  segments: DaySegment[];
 }
+
+// Build an ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time string.
+// time_reports stores time as HH:mm:ss without timezone, so we treat it as local.
+const composeLocalIso = (dateStr: string, timeStr: string): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh, mm, ss = '0'] = timeStr.split(':');
+  const dt = new Date(y, (m || 1) - 1, d || 1, Number(hh) || 0, Number(mm) || 0, Number(ss) || 0);
+  return dt.toISOString();
+};
 
 const StaffTimeReports: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -36,23 +59,35 @@ const StaffTimeReports: React.FC = () => {
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
+  // Realtime: refresh the day view when any of the source tables change for today.
+  useRealtimeInvalidation({
+    channelName: `staff-time-reports-day-${dateStr}`,
+    tables: [
+      { table: 'time_reports', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'travel_time_logs', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'location_time_entries', events: ['INSERT', 'UPDATE', 'DELETE'] },
+    ],
+    queryKeys: [['staff-time-reports-day', dateStr]],
+    debounceMs: 400,
+  });
+
   const { data: staffList = [], isLoading } = useQuery({
     queryKey: ['staff-time-reports-day', dateStr],
+    refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
       const [reportsRes, travelRes, locationRes] = await Promise.all([
         supabase
           .from('time_reports')
-          .select('staff_id, booking_id, hours_worked, start_time, end_time')
+          .select('id, staff_id, booking_id, hours_worked, start_time, end_time')
           .eq('report_date', dateStr),
         supabase
           .from('travel_time_logs')
-          .select('staff_id, hours_worked')
-          .eq('report_date', dateStr)
-          .not('end_time', 'is', null),
+          .select('id, staff_id, hours_worked, start_time, end_time, to_address')
+          .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('staff_id, location_id, entered_at, exited_at, total_minutes')
+          .select('id, staff_id, location_id, entered_at, exited_at, total_minutes')
           .eq('entry_date', dateStr),
       ]);
 
@@ -67,6 +102,7 @@ const StaffTimeReports: React.FC = () => {
       // Resolve location -> internal booking (e.g. Lager) for project label
       const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
       const locationBookingMap = new Map<string, { booking_id: string; label: string }>();
+      const locNameMap = new Map<string, string>();
       if (locationIds.length > 0) {
         const [{ data: internalProjects }, { data: locations }] = await Promise.all([
           supabase
@@ -79,7 +115,7 @@ const StaffTimeReports: React.FC = () => {
             .select('id, name')
             .in('id', locationIds),
         ]);
-        const locNameMap = new Map((locations || []).map(l => [l.id, l.name]));
+        (locations || []).forEach(l => locNameMap.set(l.id, l.name));
         (internalProjects || []).forEach(p => {
           if (p.location_id && p.booking_id) {
             locationBookingMap.set(p.location_id, {
@@ -101,7 +137,6 @@ const StaffTimeReports: React.FC = () => {
         (bookings || []).forEach(b => {
           let label: string;
           if (b.is_internal) {
-            // Internt projekt (t.ex. Lager) – visa bara klientnamnet
             label = b.client || 'Internt';
           } else if (b.booking_number) {
             label = `${b.booking_number} · ${b.client}`;
@@ -120,18 +155,23 @@ const StaffTimeReports: React.FC = () => {
         earliest_start: string | null;
         latest_end: string | null;
         projects: Map<string, { label: string; is_open: boolean; total_hours: number }>;
+        segments: DaySegment[];
       };
+      const newAgg = (): Agg => ({
+        total_hours: 0,
+        reports_count: 0,
+        has_open_report: false,
+        earliest_start: null,
+        latest_end: null,
+        projects: new Map(),
+        segments: [],
+      });
       const byStaff = new Map<string, Agg>();
 
+      const nowMs = Date.now();
+
       for (const r of reports) {
-        const a = byStaff.get(r.staff_id) || {
-          total_hours: 0,
-          reports_count: 0,
-          has_open_report: false,
-          earliest_start: null,
-          latest_end: null,
-          projects: new Map(),
-        };
+        const a = byStaff.get(r.staff_id) || newAgg();
         a.total_hours += r.hours_worked || 0;
         a.reports_count += 1;
         if (!r.end_time) a.has_open_report = true;
@@ -141,8 +181,8 @@ const StaffTimeReports: React.FC = () => {
         if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
           a.latest_end = r.end_time;
         }
+        const label = r.booking_id ? (bookingMap.get(r.booking_id) || 'Okänt projekt') : 'Tidrapport';
         if (r.booking_id) {
-          const label = bookingMap.get(r.booking_id) || 'Okänt projekt';
           const existing = a.projects.get(r.booking_id);
           a.projects.set(r.booking_id, {
             label,
@@ -150,36 +190,53 @@ const StaffTimeReports: React.FC = () => {
             total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
           });
         }
+        if (r.start_time) {
+          const startIso = composeLocalIso(dateStr, r.start_time);
+          const endIso = r.end_time ? composeLocalIso(dateStr, r.end_time) : null;
+          const isOpen = !r.end_time;
+          const hours = r.hours_worked || (isOpen ? Math.max(0, (nowMs - new Date(startIso).getTime()) / 3_600_000) : 0);
+          a.segments.push({
+            id: `tr:${r.id}`,
+            kind: 'booking',
+            label,
+            start: startIso,
+            end: endIso,
+            isOpen,
+            hours,
+          });
+        }
         byStaff.set(r.staff_id, a);
       }
+
       for (const t of travel) {
-        const a = byStaff.get(t.staff_id) || {
-          total_hours: 0,
-          reports_count: 0,
-          has_open_report: false,
-          earliest_start: null,
-          latest_end: null,
-          projects: new Map(),
-        };
+        const a = byStaff.get(t.staff_id) || newAgg();
         a.total_hours += t.hours_worked || 0;
+        if (t.start_time) {
+          const isOpen = !t.end_time;
+          const hours = t.hours_worked || (isOpen ? Math.max(0, (nowMs - new Date(t.start_time).getTime()) / 3_600_000) : 0);
+          const dest = (t.to_address || '').split(',')[0].trim();
+          a.segments.push({
+            id: `tv:${t.id}`,
+            kind: 'travel',
+            label: dest ? `Resa → ${dest}` : 'Resa',
+            start: t.start_time,
+            end: t.end_time,
+            isOpen,
+            hours,
+          });
+          if (isOpen) a.has_open_report = true;
+        }
         byStaff.set(t.staff_id, a);
       }
 
       // Location-based time (e.g. Lager via "Starta dag på Lager")
       for (const e of locationEntries) {
-        const a = byStaff.get(e.staff_id) || {
-          total_hours: 0,
-          reports_count: 0,
-          has_open_report: false,
-          earliest_start: null,
-          latest_end: null,
-          projects: new Map(),
-        };
+        const a = byStaff.get(e.staff_id) || newAgg();
         const isOpen = !e.exited_at;
         const hours = e.total_minutes
           ? e.total_minutes / 60
           : isOpen
-            ? Math.max(0, (Date.now() - new Date(e.entered_at).getTime()) / 3_600_000)
+            ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
             : 0;
         a.total_hours += hours;
         a.reports_count += 1;
@@ -192,12 +249,21 @@ const StaffTimeReports: React.FC = () => {
         }
         const locInfo = locationBookingMap.get(e.location_id);
         const projectKey = locInfo?.booking_id || `loc:${e.location_id}`;
-        const projectLabel = locInfo?.label || 'Lager';
+        const projectLabel = locInfo?.label || locNameMap.get(e.location_id) || 'Lager';
         const existing = a.projects.get(projectKey);
         a.projects.set(projectKey, {
           label: projectLabel,
           is_open: (existing?.is_open || false) || isOpen,
           total_hours: (existing?.total_hours || 0) + hours,
+        });
+        a.segments.push({
+          id: `lt:${e.id}`,
+          kind: 'location',
+          label: projectLabel,
+          start: e.entered_at,
+          end: e.exited_at,
+          isOpen,
+          hours,
         });
         byStaff.set(e.staff_id, a);
       }
@@ -215,6 +281,11 @@ const StaffTimeReports: React.FC = () => {
       return (staff || [])
         .map(s => {
           const a = byStaff.get(s.id)!;
+          // Sort segments: open first, then newest start desc
+          const segments = [...a.segments].sort((x, y) => {
+            if (x.isOpen !== y.isOpen) return x.isOpen ? -1 : 1;
+            return new Date(y.start).getTime() - new Date(x.start).getTime();
+          });
           return {
             id: s.id,
             name: s.name,
@@ -233,6 +304,7 @@ const StaffTimeReports: React.FC = () => {
                 total_hours: v.total_hours,
               }))
               .sort((x, y) => y.total_hours - x.total_hours),
+            segments,
           };
         })
         .sort((a, b) => {

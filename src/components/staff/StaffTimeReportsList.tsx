@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2, CalendarDays } from 'lucide-react';
+import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2, CalendarDays, MapPin, Briefcase, Car } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,6 +10,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { LiveDuration } from './LiveDuration';
+import type { DaySegment, SegmentKind } from '@/pages/StaffTimeReports';
 
 interface ProjectInfo {
   booking_id: string;
@@ -29,7 +31,22 @@ interface StaffWithDayReport {
   earliest_start: string | null;
   latest_end: string | null;
   projects: ProjectInfo[];
+  segments: DaySegment[];
 }
+
+const segmentIcon = (kind: SegmentKind) => {
+  if (kind === 'location') return MapPin;
+  if (kind === 'travel') return Car;
+  return Briefcase;
+};
+
+const formatTimeShort = (iso: string): string => {
+  try {
+    return format(new Date(iso), 'HH:mm');
+  } catch {
+    return '—';
+  }
+};
 
 interface StaffTimeReportsListProps {
   staffList: StaffWithDayReport[];
@@ -254,30 +271,59 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </div>
                   </div>
 
-                  {/* Project list — one row per project */}
-                  {(staff.projects?.length ?? 0) > 0 && (
-                    <div className="mt-1 border-l-2 border-border/60 pl-2">
-                      {staff.projects!.map(p => (
-                        <div
-                          key={p.booking_id}
-                          className="flex items-center justify-between gap-3 text-xs leading-snug"
-                        >
-                          <span
-                            className={`truncate ${
-                              p.is_open ? 'text-orange-700 dark:text-orange-400 font-medium' : 'text-muted-foreground'
+                  {/* Chronological segment timeline — open at top, then newest → oldest */}
+                  {(staff.segments?.length ?? 0) > 0 && (
+                    <div className="mt-1.5 border-l-2 border-border/60 pl-2 space-y-0.5">
+                      {staff.segments.map(seg => {
+                        const Icon = segmentIcon(seg.kind);
+                        const isLive = seg.isOpen;
+                        return (
+                          <div
+                            key={seg.id}
+                            className={`flex items-center justify-between gap-3 text-xs leading-snug rounded-md px-1.5 py-0.5 ${
+                              isLive
+                                ? 'bg-orange-50 dark:bg-orange-950/20 border border-orange-200/70 dark:border-orange-900/40'
+                                : ''
                             }`}
-                            title={p.label}
                           >
-                            {p.label}
-                            {p.is_open && (
-                              <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-500 align-middle animate-pulse" />
-                            )}
-                          </span>
-                          <span className="text-muted-foreground tabular-nums shrink-0 text-[11px]">
-                            {formatHoursMinutes(p.total_hours)}
-                          </span>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              {isLive ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                              ) : (
+                                <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
+                              )}
+                              <span
+                                className={`truncate ${
+                                  isLive
+                                    ? 'text-orange-700 dark:text-orange-400 font-semibold'
+                                    : 'text-foreground/80'
+                                }`}
+                                title={seg.label}
+                              >
+                                {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide">NU:</span>}
+                                {seg.label}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 tabular-nums text-[11px]">
+                              <span className="text-muted-foreground">
+                                {formatTimeShort(seg.start)}
+                                {' → '}
+                                {seg.end ? formatTimeShort(seg.end) : <span className="text-orange-600">pågår</span>}
+                              </span>
+                              {isLive ? (
+                                <LiveDuration
+                                  startedAt={seg.start}
+                                  className="font-semibold text-orange-600 dark:text-orange-400 min-w-[64px] text-right"
+                                />
+                              ) : (
+                                <span className="text-muted-foreground min-w-[48px] text-right">
+                                  {formatHoursMinutes(seg.hours)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
