@@ -87,7 +87,7 @@ const StaffTimeReports: React.FC = () => {
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('id, staff_id, location_id, entered_at, exited_at, total_minutes')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
       ]);
 
@@ -127,8 +127,13 @@ const StaffTimeReports: React.FC = () => {
       }
 
       // Fetch booking labels
-      const bookingIds = [...new Set(reports.map(r => r.booking_id).filter(Boolean))];
-      const bookingMap = new Map<string, string>();
+      // Fetch booking labels — include both time_reports.booking_id AND
+      // location_time_entries.booking_id (auto_assigned check-ins on a booking).
+      const bookingIds = [...new Set([
+        ...reports.map(r => r.booking_id).filter(Boolean),
+        ...locationEntries.map(e => (e as any).booking_id).filter(Boolean),
+      ])] as string[];
+      const bookingMap = new Map<string, { label: string; is_internal: boolean }>();
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
@@ -143,8 +148,21 @@ const StaffTimeReports: React.FC = () => {
           } else {
             label = b.client;
           }
-          bookingMap.set(b.id, label);
+          bookingMap.set(b.id, { label, is_internal: !!b.is_internal });
         });
+      }
+
+      // Fetch large project labels for LTE rows tied to a large project.
+      const largeProjectIds = [...new Set(
+        locationEntries.map(e => (e as any).large_project_id).filter(Boolean)
+      )] as string[];
+      const largeProjectMap = new Map<string, string>();
+      if (largeProjectIds.length > 0) {
+        const { data: lps } = await supabase
+          .from('large_projects')
+          .select('id, name')
+          .in('id', largeProjectIds);
+        (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
       }
 
       // Build per-staff aggregate
@@ -170,6 +188,29 @@ const StaffTimeReports: React.FC = () => {
 
       const nowMs = Date.now();
 
+      // ── Dedupe key: a (staff_id, booking_id) shift covered by a location_time_entry
+      // is the canonical one. Skip any time_reports row for the same staff+booking
+      // whose [start,end] window overlaps that LTE — otherwise "Lager" shows twice
+      // (once from time_reports, once from location_time_entries) for the same shift.
+      const lteWindowsByStaffBooking = new Map<string, Array<[number, number]>>();
+      for (const e of locationEntries as any[]) {
+        if (!e.booking_id) continue;
+        const key = `${e.staff_id}:${e.booking_id}`;
+        const startMs = new Date(e.entered_at).getTime();
+        const endMs = e.exited_at ? new Date(e.exited_at).getTime() : nowMs;
+        const arr = lteWindowsByStaffBooking.get(key) || [];
+        arr.push([startMs, endMs]);
+        lteWindowsByStaffBooking.set(key, arr);
+      }
+      const isReportShadowedByLTE = (staffId: string, bookingId: string | null, startIso: string, endIso: string | null) => {
+        if (!bookingId) return false;
+        const wins = lteWindowsByStaffBooking.get(`${staffId}:${bookingId}`);
+        if (!wins) return false;
+        const s = new Date(startIso).getTime();
+        const e = endIso ? new Date(endIso).getTime() : nowMs;
+        return wins.some(([ws, we]) => s < we && e > ws); // overlap
+      };
+
       for (const r of reports) {
         const a = byStaff.get(r.staff_id) || newAgg();
         a.total_hours += r.hours_worked || 0;
@@ -181,7 +222,8 @@ const StaffTimeReports: React.FC = () => {
         if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
           a.latest_end = r.end_time;
         }
-        const label = r.booking_id ? (bookingMap.get(r.booking_id) || 'Okänt projekt') : 'Tidrapport';
+        const bookingInfo = r.booking_id ? bookingMap.get(r.booking_id) : null;
+        const label = bookingInfo?.label || (r.booking_id ? 'Okänt projekt' : 'Tidrapport');
         if (r.booking_id) {
           const existing = a.projects.get(r.booking_id);
           a.projects.set(r.booking_id, {
@@ -193,6 +235,11 @@ const StaffTimeReports: React.FC = () => {
         if (r.start_time) {
           const startIso = composeLocalIso(dateStr, r.start_time);
           const endIso = r.end_time ? composeLocalIso(dateStr, r.end_time) : null;
+          // Skip duplicate segment if a location_time_entry already represents this shift.
+          if (isReportShadowedByLTE(r.staff_id, r.booking_id, startIso, endIso)) {
+            byStaff.set(r.staff_id, a);
+            continue;
+          }
           const isOpen = !r.end_time;
           const hours = r.hours_worked || (isOpen ? Math.max(0, (nowMs - new Date(startIso).getTime()) / 3_600_000) : 0);
           a.segments.push({
@@ -229,8 +276,11 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(t.staff_id, a);
       }
 
-      // Location-based time (e.g. Lager via "Starta dag på Lager")
-      for (const e of locationEntries) {
+      // Location-based time entries.
+      // These are the canonical record for: warehouse stays, auto-assigned check-ins
+      // on bookings, and large project check-ins. Choose the right label based on
+      // what the row points to (booking_id > large_project_id > location_id).
+      for (const e of locationEntries as any[]) {
         const a = byStaff.get(e.staff_id) || newAgg();
         const isOpen = !e.exited_at;
         const hours = e.total_minutes
@@ -247,9 +297,32 @@ const StaffTimeReports: React.FC = () => {
           const endHHMM = format(new Date(e.exited_at), 'HH:mm:ss');
           if (!a.latest_end || endHHMM > a.latest_end) a.latest_end = endHHMM;
         }
-        const locInfo = locationBookingMap.get(e.location_id);
-        const projectKey = locInfo?.booking_id || `loc:${e.location_id}`;
-        const projectLabel = locInfo?.label || locNameMap.get(e.location_id) || 'Lager';
+
+        // Resolve label + key + segment kind by precedence.
+        let projectKey: string;
+        let projectLabel: string;
+        let segmentKind: SegmentKind = 'location';
+        if (e.booking_id) {
+          const info = bookingMap.get(e.booking_id);
+          projectKey = e.booking_id;
+          projectLabel = info?.label || 'Okänt projekt';
+          // Internal booking (Lager) → keep as 'location' icon; real booking → 'booking'.
+          segmentKind = info?.is_internal ? 'location' : 'booking';
+        } else if (e.large_project_id) {
+          projectKey = `lp:${e.large_project_id}`;
+          projectLabel = largeProjectMap.get(e.large_project_id) || 'Stort projekt';
+          segmentKind = 'booking';
+        } else if (e.location_id) {
+          const locInfo = locationBookingMap.get(e.location_id);
+          projectKey = locInfo?.booking_id || `loc:${e.location_id}`;
+          projectLabel = locInfo?.label || locNameMap.get(e.location_id) || 'Lager';
+          segmentKind = 'location';
+        } else {
+          projectKey = `lt:${e.id}`;
+          projectLabel = 'Plats';
+          segmentKind = 'location';
+        }
+
         const existing = a.projects.get(projectKey);
         a.projects.set(projectKey, {
           label: projectLabel,
@@ -258,7 +331,7 @@ const StaffTimeReports: React.FC = () => {
         });
         a.segments.push({
           id: `lt:${e.id}`,
-          kind: 'location',
+          kind: segmentKind,
           label: projectLabel,
           start: e.entered_at,
           end: e.exited_at,
