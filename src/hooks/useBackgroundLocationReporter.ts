@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { mobileApi } from '@/services/mobileApiService';
+import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
