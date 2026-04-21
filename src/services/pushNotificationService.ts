@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { mobileApi } from './mobileApiService';
 
 let initialized = false;
@@ -166,3 +167,43 @@ export async function unregisterPushNotifications(): Promise<void> {
     console.error('[Push] Unregister error:', err);
   }
 }
+
+/**
+ * Schedule a local notification (no server round-trip).
+ *
+ * Used by client-side detectors (e.g. last-shift-end prompt) that need to
+ * surface a notification even if the app is backgrounded. On non-native
+ * platforms or scanner mode this is a silent no-op — the in-app dialog
+ * still shows because the calling hook also opens it directly.
+ */
+export async function scheduleLocalNotification(
+  title: string,
+  body: string,
+  options?: { id?: number; data?: Record<string, unknown> }
+): Promise<void> {
+  const isScanner = import.meta.env.VITE_APP_MODE === 'scanner';
+  if (isScanner) return;
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      const req = await LocalNotifications.requestPermissions();
+      if (req.display !== 'granted') return;
+    }
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: options?.id ?? Math.floor(Date.now() % 2_000_000_000),
+          title,
+          body,
+          schedule: { at: new Date(Date.now() + 100) },
+          extra: options?.data || {},
+        },
+      ],
+    });
+  } catch (err) {
+    console.warn('[Push] scheduleLocalNotification failed:', err);
+  }
+}
+

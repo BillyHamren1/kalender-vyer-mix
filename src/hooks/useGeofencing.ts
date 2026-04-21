@@ -596,6 +596,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.add(projectKey);
           triggeredEnterRef.current.delete(projectKey);
           fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+          // Signal end-of-shift detector (LastShiftEndPrompt). The detector
+          // decides if this exit corresponds to the day's last planned shift.
+          window.dispatchEvent(new CustomEvent('workplace-exit', {
+            detail: {
+              kind: 'project',
+              key: projectKey,
+              bookingId: projectKey,
+              largeProjectId: lpId,
+              exitedAtIso: new Date().toISOString(),
+            },
+          }));
         }
       } else {
         // Standalone booking
@@ -626,6 +637,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.add(booking.id);
           triggeredEnterRef.current.delete(booking.id);
           fireAnomalyStart({ bookingId: booking.id });
+          window.dispatchEvent(new CustomEvent('workplace-exit', {
+            detail: {
+              kind: 'booking',
+              key: booking.id,
+              bookingId: booking.id,
+              exitedAtIso: new Date().toISOString(),
+            },
+          }));
         }
       }
     }
@@ -663,6 +682,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredExitRef.current.add(locKey);
         triggeredEnterRef.current.delete(locKey);
         fireAnomalyStart({ locationId: loc.id });
+        window.dispatchEvent(new CustomEvent('workplace-exit', {
+          detail: {
+            kind: 'location',
+            key: locKey,
+            locationId: loc.id,
+            exitedAtIso: new Date().toISOString(),
+          },
+        }));
       }
     }
 
