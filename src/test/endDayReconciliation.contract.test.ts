@@ -54,15 +54,13 @@ describe('End-of-day reconciliation contract', () => {
   // ────────────────────────────────────────────────────────────────────
   // M. endDay with no active timers is a no-op
   // ────────────────────────────────────────────────────────────────────
-  it('M: request-end-day med tom timers-Map gör inget skadligt', () => {
+  it('M: request-end-day med tom timers-Map gör inget skadligt och stänger dagtimern', () => {
     log('M', 'no-op when no active timers');
     const banner = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
-    // The handler must guard against empty queues — otherwise dialogs spam.
     const region = banner.slice(banner.indexOf("'request-end-day'"));
-    // We expect the banner to enqueue from `timers` (a Map) and processNextEod
-    // to early-return when the queue is empty.
     expect(region).toMatch(/timers/);
     expect(banner).toMatch(/processNextEod/);
+    expect(region).toMatch(/workday-ended/);
   });
 
   // ────────────────────────────────────────────────────────────────────
