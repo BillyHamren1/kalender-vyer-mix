@@ -281,6 +281,25 @@ const MobileGlobalOverlays: React.FC = () => {
         onClose={() => setStaleDialogOpen(false)}
       />
 
+      {/* Unified conflict + distance dialogs for arrival-driven starts */}
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingLabel}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={() => {
+          distanceWarning?.onConfirm();
+          dismissDistanceWarning();
+        }}
+      />
+
       <WorkDayAssistant decision={assistantDecision} onAcknowledge={ackAssistant} />
 
       {endDayHomeSuggestion && !arrivalDialogOpen && !staleDialogOpen && (
