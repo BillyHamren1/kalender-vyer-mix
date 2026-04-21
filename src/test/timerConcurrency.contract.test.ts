@@ -1,14 +1,10 @@
 /**
  * Contract test for the rule-based timer concurrency engine.
  *
- * Locks the new policy that replaces the old "one timer total" block:
- *   • location + booking may run in parallel
- *   • location + project may run in parallel
- *   • booking ↔ booking → switch
- *   • project ↔ project → switch
- *   • booking ↔ project → switch
- *   • location ↔ location → switch
+ * Locks the unified policy "ONE active timer at a time":
+ *   • any active timer + any new different target → switch
  *   • restarting the same target → duplicate (no-op)
+ *   • starting from an empty map → allow
  */
 import { describe, it, expect } from 'vitest';
 import { evaluateStartConflict } from '@/lib/timerConcurrency';
