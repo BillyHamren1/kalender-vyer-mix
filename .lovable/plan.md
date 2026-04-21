@@ -1,60 +1,63 @@
 
 
-## Optimistisk auto-checkin för assignade jobb (lika som lager)
+## Stäng glappet: server-side arrival-detektion från GPS-pings
 
-### Beslut
-Sluta särbehandla lager vs bokning/projekt. Om personen är **tilldelad** uppdraget den dagen → checka in automatiskt vid geofence-träff (precis som lager). Om personen INTE är tilldelad → fråga (nuvarande beteende).
+### Problem
+Auto-checkin (och travel-logs) triggas bara när mobilappen är **vaken** och själv kallar `report_arrival` / `useTravelDetection`. När telefonen är låst i fickan får vi råa GPS-pings till `staff_locations` + `staff_location_history`, men ingen logik som översätter pingen till in/ut-händelser. Resultat: Raivis har 1h 14m osynlig tid idag (resa + ankomst).
 
-### Ny enhetlig regel
+### Lösning
+Flytta arrival-/travel-detektionen från klient till server, triggat av varje GPS-ping som kommer in via `mobile-app-api/update_location` (eller motsvarande endpoint).
 
-```text
-Geofence-träff (≤ 100m, accuracy ≤ 50m, stillastående ≥ 60s)
-        │
-        ▼
-   Är target en fast plats (lager)?
-        │── ja → AUTO check-in (oförändrat)
-        │
-        └── nej (booking/large_project)
-                │
-                ▼
-        Finns BSA-rad för (staff, target, idag)?
-                │── ja → AUTO check-in (NYTT)
-                └── nej → arrival_prompt_log + push (oförändrat)
-```
+### Server-fix i `mobile-app-api/index.ts`
 
-### Server-fix (huvudgrejen)
+**Ny hjälpfunktion `detectAndApplyMovement(staffId, orgId, ping)`** som körs vid varje inkommande GPS-ping:
 
-**`supabase/functions/mobile-app-api/handleArrivalPing.ts`** (eller motsvarande hanterare i mobile-app-api som tar emot GPS-ping och beslutar arrival):
+1. **Hämta senaste kända state för staff:**
+   - Senaste `staff_locations`-rad (för att jämföra avstånd/hastighet sedan förra ping).
+   - Öppen `location_time_entries` (om någon).
+   - Senaste avslutade `travel_time_logs` (för att inte dubbelstarta).
 
-1. När en ping matchar en booking/large_project geofence:
-   - Slå upp `booking_staff_assignments` för `(staff_id, booking_id/large_project_id, today)`.
-   - **Om träff** → skapa `location_time_entries`-rad direkt (`source = 'auto_assigned'`, `booking_id`/`large_project_id` satt). Ingen `arrival_prompt_log`.
-   - **Om ingen träff** → nuvarande prompt-flöde.
-2. Idempotent: om det redan finns en öppen `location_time_entry` för samma target/dag → no-op.
-3. Auto-stäng eventuellt öppet lager-pass när auto-checkin sker (samma helper som vi byggde för travel: `closeOpenEntriesForStaff(staffId, before=now)`).
+2. **Geofence-matchning på serversidan (Haversine):**
+   - Hämta alla relevanta targets för dagen: `organization_locations` (lager) + dagens BSA-bokningar/projekt med koordinater.
+   - För varje target inom 100m + accuracy ≤ 50m + speed ≤ 1.5 m/s → räkna som "inne".
+   - Annars "ute".
 
-### Klient-fix (bakgrundsmotor)
+3. **Tillståndsövergångar:**
+   - **Ute → Inne (assigned target)** → auto-checkin (samma logik som `handleReportArrival` redan har, source `auto_assigned_bg`).
+   - **Ute → Inne (o-assigned target)** → skapa `arrival_prompt_log` + push.
+   - **Inne → Ute** → stäng öppen `location_time_entries` (`exited_at = ping.recorded_at`).
+   - **Förflyttning ≥ 500m i ≥ 5 min med medelhastighet ≥ 5 m/s mellan två targets** → skapa `travel_time_logs`-rad (samma model som klienten använder idag).
 
-**`src/hooks/useGeofencing.ts`**:
-- Idag matchar bakgrundsgeofencen i praktiken bara fasta `organization_locations`. Utvidga matchningen till att också inkludera dagens **assignade** bookings/large_projects (hämta deras lat/lng + radie 100m vid login + var 30:e min).
-- När en match sker mot en assignad booking/projekt → kalla samma serverväg som lager (auto check-in), inte arrival-prompten.
-- Behåll arrival-prompten som fallback för o-assignade träffar (t.ex. en kollega som råkar vara där).
+4. **Idempotens:** all skapning använder befintliga unik-constraints + `client_dedupe_key` så dubbla pings inte ger dubbla rader.
 
-### Admin-korrigering ("ångra-knapp")
-Eftersom vi nu är optimistiska behöver admin kunna nolla en felaktig auto-incheckning. Det finns redan i `StaffTimeReportDetail` — säkerställ att rader med `source='auto_assigned'` är raderbara/justerbara med samma flöde som manuella.
+### Klient-fix i `useGeofencing.ts`
+- Säkerställ att bakgrunds-GPS faktiskt postar varje ping till `mobile-app-api` (inte bara skriver direkt till `staff_locations` via supabase-client). Idag verkar pingen landa i `staff_locations` utan att gå genom edge-funktionen, vilket är varför server-logiken aldrig kör.
+- Behåll klientens egen `useTravelDetection` som fallback när appen är vaken (ingen regression).
 
-### Backfill för Jānis just nu
-Engångs-insert: skapa en `location_time_entries`-rad för honom på Holmträskvägen från **08:24** (när reseloggen slutade) tills han stoppar manuellt. Då matchar dagens vy verkligheten direkt utan att vänta på fixen.
+### Backfill för Raivis idag
+Engångs-SQL:
+1. Skapa `travel_time_logs` 07:16 → 08:22 (Kungens kurva → Holmträskvägen 19), klassad `work`, ~65 km, ~1h 6m.
+2. Skapa öppen `location_time_entries` på Holmträskvägen-bokningen från 08:22, `source='auto_assigned_backfill'`.
+
+### Admin-debugvy (NYTT, snabb feedback)
+Bygg en liten sida `/admin/staff-live` som visar per personal:
+- Senaste GPS-ping (när + var + accuracy).
+- Öppen `location_time_entries` (om någon).
+- Sista `travel_time_logs`.
+- Oresolvad `arrival_prompt_log`.
+- Beräknat avstånd till närmaste assignade booking idag.
+- Röd flagga om: stillastående >15 min på assignad plats utan checkin, ELLER stora GPS-hopp utan travel-log.
+
+Då slipper vi gissa nästa gång det händer.
 
 ### Filer som ändras
-- `supabase/functions/mobile-app-api/index.ts` (arrival-handlern) — assignment-lookup + auto-create entry.
-- `src/hooks/useGeofencing.ts` — utöka matchningen till dagens assignade bookings/projekt.
-- `src/services/locationTimeService.ts` — ny helper `autoCheckInToTarget(staffId, target)`.
-- `src/components/staff/ArrivalPromptDialog.tsx` — visas inte längre när auto-checkin redan skedde.
-- Engångs-SQL för Jānis (insert öppen rad från 08:24 mot booking 74e895a8…).
+- `supabase/functions/mobile-app-api/index.ts` — ny `detectAndApplyMovement`, ny endpoint-handler `update_location` som anropar den.
+- `src/hooks/useGeofencing.ts` — ruta alla bakgrundspings genom edge-funktionen istället för direkt insert.
+- `src/pages/admin/StaffLiveDebug.tsx` (ny) — adminvyn.
+- Engångs-SQL för Raivis backfill.
 
-### Förväntat beteende
-- Jānis (assignad till Westmans) → auto-incheckad utan prompt.
-- En förbipasserande kollega (inte assignad) → får arrival-prompt som idag.
-- Adminkorrigering möjlig om GPS-falskmatchning skulle ske.
+### Förväntat resultat
+- Raivis får retroaktivt en resa 07:16→08:22 och en pågående checkin på Holmträskvägen från 08:22.
+- Framöver: även när telefonen ligger låst i fickan upptäcker servern in/ut-händelser inom 30s.
+- Glapp som detta blir omöjliga utan att admin ser röd flagga i `/admin/staff-live`.
 
