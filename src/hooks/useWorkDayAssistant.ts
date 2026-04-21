@@ -317,24 +317,9 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
 
       if (!next) return;
 
-      // Side-effect 3: persist a workday_flag for unclassified anomalies so
-      // the staff member can find them in /m/my-flags even if they dismiss
-      // the assistant prompt. Best-effort — never blocks UI.
-      if (next.kind === 'unclassified_anomaly') {
-        const flagDate = next.oldestStartedAtIso.slice(0, 10);
-        mobileApi
-          .createWorkdayFlag({
-            flag_type: 'presence_without_report',
-            flag_date: flagDate,
-            title: `${next.count} oklassad${next.count === 1 ? ' frånvaro' : 'e frånvaron'} att reda ut`,
-            description:
-              'Geofence-vistelse som inte hör till någon rapport. Klassa som rast eller arbete.',
-            severity: 'warning',
-            needs_user_input: true,
-            assistant_decision_kind: 'unclassified_anomaly',
-          })
-          .catch((err) => console.warn('[Assistant] flag persist failed:', err));
-      }
+      // Side-effect 3: no-op for unclassified anomalies.
+      // The user explicitly rejected proactive glapp-popups, so anomaly
+      // follow-up lives in explicit/manual views instead of assistant prompts.
 
       setDecision(next);
     };
