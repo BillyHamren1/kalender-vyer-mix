@@ -6,32 +6,35 @@ const corsHeaders = {
 }
 
 // Verify base64 token (same format as mobile-app-api)
-const TOKEN_EXPIRY_HOURS = 24
+// Scanner sessions live in warehouse where users rarely log out — give them 30 days.
+const TOKEN_EXPIRY_HOURS = 24 * 30
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string } {
+function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string; reason?: string } {
   try {
     const payload = JSON.parse(atob(token))
     if (!payload.staffId || !payload.expiresAt) {
-      return { valid: false, error: 'Invalid token format' }
+      return { valid: false, error: 'Invalid token format', reason: 'bad_format' }
     }
     if (Date.now() > payload.expiresAt) {
-      return { valid: false, error: 'Token expired' }
+      return { valid: false, error: 'Token expired', reason: 'expired' }
     }
     return { valid: true, staffId: payload.staffId }
   } catch {
-    return { valid: false, error: 'Invalid token' }
+    return { valid: false, error: 'Invalid token', reason: 'parse_error' }
   }
 }
 
 // Verify token and return staff record with organization_id
 async function authenticateRequest(supabase: any, token: string | undefined) {
   if (!token) {
-    throw { status: 401, message: 'Token required' }
+    console.warn('[scanner-api auth] 401 reason=missing_token')
+    throw { status: 401, message: 'Token required', reason: 'missing_token' }
   }
 
   const tokenResult = verifyToken(token)
   if (!tokenResult.valid) {
-    throw { status: 401, message: tokenResult.error || 'Invalid or expired token' }
+    console.warn(`[scanner-api auth] 401 reason=${tokenResult.reason} tokenLen=${token.length}`)
+    throw { status: 401, message: tokenResult.error || 'Invalid or expired token', reason: tokenResult.reason }
   }
 
   const staffId = tokenResult.staffId!
@@ -44,7 +47,8 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
     .single()
 
   if (error || !staffMember) {
-    throw { status: 401, message: 'Staff member not found' }
+    console.warn(`[scanner-api auth] 401 reason=staff_not_found staffId=${staffId} dbError=${error?.message ?? 'none'}`)
+    throw { status: 401, message: 'Staff member not found', reason: 'staff_not_found' }
   }
 
   return {
