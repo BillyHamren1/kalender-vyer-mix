@@ -1,0 +1,1 @@
+DELETE FROM public.time_reports WHERE id = '0e25aeef-b1c7-4ba0-a311-0bc42bf1d43b';
