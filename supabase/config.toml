@@ -150,3 +150,6 @@ verify_jwt = false
 
 [functions.backfill-location-history]
 verify_jwt = false
+
+[functions.close-stale-workday-entries]
+verify_jwt = false
