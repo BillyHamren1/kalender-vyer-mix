@@ -29,6 +29,13 @@ interface ProjectInfo {
   total_hours: number;
 }
 
+export interface LatestPing {
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  updated_at: string | null;
+}
+
 interface StaffWithDayReport {
   id: string;
   name: string;
@@ -41,6 +48,7 @@ interface StaffWithDayReport {
   latest_end: string | null;
   projects: ProjectInfo[];
   segments: DaySegment[];
+  latestPing: LatestPing | null;
 }
 
 // Build an ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time string.
