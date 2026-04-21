@@ -65,6 +65,70 @@ function backoffFor(attempts: number): number {
   return BACKOFF_MS[Math.min(attempts, BACKOFF_MS.length - 1)];
 }
 
+// ── DEBUG STATUS ──
+// Lightweight observability for the internal debug panel. Persisted so a
+// hot reload / navigation doesn't wipe it.
+const STATUS_KEY = 'eventflow-location-sync-status';
+
+export interface LocationSyncStatus {
+  isFlushing: boolean;
+  lastEnqueuedAt: number | null;
+  lastEnqueuedSource: LocationPointSource | null;
+  lastUploadAt: number | null;
+  lastUploadAccepted: number;
+  lastUploadRejected: number;
+  lastErrorAt: number | null;
+  lastErrorMessage: string | null;
+}
+
+const DEFAULT_STATUS: LocationSyncStatus = {
+  isFlushing: false,
+  lastEnqueuedAt: null,
+  lastEnqueuedSource: null,
+  lastUploadAt: null,
+  lastUploadAccepted: 0,
+  lastUploadRejected: 0,
+  lastErrorAt: null,
+  lastErrorMessage: null,
+};
+
+type StatusListener = (status: LocationSyncStatus) => void;
+const statusListeners = new Set<StatusListener>();
+
+function loadStatus(): LocationSyncStatus {
+  try {
+    const raw = localStorage.getItem(STATUS_KEY);
+    if (!raw) return { ...DEFAULT_STATUS };
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_STATUS, ...parsed, isFlushing: false };
+  } catch {
+    return { ...DEFAULT_STATUS };
+  }
+}
+
+let statusCache: LocationSyncStatus = loadStatus();
+
+function patchStatus(patch: Partial<LocationSyncStatus>) {
+  statusCache = { ...statusCache, ...patch };
+  try {
+    const { isFlushing: _drop, ...persisted } = statusCache;
+    localStorage.setItem(STATUS_KEY, JSON.stringify(persisted));
+  } catch { /* ignore */ }
+  for (const l of statusListeners) {
+    try { l(statusCache); } catch { /* ignore */ }
+  }
+}
+
+export function getLocationSyncStatus(): LocationSyncStatus {
+  return statusCache;
+}
+
+export function subscribeLocationSyncStatus(l: StatusListener): () => void {
+  statusListeners.add(l);
+  l(statusCache);
+  return () => { statusListeners.delete(l); };
+}
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
