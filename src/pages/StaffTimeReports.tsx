@@ -127,8 +127,13 @@ const StaffTimeReports: React.FC = () => {
       }
 
       // Fetch booking labels
-      const bookingIds = [...new Set(reports.map(r => r.booking_id).filter(Boolean))];
-      const bookingMap = new Map<string, string>();
+      // Fetch booking labels — include both time_reports.booking_id AND
+      // location_time_entries.booking_id (auto_assigned check-ins on a booking).
+      const bookingIds = [...new Set([
+        ...reports.map(r => r.booking_id).filter(Boolean),
+        ...locationEntries.map(e => (e as any).booking_id).filter(Boolean),
+      ])] as string[];
+      const bookingMap = new Map<string, { label: string; is_internal: boolean }>();
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
@@ -143,8 +148,21 @@ const StaffTimeReports: React.FC = () => {
           } else {
             label = b.client;
           }
-          bookingMap.set(b.id, label);
+          bookingMap.set(b.id, { label, is_internal: !!b.is_internal });
         });
+      }
+
+      // Fetch large project labels for LTE rows tied to a large project.
+      const largeProjectIds = [...new Set(
+        locationEntries.map(e => (e as any).large_project_id).filter(Boolean)
+      )] as string[];
+      const largeProjectMap = new Map<string, string>();
+      if (largeProjectIds.length > 0) {
+        const { data: lps } = await supabase
+          .from('large_projects')
+          .select('id, name')
+          .in('id', largeProjectIds);
+        (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
       }
 
       // Build per-staff aggregate
