@@ -2725,8 +2725,19 @@ serve(async (req) => {
             
             const activeProject = localProject && localProject.length > 0 ? localProject[0] : null;
             const activeJob = localJob && localJob.length > 0 ? localJob[0] : null;
+
+            const keepManuallyHiddenCancelled =
+              bookingStatus === 'CANCELLED' &&
+              existingBooking.assigned_to_project === true &&
+              !activeProject &&
+              !activeJob;
             
-            if (activeProject) {
+            if (keepManuallyHiddenCancelled) {
+              console.log(`[Preserve Flags] Booking ${bookingData.id} is manually hidden cancelled booking - preserving hidden state`);
+              updateData.assigned_to_project = true;
+              updateData.assigned_project_id = existingBooking.assigned_project_id ?? null;
+              updateData.assigned_project_name = existingBooking.assigned_project_name ?? null;
+            } else if (activeProject) {
               console.log(`[Preserve Flags] Booking ${bookingData.id} has local project ${activeProject.id} (${activeProject.status}) - preserving assignment flags`);
               updateData.assigned_to_project = true;
               updateData.assigned_project_id = activeProject.id;
