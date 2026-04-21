@@ -137,6 +137,52 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
   }
 };
 
+/**
+ * Cancel a project (and hide from active views) without deleting it.
+ * Sets status='cancelled' on the project and marks the linked booking as
+ * "manually hidden cancelled" so import-bookings won't reintroduce it
+ * into the project inbox. History, comments and files are preserved.
+ */
+export const cancelProject = async (id: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
+  const { data: project, error: fetchError } = await supabase
+    .from('projects')
+    .select('booking_id, name, is_internal')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) throw new Error(`Kunde inte hämta projekt: ${fetchError.message}`);
+  if (project?.is_internal) throw new Error('Interna projekt kan inte avbokas');
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(`Kunde inte avboka projekt: ${error.message}`);
+
+  // Mark booking as manually-hidden cancelled so import-bookings preserves the hidden state
+  if (project?.booking_id) {
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: true,
+        assigned_project_id: null,
+        assigned_project_name: null,
+      })
+      .eq('id', project.booking_id);
+  }
+
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: id,
+    project_type: 'medium',
+    action: 'cancel',
+    booking_id: project?.booking_id || null,
+    performed_by: performedBy || null,
+    details: { name: project?.name },
+  });
+
+  return { bookingId: project?.booking_id || null };
+};
+
 export const deleteProject = async (id: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
   // First, fetch the project to get the booking_id, name, and is_internal flag
   const { data: project, error: fetchError } = await supabase
