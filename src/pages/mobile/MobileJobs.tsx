@@ -24,20 +24,21 @@ import { useLanguage } from '@/i18n/LanguageContext';
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
 
-const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string, t: (k: any) => string) => {
-  if (dates.rigdaydate === assignmentDate) return { label: t('jobs.rig'), className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
-  if (dates.eventdate === assignmentDate) return { label: t('jobs.event'), className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
-  if (dates.rigdowndate === assignmentDate) return { label: t('jobs.rigdown'), className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
-  return { label: t('jobs.job'), className: 'bg-muted text-foreground border-border' };
-};
 
 const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
   const { data: shifts = [] } = useScheduledShifts();
-  const { t, locale } = useLanguage();
-  const dateFnsLocale = locale === 'en' ? enUS : sv;
+  const { t } = useLanguage();
+
+  // Calendar view state — persisted in localStorage
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return isViewMode(stored) ? stored : 'day';
+  });
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
 
@@ -79,41 +80,6 @@ const MobileJobs = () => {
     dismissGeofenceEvent();
   };
 
-  // Group bookings by date, then within each date group by large project
-  const groupedBookings = bookings.reduce<Record<string, { booking: MobileBooking; date: string }[]>>((acc, booking) => {
-    for (const date of booking.assignment_dates) {
-      if (!acc[date]) acc[date] = [];
-      acc[date].push({ booking, date });
-    }
-    return acc;
-  }, {});
-
-  // Helper to group entries within a date by large_project_id
-  const groupByProject = (entries: { booking: MobileBooking; date: string }[]) => {
-    const projectGroups: Record<string, { name: string; entries: { booking: MobileBooking; date: string }[] }> = {};
-    const standalone: { booking: MobileBooking; date: string }[] = [];
-
-    for (const entry of entries) {
-      const lpId = entry.booking.large_project_id;
-      const lpName = entry.booking.large_project_name;
-      if (lpId && lpName) {
-        if (!projectGroups[lpId]) projectGroups[lpId] = { name: lpName, entries: [] };
-        projectGroups[lpId].entries.push(entry);
-      } else {
-        standalone.push(entry);
-      }
-    }
-    return { projectGroups, standalone };
-  };
-
-  const sortedDates = Object.keys(groupedBookings).sort();
-
-  const formatDateHeading = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    if (isToday(d)) return t('jobs.today');
-    if (isTomorrow(d)) return t('jobs.tomorrow');
-    return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
-  };
 
   // Timer toggle for standalone bookings.
   // STOP path: never clears local timer here — navigates user to /m/report
