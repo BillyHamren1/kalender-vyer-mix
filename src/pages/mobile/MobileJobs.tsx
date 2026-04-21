@@ -201,7 +201,7 @@ const MobileJobs = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
-        ) : sortedDates.length === 0 && locationJobs.length === 0 ? (
+        ) : sortedDates.length === 0 && locationJobs.length === 0 && shifts.length === 0 ? (
           <div className="text-center py-20 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto">
               <Calendar className="w-7 h-7 text-muted-foreground/40" />
@@ -288,11 +288,20 @@ const MobileJobs = () => {
             </div>
           )}
 
-          {sortedDates.map(dateStr => {
-            const entries = groupedBookings[dateStr];
-            const isDateToday = isToday(parseISO(dateStr));
-            const { projectGroups, standalone } = groupByProject(entries);
-
+          {/* Today's planned shifts (vertical timeline) */}
+          <div>
+            <div className="flex items-center gap-2 mb-2.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">
+                {t('jobs.today')}
+              </h2>
+            </div>
+            <DayTimeline
+              shifts={shifts}
+              activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+            />
+          </div>
+          </>
             const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
               const badge = eventTypeBadge(booking, date, t);
               const hasTimer = activeTimers.has(booking.id);
