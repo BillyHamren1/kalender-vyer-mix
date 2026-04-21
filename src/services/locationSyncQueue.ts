@@ -290,6 +290,7 @@ export async function flushLocationQueue(): Promise<void> {
     return;
   }
   flushing = true;
+  patchStatus({ isFlushing: true });
   try {
     const queue = loadQueue();
     const now = Date.now();
