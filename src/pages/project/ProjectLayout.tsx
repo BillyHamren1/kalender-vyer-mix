@@ -7,7 +7,7 @@ import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
-import { deleteProject } from "@/services/projectService";
+import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,15 +50,15 @@ const ProjectLayout = () => {
   };
 
   const handleDeleteProject = async () => {
-    if (!confirm(`Ta bort medelprojekt: "${project?.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
+    if (!confirm(`Avboka och dölj medelprojekt: "${project?.name}"?\n\nProjektet behålls med status "Avbokad" och försvinner från aktiva listor. Bokningen återintroduceras inte i inboxen.`)) return;
     try {
-      await deleteProject(projectId!);
+      await cancelProject(projectId!);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-      toast.success('Medelprojekt borttaget');
+      toast.success('Medelprojekt avbokat och dolt');
       navigate('/projects');
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte ta bort projekt');
+      toast.error(err.message || 'Kunde inte avboka projekt');
     }
   };
 
