@@ -37,6 +37,8 @@ const REASON_TEXT: Record<
   Extract<StartEvaluation, { status: 'switch' }>['reason'],
   string
 > = {
+  one_active_timer_at_a_time:
+    'Du kan bara ha en aktiv timer åt gången. Vill du stoppa den pågående och börja med den nya?',
   one_booking_at_a_time:
     'Du kan bara ha en bokning aktiv åt gången. Vill du stoppa den pågående och börja med den nya?',
   one_project_at_a_time:
