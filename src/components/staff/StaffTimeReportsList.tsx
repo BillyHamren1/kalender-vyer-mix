@@ -274,6 +274,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   </div>
 
                   {/* Chronological segment timeline — open at top, then newest → oldest */}
+                  {/* Latest GPS ping (no live tick — backend updates) */}
+                  <StaffLatestPing ping={staff.latestPing} className="mt-1" />
+
                   {(staff.segments?.length ?? 0) > 0 && (
                     <div className="mt-1.5 border-l-2 border-border/60 pl-2 space-y-0.5">
                       {staff.segments.map(seg => {
