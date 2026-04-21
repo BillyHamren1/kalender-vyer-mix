@@ -4,21 +4,25 @@ import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
-import DayTimeline from '@/components/mobile-app/DayTimeline';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import { type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
-import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
-import { format, parseISO, isToday, isTomorrow } from 'date-fns';
-import { sv, enUS } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Clock, Square, Building2 } from 'lucide-react';
+import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
+import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
+import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
+import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
+import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
+import { Loader2, RefreshCw, Clock, Square, Building2, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+
+const VIEW_MODE_KEY = 'mobile.calendarView';
+const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
 
 const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string, t: (k: any) => string) => {
   if (dates.rigdaydate === assignmentDate) return { label: t('jobs.rig'), className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
