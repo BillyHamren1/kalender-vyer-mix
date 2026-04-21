@@ -63,6 +63,27 @@ import {
 // ─────────────────────────────────────────────────────────────────────
 
 const TICK_INTERVAL_MS = 30_000; // re-evaluate every 30s
+const LAST_WORKPLACE_PROMPTED_KEY_PREFIX = 'eventflow-last-workplace-prompted-';
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function hasLastWorkplacePromptBeenHandledToday(): boolean {
+  try {
+    return localStorage.getItem(LAST_WORKPLACE_PROMPTED_KEY_PREFIX + todayKey()) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markLastWorkplacePromptHandledToday() {
+  try {
+    localStorage.setItem(LAST_WORKPLACE_PROMPTED_KEY_PREFIX + todayKey(), '1');
+  } catch {
+    /* ignore */
+  }
+}
 
 // Re-export pure types so existing UI imports keep working.
 export type DecisionKind = PureDecisionKind;
@@ -317,7 +338,17 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
 
       if (!next) return;
 
-      // Side-effect 3: no-op for unclassified anomalies.
+      // Side-effect 3: last_workplace_for_day is special — once the user has
+      // answered that evening prompt, we must not resurrect it again the same
+      // day just because the assistant re-evaluates every 30s.
+      if (
+        next.kind === 'last_workplace_for_day' &&
+        hasLastWorkplacePromptBeenHandledToday()
+      ) {
+        return;
+      }
+
+      // Side-effect 4: no-op for unclassified anomalies.
       // The user explicitly rejected proactive glapp-popups, so anomaly
       // follow-up lives in explicit/manual views instead of assistant prompts.
 
@@ -341,6 +372,9 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   const acknowledge = () => {
     if (!decision) return;
     lastShownRef.current.set(decision.kind, Date.now());
+    if (decision.kind === 'last_workplace_for_day') {
+      markLastWorkplacePromptHandledToday();
+    }
     setDecision(null);
   };
 

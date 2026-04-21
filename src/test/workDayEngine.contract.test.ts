@@ -29,12 +29,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
 import {
   nextAssistantDecision,
   COOLDOWNS_MS,
   type WorkDayState,
   type CachedTarget,
 } from '@/lib/workDayDecisions';
+
+const read = (p: string) => fs.readFileSync(p, 'utf-8');
 
 // ─────────────────────────────────────────────────────────────────────
 // State factory — keep tests terse; only override what each scenario needs.
@@ -443,6 +446,14 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
       });
       const d = nextAssistantDecision(state);
       expect(d?.kind).toBe('last_workplace_for_day');
+    });
+
+    it('last_workplace_for_day: hooken har persistent dagssuppress så samma fråga inte återuppstår efter svar', () => {
+      const hook = read('src/hooks/useWorkDayAssistant.ts');
+      expect(hook).toMatch(/LAST_WORKPLACE_PROMPTED_KEY_PREFIX/);
+      expect(hook).toMatch(/hasLastWorkplacePromptBeenHandledToday/);
+      expect(hook).toMatch(/markLastWorkplacePromptHandledToday/);
+      expect(hook).toMatch(/decision\.kind === 'last_workplace_for_day'/);
     });
 
     it('daystart: kräver morgonfönster + första signal idag + inga timers', () => {
