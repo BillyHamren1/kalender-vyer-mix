@@ -20,6 +20,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { scheduleLocalNotification } from '@/services/pushNotificationService';
+import { hasWorkdayEndedToday } from '@/services/workdayState';
 
 const SUPPRESS_KEY = 'eventflow-last-shift-prompt-suppressed';
 const PROMPT_AUTO_DISMISS_MS = 60 * 60 * 1000; // 60 min
@@ -127,6 +128,7 @@ export function useLastShiftEndDetection(enabled: boolean) {
     if (!enabled) return;
 
     const onExit = (e: Event) => {
+      if (hasWorkdayEndedToday()) return;
       if (isSuppressedToday()) return;
       if (exitContext) return; // already prompting
 

@@ -11,6 +11,7 @@ import { NextActionDialog } from './NextActionDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
+import { markWorkdayEnded } from '@/services/workdayState';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
@@ -272,6 +273,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
+        markWorkdayEnded();
         window.dispatchEvent(new CustomEvent('workday-ended'));
       }
     }
@@ -290,6 +292,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
+        markWorkdayEnded();
         window.dispatchEvent(new CustomEvent('workday-ended'));
         toast.message('Inga aktiva timers — arbetsdagen avslutades.');
         return;
