@@ -5,10 +5,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { GpsPosition } from '@/hooks/useGeofencing';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
-const SPEED_STOP_THRESHOLD = 1.0; // m/s
 const START_DEBOUNCE_MS = 15000; // 15s sustained speed
-const STOP_DEBOUNCE_MS = 60000; // 60s low speed
 const MAX_ACCURACY_M = 50;
+
+/**
+ * Cross-hook signal — fired by `useGeofencing` (on ENTER of any known
+ * workplace) and by `useTimerStartFlow` (right before a new activity timer
+ * starts). The travel-detection hook listens and stops the open
+ * `travel_time_logs` row with the supplied position as destination.
+ *
+ * Speed alone NEVER stops a travel row — only arrival at a known place
+ * or the user starting a new activity counts as "resan är slut".
+ */
+export const STOP_TRAVEL_EVENT = 'eventflow-stop-travel';
+export interface StopTravelEventDetail {
+  lat: number;
+  lng: number;
+  /** True when triggered by automatic flow (geofence ENTER / new timer). */
+  auto?: boolean;
+}
 const TRAVEL_STATE_KEY = 'eventflow-travel-state';
 const MAPBOX_TOKEN_KEY = 'eventflow-mapbox-token';
 
