@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { GeoJSONPolygon } from "@/lib/geofenceEval";
 
 export interface OrganizationLocation {
   id: string;
@@ -10,6 +11,8 @@ export interface OrganizationLocation {
   radius_meters: number;
   is_active: boolean;
   show_as_project: boolean;
+  geofence_mode: 'circle' | 'polygon';
+  geofence_polygon: GeoJSONPolygon | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,14 +38,18 @@ export async function fetchAllOrganizationLocations(): Promise<OrganizationLocat
   return (data || []) as unknown as OrganizationLocation[];
 }
 
-export async function createOrganizationLocation(loc: {
+export interface UpsertLocationInput {
   name: string;
   address?: string;
   latitude: number;
   longitude: number;
   radius_meters?: number;
   show_as_project?: boolean;
-}): Promise<OrganizationLocation> {
+  geofence_mode?: 'circle' | 'polygon';
+  geofence_polygon?: GeoJSONPolygon | null;
+}
+
+export async function createOrganizationLocation(loc: UpsertLocationInput): Promise<OrganizationLocation> {
   const { data, error } = await supabase
     .from('organization_locations')
     .insert({
@@ -52,6 +59,8 @@ export async function createOrganizationLocation(loc: {
       longitude: loc.longitude,
       radius_meters: loc.radius_meters || 100,
       show_as_project: loc.show_as_project || false,
+      geofence_mode: loc.geofence_mode || 'circle',
+      geofence_polygon: loc.geofence_polygon ?? null,
     } as any)
     .select()
     .single();
@@ -60,15 +69,7 @@ export async function createOrganizationLocation(loc: {
   return data as unknown as OrganizationLocation;
 }
 
-export async function updateOrganizationLocation(id: string, updates: {
-  name?: string;
-  address?: string;
-  latitude?: number;
-  longitude?: number;
-  radius_meters?: number;
-  is_active?: boolean;
-  show_as_project?: boolean;
-}): Promise<OrganizationLocation> {
+export async function updateOrganizationLocation(id: string, updates: Partial<UpsertLocationInput> & { is_active?: boolean }): Promise<OrganizationLocation> {
   const { data, error } = await supabase
     .from('organization_locations')
     .update(updates as any)
