@@ -750,11 +750,14 @@ async function reconcileCalendarEvents(
   if (bookingData.status !== 'CONFIRMED') return;
 
   // 1. Fetch ALL existing calendar events for this booking
+  // NOTE: Exclude event_type='activity' — those are user-created activity syncs
+  // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
   const { data: existingEvents } = await supabase
     .from('calendar_events')
     .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date')
     .eq('booking_id', bookingData.id)
-    .eq('organization_id', bookingData.organization_id || organizationId);
+    .eq('organization_id', bookingData.organization_id || organizationId)
+    .neq('event_type', 'activity');
 
   console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${existingEvents?.length || 0} existing events`);
 
