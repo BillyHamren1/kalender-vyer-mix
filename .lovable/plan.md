@@ -1,38 +1,57 @@
 
 
-## Fix Dagöversikt — datakälla, format och layout
+## Fixa dubbelräkning i Jānis dagöversikt
 
-Tre konkreta fel i `DailyOverviewDialog` + uppströms data:
+### Vad data visar för Jānis (21 april)
 
-### 1. Saknar pågående pass → totalt mismatch
-Tabellens "2h 40m totalt" inkluderar Jānis pågående lagerpass (`location_time_entries` med `exited_at IS NULL`, startad 06:58). Dialogen frågar bara `time_reports`, där den raden ännu inte finns.
+| Källa | Tid | Status |
+|---|---|---|
+| `location_time_entries` (Lager) | start 06:58, **exited_at = NULL** | räknar fortfarande live |
+| `travel_time_logs` (Resa → kund) | 07:15 → 08:24 (1h 8m, klassad `work`) | avslutad |
+| `time_reports` | inga | — |
 
-**Fix:** I `StaffTimeReportDetail.tsx`, hämta även `location_time_entries` för dagen (både pågående och avslutade) och bygg syntetiska work-rader till `dailyOverviewWork`. För pågående: `end_time = null`, `hours_worked = (now - entered_at)`. Visa dem med `Pågående`-badge i timeline.
+Lagerklockan startade kl. 06:58 när han kom till lagret. Klockan 07:15 lämnade han lagret och GPS:en loggade en resa till kunden (1h 8m). **Men ingen stängde lager-sessionen** → den fortsätter ticka och ger nu ~1h 50m, samtidigt som resan adderar ytterligare 1h 8m → "2h 53m" istället för korrekta ~1h 50m.
 
-### 2. "2026-" i Första start / Sista slut / tidslinje
-`start_time?.slice(0, 5)` antar `HH:MM:SS`-format. När värdet är ett ISO-datetime ("2026-04-21T06:58…") blir resultatet "2026-".
+### Rotorsak
 
-**Fix:** Skapa hjälpare `toHHMM(value)` som hanterar både `HH:MM:SS` och ISO-datetime: om strängen innehåller `T`, plocka ut tiden efter T; annars slice(0,5). Använd överallt i `DailyOverviewDialog.tsx` (rad 328, 329, 375, 377, 198, 201, 214, 217).
+I `useGeofencing` när användaren lämnar en fast plats (warehouse) sätts inte `exited_at` på `location_time_entries`-raden. Och när en resa registreras (`travel_time_logs` skapas) finns ingen koppling som stänger en pågående lager-session. Resultatet: överlappande tid räknas dubbelt.
 
-### 3. Dialog för smal
-`max-w-2xl` (672px) gör att adresser och tidslinje blir avhuggna ("Holmträskvägen 19, 141 91 Hu...") och de fyra summary-korten trängs på två rader.
+### Fix
 
-**Fix:**
-- Höj till `max-w-5xl` (1024px).
-- Karta: `h-[300px]` → `h-[420px]`.
-- Tidslinje-rader: tillåt wrapping av adresser (`break-words` istället för `truncate`).
-- "In- och utloggningar"-listan: visa hela passLabel (no truncate) och bryt rad om långt.
-- Summary-grid: `grid-cols-2 sm:grid-cols-4` → `grid-cols-4` (alltid på en rad i den bredare dialogen).
+**1. Auto-stäng lager-pass när resa startar (huvudfixen)**
+I `src/hooks/useGeofencing.ts` (eller där `travel_time_logs` skapas av `useTravelDetection`):
+- När en travel-log börjar för en `staff_id`, hitta öppna `location_time_entries` (`exited_at IS NULL`) för samma staff och sätt `exited_at = travel.start_time`, `total_minutes = (start_time - entered_at)`.
+- När geofence "exit" triggar för en location ska `exited_at` sättas direkt — inte vänta på att appen stängs.
 
-### 4. Konsistens-badge
-Lägg en liten upplysning under summary om dagen har pågående pass: `⏱ 1 pågående aktivitet — totaltid uppdateras live`. Då blir det tydligt varför "Sista slut" är "—".
+**2. Dedupliceringsfilter i Dagöversikt (defensiv lösning)**
+I `StaffTimeReportDetail.tsx` där `dailyOverviewWork` byggs:
+- För varje pågående lager-pass: capa "live duration" till **min(now, första travel_log.start_time efter entered_at)**. Då slutar lager-tiden visas som växande så fort en resa registrerats efter starten.
+- Lägg en varnings-badge `⚠️ Lagerpass ej stängt — kapad till resans start` så admin ser anomalin.
+
+**3. Backfill för Jānis just nu**
+Engångs-UPDATE på rad `b347ff5d-c504-419f-b656-d585b1a3726b`:
+```sql
+UPDATE location_time_entries
+SET exited_at = '2026-04-21 05:15:55.177+00',
+    total_minutes = 17
+WHERE id = 'b347ff5d-c504-419f-b656-d585b1a3726b';
+```
+(samma logik kan köras som migration: stäng alla öppna location_time_entries där det finns en senare travel_time_log för samma staff.)
+
+**4. Admin-kontroll (anomali)**
+Lägg till anomalitypen `overlapping_location_and_travel` i `time_report_anomalies` så att överlapp mellan en öppen presence-session och en travel-log flaggas, oberoende av om geofence-stängningen missas i framtiden.
 
 ### Filer som ändras
-- `src/components/staff/DailyOverviewDialog.tsx` — toHHMM-hjälpare, layout, pågående-stöd, ingen truncate.
-- `src/components/staff/StaffTimeReportDetail.tsx` — hämta `location_time_entries` för `dailyOverviewDate`, mappa in i `dailyOverviewWork` inkl. pågående.
+- `src/hooks/useGeofencing.ts` — stäng `location_time_entries` vid geofence-exit OCH när travel detecteras.
+- `src/hooks/useTravelDetection.ts` — vid skapande av travel_log, anropa "close-open-location-entries"-helper.
+- `src/services/locationTimeService.ts` — ny funktion `closeOpenEntriesForStaff(staffId, beforeTime)`.
+- `src/components/staff/StaffTimeReportDetail.tsx` — capa pågående pass till nästa travel-log:s start; visa varnings-badge.
+- Engångs-SQL för Jānis (via migration eller direkt insert/update).
+- Valfritt: anomali-detektor för överlapp.
 
-### Förväntat resultat
-- "Arbetstid" matchar tabellens totalsumma (2h 40m, ökar live).
-- "Första start" visar `06:58`, "Sista slut" visar "—" + badge "Pågående".
-- Adresser och tidslinje syns hela utan klippning.
+### Förväntat resultat för Jānis
+- Lager: 06:58 → 07:15 = **17 min** (stängs när resa startar)
+- Resa: 07:15 → 08:24 = **1h 8m**
+- Totalt: **~1h 25m** (matchar de andra som inte hade lager-stopp)
+- Ingen växande "live"-tid på en plats han inte längre är på.
 
