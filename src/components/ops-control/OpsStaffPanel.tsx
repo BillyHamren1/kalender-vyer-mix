@@ -91,9 +91,9 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
             >
               <div className="text-xs font-semibold text-foreground">{staff.nextJob.client}</div>
               <div className="flex items-center gap-3 mt-1">
-                {staff.nextJob.startTime && (
+                {staff.nextJob.startClock && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                    <Clock className="w-3 h-3" /> {format(new Date(staff.nextJob.startTime), 'HH:mm')}
+                    <Clock className="w-3 h-3" /> {staff.nextJob.startClock}
                   </span>
                 )}
                 {staff.nextJob.deliveryAddress && (
