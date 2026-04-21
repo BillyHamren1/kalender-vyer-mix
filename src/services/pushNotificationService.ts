@@ -165,6 +165,7 @@ export async function unregisterPushNotifications(): Promise<void> {
     console.log('[Push] Unregistered');
   } catch (err) {
     console.error('[Push] Unregister error:', err);
+  }
 }
 
 /**
