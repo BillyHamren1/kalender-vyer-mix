@@ -1,53 +1,94 @@
 
 
-## Mobil kalendervy på /m — Dag/Vecka/Månad
+## Exakta geofencer — rita polygon på karta
 
-### Mål
-Lägg en växlingsbar kalendervy överst på mobilappens startsida (`/m`). Standard = **Dagsvy**. Användaren kan toggla till **Vecka** eller **Månad**. Befintlig joblista, timer-banner, geofence-logik och Lager-sektion behålls oförändrade under kalendern.
+### Problem
+Idag är ett geofence en cirkel `(lat, lng, radius_meters)`. Stora radier ger falska "ankomst" 250 m bort (t.ex. på vägen, hos grannen, på natten när GPS driftar). En cirkel går inte att forma efter en faktisk fastighet/lagergård.
 
-### Komponenter (nya)
+### Lösning
+Lägg till **polygon-stöd** ovanpå nuvarande cirkelmodell. Användaren ritar geofencet direkt på en Mapbox-karta i Ops Control Center → Fasta platser. Polygonen är auktoritativ när den finns; cirkeln blir fallback för platser utan ritad polygon (bakåtkompatibelt).
 
-- `src/components/mobile-app/calendar/CalendarViewToggle.tsx` — segmentkontroll (Dag / Vecka / Månad), persisterar val i `localStorage` (`mobile.calendarView`).
-- `src/components/mobile-app/calendar/CalendarDateNav.tsx` — `< [datumetikett] >` + "Idag"-knapp. Etiketten anpassar sig till vy (t.ex. "tis 22 apr", "v.17 · 21–27 apr", "april 2026").
-- `src/components/mobile-app/calendar/MobileDayView.tsx` — visar pass/bookings/shifts för **valt datum**. Återanvänder befintliga jobbkort från `MobileJobs` (extraherar listrenderingen till `JobCardList` som tar `items`).
-- `src/components/mobile-app/calendar/MobileWeekView.tsx` — 7-dagars stripe (mån–sön) med pricks-/sifferindikatorer per dag + agendalista under vald dag. Tap på dag → byter `selectedDate`.
-- `src/components/mobile-app/calendar/MobileMonthView.tsx` — månadsgrid (6 rader × 7), prick per dag som har pass, markering för idag/valt datum. Tap på dag → byt till Dagsvy med det datumet.
-- `src/components/mobile-app/calendar/JobCardList.tsx` — extraherad listrendering från nuvarande `MobileJobs` (oförändrad UI per kort).
+### Datamodell (migration)
 
-### Hook (ny)
+Lägg till på `organization_locations`:
+- `geofence_polygon jsonb` — GeoJSON `Polygon` i WGS84 (`{"type":"Polygon","coordinates":[[[lng,lat],...]]}`). NULL = använd cirkel.
+- `geofence_mode text` default `'circle'` — `'circle'` | `'polygon'`. Vid `polygon` ignoreras `radius_meters` i evaluering.
+- (cirkel-fälten behålls som fallback och för migration-paths)
 
-- `src/hooks/useBookingsByDate.ts` — tar `bookings` + `shifts` (från befintlig `useScheduledShifts` / `mobile-bookings`-data som redan finns i `MobileJobs`) och returnerar `Map<YYYY-MM-DD, JobItem[]>` + helpers `getForDate(date)`, `getCountsForRange(start,end)`. Ingen ny nätverkstrafik — gruppering sker klient-side på redan hämtad data.
+RLS: oförändrad — samma policies som dagens `organization_locations`.
 
-### Ändringar
+### UI: ny GeofenceMapEditor
 
-- `src/pages/mobile/MobileJobs.tsx`:
-  - Lägg till `viewMode` state (`'day' | 'week' | 'month'`, default `'day'`, persistent).
-  - Lägg till `selectedDate` state (default = idag).
-  - Renderingsordning överst→ner:
-    1. `CalendarViewToggle`
-    2. `CalendarDateNav`
-    3. `MobileDayView` / `MobileWeekView` / `MobileMonthView` beroende på `viewMode`
-    4. Befintlig timer-banner, "Lager"-sektion, restsection oförändrade.
-  - Befintlig "alla pass i en lång lista"-rendering ersätts av Dagsvyn (visar bara dagens pass). Om användaren vill se framtida pass byter de till Vecka/Månad.
+Ny komponent `src/components/ops-control/GeofenceMapEditor.tsx`:
+- Mapbox GL-karta + `@mapbox/mapbox-gl-draw` (redan installerat).
+- Verktygsfält: **Rita polygon**, **Rita cirkel**, **Redigera hörn**, **Ångra**, **Rensa**, **Centrera på adress**.
+- Cirkelläge: drag radien visuellt (1–500 m), sparas som `geofence_mode='circle'` + `radius_meters`.
+- Polygonläge: klicka för att lägga hörn, dubbelklick för att stänga, dra hörn för att finjustera. Sparas som `geofence_mode='polygon'` + `geofence_polygon`.
+- Live-area visas (m²) + visuell varning om polygonen är "för stor" (>10 000 m²) eller "för liten" (<25 m²).
+- Bakgrundskarta: satellit-toggle (zoom in på taket).
+- "Min position"-knapp som zoomar till användarens GPS för att rita från fält.
 
-- `src/i18n/sv.json` + `en.json` — nya nycklar:
-  - `calendar.day` / `calendar.week` / `calendar.month` / `calendar.today`
-  - `calendar.noJobsToday` / `calendar.noJobsThisDay` / `calendar.weekShort` (`v.`)
+### Integration i OrganizationLocationsManager
 
-### UX-detaljer
+Ersätt nuvarande "Latitud/Longitud/Radie"-fälten i dialogen med:
+- Adressfält + sök (oförändrat → centrerar kartan).
+- `<GeofenceMapEditor>` (ca 360 px hög).
+- Visar nuvarande geometri vid redigering (cirkel ELLER polygon).
+- Spara skickar antingen `{geofence_mode:'circle', latitude, longitude, radius_meters, geofence_polygon: null}` eller `{geofence_mode:'polygon', geofence_polygon: {...}, latitude, longitude}` (lat/lng = polygonens centroid för listvisning/avstånd).
 
-- **Veckostrip**: alltid mån–sön (svenskt format), aktuell dag har cirkel, vald dag har fylld bakgrund. Liten siffra under datumet = antal pass den dagen.
-- **Månadsgrid**: kompakt, ~44px celler, prick under datumet om pass finns. Swipe vänster/höger byter månad (use `useSwipeable`-mönster om det redan finns; annars knappar i `CalendarDateNav` räcker).
-- **Tom dag**: visa centrerat "Inga pass denna dag" + knapp "Visa veckan".
-- **Inga nya datakällor**: vyerna konsumerar exakt samma data som dagens lista (`useScheduledShifts` + bookings). Garanterar att timers, geofence och realtime-uppdateringar fortsätter fungera.
+### Backend-evaluering (point-in-polygon)
+
+Uppdatera **alla tre** ställen som idag använder `dist <= radius_meters`:
+
+1. `supabase/functions/mobile-app-api/index.ts` (location_id-geofence-checken vid GPS-ping, rad ~4248).
+2. `src/hooks/useGeofencing.ts` (klient-prompts för "You are on site").
+3. `src/components/ops-control/OpsLiveMap.tsx` (visuell rendering).
+
+Ny gemensam helper `src/lib/geofenceEval.ts`:
+```ts
+isInsideGeofence(lat, lng, location): boolean
+// polygon → ray-casting point-in-polygon
+// circle  → haversine ≤ radius
+distanceToGeofenceEdge(lat, lng, location): number
+// polygon → min distans till kant; negativt om innanför
+// circle  → radius - haversine
+```
+
+Edge function använder samma logik (kopia av helpern i `supabase/functions/_shared/geofenceEval.ts`).
+
+### Anti-flapping (löser "loggas in på natten")
+
+För att GPS-drift inte ska trigga falska entries läggs två skydd in:
+- **Hysteres**: ENTER kräver `isInside === true` AND avstånd-till-kant ≥ 5 m inåt. EXIT kräver avstånd-till-kant ≥ 15 m utåt. Ersätter dagens `radius + 50` magic number.
+- **GPS-noggrannhetsfilter**: pings med `accuracy > 50 m` ignoreras för geofence-evaluering (men sparas i historik). Konfigurerbar per location senare om behov.
+
+### OpsLiveMap-rendering
+
+`OpsLiveMap.tsx` ritar idag en cirkelpolygon från `radius_meters`. Uppdatera så den ritar `geofence_polygon` direkt om mode = polygon, annars befintlig cirkelapproximation. Samma popup, samma färg (#7c3aed).
 
 ### Validering
 
-- A: Användare öppnar `/m` → ser Dagsvy med dagens pass. Default-vy korrekt.
-- B: Toggle till Vecka → ser veckostrip + agenda för vald dag. Tap på torsdag → agenda uppdateras.
-- C: Toggle till Månad → ser månadsgrid med prickar. Tap på 28 apr → byter till Dagsvy/28 apr.
-- D: "Idag"-knapp återställer `selectedDate` till nu i alla vyer.
-- E: Timer-banner och Lager-sektion fortsätter visas under kalendern oavsett vy.
-- F: Val av vy överlever sidladdning (localStorage).
-- G: Inga extra API-anrop — verifierat via Network tab.
+- A: Rita polygon runt enbart lagerhuset → personal som åker förbi 100 m bort triggar inte ENTER.
+- B: Befintliga locations utan polygon fungerar oförändrat (cirkel-fallback).
+- C: Spara polygon → öppna igen → polygonen renderas korrekt och kan justeras.
+- D: GPS-ping med `accuracy=120 m` triggar varken enter/exit.
+- E: Person står 3 m utanför polygonen med drift → inga falska enter (hysteres 5 m).
+- F: Person inne, går ut 10 m → exit triggas inte (under 15 m hysteres). Går ut 20 m → exit.
+- G: OpsLiveMap visar polygon-formen exakt, inte en cirkel.
+- H: Multi-tenant: org A:s polygon syns aldrig för org B (befintlig RLS täcker).
+
+### Filer som skapas / ändras
+
+**Nya:**
+- `supabase/migrations/<ts>_geofence_polygon.sql`
+- `src/components/ops-control/GeofenceMapEditor.tsx`
+- `src/lib/geofenceEval.ts`
+- `supabase/functions/_shared/geofenceEval.ts`
+
+**Ändras:**
+- `src/services/organizationLocationService.ts` (typer + fält)
+- `src/components/ops-control/OrganizationLocationsManager.tsx` (dialog UI)
+- `src/components/ops-control/OpsLiveMap.tsx` (polygon-rendering)
+- `src/hooks/useGeofencing.ts` (eval via helper + hysteres + accuracy-gate)
+- `supabase/functions/mobile-app-api/index.ts` (geofence-check via shared helper)
 
