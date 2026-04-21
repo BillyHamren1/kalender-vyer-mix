@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAllOrganizationLocations,
@@ -7,7 +7,7 @@ import {
   deleteOrganizationLocation,
   OrganizationLocation,
 } from '@/services/organizationLocationService';
-import { Building2, Plus, Trash2, MapPin, Edit2, X, Check, Search, Loader2 } from 'lucide-react';
+import { Building2, Plus, Trash2, MapPin, Edit2, Check, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import GeofenceMapEditor, { GeofenceValue } from './GeofenceMapEditor';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
@@ -22,7 +23,17 @@ const OrganizationLocationsManager = () => {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100', show_as_project: false });
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [showAsProject, setShowAsProject] = useState(false);
+  const [geofence, setGeofence] = useState<GeofenceValue>({
+    mode: 'circle',
+    latitude: 0,
+    longitude: 0,
+    radius_meters: 100,
+    polygon: null,
+  });
+  const [centerOn, setCenterOn] = useState<{ lat: number; lng: number } | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery({
@@ -62,24 +73,31 @@ const OrganizationLocationsManager = () => {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingId(null);
-    setForm({ name: '', address: '', latitude: '', longitude: '', radius_meters: '100', show_as_project: false });
+    setName('');
+    setAddress('');
+    setShowAsProject(false);
+    setGeofence({ mode: 'circle', latitude: 0, longitude: 0, radius_meters: 100, polygon: null });
+    setCenterOn(null);
   };
 
   const openEdit = (loc: OrganizationLocation) => {
     setEditingId(loc.id);
-    setForm({
-      name: loc.name,
-      address: loc.address || '',
-      latitude: String(loc.latitude),
-      longitude: String(loc.longitude),
-      radius_meters: String(loc.radius_meters),
-      show_as_project: loc.show_as_project || false,
+    setName(loc.name);
+    setAddress(loc.address || '');
+    setShowAsProject(loc.show_as_project || false);
+    setGeofence({
+      mode: (loc.geofence_mode as any) || 'circle',
+      latitude: Number(loc.latitude),
+      longitude: Number(loc.longitude),
+      radius_meters: loc.radius_meters,
+      polygon: loc.geofence_polygon || null,
     });
+    setCenterOn(null);
     setDialogOpen(true);
   };
 
   const geocodeAddress = useCallback(async () => {
-    if (!form.address.trim()) {
+    if (!address.trim()) {
       toast.error('Ange en adress först');
       return;
     }
@@ -90,7 +108,7 @@ const OrganizationLocationsManager = () => {
     setIsGeocoding(true);
     try {
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(form.address)}.json?access_token=${MAPBOX_TOKEN}&country=se&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN}&country=se&limit=1`
       );
       const json = await res.json();
       const feature = json.features?.[0];
@@ -99,44 +117,40 @@ const OrganizationLocationsManager = () => {
         return;
       }
       const [lng, lat] = feature.center;
-      setForm(f => ({
-        ...f,
-        latitude: String(lat),
-        longitude: String(lng),
-        address: feature.place_name || f.address,
-      }));
-      toast.success('Koordinater hämtade');
+      setAddress(feature.place_name || address);
+      setCenterOn({ lat, lng });
+      // For circle mode also seed centroid
+      setGeofence(g => g.mode === 'circle' ? { ...g, latitude: lat, longitude: lng } : g);
+      toast.success('Karta centrerad');
     } catch {
       toast.error('Geocoding misslyckades');
     } finally {
       setIsGeocoding(false);
     }
-  }, [form.address]);
-
-  const normalize = (v: string) => parseFloat(v.replace(',', '.'));
+  }, [address]);
 
   const handleSave = () => {
-    const lat = normalize(form.latitude);
-    const lng = normalize(form.longitude);
-    if (!form.name.trim() || isNaN(lat) || isNaN(lng)) {
-      toast.error('Namn, latitud och longitud krävs');
+    if (!name.trim()) {
+      toast.error('Namn krävs');
       return;
     }
-    if (lat < -90 || lat > 90) {
-      toast.error('Latitud måste vara mellan -90 och 90');
+    if (geofence.mode === 'polygon' && !geofence.polygon) {
+      toast.error('Rita en polygon på kartan eller välj cirkel-läge');
       return;
     }
-    if (lng < -180 || lng > 180) {
-      toast.error('Longitud måste vara mellan -180 och 180');
+    if (geofence.mode === 'circle' && (!geofence.latitude || !geofence.longitude)) {
+      toast.error('Sök en adress eller använd Min position för att placera cirkeln');
       return;
     }
     const payload = {
-      name: form.name.trim(),
-      address: form.address.trim() || undefined,
-      latitude: lat,
-      longitude: lng,
-      radius_meters: parseInt(form.radius_meters.replace(',', '.')) || 100,
-      show_as_project: form.show_as_project,
+      name: name.trim(),
+      address: address.trim() || undefined,
+      latitude: geofence.latitude,
+      longitude: geofence.longitude,
+      radius_meters: geofence.radius_meters || 100,
+      show_as_project: showAsProject,
+      geofence_mode: geofence.mode,
+      geofence_polygon: geofence.polygon,
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, updates: payload });
@@ -175,7 +189,7 @@ const OrganizationLocationsManager = () => {
                 {loc.address && <span className="text-muted-foreground ml-1.5">— {loc.address}</span>}
               </div>
               <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] h-5">
-                {loc.radius_meters}m
+                {loc.geofence_mode === 'polygon' ? 'Polygon' : `${loc.radius_meters}m`}
               </Badge>
               {loc.show_as_project && (
                 <Badge variant="outline" className="text-[10px] h-5 text-primary border-primary/30">Tidprojekt</Badge>
@@ -197,21 +211,21 @@ const OrganizationLocationsManager = () => {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={v => { if (!v) closeDialog(); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-sm">{editingId ? 'Redigera plats' : 'Ny fast plats'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Namn</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Kontoret" className="h-9 text-sm" />
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="Kontoret" className="h-9 text-sm" />
             </div>
             <div>
               <Label className="text-xs">Adress</Label>
               <div className="flex gap-1.5">
                 <Input
-                  value={form.address}
-                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
                   placeholder="Storgatan 1, Stockholm"
                   className="h-9 text-sm flex-1"
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); geocodeAddress(); } }}
@@ -227,28 +241,33 @@ const OrganizationLocationsManager = () => {
                   {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 </Button>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Skriv adress och klicka sök — koordinater fylls i automatiskt</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Sök adressen → kartan centreras. Rita sedan polygon för exakt geofence.</p>
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label className="text-xs">Latitud</Label>
-                <Input type="text" inputMode="decimal" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="59.3293" className="h-9 text-sm" />
+
+            <GeofenceMapEditor value={geofence} onChange={setGeofence} centerOn={centerOn} height={340} />
+
+            {geofence.mode === 'circle' && (
+              <div>
+                <Label className="text-xs">Radie (meter)</Label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={String(geofence.radius_meters)}
+                  onChange={e => {
+                    const n = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                    setGeofence(g => ({ ...g, radius_meters: n }));
+                  }}
+                  className="h-9 text-sm"
+                />
               </div>
-              <div className="flex-1">
-                <Label className="text-xs">Longitud</Label>
-                <Input type="text" inputMode="decimal" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="18.0686" className="h-9 text-sm" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Radie (meter)</Label>
-              <Input type="text" inputMode="numeric" value={form.radius_meters} onChange={e => setForm(f => ({ ...f, radius_meters: e.target.value }))} className="h-9 text-sm" />
-            </div>
+            )}
+
             <div className="flex items-center justify-between py-1">
               <div>
                 <Label className="text-xs">Visa som projekt i tidappen</Label>
                 <p className="text-[10px] text-muted-foreground">Alla personal kan registrera tid här som ett vanligt jobb</p>
               </div>
-              <Switch checked={form.show_as_project} onCheckedChange={v => setForm(f => ({ ...f, show_as_project: v }))} />
+              <Switch checked={showAsProject} onCheckedChange={setShowAsProject} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>
