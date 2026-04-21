@@ -417,6 +417,7 @@ const StaffTimeReports: React.FC = () => {
               }))
               .sort((x, y) => y.total_hours - x.total_hours),
             segments,
+            latestPing: pingMap.get(s.id) || null,
           };
         })
         .sort((a, b) => {
