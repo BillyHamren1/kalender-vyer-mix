@@ -42,7 +42,7 @@ export const COOLDOWNS_MS: Record<DecisionKind, number> = {
   activity_leave: 30 * 60 * 1000,
   last_workplace_for_day: 60 * 60 * 1000,
   long_pass_no_break: 60 * 60 * 1000,
-  unclassified_anomaly: 4 * 3600 * 1000,
+  unclassified_anomaly: 24 * 3600 * 1000,
 };
 
 export type DecisionKind =
