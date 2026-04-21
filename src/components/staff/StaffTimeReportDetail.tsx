@@ -392,40 +392,67 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
       })
       .filter((m): m is number => m !== null);
 
+    // Build a sorted list of travel-log start times (ms) for this day so we
+    // can cap an open warehouse session to the moment the staff started
+    // travelling (root cause of double-counted hours when geofence-exit was
+    // missed and exited_at stayed NULL).
+    const travelStartsMs = dailyOverviewTravel
+      .map(t => (t.start_time ? new Date(t.start_time).getTime() : NaN))
+      .filter(n => !Number.isNaN(n))
+      .sort((a, b) => a - b);
+
     const lteRows = (dailyLocationEntries as any[])
       .filter(lte => {
-        if (!lte.exited_at) return true; // ongoing — always include
+        if (!lte.exited_at) return true; // ongoing — always include (will be capped below)
         const hhmm = String(lte.entered_at).slice(11, 16);
         const lteMin = parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10);
         return !reportStartMinutes.some(m => Math.abs(m - lteMin) <= 2);
       })
       .map(lte => {
         const start = new Date(lte.entered_at);
-        const end = lte.exited_at ? new Date(lte.exited_at) : new Date();
-        const hours = Math.max(0, (end.getTime() - start.getTime()) / 3_600_000);
+        const startMs = start.getTime();
+        const isOngoing = !lte.exited_at;
+
+        // Cap: if a travel log started after this entry, the warehouse
+        // session must have ended at least by then.
+        let cappedAtTravel: number | null = null;
+        if (isOngoing) {
+          const nextTravel = travelStartsMs.find(ms => ms > startMs);
+          if (nextTravel) cappedAtTravel = nextTravel;
+        }
+
+        const endMs = lte.exited_at
+          ? new Date(lte.exited_at).getTime()
+          : (cappedAtTravel ?? Date.now());
+        const hours = Math.max(0, (endMs - startMs) / 3_600_000);
         const locName = lte.organization_locations?.name || 'Lager';
+        const wasCapped = cappedAtTravel !== null;
         return {
           id: `lte-${lte.id}`,
           start_time: lte.entered_at as string,
-          end_time: (lte.exited_at as string | null) || null,
+          end_time: wasCapped
+            ? new Date(cappedAtTravel!).toISOString()
+            : ((lte.exited_at as string | null) || null),
           hours_worked: hours,
           booking_client: locName,
           booking_number: null as string | null,
-          description: lte.exited_at ? `Lagervistelse (${lte.source})` : 'Lagervistelse — pågår',
+          description: wasCapped
+            ? '⚠️ Lagerpass ej stängt — kapad till resans start'
+            : (lte.exited_at ? `Lagervistelse (${lte.source})` : 'Lagervistelse — pågår'),
           delivery_lat: lte.organization_locations?.latitude
             ? Number(lte.organization_locations.latitude)
             : null,
           delivery_lng: lte.organization_locations?.longitude
             ? Number(lte.organization_locations.longitude)
             : null,
-          ongoing: !lte.exited_at,
+          ongoing: isOngoing && !wasCapped,
         };
       });
 
     return [...reportRows, ...lteRows].sort(
       (a, b) => (a.start_time || '').localeCompare(b.start_time || '')
     );
-  }, [dailyOverviewDate, reports, bookingGeoMap, dailyLocationEntries]);
+  }, [dailyOverviewDate, reports, bookingGeoMap, dailyLocationEntries, dailyOverviewTravel]);
 
   // Compute anomalies
   const anomalies = useMemo<Anomaly[]>(() => {
