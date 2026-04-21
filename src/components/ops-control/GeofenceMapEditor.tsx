@@ -295,7 +295,7 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           <span>
             Yta: <strong className="text-foreground">{Math.round(area)} m²</strong>
             {tooBig && <span className="text-destructive ml-2">⚠ stor yta — risk för falska larm</span>}
-            {tooSmall && <span className="text-amber-600 ml-2">⚠ mycket liten — kan missa GPS-drift</span>}
+            {tooSmall && <span className="text-muted-foreground ml-2">⚠ mycket liten — kan missa GPS-drift</span>}
           </span>
         ) : (
           <span>Cirkel-läge: använd radie-fältet nedan ({value.radius_meters} m)</span>
