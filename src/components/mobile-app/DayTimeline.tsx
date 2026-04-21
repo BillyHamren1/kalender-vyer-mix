@@ -1,0 +1,262 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ScheduledShift } from '@/services/mobileApiService';
+import { Calendar, MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { format, isToday, parseISO, startOfDay } from 'date-fns';
+import { sv } from 'date-fns/locale';
+
+interface DayTimelineProps {
+  shifts: ScheduledShift[];
+  /** Bookings/projects with an active timer — highlights the matching shift card. */
+  activeBookingIds?: Set<string>;
+  /** Date to render. Defaults to today. */
+  date?: Date;
+}
+
+const DEFAULT_START_HOUR = 6;
+const DEFAULT_END_HOUR = 22;
+const PX_PER_HOUR = 64;
+const PX_PER_MINUTE = PX_PER_HOUR / 60;
+
+interface PositionedShift {
+  shift: ScheduledShift;
+  topPx: number;
+  heightPx: number;
+  /** Column index within an overlap group. */
+  col: number;
+  /** Number of columns in the overlap group. */
+  cols: number;
+}
+
+/** Assigns column slots so overlapping shifts render side-by-side. */
+function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): PositionedShift[] {
+  const sorted = [...shifts].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
+
+  const positioned: PositionedShift[] = [];
+  // Greedy column packing within an overlap cluster.
+  let cluster: PositionedShift[] = [];
+  let clusterEnd = 0;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) return;
+    const cols = Math.max(...cluster.map((p) => p.col)) + 1;
+    cluster.forEach((p) => (p.cols = cols));
+    positioned.push(...cluster);
+    cluster = [];
+    clusterEnd = 0;
+  };
+
+  for (const s of sorted) {
+    const startMs = Math.max(new Date(s.start_time).getTime(), dayStart.getTime());
+    const endMs = Math.min(new Date(s.end_time).getTime(), dayEnd.getTime());
+    if (endMs <= startMs) continue;
+
+    const topPx = ((startMs - dayStart.getTime()) / 60000) * PX_PER_MINUTE;
+    const heightPx = Math.max(((endMs - startMs) / 60000) * PX_PER_MINUTE, 28);
+
+    if (startMs >= clusterEnd && cluster.length > 0) {
+      flushCluster();
+    }
+
+    // Find the smallest free column index in the current cluster.
+    const usedCols = new Set(
+      cluster
+        .filter((p) => new Date(p.shift.end_time).getTime() > startMs)
+        .map((p) => p.col)
+    );
+    let col = 0;
+    while (usedCols.has(col)) col++;
+
+    cluster.push({ shift: s, topPx, heightPx, col, cols: 1 });
+    clusterEnd = Math.max(clusterEnd, endMs);
+  }
+  flushCluster();
+
+  return positioned;
+}
+
+const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
+  rig: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border',
+  event: 'bg-planning-event text-planning-event-foreground border-planning-event-border',
+  rigdown: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border',
+  other: 'bg-muted text-foreground border-border',
+};
+
+const eventTypeLabel: Record<ScheduledShift['event_type'], string> = {
+  rig: 'Rigg',
+  event: 'Event',
+  rigdown: 'Riv',
+  other: 'Övrigt',
+};
+
+const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
+  const navigate = useNavigate();
+  const today = date ?? new Date();
+  const dayStartBase = startOfDay(today);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-extend window if shifts fall outside default 06–22.
+  const { dayStart, dayEnd, totalHours } = useMemo(() => {
+    let startHour = DEFAULT_START_HOUR;
+    let endHour = DEFAULT_END_HOUR;
+    for (const s of shifts) {
+      const sd = parseISO(s.start_time);
+      const ed = parseISO(s.end_time);
+      if (sd.toDateString() === today.toDateString()) {
+        startHour = Math.min(startHour, sd.getHours());
+      }
+      if (ed.toDateString() === today.toDateString()) {
+        endHour = Math.max(endHour, ed.getHours() + (ed.getMinutes() > 0 ? 1 : 0));
+      }
+    }
+    const ds = new Date(dayStartBase);
+    ds.setHours(startHour, 0, 0, 0);
+    const de = new Date(dayStartBase);
+    de.setHours(endHour, 0, 0, 0);
+    return { dayStart: ds, dayEnd: de, totalHours: endHour - startHour };
+  }, [shifts, today, dayStartBase]);
+
+  const todaysShifts = useMemo(
+    () =>
+      shifts.filter((s) => {
+        const d = parseISO(s.start_time);
+        return d.toDateString() === today.toDateString();
+      }),
+    [shifts, today]
+  );
+
+  const positioned = useMemo(
+    () => layoutShifts(todaysShifts, dayStart, dayEnd),
+    [todaysShifts, dayStart, dayEnd]
+  );
+
+  // Now-line tick (per minute) + initial auto-scroll.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isShowingToday = isToday(today);
+  const nowTopPx = isShowingToday
+    ? ((now.getTime() - dayStart.getTime()) / 60000) * PX_PER_MINUTE
+    : -1;
+
+  useEffect(() => {
+    if (!isShowingToday || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const target = Math.max(nowTopPx - container.clientHeight / 3, 0);
+    container.scrollTo({ top: target, behavior: 'auto' });
+    // Only on mount — intentional empty deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (todaysShifts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center space-y-3">
+        <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+          <Calendar className="w-7 h-7 text-muted-foreground/40" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground/70">Inga planerade pass idag</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {format(today, 'EEEE d MMMM', { locale: sv })}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalHeight = totalHours * PX_PER_HOUR;
+  const hourLabels = Array.from({ length: totalHours + 1 }, (_, i) => {
+    const h = new Date(dayStart);
+    h.setHours(dayStart.getHours() + i);
+    return h;
+  });
+
+  return (
+    <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <div className="relative" style={{ height: totalHeight }}>
+        {/* Hour grid */}
+        {hourLabels.map((h, i) => (
+          <div
+            key={i}
+            className="absolute left-0 right-0 flex items-start"
+            style={{ top: i * PX_PER_HOUR, height: PX_PER_HOUR }}
+          >
+            <div className="w-12 shrink-0 pr-2 text-right text-[10px] font-mono text-muted-foreground/60 -translate-y-1.5">
+              {format(h, 'HH:mm')}
+            </div>
+            <div className="flex-1 border-t border-border/50 h-full" />
+          </div>
+        ))}
+
+        {/* Now line */}
+        {isShowingToday && nowTopPx >= 0 && nowTopPx <= totalHeight && (
+          <div
+            className="absolute left-12 right-2 z-20 pointer-events-none"
+            style={{ top: nowTopPx }}
+          >
+            <div className="relative h-0.5 bg-destructive">
+              <div className="absolute -left-1.5 -top-[5px] w-3 h-3 rounded-full bg-destructive shadow-md" />
+            </div>
+          </div>
+        )}
+
+        {/* Shift cards */}
+        <div className="absolute left-12 right-2 top-0 bottom-0 z-10">
+          {positioned.map(({ shift, topPx, heightPx, col, cols }) => {
+            const widthPct = 100 / cols;
+            const leftPct = col * widthPct;
+            const isActive = activeBookingIds?.has(shift.booking_id);
+
+            return (
+              <button
+                key={shift.shift_id}
+                onClick={() => navigate(`/m/job/${shift.booking_id}`)}
+                className={cn(
+                  'absolute rounded-lg border px-2.5 py-1.5 text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
+                  eventTypeStyles[shift.event_type],
+                  isActive && 'ring-2 ring-primary'
+                )}
+                style={{
+                  top: topPx,
+                  height: heightPx,
+                  left: `calc(${leftPct}% + 2px)`,
+                  width: `calc(${widthPct}% - 4px)`,
+                }}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                    {eventTypeLabel[shift.event_type]}
+                  </span>
+                  <span className="text-[10px] font-mono opacity-70">
+                    {format(parseISO(shift.start_time), 'HH:mm')}–
+                    {format(parseISO(shift.end_time), 'HH:mm')}
+                  </span>
+                  {isActive && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  )}
+                </div>
+                <div className="text-[12px] font-bold leading-tight truncate">
+                  {shift.client}
+                </div>
+                {heightPx > 50 && shift.delivery_address && (
+                  <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
+                    <MapPin className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{shift.delivery_address}</span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DayTimeline;
