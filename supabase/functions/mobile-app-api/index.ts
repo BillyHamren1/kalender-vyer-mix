@@ -344,6 +344,8 @@ Deno.serve(async (req) => {
         return await handleUnregisterPushToken(supabase, staffId, data, organizationId)
       case 'report_location':
         return await handleReportLocation(supabase, staffId, data, organizationId)
+      case 'upload_location_batch':
+        return await handleUploadLocationBatch(supabase, staffId, data, organizationId)
       case 'create_travel_log':
         return await handleStartTravelLog(supabase, staffId, data, organizationId)
       case 'stop_travel_log':
