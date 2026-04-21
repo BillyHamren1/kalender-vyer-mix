@@ -126,8 +126,8 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
                     <div className="text-[11px] font-medium text-foreground truncate">{a.client}</div>
                     <div className="text-[9px] text-muted-foreground">
                       {a.eventType || 'Jobb'}
-                      {a.startTime && ` · ${format(new Date(a.startTime), 'HH:mm')}`}
-                      {a.endTime && `–${format(new Date(a.endTime), 'HH:mm')}`}
+                      {a.startClock && ` · ${a.startClock}`}
+                      {a.endClock && `–${a.endClock}`}
                     </div>
                   </div>
                   <ChevronRight className="w-3 h-3 text-muted-foreground/30 shrink-0" />
