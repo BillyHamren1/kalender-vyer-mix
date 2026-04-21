@@ -104,16 +104,14 @@ describe('WorkDayAssistant render contract', () => {
     expect(screen.getByRole('button', { name: /Avsluta dagen/i })).toBeInTheDocument();
   });
 
-  it('unclassified_anomaly → leder till klassningsvy, gissar inte själv', () => {
+  it('unclassified_anomaly → renderar ingen popup längre', () => {
     const d: AssistantDecision = {
       kind: 'unclassified_anomaly',
       count: 2,
       oldestStartedAtIso: '2026-04-18T12:00:00Z',
     };
     render(<WorkDayAssistant decision={d} onAcknowledge={() => {}} />);
-    expect(screen.getByText(/2 .*titta på/i)).toBeInTheDocument();
-    expect(screen.getByText(/ingen brådska/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Visa$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('activity_leave → öppnar ActivityLeaveDialog (inte vanlig fri-form-dialog)', () => {
