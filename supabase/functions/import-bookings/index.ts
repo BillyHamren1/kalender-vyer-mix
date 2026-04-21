@@ -1857,7 +1857,7 @@ serve(async (req) => {
     // Get existing bookings for comparison — ONLY within current tenant
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id')
+      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name')
       .eq('organization_id', organizationId)
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
@@ -1987,6 +1987,8 @@ serve(async (req) => {
 
               const keepManuallyHiddenCancelled =
                 existingBooking.assigned_to_project === true &&
+                !existingBooking.assigned_project_id &&
+                !existingBooking.assigned_project_name &&
                 (!cancelledProjects || cancelledProjects.length === 0) &&
                 (!cancelledJobs || cancelledJobs.length === 0);
             
@@ -1995,9 +1997,9 @@ serve(async (req) => {
               .from('bookings')
               .update({
                 status: 'CANCELLED',
-                  assigned_to_project: keepManuallyHiddenCancelled ? true : existingBooking.assigned_to_project ?? false,
-                  assigned_project_id: keepManuallyHiddenCancelled ? (existingBooking.assigned_project_id ?? null) : existingBooking.assigned_project_id ?? null,
-                  assigned_project_name: keepManuallyHiddenCancelled ? (existingBooking.assigned_project_name ?? null) : existingBooking.assigned_project_name ?? null,
+                  assigned_to_project: keepManuallyHiddenCancelled ? true : false,
+                  assigned_project_id: keepManuallyHiddenCancelled ? null : existingBooking.assigned_project_id ?? null,
+                  assigned_project_name: keepManuallyHiddenCancelled ? null : existingBooking.assigned_project_name ?? null,
                 version: (existingBooking.version || 1) + 1,
                 updated_at: new Date().toISOString()
               })
