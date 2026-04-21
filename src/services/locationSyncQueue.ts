@@ -332,6 +332,12 @@ export async function flushLocationQueue(): Promise<void> {
         const acceptedIds = new Set(res?.accepted || []);
         const rejectedIds = new Set((res?.rejected || []).map(r => r.id));
 
+        patchStatus({
+          lastUploadAt: Date.now(),
+          lastUploadAccepted: acceptedIds.size,
+          lastUploadRejected: rejectedIds.size,
+        });
+
         // Drop accepted points; bump attempts for rejected so we back off.
         const after = loadQueue();
         const next: PendingLocationPoint[] = [];
