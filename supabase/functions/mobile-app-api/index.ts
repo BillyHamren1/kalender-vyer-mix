@@ -842,8 +842,91 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     }
   }
 
+  // ─── SCHEDULED SHIFTS (calendar_events) ────────────────────────────
+  // For each REAL BSA assignment (excluding project/location synthetic ones),
+  // fetch the matching calendar_events rows. These carry the authoritative
+  // per-staff start/end times (rig / event / rigdown phases).
+  // ──────────────────────────────────────────────────────────────────
+  let shifts: any[] = []
+  try {
+    const realBsaForShifts = (assignments || []).filter(
+      (a: any) =>
+        a.team_id !== 'project' &&
+        a.team_id !== 'location' &&
+        !a.booking_id.startsWith('location-')
+    )
+
+    if (realBsaForShifts.length > 0) {
+      const shiftBookingIds = [...new Set(realBsaForShifts.map((a: any) => a.booking_id))]
+
+      // Map booking_id → enriched booking from bookingsWithAssignments
+      const bookingMap: Record<string, any> = {}
+      for (const b of bookingsWithAssignments) {
+        if (!String(b.id).startsWith('location-')) bookingMap[b.id] = b
+      }
+
+      // Date window: min..max of assignment_dates we care about
+      const dateValues = realBsaForShifts.map((a: any) => a.assignment_date).sort()
+      const minDate = dateValues[0]
+      const maxDate = dateValues[dateValues.length - 1]
+
+      const { data: ceRows, error: ceErr } = await supabase
+        .from('calendar_events')
+        .select('id, booking_id, booking_number, title, event_type, start_time, end_time, delivery_address, resource_id, source_date')
+        .in('booking_id', shiftBookingIds)
+        .eq('organization_id', organizationId)
+        .gte('start_time', `${minDate}T00:00:00`)
+        .lte('start_time', `${maxDate}T23:59:59`)
+
+      if (ceErr) {
+        console.error('[get_bookings] calendar_events query error:', ceErr)
+      } else {
+        // Index BSA by (booking_id|date) for quick lookup
+        const bsaIndex = new Set(
+          realBsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
+        )
+
+        for (const ce of (ceRows || [])) {
+          const startDate = (ce.start_time || '').slice(0, 10)
+          const key = `${ce.booking_id}|${startDate}`
+          if (!bsaIndex.has(key)) continue
+          const booking = bookingMap[ce.booking_id]
+          if (!booking) continue
+
+          const rawType = (ce.event_type || '').toLowerCase()
+          const normalizedType =
+            rawType === 'rig' || rawType === 'event' || rawType === 'rigdown'
+              ? rawType
+              : 'other'
+
+          shifts.push({
+            shift_id: ce.id,
+            booking_id: ce.booking_id,
+            booking_number: ce.booking_number ?? booking.booking_number ?? null,
+            title: ce.title || booking.client,
+            event_type: normalizedType,
+            start_time: ce.start_time,
+            end_time: ce.end_time,
+            delivery_address: ce.delivery_address ?? booking.deliveryaddress ?? null,
+            delivery_latitude: booking.delivery_latitude ?? null,
+            delivery_longitude: booking.delivery_longitude ?? null,
+            client: booking.client,
+            is_internal: !!booking.is_internal,
+            internal_type: booking.internal_type ?? null,
+            large_project_id: booking.large_project_id ?? null,
+            large_project_name: booking.large_project_name ?? null,
+          })
+        }
+
+        shifts.sort((a, b) => a.start_time.localeCompare(b.start_time))
+      }
+    }
+  } catch (e) {
+    console.error('[get_bookings] shifts build failed:', e)
+  }
+
   return new Response(
-    JSON.stringify({ bookings: bookingsWithAssignments }),
+    JSON.stringify({ bookings: bookingsWithAssignments, shifts }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
