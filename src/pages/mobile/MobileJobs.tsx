@@ -32,14 +32,126 @@ const MobileJobs = () => {
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
-  // Stop verbs come through the unified work-session engine so the
-  // conflict dialog can ask the engine to cleanly stop the conflicting
-  // timer (save-then-stop or pure-presence stop) before we start the new one.
-  // resolveTargetCoords is the SINGLE source for "where is this target?" lookups
-  // used by the centralized distance-warning check.
-  const { stopSession, resolveTargetCoords, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
 
+  // ALL starts go through useTimerStartFlow → evaluateStartConflict →
+  // startSession. No raw startTimer / startSession calls here. Direct
+  // calls are forbidden and fail the unification contract test.
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
+
+  // Fixed locations that should appear as job cards
+  const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
+
+  /**
+   * Geofence ENTER no longer auto-starts a timer. The arrival popup
+   * (UnifiedArrivalPrompt, rendered globally by MobileGlobalOverlays) is
+   * now the single user-visible entry point for geo-driven starts. This
+   * eliminates "phantom timers" that started silently in the background.
+   *
+   * EXIT still routes the user to /m/report so save-then-stop runs.
+   */
+  const handleGeofenceConfirm = (correctedStartTime?: string) => {
+    if (!geofenceEvent) {
+      return;
+    }
+    if (geofenceEvent.type === 'enter') {
+      // Intentional no-op. Arrival popup handles the start.
+      console.log('[MobileJobs] geofence enter — deferring to arrival popup');
+    } else {
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
+    }
+    dismissGeofenceEvent();
+  };
+
+  // Group bookings by date, then within each date group by large project
+  const groupedBookings = bookings.reduce<Record<string, { booking: MobileBooking; date: string }[]>>((acc, booking) => {
+    for (const date of booking.assignment_dates) {
+      if (!acc[date]) acc[date] = [];
+      acc[date].push({ booking, date });
+    }
+    return acc;
+  }, {});
+
+  // Helper to group entries within a date by large_project_id
+  const groupByProject = (entries: { booking: MobileBooking; date: string }[]) => {
+    const projectGroups: Record<string, { name: string; entries: { booking: MobileBooking; date: string }[] }> = {};
+    const standalone: { booking: MobileBooking; date: string }[] = [];
+
+    for (const entry of entries) {
+      const lpId = entry.booking.large_project_id;
+      const lpName = entry.booking.large_project_name;
+      if (lpId && lpName) {
+        if (!projectGroups[lpId]) projectGroups[lpId] = { name: lpName, entries: [] };
+        projectGroups[lpId].entries.push(entry);
+      } else {
+        standalone.push(entry);
+      }
+    }
+    return { projectGroups, standalone };
+  };
+
+  const sortedDates = Object.keys(groupedBookings).sort();
+
+  const formatDateHeading = (dateStr: string) => {
+    const d = parseISO(dateStr);
+    if (isToday(d)) return t('jobs.today');
+    if (isTomorrow(d)) return t('jobs.tomorrow');
+    return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
+  };
+
+  // Timer toggle for standalone bookings.
+  // STOP path: never clears local timer here — navigates user to /m/report
+  // where save-then-stop is enforced.
+  const handleTimerToggle = (e: React.MouseEvent, booking: MobileBooking) => {
+    e.stopPropagation();
+    if (activeTimers.has(booking.id)) {
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
+      return;
+    }
+    const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
+    requestStart(target);
+  };
+
+  // Timer toggle for projects
+  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string, _entries: { booking: MobileBooking }[]) => {
+    e.stopPropagation();
+    const projectKey = `project-${lpId}`;
+    if (activeTimers.has(projectKey)) {
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
+      return;
+    }
+    const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
+    requestStart(target);
+  };
+
+  // Timer toggle for fixed locations (e.g. Lager)
+  const handleLocationTimerToggle = (e: React.MouseEvent, loc: typeof locationJobs[0]) => {
+    e.stopPropagation();
+    const locKey = `location-${loc.id}`;
+    if (activeTimers.has(locKey)) {
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
+      return;
+    }
+    const target: WorkTarget = {
+      kind: 'location',
+      locationId: loc.id,
+      name: loc.name,
+      createsTimeReport: false,
+    };
+    requestStart(target);
+  };
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
 
