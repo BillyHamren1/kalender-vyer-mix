@@ -3,9 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { XCircle, Trash2, ArrowUpRight, Calendar } from 'lucide-react';
+import { XCircle, EyeOff, ArrowUpRight, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { deleteProject } from '@/services/projectService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -73,24 +72,27 @@ const DashboardCancelledBookings: React.FC = () => {
     },
   });
 
-  const deleteMutation = useMutation({
+  const hideMutation = useMutation({
     mutationFn: async (item: CancelledProject) => {
-      if (item.type === 'project') {
-        await deleteProject(item.id);
-      } else {
-        // Delete job
-        const { data: job } = await supabase.from('jobs').select('booking_id').eq('id', item.id).single();
-        const { error } = await supabase.from('jobs').delete().eq('id', item.id);
-        if (error) throw error;
-        // Reset booking assignment
-        if (job?.booking_id) {
-          await supabase.from('bookings').update({
-            assigned_to_project: false,
+      // Mark booking as manually-hidden cancelled so it stays out of the inbox
+      if (item.booking_id) {
+        await supabase
+          .from('bookings')
+          .update({
+            assigned_to_project: true,
             assigned_project_id: null,
             assigned_project_name: null,
-          }).eq('id', job.booking_id);
-        }
+          })
+          .eq('id', item.booking_id);
       }
+      // Audit
+      await (supabase.from('project_audit_log') as any).insert({
+        project_id: item.id,
+        project_type: item.type === 'job' ? 'small' : 'medium',
+        action: 'hide_cancelled',
+        booking_id: item.booking_id,
+        details: { name: item.name },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cancelled-projects'] });
@@ -98,10 +100,10 @@ const DashboardCancelledBookings: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success('Avbokat projekt borttaget');
+      toast.success('Avbokat projekt dolt — historiken finns kvar');
     },
     onError: () => {
-      toast.error('Kunde inte ta bort projektet');
+      toast.error('Kunde inte dölja projektet');
     },
   });
 
@@ -135,7 +137,7 @@ const DashboardCancelledBookings: React.FC = () => {
             </div>
             <div>
               <h3 className="font-semibold text-lg text-foreground">Avbokade projekt</h3>
-              <p className="text-xs text-muted-foreground">Ta bort manuellt när du hanterat avbokningen</p>
+              <p className="text-xs text-muted-foreground">Dölj manuellt när du hanterat avbokningen</p>
             </div>
           </div>
           <Badge
@@ -182,12 +184,12 @@ const DashboardCancelledBookings: React.FC = () => {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => deleteMutation.mutate(item)}
-                    disabled={deleteMutation.isPending}
+                    onClick={() => hideMutation.mutate(item)}
+                    disabled={hideMutation.isPending}
                     className="gap-1 h-7 px-2.5 text-xs rounded-lg"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Ta bort
+                    <EyeOff className="w-3 h-3" />
+                    Dölj
                   </Button>
                   <Button
                     variant="ghost"
