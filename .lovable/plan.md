@@ -1,94 +1,45 @@
 
 
-## Exakta geofencer — rita polygon på karta
+## Tidrapporter från stora projekt → ska tillhöra projektet, inte "Lager"/"-"
 
 ### Problem
-Idag är ett geofence en cirkel `(lat, lng, radius_meters)`. Stora radier ger falska "ankomst" 250 m bort (t.ex. på vägen, hos grannen, på natten när GPS driftar). En cirkel går inte att forma efter en faktisk fastighet/lagergård.
+När en användare startar en projekt-timer (large project) i mobilappen och sedan stoppar via geofence/EOD så skapas en `location_time_entry` (LTE) med rätt `large_project_id` satt. Men DB-triggern `sync_location_entry_to_time_report` (som skapar motsvarande `time_reports`-rad när timern stängs) **ignorerar både `large_project_id` och `booking_id` på LTE-raden** och tvingar in **Lagerbokningen** som `booking_id`:
 
-### Lösning
-Lägg till **polygon-stöd** ovanpå nuvarande cirkelmodell. Användaren ritar geofencet direkt på en Mapbox-karta i Ops Control Center → Fasta platser. Polygonen är auktoritativ när den finns; cirkeln blir fallback för platser utan ritad polygon (bakåtkompatibelt).
-
-### Datamodell (migration)
-
-Lägg till på `organization_locations`:
-- `geofence_polygon jsonb` — GeoJSON `Polygon` i WGS84 (`{"type":"Polygon","coordinates":[[[lng,lat],...]]}`). NULL = använd cirkel.
-- `geofence_mode text` default `'circle'` — `'circle'` | `'polygon'`. Vid `polygon` ignoreras `radius_meters` i evaluering.
-- (cirkel-fälten behålls som fallback och för migration-paths)
-
-RLS: oförändrad — samma policies som dagens `organization_locations`.
-
-### UI: ny GeofenceMapEditor
-
-Ny komponent `src/components/ops-control/GeofenceMapEditor.tsx`:
-- Mapbox GL-karta + `@mapbox/mapbox-gl-draw` (redan installerat).
-- Verktygsfält: **Rita polygon**, **Rita cirkel**, **Redigera hörn**, **Ångra**, **Rensa**, **Centrera på adress**.
-- Cirkelläge: drag radien visuellt (1–500 m), sparas som `geofence_mode='circle'` + `radius_meters`.
-- Polygonläge: klicka för att lägga hörn, dubbelklick för att stänga, dra hörn för att finjustera. Sparas som `geofence_mode='polygon'` + `geofence_polygon`.
-- Live-area visas (m²) + visuell varning om polygonen är "för stor" (>10 000 m²) eller "för liten" (<25 m²).
-- Bakgrundskarta: satellit-toggle (zoom in på taket).
-- "Min position"-knapp som zoomar till användarens GPS för att rita från fält.
-
-### Integration i OrganizationLocationsManager
-
-Ersätt nuvarande "Latitud/Longitud/Radie"-fälten i dialogen med:
-- Adressfält + sök (oförändrat → centrerar kartan).
-- `<GeofenceMapEditor>` (ca 360 px hög).
-- Visar nuvarande geometri vid redigering (cirkel ELLER polygon).
-- Spara skickar antingen `{geofence_mode:'circle', latitude, longitude, radius_meters, geofence_polygon: null}` eller `{geofence_mode:'polygon', geofence_polygon: {...}, latitude, longitude}` (lat/lng = polygonens centroid för listvisning/avstånd).
-
-### Backend-evaluering (point-in-polygon)
-
-Uppdatera **alla tre** ställen som idag använder `dist <= radius_meters`:
-
-1. `supabase/functions/mobile-app-api/index.ts` (location_id-geofence-checken vid GPS-ping, rad ~4248).
-2. `src/hooks/useGeofencing.ts` (klient-prompts för "You are on site").
-3. `src/components/ops-control/OpsLiveMap.tsx` (visuell rendering).
-
-Ny gemensam helper `src/lib/geofenceEval.ts`:
-```ts
-isInsideGeofence(lat, lng, location): boolean
-// polygon → ray-casting point-in-polygon
-// circle  → haversine ≤ radius
-distanceToGeofenceEdge(lat, lng, location): number
-// polygon → min distans till kant; negativt om innanför
-// circle  → radius - haversine
+```sql
+_booking_id := public.ensure_internal_lager_booking(NEW.organization_id);
+INSERT INTO time_reports (... booking_id ...) VALUES (..., _booking_id, ...);
 ```
 
-Edge function använder samma logik (kopia av helpern i `supabase/functions/_shared/geofenceEval.ts`).
+Resultatet blir att projekttimmar landar antingen som "Lager", som "-" (om Lager-bokningen råkar saknas/joinas inte) eller som "Okänt projekt". `large_project_id` skrivs aldrig på `time_reports`-raden.
 
-### Anti-flapping (löser "loggas in på natten")
+`useGeofencing.saveAndStopTimer` + `mobile-app-api.create_time_report` skickar redan `large_project_id` korrekt — det är **enbart auto-sync-triggern** som tappar informationen.
 
-För att GPS-drift inte ska trigga falska entries läggs två skydd in:
-- **Hysteres**: ENTER kräver `isInside === true` AND avstånd-till-kant ≥ 5 m inåt. EXIT kräver avstånd-till-kant ≥ 15 m utåt. Ersätter dagens `radius + 50` magic number.
-- **GPS-noggrannhetsfilter**: pings med `accuracy > 50 m` ignoreras för geofence-evaluering (men sparas i historik). Konfigurerbar per location senare om behov.
+### Lösning
+Triggern ska respektera vad LTE-raden faktiskt pekar på, i samma prioritetsordning som UI:t redan använder (`booking_id` > `large_project_id` > `location_id` → Lager-fallback).
 
-### OpsLiveMap-rendering
+### Ändringar
 
-`OpsLiveMap.tsx` ritar idag en cirkelpolygon från `radius_meters`. Uppdatera så den ritar `geofence_polygon` direkt om mode = polygon, annars befintlig cirkelapproximation. Samma popup, samma färg (#7c3aed).
+**1. Migration: uppdatera `sync_location_entry_to_time_report`**
+- Om `NEW.booking_id` finns → använd den som `booking_id`, sätt `large_project_id = NULL`.
+- Annars om `NEW.large_project_id` finns → sätt `large_project_id = NEW.large_project_id`, `booking_id = NULL`. Beskrivning: `Auto: projekt (<source>)`.
+- Annars (location-only) → fortsätt som idag (Lager-bokning).
+- Backfilla befintliga felaktiga `time_reports` med `source='location_auto'` där LTE-raden har `large_project_id`/`booking_id`: skriv om dem till rätt mål och rensa Lager-pekaren. Endast rader där `approved` är `false` rörs (godkända lämnas — manuell hantering).
 
-### Validering
+**2. Verifiera UI-rendering**
+- `StaffTimeReportDetail` joinar redan `bookings(client, booking_number, large_project_id)` och visar large project-namnet om det finns. Den fungerar för `booking_id`-fallet (där bokningen tillhör ett stort projekt).
+- För rena projekt-rapporter (endast `large_project_id`, inget `booking_id`) behöver join + label-logiken utökas: hämta `large_projects` separat och visa projektnamnet i `booking_client`-kolumnen samt projektnumret i `booking_number`-kolumnen. Då försvinner "-" helt.
+- `StaffTimeReports` (dagsöversikten) hämtar redan `large_project_id` på LTE och resolvar `large_projects.name` → den biten är redan korrekt och påverkas inte.
 
-- A: Rita polygon runt enbart lagerhuset → personal som åker förbi 100 m bort triggar inte ENTER.
-- B: Befintliga locations utan polygon fungerar oförändrat (cirkel-fallback).
-- C: Spara polygon → öppna igen → polygonen renderas korrekt och kan justeras.
-- D: GPS-ping med `accuracy=120 m` triggar varken enter/exit.
-- E: Person står 3 m utanför polygonen med drift → inga falska enter (hysteres 5 m).
-- F: Person inne, går ut 10 m → exit triggas inte (under 15 m hysteres). Går ut 20 m → exit.
-- G: OpsLiveMap visar polygon-formen exakt, inte en cirkel.
-- H: Multi-tenant: org A:s polygon syns aldrig för org B (befintlig RLS täcker).
+**3. Inga ändringar krävs i**
+- `mobile-app-api` (skickar redan rätt fält)
+- `useGeofencing` / `useWorkSession` (stop-flödet är korrekt)
+- Kontrakt-tester för time-reporting (täcker redan `large_project_id`-vägen)
 
-### Filer som skapas / ändras
+### Filer
 
-**Nya:**
-- `supabase/migrations/<ts>_geofence_polygon.sql`
-- `src/components/ops-control/GeofenceMapEditor.tsx`
-- `src/lib/geofenceEval.ts`
-- `supabase/functions/_shared/geofenceEval.ts`
+**Skapas:**
+- `supabase/migrations/<timestamp>_fix_lte_to_time_report_project_attribution.sql`
 
 **Ändras:**
-- `src/services/organizationLocationService.ts` (typer + fält)
-- `src/components/ops-control/OrganizationLocationsManager.tsx` (dialog UI)
-- `src/components/ops-control/OpsLiveMap.tsx` (polygon-rendering)
-- `src/hooks/useGeofencing.ts` (eval via helper + hysteres + accuracy-gate)
-- `supabase/functions/mobile-app-api/index.ts` (geofence-check via shared helper)
+- `src/components/staff/StaffTimeReportDetail.tsx` (visa large project-namn även när raden saknar `booking_id` men har `large_project_id`)
 
