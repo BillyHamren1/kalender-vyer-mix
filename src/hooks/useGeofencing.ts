@@ -2,6 +2,18 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
+import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
+
+/**
+ * Fire the cross-hook signal that ends an open `travel_time_logs` row.
+ * Called from every geofence ENTER on a known workplace (warehouse,
+ * project, booking) so a trip ALWAYS ends at a real arrival, never on
+ * low GPS speed at an unknown address.
+ */
+const emitStopTravelOnArrival = (lat: number, lng: number) => {
+  const detail: StopTravelEventDetail = { lat, lng, auto: true };
+  window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
+};
 
 export const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
