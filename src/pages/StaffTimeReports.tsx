@@ -253,7 +253,16 @@ const StaffTimeReports: React.FC = () => {
 
       for (const r of reports) {
         const a = byStaff.get(r.staff_id) || newAgg();
-        a.total_hours += r.hours_worked || 0;
+
+        // Check if this time_report is shadowed by a location_time_entry for the same shift.
+        // If so, skip it entirely (both from totals and segments) — the LTE is the canonical source.
+        const startIsoForShadow = r.start_time ? composeLocalIso(dateStr, r.start_time) : null;
+        const endIsoForShadow = r.end_time ? composeLocalIso(dateStr, r.end_time) : null;
+        const shadowed = !!startIsoForShadow && isReportShadowedByLTE(r.staff_id, r.booking_id, startIsoForShadow, endIsoForShadow);
+
+        if (!shadowed) {
+          a.total_hours += r.hours_worked || 0;
+        }
         a.reports_count += 1;
         if (!r.end_time) a.has_open_report = true;
         if (r.start_time && (!a.earliest_start || r.start_time < a.earliest_start)) {
@@ -264,7 +273,7 @@ const StaffTimeReports: React.FC = () => {
         }
         const bookingInfo = r.booking_id ? bookingMap.get(r.booking_id) : null;
         const label = bookingInfo?.label || (r.booking_id ? 'Okänt projekt' : 'Tidrapport');
-        if (r.booking_id) {
+        if (r.booking_id && !shadowed) {
           const existing = a.projects.get(r.booking_id);
           a.projects.set(r.booking_id, {
             label,
@@ -272,14 +281,9 @@ const StaffTimeReports: React.FC = () => {
             total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
           });
         }
-        if (r.start_time) {
-          const startIso = composeLocalIso(dateStr, r.start_time);
-          const endIso = r.end_time ? composeLocalIso(dateStr, r.end_time) : null;
-          // Skip duplicate segment if a location_time_entry already represents this shift.
-          if (isReportShadowedByLTE(r.staff_id, r.booking_id, startIso, endIso)) {
-            byStaff.set(r.staff_id, a);
-            continue;
-          }
+        if (r.start_time && !shadowed) {
+          const startIso = startIsoForShadow!;
+          const endIso = endIsoForShadow;
           const isOpen = !r.end_time;
           const hours = r.hours_worked || (isOpen ? Math.max(0, (nowMs - new Date(startIso).getTime()) / 3_600_000) : 0);
           a.segments.push({
