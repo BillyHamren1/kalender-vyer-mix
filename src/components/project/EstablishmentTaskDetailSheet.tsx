@@ -941,9 +941,25 @@ const EstablishmentTaskDetailSheet = ({
           </div>
         </div>
 
-        <Separator />
+        {/* Calendar sync toggle */}
+        <div className="py-2">
+          <label className="flex items-center gap-3 px-3 py-2 rounded-md border border-dashed border-border hover:bg-accent/40 cursor-pointer">
+            <Switch
+              checked={isCalendarSynced}
+              onCheckedChange={handleToggleCalendarSync}
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">📅 Synca med personalkalender</div>
+              <div className="text-[11px] text-muted-foreground">
+                {isCalendarSynced
+                  ? "Aktiviteten visas som händelse i kalendern och uppdateras när tid/datum ändras."
+                  : "Aktivera för att skapa en kalenderhändelse i Tasks-kolumnen."}
+              </div>
+            </div>
+          </label>
+        </div>
 
-        {/* Description */}
+        <Separator />
         <div className="py-3 space-y-2">
           <Label className="text-xs text-muted-foreground">Beskrivning</Label>
           <Textarea
