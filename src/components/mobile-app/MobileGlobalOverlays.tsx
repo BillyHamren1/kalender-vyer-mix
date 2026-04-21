@@ -153,11 +153,11 @@ const MobileGlobalOverlays: React.FC = () => {
       const workTarget = arrivalToWorkTarget(arrivalTarget);
       if (!workTarget) throw new Error('Okänd ankomsttyp');
 
-      const ok = startSession(workTarget, { startedAtIso: startedAt });
-      if (!ok) {
+      // Route through the SAME start flow as manual button taps so the
+      // conflict dialog (and distance check) fire identically.
+      const status = requestStart(workTarget, { startedAtIso: startedAt });
+      if (status === 'duplicate') {
         toast.message('Timer redan aktiv för platsen');
-      } else {
-        toast.success('Timer startad');
       }
 
       await markResolved(arrivalTarget);
@@ -168,7 +168,7 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalTarget, arrivalToWorkTarget, startSession, markResolved, refreshArrival]);
+  }, [arrivalTarget, arrivalToWorkTarget, requestStart, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!arrivalTarget) return;
