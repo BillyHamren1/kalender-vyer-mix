@@ -252,6 +252,10 @@ export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
 
   queue.push(point);
   saveQueue(queue);
+  patchStatus({
+    lastEnqueuedAt: Date.now(),
+    lastEnqueuedSource: input.source,
+  });
   void flushLocationQueue();
   return id;
 }
