@@ -52,6 +52,13 @@ export interface TravelCompletedInfo {
    *                  it's a soft assistant signal, not paid time.
    */
   classification: 'work' | 'personal' | 'unclassified';
+  /**
+   * True when the row was closed by an automatic flow (geofence ENTER on
+   * a known place or because a new activity timer was started). Auto-flow
+   * stops are SILENT — no classification dialog is shown until the
+   * day-end reconciliation step. Manual user stops keep the dialog.
+   */
+  autoFlow?: boolean;
 }
 
 // Haversine distance in meters
