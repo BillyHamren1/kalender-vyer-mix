@@ -155,31 +155,19 @@ export function cooldownExpired(
  * Sidoeffekter (mutera outsideSinceByTimer / lastShownByKind) sker INTE
  * här — det är ett medvetet val. Wrapper-hooken speglar det den behöver.
  *
- * Prioritetsordning (högst → lägst):
- *   1. unclassified_anomaly  (server vet något)
- *   2. long_pass_no_break    (timer länge utan paus-svar)
- *   3. activity_leave        (per aktiv timer, suppressas under travel)
- *   4. last_workplace_for_day (kvällsförslag att stänga dagen)
- *   5. daystart              (morgonhälsning)
- */
+  * Prioritetsordning (högst → lägst):
+  *   1. long_pass_no_break    (timer länge utan paus-svar)
+  *   2. activity_leave        (per aktiv timer, suppressas under travel)
+  *   3. last_workplace_for_day (kvällsförslag att stänga dagen)
+  *   4. daystart              (morgonhälsning)
+  *
+  * OBS: `unclassified_anomaly` visas inte längre proaktivt som popup.
+  */
 export function nextAssistantDecision(state: WorkDayState): AssistantDecision | null {
   if (!state.enabled) return null;
 
   const { now } = state;
   const nowDate = new Date(now);
-
-  // ── 1) Oklassade anomalies (server-derived) ──
-  if (
-    state.pendingAnomalies.count > 0 &&
-    state.pendingAnomalies.oldestStartedAtIso &&
-    cooldownExpired('unclassified_anomaly', now, state.lastShownByKind)
-  ) {
-    return {
-      kind: 'unclassified_anomaly',
-      count: state.pendingAnomalies.count,
-      oldestStartedAtIso: state.pendingAnomalies.oldestStartedAtIso,
-    };
-  }
 
   // ── 2) Långt pass utan registrerad rast ──
   // Vi vet inte om de tagit rast — vi vet bara att timern varit öppen

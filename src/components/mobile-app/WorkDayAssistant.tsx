@@ -292,44 +292,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     );
   }
 
-  // ──────── UNCLASSIFIED ANOMALIES ────────
-  if (decision.kind === 'unclassified_anomaly') {
-    const d = decision as UnclassifiedAnomalyDecision;
-    return (
-      <>
-        <Dialog open onOpenChange={(o) => !o && onAcknowledge()}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-primary" />
-                {d.count === 1 ? 'En sak att titta på' : `${d.count} saker att titta på`}
-              </DialogTitle>
-              <DialogDescription>
-                {d.count === 1 ? 'Det finns ett glapp' : `Det finns ${d.count} glapp`} i din arbetstid som vi inte är säkra på.
-                Du kan titta på dem när det passar — ingen brådska.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
-                Inte nu
-              </Button>
-              <Button
-                onClick={() => {
-                  navigate('/m/my-flags');
-                  onAcknowledge();
-                }}
-                className="w-full sm:w-auto"
-              >
-                Visa
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {workSessionDialogs}
-      </>
-    );
-  }
-
   return <>{workSessionDialogs}</>;
 };
 
