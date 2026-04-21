@@ -1985,12 +1985,37 @@ serve(async (req) => {
                 .not('status', 'in', '("completed","cancelled")')
                 .limit(1);
 
-              const keepManuallyHiddenCancelled =
+              // Keep "manually hidden cancelled" state if either:
+              //  (a) the booking has previously been hidden manually (no active project/job links), or
+              //  (b) there is at least one cancelled project/job linked (user has explicitly cancelled).
+              const { data: anyCancelledProjects } = await supabase
+                .from('projects')
+                .select('id')
+                .eq('booking_id', existingBooking.id)
+                .eq('status', 'cancelled')
+                .limit(1);
+
+              const { data: anyCancelledJobs } = await supabase
+                .from('jobs')
+                .select('id')
+                .eq('booking_id', existingBooking.id)
+                .eq('status', 'cancelled')
+                .limit(1);
+
+              const hasCancelledLink =
+                (anyCancelledProjects && anyCancelledProjects.length > 0) ||
+                (anyCancelledJobs && anyCancelledJobs.length > 0);
+
+              const wasManuallyHidden =
                 existingBooking.assigned_to_project === true &&
                 !existingBooking.assigned_project_id &&
-                !existingBooking.assigned_project_name &&
+                !existingBooking.assigned_project_name;
+
+              const noActiveLinks =
                 (!cancelledProjects || cancelledProjects.length === 0) &&
                 (!cancelledJobs || cancelledJobs.length === 0);
+
+              const keepManuallyHiddenCancelled = noActiveLinks && (wasManuallyHidden || hasCancelledLink);
             
             // Update booking status to CANCELLED
             const { error: updateError } = await supabase
@@ -2752,11 +2777,28 @@ serve(async (req) => {
             const activeProject = localProject && localProject.length > 0 ? localProject[0] : null;
             const activeJob = localJob && localJob.length > 0 ? localJob[0] : null;
 
+            // Keep hidden if booking is CANCELLED and either was manually hidden, or has any cancelled project/job link
+            const { data: cancelledLinkProjects } = await supabase
+              .from('projects')
+              .select('id')
+              .eq('booking_id', existingBooking.id)
+              .eq('status', 'cancelled')
+              .limit(1);
+            const { data: cancelledLinkJobs } = await supabase
+              .from('jobs')
+              .select('id')
+              .eq('booking_id', existingBooking.id)
+              .eq('status', 'cancelled')
+              .limit(1);
+            const hasCancelledLinkPreserve =
+              (cancelledLinkProjects && cancelledLinkProjects.length > 0) ||
+              (cancelledLinkJobs && cancelledLinkJobs.length > 0);
+
             const keepManuallyHiddenCancelled =
               bookingStatus === 'CANCELLED' &&
-              existingBooking.assigned_to_project === true &&
               !activeProject &&
-              !activeJob;
+              !activeJob &&
+              (existingBooking.assigned_to_project === true || hasCancelledLinkPreserve);
             
             if (keepManuallyHiddenCancelled) {
               console.log(`[Preserve Flags] Booking ${bookingData.id} is manually hidden cancelled booking - preserving hidden state`);

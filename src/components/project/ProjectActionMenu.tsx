@@ -44,7 +44,7 @@ const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName,
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
-          Ta bort projekt
+          Avboka och dölj
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -330,6 +330,49 @@ export const removeStaffFromJob = async (assignmentId: string): Promise<void> =>
   if (error) throw error;
 };
 
+/**
+ * Cancel a job (hide from active views) without deleting it.
+ * Sets status='cancelled' and marks the linked booking as
+ * "manually hidden cancelled" so import-bookings keeps it hidden.
+ */
+export const cancelJob = async (jobId: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
+  const { data: job, error: fetchError } = await supabase
+    .from('jobs')
+    .select('booking_id, name')
+    .eq('id', jobId)
+    .single();
+
+  if (fetchError) throw new Error(`Kunde inte hämta jobb: ${fetchError.message}`);
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', jobId);
+  if (error) throw new Error(`Kunde inte avboka jobb: ${error.message}`);
+
+  if (job?.booking_id) {
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: true,
+        assigned_project_id: null,
+        assigned_project_name: null,
+      })
+      .eq('id', job.booking_id);
+  }
+
+  await (supabase.from('project_audit_log') as any).insert({
+    project_id: jobId,
+    project_type: 'small',
+    action: 'cancel',
+    booking_id: job?.booking_id || null,
+    performed_by: performedBy || null,
+    details: { name: job?.name },
+  });
+
+  return { bookingId: job?.booking_id || null };
+};
+
 // Delete job (soft-delete)
 export const deleteJob = async (jobId: string, performedBy?: string): Promise<{ bookingId: string | null }> => {
   const { data: job, error: fetchError } = await supabase

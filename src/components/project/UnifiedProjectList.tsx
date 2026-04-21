@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'lucide-react';
-import { fetchJobs, deleteJob } from '@/services/jobService';
-import { fetchProjects, deleteProject } from '@/services/projectService';
+import { fetchJobs, cancelJob } from '@/services/jobService';
+import { fetchProjects, cancelProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
 import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
@@ -68,15 +68,15 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
   };
 
-  const deleteJobMutation = useMutation({
-    mutationFn: deleteJob,
-    onSuccess: () => { invalidateAll(); toast.success('Litet projekt borttaget'); },
-    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
+  const cancelJobMutation = useMutation({
+    mutationFn: cancelJob,
+    onSuccess: () => { invalidateAll(); toast.success('Litet projekt avbokat och dolt'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte avboka projekt'),
   });
-  const deleteProjectMutation = useMutation({
-    mutationFn: deleteProject,
-    onSuccess: () => { invalidateAll(); toast.success('Medelprojekt borttaget'); },
-    onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
+  const cancelProjectMutation = useMutation({
+    mutationFn: cancelProject,
+    onSuccess: () => { invalidateAll(); toast.success('Medelprojekt avbokat och dolt'); },
+    onError: (err: any) => toast.error(err.message || 'Kunde inte avboka projekt'),
   });
   const deleteLargeMutation = useMutation({
     mutationFn: deleteLargeProject,
@@ -177,10 +177,14 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   const handleDelete = (project: UnifiedProject) => {
     const typeLabel = TYPE_LABELS[project.type];
-    if (!confirm(`Ta bort ${typeLabel} projekt: "${project.name}"?\n\nBokningen kommer att frigöras och kan tilldelas ett nytt projekt.`)) return;
-    if (project.type === 'small') deleteJobMutation.mutate(project.id);
-    else if (project.type === 'medium') deleteProjectMutation.mutate(project.id);
-    else deleteLargeMutation.mutate(project.id);
+    if (project.type === 'large') {
+      if (!confirm(`Ta bort ${typeLabel} projekt: "${project.name}"?\n\nBokningen kommer att frigöras.`)) return;
+      deleteLargeMutation.mutate(project.id);
+      return;
+    }
+    if (!confirm(`Avboka och dölj ${typeLabel} projekt: "${project.name}"?\n\nProjektet behålls i historiken med status "Avbokad" och försvinner från listan. Bokningen återintroduceras inte i inboxen.`)) return;
+    if (project.type === 'small') cancelJobMutation.mutate(project.id);
+    else cancelProjectMutation.mutate(project.id);
   };
 
   const handleConvert = async (project: UnifiedProject, targetType: ProjectType) => {
@@ -252,9 +256,9 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="divide-y divide-border/40">
           {filtered.map(project => {
-            const isPending = 
-              (project.type === 'small' && deleteJobMutation.isPending && deleteJobMutation.variables === project.id) ||
-              (project.type === 'medium' && deleteProjectMutation.isPending && deleteProjectMutation.variables === project.id) ||
+            const isPending =
+              (project.type === 'small' && cancelJobMutation.isPending && cancelJobMutation.variables === project.id) ||
+              (project.type === 'medium' && cancelProjectMutation.isPending && cancelProjectMutation.variables === project.id) ||
               (project.type === 'large' && deleteLargeMutation.isPending && deleteLargeMutation.variables === project.id);
 
             return (
