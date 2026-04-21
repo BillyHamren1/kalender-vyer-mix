@@ -149,7 +149,10 @@ Deno.serve(async (req) => {
       auth = await authenticateRequest(supabase, token)
     } catch (authErr: any) {
       return new Response(
-        JSON.stringify({ error: authErr.message || 'Unauthorized' }),
+        JSON.stringify({
+          error: authErr.message || 'Unauthorized',
+          debugCode: `AUTH_${(authErr.reason || 'unknown').toUpperCase()}`,
+        }),
         { status: authErr.status || 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -396,13 +399,19 @@ Deno.serve(async (req) => {
           const status = allocateResponse.status
           const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
           if (status === 404) {
-            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet` })
+            console.warn('[verify_product] WMS_404', { serialNumber, bookingNumber, orgId: ORG_ID })
+            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet`, debugCode: 'WMS_404' })
           }
           if (status === 409) {
-            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad' })
+            console.warn('[verify_product] WMS_409', { serialNumber, bookingNumber, body: errBody })
+            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
           }
-          console.error('Inventory API error:', status, errBody)
-          return json({ success: false, error: errBody.error || `Lagerfel (${status})` })
+          if (status === 401 || status === 403) {
+            console.error('[verify_product] WMS_AUTH failure — check PRICELIST_API_KEY / x-organization-id', { status, orgId: ORG_ID })
+            return json({ success: false, error: 'Lagersystemet avvisade autentiseringen (kontakta admin)', debugCode: `WMS_${status}` })
+          }
+          console.error('[verify_product] WMS_ERROR', { status, body: errBody })
+          return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
         }
 
         const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
