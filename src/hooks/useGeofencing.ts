@@ -3,6 +3,12 @@ import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
+import {
+  shouldTriggerEnter as evalShouldEnter,
+  shouldTriggerExit as evalShouldExit,
+  isInsideGeofence,
+  GEOFENCE_MAX_ACCURACY_M,
+} from '@/lib/geofenceEval';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
