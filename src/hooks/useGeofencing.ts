@@ -568,6 +568,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
+          // Arrival at a known workplace ends any open travel row.
+          emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
           // UNIFIED arrival registration — same server log as fixed locations.
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
