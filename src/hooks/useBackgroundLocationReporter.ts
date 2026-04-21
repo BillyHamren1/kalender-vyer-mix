@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { mobileApi } from '@/services/mobileApiService';
+import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
@@ -133,12 +133,17 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
       lastReportRef.current = now;
 
-      // Skip API call if no staffId (token refresh / logged out) — but keep
+      // Skip enqueue if no staffId (token refresh / logged out) — but keep
       // GPS watcher alive so we resume instantly when session returns.
       if (staffIdRef.current) {
-        mobileApi.reportLocation({ latitude, longitude, accuracy, speed }).catch((error) => {
-          console.warn('[BGLocation] report error:', error?.message || error);
+        enqueueLocationPoint({
+          latitude,
+          longitude,
+          accuracy,
+          speed,
+          source: 'background',
         });
+        void flushLocationQueue();
       }
 
       // Run geofence check (works without staffId — purely local)
@@ -152,14 +157,14 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const sid = staffIdRef.current;
       if (!pos || !sid) return;
       lastReportRef.current = Date.now();
-      mobileApi.reportLocation({
+      enqueueLocationPoint({
         latitude: pos.lat,
         longitude: pos.lng,
         accuracy: pos.accuracy,
         speed: pos.speed,
-      }).catch((error) => {
-        console.warn('[BGLocation] heartbeat error:', error?.message || error);
+        source: 'heartbeat',
       });
+      void flushLocationQueue();
     };
     heartbeatTimerRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 

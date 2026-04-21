@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
+import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
 import {
   shouldTriggerEnter as evalShouldEnter,
@@ -460,14 +461,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           lastLocationReportRef.current = now;
           const currentStaffId = staffIdRef.current;
           if (currentStaffId) {
-            mobileApi.reportLocation({
+            enqueueLocationPoint({
               latitude,
               longitude,
               accuracy: accuracy ?? null,
               speed: speed ?? null,
-            }).catch((error) => {
-              console.warn('Location report failed:', error?.message || error);
+              source: 'foreground',
             });
+            void flushLocationQueue();
           }
         }
       },
