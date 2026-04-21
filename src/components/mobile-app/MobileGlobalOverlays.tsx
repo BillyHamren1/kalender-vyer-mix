@@ -16,7 +16,10 @@ import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
+import { type WorkTarget } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -46,9 +49,18 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
-  // UNIFIED work-session engine — same start/stop motor as the rest of
-  // the mobile app. Used to start a timer for ANY arrival kind.
-  const { startSession } = useWorkSession(bookings, staff?.id);
+  // UNIFIED start flow — same conflict + distance + start machinery as
+  // every other start-surface in the mobile app. Direct startSession()
+  // calls from arrival flow are forbidden.
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
@@ -141,11 +153,11 @@ const MobileGlobalOverlays: React.FC = () => {
       const workTarget = arrivalToWorkTarget(arrivalTarget);
       if (!workTarget) throw new Error('Okänd ankomsttyp');
 
-      const ok = startSession(workTarget, { startedAtIso: startedAt });
-      if (!ok) {
+      // Route through the SAME start flow as manual button taps so the
+      // conflict dialog (and distance check) fire identically.
+      const status = requestStart(workTarget, { startedAtIso: startedAt });
+      if (status === 'duplicate') {
         toast.message('Timer redan aktiv för platsen');
-      } else {
-        toast.success('Timer startad');
       }
 
       await markResolved(arrivalTarget);
@@ -156,7 +168,7 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalTarget, arrivalToWorkTarget, startSession, markResolved, refreshArrival]);
+  }, [arrivalTarget, arrivalToWorkTarget, requestStart, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!arrivalTarget) return;
@@ -267,6 +279,25 @@ const MobileGlobalOverlays: React.FC = () => {
         onSaveAndClose={handleStaleSave}
         onDiscard={handleStaleDiscard}
         onClose={() => setStaleDialogOpen(false)}
+      />
+
+      {/* Unified conflict + distance dialogs for arrival-driven starts */}
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingLabel}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={() => {
+          distanceWarning?.onConfirm();
+          dismissDistanceWarning();
+        }}
       />
 
       <WorkDayAssistant decision={assistantDecision} onAcknowledge={ackAssistant} />

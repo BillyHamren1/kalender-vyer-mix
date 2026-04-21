@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencing, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
-import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
-import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
+import { useGeofencing } from '@/hooks/useGeofencing';
+import { type WorkTarget } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
@@ -32,52 +32,42 @@ const MobileJobs = () => {
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, startTimer, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
-  // Stop verbs come through the unified work-session engine so the
-  // conflict dialog can ask the engine to cleanly stop the conflicting
-  // timer (save-then-stop or pure-presence stop) before we start the new one.
-  // resolveTargetCoords is the SINGLE source for "where is this target?" lookups
-  // used by the centralized distance-warning check.
-  const { stopSession, resolveTargetCoords, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+
+  // ALL starts go through useTimerStartFlow → evaluateStartConflict →
+  // startSession. No raw startTimer / startSession calls here. Direct
+  // calls are forbidden and fail the unification contract test.
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
 
   // Fixed locations that should appear as job cards
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
 
+  /**
+   * Geofence ENTER no longer auto-starts a timer. The arrival popup
+   * (UnifiedArrivalPrompt, rendered globally by MobileGlobalOverlays) is
+   * now the single user-visible entry point for geo-driven starts. This
+   * eliminates "phantom timers" that started silently in the background.
+   *
+   * EXIT still routes the user to /m/report so save-then-stop runs.
+   */
   const handleGeofenceConfirm = (correctedStartTime?: string) => {
-    if (!geofenceEvent) return;
-
-    if (geofenceEvent.locationType === 'project' && geofenceEvent.largeProjectId) {
-      const projectKey = `project-${geofenceEvent.largeProjectId}`;
-      if (geofenceEvent.type === 'enter') {
-        const started = startTimer(projectKey, geofenceEvent.largeProjectName || 'Projekt', true, undefined, undefined, undefined, undefined, geofenceEvent.largeProjectId, correctedStartTime);
-        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.largeProjectName}`);
-        else toast.error(t('timer.alreadyActive'));
-      } else {
-        // Geofence EXIT — do NOT clear the timer here. Save-then-stop is enforced
-        // on /m/report (or via the global banner). Just navigate the user there.
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
-    } else if (geofenceEvent.locationType === 'fixed' && geofenceEvent.locationId) {
-      const locKey = `location-${geofenceEvent.locationId}`;
-      if (geofenceEvent.type === 'enter') {
-        const started = startTimer(locKey, geofenceEvent.locationName || 'Plats', true, undefined, undefined, geofenceEvent.locationId, geofenceEvent.locationName, undefined, correctedStartTime);
-        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.locationName}`);
-        else toast.error(t('timer.alreadyActive'));
-      } else {
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
-    } else if (geofenceEvent.booking) {
-      if (geofenceEvent.type === 'enter') {
-        const started = startTimer(geofenceEvent.booking.id, geofenceEvent.booking.client, true, undefined, undefined, undefined, undefined, undefined, correctedStartTime);
-        if (started) toast.success(`${t('timer.started')}: ${geofenceEvent.booking.client}`);
-        else toast.error(t('timer.alreadyActive'));
-      } else {
-        // Geofence EXIT — defer save-then-stop to /m/report.
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
-      }
+    if (!geofenceEvent) {
+      return;
+    }
+    if (geofenceEvent.type === 'enter') {
+      // Intentional no-op. Arrival popup handles the start.
+      console.log('[MobileJobs] geofence enter — deferring to arrival popup');
+    } else {
+      toast.success(t('timer.stoppedCreateReport'));
+      navigate('/m/report');
     }
     dismissGeofenceEvent();
   };
@@ -118,111 +108,9 @@ const MobileJobs = () => {
     return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
   };
 
-  // Rule-based concurrency state. The old `hasAnyTimer` hard block has
-  // been replaced by `evaluateStartConflict()` — see src/lib/timerConcurrency.ts
-  // for the matrix. Compatible parallel timers (e.g. Lager presence + active
-  // booking) start silently; incompatible starts open a switch dialog.
-  const [pendingStart, setPendingStart] = useState<{
-    target: WorkTarget;
-    label: string;
-    doStart: () => void;
-  } | null>(null);
-  const [conflictEval, setConflictEval] = useState<
-    Extract<StartEvaluation, { status: 'switch' }> | null
-  >(null);
-
-  // Distance warning state — dialog is rendered once per page; the
-  // decision to *show* it lives in useWorkSession.resolveTargetCoords +
-  // ENTER_RADIUS so all start-surfaces behave identically.
-  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
-
-  const checkDistanceAndStart = (target: WorkTarget, label: string, doStart: () => void) => {
-    const coords = resolveTargetCoords(target);
-    if (!userPosition || !coords) {
-      doStart();
-      return;
-    }
-    const dist = haversineDistance(userPosition.lat, userPosition.lng, coords.lat, coords.lng);
-    if (dist > ENTER_RADIUS) {
-      setDistanceWarning({ placeName: coords.label || label, distance: dist, onConfirm: doStart });
-    } else {
-      doStart();
-    }
-  };
-
-  /**
-   * Try to start a new timer. Pure rule-based concurrency:
-   *   • allow     → run distance check + start immediately
-   *   • duplicate → silent (button shouldn't be visible anyway)
-   *   • switch    → open TimerConflictDialog so the user picks
-   */
-  const requestStart = (
-    target: WorkTarget,
-    label: string,
-    doStart: () => void,
-  ) => {
-    const evalResult = evaluateStartConflict(target, activeTimers);
-    if (evalResult.status === 'duplicate') return;
-
-    const wrappedStart = () => checkDistanceAndStart(target, label, doStart);
-
-    if (evalResult.status === 'allow') {
-      wrappedStart();
-      return;
-    }
-    // switch — keep the requested start in memory and ask the user.
-    setPendingStart({ target, label, doStart: wrappedStart });
-    setConflictEval(evalResult);
-  };
-
-  const cancelConflict = () => {
-    setPendingStart(null);
-    setConflictEval(null);
-  };
-
-  /**
-   * The user picked "Stoppa & byt" in the conflict dialog. We resolve the
-   * conflicting timer through the unified work-session engine so the same
-   * save-then-stop / break-prompt rules apply, then start the new one.
-   */
-  const confirmSwitch = async () => {
-    if (!pendingStart || !conflictEval) return;
-    const { conflict } = conflictEval;
-    const { doStart } = pendingStart;
-    cancelConflict();
-
-    // Build a WorkTarget for the conflicting timer so stopSession can
-    // dispatch correctly (booking / project / location).
-    const existing = activeTimers.get(conflict.key);
-    if (!existing) {
-      doStart();
-      return;
-    }
-    const stopTarget: WorkTarget = existing.locationId
-      ? {
-          kind: 'location',
-          locationId: existing.locationId,
-          name: existing.locationName || existing.client,
-          createsTimeReport: false,
-        }
-      : existing.largeProjectId
-        ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
-        : { kind: 'booking', bookingId: conflict.key, client: existing.client };
-
-    try {
-      const res = await stopSession(stopTarget);
-      if (res.cancelled) return; // user backed out of the break dialog
-    } catch (err: any) {
-      toast.error(err?.message || t('timer.alreadyActive'));
-      return;
-    }
-    doStart();
-  };
-
   // Timer toggle for standalone bookings.
   // STOP path: never clears local timer here — navigates user to /m/report
-  // where save-then-stop is enforced. The timer card stays visible until
-  // a time_report has actually been persisted on the server.
+  // where save-then-stop is enforced.
   const handleTimerToggle = (e: React.MouseEvent, booking: MobileBooking) => {
     e.stopPropagation();
     if (activeTimers.has(booking.id)) {
@@ -231,14 +119,11 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
-    requestStart(target, booking.client, () => {
-      startTimer(booking.id, booking.client, false);
-      toast.success(`${t('timer.started')}: ${booking.client}`);
-    });
+    requestStart(target);
   };
 
-  // Timer toggle for projects — no coords readily available, start directly
-  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string, entries: { booking: MobileBooking }[]) => {
+  // Timer toggle for projects
+  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string, _entries: { booking: MobileBooking }[]) => {
     e.stopPropagation();
     const projectKey = `project-${lpId}`;
     if (activeTimers.has(projectKey)) {
@@ -247,10 +132,7 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
-    requestStart(target, name, () => {
-      startTimer(projectKey, name, false, undefined, undefined, undefined, undefined, lpId);
-      toast.success(`${t('timer.started')}: ${name}`);
-    });
+    requestStart(target);
   };
 
   // Timer toggle for fixed locations (e.g. Lager)
@@ -268,12 +150,8 @@ const MobileJobs = () => {
       name: loc.name,
       createsTimeReport: false,
     };
-    requestStart(target, loc.name, () => {
-      startTimer(locKey, loc.name, false, undefined, undefined, loc.id, loc.name);
-      toast.success(`${t('timer.started')}: ${loc.name}`);
-    });
+    requestStart(target);
   };
-
   // Elapsed time display
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -578,24 +456,22 @@ const MobileJobs = () => {
 
       <DistanceWarningDialog
         open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
         onConfirm={() => {
           distanceWarning?.onConfirm();
-          setDistanceWarning(null);
+          dismissDistanceWarning();
         }}
       />
 
       <TimerConflictDialog
         open={!!conflictEval}
         evaluation={conflictEval}
-        newTargetLabel={pendingStart?.label ?? ''}
+        newTargetLabel={pendingLabel}
         onCancel={cancelConflict}
         onSwitch={confirmSwitch}
       />
-
-      {workSessionDialogs}
     </div>
   );
 };
