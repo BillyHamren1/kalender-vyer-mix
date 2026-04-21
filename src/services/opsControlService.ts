@@ -113,9 +113,32 @@ export interface OpsTimelineAssignment {
   teamId: string;
   startTime: string | null;
   endTime: string | null;
+  /**
+   * Rå klocktid (HH:mm) extraherad direkt ur calendar_events.start_time/
+   * end_time UTAN tidszonskonvertering. Personalkalendern visar samma rå
+   * klocktid (08:00 i DB → 08:00 i UI), och Ops-timeline MÅSTE matcha den
+   * exakt. Använd ALLTID startClock/endClock vid visning — aldrig
+   * `new Date(startTime)` i renderingen.
+   */
+  startClock: string | null;
+  endClock: string | null;
   eventType: string | null;
   deliveryAddress: string | null;
   bookingNumber: string | null;
+}
+
+/**
+ * Extrahera HH:mm direkt ur en ISO-tidssträng utan tz-konvertering.
+ * calendar_events lagrar planerings­tider som "klocktid+00" där siffrorna
+ * representerar exakt det som visas i personalkalendern. `new Date(...)`
+ * skiftar dem till lokal tz (CEST = +2h) → fel. Vi vill ha rå-strängens
+ * tim/min-fält.
+ */
+export function extractClockTime(iso: string | null): string | null {
+  if (!iso) return null;
+  // Format: 2026-04-22T08:00:00+00:00 eller 2026-04-22 08:00:00+00
+  const m = iso.match(/[T ](\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
 }
 
 export interface OpsTimelineStaff {
