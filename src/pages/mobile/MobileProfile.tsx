@@ -6,6 +6,7 @@ import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, 
 import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
+import LocationSyncDebugCard from '@/components/mobile-app/LocationSyncDebugCard';
 import { format, parseISO } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
@@ -173,6 +174,9 @@ const MobileProfile = () => {
           )}
         </div>
 
+
+        {/* GPS sync — internal debug */}
+        <LocationSyncDebugCard />
 
         {/* Logout */}
         <Button
