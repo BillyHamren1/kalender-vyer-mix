@@ -2,6 +2,12 @@
  * timerConcurrency
  * ================
  *
+ * INVOCATION RULE: this engine is called from EXACTLY ONE place —
+ * `useTimerStartFlow` (src/hooks/useTimerStartFlow.ts). Direct calls to
+ * `startTimer(...)` / `startSession(...)` from feature code that bypass
+ * `requestStart()` are forbidden and fail the contract test
+ * `src/test/timerStartUnification.contract.test.ts`.
+ *
  * Pure rule engine for "may I start this new timer right now?".
  *
  * Replaces the old "max one timer total" hard-block. Concurrency is
