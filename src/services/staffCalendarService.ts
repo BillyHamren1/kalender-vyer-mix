@@ -370,6 +370,8 @@ const getEventColor = (eventType: string): string => {
       return '#FEF7CD'; // Yellow
     case 'rigDown':
       return '#FFDEE2'; // Light red
+    case 'activity':
+      return '#DBEAFE'; // Light blue (synced project activities)
     default:
       return '#e8f5e8'; // Light green fallback
   }
@@ -383,6 +385,8 @@ const getEventBorderColor = (eventType: string): string => {
       return '#F3E8A3'; // Yellow border
     case 'rigDown':
       return '#FEB190'; // Light red border
+    case 'activity':
+      return '#93C5FD'; // Light blue border
     default:
       return '#4caf50'; // Green fallback
   }
