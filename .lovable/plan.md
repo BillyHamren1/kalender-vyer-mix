@@ -1,81 +1,80 @@
 
 
-## Diagnos: "hittades inte" + "Session expired" vid scanning
+## Synca aktivitet med personalkalender
 
-### Kedjan vid en scanning
+### Vad vi bygger
 
-```text
-Scanner-app (Android/Zebra)
-   │  scannedValue (SKU eller serienr)
-   ▼
-useScanProcessor.handleScan
-   │  verifyProductBySku(packingId, sku, verifierName)
-   ▼
-scannerService.callScannerApi('verify_product')
-   │  POST https://pihrhltinhewhoxefjxv../scanner-api
-   │  body: { action, token, packingId, sku, verifiedBy }
-   ▼
-scanner-api edge function
-   │  1. verifyToken(token) ← lokal base64 (24h)
-   │  2. lookup packing → booking_number
-   │  3. POST allocate-instance @ WMS (pnvvnvywphfvmwdmqqzs)
-   │     headers: Bearer PRICELIST_API_KEY, x-organization-id
-   │     body: { serial_number, reservation_id, booking_number }
-   │  4. matcha returnerad SKU mot packing_list_items
-   ▼
-Svar tillbaka till scannern
-```
+En **opt-in checkbox** "Synca med personalkalender" i både:
+1. **ActivityPlannerSheet** (när man skapar nya aktiviteter) — en checkbox per rad i multi-row builder
+2. **EstablishmentTaskDetailSheet** (när man redigerar en befintlig aktivitet)
 
-### Vad de två felen faktiskt betyder
+När boxen är ikryssad skapas/uppdateras en riktig `calendar_events`-rad (inte bara overlay) på rätt datum/tid och resurs. Avbockad ⇒ raden tas bort.
 
-**1. "Session expired"** kommer ENDAST från `scannerService.ts` rad 23-26:
-```ts
-if (response.status === 401) { clearAuth(); throw new Error('Session expired'); }
-```
-Det triggas när scanner-api kastar 401 — vilket i sin tur sker när:
-- token är >24h gammal, ELLER
-- token saknar staffId/expiresAt, ELLER
-- staff_members-raden inte hittas via `id = staffId` (rad 46-48 i scanner-api).
+### Hur synken fungerar
 
-Tokenformatet är **base64 av `{staffId, expiresAt}`** (samma som mobile-app-api). Om scanner-appen sparat en gammal token i lokal storage så loggas användaren ut vid första scan och får "Session expired" tills hen loggar in på nytt.
+**Datakälla:** aktivitetens `start_date`, `end_date`, `start_time`, `end_time`, `task_type`, `booking_id`/`large_project_id`.
 
-**2. "hittades inte"** kommer från två olika ställen i scanner-api:
-- Rad 395: `Enheten "X" hittades inte i lagersystemet` ← WMS `allocate-instance` returnerade **404** för serienumret.
-- Rad 815: `Produkt "X" hittades inte` ← gäller bara `identify_product`-läget.
+**Mappning till `calendar_events`:**
+- `resource_id` — baserat på `task_type`:
+  - `crew` → `team-tasks` (samma kolumn som dagens overlay)
+  - `pm` → `team-tasks`
+  - `logistics` → `team-tasks`
+  - `admin` → `team-tasks`
+  *(Vi kan göra dessa konfigurerbara senare; för nu håller vi en kolumn så vi inte krockar med rigg/event-team.)*
+- `start_time` / `end_time` — kombinera datum + tid (faller tillbaka till 08:00–16:00).
+- `event_type` — ny typ `activity` (separerar dem från rig/event/rigDown).
+- `title` — `[Kategori] Aktivitetstitel` ev. + initialer på tilldelade.
+- `booking_id` — bokningens ID (eller `project-{largeProjectId}` om standalone, samma mönster som `projectCalendarService`).
+- `delivery_address`, `booking_number`, `organization_id` — hämtas från bokning/projekt.
+- `source_date` — startdatum.
 
-Loggarna för scanner-api de senaste 90 minuterna visar **bara boot/shutdown — inte ett enda `[verify_product]`- eller `[allocate-instance]`-anrop**. Det betyder att antingen:
-  a) Inga scans har faktiskt gjorts under perioden, eller
-  b) Scannern slänger requesten innan den når edge function (offline / fel URL / CORS / nätverksfel), eller
-  c) Token är ogiltig och scannerService kastar "Session expired" *innan* vi ens skickar — fast det stämmer inte, requesten skickas alltid och 401 returneras av servern.
+**Koppling tillbaka till aktiviteten** (för att kunna uppdatera/radera vid edit):
+- Lägg till kolumn `calendar_event_id uuid` på `establishment_tasks` (nullable, FK till `calendar_events.id` med `on delete set null`).
+- När `calendar_event_id` finns ⇒ aktiviteten är synkad; checkboxen är ikryssad i UI.
 
-Sannolikast: **(a)** under den period jag tittade. Vi behöver färska loggar från en faktisk scan för att se vilket av WMS-svaren (404/409/timeout) som triggar "hittades inte".
+**Realtime:** befintlig `useRealTimeCalendarEvents` lyssnar redan på `postgres_changes` på `calendar_events`, så raden dyker upp i kalendern direkt utan reload.
 
-### Vad jag vill göra för att lösa det (kräver default mode)
+**Multidagars aktiviteter:** vi skapar **en rad per dag** mellan `start_date` och `end_date` (samma mönster som rigg-events idag), alla länkade via samma `calendar_event_id`-grupp — eller enklast: vi lagrar en `activity_group_id` per aktivitet och länkar alla rader på den. Jag föreslår vi börjar med **enkel modell**: en aktivitet = en `calendar_events`-rad spannande start→slut. Multidagsdelning kan vi göra som v2.
 
-**Steg 1 — Hämta verkliga signaler från en aktiv scan**
-- Be dig göra en scan precis innan jag tittar i loggarna, så jag fångar:
-  - `[scanner-api] → verify_product` i client-loggen (bekräftar att requesten skickas)
-  - `[allocate-instance] Request` + `Response` i edge-loggen (visar WMS-status och body)
-- Då vet vi exakt om felet är 401 (token), 404 (WMS hittar inte serienr), eller "no SKU returned".
+### Filer som ändras
 
-**Steg 2 — Förbättra felsignalering så vi slipper gissa nästa gång**
-I `supabase/functions/scanner-api/index.ts`:
-- Logga alla token-401:or med orsak (`expired`, `bad_format`, `staff_not_found`) som `console.warn` så de syns i edge-loggen.
-- I `verify_product`: logga alltid `serialNumber`, `bookingNumber`, `ORG_ID` innan WMS-anropet (idag loggas det bara delvis vid `console.log('[allocate-instance] Request')`).
-- Skicka tillbaka en kort `debugCode` (t.ex. `WMS_404`, `WMS_409`, `NO_SKU`, `LOCAL_NO_MATCH`) i svaret så frontend kan visa mer specifik text än bara "hittades inte".
+**Migration (ny):**
+- `establishment_tasks.calendar_event_id uuid null` + index.
+- Tillåt `event_type='activity'` (text, ingen check att lätta på).
 
-**Steg 3 — Token-livslängd & auto-refresh**
-- I `src/services/scannerService.ts`: när `Session expired` kastas, visa en tydlig toast + redirecta till login, istället för att den bara dyker upp på nästa scan utan kontext.
-- Överväg att förlänga `TOKEN_EXPIRY_HOURS` (idag 24h) eller införa silent refresh (samma mönster som mobile-app-api) — i lagermiljö loggar personalen sällan ut/in.
+**Backend-tjänst (ny):** `src/services/activityCalendarSyncService.ts`
+- `syncActivityToCalendar(taskId)` — skapar eller uppdaterar `calendar_events`-raden, sparar `calendar_event_id`.
+- `removeActivityFromCalendar(taskId)` — raderar raden, nollställer `calendar_event_id`.
 
-**Steg 4 — Verifiera WMS-API-nyckel**
-- `PRICELIST_API_KEY` används mot `https://pnvvnvywphfvmwdmqqzs.supabase.co`. Om WMS roterat nyckeln eller om `x-organization-id` inte längre matchar deras tenant så returnerar `allocate-instance` 404/401 för **allt**. Vi pingar `allocate-instance` med ett känt giltigt serienummer för att verifiera att integrationen lever.
+**UI-ändringar:**
+- `ActivityPlannerSheet.tsx`:
+  - Lägg `syncToCalendar: boolean` i `ActivityRow`.
+  - En liten checkbox "📅 Synca med kalender" per rad bredvid datum/tid.
+  - Efter `createEstablishmentTask` i `handleSaveAll`: om `row.syncToCalendar`, anropa `syncActivityToCalendar(newTask.id)`.
+- `EstablishmentTaskDetailSheet.tsx`:
+  - Visa en checkbox "Synca med personalkalender" (ikryssad om `task.calendar_event_id`).
+  - On-toggle: kalla `syncActivityToCalendar` eller `removeActivityFromCalendar`.
+  - När datum/tid uppdateras och `calendar_event_id` finns ⇒ uppdatera kalendern automatiskt.
 
-### Frågor till dig innan jag drar igång
+**Hooks:**
+- `useTaskCalendarEvents.ts` — exkludera tasks som har `calendar_event_id` (annars skulle de visas både som overlay och som riktig event = dubblett).
+- Inga ändringar i `useRealTimeCalendarEvents` (fungerar redan).
 
-Jag behöver veta vilket av tre scenarion det är, för åtgärden skiljer sig:
+### Edge-cases vi hanterar
 
-1. **"Session expired"** — händer det direkt vid första scan när du precis öppnat appen, eller efter en stund?
-2. **"hittades inte"** — gäller det *alla* scans nu, eller bara vissa serienummer/SKU:er? Funkade samma streckkoder igår?
-3. Vill du att jag bara lägger på bättre loggning + felkoder först (snabbt, säkert), eller vill du också att jag ändrar token-livslängden direkt?
+- **Aktivitet utan booking_id** (large project utan vald bokning) → använder `project-{largeProjectId}` som booking_id.
+- **Datum/tid ändras på en synkad aktivitet** → kalendern uppdateras automatiskt.
+- **Aktivitet raderas** → `on delete set null` på FK säkerställer att kalenderraden inte hamnar i limbo, men vi kallar explicit `removeActivityFromCalendar` först.
+- **Krock med arkitekturregeln "single-writer via import-bookings"**: import-bookings är skyddad via `event_type IN ('rig','event','rigDown')`. Vi använder `event_type='activity'` så import-bookings rör dem aldrig.
+
+### Vad användaren ser
+
+- I planneraren: en liten "📅 Synca"-checkbox per aktivitetsrad.
+- I detaljvyn: en toggle "Synca med personalkalender" — när den slås på dyker aktiviteten upp som riktig kalenderhändelse i Tasks-kolumnen för den/de dagarna.
+- Drag-and-drop i kalendern flyttar inte aktivitetens datum (vi behåller `isEventReadOnly` för dessa eller lägger till stöd för att flytta tillbaka till `establishment_tasks` — det blir steg 2).
+
+### Frågor jag medvetet inte ställer
+
+- **Resurskolumn:** jag använder `team-tasks` (samma som overlay-funktionen). Om du vill att aktiviteten istället ska hamna på t.ex. `team-1`/`team-11` baserat på category säg till.
+- **Drag-flytt i kalendern uppdaterar aktiviteten:** lämnas till v2; första iterationen är "kalendern visar, planneraren styr".
 
