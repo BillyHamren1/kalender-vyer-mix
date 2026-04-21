@@ -77,10 +77,16 @@ const StaffTimeReports: React.FC = () => {
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
       const [reportsRes, travelRes, locationRes] = await Promise.all([
+        // EXCLUDE auto-mirrored rows: a DB trigger (sync_location_entry_to_time_report)
+        // copies every closed location_time_entry into time_reports with
+        // source='location_auto'. That's the SAME shift — counting it again would
+        // start a second timer / row in the UI. The location_time_entry is the
+        // canonical record; we render only that one.
         supabase
           .from('time_reports')
-          .select('id, staff_id, booking_id, hours_worked, start_time, end_time')
-          .eq('report_date', dateStr),
+          .select('id, staff_id, booking_id, hours_worked, start_time, end_time, source, source_entry_id')
+          .eq('report_date', dateStr)
+          .or('source.is.null,source.neq.location_auto'),
         supabase
           .from('travel_time_logs')
           .select('id, staff_id, hours_worked, start_time, end_time, to_address')
