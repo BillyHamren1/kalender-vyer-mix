@@ -1,0 +1,294 @@
+// Location (GPS) sync queue
+// ------------------------------------------------------------------
+// Architectural decision: GPS points must NEVER be fired off in a
+// "best-effort, hope-the-network-is-up" way. They are the raw signal
+// behind:
+//   - presence detection (geofence enter/exit)
+//   - travel detection
+//   - workday backtracking & disputes
+//
+// To keep that signal intact we mirror the timer queue pattern:
+//   1. Every captured point is persisted to localStorage first.
+//   2. A background flush pushes points to the server with retry +
+//      exponential backoff and survives reloads / offline periods.
+//   3. Stable ids prevent duplicate uploads when flush runs twice
+//      (focus + online + interval can all fire near-simultaneously).
+//   4. Auto-flush triggers on `online` and `focus` events plus a
+//      timer wake-up scheduled from the soonest `nextAttemptAt`.
+//
+// Same constraints as the timer queue: no external deps, tiny surface,
+// resilient to JSON corruption, and never throws to callers.
+// ------------------------------------------------------------------
+
+import { mobileApi } from './mobileApiService';
+
+const QUEUE_KEY = 'eventflow-location-sync-queue';
+
+// Hard cap so a multi-day offline session can't grow the queue
+// unboundedly and blow past the localStorage quota. Oldest points are
+// dropped first because newer GPS data is always more actionable.
+const MAX_QUEUE_SIZE = 2000;
+
+export type LocationPointSource =
+  | 'background'
+  | 'foreground'
+  | 'geofence'
+  | 'manual'
+  | 'heartbeat';
+
+export type LocationPointStatus =
+  | 'pending'
+  | 'uploading'
+  | 'uploaded'
+  | 'failed';
+
+export interface PendingLocationPoint {
+  id: string;
+  recordedAt: string;       // ISO timestamp from the device clock
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  source: LocationPointSource;
+  status: LocationPointStatus;
+  attempts: number;
+  nextAttemptAt: number;    // epoch ms
+  createdAt: number;        // epoch ms — when enqueued locally
+}
+
+type Listener = (queue: PendingLocationPoint[]) => void;
+const listeners = new Set<Listener>();
+
+const BACKOFF_MS = [0, 2_000, 5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
+
+function backoffFor(attempts: number): number {
+  return BACKOFF_MS[Math.min(attempts, BACKOFF_MS.length - 1)];
+}
+
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `loc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function loadQueue(): PendingLocationPoint[] {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (p): p is PendingLocationPoint =>
+        p &&
+        typeof p.id === 'string' &&
+        typeof p.latitude === 'number' &&
+        typeof p.longitude === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveQueue(queue: PendingLocationPoint[]) {
+  // Enforce upper bound — drop oldest first
+  const trimmed =
+    queue.length > MAX_QUEUE_SIZE
+      ? queue.slice(queue.length - MAX_QUEUE_SIZE)
+      : queue;
+  try {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(trimmed));
+  } catch (err) {
+    // Quota exceeded — aggressively trim and retry once
+    try {
+      const half = trimmed.slice(Math.floor(trimmed.length / 2));
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(half));
+    } catch {
+      // Give up silently — losing GPS history is preferable to crashing
+      console.warn('[LocationSync] saveQueue failed:', (err as any)?.message || err);
+    }
+  }
+  for (const l of listeners) {
+    try { l(trimmed); } catch { /* ignore */ }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('location-sync-queue-changed'));
+  }
+}
+
+export function subscribeLocationQueue(l: Listener): () => void {
+  listeners.add(l);
+  l(loadQueue());
+  return () => {
+    listeners.delete(l);
+  };
+}
+
+export function getPendingLocationPoints(): PendingLocationPoint[] {
+  return loadQueue().filter(p => p.status !== 'uploaded');
+}
+
+/**
+ * Wipe the entire queue. Used on logout / user switch so one user's
+ * pending GPS points never get attributed to another session.
+ */
+export function clearLocationQueue() {
+  saveQueue([]);
+}
+
+export interface EnqueueLocationPointInput {
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  speed?: number | null;
+  source: LocationPointSource;
+  recordedAt?: string;
+  /** Optional caller-supplied id for idempotency across hot reloads */
+  id?: string;
+}
+
+/**
+ * Persist a GPS point and trigger a flush. Always returns the id of
+ * the stored point. Duplicate ids (or same lat/lng/recordedAt within
+ * the same second) are coalesced.
+ */
+export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
+  const queue = loadQueue();
+  const recordedAt = input.recordedAt || new Date().toISOString();
+  const id = input.id || generateId();
+
+  // De-dup #1: explicit id collision
+  const existingById = queue.find(p => p.id === id);
+  if (existingById) return existingById.id;
+
+  // De-dup #2: identical sample within the same second from the same source
+  const recordedSecond = recordedAt.slice(0, 19);
+  const dup = queue.find(
+    p =>
+      p.source === input.source &&
+      p.latitude === input.latitude &&
+      p.longitude === input.longitude &&
+      p.recordedAt.slice(0, 19) === recordedSecond,
+  );
+  if (dup) return dup.id;
+
+  const point: PendingLocationPoint = {
+    id,
+    recordedAt,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    accuracy: input.accuracy ?? null,
+    speed: input.speed ?? null,
+    source: input.source,
+    status: 'pending',
+    attempts: 0,
+    nextAttemptAt: Date.now(),
+    createdAt: Date.now(),
+  };
+
+  queue.push(point);
+  saveQueue(queue);
+  void flushLocationQueue();
+  return id;
+}
+
+let flushing = false;
+let flushTimeoutId: number | null = null;
+
+function scheduleNextFlush() {
+  const remaining = loadQueue().filter(p => p.status !== 'uploaded');
+  if (remaining.length === 0) return;
+  const soonest = Math.min(
+    ...remaining.map(p => Math.max(0, p.nextAttemptAt - Date.now())),
+  );
+  if (flushTimeoutId !== null) {
+    window.clearTimeout(flushTimeoutId);
+  }
+  flushTimeoutId = window.setTimeout(() => {
+    flushTimeoutId = null;
+    void flushLocationQueue();
+  }, Math.max(1_000, soonest)) as unknown as number;
+}
+
+/**
+ * Flush all due GPS points to the server. Safe to call concurrently —
+ * a single in-flight flush is enforced via the `flushing` guard so
+ * `online`, `focus`, and the wake-up timer can all fire freely.
+ */
+export async function flushLocationQueue(): Promise<void> {
+  if (flushing) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // Offline — schedule a re-check when the network returns.
+    return;
+  }
+  flushing = true;
+  try {
+    const queue = loadQueue();
+    const now = Date.now();
+    const due = queue.filter(
+      p => p.status !== 'uploaded' && p.nextAttemptAt <= now,
+    );
+    if (due.length === 0) return;
+
+    // Mark as uploading first so concurrent enqueues don't reset attempts.
+    {
+      const map = new Map(due.map(p => [p.id, p]));
+      const updated = loadQueue().map(p =>
+        map.has(p.id) ? { ...p, status: 'uploading' as LocationPointStatus } : p,
+      );
+      saveQueue(updated);
+    }
+
+    // Process oldest-first so timeline ordering on the server is stable.
+    due.sort((a, b) => a.createdAt - b.createdAt);
+
+    for (const item of due) {
+      try {
+        await mobileApi.reportLocation({
+          latitude: item.latitude,
+          longitude: item.longitude,
+          accuracy: item.accuracy,
+          speed: item.speed,
+        });
+
+        // Success — drop from queue. (We don't keep "uploaded" rows
+        // around; the server is the source of truth.)
+        const after = loadQueue().filter(p => p.id !== item.id);
+        saveQueue(after);
+      } catch (err: any) {
+        const after = loadQueue();
+        const idx = after.findIndex(p => p.id === item.id);
+        if (idx >= 0) {
+          const attempts = after[idx].attempts + 1;
+          after[idx] = {
+            ...after[idx],
+            status: 'failed',
+            attempts,
+            nextAttemptAt: Date.now() + backoffFor(attempts),
+          };
+          saveQueue(after);
+        }
+        console.warn(
+          '[LocationSync] upload failed, will retry:',
+          item.id,
+          err?.message || err,
+        );
+      }
+    }
+  } finally {
+    flushing = false;
+    scheduleNextFlush();
+  }
+}
+
+// Auto-flush triggers — only wired up in browser/WebView contexts.
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    void flushLocationQueue();
+  });
+  window.addEventListener('focus', () => {
+    void flushLocationQueue();
+  });
+  // Resume any leftover work from the previous session.
+  void flushLocationQueue();
+}
