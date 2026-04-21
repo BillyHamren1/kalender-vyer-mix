@@ -84,7 +84,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, pingsRes] = await Promise.all([
         // EXCLUDE auto-mirrored rows: a DB trigger (sync_location_entry_to_time_report)
         // copies every closed location_time_entry into time_reports with
         // source='location_auto'. That's the SAME shift — counting it again would
@@ -103,11 +103,36 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
+        // Latest GPS ping per staff (one row per staff_id by table design).
+        supabase
+          .from('staff_locations')
+          .select('staff_id, latitude, longitude, updated_at, last_address'),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
       if (travelRes.error) throw travelRes.error;
       if (locationRes.error) throw locationRes.error;
+      // pingsRes is non-fatal — fall back to no ping data on error.
+      const pingMap = new Map<string, LatestPing>();
+      for (const p of (pingsRes.data || []) as any[]) {
+        pingMap.set(p.staff_id, {
+          address: p.last_address ?? null,
+          latitude: p.latitude ?? null,
+          longitude: p.longitude ?? null,
+          updated_at: p.updated_at ?? null,
+        });
+      }
+
+      // Fire-and-forget: ask backend to fill any missing addresses.
+      // Trigger has already nulled out stale ones (>100m moved or >1h old).
+      const staffNeedingAddress = [...pingMap.entries()]
+        .filter(([, v]) => v.address === null && v.latitude != null && v.longitude != null)
+        .map(([id]) => id);
+      if (staffNeedingAddress.length > 0) {
+        supabase.functions
+          .invoke('reverse-geocode-staff', { body: { staff_ids: staffNeedingAddress } })
+          .catch(() => { /* best-effort */ });
+      }
 
       const reports = reportsRes.data || [];
       const travel = travelRes.data || [];
