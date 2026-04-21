@@ -271,8 +271,8 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
                   </div>
                   {width > 8 && (
                     <div className="text-[8px] text-foreground/70 truncate leading-tight">
-                      {a.startTime ? format(new Date(a.startTime), 'HH:mm') : ''}
-                      {a.endTime ? `–${format(new Date(a.endTime), 'HH:mm')}` : ''}
+                      {a.startClock || ''}
+                      {a.endClock ? `–${a.endClock}` : ''}
                     </div>
                   )}
                 </div>
