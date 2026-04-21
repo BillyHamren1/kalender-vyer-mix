@@ -175,6 +175,9 @@ const MobileProfile = () => {
         </div>
 
 
+        {/* GPS sync — internal debug */}
+        <LocationSyncDebugCard />
+
         {/* Logout */}
         <Button
           variant="outline"
