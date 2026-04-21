@@ -2,75 +2,93 @@
 
 ## Mål
 
-Rest-timern (`travel_time_logs`) ska **inte stoppas** bara för att GPS-hastigheten faller under tröskeln vid en okänd adress (Bauhaus, lunch, tankstation, etc.). Den ska fortsätta rulla tills användaren faktiskt **anländer till en känd arbetsplats** (lager, projekt-geofence, booking-geofence) **eller startar en ny aktivitets-timer manuellt**.
+Mobilappen ska veta **exakt när** varje jobb är planerat för **just denna personal** (per event/fas) — inte bokningens generella tider — och visa hela dagen som en lodrät tidslinje (timmar 06–22) där varje pass ligger på sin planerade tid. Den nya kalendervyn **ersätter** den platta jobblistan på startskärmen.
 
-## Problem idag
+## Datakälla — vad räknas som "planerad tid"
 
-I `src/hooks/useTravelDetection.ts`:
+Personalens planering ligger i `calendar_events` (rader skapade från Planning-kalendern via `staff_assignments` + `booking_staff_assignments`). En `calendar_events`-rad har:
+- `start_time`, `end_time` (ISO timestamps — **detta är den auktoritativa tiden för personalen**)
+- `booking_id`, `booking_number`, `title`, `delivery_address`, `event_type` (rig/event/rigdown/övrigt)
+- `resource_id` (team) och `source_date`
 
-```text
-Speed < 1.0 m/s i 60s  ──►  stopTravel()  ──►  travel_time_logs stängs
+Varje event-rad blir **ett separat pass** i appen. En personal som har rig 07–10 + event 14–18 på samma bokning får **två separata kort** på tidslinjen.
+
+Koppling personal ↔ calendar_event sker via `booking_staff_assignments` (BSA): `staff_id + booking_id + assignment_date`. Vi joinar BSA → calendar_events där `ce.booking_id = bsa.booking_id` och `DATE(ce.start_time) = bsa.assignment_date`.
+
+## Backend — `mobile-app-api` `handleGetBookings`
+
+**Fil:** `supabase/functions/mobile-app-api/index.ts`
+
+Idag returnerar funktionen en lista av bokningar för dagen. Ändras till att returnera en lista av **planerade pass** (en rad per `calendar_events`-träff för personalen):
+
+```ts
+type ScheduledShift = {
+  shift_id: string;            // calendar_events.id
+  booking_id: string;
+  booking_number: string | null;
+  title: string;               // ce.title
+  event_type: 'rig' | 'event' | 'rigdown' | 'other';
+  start_time: string;          // ISO, från calendar_events
+  end_time: string;            // ISO, från calendar_events
+  delivery_address: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  client: string;
+  is_internal: boolean;
+  internal_type: string | null;
+  // befintliga bokningsfält som appen redan använder behålls
+};
 ```
 
-Det betyder att så fort bilen står still 1 minut (rött ljus räknas inte, men parkering på Bauhaus gör det) → resan avslutas och en `TravelCompletedDialog` poppar upp. Det är fel modell.
+- Ny respons-property `shifts` i sidan av befintlig `bookings` (bakåtkompatibilitet under övergång). Appen migreras till `shifts` i samma PR.
+- Interna lager-pass har inte calendar_events och visas inte i tidslinjen — bara via befintlig "Lager"-ingång (oförändrad).
 
-## Ny modell: rest-timern stoppas BARA av ankomst eller ny aktivitet
+## Frontend — ny dagskalender
 
-```text
-Travel pågår
-   │
-   ├─ Speed faller → IGNORERAS (timern fortsätter)
-   │
-   ├─ GPS-position inom känd geofence (lager / projekt / booking)
-   │     └─► stopTravel(arrivalLocation)
-   │
-   └─ requestStart() lyckas starta ny aktivitets-timer (manuellt eller via arrival-popup)
-         └─► stopTravel(newTarget) körs FÖRST i useTimerStartFlow
-```
+**Ny fil:** `src/components/mobile-app/DayTimeline.tsx`
 
-Dvs: **endast två giltiga stop-triggers** för en travel-rad:
-1. **Geofence ENTER** på en känd arbetsplats (lager / projekt / booking).
-2. **Ny aktivitets-timer startar** via `useTimerStartFlow`.
+- Lodrät tidslinje 06:00–22:00 (auto-utöka om pass ligger utanför).
+- 1 timme = fast pixelhöjd (64px). Nu-linje (semantic `--destructive`) som uppdateras varje minut och auto-scrollar till "nu" vid mount.
+- Varje pass renderas som ett absolut-positionerat kort (`top = (start - dayStart) * pxPerMinute`, `height = duration * pxPerMinute`), tap → öppnar befintlig bokningsdetalj.
+- Färgkod per `event_type`:
+  - rig → `--primary`
+  - event → `--accent`
+  - rigdown → `--secondary`
+  - other → `--muted`
+- Överlappande pass läggs sida-vid-sida (50/50 bredd) — enkel kollisionsdetektering.
+- Aktiv timer (om något pass är igång) får `ring-2 ring-primary` + pulserande prick.
 
-Stillastående utan geofence-träff = användaren är på ett okänt ärende mitt i resan. Timern rullar.
+**Hook:** `src/hooks/useScheduledShifts.ts`
+- Läser `shifts` från `mobile-app-api`.
+- Realtime: subscribar på `calendar_events` + `booking_staff_assignments` (filtrerat på org) → invalidera vid ändring så planerad tid uppdateras live om planeraren flyttar passet.
 
-## Tekniska ändringar
+**Ersätt:** `src/components/mobile-app/MobileHome.tsx` (eller motsvarande startskärm)
+- Den platta jobblistan byts ut mot `<DayTimeline shifts={shifts} />`.
+- Header behåller dagsdatum + befintlig dagstimer/"Starta dagen".
+- Tom dag → centrerad illustration + "Inga planerade pass idag".
 
-**Fil 1: `src/hooks/useTravelDetection.ts`**
-- Ta bort hela `STOP_DEBOUNCE`-blocket (raderna ~270–285) som idag stänger travel via låg hastighet.
-- Behåll `SPEED_THRESHOLD` + `START_DEBOUNCE` för auto-start.
-- `stopTravel(lat, lng)` blir nu en **publik funktion** som ENDAST kallas externt — inte längre internt från speed-loopen.
-- Ta bort `TravelCompletedDialog`-triggern på auto-stop (den ska inte längre dyka upp mitt på dagen — klassificering sker vid dagsslut enligt tidigare beslut).
+## Felhantering / edge cases
 
-**Fil 2: `src/hooks/useGeofencing.ts`** (eller där geofence-events fångas)
-- I geofence-`ENTER`-handlern (för warehouse / project / booking): om `travelDetection.travelState.isMoving === true` → kalla `travelDetection.stopTravel(lat, lng)` med arrivalplatsen som destination.
-- Detta gäller alla typer av kända geofences (lager, projekt, booking-adress).
-
-**Fil 3: `src/hooks/useTimerStartFlow.ts`**
-- I `startSession()`-flödet, **innan** ny timer startas: om en travel-rad är öppen → kalla `travelDetection.stopTravel(currentLat, currentLng)` så den stängs med den nya aktivitetens position som destination.
-- Detta täcker manuell start, arrival-popup-start och alla framtida start-källor (eftersom alla går genom denna hook efter förra rundan).
-
-**Fil 4: `src/components/mobile-app/TravelCompletedDialog.tsx`** (eller där den triggas)
-- Skippa rendering helt om `completedTravel` har skapats av auto-flöde (geofence/start). Klassificering skjuts upp till dagsslut (hanteras i nästa skede).
-- Manuell stop (om användaren ändå vill avbryta resan) får fortsatt visa dialogen — men det är edge case.
-
-**Fil 5: `src/components/mobile-app/GlobalActiveTimerBanner.tsx`**
-- Visa "Resa pågår" hela tiden travel-raden är öppen — även när bilen står still. Ingen ändring behövs, men säkerställ att etiketten inte byter till "Stillastående" eller liknande.
-
-**Inga DB-ändringar. Inga edge-function-ändringar.** All logik ligger i klienten.
+- Pass som spänner över midnatt: klipps vid 23:59 i dagens vy.
+- Pass utan koordinater: korten fungerar ändå (tap → detalj), men "Navigera"-knappen i detaljen är disabled.
+- Om BSA finns men `calendar_events` saknas (osynkat): visas en banner "X jobb saknar planerad tid — kontakta planeraren", **inte** i tidslinjen.
 
 ## Filer som rörs
 
-- `src/hooks/useTravelDetection.ts` (ta bort speed-baserad auto-stop)
-- `src/hooks/useGeofencing.ts` (ENTER på känd plats stänger travel)
-- `src/hooks/useTimerStartFlow.ts` (start av ny timer stänger travel först)
-- `src/components/mobile-app/TravelCompletedDialog.tsx` (skippa auto-flöden)
+- `supabase/functions/mobile-app-api/index.ts` — ny `shifts`-respons i `handleGetBookings`
+- `src/components/mobile-app/DayTimeline.tsx` — ny komponent
+- `src/components/mobile-app/MobileHome.tsx` — ersätter listan med tidslinjen
+- `src/hooks/useScheduledShifts.ts` — ny hook + realtime-subscription
+- `src/types/mobile.ts` (eller motsv.) — `ScheduledShift`-typ
+
+**Inga DB-migrationer.** All data finns redan i `calendar_events` + `booking_staff_assignments`.
 
 ## Validering
 
-- **A**: Lämna lager → travel startar (speed > 2 m/s i 15s) → kör till Bauhaus → parkera 30 min → travel **fortsätter rulla**, ingen popup.
-- **B**: Kör tillbaka till lager → geofence ENTER → travel stoppas automatiskt med lager som destination, lager-arrival-popup visas (befintligt flöde).
-- **C**: Kör direkt från Bauhaus till projekt-X → geofence ENTER på projekt-X → travel stoppas med projekt-X som destination, projekt-arrival-popup visas.
-- **D**: Mitt under resan startar användaren manuellt en projekt-timer från listan → travel stoppas via `useTimerStartFlow`, projekt-timern startar.
-- **E**: Inga `TravelCompletedDialog`-popups dyker upp under dagen — klassificering sker vid dagsslut (nästa skede).
+- **A**: Personal har rig 07–10 + event 14–18 på samma bokning → två separata kort på tidslinjen.
+- **B**: Två olika bokningar överlappar 13–15 → korten renderas sida-vid-sida.
+- **C**: Planeraren flyttar event 14:00 → 15:00 → mobilappens tidslinje uppdateras live via realtime.
+- **D**: Tom dag → empty-state.
+- **E**: Tap på pass → öppnar befintlig bokningsdetalj med rätt `booking_id`.
+- **F**: Nu-linje rör sig minutvis, auto-scroll till nu vid första rendering.
 
