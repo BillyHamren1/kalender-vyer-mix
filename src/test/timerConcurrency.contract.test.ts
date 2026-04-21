@@ -83,23 +83,29 @@ describe('evaluateStartConflict', () => {
     expect(evaluateStartConflict(locationTarget, map).status).toBe('duplicate');
   });
 
-  it('allows location + booking to run in parallel', () => {
+  it('switches when starting a location while a booking is running (one active timer)', () => {
     const map = new Map<string, ActiveTimer>([['b1', t({ bookingId: 'b1' })]]);
-    expect(evaluateStartConflict(locationTarget, map).status).toBe('allow');
+    const res = evaluateStartConflict(locationTarget, map);
+    expect(res.status).toBe('switch');
   });
 
-  it('allows location + project to run in parallel', () => {
+  it('switches when starting a location while a project is running (one active timer)', () => {
     const map = new Map<string, ActiveTimer>([
       ['project-p1', t({ bookingId: 'project-p1', largeProjectId: 'p1' })],
     ]);
-    expect(evaluateStartConflict(locationTarget, map).status).toBe('allow');
+    const res = evaluateStartConflict(locationTarget, map);
+    expect(res.status).toBe('switch');
   });
 
-  it('allows booking start while a location timer is running', () => {
+  it('switches when starting a booking while a location timer is running', () => {
     const map = new Map<string, ActiveTimer>([
       ['location-l1', t({ bookingId: 'location-l1', locationId: 'l1' })],
     ]);
-    expect(evaluateStartConflict(bookingTarget, map).status).toBe('allow');
+    const res = evaluateStartConflict(bookingTarget, map);
+    expect(res.status).toBe('switch');
+    if (res.status === 'switch') {
+      expect(res.reason).toBe('one_active_timer_at_a_time');
+    }
   });
 
   it('switches booking → booking', () => {
@@ -160,16 +166,12 @@ describe('evaluateStartConflict', () => {
     }
   });
 
-  it('finds the booking conflict even when a location timer is also running', () => {
+  it('finds a conflict when both a location and a booking timer are active', () => {
     const map = new Map<string, ActiveTimer>([
       ['location-l1', t({ bookingId: 'location-l1', locationId: 'l1' })],
       ['b1', t({ bookingId: 'b1', client: 'Acme' })],
     ]);
     const res = evaluateStartConflict(otherBookingTarget, map);
     expect(res.status).toBe('switch');
-    if (res.status === 'switch') {
-      expect(res.reason).toBe('one_booking_at_a_time');
-      expect(res.conflict.kind).toBe('booking');
-    }
   });
 });

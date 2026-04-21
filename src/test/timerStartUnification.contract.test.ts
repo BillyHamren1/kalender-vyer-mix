@@ -28,6 +28,8 @@ const ALLOWED_START_TIMER = new Set<string>([
   'src/hooks/useWorkSession.tsx',
   'src/hooks/useGeofencing.tsx',
   'src/hooks/useGeofencing.ts',
+  // Documentation page that shows the API as a code example string.
+  'src/pages/APIDocumentation.tsx',
 ]);
 
 const ALLOWED_START_SESSION = new Set<string>([
