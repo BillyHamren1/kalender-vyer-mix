@@ -80,7 +80,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .from('time_reports')
           .select(`
             id, report_date, start_time, end_time, hours_worked,
-            overtime_hours, description, approved, booking_id,
+            overtime_hours, description, approved, booking_id, large_project_id,
             bookings (client, booking_number, large_project_id)
           `)
           .eq('staff_id', staffId)
@@ -117,34 +117,40 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
       // Fetch destination booking names + large project names
       const travelBookingIds = rawTravel.map(t => t.destination_booking_id).filter(Boolean) as string[];
       const lpIds = (timeResult.data || [])
-        .map((r: any) => r.bookings?.large_project_id)
+        .flatMap((r: any) => [r.bookings?.large_project_id, r.large_project_id])
         .filter(Boolean) as string[];
 
       let destBookingMap = new Map<string, string>();
-      let lpNameMap = new Map<string, string>();
+      let lpNameMap = new Map<string, { name: string; project_number: string | null }>();
 
       const [destRes, lpRes] = await Promise.all([
         travelBookingIds.length > 0
           ? supabase.from('bookings').select('id, client').in('id', travelBookingIds)
           : null,
         lpIds.length > 0
-          ? supabase.from('large_projects').select('id, name').in('id', [...new Set(lpIds)])
+          ? supabase.from('large_projects').select('id, name, project_number').in('id', [...new Set(lpIds)])
           : null,
       ]);
 
       for (const b of destRes?.data || []) destBookingMap.set(b.id, b.client);
-      for (const lp of lpRes?.data || []) lpNameMap.set(lp.id, lp.name);
+      for (const lp of lpRes?.data || []) lpNameMap.set(lp.id, { name: lp.name, project_number: lp.project_number });
 
       // Map time reports
       const workRows: TimeReportRow[] = (timeResult.data || []).map((r: any) => {
-        const lpName = r.bookings?.large_project_id
-          ? lpNameMap.get(r.bookings.large_project_id)
+        // Direct large_project_id on the row (project timer with no booking) takes precedence
+        const directLp = r.large_project_id ? lpNameMap.get(r.large_project_id) : null;
+        const bookingLpName = r.bookings?.large_project_id
+          ? lpNameMap.get(r.bookings.large_project_id)?.name
           : null;
         // Internal warehouse booking uses a synthetic booking_number ("LAGER-xxxxxxxx")
         // that is a technical id, not a real project number — hide it in the UI.
         const rawBookingNumber = r.bookings?.booking_number || null;
         const isInternalLager =
           typeof rawBookingNumber === 'string' && rawBookingNumber.startsWith('LAGER-');
+        const clientLabel = directLp?.name || bookingLpName || r.bookings?.client || '-';
+        const numberLabel = directLp
+          ? directLp.project_number
+          : (bookingLpName || isInternalLager ? null : rawBookingNumber);
         return {
           id: r.id,
           report_date: r.report_date,
@@ -154,8 +160,8 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           overtime_hours: r.overtime_hours,
           description: r.description,
           approved: r.approved,
-          booking_client: lpName || r.bookings?.client || '-',
-          booking_number: lpName || isInternalLager ? null : rawBookingNumber,
+          booking_client: clientLabel,
+          booking_number: numberLabel,
           booking_id: r.booking_id || null,
           type: 'work' as const,
         };
