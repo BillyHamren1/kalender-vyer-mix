@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
+import { useScheduledShifts } from '@/hooks/useScheduledShifts';
+import DayTimeline from '@/components/mobile-app/DayTimeline';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import { type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
@@ -29,6 +31,7 @@ const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
+  const { data: shifts = [] } = useScheduledShifts();
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
