@@ -6420,6 +6420,9 @@ async function handleGetArrivalState(supabase: any, staffId: string, organizatio
     promptCount = log.prompt_count ?? 0
   } else {
     // 2. Legacy fallback: open GPS location_time_entries → implicit location arrival.
+    //    Skip entries that already have a RESOLVED arrival_prompt_log row for the
+    //    same (staff, location, entered_at) — otherwise the user would get prompted
+    //    again on every poll after dismissing.
     const { data: openEntry } = await supabase
       .from('location_time_entries')
       .select('location_id, entered_at')
@@ -6431,9 +6434,22 @@ async function handleGetArrivalState(supabase: any, staffId: string, organizatio
       .limit(1)
       .maybeSingle()
     if (openEntry) {
-      targetType = 'location'
-      targetId = openEntry.location_id as string
-      arrivedAt = openEntry.entered_at as string
+      const { data: alreadyResolved } = await supabase
+        .from('arrival_prompt_log')
+        .select('id')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .eq('target_type', 'location')
+        .eq('target_id', openEntry.location_id)
+        .eq('arrived_at', openEntry.entered_at)
+        .eq('resolved', true)
+        .limit(1)
+        .maybeSingle()
+      if (!alreadyResolved) {
+        targetType = 'location'
+        targetId = openEntry.location_id as string
+        arrivedAt = openEntry.entered_at as string
+      }
     }
   }
 
