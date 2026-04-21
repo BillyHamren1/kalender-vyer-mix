@@ -19,7 +19,6 @@ import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravel
 import type { LastShiftExitContext } from '@/hooks/useLastShiftEndDetection';
 import type { GpsPosition } from '@/hooks/useGeofencing';
 import { toast } from 'sonner';
-import { markWorkdayEnded } from '@/services/workdayState';
 
 interface LastShiftEndPromptProps {
   context: LastShiftExitContext;
@@ -53,7 +52,6 @@ export default function LastShiftEndPrompt({
       }
 
       // 2. Trigger the existing global EOD pipeline.
-      markWorkdayEnded();
       window.dispatchEvent(new CustomEvent('request-end-day'));
 
       // 3. Log a workday flag (informational) — uses the closest existing
