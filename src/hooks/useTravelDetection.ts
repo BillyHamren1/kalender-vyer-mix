@@ -189,13 +189,13 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
     }
   }, []);
 
-  const stopTravel = useCallback(async (lat: number, lng: number) => {
+  const stopTravel = useCallback(async (lat: number, lng: number, opts: { auto?: boolean } = {}) => {
     const currentLogId = travelStateRef.current.activeTravelLogId;
     if (!currentLogId) return;
-    console.log('[TravelDetection] Stopping travel tracking...');
-    
+    console.log('[TravelDetection] Stopping travel tracking...', { auto: !!opts.auto });
+
     const address = await reverseGeocode(lat, lng);
-    
+
     try {
       const result = await mobileApi.stopTravelLog({
         travel_log_id: currentLogId,
@@ -212,6 +212,7 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
         hoursWorked: result.travel_log?.hours_worked || 0,
         matchedBookingId: result.travel_log?.destination_booking_id || null,
         classification: result.travel_log?.classification || 'unclassified',
+        autoFlow: !!opts.auto,
       });
 
       clearTravelState();
@@ -220,6 +221,21 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       console.error('[TravelDetection] Failed to stop travel:', err);
     }
   }, [clearTravelState]);
+
+  // Listen for cross-hook stop signals (geofence ENTER on a known place,
+  // or a new activity timer being started via useTimerStartFlow). These
+  // are the ONLY two automatic triggers allowed to end a travel row —
+  // low GPS speed at an unknown address must NOT end the trip.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<StopTravelEventDetail>).detail;
+      if (!detail) return;
+      if (!travelStateRef.current.activeTravelLogId) return;
+      stopTravel(detail.lat, detail.lng, { auto: detail.auto !== false });
+    };
+    window.addEventListener(STOP_TRAVEL_EVENT, handler as EventListener);
+    return () => window.removeEventListener(STOP_TRAVEL_EVENT, handler as EventListener);
+  }, [stopTravel]);
 
   // Manual stop — explicit user action ⇒ classify as 'work' (billable).
   // Auto-stop (speed-based) goes through stopTravel without mark_payable,
