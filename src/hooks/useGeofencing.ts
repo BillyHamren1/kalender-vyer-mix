@@ -546,6 +546,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
+          // Only auto-prompt if user is assigned to ANY of this project's
+          // bookings today. Otherwise just being near the address shouldn't
+          // suggest logging in.
+          const assignedToday = bookings.some(
+            (b) => b.large_project_id === lpId && isAssignedToday(b),
+          );
+          if (!assignedToday) continue;
+
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           // UNIFIED arrival registration — same server log as fixed locations.
