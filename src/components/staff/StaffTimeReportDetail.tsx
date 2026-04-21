@@ -336,6 +336,23 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
     enabled: bookingIdsInReports.length > 0,
   });
 
+  // Active/closed location_time_entries for the selected day (live lager-pass).
+  // These are NOT yet in time_reports while ongoing, so the dialog must read
+  // them directly to match the totals shown in the table.
+  const { data: dailyLocationEntries = [] } = useQuery({
+    queryKey: ['daily-overview-lte', staffId, dailyOverviewDate],
+    enabled: !!dailyOverviewDate,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('location_time_entries')
+        .select('id, entered_at, exited_at, location_id, source, organization_locations(name, latitude, longitude)')
+        .eq('staff_id', staffId)
+        .eq('entry_date', dailyOverviewDate!)
+        .order('entered_at', { ascending: true });
+      return data || [];
+    },
+  });
+
   // Daily overview data
   const dailyOverviewTravel = useMemo(() => {
     if (!dailyOverviewDate) return [];
@@ -345,7 +362,8 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
 
   const dailyOverviewWork = useMemo(() => {
     if (!dailyOverviewDate) return [];
-    return reports
+
+    const reportRows = reports
       .filter(r => r.report_date === dailyOverviewDate && r.type === 'work')
       .map(r => {
         const geo = r.booking_id ? bookingGeoMap.get(r.booking_id) : undefined;
@@ -359,9 +377,55 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           description: r.description,
           delivery_lat: geo?.lat || null,
           delivery_lng: geo?.lng || null,
+          ongoing: !r.end_time,
         };
       });
-  }, [dailyOverviewDate, reports, bookingGeoMap]);
+
+    // Dedupe: closed LTE rows that already became time_reports (location_auto)
+    // would otherwise show twice. Skip closed LTE if a report starts within ±2 min.
+    const reportStartMinutes = reportRows
+      .map(r => {
+        const t = r.start_time;
+        if (!t) return null;
+        const hhmm = t.includes('T') ? t.slice(11, 16) : t.slice(0, 5);
+        return parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10);
+      })
+      .filter((m): m is number => m !== null);
+
+    const lteRows = (dailyLocationEntries as any[])
+      .filter(lte => {
+        if (!lte.exited_at) return true; // ongoing — always include
+        const hhmm = String(lte.entered_at).slice(11, 16);
+        const lteMin = parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10);
+        return !reportStartMinutes.some(m => Math.abs(m - lteMin) <= 2);
+      })
+      .map(lte => {
+        const start = new Date(lte.entered_at);
+        const end = lte.exited_at ? new Date(lte.exited_at) : new Date();
+        const hours = Math.max(0, (end.getTime() - start.getTime()) / 3_600_000);
+        const locName = lte.organization_locations?.name || 'Lager';
+        return {
+          id: `lte-${lte.id}`,
+          start_time: lte.entered_at as string,
+          end_time: (lte.exited_at as string | null) || null,
+          hours_worked: hours,
+          booking_client: locName,
+          booking_number: null as string | null,
+          description: lte.exited_at ? `Lagervistelse (${lte.source})` : 'Lagervistelse — pågår',
+          delivery_lat: lte.organization_locations?.latitude
+            ? Number(lte.organization_locations.latitude)
+            : null,
+          delivery_lng: lte.organization_locations?.longitude
+            ? Number(lte.organization_locations.longitude)
+            : null,
+          ongoing: !lte.exited_at,
+        };
+      });
+
+    return [...reportRows, ...lteRows].sort(
+      (a, b) => (a.start_time || '').localeCompare(b.start_time || '')
+    );
+  }, [dailyOverviewDate, reports, bookingGeoMap, dailyLocationEntries]);
 
   // Compute anomalies
   const anomalies = useMemo<Anomaly[]>(() => {
