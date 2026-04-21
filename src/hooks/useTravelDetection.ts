@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
+import { closeOpenEntriesForStaff } from '@/services/locationTimeService';
+import { supabase } from '@/integrations/supabase/client';
 import { GpsPosition } from '@/hooks/useGeofencing';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
