@@ -119,7 +119,6 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const startDebounceRef = useRef<number | null>(null);
-  const stopDebounceRef = useRef<number | null>(null);
   
   // Use refs for values accessed in GPS callback to avoid effect restart loops
   const travelStateRef = useRef(travelState);
