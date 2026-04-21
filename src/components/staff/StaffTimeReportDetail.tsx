@@ -16,6 +16,7 @@ import { AnomalyDialog } from './AnomalyDialog';
 import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
+import { StaffLatestPing, type LatestPing } from './StaffLatestPing';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
