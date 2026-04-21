@@ -8,9 +8,11 @@ import { WorkDayAssistant } from './WorkDayAssistant';
 import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
 import LastShiftEndPrompt from './LastShiftEndPrompt';
 import UnplannedVisitBanner from './UnplannedVisitBanner';
+import StaleDayCorrectionDialog from './StaleDayCorrectionDialog';
 import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
+import { useStaleDayCorrection } from '@/hooks/useStaleDayCorrection';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -128,6 +130,10 @@ const MobileGlobalOverlays: React.FC = () => {
     dismiss: dismissLastShift,
     snooze: snoozeLastShift,
   } = useLastShiftEndDetection(!!staff);
+
+  // Stale-day correction — server cron flagged a forgotten timer overnight;
+  // ask the user to confirm/correct the actual end-of-day time.
+  const staleDay = useStaleDayCorrection(!!staff);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
@@ -327,6 +333,19 @@ const MobileGlobalOverlays: React.FC = () => {
           latestPosition={latestPosition}
           onDismiss={dismissLastShift}
           onSnooze={snoozeLastShift}
+        />
+      )}
+
+      {staleDay.pending && (
+        <StaleDayCorrectionDialog
+          open={!!staleDay.pending}
+          flagId={staleDay.pending.flag.id}
+          flagDate={staleDay.pending.flag.flag_date}
+          provisionalEndIso={staleDay.pending.provisionalEndIso}
+          suggestions={staleDay.pending.suggestions}
+          submitting={staleDay.submitting}
+          onConfirm={staleDay.confirm}
+          onDismiss={staleDay.dismiss}
         />
       )}
     </>

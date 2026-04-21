@@ -426,6 +426,8 @@ Deno.serve(async (req) => {
         return await handleLinkPurchaseIntent(supabase, staffId, data, organizationId)
       case 'reject_arrival_suggestion':
         return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
+      case 'correct_stale_day_end':
+        return await handleCorrectStaleDayEnd(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -7304,5 +7306,123 @@ async function handleRejectArrivalSuggestion(
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
   return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============= Stale day end correction =============
+// Called from StaleDayCorrectionDialog when the user picks the actual
+// end-of-day time. Adjusts the affected entries (listed in flag.context.
+// affected_entries) to the chosen ISO time, recomputes durations, and
+// resolves the workday_flag.
+async function handleCorrectStaleDayEnd(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const { flag_id, chosen_end_iso } = data || {}
+  if (!flag_id || !chosen_end_iso) {
+    return new Response(
+      JSON.stringify({ error: 'flag_id and chosen_end_iso required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const chosen = new Date(chosen_end_iso)
+  if (isNaN(chosen.getTime())) {
+    return new Response(JSON.stringify({ error: 'invalid chosen_end_iso' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: flag } = await supabase
+    .from('workday_flags')
+    .select('id, staff_id, context, resolved')
+    .eq('id', flag_id)
+    .eq('organization_id', organizationId)
+    .single()
+  if (!flag) {
+    return new Response(JSON.stringify({ error: 'flag not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (flag.staff_id !== staffId) {
+    return new Response(JSON.stringify({ error: 'forbidden' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (flag.resolved) {
+    return new Response(JSON.stringify({ success: true, already_resolved: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const affected: Array<{ table: string; id: string }> =
+    (flag.context as any)?.affected_entries || []
+
+  for (const entry of affected) {
+    if (entry.table === 'location_time_entries') {
+      const { data: row } = await supabase
+        .from('location_time_entries')
+        .select('entered_at')
+        .eq('id', entry.id)
+        .single()
+      if (row?.entered_at) {
+        const minutes = Math.max(
+          0,
+          Math.round((chosen.getTime() - new Date(row.entered_at).getTime()) / 60000),
+        )
+        await supabase
+          .from('location_time_entries')
+          .update({ exited_at: chosen.toISOString(), total_minutes: minutes })
+          .eq('id', entry.id)
+      }
+    } else if (entry.table === 'travel_time_logs') {
+      const { data: row } = await supabase
+        .from('travel_time_logs')
+        .select('start_time')
+        .eq('id', entry.id)
+        .single()
+      if (row?.start_time) {
+        const hours = Math.max(
+          0,
+          (chosen.getTime() - new Date(row.start_time).getTime()) / (1000 * 60 * 60),
+        )
+        await supabase
+          .from('travel_time_logs')
+          .update({
+            end_time: chosen.toISOString(),
+            hours_worked: Number(hours.toFixed(2)),
+          })
+          .eq('id', entry.id)
+      }
+    } else if (entry.table === 'time_reports') {
+      const { data: row } = await supabase
+        .from('time_reports')
+        .select('report_date, start_time')
+        .eq('id', entry.id)
+        .single()
+      if (row?.report_date && row?.start_time) {
+        const startIso = new Date(`${row.report_date}T${row.start_time}Z`).getTime()
+        const hours = Math.max(0, (chosen.getTime() - startIso) / (1000 * 60 * 60))
+        const endTimeOnly = chosen.toISOString().slice(11, 19)
+        await supabase
+          .from('time_reports')
+          .update({ end_time: endTimeOnly, hours_worked: Number(hours.toFixed(2)) })
+          .eq('id', entry.id)
+      }
+    }
+  }
+
+  const { data: updated } = await supabase
+    .from('workday_flags')
+    .update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolution_source: 'staff',
+      resolution_note: `User confirmed end time: ${chosen.toISOString()}`,
+      resolved_by: staffId,
+      needs_user_input: false,
+    })
+    .eq('id', flag_id)
+    .select()
+    .single()
+
+  return new Response(JSON.stringify({ success: true, flag: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }

@@ -39,6 +39,9 @@ const FLAG_LABELS: Record<WorkdayFlagType | string, string> = {
   missing_report: 'Saknad tidrapport',
   long_day: 'Extremt lång arbetsdag',
   overlapping_times: 'Överlappande tider',
+  auto_closed_overnight: 'Arbetsdagen stängdes automatiskt',
+  auto_closed_travel: 'Restimer stängdes automatiskt',
+  auto_closed_report: 'Tidrapport stängdes automatiskt',
 };
 
 interface Props {

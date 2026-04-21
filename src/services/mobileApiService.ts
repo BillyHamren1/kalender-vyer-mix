@@ -634,6 +634,11 @@ export const mobileApi = {
     resolution_note?: string;
   }) => callApi<{ success: boolean; flag: WorkdayFlag }>('resolve_workday_flag', data),
 
+  // Confirm/correct the end-of-day time after the nightly cron auto-closed
+  // an abandoned timer. Adjusts the affected entries and resolves the flag.
+  correctStaleDayEnd: (data: { flag_id: string; chosen_end_iso: string }) =>
+    callApi<{ success: boolean; flag: WorkdayFlag }>('correct_stale_day_end', data),
+
   // ── Smart-karta (arrival context) ──────────────────────────────────
   acceptUnplannedSiteVisit: (data: {
     suggestion_id?: string;
@@ -726,7 +731,10 @@ export type WorkdayFlagType =
   | 'missing_report'
   | 'long_day'
   | 'overlapping_times'
-  | 'home_arrival_end_day_adjusted';
+  | 'home_arrival_end_day_adjusted'
+  | 'auto_closed_overnight'
+  | 'auto_closed_travel'
+  | 'auto_closed_report';
 
 export interface WorkdayFlag {
   id: string;
