@@ -94,6 +94,24 @@ export interface MobilePurchase {
   created_at: string;
 }
 
+export interface ScheduledShift {
+  shift_id: string;
+  booking_id: string;
+  booking_number: string | null;
+  title: string;
+  event_type: 'rig' | 'event' | 'rigdown' | 'other';
+  start_time: string; // ISO
+  end_time: string;   // ISO
+  delivery_address: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  client: string;
+  is_internal: boolean;
+  internal_type: string | null;
+  large_project_id: string | null;
+  large_project_name: string | null;
+}
+
 // Token management
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -203,7 +221,7 @@ export const mobileApi = {
 
   me: () => callApi<{ staff: MobileStaff }>('me'),
 
-  getBookings: () => callApi<{ bookings: MobileBooking[] }>('get_bookings'),
+  getBookings: () => callApi<{ bookings: MobileBooking[]; shifts?: ScheduledShift[] }>('get_bookings'),
 
   getInboxJobs: () => callApi<{ bookings: { id: string; client: string; status: string; rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }[] }>('get_inbox_jobs'),
 

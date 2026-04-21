@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
+import { useScheduledShifts } from '@/hooks/useScheduledShifts';
+import DayTimeline from '@/components/mobile-app/DayTimeline';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import { type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
@@ -29,6 +31,7 @@ const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
+  const { data: shifts = [] } = useScheduledShifts();
   const { t, locale } = useLanguage();
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
@@ -201,7 +204,7 @@ const MobileJobs = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
-        ) : sortedDates.length === 0 && locationJobs.length === 0 ? (
+        ) : sortedDates.length === 0 && locationJobs.length === 0 && shifts.length === 0 ? (
           <div className="text-center py-20 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto">
               <Calendar className="w-7 h-7 text-muted-foreground/40" />
@@ -288,161 +291,21 @@ const MobileJobs = () => {
             </div>
           )}
 
-          {sortedDates.map(dateStr => {
-            const entries = groupedBookings[dateStr];
-            const isDateToday = isToday(parseISO(dateStr));
-            const { projectGroups, standalone } = groupByProject(entries);
-
-            const renderBookingCard = ({ booking, date }: { booking: MobileBooking; date: string }) => {
-              const badge = eventTypeBadge(booking, date, t);
-              const hasTimer = activeTimers.has(booking.id);
-              const timer = activeTimers.get(booking.id);
-              const nearby = nearbyBookings.find(n => n.id === booking.id);
-
-              return (
-                <div
-                  key={`${booking.id}-${date}`}
-                  className={cn(
-                    "w-full rounded-2xl border bg-card p-3.5 transition-all duration-150",
-                    hasTimer
-                      ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                      : "border-primary/20 shadow-md",
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <button
-                      onClick={() => navigate(`/m/job/${booking.id}`)}
-                      className="flex-1 min-w-0 text-left active:opacity-70"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn(
-                          "px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border",
-                          badge.className
-                        )}>
-                          {badge.label}
-                        </span>
-                        {booking.booking_number && (
-                          <span className="text-[11px] font-mono text-muted-foreground/50">
-                            #{booking.booking_number}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-foreground text-[15px] leading-snug mb-1">
-                        {booking.client}
-                      </h3>
-                      {booking.deliveryaddress && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
-                          <span className="truncate">{booking.deliveryaddress}</span>
-                        </div>
-                      )}
-                      {nearby && (
-                        <div className="flex items-center gap-1.5 text-xs text-primary font-semibold mt-1">
-                          <Navigation className="w-3 h-3" />
-                          <span>{nearby.distance}m away</span>
-                        </div>
-                      )}
-                      {hasTimer && timer && (
-                        <p className="text-xs font-mono text-primary font-bold mt-1">
-                          ⏱ {formatElapsed(timer.startTime)}
-                        </p>
-                      )}
-                    </button>
-                    {/* Timer toggle button — always rendered; conflicts surface a dialog. */}
-                    {true && (
-                      <button
-                        onClick={(e) => handleTimerToggle(e, booking)}
-                        className={cn(
-                          "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                          hasTimer
-                            ? "bg-destructive text-destructive-foreground shadow-md"
-                            : "bg-primary/10 text-primary hover:bg-primary/20"
-                        )}
-                      >
-                        {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            };
-
-            return (
-              <div key={dateStr}>
-                <div className="flex items-center gap-2 mb-2.5">
-                  {isDateToday && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
-                  <h2 className={cn(
-                    "text-[11px] font-bold uppercase tracking-widest capitalize",
-                    isDateToday ? "text-primary" : "text-muted-foreground"
-                  )}>
-                    {formatDateHeading(dateStr)}
-                  </h2>
-                </div>
-                <div className="space-y-2">
-                  {/* Project-grouped bookings */}
-                  {Object.entries(projectGroups).map(([lpId, group]) => {
-                    const projectKey = `project-${lpId}`;
-                    const hasProjectTimer = activeTimers.has(projectKey);
-                    const projectTimer = activeTimers.get(projectKey);
-
-                    return (
-                      <div
-                        key={lpId}
-                        className={cn(
-                          "w-full rounded-2xl border bg-card shadow-md p-3.5 transition-all duration-150",
-                          hasProjectTimer
-                            ? "border-primary/30 ring-1 ring-primary/10"
-                            : "border-primary/20",
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => navigate(`/m/project/${lpId}`)}
-                            className="flex-1 min-w-0 text-left active:opacity-70"
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <FolderOpen className="w-3.5 h-3.5 text-primary/70" />
-                              <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/20">
-                                {t('jobs.project')}
-                              </span>
-                            </div>
-                            <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
-                              {group.name}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {group.entries.length} {t('jobs.bookings')}
-                            </p>
-                            {hasProjectTimer && projectTimer && (
-                              <p className="text-xs font-mono text-primary font-bold mt-1">
-                                ⏱ {formatElapsed(projectTimer.startTime)}
-                              </p>
-                            )}
-                          </button>
-                          {/* Timer toggle button — always rendered; conflicts surface a dialog. */}
-                          {true && (
-                            <button
-                              onClick={(e) => handleProjectTimerToggle(e, lpId, group.name, group.entries)}
-                              className={cn(
-                                "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                                hasProjectTimer
-                                  ? "bg-destructive text-destructive-foreground shadow-md"
-                                  : "bg-primary/10 text-primary hover:bg-primary/20"
-                              )}
-                            >
-                              {hasProjectTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* Standalone bookings */}
-                  {standalone.map(renderBookingCard)}
-                </div>
-              </div>
-            );
-          })}
+          {/* Today's planned shifts (vertical timeline) */}
+          <div>
+            <div className="flex items-center gap-2 mb-2.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">
+                {t('jobs.today')}
+              </h2>
+            </div>
+            <DayTimeline
+              shifts={shifts}
+              activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+            />
+          </div>
           </>
+
         )}
       </div>
 
