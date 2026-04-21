@@ -59,7 +59,7 @@ export const getEventColor = (eventType: string | undefined): string => {
     case 'task_pm':
       return '#E9D5FF'; // Purple-100
     case 'task_logistics':
-      return '#FEF3C7'; // Amber-100
+      return '#BFDBFE'; // Light blue
     case 'task_admin':
       return '#F1F5F9'; // Slate-100
     default:
@@ -80,7 +80,7 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'unpacking': return 'bg-slate-400';
     case 'task_crew': return 'bg-blue-500';
     case 'task_pm': return 'bg-purple-500';
-    case 'task_logistics': return 'bg-amber-500';
+    case 'task_logistics': return 'bg-blue-400';
     case 'task_admin': return 'bg-slate-400';
     default: return 'bg-gray-500';
   }
@@ -99,7 +99,7 @@ export const getEventBgClass = (eventType?: string): string => {
     case 'unpacking': return 'bg-slate-100';
     case 'task_crew': return 'bg-blue-50';
     case 'task_pm': return 'bg-purple-50';
-    case 'task_logistics': return 'bg-amber-50';
+    case 'task_logistics': return 'bg-blue-50';
     case 'task_admin': return 'bg-slate-50';
     default: return 'bg-gray-100';
   }
@@ -119,7 +119,7 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'unpacking': return 'bg-slate-400/20 border-slate-400';
     case 'task_crew': return 'bg-blue-500/20 border-blue-500';
     case 'task_pm': return 'bg-purple-500/20 border-purple-500';
-    case 'task_logistics': return 'bg-amber-500/20 border-amber-500';
+    case 'task_logistics': return 'bg-blue-400/20 border-blue-400';
     case 'task_admin': return 'bg-slate-400/20 border-slate-400';
     default: return 'bg-primary/20 border-primary';
   }
