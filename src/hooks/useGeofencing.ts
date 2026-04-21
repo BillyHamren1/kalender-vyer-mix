@@ -588,6 +588,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
+          // Only auto-prompt if assigned to this booking today.
+          if (!isAssignedToday(booking)) continue;
+
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           // UNIFIED arrival registration for plain bookings.
