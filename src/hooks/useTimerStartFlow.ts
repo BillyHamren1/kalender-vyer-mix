@@ -78,6 +78,17 @@ export function useTimerStartFlow(
   /** Actually create the timer through the unified engine. */
   const performStart = useCallback(
     (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
+      // Starting a new activity timer ALWAYS ends an open travel row first.
+      // This is one of the two sanctioned auto-stop triggers (the other is
+      // geofence ENTER on a known place). Speed alone never stops travel.
+      if (userPosition) {
+        const detail: StopTravelEventDetail = {
+          lat: userPosition.lat,
+          lng: userPosition.lng,
+          auto: true,
+        };
+        window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
+      }
       const ok = startSession(target, { startedAtIso: opts.startedAtIso });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
@@ -86,7 +97,7 @@ export function useTimerStartFlow(
       }
       return ok;
     },
-    [startSession],
+    [startSession, userPosition],
   );
 
   const checkDistanceAndStart = useCallback(
