@@ -217,7 +217,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           <div style="font-size:12px;line-height:1.4">
             <strong>${loc.name}</strong>
             ${loc.address ? `<br/><span style="color:#666">${loc.address}</span>` : ''}
-            <br/><span style="color:#7c3aed;font-size:10px;">Radie: ${loc.radius_meters}m</span>
+            <br/><span style="color:#7c3aed;font-size:10px;">${loc.geofence_mode === 'polygon' ? 'Exakt polygon' : `Radie: ${loc.radius_meters}m`}</span>
           </div>
         `);
 
@@ -227,32 +227,34 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         .addTo(map.current!);
       orgLocMarkersRef.current.push(marker);
 
-      // Add geofence radius circle
+      // Add geofence overlay — polygon if available, else circle approximation
       const sourceId = `org-loc-source-${i}`;
       const layerId = `org-loc-circle-${i}`;
 
       try {
-        const center = [loc.longitude, loc.latitude];
-        const radiusKm = loc.radius_meters / 1000;
-        const points = 64;
-        const coords: [number, number][] = [];
-        for (let j = 0; j < points; j++) {
-          const angle = (j / points) * 2 * Math.PI;
-          const dx = radiusKm * Math.cos(angle);
-          const dy = radiusKm * Math.sin(angle);
-          const lat = center[1] + (dy / 111.32);
-          const lng = center[0] + (dx / (111.32 * Math.cos(center[1] * Math.PI / 180)));
-          coords.push([lng, lat]);
+        let geometry: GeoJSON.Polygon;
+        if (loc.geofence_mode === 'polygon' && loc.geofence_polygon) {
+          geometry = loc.geofence_polygon as GeoJSON.Polygon;
+        } else {
+          const center = [loc.longitude, loc.latitude];
+          const radiusKm = loc.radius_meters / 1000;
+          const points = 64;
+          const coords: [number, number][] = [];
+          for (let j = 0; j < points; j++) {
+            const angle = (j / points) * 2 * Math.PI;
+            const dx = radiusKm * Math.cos(angle);
+            const dy = radiusKm * Math.sin(angle);
+            const lat = center[1] + (dy / 111.32);
+            const lng = center[0] + (dx / (111.32 * Math.cos(center[1] * Math.PI / 180)));
+            coords.push([lng, lat]);
+          }
+          coords.push(coords[0]);
+          geometry = { type: 'Polygon', coordinates: [coords] };
         }
-        coords.push(coords[0]);
 
         map.current!.addSource(sourceId, {
           type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'Polygon', coordinates: [coords] },
-          },
+          data: { type: 'Feature', properties: {}, geometry },
         });
 
         map.current!.addLayer({
@@ -261,7 +263,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           source: sourceId,
           paint: {
             'fill-color': '#7c3aed',
-            'fill-opacity': 0.08,
+            'fill-opacity': 0.12,
+            'fill-outline-color': '#7c3aed',
           },
         });
       } catch (e) {
