@@ -1,60 +1,81 @@
 
 
-## Visa alla in/utloggningar med live-timer i tidrapportöversikten
+## Diagnos: "hittades inte" + "Session expired" vid scanning
 
-### Problem
-På `/staff-management/time-reports` listas idag bara ETT samlingsnamn ("Lager") per person, även om hen växlat mellan flera platser/jobb under dagen. Man ser inte:
-- Vart hen är **just nu**
-- Tidigare in/ut-händelser i ordning
-- En live-räknande timer för pågående pass
-
-### Lösning
-Bygg om varje rad i `StaffTimeReportsList` så den visar en **kronologisk tidslinje** av dagens händelser per person, med pågående passet **överst** och en sekundräknande live-timer.
-
-### Datakällor (per dag, per personal) — sammanslås till en tidslinje
-Hämtas redan i `StaffTimeReports.tsx`, men måste exponeras som **enskilda segment**, inte aggregeras bort:
-
-| Källa | Segment |
-|---|---|
-| `location_time_entries` | "Lager" / fast plats — ett segment per rad (entered_at → exited_at, eller pågående) |
-| `time_reports` (booking) | "Kund X" — ett segment per rad |
-| `travel_time_logs` | "Resa → Y" — ett segment per rad |
-
-Varje segment: `{ id, label, kind: 'location'|'booking'|'travel', start, end|null, isOpen, hours }`.
-
-### UI-design per personalrad
+### Kedjan vid en scanning
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ 🟠 Jānis Puriņš  [Pågående]                       2h 44m     │
-│                                                  06:58 – pågår│
-│ ┌──────────────────────────────────────────────────────────┐ │
-│ │ ● NU: Holmträskvägen 19    08:24 → 00:41:23  (live) ⏱   │ │  ← pulserar
-│ │ ─ Resa → Holmträskvägen    07:15 → 08:23      1h 8m      │ │
-│ │ ─ Lager                    06:58 → 07:15      17m        │ │
-│ └──────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
+Scanner-app (Android/Zebra)
+   │  scannedValue (SKU eller serienr)
+   ▼
+useScanProcessor.handleScan
+   │  verifyProductBySku(packingId, sku, verifierName)
+   ▼
+scannerService.callScannerApi('verify_product')
+   │  POST https://pihrhltinhewhoxefjxv../scanner-api
+   │  body: { action, token, packingId, sku, verifiedBy }
+   ▼
+scanner-api edge function
+   │  1. verifyToken(token) ← lokal base64 (24h)
+   │  2. lookup packing → booking_number
+   │  3. POST allocate-instance @ WMS (pnvvnvywphfvmwdmqqzs)
+   │     headers: Bearer PRICELIST_API_KEY, x-organization-id
+   │     body: { serial_number, reservation_id, booking_number }
+   │  4. matcha returnerad SKU mot packing_list_items
+   ▼
+Svar tillbaka till scannern
 ```
 
-- **Översta rad** = pågående segment, orange pulserande prick, live HH:MM:SS som tickar varje sekund.
-- **Övriga** sorteras nyast → äldst (omvänd kronologi).
-- Varje rad visar: ikon (📍 lager / 🏗 jobb / 🚗 resa), label, start–slut, total tid.
+### Vad de två felen faktiskt betyder
 
-### Live-timer
-- Ny liten komponent `<LiveDuration startedAt={Date} />` som använder `useEffect` + `setInterval(1000)` för att rendera `HH:MM:SS` sedan start. En enda timer per öppet segment (vanligtvis 0–1 per person).
-- Pausas automatiskt när tabben inte är synlig (`document.visibilityState`).
+**1. "Session expired"** kommer ENDAST från `scannerService.ts` rad 23-26:
+```ts
+if (response.status === 401) { clearAuth(); throw new Error('Session expired'); }
+```
+Det triggas när scanner-api kastar 401 — vilket i sin tur sker när:
+- token är >24h gammal, ELLER
+- token saknar staffId/expiresAt, ELLER
+- staff_members-raden inte hittas via `id = staffId` (rad 46-48 i scanner-api).
 
-### Sortering av personlistan
-Behåll: pågående överst, sedan alfabetiskt. Det stämmer redan.
+Tokenformatet är **base64 av `{staffId, expiresAt}`** (samma som mobile-app-api). Om scanner-appen sparat en gammal token i lokal storage så loggas användaren ut vid första scan och får "Session expired" tills hen loggar in på nytt.
 
-### Filer som ändras
-- `src/pages/StaffTimeReports.tsx` — bygg `segments[]` per staff istället för (eller utöver) `projects` aggregatet. Behåll `total_hours` etc.
-- `src/components/staff/StaffTimeReportsList.tsx` — rendera segmentlistan; pågående överst med live-timer.
-- **Ny**: `src/components/staff/LiveDuration.tsx` — sekundräknande HH:MM:SS-komponent.
-- Lägg till realtime-prenumeration på `location_time_entries`, `time_reports`, `travel_time_logs` (för dagens datum) så att nya in/utloggningar dyker upp utan att man behöver ladda om — använd den befintliga `useRealtimeInvalidation`-mönstret som finns i projektet.
+**2. "hittades inte"** kommer från två olika ställen i scanner-api:
+- Rad 395: `Enheten "X" hittades inte i lagersystemet` ← WMS `allocate-instance` returnerade **404** för serienumret.
+- Rad 815: `Produkt "X" hittades inte` ← gäller bara `identify_product`-läget.
 
-### Förväntat resultat
-- Du ser direkt på listan att Jānis just nu står på **Holmträskvägen** (live-tickar), och att han tidigare varit på Lager + rest dit.
-- Raivis visar Lager 06:57→07:15, Resa, och **NU: Holmträskvägen** (live).
-- Inget "Lager Lager" utan ordning — alla händelser i tydlig kronologi.
+Loggarna för scanner-api de senaste 90 minuterna visar **bara boot/shutdown — inte ett enda `[verify_product]`- eller `[allocate-instance]`-anrop**. Det betyder att antingen:
+  a) Inga scans har faktiskt gjorts under perioden, eller
+  b) Scannern slänger requesten innan den når edge function (offline / fel URL / CORS / nätverksfel), eller
+  c) Token är ogiltig och scannerService kastar "Session expired" *innan* vi ens skickar — fast det stämmer inte, requesten skickas alltid och 401 returneras av servern.
+
+Sannolikast: **(a)** under den period jag tittade. Vi behöver färska loggar från en faktisk scan för att se vilket av WMS-svaren (404/409/timeout) som triggar "hittades inte".
+
+### Vad jag vill göra för att lösa det (kräver default mode)
+
+**Steg 1 — Hämta verkliga signaler från en aktiv scan**
+- Be dig göra en scan precis innan jag tittar i loggarna, så jag fångar:
+  - `[scanner-api] → verify_product` i client-loggen (bekräftar att requesten skickas)
+  - `[allocate-instance] Request` + `Response` i edge-loggen (visar WMS-status och body)
+- Då vet vi exakt om felet är 401 (token), 404 (WMS hittar inte serienr), eller "no SKU returned".
+
+**Steg 2 — Förbättra felsignalering så vi slipper gissa nästa gång**
+I `supabase/functions/scanner-api/index.ts`:
+- Logga alla token-401:or med orsak (`expired`, `bad_format`, `staff_not_found`) som `console.warn` så de syns i edge-loggen.
+- I `verify_product`: logga alltid `serialNumber`, `bookingNumber`, `ORG_ID` innan WMS-anropet (idag loggas det bara delvis vid `console.log('[allocate-instance] Request')`).
+- Skicka tillbaka en kort `debugCode` (t.ex. `WMS_404`, `WMS_409`, `NO_SKU`, `LOCAL_NO_MATCH`) i svaret så frontend kan visa mer specifik text än bara "hittades inte".
+
+**Steg 3 — Token-livslängd & auto-refresh**
+- I `src/services/scannerService.ts`: när `Session expired` kastas, visa en tydlig toast + redirecta till login, istället för att den bara dyker upp på nästa scan utan kontext.
+- Överväg att förlänga `TOKEN_EXPIRY_HOURS` (idag 24h) eller införa silent refresh (samma mönster som mobile-app-api) — i lagermiljö loggar personalen sällan ut/in.
+
+**Steg 4 — Verifiera WMS-API-nyckel**
+- `PRICELIST_API_KEY` används mot `https://pnvvnvywphfvmwdmqqzs.supabase.co`. Om WMS roterat nyckeln eller om `x-organization-id` inte längre matchar deras tenant så returnerar `allocate-instance` 404/401 för **allt**. Vi pingar `allocate-instance` med ett känt giltigt serienummer för att verifiera att integrationen lever.
+
+### Frågor till dig innan jag drar igång
+
+Jag behöver veta vilket av tre scenarion det är, för åtgärden skiljer sig:
+
+1. **"Session expired"** — händer det direkt vid första scan när du precis öppnat appen, eller efter en stund?
+2. **"hittades inte"** — gäller det *alla* scans nu, eller bara vissa serienummer/SKU:er? Funkade samma streckkoder igår?
+3. Vill du att jag bara lägger på bättre loggning + felkoder först (snabbt, säkert), eller vill du också att jag ändrar token-livslängden direkt?
 
