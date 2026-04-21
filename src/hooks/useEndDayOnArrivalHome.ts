@@ -28,6 +28,7 @@ import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import type { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { toast } from 'sonner';
+import { hasWorkdayEndedToday, markWorkdayEnded } from '@/services/workdayState';
 
 const SUPPRESS_KEY_PREFIX = 'eventflow-end-day-home-suppressed-';
 const ASSISTANT_DAILY_KEY_PREFIX = 'eventflow-last-workplace-prompted-';
@@ -104,6 +105,7 @@ export function useEndDayOnArrivalHome(
     const today = todayKey();
     const suppressed = localStorage.getItem(SUPPRESS_KEY_PREFIX + today);
     if (suppressed) return;
+    if (hasWorkdayEndedToday()) return;
 
     // Suppress if last_workplace_for_day assistant has already prompted today.
     const assistantPromptedToday = localStorage.getItem(ASSISTANT_DAILY_KEY_PREFIX + today);
@@ -227,6 +229,7 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
+        markWorkdayEnded(chosenEndIso);
         toast.success('Arbetsdag avslutad');
         setSuggestion(null);
       } catch (err: any) {

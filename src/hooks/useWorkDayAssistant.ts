@@ -57,6 +57,7 @@ import {
   type AssistantDecision as PureAssistantDecision,
   type DecisionKind as PureDecisionKind,
 } from '@/lib/workDayDecisions';
+import { hasWorkdayEndedToday } from '@/services/workdayState';
 
 // ─────────────────────────────────────────────────────────────────────
 // Constants no longer duplicated here — see src/lib/workDayDecisions.ts
@@ -343,7 +344,7 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
       // day just because the assistant re-evaluates every 30s.
       if (
         next.kind === 'last_workplace_for_day' &&
-        hasLastWorkplacePromptBeenHandledToday()
+        (hasLastWorkplacePromptBeenHandledToday() || hasWorkdayEndedToday())
       ) {
         return;
       }

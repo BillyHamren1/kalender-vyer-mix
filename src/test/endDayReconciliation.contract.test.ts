@@ -92,6 +92,7 @@ describe('End-of-day reconciliation contract', () => {
     expect(banner).toMatch(/processNextEod/);
     expect(banner).toMatch(/waitForLocalTimerDrain/);
     expect(banner).toMatch(/localTimersDrained/);
+    expect(banner).toMatch(/markWorkdayEnded/);
     expect(banner).toMatch(/workday-ended/);
   });
 

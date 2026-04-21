@@ -453,6 +453,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
       expect(hook).toMatch(/LAST_WORKPLACE_PROMPTED_KEY_PREFIX/);
       expect(hook).toMatch(/hasLastWorkplacePromptBeenHandledToday/);
       expect(hook).toMatch(/markLastWorkplacePromptHandledToday/);
+      expect(hook).toMatch(/hasWorkdayEndedToday/);
       expect(hook).toMatch(/decision\.kind === 'last_workplace_for_day'/);
     });
 
