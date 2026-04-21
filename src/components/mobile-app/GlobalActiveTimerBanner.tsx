@@ -63,6 +63,14 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const eodQueueRef = useRef<string[]>([]);
   const eodProcessingRef = useRef(false);
 
+  const waitForLocalTimerDrain = useCallback(async () => {
+    for (let i = 0; i < 12; i += 1) {
+      if (loadTimersFromStorage().size === 0) return true;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return loadTimersFromStorage().size === 0;
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setTimers(loadTimersFromStorage());
@@ -266,7 +274,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
         window.dispatchEvent(new CustomEvent('workday-ended'));
       }
     }
-  }, [handleStop]);
+  }, [handleStop, waitForLocalTimerDrain]);
 
   // Mirror pendingStop into a ref so the queue processor can poll it
   // without re-creating itself on every state change.

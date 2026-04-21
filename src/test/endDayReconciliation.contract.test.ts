@@ -87,11 +87,14 @@ describe('End-of-day reconciliation contract', () => {
   // ────────────────────────────────────────────────────────────────────
   // O. request-end-day event drives the flow
   // ────────────────────────────────────────────────────────────────────
-  it('O: GlobalActiveTimerBanner lyssnar på request-end-day och kör processNextEod', () => {
-    log('O', 'event-driven EOD');
+  it('O: GlobalActiveTimerBanner lyssnar på request-end-day, kör processNextEod och väntar på local timer drain före workday-ended', () => {
+    log('O', 'event-driven EOD with storage-drain safeguard');
     const banner = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
     expect(banner).toMatch(/addEventListener\(\s*['"]request-end-day['"]/);
     expect(banner).toMatch(/processNextEod/);
+    expect(banner).toMatch(/waitForLocalTimerDrain/);
+    expect(banner).toMatch(/localTimersDrained/);
+    expect(banner).toMatch(/workday-ended/);
   });
 
   // ────────────────────────────────────────────────────────────────────
