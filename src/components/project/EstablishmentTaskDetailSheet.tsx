@@ -17,6 +17,7 @@ import TaskCommentThread from "./planning/TaskCommentThread";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { updateEstablishmentTask, deleteEstablishmentTask, BSAValidationError } from "@/services/establishmentTaskService";
+import { syncActivityToCalendar, removeActivityFromCalendar } from "@/services/activityCalendarSyncService";
 import type { TaskStatus, TaskReadiness, TaskPriority, LinkedEntityType } from "@/services/establishmentTaskService";
 import { useNavigate } from "react-router-dom";
 import {
@@ -137,7 +138,7 @@ const EstablishmentTaskDetailSheet = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("establishment_tasks")
-        .select("assigned_to, assigned_to_ids, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, start_time, end_time, updated_at, linked_entity_type, linked_entity_id")
+        .select("assigned_to, assigned_to_ids, notes, booking_id, source_product_ids, status, readiness, priority, description, blockers, blocker_responsible, decision_needed, title, start_date, end_date, start_time, end_time, updated_at, linked_entity_type, linked_entity_id, calendar_event_id")
         .eq("id", task!.id)
         .single();
       return data;
@@ -357,24 +358,61 @@ const EstablishmentTaskDetailSheet = ({
     setEditingTitle(false);
   };
 
+  const isCalendarSynced = !!(taskDbData as any)?.calendar_event_id;
+
+  const reSyncIfNeeded = async () => {
+    if (!task || !isCalendarSynced) return;
+    try {
+      await syncActivityToCalendar(task.id);
+    } catch (err) {
+      console.error("[TaskDetail] re-sync failed:", err);
+    }
+  };
+
   const handleStartDateChange = async (val: string) => {
     setStartDateDraft(val);
-    if (val) await handleFieldUpdate({ start_date: val });
+    if (val) {
+      await handleFieldUpdate({ start_date: val });
+      await reSyncIfNeeded();
+    }
   };
 
   const handleEndDateChange = async (val: string) => {
     setEndDateDraft(val);
-    if (val) await handleFieldUpdate({ end_date: val });
+    if (val) {
+      await handleFieldUpdate({ end_date: val });
+      await reSyncIfNeeded();
+    }
   };
 
   const handleStartTimeChange = async (val: string) => {
     setStartTimeDraft(val);
     await handleFieldUpdate({ start_time: val || null } as any);
+    await reSyncIfNeeded();
   };
 
   const handleEndTimeChange = async (val: string) => {
     setEndTimeDraft(val);
     await handleFieldUpdate({ end_time: val || null } as any);
+    await reSyncIfNeeded();
+  };
+
+  const handleToggleCalendarSync = async (checked: boolean) => {
+    if (!task) return;
+    try {
+      if (checked) {
+        await syncActivityToCalendar(task.id);
+        toast.success("Synkad till personalkalendern");
+      } else {
+        await removeActivityFromCalendar(task.id);
+        toast.success("Borttagen från kalendern");
+      }
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+    } catch (err) {
+      console.error("[TaskDetail] toggle sync failed:", err);
+      toast.error("Kunde inte uppdatera kalendersynk");
+    }
   };
 
   const handleBlockersBlur = async () => {
@@ -903,9 +941,25 @@ const EstablishmentTaskDetailSheet = ({
           </div>
         </div>
 
-        <Separator />
+        {/* Calendar sync toggle */}
+        <div className="py-2">
+          <label className="flex items-center gap-3 px-3 py-2 rounded-md border border-dashed border-border hover:bg-accent/40 cursor-pointer">
+            <Switch
+              checked={isCalendarSynced}
+              onCheckedChange={handleToggleCalendarSync}
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">📅 Synca med personalkalender</div>
+              <div className="text-[11px] text-muted-foreground">
+                {isCalendarSynced
+                  ? "Aktiviteten visas som händelse i kalendern och uppdateras när tid/datum ändras."
+                  : "Aktivera för att skapa en kalenderhändelse i Tasks-kolumnen."}
+              </div>
+            </div>
+          </label>
+        </div>
 
-        {/* Description */}
+        <Separator />
         <div className="py-3 space-y-2">
           <Label className="text-xs text-muted-foreground">Beskrivning</Label>
           <Textarea

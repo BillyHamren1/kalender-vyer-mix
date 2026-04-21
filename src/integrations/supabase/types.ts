@@ -1191,6 +1191,7 @@ export type Database = {
           blocker_responsible: string | null
           blockers: string | null
           booking_id: string | null
+          calendar_event_id: string | null
           category: string
           completed: boolean | null
           created_at: string | null
@@ -1226,6 +1227,7 @@ export type Database = {
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null
+          calendar_event_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
@@ -1261,6 +1263,7 @@ export type Database = {
           blocker_responsible?: string | null
           blockers?: string | null
           booking_id?: string | null
+          calendar_event_id?: string | null
           category?: string
           completed?: boolean | null
           created_at?: string | null
@@ -1309,6 +1312,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_tasks_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
             referencedColumns: ["id"]
           },
           {

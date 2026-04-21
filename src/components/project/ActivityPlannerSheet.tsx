@@ -14,6 +14,7 @@ import { CalendarIcon, Plus, Package, Trash2, Copy, SplitSquareHorizontal, Minim
 import CategoryCombobox from "./CategoryCombobox";
 import { cn } from "@/lib/utils";
 import { createEstablishmentTask } from "@/services/establishmentTaskService";
+import { syncActivityToCalendar } from "@/services/activityCalendarSyncService";
 import type { TaskPriority } from "@/services/establishmentTaskService";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import type { BookingProduct } from "@/services/establishmentPlanningService";
@@ -88,6 +89,8 @@ interface ActivityRow {
   /** Maps real product ID → how many units assigned to this row (for split products) */
   productQuantities: Record<string, number>;
   source: 'product' | 'manual';
+  /** When true, after the task is created we also create a calendar_events row */
+  syncToCalendar: boolean;
 }
 
 /** Parse a virtual unit ID like "abc__unit_3" → { realId: "abc", unitIndex: 3 } */
@@ -121,6 +124,7 @@ function createEmptyRow(defaults: { startDate?: Date; endDate?: Date }): Activit
     productIds: [],
     productQuantities: {},
     source: 'manual',
+    syncToCalendar: false,
   };
 }
 
@@ -367,7 +371,7 @@ const ActivityPlannerSheet = ({
 
         const descParts = [row.notes.trim(), quantityNotes].filter(Boolean);
 
-        await createEstablishmentTask({
+        const newTask = await createEstablishmentTask({
           booking_id: effectiveBookingId,
           large_project_id: largeProjectId || null,
           title: row.title.trim(),
@@ -384,6 +388,14 @@ const ActivityPlannerSheet = ({
           priority: row.priority,
           description: descParts.join('\n') || undefined,
         });
+        if (row.syncToCalendar && newTask?.id) {
+          try {
+            await syncActivityToCalendar(newTask.id);
+          } catch (syncErr) {
+            console.error('[ActivityPlanner] Calendar sync failed for', row.title, syncErr);
+            toast.warning(`"${row.title}" sparades, men kalendersynk misslyckades`);
+          }
+        }
         ok++;
       } catch (e) {
         console.error('[ActivityPlanner] Failed:', row.title, e);
@@ -652,6 +664,19 @@ const ActivityPlannerSheet = ({
             <Input type="time" value={row.endTime} onChange={e => updateRow(row.id, { endTime: e.target.value })} className="h-8 text-xs" />
           </div>
         </div>
+
+        {/* Calendar sync */}
+        <label className="flex items-center gap-2 cursor-pointer text-xs px-2 py-1.5 rounded-md border border-dashed border-border hover:bg-accent/40">
+          <Checkbox
+            checked={row.syncToCalendar}
+            onCheckedChange={(checked) => updateRow(row.id, { syncToCalendar: !!checked })}
+            className="h-3.5 w-3.5"
+          />
+          <span className="flex-1">📅 Synca med personalkalender</span>
+          {row.syncToCalendar && (
+            <span className="text-[10px] text-muted-foreground">visas i kalendern</span>
+          )}
+        </label>
 
         {/* Assignee */}
         {staffPool.length > 0 && (

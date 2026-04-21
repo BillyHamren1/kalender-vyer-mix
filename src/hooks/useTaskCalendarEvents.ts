@@ -39,9 +39,10 @@ export function useTaskCalendarEvents(enabled: boolean) {
       const { data, error } = await supabase
         .from("establishment_tasks")
         .select(
-          "id, title, task_type, start_date, end_date, due_date, status, priority, booking_id, large_project_id, assigned_to_ids"
+          "id, title, task_type, start_date, end_date, due_date, status, priority, booking_id, large_project_id, assigned_to_ids, calendar_event_id"
         )
         .neq("status", "done")
+        .is("calendar_event_id", null) // exclude tasks already synced as real calendar events
         .order("start_date", { ascending: true });
       if (error) throw error;
       return data || [];
