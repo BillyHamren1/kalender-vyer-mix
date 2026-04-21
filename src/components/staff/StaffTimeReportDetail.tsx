@@ -80,7 +80,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .from('time_reports')
           .select(`
             id, report_date, start_time, end_time, hours_worked,
-            overtime_hours, description, approved, booking_id,
+            overtime_hours, description, approved, booking_id, large_project_id,
             bookings (client, booking_number, large_project_id)
           `)
           .eq('staff_id', staffId)
