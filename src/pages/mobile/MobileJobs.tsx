@@ -4,36 +4,41 @@ import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
-import DayTimeline from '@/components/mobile-app/DayTimeline';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import { type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
-import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
-import { format, parseISO, isToday, isTomorrow } from 'date-fns';
-import { sv, enUS } from 'date-fns/locale';
-import { MapPin, Calendar, ChevronRight, Loader2, Navigation, RefreshCw, FolderOpen, Clock, Square, Building2 } from 'lucide-react';
+import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
+import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
+import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
+import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
+import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
+import { Loader2, RefreshCw, Clock, Square, Building2, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
 
-const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string, t: (k: any) => string) => {
-  if (dates.rigdaydate === assignmentDate) return { label: t('jobs.rig'), className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
-  if (dates.eventdate === assignmentDate) return { label: t('jobs.event'), className: 'bg-planning-event text-planning-event-foreground border-planning-event-border' };
-  if (dates.rigdowndate === assignmentDate) return { label: t('jobs.rigdown'), className: 'bg-planning-rigdown text-planning-rigdown-foreground border-planning-rigdown-border' };
-  return { label: t('jobs.job'), className: 'bg-muted text-foreground border-border' };
-};
+const VIEW_MODE_KEY = 'mobile.calendarView';
+const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
+
 
 const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
   const { data: shifts = [] } = useScheduledShifts();
-  const { t, locale } = useLanguage();
-  const dateFnsLocale = locale === 'en' ? enUS : sv;
+  const { t } = useLanguage();
+
+  // Calendar view state — persisted in localStorage
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return isViewMode(stored) ? stored : 'day';
+  });
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
   const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
 
@@ -75,41 +80,6 @@ const MobileJobs = () => {
     dismissGeofenceEvent();
   };
 
-  // Group bookings by date, then within each date group by large project
-  const groupedBookings = bookings.reduce<Record<string, { booking: MobileBooking; date: string }[]>>((acc, booking) => {
-    for (const date of booking.assignment_dates) {
-      if (!acc[date]) acc[date] = [];
-      acc[date].push({ booking, date });
-    }
-    return acc;
-  }, {});
-
-  // Helper to group entries within a date by large_project_id
-  const groupByProject = (entries: { booking: MobileBooking; date: string }[]) => {
-    const projectGroups: Record<string, { name: string; entries: { booking: MobileBooking; date: string }[] }> = {};
-    const standalone: { booking: MobileBooking; date: string }[] = [];
-
-    for (const entry of entries) {
-      const lpId = entry.booking.large_project_id;
-      const lpName = entry.booking.large_project_name;
-      if (lpId && lpName) {
-        if (!projectGroups[lpId]) projectGroups[lpId] = { name: lpName, entries: [] };
-        projectGroups[lpId].entries.push(entry);
-      } else {
-        standalone.push(entry);
-      }
-    }
-    return { projectGroups, standalone };
-  };
-
-  const sortedDates = Object.keys(groupedBookings).sort();
-
-  const formatDateHeading = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    if (isToday(d)) return t('jobs.today');
-    if (isTomorrow(d)) return t('jobs.tomorrow');
-    return format(d, 'EEEE d MMMM', { locale: dateFnsLocale });
-  };
 
   // Timer toggle for standalone bookings.
   // STOP path: never clears local timer here — navigates user to /m/report
@@ -204,18 +174,41 @@ const MobileJobs = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
-        ) : sortedDates.length === 0 && locationJobs.length === 0 && shifts.length === 0 ? (
-          <div className="text-center py-20 space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-              <Calendar className="w-7 h-7 text-muted-foreground/40" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground/70">{t('jobs.noJobs')}</p>
-              <p className="text-xs text-muted-foreground mt-1">{t('jobs.pullToRefresh')}</p>
-            </div>
-          </div>
         ) : (
           <>
+          {/* Calendar — toggleable Day/Week/Month */}
+          <div className="space-y-3">
+            <CalendarViewToggle value={viewMode} onChange={setViewMode} />
+            <CalendarDateNav
+              viewMode={viewMode}
+              selectedDate={selectedDate}
+              onChange={setSelectedDate}
+            />
+            {viewMode === 'day' && (
+              <MobileDayView
+                date={selectedDate}
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+                onShowWeek={() => setViewMode('week')}
+              />
+            )}
+            {viewMode === 'week' && (
+              <MobileWeekView
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+              />
+            )}
+            {viewMode === 'month' && (
+              <MobileMonthView
+                selectedDate={selectedDate}
+                onSelectDate={(d) => { setSelectedDate(d); setViewMode('day'); }}
+                shifts={shifts}
+              />
+            )}
+          </div>
+
           {/* Fixed location jobs (e.g. Lager) */}
           {locationJobs.length > 0 && (
             <div>
@@ -267,22 +260,17 @@ const MobileJobs = () => {
                             </p>
                           )}
                         </button>
-                        {(
-                          /* Always render — concurrency is handled by TimerConflictDialog */
-                          true
-                        ) && (
-                          <button
-                            onClick={(e) => handleLocationTimerToggle(e, loc)}
-                            className={cn(
-                              "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                              hasTimer
-                                ? "bg-destructive text-destructive-foreground shadow-md"
-                                : "bg-primary/10 text-primary hover:bg-primary/20"
-                            )}
-                          >
-                            {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => handleLocationTimerToggle(e, loc)}
+                          className={cn(
+                            "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                            hasTimer
+                              ? "bg-destructive text-destructive-foreground shadow-md"
+                              : "bg-primary/10 text-primary hover:bg-primary/20"
+                          )}
+                        >
+                          {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   );
@@ -290,24 +278,10 @@ const MobileJobs = () => {
               </div>
             </div>
           )}
-
-          {/* Today's planned shifts (vertical timeline) */}
-          <div>
-            <div className="flex items-center gap-2 mb-2.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">
-                {t('jobs.today')}
-              </h2>
-            </div>
-            <DayTimeline
-              shifts={shifts}
-              activeBookingIds={new Set(Array.from(activeTimers.keys()))}
-            />
-          </div>
           </>
-
         )}
       </div>
+
 
       {geofenceEvent && (
         <GeofencePrompt

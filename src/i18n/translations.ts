@@ -162,6 +162,17 @@ const translations = {
   'broadcast.logistics': { sv: 'Logistik', en: 'Logistics' },
   'broadcast.urgent': { sv: 'Brådskande', en: 'Urgent' },
 
+  // Calendar (mobile)
+  'calendar.day': { sv: 'Dag', en: 'Day' },
+  'calendar.week': { sv: 'Vecka', en: 'Week' },
+  'calendar.month': { sv: 'Månad', en: 'Month' },
+  'calendar.today': { sv: 'Idag', en: 'Today' },
+  'calendar.weekShort': { sv: 'v.', en: 'wk' },
+  'calendar.noJobsThisDay': { sv: 'Inga pass denna dag', en: 'No shifts this day' },
+  'calendar.showWeek': { sv: 'Visa veckan', en: 'Show week' },
+  'calendar.prev': { sv: 'Föregående', en: 'Previous' },
+  'calendar.next': { sv: 'Nästa', en: 'Next' },
+
   // Common
   'common.loading': { sv: 'Laddar...', en: 'Loading...' },
   'common.error': { sv: 'Fel', en: 'Error' },
