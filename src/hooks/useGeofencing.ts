@@ -62,6 +62,8 @@ export interface OrganizationLocationMobile {
   longitude: number;
   radius_meters: number;
   show_as_project?: boolean;
+  geofence_mode?: 'circle' | 'polygon';
+  geofence_polygon?: { type: 'Polygon'; coordinates: number[][][] } | null;
 }
 
 interface GpsSettings {
