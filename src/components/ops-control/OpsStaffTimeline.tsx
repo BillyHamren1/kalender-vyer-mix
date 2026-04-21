@@ -79,7 +79,7 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
 
   // Now indicator (only show for today)
   const showNow = isToday(date);
-  const nowPct = useMemo(() => showNow ? timeToPercent(new Date().toISOString()) : null, [showNow]);
+  const nowPct = useMemo(() => showNow ? nowPercent() : null, [showNow]);
   const hours = useMemo(() => Array.from({ length: TOTAL_HOURS }, (_, i) => HOUR_START + i), []);
 
   // Filter out off_duty and group by team
