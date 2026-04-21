@@ -4245,18 +4245,49 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     console.warn('[mobile-app-api] history insert failed:', histErr)
   }
 
-  // ── GEOFENCE CHECK for organization_locations ──
+  // ── GEOFENCE CHECK for organization_locations (polygon-aware) ──
   let atLocation: { id: string; name: string } | null = null
   try {
+    // Inline copy of helper logic — edge runtime can't easily import shared file from this folder layout.
+    const ptInRing = (lng: number, lat: number, ring: number[][]) => {
+      let inside = false
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i]
+        const [xj, yj] = ring[j]
+        const intersect = ((yi > lat) !== (yj > lat)) &&
+          lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi
+        if (intersect) inside = !inside
+      }
+      return inside
+    }
+    const ptInPoly = (lng: number, lat: number, poly: any) => {
+      const rings = poly?.coordinates || []
+      if (rings.length === 0) return false
+      if (!ptInRing(lng, lat, rings[0])) return false
+      for (let r = 1; r < rings.length; r++) if (ptInRing(lng, lat, rings[r])) return false
+      return true
+    }
+
     const { data: orgLocations } = await supabase
       .from('organization_locations')
-      .select('id, name, latitude, longitude, radius_meters')
+      .select('id, name, latitude, longitude, radius_meters, geofence_mode, geofence_polygon')
       .eq('organization_id', organizationId)
       .eq('is_active', true)
 
+    // GPS accuracy gate — ignore noisy pings (e.g. night-time drift) for geofence eval.
+    const accuracyOk = accuracy == null || accuracy <= 50
+
     for (const loc of (orgLocations || [])) {
-      const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
-      const isInside = dist <= loc.radius_meters
+      let isInside = false
+      if (loc.geofence_mode === 'polygon' && loc.geofence_polygon) {
+        isInside = ptInPoly(longitude, latitude, loc.geofence_polygon)
+      } else {
+        const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
+        isInside = dist <= loc.radius_meters
+      }
+
+      // Without good accuracy we don't auto-enter/exit.
+      if (!accuracyOk) continue
 
       // Check for ANY open entry at this location (gps or manual) — one place, one open entry
       const { data: openEntry } = await supabase
@@ -4279,7 +4310,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
           source: 'gps',
         })
         atLocation = { id: loc.id, name: loc.name }
-        console.log(`[geofence] Staff ${staffId} entered ${loc.name}`)
+        console.log(`[geofence] Staff ${staffId} entered ${loc.name} (mode=${loc.geofence_mode || 'circle'})`)
       } else if (!isInside && openEntry && openEntry.source === 'gps') {
         // Left — close GPS entry (never auto-close manual entries)
         await supabase
@@ -4429,7 +4460,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 async function handleGetOrganizationLocations(supabase: any, organizationId: string) {
   const { data, error } = await supabase
     .from('organization_locations')
-    .select('id, name, address, latitude, longitude, radius_meters, show_as_project')
+    .select('id, name, address, latitude, longitude, radius_meters, show_as_project, geofence_mode, geofence_polygon')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
     .order('name')

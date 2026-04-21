@@ -3,6 +3,12 @@ import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
+import {
+  shouldTriggerEnter as evalShouldEnter,
+  shouldTriggerExit as evalShouldExit,
+  isInsideGeofence,
+  GEOFENCE_MAX_ACCURACY_M,
+} from '@/lib/geofenceEval';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
@@ -62,6 +68,8 @@ export interface OrganizationLocationMobile {
   longitude: number;
   radius_meters: number;
   show_as_project?: boolean;
+  geofence_mode?: 'circle' | 'polygon';
+  geofence_polygon?: { type: 'Polygon'; coordinates: number[][][] } | null;
 }
 
 interface GpsSettings {
@@ -649,20 +657,37 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
     }
 
-    // Check fixed locations
+    // Check fixed locations (supports both circle and polygon geofences,
+    // with hysteresis + GPS accuracy gating to prevent night-time false positives).
+    const accuracy = userPosition.accuracy;
+    const accuracyOk = accuracy == null || accuracy <= GEOFENCE_MAX_ACCURACY_M;
+
     for (const loc of orgLocations) {
-      const dist = haversineDistance(userPosition.lat, userPosition.lng, loc.latitude, loc.longitude);
+      const target = {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        radius_meters: loc.radius_meters,
+        geofence_mode: loc.geofence_mode || 'circle',
+        geofence_polygon: loc.geofence_polygon || null,
+      };
+      const inside = isInsideGeofence(userPosition.lat, userPosition.lng, target);
+      const dist = inside ? 0 : Math.round(haversineDistance(userPosition.lat, userPosition.lng, loc.latitude, loc.longitude));
       const locKey = `location-${loc.id}`;
       const hasTimer = activeTimers.has(locKey);
 
-      if (dist <= loc.radius_meters && !hasTimer && !triggeredEnterRef.current.has(locKey)) {
+      // ENTER: hysteresis + accuracy gate
+      if (
+        accuracyOk &&
+        evalShouldEnter(userPosition.lat, userPosition.lng, target, accuracy) &&
+        !hasTimer &&
+        !triggeredEnterRef.current.has(locKey)
+      ) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
-        // Arrival at a known fixed location (warehouse) ends any open travel row.
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
         setGeofenceEvent({
           type: 'enter',
-          distance: Math.round(dist),
+          distance: dist,
           locationType: 'fixed',
           locationId: loc.id,
           locationName: loc.name,
@@ -671,14 +696,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         });
       }
 
-      // Re-entry while timer is active → stop any open anomaly for this location
-      if (dist <= loc.radius_meters && hasTimer && triggeredExitRef.current.has(locKey)) {
+      // Re-entry while timer is active → close any open anomaly for this location
+      if (accuracyOk && inside && hasTimer && triggeredExitRef.current.has(locKey)) {
         triggeredExitRef.current.delete(locKey);
         fireAnomalyStop({ locationId: loc.id });
       }
 
-      // Exit while timer is running → start anomaly in background, KEEP timer running
-      if (dist > (loc.radius_meters + 50) && hasTimer && !triggeredExitRef.current.has(locKey)) {
+      // EXIT: hysteresis + accuracy gate; KEEP timer running, fire anomaly
+      if (
+        accuracyOk &&
+        evalShouldExit(userPosition.lat, userPosition.lng, target, accuracy) &&
+        hasTimer &&
+        !triggeredExitRef.current.has(locKey)
+      ) {
         triggeredExitRef.current.add(locKey);
         triggeredEnterRef.current.delete(locKey);
         fireAnomalyStart({ locationId: loc.id });
