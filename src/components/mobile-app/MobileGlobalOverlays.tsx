@@ -255,7 +255,7 @@ const MobileGlobalOverlays: React.FC = () => {
       {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
 
       {/* Portaled dialogs */}
-      {completedTravel && (
+      {completedTravel && !completedTravel.autoFlow && (
         <TravelCompletedDialog
           info={completedTravel}
           onDismiss={dismissCompletedTravel}
