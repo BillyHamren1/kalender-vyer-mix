@@ -4211,6 +4211,129 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     console.warn('[geofence] Error during location check:', geoErr)
   }
 
+  // ── BACKGROUND GEOFENCE for assigned bookings & projects ──
+  // The mobile app's foreground geofencer calls report_arrival explicitly,
+  // but when the phone is locked / app is killed, only this report_location
+  // path runs. Without this block, an assigned staff member can stand on a
+  // jobsite for hours without ever being checked in (the Raivis case).
+  //
+  // Quality gates (mirror foreground): accuracy ≤ 50m, speed ≤ 1.5 m/s.
+  // Range: ≤ 100m. Auto-checkin for assigned targets only — unassigned
+  // arrivals continue to require an explicit prompt (handled by the
+  // foreground hook so the user gets a real dialog).
+  try {
+    const goodAccuracy = accuracy == null || accuracy <= 50
+    const stationary = speed == null || speed <= 1.5
+    if (goodAccuracy && stationary) {
+      const today = new Date().toISOString().split('T')[0]
+
+      // Pull today's assigned bookings (with coords) and projects (with coords).
+      const [{ data: bsaRows }, { data: lpsRows }] = await Promise.all([
+        supabase
+          .from('booking_staff_assignments')
+          .select('booking_id, bookings:booking_id(id, delivery_latitude, delivery_longitude, large_project_id)')
+          .eq('staff_id', staffId)
+          .eq('assignment_date', today),
+        supabase
+          .from('large_project_staff')
+          .select('large_project_id, large_projects:large_project_id(id, address_latitude, address_longitude)')
+          .eq('staff_id', staffId),
+      ])
+
+      type Target =
+        | { kind: 'booking'; id: string; lat: number; lng: number }
+        | { kind: 'project'; id: string; lat: number; lng: number }
+      const targets: Target[] = []
+      const seen = new Set<string>()
+      for (const r of (bsaRows || [])) {
+        const b = r.bookings
+        if (b?.delivery_latitude != null && b?.delivery_longitude != null) {
+          const key = `b:${b.id}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            targets.push({ kind: 'booking', id: b.id, lat: b.delivery_latitude, lng: b.delivery_longitude })
+          }
+        }
+      }
+      for (const r of (lpsRows || [])) {
+        const lp = r.large_projects
+        if (lp?.address_latitude != null && lp?.address_longitude != null) {
+          const key = `p:${lp.id}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            targets.push({ kind: 'project', id: lp.id, lat: lp.address_latitude, lng: lp.address_longitude })
+          }
+        }
+      }
+
+      const ENTER_RADIUS_M = 100
+      for (const t of targets) {
+        const dist = haversineMeters(latitude, longitude, t.lat, t.lng)
+        if (dist > ENTER_RADIUS_M) continue
+
+        // Idempotent: skip if there's already an open entry for this target today.
+        let openQuery = supabase
+          .from('location_time_entries')
+          .select('id')
+          .eq('staff_id', staffId)
+          .eq('entry_date', today)
+          .is('exited_at', null)
+        if (t.kind === 'booking') openQuery = openQuery.eq('booking_id', t.id)
+        else openQuery = openQuery.eq('large_project_id', t.id)
+        const { data: existingOpen } = await openQuery.limit(1).maybeSingle()
+        if (existingOpen) continue
+
+        // Close any other open entries (e.g. lager) so we don't double-count.
+        const nowIso = new Date().toISOString()
+        const { data: otherOpen } = await supabase
+          .from('location_time_entries')
+          .select('id, entered_at')
+          .eq('staff_id', staffId)
+          .is('exited_at', null)
+          .lt('entered_at', nowIso)
+        for (const row of (otherOpen || [])) {
+          const minutes = Math.max(0, Math.round(
+            (Date.now() - new Date(row.entered_at).getTime()) / 60000
+          ))
+          await supabase
+            .from('location_time_entries')
+            .update({ exited_at: nowIso, total_minutes: minutes })
+            .eq('id', row.id)
+            .is('exited_at', null)
+        }
+
+        const insertPayload: any = {
+          organization_id: organizationId,
+          staff_id: staffId,
+          entry_date: today,
+          entered_at: nowIso,
+          source: 'auto_assigned_bg',
+        }
+        if (t.kind === 'booking') insertPayload.booking_id = t.id
+        else insertPayload.large_project_id = t.id
+
+        const { error: insErr } = await supabase
+          .from('location_time_entries')
+          .insert(insertPayload)
+        if (insErr) {
+          console.warn(`[bg-geofence] Failed to auto-checkin ${t.kind} ${t.id}:`, insErr)
+        } else {
+          console.log(`[bg-geofence] AUTO check-in ${t.kind}=${t.id} staff=${staffId} dist=${Math.round(dist)}m`)
+          // Resolve any pending prompt for the same target so the UI stays clean.
+          await supabase
+            .from('arrival_prompt_log')
+            .update({ resolved: true, resolved_at: nowIso })
+            .eq('staff_id', staffId)
+            .eq('target_type', t.kind)
+            .eq('target_id', t.id)
+            .eq('resolved', false)
+        }
+      }
+    }
+  } catch (bgErr) {
+    console.warn('[bg-geofence] Error during assigned-target check:', bgErr)
+  }
+
   return new Response(
     JSON.stringify({ success: true, at_location: atLocation }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
