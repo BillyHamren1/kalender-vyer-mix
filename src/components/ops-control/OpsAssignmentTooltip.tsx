@@ -25,10 +25,10 @@ const OpsAssignmentTooltip = ({ assignment, staffName, rect }: Props) => {
         </div>
       )}
       <div className="space-y-0.5">
-        {assignment.startTime && assignment.endTime && (
+        {assignment.startClock && assignment.endClock && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <Clock className="w-3 h-3" />
-            {format(new Date(assignment.startTime), 'HH:mm')}–{format(new Date(assignment.endTime), 'HH:mm')}
+            {assignment.startClock}–{assignment.endClock}
           </div>
         )}
         {assignment.deliveryAddress && (
