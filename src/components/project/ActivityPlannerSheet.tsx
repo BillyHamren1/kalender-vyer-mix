@@ -371,7 +371,7 @@ const ActivityPlannerSheet = ({
 
         const descParts = [row.notes.trim(), quantityNotes].filter(Boolean);
 
-        await createEstablishmentTask({
+        const newTask = await createEstablishmentTask({
           booking_id: effectiveBookingId,
           large_project_id: largeProjectId || null,
           title: row.title.trim(),
@@ -388,6 +388,14 @@ const ActivityPlannerSheet = ({
           priority: row.priority,
           description: descParts.join('\n') || undefined,
         });
+        if (row.syncToCalendar && newTask?.id) {
+          try {
+            await syncActivityToCalendar(newTask.id);
+          } catch (syncErr) {
+            console.error('[ActivityPlanner] Calendar sync failed for', row.title, syncErr);
+            toast.warning(`"${row.title}" sparades, men kalendersynk misslyckades`);
+          }
+        }
         ok++;
       } catch (e) {
         console.error('[ActivityPlanner] Failed:', row.title, e);
