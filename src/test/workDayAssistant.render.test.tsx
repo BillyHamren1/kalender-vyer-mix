@@ -111,9 +111,9 @@ describe('WorkDayAssistant render contract', () => {
       oldestStartedAtIso: '2026-04-18T12:00:00Z',
     };
     render(<WorkDayAssistant decision={d} onAcknowledge={() => {}} />);
-    expect(screen.getByText(/2 glapp/i)).toBeInTheDocument();
-    expect(screen.getByText(/vi gissar inte/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Klassa nu/i })).toBeInTheDocument();
+    expect(screen.getByText(/2 .*titta på/i)).toBeInTheDocument();
+    expect(screen.getByText(/ingen brådska/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Visa$/i })).toBeInTheDocument();
   });
 
   it('activity_leave → öppnar ActivityLeaveDialog (inte vanlig fri-form-dialog)', () => {

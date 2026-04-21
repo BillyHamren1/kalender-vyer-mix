@@ -302,26 +302,25 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-primary" />
-                {d.count === 1 ? 'Ett glapp att klassa' : `${d.count} glapp att klassa`}
+                {d.count === 1 ? 'En sak att titta på' : `${d.count} saker att titta på`}
               </DialogTitle>
               <DialogDescription>
-                Vi har {d.count === 1 ? 'ett' : d.count} oklassat glapp i din
-                arbetstid. Klassa dem som rast eller arbete så blir
-                tidrapporten korrekt — vi gissar inte åt dig.
+                {d.count === 1 ? 'Det finns ett glapp' : `Det finns ${d.count} glapp`} i din arbetstid som vi inte är säkra på.
+                Du kan titta på dem när det passar — ingen brådska.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
-                Senare
+                Inte nu
               </Button>
               <Button
                 onClick={() => {
-                  navigate('/m/report');
+                  navigate('/m/my-flags');
                   onAcknowledge();
                 }}
                 className="w-full sm:w-auto"
               >
-                Klassa nu
+                Visa
               </Button>
             </DialogFooter>
           </DialogContent>

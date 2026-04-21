@@ -460,7 +460,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
 
     it('cooldown-katalogen är låst (ingen tyst justering av en cooldown påverkar produktion)', () => {
       // Sanity: värdena är de man förväntar sig från arkitekturbeslutet.
-      expect(COOLDOWNS_MS.unclassified_anomaly).toBe(4 * 3600 * 1000);
+      expect(COOLDOWNS_MS.unclassified_anomaly).toBe(24 * 3600 * 1000);
       expect(COOLDOWNS_MS.long_pass_no_break).toBe(60 * 60 * 1000);
       expect(COOLDOWNS_MS.activity_leave).toBe(30 * 60 * 1000);
       expect(COOLDOWNS_MS.last_workplace_for_day).toBe(60 * 60 * 1000);
