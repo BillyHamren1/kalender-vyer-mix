@@ -70,10 +70,10 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
                     <MapPin className="w-3 h-3" /> {staff.currentJob.deliveryAddress}
                   </span>
                 )}
-                {staff.currentJob.startTime && staff.currentJob.endTime && (
+                {staff.currentJob.startClock && staff.currentJob.endClock && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                     <Clock className="w-3 h-3" />
-                    {format(new Date(staff.currentJob.startTime), 'HH:mm')}–{format(new Date(staff.currentJob.endTime), 'HH:mm')}
+                    {staff.currentJob.startClock}–{staff.currentJob.endClock}
                   </span>
                 )}
               </div>
@@ -91,9 +91,9 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
             >
               <div className="text-xs font-semibold text-foreground">{staff.nextJob.client}</div>
               <div className="flex items-center gap-3 mt-1">
-                {staff.nextJob.startTime && (
+                {staff.nextJob.startClock && (
                   <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                    <Clock className="w-3 h-3" /> {format(new Date(staff.nextJob.startTime), 'HH:mm')}
+                    <Clock className="w-3 h-3" /> {staff.nextJob.startClock}
                   </span>
                 )}
                 {staff.nextJob.deliveryAddress && (
@@ -126,8 +126,8 @@ const OpsStaffPanel = ({ staff, onClose, onOpenDM }: Props) => {
                     <div className="text-[11px] font-medium text-foreground truncate">{a.client}</div>
                     <div className="text-[9px] text-muted-foreground">
                       {a.eventType || 'Jobb'}
-                      {a.startTime && ` · ${format(new Date(a.startTime), 'HH:mm')}`}
-                      {a.endTime && `–${format(new Date(a.endTime), 'HH:mm')}`}
+                      {a.startClock && ` · ${a.startClock}`}
+                      {a.endClock && `–${a.endClock}`}
                     </div>
                   </div>
                   <ChevronRight className="w-3 h-3 text-muted-foreground/30 shrink-0" />
