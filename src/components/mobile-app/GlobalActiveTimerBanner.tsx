@@ -63,6 +63,14 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const eodQueueRef = useRef<string[]>([]);
   const eodProcessingRef = useRef(false);
 
+  const waitForLocalTimerDrain = useCallback(async () => {
+    for (let i = 0; i < 12; i += 1) {
+      if (loadTimersFromStorage().size === 0) return true;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return loadTimersFromStorage().size === 0;
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setTimers(loadTimersFromStorage());
@@ -259,14 +267,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
       }
     } finally {
       eodProcessingRef.current = false;
-      // EOD queue drained — workday is over. Clear the day-timer so the
-      // header pill disappears. If any stop failed, the user will see the
-      // timer return on next render (reconcile picks it up again).
-      if (loadTimersFromStorage().size === 0) {
+      // EOD queue drained — wait for local timer storage to actually flush
+      // before ending the day. This avoids the header day-timer surviving
+      // a just-completed EOD because React/localStorage had not caught up yet.
+      const localTimersDrained = await waitForLocalTimerDrain();
+      if (localTimersDrained && !pendingStopRef.current) {
         window.dispatchEvent(new CustomEvent('workday-ended'));
       }
     }
-  }, [handleStop]);
+  }, [handleStop, waitForLocalTimerDrain]);
 
   // Mirror pendingStop into a ref so the queue processor can poll it
   // without re-creating itself on every state change.
@@ -281,7 +290,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        toast.message('Inga aktiva timers — dagen är redan stängd.');
+        window.dispatchEvent(new CustomEvent('workday-ended'));
+        toast.message('Inga aktiva timers — arbetsdagen avslutades.');
         return;
       }
       // Avoid duplicate queueing if user fires the event twice

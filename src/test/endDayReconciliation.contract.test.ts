@@ -54,15 +54,13 @@ describe('End-of-day reconciliation contract', () => {
   // ────────────────────────────────────────────────────────────────────
   // M. endDay with no active timers is a no-op
   // ────────────────────────────────────────────────────────────────────
-  it('M: request-end-day med tom timers-Map gör inget skadligt', () => {
+  it('M: request-end-day med tom timers-Map gör inget skadligt och stänger dagtimern', () => {
     log('M', 'no-op when no active timers');
     const banner = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
-    // The handler must guard against empty queues — otherwise dialogs spam.
     const region = banner.slice(banner.indexOf("'request-end-day'"));
-    // We expect the banner to enqueue from `timers` (a Map) and processNextEod
-    // to early-return when the queue is empty.
     expect(region).toMatch(/timers/);
     expect(banner).toMatch(/processNextEod/);
+    expect(region).toMatch(/workday-ended/);
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -87,11 +85,14 @@ describe('End-of-day reconciliation contract', () => {
   // ────────────────────────────────────────────────────────────────────
   // O. request-end-day event drives the flow
   // ────────────────────────────────────────────────────────────────────
-  it('O: GlobalActiveTimerBanner lyssnar på request-end-day och kör processNextEod', () => {
-    log('O', 'event-driven EOD');
+  it('O: GlobalActiveTimerBanner lyssnar på request-end-day, kör processNextEod och väntar på local timer drain före workday-ended', () => {
+    log('O', 'event-driven EOD with storage-drain safeguard');
     const banner = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
     expect(banner).toMatch(/addEventListener\(\s*['"]request-end-day['"]/);
     expect(banner).toMatch(/processNextEod/);
+    expect(banner).toMatch(/waitForLocalTimerDrain/);
+    expect(banner).toMatch(/localTimersDrained/);
+    expect(banner).toMatch(/workday-ended/);
   });
 
   // ────────────────────────────────────────────────────────────────────
