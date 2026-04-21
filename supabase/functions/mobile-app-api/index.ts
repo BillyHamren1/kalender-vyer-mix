@@ -2747,13 +2747,15 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .eq('staff_id', staffId)
     .order('report_date', { ascending: false })
 
-  // Fetch ALL establishment tasks for this booking — staff sees activities as
-  // info even if they're not personally assigned. Tasks where this staff member
-  // IS in assigned_to_ids get is_mine=true so the client can highlight them.
+  // Fetch establishment tasks for this booking — ONLY activities that have been
+  // explicitly synced to the staff calendar (calendar_event_id != null) are
+  // visible to field staff as info cards. Tasks where this staff member IS in
+  // assigned_to_ids get is_mine=true so the client can highlight them.
   const { data: rawEstablishmentTasks } = await supabase
     .from('establishment_tasks')
-    .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time, status')
+    .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time, status, calendar_event_id')
     .eq('booking_id', booking_id)
+    .not('calendar_event_id', 'is', null)
     .order('start_date', { ascending: true })
     .order('sort_order', { ascending: true })
 
