@@ -461,14 +461,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           lastLocationReportRef.current = now;
           const currentStaffId = staffIdRef.current;
           if (currentStaffId) {
-            mobileApi.reportLocation({
+            enqueueLocationPoint({
               latitude,
               longitude,
               accuracy: accuracy ?? null,
               speed: speed ?? null,
-            }).catch((error) => {
-              console.warn('Location report failed:', error?.message || error);
+              source: 'foreground',
             });
+            void flushLocationQueue();
           }
         }
       },
