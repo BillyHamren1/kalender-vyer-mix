@@ -5,10 +5,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { GpsPosition } from '@/hooks/useGeofencing';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
-const SPEED_STOP_THRESHOLD = 1.0; // m/s
 const START_DEBOUNCE_MS = 15000; // 15s sustained speed
-const STOP_DEBOUNCE_MS = 60000; // 60s low speed
 const MAX_ACCURACY_M = 50;
+
+/**
+ * Cross-hook signal — fired by `useGeofencing` (on ENTER of any known
+ * workplace) and by `useTimerStartFlow` (right before a new activity timer
+ * starts). The travel-detection hook listens and stops the open
+ * `travel_time_logs` row with the supplied position as destination.
+ *
+ * Speed alone NEVER stops a travel row — only arrival at a known place
+ * or the user starting a new activity counts as "resan är slut".
+ */
+export const STOP_TRAVEL_EVENT = 'eventflow-stop-travel';
+export interface StopTravelEventDetail {
+  lat: number;
+  lng: number;
+  /** True when triggered by automatic flow (geofence ENTER / new timer). */
+  auto?: boolean;
+}
 const TRAVEL_STATE_KEY = 'eventflow-travel-state';
 const MAPBOX_TOKEN_KEY = 'eventflow-mapbox-token';
 
@@ -37,6 +52,13 @@ export interface TravelCompletedInfo {
    *                  it's a soft assistant signal, not paid time.
    */
   classification: 'work' | 'personal' | 'unclassified';
+  /**
+   * True when the row was closed by an automatic flow (geofence ENTER on
+   * a known place or because a new activity timer was started). Auto-flow
+   * stops are SILENT — no classification dialog is shown until the
+   * day-end reconciliation step. Manual user stops keep the dialog.
+   */
+  autoFlow?: boolean;
 }
 
 // Haversine distance in meters
@@ -97,7 +119,6 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const startDebounceRef = useRef<number | null>(null);
-  const stopDebounceRef = useRef<number | null>(null);
   
   // Use refs for values accessed in GPS callback to avoid effect restart loops
   const travelStateRef = useRef(travelState);
@@ -167,13 +188,13 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
     }
   }, []);
 
-  const stopTravel = useCallback(async (lat: number, lng: number) => {
+  const stopTravel = useCallback(async (lat: number, lng: number, opts: { auto?: boolean } = {}) => {
     const currentLogId = travelStateRef.current.activeTravelLogId;
     if (!currentLogId) return;
-    console.log('[TravelDetection] Stopping travel tracking...');
-    
+    console.log('[TravelDetection] Stopping travel tracking...', { auto: !!opts.auto });
+
     const address = await reverseGeocode(lat, lng);
-    
+
     try {
       const result = await mobileApi.stopTravelLog({
         travel_log_id: currentLogId,
@@ -190,6 +211,7 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
         hoursWorked: result.travel_log?.hours_worked || 0,
         matchedBookingId: result.travel_log?.destination_booking_id || null,
         classification: result.travel_log?.classification || 'unclassified',
+        autoFlow: !!opts.auto,
       });
 
       clearTravelState();
@@ -198,6 +220,21 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       console.error('[TravelDetection] Failed to stop travel:', err);
     }
   }, [clearTravelState]);
+
+  // Listen for cross-hook stop signals (geofence ENTER on a known place,
+  // or a new activity timer being started via useTimerStartFlow). These
+  // are the ONLY two automatic triggers allowed to end a travel row —
+  // low GPS speed at an unknown address must NOT end the trip.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<StopTravelEventDetail>).detail;
+      if (!detail) return;
+      if (!travelStateRef.current.activeTravelLogId) return;
+      stopTravel(detail.lat, detail.lng, { auto: detail.auto !== false });
+    };
+    window.addEventListener(STOP_TRAVEL_EVENT, handler as EventListener);
+    return () => window.removeEventListener(STOP_TRAVEL_EVENT, handler as EventListener);
+  }, [stopTravel]);
 
   // Manual stop — explicit user action ⇒ classify as 'work' (billable).
   // Auto-stop (speed-based) goes through stopTravel without mark_payable,
@@ -268,32 +305,25 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
     const currentState = travelStateRef.current;
 
+    // Auto-START on sustained speed. Auto-STOP based on low speed has been
+    // intentionally removed — a parked car at an unknown address (Bauhaus,
+    // lunch, fuel) must NOT end the trip. Travel only ends when the user
+    // arrives at a known geofence (warehouse / project / booking) or
+    // starts a new activity timer via useTimerStartFlow. Both fire the
+    // STOP_TRAVEL_EVENT handled above.
     if (!currentState.isMoving) {
       if (currentSpeed >= SPEED_THRESHOLD) {
         if (!startDebounceRef.current) {
           startDebounceRef.current = now;
         } else if (now - startDebounceRef.current >= START_DEBOUNCE_MS) {
           startDebounceRef.current = null;
-          stopDebounceRef.current = null;
           startTravel(latitude, longitude);
         }
       } else {
         startDebounceRef.current = null;
       }
-    } else {
-      if (currentSpeed < SPEED_STOP_THRESHOLD) {
-        if (!stopDebounceRef.current) {
-          stopDebounceRef.current = now;
-        } else if (now - stopDebounceRef.current >= STOP_DEBOUNCE_MS) {
-          stopDebounceRef.current = null;
-          startDebounceRef.current = null;
-          stopTravel(latitude, longitude);
-        }
-      } else {
-        stopDebounceRef.current = null;
-      }
     }
-  }, [enabled, gpsPosition, startTravel, stopTravel]);
+  }, [enabled, gpsPosition, startTravel]);
 
   return {
     travelState,

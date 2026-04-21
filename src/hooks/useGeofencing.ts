@@ -2,6 +2,18 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
+import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
+
+/**
+ * Fire the cross-hook signal that ends an open `travel_time_logs` row.
+ * Called from every geofence ENTER on a known workplace (warehouse,
+ * project, booking) so a trip ALWAYS ends at a real arrival, never on
+ * low GPS speed at an unknown address.
+ */
+const emitStopTravelOnArrival = (lat: number, lng: number) => {
+  const detail: StopTravelEventDetail = { lat, lng, auto: true };
+  window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
+};
 
 export const ENTER_RADIUS = 150; // meters
 const EXIT_RADIUS = 200;  // hysteresis to avoid flapping
@@ -556,6 +568,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
+          // Arrival at a known workplace ends any open travel row.
+          emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
           // UNIFIED arrival registration — same server log as fixed locations.
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
@@ -593,6 +607,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
+          // Arrival at a known workplace ends any open travel row.
+          emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
           // UNIFIED arrival registration for plain bookings.
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
@@ -623,6 +639,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       if (dist <= loc.radius_meters && !hasTimer && !triggeredEnterRef.current.has(locKey)) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
+        // Arrival at a known fixed location (warehouse) ends any open travel row.
+        emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
         setGeofenceEvent({
           type: 'enter',
           distance: Math.round(dist),
