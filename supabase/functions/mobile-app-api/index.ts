@@ -4342,18 +4342,17 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     if (goodAccuracy && stationary) {
       const today = new Date().toISOString().split('T')[0]
 
-      // Pull today's assigned bookings (with coords) and projects (with coords).
-      const [{ data: bsaRows }, { data: lpsRows }] = await Promise.all([
-        supabase
-          .from('booking_staff_assignments')
-          .select('booking_id, bookings:booking_id(id, delivery_latitude, delivery_longitude, large_project_id)')
-          .eq('staff_id', staffId)
-          .eq('assignment_date', today),
-        supabase
-          .from('large_project_staff')
-          .select('large_project_id, large_projects:large_project_id(id, address_latitude, address_longitude)')
-          .eq('staff_id', staffId),
-      ])
+      // Pull today's assigned bookings (with coords). Projects are derived from
+      // the SAME booking_staff_assignments — a staff member is only auto-checked
+      // into a large project on a day they actually have an assignment to one of
+      // its bookings. Membership in `large_project_staff` alone is NOT enough,
+      // otherwise people get checked in to projects/warehouses at night just for
+      // being on the team roster.
+      const { data: bsaRows } = await supabase
+        .from('booking_staff_assignments')
+        .select('booking_id, bookings:booking_id(id, delivery_latitude, delivery_longitude, large_project_id, large_projects:large_project_id(id, address_latitude, address_longitude))')
+        .eq('staff_id', staffId)
+        .eq('assignment_date', today)
 
       type Target =
         | { kind: 'booking'; id: string; lat: number; lng: number }
