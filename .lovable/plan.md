@@ -2,94 +2,75 @@
 
 ## Mål
 
-**EN start-funktion. ETT regelverk.** Manuell knapp, ankomst-popup ("Starta dagen?") och auto-geostart vid geofence-enter ska alla gå genom **exakt samma kodväg** — `requestStart() → evaluateStartConflict() → startSession()`. Ingen får längre ringa `startTimer()` direkt eller `startSession()` förbi konflikt-utvärderingen.
+Rest-timern (`travel_time_logs`) ska **inte stoppas** bara för att GPS-hastigheten faller under tröskeln vid en okänd adress (Bauhaus, lunch, tankstation, etc.). Den ska fortsätta rulla tills användaren faktiskt **anländer till en känd arbetsplats** (lager, projekt-geofence, booking-geofence) **eller startar en ny aktivitets-timer manuellt**.
 
-## Vad som händer idag (problemet)
+## Problem idag
 
-Tre parallella vägar in i timer-systemet:
-
-```text
-                         ┌──────────────────────────┐
-Manuell knapp i jobblistan┤ requestStart →           │
-                         │ evaluateStartConflict →   │  ← konflikt-dialog OK
-                         │ startTimer(rå)            │  ← använder INTE startSession
-                         └──────────────────────────┘
-
-Ankomst-popup            ┌──────────────────────────┐
-("Starta dagen?")        │ startSession(workTarget)  │  ← INGEN konflikt-eval
-                         └──────────────────────────┘
-
-Geofence-enter           ┌──────────────────────────┐
-(passivt, ingen popup)   │ startTimer(rå, system=true)│ ← INGEN konflikt-eval
-                         └──────────────────────────┘
-```
-
-Resultat: lager-timer kan ticka medan en booking startas; arrival-popup ignorerar redan aktiv timer; geofence kan starta projekt-timer mitt i en annan utan switch-dialog.
-
-## Vad som ska gälla efter fixen
+I `src/hooks/useTravelDetection.ts`:
 
 ```text
-Alla tre källor → ett enda call:
-   requestStart(target, label, doStart)
-       │
-       ├─ evaluateStartConflict(target, activeTimers)
-       │     ├─ duplicate → no-op
-       │     ├─ allow     → distance-check (om GPS) → startSession(target)
-       │     └─ switch    → TimerConflictDialog → stopSession(gamla) → startSession(nya)
-       │
-       └─ startSession() är ENDA sättet att skapa en timer
-            (raw startTimer() blir ett internt API)
+Speed < 1.0 m/s i 60s  ──►  stopTravel()  ──►  travel_time_logs stängs
 ```
 
-## Vad användaren upplever
+Det betyder att så fort bilen står still 1 minut (rött ljus räknas inte, men parkering på Bauhaus gör det) → resan avslutas och en `TravelCompletedDialog` poppar upp. Det är fel modell.
 
-**Användaren kommer till Projekt eller Lager:**
+## Ny modell: rest-timern stoppas BARA av ankomst eller ny aktivitet
 
-1. **GPS upptäcker att de är inom geofence.** Background-positioning skickar position; arrival-state på servern flaggar `should_prompt = true`.
-2. **EN popup visas: "Starta dagen?"** (`UnifiedArrivalPrompt`) — exakt samma dialog för Lager / Projekt / Booking, bara ikonen skiljer.
-3. Användaren väljer **"Starta från {arrivaltid}"**, **"Starta nu"**, **"Anpassa tid"** eller **"Inte nu"**.
-4. **Vid Starta** → går genom `requestStart()`:
-   - Finns ingen aktiv timer → starta tyst.
-   - Finns en annan timer → samma `TimerConflictDialog` som vid manuell start öppnas: *"Du har redan {X} igång. Stoppa och byt?"*
-   - Användaren bekräftar → den gamla stoppas via `stopSession()` (inkl. break-dialog vid behov, save-then-stop), den nya startas.
-5. **Om användaren stänger ankomst-popupen** ("Inte nu") och sedan trycker manuellt på Lager- eller Projekt-kortet → **samma flöde igen**, samma konflikt-regler, samma resultat.
-6. **Bakgrundsstart utan popup** (om vi behåller passiv geo-start för t.ex. testning) **avlägsnas**. Geo-enter triggar bara arrival-prompten — start sker aldrig utan användarens medgivande. Det löser problemet med "fantom-timers" som dyker upp.
+```text
+Travel pågår
+   │
+   ├─ Speed faller → IGNORERAS (timern fortsätter)
+   │
+   ├─ GPS-position inom känd geofence (lager / projekt / booking)
+   │     └─► stopTravel(arrivalLocation)
+   │
+   └─ requestStart() lyckas starta ny aktivitets-timer (manuellt eller via arrival-popup)
+         └─► stopTravel(newTarget) körs FÖRST i useTimerStartFlow
+```
+
+Dvs: **endast två giltiga stop-triggers** för en travel-rad:
+1. **Geofence ENTER** på en känd arbetsplats (lager / projekt / booking).
+2. **Ny aktivitets-timer startar** via `useTimerStartFlow`.
+
+Stillastående utan geofence-träff = användaren är på ett okänt ärende mitt i resan. Timern rullar.
 
 ## Tekniska ändringar
 
-**Fil 1: `src/components/mobile-app/MobileGlobalOverlays.tsx`**
-- Importera `evaluateStartConflict` + `TimerConflictDialog`.
-- Ersätt direkt `startSession(workTarget, …)` i `handleArrivalConfirm` med samma `requestStart()`-helper som MobileJobs använder.
-- Lägg till lokalt `pendingStart` + `conflictEval` state och rendera `TimerConflictDialog` här när arrival-flödet kolliderar med befintlig timer.
+**Fil 1: `src/hooks/useTravelDetection.ts`**
+- Ta bort hela `STOP_DEBOUNCE`-blocket (raderna ~270–285) som idag stänger travel via låg hastighet.
+- Behåll `SPEED_THRESHOLD` + `START_DEBOUNCE` för auto-start.
+- `stopTravel(lat, lng)` blir nu en **publik funktion** som ENDAST kallas externt — inte längre internt från speed-loopen.
+- Ta bort `TravelCompletedDialog`-triggern på auto-stop (den ska inte längre dyka upp mitt på dagen — klassificering sker vid dagsslut enligt tidigare beslut).
 
-**Fil 2: `src/pages/mobile/MobileJobs.tsx`**
-- I `handleTimerToggle`, `handleProjectTimerToggle`, `handleLocationTimerToggle`: byt `startTimer(...)` inuti `doStart`-callbacken till `startSession(target, { startedAtIso? })`. Idag startar de via `startTimer` rått, vilket skippar break-policy och target-mappning som finns i `startSession`.
-- I `handleGeofenceEvent` (rad ~40–80): **ta bort** den passiva auto-starten. Ersätt med en no-op + console-log; allt geo-styrt går nu via arrival-popup (servern flaggar `should_prompt`, popupen renderas av `MobileGlobalOverlays`).
+**Fil 2: `src/hooks/useGeofencing.ts`** (eller där geofence-events fångas)
+- I geofence-`ENTER`-handlern (för warehouse / project / booking): om `travelDetection.travelState.isMoving === true` → kalla `travelDetection.stopTravel(lat, lng)` med arrivalplatsen som destination.
+- Detta gäller alla typer av kända geofences (lager, projekt, booking-adress).
 
-**Fil 3 (extrahera helper): `src/lib/requestStart.ts` (ny)**
-- Flytta `requestStart` + `confirmSwitch` + `cancelConflict`-logiken till en ren funktion / liten hook (`useTimerStartFlow`) så både `MobileGlobalOverlays` och `MobileJobs` använder identisk logik. Inga regelduplikat.
+**Fil 3: `src/hooks/useTimerStartFlow.ts`**
+- I `startSession()`-flödet, **innan** ny timer startas: om en travel-rad är öppen → kalla `travelDetection.stopTravel(currentLat, currentLng)` så den stängs med den nya aktivitetens position som destination.
+- Detta täcker manuell start, arrival-popup-start och alla framtida start-källor (eftersom alla går genom denna hook efter förra rundan).
 
-**Fil 4: `src/lib/timerConcurrency.ts`**
-- Inga ändringar i regelmatrisen (den unified-regeln "en aktiv timer åt gången" från förra rundan står kvar).
-- Lägg till en JSDoc-mening överst: *"Anropas från EN central plats (`useTimerStartFlow`). Direkta calls till startTimer/startSession utan konflikt-eval är förbjudet — fångas av kontraktstest."*
+**Fil 4: `src/components/mobile-app/TravelCompletedDialog.tsx`** (eller där den triggas)
+- Skippa rendering helt om `completedTravel` har skapats av auto-flöde (geofence/start). Klassificering skjuts upp till dagsslut (hanteras i nästa skede).
+- Manuell stop (om användaren ändå vill avbryta resan) får fortsatt visa dialogen — men det är edge case.
 
-**Fil 5 (kontraktstest): `src/test/timerStartUnification.contract.test.ts` (ny)**
-- Statisk grep-test: ingen fil utanför `useTimerStartFlow.ts` / `useWorkSession.tsx` får anropa `startTimer(` direkt eller `startSession(` utan att gå genom `requestStart`. Misslyckas builden om någon framtida kod försöker ta en genväg.
-- Funktionell test: arrival-confirm med en aktiv lager-timer → `TimerConflictDialog` triggas (inte tyst start).
+**Fil 5: `src/components/mobile-app/GlobalActiveTimerBanner.tsx`**
+- Visa "Resa pågår" hela tiden travel-raden är öppen — även när bilen står still. Ingen ändring behövs, men säkerställ att etiketten inte byter till "Stillastående" eller liknande.
 
-**Inga DB-ändringar. Inga edge-function-ändringar.** Servern (`getArrivalState` / `markArrivalResolved` / `startLocationTimer`) är redan unified.
+**Inga DB-ändringar. Inga edge-function-ändringar.** All logik ligger i klienten.
 
 ## Filer som rörs
-- `src/components/mobile-app/MobileGlobalOverlays.tsx` (omdirigera arrival → requestStart)
-- `src/pages/mobile/MobileJobs.tsx` (byt `startTimer` → `startSession`, ta bort passiv geo-start)
-- `src/lib/requestStart.ts` eller `src/hooks/useTimerStartFlow.ts` (NY — delad start-flödeshook)
-- `src/lib/timerConcurrency.ts` (endast doc-uppdatering)
-- `src/test/timerStartUnification.contract.test.ts` (NY — låser regeln)
 
-## Validering efter implementation
-- Scenario A: tom dag, kommer till Lager → arrival-popup → "Starta från 07:42" → en (1) location-timer skapas, ingen dubbel.
-- Scenario B: lager-timer redan igång, kommer till projektplats → arrival-popup → "Starta nu" → konflikt-dialog → bekräfta → lager stoppas (save-then-stop), projekt-timer startar.
-- Scenario C: lager-timer igång, trycker manuellt på projektkort i listan → exakt samma konflikt-dialog som B.
-- Scenario D: avvisar arrival-popup ("Inte nu") → ingen timer startar; popupen kommer inte tillbaka samma minut (`markResolved` håller den tyst).
-- Scenario E: kontraktstestet failar om någon framtida PR lägger till `startTimer(` eller `startSession(` utanför de vita listade filerna.
+- `src/hooks/useTravelDetection.ts` (ta bort speed-baserad auto-stop)
+- `src/hooks/useGeofencing.ts` (ENTER på känd plats stänger travel)
+- `src/hooks/useTimerStartFlow.ts` (start av ny timer stänger travel först)
+- `src/components/mobile-app/TravelCompletedDialog.tsx` (skippa auto-flöden)
+
+## Validering
+
+- **A**: Lämna lager → travel startar (speed > 2 m/s i 15s) → kör till Bauhaus → parkera 30 min → travel **fortsätter rulla**, ingen popup.
+- **B**: Kör tillbaka till lager → geofence ENTER → travel stoppas automatiskt med lager som destination, lager-arrival-popup visas (befintligt flöde).
+- **C**: Kör direkt från Bauhaus till projekt-X → geofence ENTER på projekt-X → travel stoppas med projekt-X som destination, projekt-arrival-popup visas.
+- **D**: Mitt under resan startar användaren manuellt en projekt-timer från listan → travel stoppas via `useTimerStartFlow`, projekt-timern startar.
+- **E**: Inga `TravelCompletedDialog`-popups dyker upp under dagen — klassificering sker vid dagsslut (nästa skede).
 
