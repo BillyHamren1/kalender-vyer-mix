@@ -306,32 +306,25 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
     const currentState = travelStateRef.current;
 
+    // Auto-START on sustained speed. Auto-STOP based on low speed has been
+    // intentionally removed — a parked car at an unknown address (Bauhaus,
+    // lunch, fuel) must NOT end the trip. Travel only ends when the user
+    // arrives at a known geofence (warehouse / project / booking) or
+    // starts a new activity timer via useTimerStartFlow. Both fire the
+    // STOP_TRAVEL_EVENT handled above.
     if (!currentState.isMoving) {
       if (currentSpeed >= SPEED_THRESHOLD) {
         if (!startDebounceRef.current) {
           startDebounceRef.current = now;
         } else if (now - startDebounceRef.current >= START_DEBOUNCE_MS) {
           startDebounceRef.current = null;
-          stopDebounceRef.current = null;
           startTravel(latitude, longitude);
         }
       } else {
         startDebounceRef.current = null;
       }
-    } else {
-      if (currentSpeed < SPEED_STOP_THRESHOLD) {
-        if (!stopDebounceRef.current) {
-          stopDebounceRef.current = now;
-        } else if (now - stopDebounceRef.current >= STOP_DEBOUNCE_MS) {
-          stopDebounceRef.current = null;
-          startDebounceRef.current = null;
-          stopTravel(latitude, longitude);
-        }
-      } else {
-        stopDebounceRef.current = null;
-      }
     }
-  }, [enabled, gpsPosition, startTravel, stopTravel]);
+  }, [enabled, gpsPosition, startTravel]);
 
   return {
     travelState,
