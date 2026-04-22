@@ -32,7 +32,7 @@ import {
   ENTER_RADIUS,
 } from '@/hooks/useGeofencing';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
-import { syncWorkDayStart } from '@/services/workdayServerSync';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import type { MobileBooking } from '@/services/mobileApiService';
 
 export interface RequestStartOptions {
@@ -63,6 +63,7 @@ export function useTimerStartFlow(
     bookings,
     staffId,
   );
+  const { ensureActive: ensureWorkDayActive } = useWorkDay();
 
   const [pendingStart, setPendingStart] = useState<PendingStart | null>(null);
   const [conflictEval, setConflictEval] = useState<
@@ -76,9 +77,16 @@ export function useTimerStartFlow(
     return target.name;
   }, []);
 
-  /** Actually create the timer through the unified engine. */
+  /**
+   * Actually create the timer through the unified engine.
+   *
+   * WORKDAY-FIRST: we ALWAYS await `ensureWorkDayActive()` before starting
+   * an activity. This guarantees the workday row exists before any
+   * secondary segment (project/travel/warehouse/location) is created.
+   * The server is idempotent so an already-open workday is a cheap no-op.
+   */
   const performStart = useCallback(
-    (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
+    async (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
       // This is one of the two sanctioned auto-stop triggers (the other is
       // geofence ENTER on a known place). Speed alone never stops travel.
@@ -90,25 +98,32 @@ export function useTimerStartFlow(
         };
         window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
       }
+
+      // WORKDAY-FIRST guarantee. Awaited so activities can never be
+      // created before the workday row exists.
+      try {
+        await ensureWorkDayActive(opts.startedAtIso);
+      } catch (err) {
+        // Soft-fail: server-side workday is the audit anchor, but the
+        // local activity flow must not be blocked by a transient outage.
+        console.warn('[StartFlow] ensureWorkDayActive failed, continuing:', err);
+      }
+
       const ok = startSession(target, { startedAtIso: opts.startedAtIso });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
-        // Server-anchor the workday. Idempotent + debounced — safe to call
-        // on every successful timer-start; the edge function returns the
-        // existing open workday if one is already running.
-        syncWorkDayStart(opts.startedAtIso);
       } else {
         toast.message('Timer redan aktiv för platsen');
       }
       return ok;
     },
-    [startSession, userPosition],
+    [startSession, userPosition, ensureWorkDayActive],
   );
 
   const checkDistanceAndStart = useCallback(
     (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
       const coords = resolveTargetCoords(target);
-      const doStart = () => performStart(target, opts);
+      const doStart = () => { void performStart(target, opts); };
       if (!userPosition || !coords) {
         doStart();
         return;
