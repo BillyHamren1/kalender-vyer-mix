@@ -1212,12 +1212,13 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
 
   // Flatten large_project info for easier frontend consumption.
   //
-  // NOTE: Lager / location-presence sessions are NOT merged here. They are
-  // already materialised into `time_reports` by the DB trigger
-  // `sync_location_entry_to_time_report` (source = 'location_auto'), so they
-  // appear in this list automatically. From the user's perspective there is
-  // no difference between a project timer and a warehouse timer — both are
-  // editable time reports.
+  // NOTE: Lager / location-presence sessions reach this list because the
+  // mobile stop pipeline (`useWorkSession.stopSession` →
+  // `handleCreateTimeReport`) writes a normal `time_report` for banner-
+  // stopped location timers (createsTimeReport=true). The legacy DB
+  // trigger `sync_location_entry_to_time_report` was removed 2026-04-22;
+  // `handleCreateTimeReport` is now the single owner of `time_reports`.
+  // Pure presence (createsTimeReport=false) intentionally produces no row.
   const enriched = (reports || []).map((r: any) => ({
     ...r,
     large_project_name: r.large_projects?.name || null,
