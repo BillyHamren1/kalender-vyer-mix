@@ -624,11 +624,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
-          // Arrival at a known workplace ends any open travel row.
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // UNIFIED arrival registration — same server log as fixed locations.
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
+          noteEnterForDeparture(projectKey, 'project', lpId, lpName);
           setGeofenceEvent({
             type: 'enter',
             booking,
@@ -652,15 +651,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.add(projectKey);
           triggeredEnterRef.current.delete(projectKey);
           fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
-          // Signal end-of-shift detector (LastShiftEndPrompt). The detector
-          // decides if this exit corresponds to the day's last planned shift.
+          const exitedAtIso = new Date().toISOString();
+          maybeReportDeparture(projectKey, exitedAtIso);
           window.dispatchEvent(new CustomEvent('workplace-exit', {
             detail: {
               kind: 'project',
               key: projectKey,
               bookingId: projectKey,
               largeProjectId: lpId,
-              exitedAtIso: new Date().toISOString(),
+              exitedAtIso,
             },
           }));
         }
@@ -669,16 +668,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
-          // Only auto-prompt if assigned to this booking today.
           if (!isAssignedToday(booking)) continue;
 
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
-          // Arrival at a known workplace ends any open travel row.
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // UNIFIED arrival registration for plain bookings.
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
+          noteEnterForDeparture(booking.id, 'booking', booking.id, booking.client || null);
           setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking', arrivalTimestamp: Date.now() });
         }
 
@@ -693,12 +690,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.add(booking.id);
           triggeredEnterRef.current.delete(booking.id);
           fireAnomalyStart({ bookingId: booking.id });
+          const exitedAtIso = new Date().toISOString();
+          maybeReportDeparture(booking.id, exitedAtIso);
           window.dispatchEvent(new CustomEvent('workplace-exit', {
             detail: {
               kind: 'booking',
               key: booking.id,
               bookingId: booking.id,
-              exitedAtIso: new Date().toISOString(),
+              exitedAtIso,
             },
           }));
         }
@@ -733,6 +732,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+        noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
         setGeofenceEvent({
           type: 'enter',
           distance: dist,
