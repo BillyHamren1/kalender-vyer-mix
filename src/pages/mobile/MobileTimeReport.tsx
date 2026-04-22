@@ -291,24 +291,23 @@ const MobileTimeReport = () => {
         {showForm && (
           <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold text-[15px] text-foreground">Ny tidrapport</h2>
+              <h2 className="font-bold text-[15px] text-foreground">{t('time.newReport')}</h2>
               <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
-                Avbryt
+                {t('common.cancel')}
               </button>
             </div>
             <div className="flex gap-2.5 items-start rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Använd <span className="font-semibold text-foreground">timern</span> när det går.
-                Manuell rapport är till för när timern inte kunde användas.
+                {t('time.useTimerHint')}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb / projekt</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.jobOrProjectLabel')}</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
                 <SelectTrigger className="h-12 rounded-xl text-sm bg-muted/40 border-border">
-                  <SelectValue placeholder="Välj jobb eller projekt …" />
+                  <SelectValue placeholder={t('time.selectJob')} />
                 </SelectTrigger>
                 <SelectContent>
                   {jobOptions.map(opt => (
@@ -321,7 +320,7 @@ const MobileTimeReport = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.dateLabel')}</Label>
               <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border text-center min-w-0 w-full max-w-full" style={{ maxWidth: '100%' }} />
             </div>
 
@@ -329,20 +328,20 @@ const MobileTimeReport = () => {
 
             <div className="flex gap-3 w-full">
               <div className="flex-1 min-w-0 space-y-2">
-                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
+                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.startLabel')}</Label>
                 <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
               </div>
               <div className="flex-1 min-w-0 space-y-2">
-                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
+                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.endLabel')}</Label>
                 <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 w-full rounded-xl text-sm bg-muted/40 border border-border text-center px-2 box-border" style={{ minWidth: 0, maxWidth: '100%' }} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.breakLabel')}</Label>
               <div className="grid grid-cols-4 gap-1.5 min-w-0">
                 {[
-                  { label: 'Ingen', value: '0' },
+                  { label: t('time.breakOptionNone'), value: '0' },
                   { label: '30 min', value: '0.5' },
                   { label: '45 min', value: '0.75' },
                   { label: '60 min', value: '1' },
@@ -364,25 +363,25 @@ const MobileTimeReport = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.overtimeLabel')}</Label>
               <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl text-sm bg-muted/40 border-border min-w-0 w-full" />
             </div>
 
             <div className="h-px bg-border/50" />
 
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('time.descriptionLabel')}</Label>
               <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Vad gjorde du …"
+                placeholder={t('time.descriptionPlaceholder')}
                 className="rounded-xl min-h-[72px] text-sm bg-muted/40 border-border"
               />
             </div>
 
             {isNightShift && (
               <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Nattpass — tiden räknas över midnatt</p>
+                <p className="text-xs font-medium text-warning">{t('time.nightShift')}</p>
               </div>
             )}
             {validationError && (
@@ -393,7 +392,7 @@ const MobileTimeReport = () => {
 
             <div className="flex items-center justify-between pt-3 border-t border-border/40">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xs text-muted-foreground">Totalt:</span>
+                <span className="text-xs text-muted-foreground">{t('time.total')}:</span>
                 <span className="text-lg font-extrabold text-foreground tabular-nums">{calculateHours()} h</span>
               </div>
               <Button
@@ -402,7 +401,7 @@ const MobileTimeReport = () => {
                 className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Spara
+                {t('common.save')}
               </Button>
             </div>
           </div>
