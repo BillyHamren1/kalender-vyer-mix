@@ -85,11 +85,14 @@ const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
   other: 'bg-muted text-foreground border-border',
 };
 
-const eventTypeLabel: Record<ScheduledShift['event_type'], string> = {
-  rig: 'Rigg',
-  event: 'Event',
-  rigdown: 'Riv',
-  other: 'Övrigt',
+// Event-type labels are translated at render time via useLanguage().t().
+// Keep this map only as a key reference if needed elsewhere.
+type EventTypeKey = ScheduledShift['event_type'];
+const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.event' | 'dayTimeline.rigdown' | 'dayTimeline.other'> = {
+  rig: 'dayTimeline.rig',
+  event: 'dayTimeline.event',
+  rigdown: 'dayTimeline.rigdown',
+  other: 'dayTimeline.other',
 };
 
 const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
