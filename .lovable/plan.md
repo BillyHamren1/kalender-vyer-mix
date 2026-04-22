@@ -1,52 +1,58 @@
 
-# Säkerställ att push-tokens alltid är färska
 
-## Problem
-- Webb skickar DM → backend hämtar `device_tokens` → token är >30 dagar gammal → FCM svarar `UNREGISTERED` (eller tyst fail) → notisen kommer aldrig fram.
-- `send-push-notification` raderar redan UNREGISTERED-tokens, men ingen ny token registreras automatiskt eftersom mobilappen bara kör `PushNotifications.register()` en gång per session och `'registration'`-eventet emitteras inte alltid om token är cachad.
-- Resultat: efter raderingen står staffen helt utan token tills appen råkar emittera ett nytt registration-event.
+# Håll alla användare inloggade — eliminera oavsiktliga utloggningar
 
-## Lösning (3 lager)
+## Problem (rotorsaker)
 
-### 1. Mobil: tvinga fram ny token vid varje app-start + heartbeat-refresh
-**Fil:** `src/services/pushNotificationService.ts`
-- Behåll `'registration'`-listenern men gör om `initPushNotifications` så att den:
-  - Alltid kör `PushNotifications.register()` (idempotent på native, triggar nytt token-event om systemet vill rotera).
-  - Lyssnar på `appStateChange` (Capacitor App-plugin, redan installerad) → vid `isActive=true` anropas `register()` igen om senaste lyckade registrering är >24h sedan (spårat i `localStorage`).
-- I `mobileApi.registerPushToken` skicka även en lokal timestamp så vi kan logga drift.
+**Mobil (Time-app):**
+- Egen token i `mobile-app-api` har **hård 24h expiry** (`TOKEN_EXPIRY_HOURS = 24`) och **ingen refresh-mekanism**. Efter 24h → 401 → `clearAuth()` → tillbaka till login-skärmen.
+- `verifyToken()` returnerar bara `valid:false` när tiden gått ut, aldrig en förnyad token.
 
-### 2. Backend: refresh-fält + auto-cleanup
-**Migration (schema):**
-- Lägg till `last_refreshed_at timestamptz` (default `now()`) på `device_tokens` (kolumnen är skild från `updated_at` så vi kan se att klienten verkligen pingade in).
+**Webb (Planning):**
+- `AuthContext` behandlar `event === 'TOKEN_REFRESHED' && !session` som "logga ut nu". I praktiken kan refresh-eventet komma med tom session vid tillfälliga nätverksfel/sleep — då blir användaren oväntat utloggad trots att refresh-token fortfarande är giltig.
+- `getSession()`-error → setSession(null) ger samma symptom vid tillfälliga fel.
 
-**Edge function `mobile-app-api` (`handleRegisterPushToken`):**
-- Sätt även `last_refreshed_at = now()` vid varje upsert.
-- Logga tydligt om en token byts ut för samma `staff_id` (gammalt prefix → nytt prefix).
+## Lösning
 
-**Edge function `send-push-notification`:**
-- Behåll UNREGISTERED-radering, men lägg till radering även vid FCM-fel `INVALID_ARGUMENT` med detail `INVALID_ARGUMENT` på fältet `token`.
-- Lägg till strukturerad logg `[FCM] stale_token_purged staff=… age_days=…` så vi ser att rensningen sker.
+### 1. Mobil: rullande token (sliding 30-dagars session + auto-refresh)
 
-### 3. Server-side städning av riktigt gamla tokens
-**Migration (data-säker SQL i ny edge function `cleanup-stale-device-tokens`, körs av cron):**
-- Radera `device_tokens` där `last_refreshed_at < now() - interval '30 days'`.
-- Schemalägg via `pg_cron` (eller manuell trigger från admin) — körs en gång per natt.
-- Detta tvingar mobilappen att registrera om vid nästa app-start, vilket nu sker säkert tack vare lager 1.
+**`supabase/functions/mobile-app-api/index.ts`**
+- Höj `TOKEN_EXPIRY_HOURS` från 24 → **720 (30 dagar)**.
+- Lägg till `refreshThresholdHours = 168` (7 dagar). När en request kommer in med en token som är nära utgång (<7 dagar kvar) eller äldre än 7 dagar sedan utfärdande, generera en **ny token** och skicka tillbaka i response-headern `X-New-Token`.
+- `verifyToken()` returnerar även `issuedAt` så servern kan avgöra om refresh behövs.
 
-## Vad som INTE ändras
-- `direct_messages`-flödet rörs inte.
-- DM-trigger / broadcast-trigger oförändrade.
-- Befintliga tokens som faktiskt är giltiga lever vidare.
-- Scanner-appen påverkas inte (push är redan disabled där).
+**`src/services/mobileApiService.ts`**
+- I `callApi()`: läs `X-New-Token` från response, och om satt → `localStorage.setItem(TOKEN_KEY, newToken)`. Helt transparent för UI.
+- Behåll 401 → clearAuth (men det händer nu bara om token verkligen är 30 dagar gammal eller manuellt återkallad).
 
-## Effekt för Markus / Raivis / övriga
-- Nästa gång de öppnar Time-appen tvingas en ny token registreras hos FCM och sparas i `device_tokens` med ny `last_refreshed_at`.
-- Webb-DM:s börjar nå fram igen så fort den nya token ligger i tabellen (sekunder efter app-open).
-- 30-dagars-cron säkerställer att vi aldrig hamnar i samma stale-läge igen.
+**`src/contexts/MobileAuthContext.tsx`**
+- Behåll nuvarande "tysta" beteende: nätverksfel/timeout vid `me()` → behåll session.
+- Ta bort 8s-timeout som "ger upp" — låt API-lagret styra (15s default) men logga inte ut vid timeout.
+
+### 2. Webb: stoppa felaktiga utloggningar i `AuthContext`
+
+**`src/contexts/AuthContext.tsx`**
+- Ta bort blocket som sätter `setSession(null)` på `TOKEN_REFRESHED && !session`. Behåll bara `SIGNED_OUT` som utloggningssignal.
+- Vid `getSession()`-error: **logga felet men behåll befintlig state** (försök igen om 30s i stället för att nolla användaren).
+- Lägg till tyst bakgrunds-retry: om `getSession()` failar pga nätverk, schemalägg en ny `getSession()` om 30s utan att rendera login-skärmen.
+
+### 3. Diagnostik
+
+- Logga i konsolen varje gång token förnyas (mobil) och vid varje `SIGNED_OUT`/`TOKEN_REFRESHED` (webb), med orsak. Detta så att vi kan bekräfta i fält att utloggningarna upphör.
+
+## Vad ändras INTE
+- Inloggnings-flödet (email + lösen) är oförändrat.
+- Logout-knappen fungerar som vanligt — explicit `logout()` rensar token direkt.
+- Scanner-appen påverkas inte.
+- RLS, edge function-säkerhet eller behörigheter rörs inte.
 
 ## Filer som kommer ändras
-- `src/services/pushNotificationService.ts` — re-register vid app resume + 24h-refresh-policy
-- `supabase/functions/mobile-app-api/index.ts` — sätt `last_refreshed_at`, logga rotation
-- `supabase/functions/send-push-notification/index.ts` — bredare invalid-token-rensning + tydligare loggar
-- `supabase/functions/cleanup-stale-device-tokens/index.ts` (ny) — nattlig rensning
-- Migration: lägg till `last_refreshed_at` på `device_tokens` + pg_cron-jobb
+- `supabase/functions/mobile-app-api/index.ts` — 30-dagars token + sliding refresh via `X-New-Token`-header
+- `src/services/mobileApiService.ts` — läs `X-New-Token` och uppdatera localStorage transparent
+- `src/contexts/MobileAuthContext.tsx` — ta bort tidig 8s-timeout som råkar logga ut
+- `src/contexts/AuthContext.tsx` — sluta nolla session vid `TOKEN_REFRESHED` utan session och vid `getSession()`-fel
+
+## Effekt
+- Mobilanvändare hålls inloggade i upp till 30 dagar och förnyas automatiskt så länge de använder appen ≥ en gång i veckan.
+- Webbanvändare slutar bli oväntat utloggade vid tillfälliga nätverkshicka/sleep-resume.
+
