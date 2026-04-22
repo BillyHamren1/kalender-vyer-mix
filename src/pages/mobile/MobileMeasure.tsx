@@ -31,7 +31,7 @@ const MobileMeasure: React.FC = () => {
   const scans = data?.data ?? [];
 
   const handleNewMeasurement = () => {
-    toast.info('Ny mätning startas från LiDAR-enheten. Synkade mätningar dyker upp här automatiskt.');
+    navigate('/m/tools/measure/new');
   };
 
   return (
