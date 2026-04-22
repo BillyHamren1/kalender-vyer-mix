@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, RotateCcw, Camera as CameraIcon, AlertTriangle, Ruler } from 'lucide-react';
+import { ArrowLeft, Plus, RotateCcw, Camera as CameraIcon, Ruler } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type Point = { x: number; y: number };
@@ -8,12 +8,8 @@ type Point = { x: number; y: number };
 /**
  * CameraMeasure — live tap-to-measure tool (iPhone Measure-style).
  *
- * Opens the device camera as a live background and lets the user tap to drop
- * points on a flat surface (ground or wall). The distance between consecutive
- * points is computed using a calibrated reference scale.
- *
- * NOTE: True AR depth requires native ARKit/ARCore. In the web/Capacitor
- * WebView we use a calibrated reference scale (px/cm) the user sets once.
+ * In iOS/Capacitor the camera must be started from a direct user gesture,
+ * so the stream is activated from a button instead of useEffect.
  */
 const CameraMeasure: React.FC = () => {
   const navigate = useNavigate();
@@ -22,51 +18,72 @@ const CameraMeasure: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
+  const [startingCamera, setStartingCamera] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [points, setPoints] = useState<Point[]>([]);
   const [pxPerCm, setPxPerCm] = useState<number>(() => {
     const stored = localStorage.getItem('cameraMeasure.pxPerCm');
-    return stored ? parseFloat(stored) : 10; // default 10 px/cm
+    return stored ? parseFloat(stored) : 10;
   });
   const [calibrating, setCalibrating] = useState(false);
   const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
   const [calibrationCm, setCalibrationCm] = useState<string>('10');
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-  const [needsManualStart, setNeedsManualStart] = useState(false);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
 
   const startCamera = useCallback(async () => {
+    setStartingCamera(true);
+    setError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraReady(false);
+      setStartingCamera(false);
+      setError('Kameran stöds inte i denna webbläsare.');
+      return;
+    }
+
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setNeedsManualStart(false);
-        // Don't block measuring — just note camera unavailable
-        return;
-      }
+      stopCamera();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => {});
       }
-      setCameraReady(true);
-      setNeedsManualStart(false);
-      setError(null);
-    } catch (e: any) {
-      setNeedsManualStart(true);
-      setError(e?.message || 'Tryck på "Aktivera kamera" för att tillåta åtkomst.');
-    }
-  }, []);
 
-  // Try auto-start; if it fails, user can tap to enable
+      setCameraReady(true);
+    } catch (e: any) {
+      setCameraReady(false);
+
+      if (e?.name === 'NotAllowedError') {
+        setError('Kameratillstånd nekades. Tillåt kameraåtkomst i inställningarna.');
+      } else if (e?.name === 'NotFoundError') {
+        setError('Ingen kamera hittades.');
+      } else if (e?.name === 'NotReadableError') {
+        setError('Kameran används av en annan app.');
+      } else {
+        setError(e?.message || 'Kunde inte starta kameran.');
+      }
+    } finally {
+      setStartingCamera(false);
+    }
+  }, [stopCamera]);
+
   useEffect(() => {
-    startCamera();
     return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      stopCamera();
     };
-  }, [startCamera]);
+  }, [stopCamera]);
 
   useEffect(() => {
     localStorage.setItem('cameraMeasure.pxPerCm', String(pxPerCm));
@@ -79,30 +96,78 @@ const CameraMeasure: React.FC = () => {
     return { x: clientX - rect.left, y: clientY - rect.top };
   }, []);
 
-  const handleOverlayPointerDown = (e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    const idxAttr = target?.getAttribute?.('data-point-idx');
+  const beginInteraction = useCallback((clientX: number, clientY: number, target: EventTarget | null) => {
+    const targetElement = target instanceof HTMLElement ? target.closest('[data-point-idx]') as HTMLElement | null : null;
+    const idxAttr = targetElement?.getAttribute('data-point-idx');
+
     if (idxAttr != null && !calibrating) {
       const idx = parseInt(idxAttr, 10);
       if (!Number.isNaN(idx)) {
         setDraggingIdx(idx);
-        try {
-          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-        } catch {}
         return;
       }
     }
-    const p = getRelativePoint(e.clientX, e.clientY);
-    if (!p) return;
+
+    const point = getRelativePoint(clientX, clientY);
+    if (!point) return;
+
     if (calibrating) {
-      setCalibrationPoints((prev) => [...prev, p].slice(-2));
+      setCalibrationPoints((prev) => [...prev, point].slice(-2));
       return;
     }
-    setPoints((prev) => [...prev, p]);
+
+    setPoints((prev) => [...prev, point]);
+  }, [calibrating, getRelativePoint]);
+
+  const moveInteraction = useCallback((clientX: number, clientY: number) => {
+    if (draggingIdx === null) return;
+    const point = getRelativePoint(clientX, clientY);
+    if (!point) return;
+    setPoints((prev) => prev.map((pt, i) => (i === draggingIdx ? point : pt)));
+  }, [draggingIdx, getRelativePoint]);
+
+  const endInteraction = useCallback(() => {
+    setDraggingIdx(null);
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    beginInteraction(e.clientX, e.clientY, e.target);
   };
 
-  const distancePx = (a: Point, b: Point) =>
-    Math.hypot(b.x - a.x, b.y - a.y);
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    moveInteraction(e.clientX, e.clientY);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    try {
+      (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+    } catch {}
+    endInteraction();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!e.touches.length) return;
+    if (e.cancelable) e.preventDefault();
+    const touch = e.touches[0];
+    beginInteraction(touch.clientX, touch.clientY, e.target);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!e.touches.length) return;
+    if (e.cancelable) e.preventDefault();
+    const touch = e.touches[0];
+    moveInteraction(touch.clientX, touch.clientY);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
+    endInteraction();
+  };
+
+  const distancePx = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
   const formatDistance = (px: number) => {
     const cm = px / pxPerCm;
@@ -110,9 +175,9 @@ const CameraMeasure: React.FC = () => {
     return `${cm.toFixed(1)} cm`;
   };
 
-  const totalPx = points.reduce((acc, p, i) => {
+  const totalPx = points.reduce((acc, point, i) => {
     if (i === 0) return 0;
-    return acc + distancePx(points[i - 1], p);
+    return acc + distancePx(points[i - 1], point);
   }, 0);
 
   const handleApplyCalibration = () => {
@@ -126,26 +191,10 @@ const CameraMeasure: React.FC = () => {
   };
 
   const reset = () => setPoints([]);
-  const undo = () => setPoints((p) => p.slice(0, -1));
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (draggingIdx === null) return;
-    const p = getRelativePoint(e.clientX, e.clientY);
-    if (!p) return;
-    setPoints((prev) => prev.map((pt, i) => (i === draggingIdx ? p : pt)));
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (draggingIdx !== null) {
-      try {
-        (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
-      } catch {}
-      setDraggingIdx(null);
-    }
-  };
+  const undo = () => setPoints((prev) => prev.slice(0, -1));
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
-      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/70 to-transparent">
         <Button
           variant="ghost"
@@ -164,7 +213,7 @@ const CameraMeasure: React.FC = () => {
           variant="ghost"
           size="sm"
           onClick={() => {
-            setCalibrating((c) => !c);
+            setCalibrating((current) => !current);
             setCalibrationPoints([]);
           }}
           className="text-white hover:bg-white/10 text-xs"
@@ -173,7 +222,6 @@ const CameraMeasure: React.FC = () => {
         </Button>
       </div>
 
-      {/* Camera */}
       <div className="relative flex-1 overflow-hidden">
         <video
           ref={videoRef}
@@ -182,17 +230,20 @@ const CameraMeasure: React.FC = () => {
           muted
         />
 
-        {/* Overlay for taps + SVG lines */}
         <div
           ref={overlayRef}
-          onPointerDown={handleOverlayPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
           className="absolute inset-0 touch-none select-none"
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            {(calibrating ? calibrationPoints : points).map((p, i, arr) => {
+            {(calibrating ? calibrationPoints : points).map((point, i, arr) => {
               if (i === 0) return null;
               const prev = arr[i - 1];
               return (
@@ -200,8 +251,8 @@ const CameraMeasure: React.FC = () => {
                   key={`l-${i}`}
                   x1={prev.x}
                   y1={prev.y}
-                  x2={p.x}
-                  y2={p.y}
+                  x2={point.x}
+                  y2={point.y}
                   stroke={calibrating ? '#fbbf24' : '#22d3ee'}
                   strokeWidth={2}
                   strokeDasharray={calibrating ? '6 4' : undefined}
@@ -209,11 +260,11 @@ const CameraMeasure: React.FC = () => {
               );
             })}
             {!calibrating &&
-              points.map((p, i) => {
+              points.map((point, i) => {
                 if (i === 0) return null;
                 const prev = points[i - 1];
-                const mx = (prev.x + p.x) / 2;
-                const my = (prev.y + p.y) / 2;
+                const mx = (prev.x + point.x) / 2;
+                const my = (prev.y + point.y) / 2;
                 return (
                   <g key={`lbl-${i}`}>
                     <rect
@@ -232,23 +283,22 @@ const CameraMeasure: React.FC = () => {
                       fontSize={12}
                       fontWeight={600}
                     >
-                      {formatDistance(distancePx(prev, p))}
+                      {formatDistance(distancePx(prev, point))}
                     </text>
                   </g>
                 );
               })}
           </svg>
 
-          {(calibrating ? calibrationPoints : points).map((p, i) => (
+          {(calibrating ? calibrationPoints : points).map((point, i) => (
             <div
               key={`p-${i}`}
               data-point-idx={calibrating ? undefined : i}
               className="absolute w-8 h-8 -ml-4 -mt-4 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg pointer-events-auto touch-none"
-              style={{ left: p.x, top: p.y }}
+              style={{ left: point.x, top: point.y }}
             />
           ))}
 
-          {/* Center crosshair when no points */}
           {!calibrating && points.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-10 h-10 rounded-full border-2 border-white/70" />
@@ -258,31 +308,25 @@ const CameraMeasure: React.FC = () => {
           )}
         </div>
 
-        {/* Camera needs manual start (permission/user-gesture) — non-blocking */}
-        {needsManualStart && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+        {!cameraReady && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 px-4">
             <Button
               onClick={startCamera}
+              disabled={startingCamera}
               className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold gap-2 shadow-lg"
             >
               <CameraIcon className="h-4 w-4" />
-              Aktivera kamera
+              {startingCamera ? 'Startar kamera…' : 'Starta kamera'}
             </Button>
-          </div>
-        )}
-
-        {/* Loading hint — non-blocking so taps still register */}
-        {!cameraReady && !needsManualStart && !error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 pointer-events-none">
-            <div className="text-center space-y-2">
-              <CameraIcon className="h-8 w-8 mx-auto animate-pulse" />
-              <p className="text-sm text-white/70">Startar kameran…</p>
-            </div>
+            {error && (
+              <p className="max-w-xs text-center text-xs text-white/80 bg-black/60 px-3 py-2 rounded-md">
+                {error}
+              </p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Bottom panel */}
       <div className="relative z-20 bg-gradient-to-t from-black via-black/90 to-transparent pt-8 pb-6 px-4 space-y-3">
         {calibrating ? (
           <div className="space-y-2">
@@ -338,11 +382,10 @@ const CameraMeasure: React.FC = () => {
               </Button>
               <Button
                 onClick={() => {
-                  // Drop a point at center as a hint when user prefers button to tap
                   const el = overlayRef.current;
                   if (!el) return;
-                  const r = el.getBoundingClientRect();
-                  setPoints((prev) => [...prev, { x: r.width / 2, y: r.height / 2 }]);
+                  const rect = el.getBoundingClientRect();
+                  setPoints((prev) => [...prev, { x: rect.width / 2, y: rect.height / 2 }]);
                 }}
                 className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold"
               >
