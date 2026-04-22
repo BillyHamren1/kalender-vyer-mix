@@ -1,65 +1,79 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, RotateCcw, Camera as CameraIcon, Ruler, Eye, EyeOff } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  RotateCcw,
+  Camera as CameraIcon,
+  Ruler,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type Point = { x: number; y: number };
 type CameraState = 'idle' | 'starting' | 'ready' | 'denied' | 'error';
+type InteractionState =
+  | { kind: 'move-point'; index: number; start: Point; moved: boolean }
+  | { kind: 'create-point'; start: Point; index: number | null; moved: boolean }
+  | { kind: 'move-calibration'; index: number; start: Point; moved: boolean }
+  | { kind: 'create-calibration'; start: Point; index: number | null; moved: boolean }
+  | null;
 
-const STORAGE_KEY_POINTS = 'cameraMeasure.points.v2';
-const STORAGE_KEY_SCALE = 'cameraMeasure.pxPerCm';
-const HIT_RADIUS = 32; // generous touch target in px (visual is 36, hit is 64 diameter)
+const STORAGE_KEY_POINTS = 'cameraMeasure.points.v3';
+const STORAGE_KEY_SCALE = 'cameraMeasure.pxPerCm.v2';
+const STORAGE_KEY_SNAPSHOT = 'cameraMeasure.snapshot.v1';
+const HIT_RADIUS = 34;
+const DRAG_THRESHOLD = 12;
 
-/**
- * CameraMeasure — robust mobile-first measure tool for EventFlow Time.
- *
- * Design notes:
- * - Single unified pointer pipeline (Pointer Events API). Touch is handled by the
- *   browser's pointer abstraction; we never mix raw TouchEvents with PointerEvents.
- * - Hit testing is geometric (distance to point) rather than DOM-based, so a finger
- *   that lands slightly off a point still grabs it.
- * - Newly created point becomes the active drag target immediately.
- * - Points persist to localStorage so a transient remount doesn't wipe work.
- * - Camera is started by an explicit user gesture (iOS/Capacitor requirement) and
- *   has explicit lifecycle states with retry.
- * - Calibration overlays the normal points (dimmed) instead of replacing them, so
- *   work is never visually "lost".
- */
+const isNormalizedPoint = (value: unknown): value is Point => {
+  if (!value || typeof value !== 'object') return false;
+  const point = value as Point;
+  return Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1;
+};
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
 const CameraMeasure: React.FC = () => {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const draggingRef = useRef<number | null>(null);
-  const draggingCalibRef = useRef<number | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+  const interactionRef = useRef<InteractionState>(null);
 
   const [cameraState, setCameraState] = useState<CameraState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
   const [points, setPoints] = useState<Point[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_POINTS);
       if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.filter(isNormalizedPoint) : [];
     } catch {
       return [];
     }
   });
-
   const [pxPerCm, setPxPerCm] = useState<number>(() => {
     const stored = localStorage.getItem(STORAGE_KEY_SCALE);
     const n = stored ? parseFloat(stored) : NaN;
     return Number.isFinite(n) && n > 0 ? n : 10;
+  });
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(STORAGE_KEY_SNAPSHOT);
+    } catch {
+      return null;
+    }
   });
 
   const [calibrating, setCalibrating] = useState(false);
   const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
   const [calibrationCm, setCalibrationCm] = useState<string>('10');
   const [showPoints, setShowPoints] = useState(true);
+  const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
+  const [activeCalibrationPointIndex, setActiveCalibrationPointIndex] = useState<number | null>(null);
 
-  // Persist points
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_POINTS, JSON.stringify(points));
@@ -72,18 +86,33 @@ const CameraMeasure: React.FC = () => {
     } catch {}
   }, [pxPerCm]);
 
-  // ---- Camera lifecycle -----------------------------------------------------
+  useEffect(() => {
+    try {
+      if (snapshotUrl) {
+        sessionStorage.setItem(STORAGE_KEY_SNAPSHOT, snapshotUrl);
+      } else {
+        sessionStorage.removeItem(STORAGE_KEY_SNAPSHOT);
+      }
+    } catch {}
+  }, [snapshotUrl]);
 
   const stopCamera = useCallback(() => {
-    const s = streamRef.current;
-    if (s) {
-      s.getTracks().forEach((t) => {
-        try { t.stop(); } catch {}
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {}
       });
     }
+
     streamRef.current = null;
+
     if (videoRef.current) {
-      try { videoRef.current.srcObject = null; } catch {}
+      try {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      } catch {}
     }
   }, []);
 
@@ -97,237 +126,359 @@ const CameraMeasure: React.FC = () => {
       return;
     }
 
-    // Always release previous stream first
     stopCamera();
 
-    const tryConstraints = async (constraints: MediaStreamConstraints) => {
-      return navigator.mediaDevices.getUserMedia(constraints);
-    };
+    const tryConstraints = async (constraints: MediaStreamConstraints) => navigator.mediaDevices.getUserMedia(constraints);
 
     try {
       let stream: MediaStream;
+
       try {
         stream = await tryConstraints({
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
           audio: false,
         });
-      } catch (firstErr: any) {
-        // Fallback: some devices reject the ideal facingMode hint
-        if (firstErr?.name === 'OverconstrainedError' || firstErr?.name === 'NotFoundError') {
+      } catch (firstError: any) {
+        if (firstError?.name === 'OverconstrainedError' || firstError?.name === 'NotFoundError') {
           stream = await tryConstraints({ video: true, audio: false });
         } else {
-          throw firstErr;
+          throw firstError;
         }
       }
 
       streamRef.current = stream;
 
-      const v = videoRef.current;
-      if (v) {
-        v.srcObject = stream;
-        v.setAttribute('playsinline', 'true');
-        v.muted = true;
-        try {
-          await v.play();
-        } catch {
-          // Some browsers reject play() if not in a gesture; the user already
-          // tapped "Starta kamera" so this is normally fine. Ignore.
-        }
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        video.muted = true;
+        await video.play().catch(() => undefined);
       }
 
       setCameraState('ready');
-    } catch (e: any) {
-      const name = e?.name;
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
+    } catch (error: any) {
+      if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
         setCameraState('denied');
-        setErrorMsg('Kameratillstånd nekades. Tillåt kameraåtkomst i enhetens inställningar.');
-      } else if (name === 'NotFoundError') {
+        setErrorMsg('Kameratillstånd nekades. Tillåt kameraåtkomst i enhetens inställningar och försök igen.');
+      } else if (error?.name === 'NotFoundError') {
         setCameraState('error');
         setErrorMsg('Ingen kamera hittades på denna enhet.');
-      } else if (name === 'NotReadableError') {
+      } else if (error?.name === 'NotReadableError') {
         setCameraState('error');
         setErrorMsg('Kameran används redan av en annan app. Stäng den och försök igen.');
       } else {
         setCameraState('error');
-        setErrorMsg(e?.message || 'Kunde inte starta kameran. Försök igen.');
+        setErrorMsg(error?.message || 'Kunde inte starta kameran. Försök igen.');
       }
     }
   }, [stopCamera]);
 
-  // Pause/resume handling (iOS often suspends the stream when app goes background)
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'visible' && cameraState === 'ready') {
-        const v = videoRef.current;
-        if (v && v.paused) {
-          v.play().catch(() => {});
-        }
+      if (document.visibilityState !== 'visible') return;
+      if (snapshotUrl) return;
+
+      const video = videoRef.current;
+      if (cameraState === 'ready' && video?.paused) {
+        video.play().catch(() => undefined);
       }
     };
+
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [cameraState]);
+  }, [cameraState, snapshotUrl]);
 
-  // Cleanup on unmount only
   useEffect(() => {
     return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopCamera]);
 
-  // ---- Geometry helpers -----------------------------------------------------
+  const getOverlayRect = useCallback(() => overlayRef.current?.getBoundingClientRect() ?? null, []);
 
   const getRelativePoint = useCallback((clientX: number, clientY: number): Point | null => {
-    const el = overlayRef.current;
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  }, []);
+    const rect = getOverlayRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
 
-  const findPointIndexNear = useCallback((p: Point, list: Point[]): number => {
-    let bestIdx = -1;
-    let bestDist = HIT_RADIUS;
-    for (let i = 0; i < list.length; i++) {
-      const d = Math.hypot(list[i].x - p.x, list[i].y - p.y);
-      if (d <= bestDist) {
-        bestDist = d;
-        bestIdx = i;
+    return {
+      x: clamp01((clientX - rect.left) / rect.width),
+      y: clamp01((clientY - rect.top) / rect.height),
+    };
+  }, [getOverlayRect]);
+
+  const getPointDistancePx = useCallback((a: Point, b: Point) => {
+    const rect = getOverlayRect();
+    if (!rect) return 0;
+    return Math.hypot((b.x - a.x) * rect.width, (b.y - a.y) * rect.height);
+  }, [getOverlayRect]);
+
+  const findPointIndexNear = useCallback((candidate: Point, list: Point[]) => {
+    let bestIndex = -1;
+    let bestDistance = HIT_RADIUS;
+
+    for (let i = 0; i < list.length; i += 1) {
+      const distance = getPointDistancePx(candidate, list[i]);
+      if (distance <= bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
       }
     }
-    return bestIdx;
+
+    return bestIndex;
+  }, [getPointDistancePx]);
+
+  const updatePointAt = useCallback((index: number, point: Point) => {
+    setPoints((prev) => prev.map((existing, i) => (i === index ? point : existing)));
   }, []);
 
-  // ---- Unified pointer pipeline --------------------------------------------
+  const updateCalibrationPointAt = useCallback((index: number, point: Point) => {
+    setCalibrationPoints((prev) => prev.map((existing, i) => (i === index ? point : existing)));
+  }, []);
+
+  const appendPoint = useCallback((point: Point) => {
+    let newIndex = -1;
+    setPoints((prev) => {
+      newIndex = prev.length;
+      return [...prev, point];
+    });
+    setActivePointIndex(newIndex);
+    return newIndex;
+  }, []);
+
+  const appendCalibrationPoint = useCallback((point: Point) => {
+    let newIndex = -1;
+    setCalibrationPoints((prev) => {
+      const next = prev.length >= 2 ? [prev[1], point] : [...prev, point];
+      newIndex = next.length - 1;
+      return next;
+    });
+    setActiveCalibrationPointIndex(newIndex);
+    return newIndex;
+  }, []);
+
+  const endInteraction = useCallback((pointerId: number | null, currentTarget?: EventTarget | null) => {
+    if (pointerId !== null && currentTarget instanceof Element) {
+      try {
+        currentTarget.releasePointerCapture(pointerId);
+      } catch {}
+    }
+
+    activePointerIdRef.current = null;
+    interactionRef.current = null;
+  }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Only honor primary contact (ignore second finger / right click)
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    if (activePointerIdRef.current !== null) return; // already tracking a contact
+    if (!snapshotUrl) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (activePointerIdRef.current !== null) return;
 
-    const p = getRelativePoint(e.clientX, e.clientY);
-    if (!p) return;
+    const point = getRelativePoint(e.clientX, e.clientY);
+    if (!point) return;
 
     e.preventDefault();
     activePointerIdRef.current = e.pointerId;
 
     try {
-      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
 
     if (calibrating) {
-      const hitCalib = findPointIndexNear(p, calibrationPoints);
-      if (hitCalib !== -1) {
-        draggingCalibRef.current = hitCalib;
+      const hitIndex = findPointIndexNear(point, calibrationPoints);
+      if (hitIndex !== -1) {
+        setActiveCalibrationPointIndex(hitIndex);
+        interactionRef.current = { kind: 'move-calibration', index: hitIndex, start: point, moved: false };
         return;
       }
-      // Add or replace calibration point (max 2)
-      setCalibrationPoints((prev) => {
-        const next = prev.length >= 2 ? [prev[1], p] : [...prev, p];
-        draggingCalibRef.current = next.length - 1;
-        return next;
-      });
+
+      interactionRef.current = { kind: 'create-calibration', start: point, index: null, moved: false };
+      setActiveCalibrationPointIndex(null);
       return;
     }
 
-    // Normal mode: hit-test existing points first
-    const hit = findPointIndexNear(p, points);
-    if (hit !== -1) {
-      draggingRef.current = hit;
+    const hitIndex = findPointIndexNear(point, points);
+    if (hitIndex !== -1) {
+      setActivePointIndex(hitIndex);
+      interactionRef.current = { kind: 'move-point', index: hitIndex, start: point, moved: false };
       return;
     }
 
-    // Otherwise create a new point AND make it the active drag target
-    setPoints((prev) => {
-      const next = [...prev, p];
-      draggingRef.current = next.length - 1;
-      return next;
-    });
-  }, [calibrating, calibrationPoints, points, getRelativePoint, findPointIndexNear]);
+    interactionRef.current = { kind: 'create-point', start: point, index: null, moved: false };
+    setActivePointIndex(null);
+  }, [snapshotUrl, getRelativePoint, calibrating, findPointIndexNear, calibrationPoints, points]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
-    const dragIdx = draggingRef.current;
-    const dragCalibIdx = draggingCalibRef.current;
-    if (dragIdx === null && dragCalibIdx === null) return;
 
-    const p = getRelativePoint(e.clientX, e.clientY);
-    if (!p) return;
+    const interaction = interactionRef.current;
+    if (!interaction) return;
+
+    const point = getRelativePoint(e.clientX, e.clientY);
+    if (!point) return;
+
     e.preventDefault();
 
-    if (dragCalibIdx !== null) {
-      setCalibrationPoints((prev) => prev.map((pt, i) => (i === dragCalibIdx ? p : pt)));
-    } else if (dragIdx !== null) {
-      setPoints((prev) => prev.map((pt, i) => (i === dragIdx ? p : pt)));
+    const movedEnough = getPointDistancePx(interaction.start, point) >= DRAG_THRESHOLD;
+
+    if (interaction.kind === 'move-point') {
+      if (!interaction.moved && !movedEnough) return;
+      interaction.moved = true;
+      updatePointAt(interaction.index, point);
+      return;
     }
-  }, [getRelativePoint]);
+
+    if (interaction.kind === 'move-calibration') {
+      if (!interaction.moved && !movedEnough) return;
+      interaction.moved = true;
+      updateCalibrationPointAt(interaction.index, point);
+      return;
+    }
+
+    if (interaction.kind === 'create-point') {
+      if (!interaction.moved && !movedEnough) return;
+      interaction.moved = true;
+
+      if (interaction.index === null) {
+        interaction.index = appendPoint(point);
+      } else {
+        updatePointAt(interaction.index, point);
+      }
+      return;
+    }
+
+    if (!interaction.moved && !movedEnough) return;
+    interaction.moved = true;
+
+    if (interaction.index === null) {
+      interaction.index = appendCalibrationPoint(point);
+    } else {
+      updateCalibrationPointAt(interaction.index, point);
+    }
+  }, [getRelativePoint, getPointDistancePx, updatePointAt, updateCalibrationPointAt, appendPoint, appendCalibrationPoint]);
 
   const onPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
-    try {
-      (e.currentTarget as Element).releasePointerCapture(e.pointerId);
-    } catch {}
-    activePointerIdRef.current = null;
-    draggingRef.current = null;
-    draggingCalibRef.current = null;
-  }, []);
 
-  // ---- Math -----------------------------------------------------------------
+    const interaction = interactionRef.current;
+    const point = getRelativePoint(e.clientX, e.clientY) ?? interaction?.start ?? null;
 
-  const distancePx = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+    if (interaction && point) {
+      if (interaction.kind === 'create-point' && interaction.index === null) {
+        appendPoint(point);
+      } else if (interaction.kind === 'create-calibration' && interaction.index === null) {
+        appendCalibrationPoint(point);
+      } else if (interaction.kind === 'move-point') {
+        setActivePointIndex(interaction.index);
+      } else if (interaction.kind === 'move-calibration') {
+        setActiveCalibrationPointIndex(interaction.index);
+      }
+    }
 
-  const formatDistance = (px: number) => {
+    endInteraction(e.pointerId, e.currentTarget);
+  }, [appendPoint, appendCalibrationPoint, endInteraction, getRelativePoint]);
+
+  const distancePx = useCallback((a: Point, b: Point) => getPointDistancePx(a, b), [getPointDistancePx]);
+
+  const formatDistance = useCallback((px: number) => {
     const cm = px / pxPerCm;
     if (cm >= 100) return `${(cm / 100).toFixed(2)} m`;
     return `${cm.toFixed(1)} cm`;
-  };
+  }, [pxPerCm]);
 
-  const totalPx = points.reduce((acc, point, i) => {
-    if (i === 0) return 0;
-    return acc + distancePx(points[i - 1], point);
+  const totalPx = points.reduce((sum, point, index) => {
+    if (index === 0) return 0;
+    return sum + distancePx(points[index - 1], point);
   }, 0);
-
-  // ---- Calibration ----------------------------------------------------------
 
   const handleApplyCalibration = () => {
     if (calibrationPoints.length !== 2) return;
     const px = distancePx(calibrationPoints[0], calibrationPoints[1]);
     const cm = parseFloat(calibrationCm);
     if (!cm || cm <= 0 || px <= 0) return;
+
     setPxPerCm(px / cm);
     setCalibrating(false);
     setCalibrationPoints([]);
+    setActiveCalibrationPointIndex(null);
   };
 
   const toggleCalibrating = () => {
     setCalibrating((current) => {
       const next = !current;
-      if (!next) setCalibrationPoints([]);
+      if (!next) {
+        setCalibrationPoints([]);
+        setActiveCalibrationPointIndex(null);
+      }
       return next;
     });
   };
 
-  // ---- Actions --------------------------------------------------------------
-
-  const reset = () => {
+  const resetMeasurement = () => {
     setPoints([]);
-    draggingRef.current = null;
-  };
-  const undo = () => setPoints((prev) => prev.slice(0, -1));
-  const addCenterPoint = () => {
-    const el = overlayRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setPoints((prev) => [...prev, { x: rect.width / 2, y: rect.height / 2 }]);
+    setCalibrationPoints([]);
+    setActivePointIndex(null);
+    setActiveCalibrationPointIndex(null);
+    interactionRef.current = null;
   };
 
-  // ---- Render ---------------------------------------------------------------
+  const undo = () => {
+    setPoints((prev) => {
+      const next = prev.slice(0, -1);
+      setActivePointIndex(next.length ? next.length - 1 : null);
+      return next;
+    });
+  };
+
+  const addCenterPoint = () => {
+    if (!snapshotUrl) return;
+    appendPoint({ x: 0.5, y: 0.5 });
+  };
+
+  const captureFrame = () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setErrorMsg('Kunde inte frysa bilden ännu. Vänta tills kameran är igång och försök igen.');
+      return;
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Kunde inte skapa rityta för kamerabilden.');
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const nextSnapshot = canvas.toDataURL('image/jpeg', 0.88);
+      setSnapshotUrl(nextSnapshot);
+      setErrorMsg(null);
+      setCalibrating(false);
+      setCalibrationPoints([]);
+      setActiveCalibrationPointIndex(null);
+      endInteraction(activePointerIdRef.current);
+      stopCamera();
+      setCameraState('idle');
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'Kunde inte frysa bilden. Försök igen.');
+    }
+  };
+
+  const retake = async () => {
+    endInteraction(activePointerIdRef.current);
+    setSnapshotUrl(null);
+    resetMeasurement();
+    await startCamera();
+  };
 
   const cameraReady = cameraState === 'ready';
+  const measuringOnFrozenImage = !!snapshotUrl;
   const renderPoints = calibrating ? calibrationPoints : points;
   const renderColor = calibrating ? '#fbbf24' : '#22d3ee';
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
-      {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-3 bg-gradient-to-b from-black/70 to-transparent">
         <Button
           variant="ghost"
@@ -338,15 +489,22 @@ const CameraMeasure: React.FC = () => {
           <ArrowLeft className="h-4 w-4" />
           Tillbaka
         </Button>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Ruler className="h-4 w-4" />
-          {calibrating ? 'Kalibrering' : 'Mätning'}
+
+        <div className="flex flex-col items-center text-sm font-medium leading-tight">
+          <div className="flex items-center gap-2">
+            <Ruler className="h-4 w-4" />
+            {calibrating ? 'Kalibrering' : 'Mätning'}
+          </div>
+          <span className="text-[11px] text-white/60 font-normal">
+            {measuringOnFrozenImage ? 'Fryst bild' : 'Livekamera'}
+          </span>
         </div>
+
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowPoints((v) => !v)}
+            onClick={() => setShowPoints((value) => !value)}
             className="text-white hover:bg-white/10 px-2"
             aria-label={showPoints ? 'Dölj punkter' : 'Visa punkter'}
           >
@@ -356,22 +514,33 @@ const CameraMeasure: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={toggleCalibrating}
-            className="text-white hover:bg-white/10 text-xs"
+            disabled={!measuringOnFrozenImage}
+            className="text-white hover:bg-white/10 text-xs disabled:opacity-40"
           >
             {calibrating ? 'Avbryt' : 'Kalibrera'}
           </Button>
         </div>
       </div>
 
-      {/* Camera + overlay */}
-      <div className="relative flex-1 overflow-hidden">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          playsInline
-          muted
-          autoPlay
-        />
+      <div className="relative flex-1 overflow-hidden bg-black">
+        {!measuringOnFrozenImage && (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            playsInline
+            muted
+            autoPlay
+          />
+        )}
+
+        {snapshotUrl && (
+          <img
+            src={snapshotUrl}
+            alt="Fryst kamerabild för mätning"
+            className="absolute inset-0 w-full h-full object-cover"
+            draggable={false}
+          />
+        )}
 
         <div
           ref={overlayRef}
@@ -379,23 +548,28 @@ const CameraMeasure: React.FC = () => {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
           onPointerCancel={onPointerEnd}
-          onPointerLeave={onPointerEnd}
           className="absolute inset-0 touch-none select-none"
           style={{ touchAction: 'none' }}
         >
-          {/* Lines + labels */}
+          {cameraReady && !measuringOnFrozenImage && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-14 h-14 rounded-full border-2 border-white/75" />
+              <div className="absolute w-px h-10 bg-white/75" />
+              <div className="absolute h-px w-10 bg-white/75" />
+            </div>
+          )}
+
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            {/* Dimmed background lines (real points) when calibrating */}
-            {calibrating && showPoints && points.map((point, i) => {
-              if (i === 0) return null;
-              const prev = points[i - 1];
+            {calibrating && showPoints && points.map((point, index) => {
+              if (index === 0) return null;
+              const previous = points[index - 1];
               return (
                 <line
-                  key={`bg-${i}`}
-                  x1={prev.x}
-                  y1={prev.y}
-                  x2={point.x}
-                  y2={point.y}
+                  key={`bg-${index}`}
+                  x1={`${previous.x * 100}%`}
+                  y1={`${previous.y * 100}%`}
+                  x2={`${point.x * 100}%`}
+                  y2={`${point.y * 100}%`}
                   stroke="#22d3ee"
                   strokeOpacity={0.25}
                   strokeWidth={2}
@@ -403,16 +577,16 @@ const CameraMeasure: React.FC = () => {
               );
             })}
 
-            {showPoints && renderPoints.map((point, i, arr) => {
-              if (i === 0) return null;
-              const prev = arr[i - 1];
+            {showPoints && renderPoints.map((point, index, list) => {
+              if (index === 0) return null;
+              const previous = list[index - 1];
               return (
                 <line
-                  key={`l-${i}`}
-                  x1={prev.x}
-                  y1={prev.y}
-                  x2={point.x}
-                  y2={point.y}
+                  key={`line-${index}`}
+                  x1={`${previous.x * 100}%`}
+                  y1={`${previous.y * 100}%`}
+                  x2={`${point.x * 100}%`}
+                  y2={`${point.y * 100}%`}
                   stroke={renderColor}
                   strokeWidth={2.5}
                   strokeDasharray={calibrating ? '6 4' : undefined}
@@ -420,109 +594,125 @@ const CameraMeasure: React.FC = () => {
               );
             })}
 
-            {!calibrating && showPoints &&
-              points.map((point, i) => {
-                if (i === 0) return null;
-                const prev = points[i - 1];
-                const mx = (prev.x + point.x) / 2;
-                const my = (prev.y + point.y) / 2;
-                return (
-                  <g key={`lbl-${i}`}>
-                    <rect
-                      x={mx - 36}
-                      y={my - 14}
-                      width={72}
-                      height={22}
-                      rx={6}
-                      fill="rgba(0,0,0,0.75)"
-                    />
-                    <text
-                      x={mx}
-                      y={my + 3}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize={13}
-                      fontWeight={600}
-                    >
-                      {formatDistance(distancePx(prev, point))}
-                    </text>
-                  </g>
-                );
-              })}
+            {!calibrating && showPoints && points.map((point, index) => {
+              if (index === 0) return null;
+              const previous = points[index - 1];
+              const mx = ((previous.x + point.x) / 2) * 100;
+              const my = ((previous.y + point.y) / 2) * 100;
+              return (
+                <g key={`label-${index}`}>
+                  <rect
+                    x={`calc(${mx}% - 36px)`}
+                    y={`calc(${my}% - 14px)`}
+                    width={72}
+                    height={22}
+                    rx={6}
+                    fill="rgba(0,0,0,0.75)"
+                  />
+                  <text
+                    x={`${mx}%`}
+                    y={`calc(${my}% + 3px)`}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize={13}
+                    fontWeight={600}
+                  >
+                    {formatDistance(distancePx(previous, point))}
+                  </text>
+                </g>
+              );
+            })}
           </svg>
 
-          {/* Dimmed background point markers (real points) when calibrating */}
-          {calibrating && showPoints && points.map((point, i) => (
+          {calibrating && showPoints && points.map((point, index) => (
             <div
-              key={`bgp-${i}`}
+              key={`bg-point-${index}`}
               className="absolute w-5 h-5 -ml-2.5 -mt-2.5 rounded-full border border-white/40 bg-cyan-400/30 pointer-events-none"
-              style={{ left: point.x, top: point.y }}
+              style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
             />
           ))}
 
-          {/* Active points */}
-          {showPoints && renderPoints.map((point, i) => (
-            <div
-              key={`p-${i}`}
-              className="absolute w-9 h-9 -ml-[18px] -mt-[18px] rounded-full border-2 border-white shadow-lg pointer-events-none"
-              style={{
-                left: point.x,
-                top: point.y,
-                background: calibrating ? 'rgba(251,191,36,0.85)' : 'rgba(34,211,238,0.85)',
-              }}
-            />
-          ))}
-
-          {/* Crosshair when no points yet */}
-          {!calibrating && points.length === 0 && cameraReady && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-12 h-12 rounded-full border-2 border-white/70" />
-              <div className="absolute w-px h-8 bg-white/70" />
-              <div className="absolute h-px w-8 bg-white/70" />
-            </div>
-          )}
+          {showPoints && renderPoints.map((point, index) => {
+            const isActive = calibrating ? activeCalibrationPointIndex === index : activePointIndex === index;
+            return (
+              <div
+                key={`point-${index}`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-lg pointer-events-none"
+                style={{
+                  left: `${point.x * 100}%`,
+                  top: `${point.y * 100}%`,
+                  width: isActive ? 44 : 36,
+                  height: isActive ? 44 : 36,
+                  background: calibrating ? 'rgba(251,191,36,0.92)' : 'rgba(34,211,238,0.92)',
+                  boxShadow: isActive ? '0 0 0 10px rgba(255,255,255,0.18)' : '0 8px 20px rgba(0,0,0,0.35)',
+                }}
+              />
+            );
+          })}
         </div>
 
-        {/* Camera state overlay (non-blocking for measurement) */}
-        {!cameraReady && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-3 px-4 pointer-events-none">
-            <div className="pointer-events-auto">
-              <Button
-                onClick={startCamera}
-                disabled={cameraState === 'starting'}
-                className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold gap-2 shadow-lg"
-              >
-                <CameraIcon className="h-4 w-4" />
-                {cameraState === 'starting'
-                  ? 'Startar kamera…'
-                  : cameraState === 'denied'
-                  ? 'Försök igen'
-                  : cameraState === 'error'
-                  ? 'Försök igen'
-                  : 'Starta kamera'}
-              </Button>
-            </div>
+        {!measuringOnFrozenImage && (
+          <div className="absolute inset-x-0 top-16 z-20 flex flex-col items-center gap-3 px-4 pointer-events-none">
+            {!cameraReady && (
+              <div className="pointer-events-auto">
+                <Button
+                  onClick={startCamera}
+                  disabled={cameraState === 'starting'}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold gap-2 shadow-lg"
+                >
+                  <CameraIcon className="h-4 w-4" />
+                  {cameraState === 'starting' ? 'Startar kamera…' : 'Starta kamera'}
+                </Button>
+              </div>
+            )}
+
             {errorMsg && (
-              <p className="max-w-xs text-center text-xs text-white/85 bg-black/70 px-3 py-2 rounded-md pointer-events-none">
+              <p className="max-w-xs text-center text-xs text-white/90 bg-black/70 px-3 py-2 rounded-md">
                 {errorMsg}
               </p>
             )}
-            <p className="text-[11px] text-white/60 text-center max-w-xs pointer-events-none">
-              Du kan mäta även utan kamera — placera punkter på den svarta bakgrunden.
+
+            <p className="text-[11px] text-white/70 text-center max-w-xs">
+              Rikta motivet med krysset och frys bilden innan du sätter punkter.
             </p>
           </div>
         )}
       </div>
 
-      {/* Bottom panel */}
       <div className="relative z-20 bg-gradient-to-t from-black via-black/90 to-transparent pt-8 pb-6 px-4 space-y-3">
-        {calibrating ? (
+        {!measuringOnFrozenImage ? (
+          <>
+            <div className="text-center space-y-1">
+              <div className="text-xs text-white/60 uppercase tracking-wider">Steg 1</div>
+              <div className="text-lg font-semibold">Frys bilden innan du mäter</div>
+              <div className="text-[11px] text-white/55">Det gör att punkter sitter fast stabilt i bilden i stället för att följa livekameran.</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={captureFrame}
+                disabled={!cameraReady}
+                className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold h-12 disabled:opacity-40"
+              >
+                <CameraIcon className="h-4 w-4 mr-1.5" />
+                Frys bild
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={startCamera}
+                disabled={cameraState === 'starting'}
+                className="flex-1 text-white hover:bg-white/10 border border-white/20 h-12"
+              >
+                Försök igen
+              </Button>
+            </div>
+          </>
+        ) : calibrating ? (
           <div className="space-y-2">
             <div className="text-xs text-amber-300 text-center font-medium">
               Kalibrering aktiv — sätt två punkter på ett känt avstånd.
             </div>
             <div className="text-[11px] text-white/60 text-center">
-              Dina vanliga mätpunkter är kvar och visas dimmat i bakgrunden.
+              Vanliga mätpunkter ligger kvar i bakgrunden och påverkas inte.
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -565,8 +755,8 @@ const CameraMeasure: React.FC = () => {
               </Button>
               <Button
                 variant="ghost"
-                onClick={reset}
-                disabled={points.length === 0}
+                onClick={resetMeasurement}
+                disabled={points.length === 0 && calibrationPoints.length === 0}
                 className="flex-1 text-white hover:bg-white/10 border border-white/20 h-11"
               >
                 Nollställ
@@ -579,8 +769,17 @@ const CameraMeasure: React.FC = () => {
                 Punkt
               </Button>
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                onClick={retake}
+                className="flex-1 text-white hover:bg-white/10 border border-white/20 h-11"
+              >
+                Ta om bild
+              </Button>
+            </div>
             <div className="text-[10px] text-white/50 text-center">
-              Tryck för att sätta punkt · Dra för att flytta · Skala: {pxPerCm.toFixed(1)} px/cm · {points.length} punkter
+              Tryck för att fästa punkt · Dra befintlig punkt för finjustering · Skala: {pxPerCm.toFixed(1)} px/cm · {points.length} punkter
             </div>
           </>
         )}
