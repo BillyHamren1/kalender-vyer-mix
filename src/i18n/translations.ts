@@ -177,13 +177,268 @@ const translations = {
   'common.loading': { sv: 'Laddar...', en: 'Loading...' },
   'common.error': { sv: 'Fel', en: 'Error' },
   'common.st': { sv: 'st', en: 'pcs' },
+  // ─────────── Dialogs ───────────
+  // StopBreakDecisionDialog
+  'breakDialog.title': { sv: 'Hur ska rasten hanteras?', en: 'How should the break be handled?' },
+  'breakDialog.body': { sv: 'Passet är {pass}{ctx}. Inget rast-avdrag görs automatiskt — välj hur den här tidrapporten ska se ut.', en: 'The shift is {pass}{ctx}. No break is deducted automatically — choose how this time report should look.' },
+  'breakDialog.optBreak': { sv: 'Ange rast', en: 'Enter break' },
+  'breakDialog.optBreakDesc': { sv: 'Ange hur lång rast du faktiskt tog. Den dras från timmar arbetade.', en: 'Enter the actual break length. It is deducted from hours worked.' },
+  'breakDialog.breakLabel': { sv: 'Rast (timmar)', en: 'Break (hours)' },
+  'breakDialog.optNoBreak': { sv: 'Ingen rast', en: 'No break' },
+  'breakDialog.optNoBreakDesc': { sv: 'Bekräfta att ingen rast togs. Inga timmar justeras.', en: 'Confirm that no break was taken. No hours are adjusted.' },
+  'breakDialog.optAnomaly': { sv: 'Markera som avvikelse', en: 'Mark as anomaly' },
+  'breakDialog.optAnomalyDesc': { sv: 'Du är osäker eller något gick fel. Tidrapporten sparas utan automatisk justering och en avvikelse skickas till admin för uppföljning.', en: "You're unsure or something went wrong. The time report is saved without automatic adjustment and an anomaly is sent to admin for follow-up." },
+  'breakDialog.noteLabel': { sv: 'Kort beskrivning', en: 'Short description' },
+  'breakDialog.notePlaceholder': { sv: 'T.ex. glömde stoppa, gick hem tidigare, oklar rast', en: 'E.g. forgot to stop, went home earlier, unclear break' },
+  'breakDialog.errBreakTooSmall': { sv: 'Ange en rast större än 0.', en: 'Enter a break greater than 0.' },
+  'breakDialog.errBreakTooLong': { sv: 'Rasten kan max vara 4 timmar (240 min).', en: 'Break can be at most 4 hours (240 min).' },
+  'breakDialog.errBreakLongerThanShift': { sv: 'Rasten kan inte vara lika lång som eller längre än passet.', en: 'Break cannot be equal to or longer than the shift.' },
+  'breakDialog.errAnomalyNote': { sv: 'Beskriv kort vad avvikelsen gäller (t.ex. "glömde stoppa", "gick hem tidigare").', en: 'Briefly describe the anomaly (e.g. "forgot to stop", "went home earlier").' },
+  'breakDialog.errChoose': { sv: 'Välj ett alternativ för rast.', en: 'Choose a break option.' },
+  'breakDialog.errSave': { sv: 'Kunde inte spara. Försök igen.', en: 'Could not save. Try again.' },
+  'breakDialog.cancel': { sv: 'Avbryt', en: 'Cancel' },
+  'breakDialog.save': { sv: 'Spara tidrapport', en: 'Save time report' },
+
+  // WorkDayAssistant
+  'assistant.morningTitle': { sv: 'God morgon!', en: 'Good morning!' },
+  'assistant.morningAtWorkplace': { sv: 'Du verkar vara på en arbetsplats. Vill du börja dagens jobb?', en: 'You seem to be at a workplace. Want to start the day?' },
+  'assistant.morningGeneric': { sv: 'Ny dag, nya tag. Vill du kolla vad som ligger på schemat?', en: "New day, fresh start. Want to check today's schedule?" },
+  'assistant.notNow': { sv: 'Inte nu', en: 'Not now' },
+  'assistant.showJobs': { sv: 'Visa dagens jobb', en: "Show today's jobs" },
+  'assistant.activityEnded': { sv: 'Aktivitet avslutad', en: 'Activity ended' },
+  'assistant.reportSaved': { sv: 'Tidrapport sparad: {hours}h', en: 'Time report saved: {hours}h' },
+  'assistant.couldNotEnd': { sv: 'Kunde inte avsluta aktiviteten', en: 'Could not end the activity' },
+  'assistant.gapMarked': { sv: 'Glappet markerat — admin följer upp', en: 'Gap marked — admin will follow up' },
+  'assistant.couldNotMark': { sv: 'Kunde inte markera glappet', en: 'Could not mark the gap' },
+  'assistant.longShiftTitle': { sv: 'Långt pass — har du tagit rast?', en: 'Long shift — have you taken a break?' },
+  'assistant.longShiftBody': { sv: 'Du har varit igång på {place} i ungefär {hours} timmar. Vi drar ingen rast automatiskt — när du stoppar aktiviteten frågar vi dig om rasten där.', en: "You've been active at {place} for about {hours} hours. We don't deduct a break automatically — when you stop the activity, we'll ask about the break." },
+  'assistant.remindLater': { sv: 'Påminn senare', en: 'Remind me later' },
+  'assistant.endNowAskBreak': { sv: 'Avsluta nu (svara om rast)', en: 'End now (answer about break)' },
+  'assistant.couldNotStop': { sv: 'Kunde inte avsluta', en: 'Could not stop' },
+  'assistant.endDayQ': { sv: 'Verkar du klar för dagen?', en: 'Look like you’re done for the day?' },
+  'assistant.endDayBody': { sv: 'Vi ser att du lämnade {place} och inte har några aktiva aktiviteter. Vill du avsluta dagen så vi kan dubbelkolla att allt är registrerat?', en: 'We see that you left {place} and have no active activities. Want to end the day so we can double-check everything is recorded?' },
+  'assistant.workplaceFallback': { sv: 'arbetsplatsen', en: 'the workplace' },
+  'assistant.notYet': { sv: 'Inte än', en: 'Not yet' },
+  'assistant.endDay': { sv: 'Avsluta dagen', en: 'End the day' },
+
+  // ActivityLeaveDialog
+  'leave.title': { sv: 'Verkar du lämnat aktiviteten?', en: 'Looks like you left the activity?' },
+  'leave.body': { sv: 'Vi ser att du varit ungefär {dist} m utanför {label} sedan {since} ({mins} min). Timern är fortfarande igång.', en: "We see that you've been about {dist} m outside {label} since {since} ({mins} min). The timer is still running." },
+  'leave.guessHint': { sv: 'Vi gissar ingen tid åt dig. Välj vad som faktiskt hände — eller markera som glapp så följer admin upp.', en: "We don't guess time for you. Pick what actually happened — or mark it as a gap and admin will follow up." },
+  'leave.endActivity': { sv: 'Avsluta aktiviteten', en: 'End the activity' },
+  'leave.keepRunning': { sv: 'Jag jobbar fortfarande — låt timern fortsätta', en: 'I’m still working — keep the timer running' },
+  'leave.markGap': { sv: 'Markera som glapp för uppföljning', en: 'Mark as gap for follow-up' },
+
+  // EndOfDayStopDialog
+  'eod.title': { sv: 'Sluttid för dagen', en: 'End time for the day' },
+  'eod.askBody': { sv: 'Vi noterade när du lämnade arbetsplatsen. Stämmer det som sluttid?', en: 'We noted when you left the workplace. Use that as the end time?' },
+  'eod.customBody': { sv: 'Ange din egen sluttid och vad du gjorde efter att du lämnade arbetsplatsen.', en: 'Enter your own end time and describe what you did after leaving the workplace.' },
+  'eod.leftPlace': { sv: 'Du lämnade {place}', en: 'You left {place}' },
+  'eod.leftWorkplace': { sv: 'Du lämnade arbetsplatsen', en: 'You left the workplace' },
+  'eod.atLabel': { sv: 'kl', en: 'at' },
+  'eod.useAs': { sv: 'Vill du använda {time} som sluttid på din tidrapport?', en: 'Use {time} as the end time on your time report?' },
+  'eod.youLeftAt': { sv: 'Du lämnade arbetsplatsen kl {time}.', en: 'You left the workplace at {time}.' },
+  'eod.endTime': { sv: 'Sluttid', en: 'End time' },
+  'eod.errAfter': { sv: 'Sluttiden måste vara efter {time}.', en: 'End time must be after {time}.' },
+  'eod.minsAfter': { sv: '{mins} min efter att du lämnade arbetsplatsen.', en: '{mins} min after leaving the workplace.' },
+  'eod.descLabel': { sv: 'Vad gjorde du efter {time}?', en: 'What did you do after {time}?' },
+  'eod.descPlaceholder': { sv: 'T.ex. Handlade på Bauhaus, hämtade material…', en: 'E.g. Shopped at Bauhaus, picked up material…' },
+  'eod.descRequired': { sv: 'Beskrivning krävs när tiden är längre än {mins} min.', en: 'Description is required when the time is longer than {mins} min.' },
+  'eod.noOther': { sv: 'Nej, annan tid', en: 'No, another time' },
+  'eod.yesUse': { sv: 'Ja, använd {time}', en: 'Yes, use {time}' },
+  'eod.back': { sv: 'Tillbaka', en: 'Back' },
+  'eod.save': { sv: 'Spara tidrapport', en: 'Save time report' },
+
+  // AnomalyClassificationDialog
+  'anomaly.title': { sv: 'Klassificera frånvaro', en: 'Classify absence' },
+  'anomaly.body': { sv: 'Du var borta från arbetsplatsen vid följande tillfällen. Markera om det var rast eller arbete.', en: 'You were away from the workplace at the following times. Mark whether it was a break or work.' },
+  'anomaly.fetchFail': { sv: 'Kunde inte hämta avvikelser', en: 'Could not fetch anomalies' },
+  'anomaly.loading': { sv: 'Laddar...', en: 'Loading...' },
+  'anomaly.none': { sv: 'Inga frånvaroavvikelser att klassificera.', en: 'No absence anomalies to classify.' },
+  'anomaly.break': { sv: 'Rast', en: 'Break' },
+  'anomaly.work': { sv: 'Arbete', en: 'Work' },
+  'anomaly.workWhat': { sv: 'Vilket arbete utfördes?', en: 'What work was done?' },
+  'anomaly.workPlaceholder': { sv: 'T.ex. Hämtade material, kundmöte...', en: 'E.g. Picked up material, client meeting...' },
+  'anomaly.commentRequired': { sv: 'Kommentar krävs för arbete över {mins} min', en: 'Comment required for work over {mins} min' },
+  'anomaly.deductedHours': { sv: '{hours}h dras av från arbetstiden.', en: '{hours}h is deducted from working hours.' },
+  'anomaly.later': { sv: 'Senare', en: 'Later' },
+  'anomaly.saveAll': { sv: 'Spara alla', en: 'Save all' },
+  'anomaly.saved': { sv: 'Avvikelser sparade', en: 'Anomalies saved' },
+  'anomaly.saveFail': { sv: 'Kunde inte spara klassificering', en: 'Could not save classification' },
+
+  // ArrivalPromptDialog / UnifiedArrivalPrompt
+  'arrival.startDay': { sv: 'Starta dagen?', en: 'Start the day?' },
+  'arrival.detected': { sv: 'Vi har märkt att du anlänt till arbetsplatsen.', en: 'We noticed you arrived at the workplace.' },
+  'arrival.customStart': { sv: 'Egen starttid', en: 'Custom start time' },
+  'arrival.errPast': { sv: 'Tiden måste vara i förflutet (max idag).', en: 'The time must be in the past (today at most).' },
+  'arrival.startFrom': { sv: 'Starta från {time}', en: 'Start from {time}' },
+  'arrival.startNow': { sv: 'Starta nu', en: 'Start now' },
+  'arrival.notNow': { sv: 'Inte nu', en: 'Not now' },
+  'arrival.customizeTime': { sv: 'Anpassa tid', en: 'Customize time' },
+  'arrival.start': { sv: 'Starta', en: 'Start' },
+  'arrival.back': { sv: 'Tillbaka', en: 'Back' },
+
+  // EndDayOnArrivalHomeDialog
+  'endHome.title': { sv: 'Avsluta dagen?', en: 'End the day?' },
+  'endHome.body': { sv: 'Jag misstänker att du avslutade din arbetsdag när du lämnade {place} kl {time}. Stämmer detta och du vill rapportera din tid?', en: 'It looks like your workday ended when you left {place} at {time}. Is that correct, and do you want to report your time?' },
+  'endHome.yes': { sv: 'Ja, rapportera till {time}', en: 'Yes, report until {time}' },
+  'endHome.no': { sv: 'Nej, jag ska tillbaka', en: "No, I'm going back" },
+  'endHome.custom': { sv: 'Anpassa tid', en: 'Customize time' },
+  'endHome.close': { sv: 'Stäng', en: 'Close' },
+  'endHome.pickEnd': { sv: 'Välj sluttid', en: 'Choose end time' },
+  'endHome.saving': { sv: 'Sparar...', en: 'Saving...' },
+  'endHome.endAt': { sv: 'Avsluta kl {time}', en: 'End at {time}' },
+  'endHome.back': { sv: 'Tillbaka', en: 'Back' },
+
+  // LastShiftEndPrompt
+  'lastShift.title': { sv: 'Avsluta dagen?', en: 'End the day?' },
+  'lastShift.body': { sv: 'Du lämnade dagens sista planerade uppdrag kl {time}', en: "You left today's last planned assignment at {time}" },
+  'lastShift.plannedEnd': { sv: '(planerat slut {time})', en: '(planned end {time})' },
+  'lastShift.tail': { sv: '. Restimer har startat — vill du avsluta arbetsdagen?', en: '. Travel timer has started — want to end the workday?' },
+  'lastShift.note': { sv: 'Om du svarar Ja stoppas restimern och dagens aktiva timers stängs.', en: 'If you answer Yes, the travel timer stops and today’s active timers close.' },
+  'lastShift.endingDay': { sv: 'Dagen avslutas', en: 'Ending the day' },
+  'lastShift.couldNotEnd': { sv: 'Kunde inte avsluta dagen', en: 'Could not end the day' },
+  'lastShift.ending': { sv: 'Avslutar…', en: 'Ending…' },
+  'lastShift.yesEnd': { sv: 'Ja, avsluta dagen', en: 'Yes, end the day' },
+  'lastShift.noKeep': { sv: 'Nej, jag jobbar vidare', en: "No, I'll keep working" },
+  'lastShift.snooze': { sv: 'Påminn mig om 15 min', en: 'Remind me in 15 min' },
+
+  // NextActionDialog
+  'next.title': { sv: 'Vad gör du nu?', en: 'What are you doing now?' },
+  'next.body': { sv: 'Du avslutade {activity}. Berätta vad som händer härnäst så dagen håller ihop.', en: "You ended {activity}. Tell us what happens next so the day stays consistent." },
+  'next.travel': { sv: 'Åka till nästa projekt', en: 'Travel to next project' },
+  'next.travelDesc': { sv: 'Startar restimer', en: 'Starts travel timer' },
+  'next.break': { sv: 'Ta paus', en: 'Take a break' },
+  'next.breakDesc': { sv: 'Lunch eller kort vila', en: 'Lunch or short rest' },
+  'next.endDay': { sv: 'Avsluta dagen', en: 'End the day' },
+  'next.endDayDesc': { sv: 'Stänger alla aktiva timers', en: 'Closes all active timers' },
+  'next.skip': { sv: 'Hoppa över', en: 'Skip' },
+  'next.travelStarted': { sv: 'Restimer startad — bra resa!', en: 'Travel timer started — safe trip!' },
+  'next.travelStartFail': { sv: 'Kunde inte starta restimer', en: 'Could not start travel timer' },
+  'next.breakRegistered': { sv: 'Paus registrerad — starta nästa aktivitet när du är tillbaka.', en: 'Break registered — start your next activity when you return.' },
+  'next.travelDescFrom': { sv: 'Avresa från {place}', en: 'Departure from {place}' },
+
+  // StaleDayCorrectionDialog
+  'stale.title': { sv: 'Din arbetsdag stängdes automatiskt', en: 'Your workday was closed automatically' },
+  'stale.body': { sv: 'Du glömde stoppa timern {date}. När slutade du egentligen?', en: 'You forgot to stop the timer on {date}. When did you actually finish?' },
+  'stale.other': { sv: 'Annan tid', en: 'Another time' },
+  'stale.cancel': { sv: 'Avbryt', en: 'Cancel' },
+  'stale.confirm': { sv: 'Bekräfta', en: 'Confirm' },
+
+  // StaleTimerDialog
+  'staleTimer.title': { sv: 'Gammal timer hittad', en: 'Stale timer found' },
+  'staleTimer.unknownPlace': { sv: 'Okänd plats', en: 'Unknown place' },
+  'staleTimer.startedLabel': { sv: 'Startad: {date}', en: 'Started: {date}' },
+  'staleTimer.body': { sv: 'Denna timer är äldre än 24 timmar och kunde inte matchas mot servern. Vill du spara den som en tidrapport eller kasta den?', en: 'This timer is older than 24 hours and could not be matched on the server. Do you want to save it as a time report or discard it?' },
+  'staleTimer.moreCount': { sv: '{count} ytterligare gammal timer hanteras efter denna.', en: '{count} more stale timers will be handled after this one.' },
+  'staleTimer.discard': { sv: 'Kasta', en: 'Discard' },
+  'staleTimer.save': { sv: 'Spara som tidrapport', en: 'Save as time report' },
+
+  // TimerConflictDialog
+  'conflict.title': { sv: 'Pågående timer', en: 'Active timer' },
+  'conflict.reason.oneActive': { sv: 'Du kan bara ha en aktiv timer åt gången. Vill du stoppa den pågående och börja med den nya?', en: 'You can only have one active timer at a time. Stop the current one and start the new one?' },
+  'conflict.reason.oneBooking': { sv: 'Du kan bara ha en bokning aktiv åt gången. Vill du stoppa den pågående och börja med den nya?', en: 'You can only have one booking active at a time. Stop the current one and start the new one?' },
+  'conflict.reason.oneProject': { sv: 'Du kan bara ha ett projekt aktivt åt gången. Vill du stoppa det pågående och byta?', en: 'You can only have one project active at a time. Stop the current one and switch?' },
+  'conflict.reason.bookingVsProject': { sv: 'Bokning och projekt kan inte rapporteras samtidigt. Vill du stoppa det pågående och byta?', en: 'Booking and project cannot be reported at the same time. Stop the current one and switch?' },
+  'conflict.reason.oneLocation': { sv: 'Du är redan inloggad på en plats. Vill du checka ut därifrån och in på den nya?', en: "You're already checked into a location. Check out and check into the new one?" },
+  'conflict.current': { sv: 'Pågående:', en: 'Current:' },
+  'conflict.new': { sv: 'Ny:', en: 'New:' },
+  'conflict.keep': { sv: 'Behåll pågående', en: 'Keep current' },
+  'conflict.switch': { sv: 'Stoppa & byt', en: 'Stop & switch' },
+
+  // TravelCompletedDialog
+  'travel.completed': { sv: 'Resa avslutad', en: 'Travel ended' },
+  'travel.destination': { sv: 'Destination', en: 'Destination' },
+  'travel.unknownPlace': { sv: 'Okänd plats', en: 'Unknown place' },
+  'travel.matchedBooking': { sv: 'Matchad mot bokning — sparas som arbetsresa', en: 'Matched to booking — saved as work travel' },
+  'travel.whatDidYouDo': { sv: 'Vad gjorde du där? (valfritt)', en: 'What did you do there? (optional)' },
+  'travel.describePlaceholder': { sv: 'Beskriv kort...', en: 'Briefly describe...' },
+  'travel.wasItWork': { sv: 'Var detta arbetsresa?', en: 'Was this a work trip?' },
+  'travel.yesWork': { sv: 'Ja — arbetsresa', en: 'Yes — work trip' },
+  'travel.noPersonal': { sv: 'Nej — privat resa', en: 'No — personal trip' },
+  'travel.decideLater': { sv: 'Avgör senare (admin följer upp)', en: 'Decide later (admin follows up)' },
+  'travel.markedPersonal': { sv: 'Markerad som privat resa', en: 'Marked as personal trip' },
+  'travel.savedWork': { sv: 'Sparad som arbetsresa', en: 'Saved as work trip' },
+  'travel.savedAdminFollow': { sv: 'Sparad — admin följer upp', en: 'Saved — admin will follow up' },
+  'travel.couldNotSave': { sv: 'Kunde inte spara', en: 'Could not save' },
+  'travel.saving': { sv: 'Sparar...', en: 'Saving...' },
+  'travel.save': { sv: 'Spara', en: 'Save' },
+
+  // SmartArrivalSuggestion
+  'smart.errShortNote': { sv: 'Skriv en kort kommentar (minst 3 tecken)', en: 'Write a short comment (at least 3 characters)' },
+  'smart.timeRegistered': { sv: 'Tid på plats registrerad', en: 'On-site time registered' },
+  'smart.couldNotSave': { sv: 'Kunde inte spara', en: 'Could not save' },
+  'smart.unplannedQ': { sv: 'Är du här i ett ärende kring det planerade jobbet på {date} ({client})?', en: 'Are you here for the planned job on {date} ({client})?' },
+  'smart.unplannedHint': { sv: 'Du är inte tilldelad jobbet — vi registrerar bara att du var här.', en: "You're not assigned to the job — we just register that you were here." },
+  'smart.dismiss': { sv: 'Avvisa förslag', en: 'Dismiss suggestion' },
+  'smart.notePlaceholder': { sv: 'Vad gör du där? (obligatoriskt)', en: 'What are you doing there? (required)' },
+  'smart.linkedToJob': { sv: 'Ja — kopplat till jobbet', en: 'Yes — linked to the job' },
+  'smart.no': { sv: 'Nej', en: 'No' },
+  'smart.placeFallback': { sv: 'platsen', en: 'the place' },
+  'smart.lunchQ': { sv: 'Det ser ut som du stannade vid {place}. Vill du registrera tiden som lunch?', en: 'Looks like you stopped at {place}. Register the time as lunch?' },
+  'smart.breakRegistered': { sv: 'Paus registrerad ({mins} min)', en: 'Break registered ({mins} min)' },
+  'smart.breakMarked': { sv: 'Paus markerad', en: 'Break marked' },
+  'smart.couldNotRegBreak': { sv: 'Kunde inte registrera paus', en: 'Could not register break' },
+  'smart.yesLunch': { sv: 'Ja, lunch', en: 'Yes, lunch' },
+  'smart.noWork': { sv: 'Nej, jobb', en: 'No, work' },
+  'smart.storeFallback': { sv: 'butiken', en: 'the store' },
+  'smart.purchaseQ': { sv: 'Handlade du på {place} åt något projekt?', en: 'Did you shop at {place} for a project?' },
+  'smart.linkedPurchase': { sv: 'Inköp kopplat till {label}', en: 'Purchase linked to {label}' },
+  'smart.couldNotLink': { sv: 'Kunde inte koppla inköp', en: 'Could not link purchase' },
+  'smart.todayLabel': { sv: 'Idag — {client}', en: 'Today — {client}' },
+  'smart.tomorrowLabel': { sv: 'Imorgon — {client}', en: 'Tomorrow — {client}' },
+  'smart.warehouse': { sv: 'Lager (alltid tillgängligt)', en: 'Warehouse (always available)' },
+  'smart.privateOther': { sv: 'Privat / Annat', en: 'Personal / Other' },
+
+  // GeofencePrompt
+  'geo.atProject': { sv: 'Du är på projektet!', en: 'You are at the project!' },
+  'geo.atSite': { sv: 'Du är på plats!', en: 'You are on site!' },
+  'geo.leavingProject': { sv: 'Lämnar projektet', en: 'Leaving the project' },
+  'geo.leavingLocation': { sv: 'Lämnar platsen', en: 'Leaving the location' },
+  'geo.leavingSite': { sv: 'Lämnar arbetsplatsen', en: 'Leaving the worksite' },
+  'geo.distanceFrom': { sv: '{dist}m från {label}', en: '{dist}m from {label}' },
+  'geo.startProjectQ': { sv: 'Vill du starta tidrapportering för projektet?', en: 'Do you want to start time tracking for this project?' },
+  'geo.startLocationQ': { sv: 'Vill du starta tidrapportering för platsen?', en: 'Do you want to start time tracking for this location?' },
+  'geo.startJobQ': { sv: 'Vill du starta tidrapporten för jobbet?', en: 'Do you want to start the time report for this job?' },
+  'geo.endProjectQ': { sv: 'Vill du avsluta tidrapporteringen för projektet?', en: 'Do you want to end time tracking for the project?' },
+  'geo.endLocationQ': { sv: 'Vill du avsluta tidrapporteringen?', en: 'Do you want to end time tracking?' },
+  'geo.endJobQ': { sv: 'Vill du avsluta tidrapporten?', en: 'Do you want to end the time report?' },
+  'geo.gpsArrived': { sv: 'GPS visar att du anlände kl {time} ({since})', en: 'GPS shows you arrived at {time} ({since})' },
+  'geo.minAgo': { sv: '{mins} min sedan', en: '{mins} min ago' },
+  'geo.hoursMinAgo': { sv: '{h}h {m}min sedan', en: '{h}h {m}min ago' },
+  'geo.hoursAgo': { sv: '{h}h sedan', en: '{h}h ago' },
+  'geo.startFromTime': { sv: 'Starta från {time}', en: 'Start from {time}' },
+  'geo.notNow': { sv: 'Inte nu', en: 'Not now' },
+  'geo.startNow': { sv: 'Starta nu', en: 'Start now' },
+  'geo.end': { sv: 'Avsluta', en: 'End' },
+  'geo.projectFallback': { sv: 'Projekt', en: 'Project' },
+  'geo.locationFallback': { sv: 'Plats', en: 'Location' },
+  'geo.dismiss': { sv: 'Stäng', en: 'Close' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
 
-export function t(key: TranslationKey, locale: Locale): string {
+/**
+ * Translate a key with optional variable interpolation.
+ *
+ * Tokens of the form `{name}` in the source string are replaced by the
+ * corresponding value in `vars`. Missing vars become empty strings so we
+ * never render literal `{x}` to the user.
+ */
+export function t(
+  key: TranslationKey,
+  locale: Locale,
+  vars?: Record<string, string | number>
+): string {
   const entry = translations[key];
-  return entry?.[locale] || entry?.sv || key;
+  let str = entry?.[locale] || entry?.sv || (key as string);
+  if (vars) {
+    str = str.replace(/\{(\w+)\}/g, (_, k) => {
+      const v = vars[k];
+      return v === undefined || v === null ? '' : String(v);
+    });
+  }
+  return str;
 }
 
 export default translations;
