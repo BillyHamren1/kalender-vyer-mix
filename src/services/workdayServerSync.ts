@@ -51,3 +51,9 @@ export function syncWorkDayEnd(endedAtIso?: string): void {
       console.warn('[workday] end sync failed:', err?.message || err);
     });
 }
+
+/** @internal — for tests only. Resets debounce state. */
+export function __resetWorkDaySyncForTests(): void {
+  lastStartAt = 0;
+  inFlightStart = null;
+}
