@@ -234,7 +234,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
-    if (passPins.length === 0) return;
+    if (travelOnMap.length === 0) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -244,7 +244,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
-    const center: [number, number] = [passPins[0].lng, passPins[0].lat];
+    const center: [number, number] = [travelOnMap[0].fromLng, travelOnMap[0].fromLat];
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
@@ -257,36 +257,72 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
     m.on('load', () => {
       const bounds = new mapboxgl.LngLatBounds();
-      passPins.forEach(p => bounds.extend([p.lng, p.lat]));
+      travelOnMap.forEach(t => {
+        bounds.extend([t.fromLng, t.fromLat]);
+        bounds.extend([t.toLng, t.toLat]);
+      });
       if (!bounds.isEmpty()) {
         m.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       }
 
-      passPins.forEach((p, i) => {
-        const el = document.createElement('div');
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.borderRadius = '50%';
-        el.style.backgroundColor = p.kind === 'in' ? '#10b981' : '#ef4444';
-        el.style.border = '3px solid white';
-        el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.color = 'white';
-        el.style.fontSize = '10px';
-        el.style.fontWeight = 'bold';
-        el.textContent = String(i + 1);
+      // Draw a line for each travel segment
+      travelOnMap.forEach((t, idx) => {
+        const sourceId = `travel-line-${idx}`;
+        m.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [[t.fromLng, t.fromLat], [t.toLng, t.toLat]],
+            },
+          },
+        });
+        m.addLayer({
+          id: sourceId,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 4,
+            'line-opacity': 0.85,
+          },
+        });
+      });
 
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([p.lng, p.lat])
-          .setPopup(
-            new mapboxgl.Popup({ offset: 22 }).setHTML(
-              `<strong>${p.label} ${p.time}</strong><br/><span style="font-size:11px">${p.passLabel}</span><br/><span style="font-size:10px;color:#666">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>`
+      // Pins for from (green) and to (red) for each travel
+      travelOnMap.forEach((t, i) => {
+        const makePin = (lat: number, lng: number, kind: 'from' | 'to', time: string) => {
+          const el = document.createElement('div');
+          el.style.width = '24px';
+          el.style.height = '24px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = kind === 'from' ? '#10b981' : '#ef4444';
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+          el.style.color = 'white';
+          el.style.fontSize = '10px';
+          el.style.fontWeight = 'bold';
+          el.textContent = String(i + 1);
+
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([lng, lat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 22 }).setHTML(
+                `<strong>${kind === 'from' ? 'Avresa' : 'Ankomst'} ${time}</strong><br/><span style="font-size:11px">${t.label}</span><br/><span style="font-size:10px;color:#666">${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`
+              )
             )
-          )
-          .addTo(m);
-        markersRef.current.push(marker);
+            .addTo(m);
+          markersRef.current.push(marker);
+        };
+
+        makePin(t.fromLat, t.fromLng, 'from', t.fromTime);
+        makePin(t.toLat, t.toLng, 'to', t.toTime);
       });
     });
 
@@ -300,7 +336,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, passPins]);
+  }, [open, mapboxToken, travelOnMap]);
 
   if (!date) return null;
 
