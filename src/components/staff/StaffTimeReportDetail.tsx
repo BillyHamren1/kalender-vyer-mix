@@ -567,28 +567,28 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         </div>
 
         {/* Week navigation */}
-        <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
-            className="rounded-xl"
+            className="rounded-lg h-8 px-3 gap-1.5"
           >
-            <ChevronLeft className="h-4 w-4 mr-1" />
+            <ChevronLeft className="h-3.5 w-3.5" />
             Förra vecka
           </Button>
           <div className="flex flex-col items-center gap-0.5">
-            <span className="text-sm font-semibold capitalize">Vecka {isoWeek}</span>
+            <span className="text-sm font-semibold capitalize text-[hsl(var(--heading))]">Vecka {isoWeek}</span>
             <span className="text-xs text-muted-foreground capitalize">{weekRangeLabel}</span>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
-            className="rounded-xl"
+            className="rounded-lg h-8 px-3 gap-1.5"
           >
             Nästa vecka
-            <ChevronRight className="h-4 w-4 ml-1" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
 
@@ -598,39 +598,39 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => setCurrentWeek(new Date())}
-            className="rounded-xl text-xs h-7"
+            className="rounded-lg text-xs h-7 text-muted-foreground hover:text-foreground"
           >
             Gå till denna vecka
           </Button>
         </div>
 
         {/* Summary badges */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <Badge variant="secondary" className="text-xs">
-            <Clock className="h-3 w-3 mr-1" />
+        <div className="flex gap-1.5 mb-4 flex-wrap">
+          <Badge variant="secondary" className="text-[11px] gap-1 font-medium">
+            <Clock className="h-3 w-3" />
             {formatHoursMinutes(totalHours)} totalt
           </Badge>
           {totalOvertime > 0 && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[11px] font-medium">
               Övertid: {formatHoursMinutes(totalOvertime)}
             </Badge>
           )}
           {totalTravelHours > 0 && (
-            <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
-              <Car className="h-3 w-3 mr-1" />
+            <Badge variant="outline" className="text-[11px] gap-1 font-medium border-primary/30 text-primary">
+              <Car className="h-3 w-3" />
               Restid: {formatHoursMinutes(totalTravelHours)}
             </Badge>
           )}
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-[11px] font-medium">
             {reports.length} rapporter
           </Badge>
           {anomalies.length > 0 && (
             <Badge
-              variant="destructive"
-              className="text-xs cursor-pointer"
+              variant="outline"
+              className="text-[11px] gap-1 font-medium border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10 cursor-pointer"
               onClick={() => setAnomalyDate(anomalies[0].date)}
             >
-              <AlertTriangle className="h-3 w-3 mr-1" />
+              <AlertTriangle className="h-3 w-3" />
               {anomalies.length} avvikelse{anomalies.length !== 1 ? 'r' : ''}
             </Badge>
           )}
