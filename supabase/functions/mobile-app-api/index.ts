@@ -449,6 +449,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
       case 'report_arrival':
         return await handleReportArrival(supabase, staffId, data, organizationId)
+      case 'report_departure':
+        return await handleReportDeparture(supabase, staffId, data, organizationId)
+      case 'report_home_arrival':
+        return await handleReportHomeArrival(supabase, staffId, data, organizationId)
       // ── Smart-karta (arrival context) ──
       case 'accept_unplanned_site_visit':
         return await handleAcceptUnplannedSiteVisit(supabase, staffId, data, organizationId)
