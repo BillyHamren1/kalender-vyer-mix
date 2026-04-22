@@ -178,22 +178,34 @@ const MobileGlobalOverlays: React.FC = () => {
       const workTarget = arrivalToWorkTarget(arrivalTarget);
       if (!workTarget) throw new Error('Unknown arrival type');
 
-      // Route through the SAME start flow as manual button taps so the
-      // conflict dialog (and distance check) fire identically.
-      const status = requestStart(workTarget, { startedAtIso: startedAt });
-      if (status === 'duplicate') {
-        toast.message('Timer already active for this location');
+      // Arrival is a HELPER — it must only mark itself resolved if the
+      // real start chain (workday-ensure + activity start) actually
+      // succeeds. We use the awaitable arrival entry-point so we get the
+      // true outcome, not a fire-and-forget "started".
+      const status = await tryStartFromArrival(workTarget, { startedAtIso: startedAt });
+
+      if (status === 'started' || status === 'duplicate') {
+        await markResolved(arrivalTarget);
+        setArrivalDialogOpen(false);
+        refreshArrival();
+        return;
       }
 
-      await markResolved(arrivalTarget);
-      setArrivalDialogOpen(false);
-      refreshArrival();
+      if (status === 'conflict') {
+        // TimerConflictDialog is now open. Keep the arrival prompt open
+        // (do NOT mark resolved) so the user isn't tricked into thinking
+        // the timer started. They can re-confirm after resolving conflict.
+        return;
+      }
+
+      // 'workday-failed' — performStart already showed a toast.error.
+      // Leave the arrival prompt unresolved so the user can retry.
     } catch (err: any) {
       toast.error(err?.message || 'Could not start timer');
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalTarget, arrivalToWorkTarget, requestStart, markResolved, refreshArrival]);
+  }, [arrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!arrivalTarget) return;
