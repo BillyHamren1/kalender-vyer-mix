@@ -46,20 +46,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[Auth] State change:', event);
-        
-        // Handle token refresh errors - clear invalid session
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          console.warn('[Auth] Token refresh failed, clearing session');
-          setSession(null);
-          setUser(null);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Handle sign out or session expiry
+        console.log('[Auth] State change:', event, 'hasSession:', !!session);
+
+        // Only an EXPLICIT sign-out clears the session. Empty-session
+        // TOKEN_REFRESHED events (which can happen during transient network
+        // hiccups, OS sleep/resume, or when Supabase momentarily fails to
+        // refresh) must NOT log the user out — Supabase will retry the
+        // refresh automatically on the next request.
         if (event === 'SIGNED_OUT') {
-          console.log('[Auth] User signed out');
+          console.log('[Auth] User signed out (explicit)');
           setSession(null);
           setUser(null);
           setIsSsoUser(false);
@@ -68,48 +63,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsLoading(false);
           return;
         }
-        
+
+        if (event === 'TOKEN_REFRESHED') {
+          if (!session) {
+            // Transient: keep current state, wait for next refresh attempt.
+            console.warn('[Auth] TOKEN_REFRESHED with no session — keeping existing state, will retry');
+            setIsLoading(false);
+            return;
+          }
+          console.log('[Auth] Token refreshed successfully');
+        }
+
         // Handle successful sign in
         if (event === 'SIGNED_IN' && session) {
           console.log('[Auth] User signed in');
           checkSsoUser(); // Re-check SSO status
         }
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-        
+
+        // Only update state when we actually received a session, or on
+        // initial INITIAL_SESSION event (which legitimately may carry null).
+        if (session || event === 'INITIAL_SESSION') {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+
         // Check user metadata for SSO flag
         if (session?.user?.user_metadata?.sso_user) {
           setIsSsoUser(true);
           sessionStorage.setItem('isSsoUser', 'true');
         }
-        
+
         setIsLoading(false);
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('[Auth] Failed to get session:', error.message);
-        // Clear any stale session data on error
-        setSession(null);
-        setUser(null);
+    const loadSession = (isRetry = false) => {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error) {
+          // Network / transient error: keep any existing state and retry
+          // silently after 30s instead of nuking the user back to login.
+          console.error('[Auth] Failed to get session:', error.message, isRetry ? '(retry)' : '(initial)');
+          setIsLoading(false);
+          if (!isRetry) {
+            setTimeout(() => loadSession(true), 30_000);
+          }
+          return;
+        }
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // Check user metadata for SSO flag
+        if (session?.user?.user_metadata?.sso_user) {
+          setIsSsoUser(true);
+          sessionStorage.setItem('isSsoUser', 'true');
+        }
+
         setIsLoading(false);
-        return;
-      }
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      // Check user metadata for SSO flag
-      if (session?.user?.user_metadata?.sso_user) {
-        setIsSsoUser(true);
-        sessionStorage.setItem('isSsoUser', 'true');
-      }
-      
-      setIsLoading(false);
-    });
+      });
+    };
+    loadSession();
 
     return () => subscription.unsubscribe();
   }, []);
