@@ -12,6 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { markWorkdayEnded } from '@/services/workdayState';
+import { syncWorkDayEnd } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
@@ -276,6 +277,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
         markWorkdayEnded();
+        // Server-anchor: close the workdays row. Fire-and-forget; the
+        // local 'workday-ended' event still drives the UI.
+        syncWorkDayEnd();
         window.dispatchEvent(new CustomEvent('workday-ended'));
       }
     }
@@ -295,6 +299,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
         markWorkdayEnded();
+        syncWorkDayEnd();
         window.dispatchEvent(new CustomEvent('workday-ended'));
         toast.message(t('workday.noActiveTimers'));
         return;
