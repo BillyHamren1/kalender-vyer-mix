@@ -32,6 +32,7 @@ import {
   ENTER_RADIUS,
 } from '@/hooks/useGeofencing';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
+import { syncWorkDayStart } from '@/services/workdayServerSync';
 import type { MobileBooking } from '@/services/mobileApiService';
 
 export interface RequestStartOptions {
@@ -92,6 +93,10 @@ export function useTimerStartFlow(
       const ok = startSession(target, { startedAtIso: opts.startedAtIso });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
+        // Server-anchor the workday. Idempotent + debounced — safe to call
+        // on every successful timer-start; the edge function returns the
+        // existing open workday if one is already running.
+        syncWorkDayStart(opts.startedAtIso);
       } else {
         toast.message('Timer redan aktiv för platsen');
       }

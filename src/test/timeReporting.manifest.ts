@@ -126,6 +126,13 @@ export const TIME_REPORTING_QUALITY_GATE = {
     // target-shape oavsett kind, legacy location-only payloads tolkas
     // bakåtkompatibelt, markResolved skickar generiskt API.
     'src/test/arrivalPromptHook.parity.test.ts',
+
+    // Workday server-anchor (lifecycle / concurrency / integration):
+    // verifierar att workday-edge-funktionen är idempotent och att
+    // timer-start + EOD verkligen syncar mot servern.
+    'src/test/workday/workdayLifecycle.test.ts',
+    'src/test/workday/workdayConcurrency.test.ts',
+    'src/test/workday/workdayIntegration.test.ts',
   ],
 
   /**
