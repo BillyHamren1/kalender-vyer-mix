@@ -6,6 +6,7 @@ import { useMobileInbox } from '@/hooks/useMobileInbox';
 import { MessageCircle, Radio, Briefcase, AlertTriangle, CloudRain, CalendarClock, Truck, Info, Plus, Search, Loader2, Archive, ArrowLeft, ChevronRight } from 'lucide-react';
 import { MobileHeroHeader, MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, isToday, parseISO, differenceInDays } from 'date-fns';
+import { sv, enUS } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -13,6 +14,7 @@ import DmChatView from '@/components/mobile-app/messages/DmChatView';
 import JobChatView from '@/components/mobile-app/messages/JobChatView';
 import SwipeableRow from '@/components/mobile-app/messages/SwipeableRow';
 import { ChatMessage } from '@/components/mobile-app/messages/MessageBubble';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 type View = 'list' | 'dm' | 'job' | 'broadcast' | 'new';
 
@@ -38,19 +40,28 @@ interface BroadcastItem {
 const categoryIcons: Record<string, typeof Info> = {
   info: Info, weather: CloudRain, schedule: CalendarClock, logistics: Truck, urgent: AlertTriangle,
 };
-const categoryLabels: Record<string, string> = {
-  info: 'Information', weather: 'Vädervarning', schedule: 'Schemaändring', logistics: 'Logistik', urgent: 'Brådskande',
-};
-
-const formatTime = (ts: string) => {
-  const d = parseISO(ts);
-  return isToday(d) ? format(d, 'HH:mm') : format(d, 'd MMM');
+const categoryTokens: Record<string, string> = {
+  info: 'broadcast.info',
+  weather: 'broadcast.weather',
+  schedule: 'broadcast.schedule',
+  logistics: 'broadcast.logistics',
+  urgent: 'broadcast.urgent',
 };
 
 const MobileInbox = () => {
   const { staff } = useMobileAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
+  const dfLocale = locale === 'sv' ? sv : enUS;
+  const formatTime = (ts: string) => {
+    const d = parseISO(ts);
+    return isToday(d) ? format(d, 'HH:mm') : format(d, 'd MMM', { locale: dfLocale });
+  };
+  const labelForCategory = (cat: string) => {
+    const tok = categoryTokens[cat];
+    return tok ? t(tok as any) : t('inbox.message');
+  };
   const { dmConversations, broadcasts, jobConversations, isLoading, markBroadcastReadOptimistic, markJobReadOptimistic, refetchAll } = useMobileInbox();
   const [view, setView] = useState<View>('list');
   const [activeDM, setActiveDM] = useState<DMConversation | null>(null);
@@ -66,7 +77,7 @@ const MobileInbox = () => {
     const existing = dmConversations.find(d => d.partner_id === target.id) as DMConversation | undefined;
     setActiveDM(existing || {
       partner_id: target.id,
-      partner_name: target.name || 'Kollega',
+      partner_name: target.name || t('inbox.staff'),
       last_message: null,
       unread_count: 0,
       messages: [],
@@ -114,12 +125,12 @@ const MobileInbox = () => {
   };
 
   const handleArchive = async (partnerId: string) => {
-    try { await mobileApi.archiveDM(partnerId); toast.success('Arkiverat'); refetchAll(); }
-    catch { toast.error('Kunde inte arkivera'); }
+    try { await mobileApi.archiveDM(partnerId); toast.success(t('inbox.archived_one')); refetchAll(); }
+    catch { toast.error(t('inbox.couldNotArchive')); }
   };
   const handleUnarchive = async (partnerId: string) => {
     try { await mobileApi.unarchiveDM(partnerId); refetchAll(); }
-    catch { toast.error('Kunde inte återställa'); }
+    catch { toast.error(t('inbox.couldNotRestore')); }
   };
 
   const goBack = () => { setView('list'); setActiveDM(null); setActiveJob(null); setActiveBroadcast(null); refetchAll(); };
@@ -151,16 +162,16 @@ const MobileInbox = () => {
     const CatIcon = categoryIcons[activeBroadcast.category] || Info;
     return (
       <div className="flex flex-col bg-card min-h-full">
-        <MobileBackHeader title="Meddelande" onBack={goBack} titlePrefix={<Radio className="w-4 h-4 text-primary-foreground" />} />
+        <MobileBackHeader title={t('inbox.message')} onBack={goBack} titlePrefix={<Radio className="w-4 h-4 text-primary-foreground" />} />
         <div className="flex-1 p-4">
           <div className={cn("rounded-2xl border p-5", activeBroadcast.category === 'urgent' ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card')}>
             <div className="flex items-center gap-2 mb-3">
               <CatIcon className={cn("w-5 h-5", activeBroadcast.category === 'urgent' ? 'text-destructive' : 'text-primary')} />
-              <span className="text-sm font-bold text-foreground">{categoryLabels[activeBroadcast.category] || 'Meddelande'}</span>
+              <span className="text-sm font-bold text-foreground">{labelForCategory(activeBroadcast.category)}</span>
             </div>
             <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{activeBroadcast.content}</p>
             <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Från {activeBroadcast.sender_name}</span>
+              <span className="text-xs text-muted-foreground">{t('inbox.from')} {activeBroadcast.sender_name}</span>
               <span className="text-xs text-muted-foreground">{formatTime(activeBroadcast.created_at)}</span>
             </div>
           </div>
@@ -173,9 +184,9 @@ const MobileInbox = () => {
   return (
     <div className="flex flex-col bg-card min-h-full">
       <MobileHeroHeader
-        eyebrow="MEDDELANDEN"
-        title="Inkorg"
-        subtitle={totalUnread > 0 ? `${totalUnread} olästa` : 'Inga olästa'}
+        eyebrow={t('inbox.eyebrow')}
+        title={t('inbox.title')}
+        subtitle={totalUnread > 0 ? `${totalUnread} ${t('inbox.unread')}` : t('inbox.noUnread')}
       />
 
       <div className="flex-1">
@@ -185,7 +196,7 @@ const MobileInbox = () => {
           <div className="space-y-5 pt-2">
             {/* Broadcasts */}
             {broadcasts.length > 0 && (
-              <Section icon={<Radio className="w-3 h-3" />} title="Broadcast">
+              <Section icon={<Radio className="w-3 h-3" />} title={t('inbox.broadcast')}>
                 {broadcasts.map(b => {
                   const CatIcon = categoryIcons[b.category] || Info;
                   return (
@@ -200,7 +211,7 @@ const MobileInbox = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className={cn("text-[15px] truncate", b.is_read ? 'font-medium text-foreground' : 'font-semibold text-foreground')}>
-                            {categoryLabels[b.category] || 'Broadcast'}
+                            {labelForCategory(b.category)}
                           </span>
                           <span className="text-[11px] text-muted-foreground shrink-0">{formatTime(b.created_at)}</span>
                         </div>
@@ -215,18 +226,19 @@ const MobileInbox = () => {
 
             {/* DMs */}
             {activeDMs.length > 0 && (
-              <Section title="Direktmeddelanden">
+              <Section title={t('inbox.directMessages')}>
                 {activeDMs.map(conv => (
                   <SwipeableRow
                     key={conv.partner_id}
-                    actions={[{ label: 'Arkivera', icon: <Archive className="w-4 h-4" />, variant: 'destructive', onAction: () => handleArchive(conv.partner_id) }]}
+                    actions={[{ label: t('inbox.archive'), icon: <Archive className="w-4 h-4" />, variant: 'destructive', onAction: () => handleArchive(conv.partner_id) }]}
                   >
                     <ConversationRow
                       name={conv.partner_name}
-                      preview={previewOf(conv.last_message)}
+                      preview={previewOf(conv.last_message, t)}
                       timestamp={conv.last_message?.created_at}
                       unread={conv.unread_count}
                       onClick={() => openDM(conv)}
+                      formatTime={formatTime}
                     />
                   </SwipeableRow>
                 ))}
@@ -235,16 +247,17 @@ const MobileInbox = () => {
 
             {/* Job chats */}
             {activeJobs.length > 0 && (
-              <Section icon={<Briefcase className="w-3 h-3" />} title="Jobbchatt">
+              <Section icon={<Briefcase className="w-3 h-3" />} title={t('inbox.jobChat')}>
                 {activeJobs.map(job => (
                   <ConversationRow
                     key={job.bookingId}
                     name={job.client}
-                    preview={job.lastMessage || 'Öppna jobbchatten'}
+                    preview={job.lastMessage || t('inbox.openJobChat')}
                     timestamp={job.lastTime || undefined}
                     unread={job.unreadCount || 0}
                     avatarIcon={<Briefcase className="w-5 h-5 text-muted-foreground" />}
                     onClick={() => openJob({ bookingId: job.bookingId, client: job.client, unreadCount: job.unreadCount })}
+                    formatTime={formatTime}
                   />
                 ))}
               </Section>
@@ -255,7 +268,7 @@ const MobileInbox = () => {
               <div>
                 <button onClick={() => setShowArchived(s => !s)} className="w-full flex items-center gap-2 px-5 py-2 text-muted-foreground">
                   <Archive className="w-4 h-4" />
-                  <span className="text-[13px] font-semibold">Arkiverade ({archivedDMs.length})</span>
+                  <span className="text-[13px] font-semibold">{t('inbox.archived', { count: archivedDMs.length })}</span>
                   <ChevronRight className={cn("w-4 h-4 ml-auto transition-transform", showArchived && "rotate-90")} />
                 </button>
                 {showArchived && (
@@ -263,15 +276,16 @@ const MobileInbox = () => {
                     {archivedDMs.map(conv => (
                       <SwipeableRow
                         key={conv.partner_id}
-                        actions={[{ label: 'Återställ', icon: <ArrowLeft className="w-4 h-4" />, onAction: () => handleUnarchive(conv.partner_id) }]}
+                        actions={[{ label: t('inbox.restore'), icon: <ArrowLeft className="w-4 h-4" />, onAction: () => handleUnarchive(conv.partner_id) }]}
                       >
                         <ConversationRow
                           name={conv.partner_name}
-                          preview={previewOf(conv.last_message)}
+                          preview={previewOf(conv.last_message, t)}
                           timestamp={conv.last_message?.created_at}
                           unread={0}
                           onClick={() => openDM(conv)}
                           dim
+                          formatTime={formatTime}
                         />
                       </SwipeableRow>
                     ))}
@@ -283,7 +297,7 @@ const MobileInbox = () => {
             {broadcasts.length === 0 && dmConversations.length === 0 && jobConversations.length === 0 && (
               <div className="text-center py-16 text-muted-foreground text-sm">
                 <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                Inga meddelanden ännu
+                {t('inbox.noMessages')}
               </div>
             )}
           </div>
@@ -294,7 +308,7 @@ const MobileInbox = () => {
       <button
         onClick={() => setView('new')}
         className="fixed bottom-28 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-        aria-label="Nytt meddelande"
+        aria-label={t('inbox.newMessage')}
       >
         <Plus className="w-6 h-6" />
       </button>
@@ -302,10 +316,10 @@ const MobileInbox = () => {
   );
 };
 
-const previewOf = (m: any): string => {
+const previewOf = (m: any, t: (k: any) => string): string => {
   if (!m) return '';
-  if (m.file_url && (m.file_type?.startsWith('image/'))) return '📷 Bild';
-  if (m.file_url) return `📎 ${m.file_name || 'Bilaga'}`;
+  if (m.file_url && (m.file_type?.startsWith('image/'))) return `📷 ${t('msg.image' as any)}`;
+  if (m.file_url) return `📎 ${m.file_name || t('msg.attachment' as any)}`;
   return m.content || '';
 };
 
@@ -326,9 +340,10 @@ interface RowProps {
   avatarIcon?: React.ReactNode;
   onClick: () => void;
   dim?: boolean;
+  formatTime: (ts: string) => string;
 }
 
-const ConversationRow = ({ name, preview, timestamp, unread = 0, avatarIcon, onClick, dim }: RowProps) => (
+const ConversationRow = ({ name, preview, timestamp, unread = 0, avatarIcon, onClick, dim, formatTime }: RowProps) => (
   <button
     onClick={onClick}
     className={cn("w-full text-left px-4 py-3 flex items-center gap-3 active:bg-muted/40 transition-colors border-b border-border/50", dim && "opacity-60")}
@@ -355,6 +370,7 @@ const ConversationRow = ({ name, preview, timestamp, unread = 0, avatarIcon, onC
 
 // Contact picker
 function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { id: string; name: string }) => void }) {
+  const { t } = useLanguage();
   const [contacts, setContacts] = useState<{ id: string; name: string; type: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -362,15 +378,15 @@ function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { i
   useEffect(() => {
     mobileApi.getContacts()
       .then(res => setContacts(res.contacts || []))
-      .catch(() => toast.error('Kunde inte hämta kontakter'))
+      .catch(() => toast.error(t('inbox.couldNotFetchContacts')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const filtered = contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="flex flex-col bg-card min-h-full">
-      <MobileBackHeader title="Nytt meddelande" onBack={onBack} />
+      <MobileBackHeader title={t('inbox.newMessage')} onBack={onBack} />
       <div className="px-4 pt-3 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -378,7 +394,7 @@ function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { i
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Sök kontakt"
+            placeholder={t('inbox.searchContact')}
             className="w-full pl-9 pr-3 py-2.5 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-1 ring-primary text-foreground placeholder:text-muted-foreground"
           />
         </div>
@@ -387,7 +403,7 @@ function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { i
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">Inga kontakter</div>
+          <div className="text-center py-12 text-muted-foreground text-sm">{t('inbox.noContactsShort')}</div>
         ) : (
           filtered.map(c => (
             <button
@@ -400,7 +416,7 @@ function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { i
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-[15px] font-semibold text-foreground truncate block">{c.name}</span>
-                <span className="text-[11px] text-muted-foreground">{c.type === 'planner' ? 'Planerare' : 'Personal'}</span>
+                <span className="text-[11px] text-muted-foreground">{c.type === 'planner' ? t('inbox.planner') : t('inbox.staff')}</span>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
             </button>

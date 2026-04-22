@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { MobileTimeReport, MobileTravelLog, mobileApi } from '@/services/mobileApiService';
 import { useMobileTimeReports, useMobileTravelLogs, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
-import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download, Car, Check, Clock4, Pencil, Trash2, X } from 'lucide-react';
+import { sv, enUS } from 'date-fns/locale';
+import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Loader2, Download, Check, Clock4, Pencil, Trash2 } from 'lucide-react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 type ViewMode = 'calendar' | 'list';
 type ListFilter = 'week' | 'month';
@@ -17,6 +19,8 @@ type ListFilter = 'week' | 'month';
 const MobileTimeHistory = () => {
   const { staff } = useMobileAuth();
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
+  const dfLocale = locale === 'sv' ? sv : enUS;
   const { data: reports = [], isLoading } = useMobileTimeReports();
   const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -94,8 +98,8 @@ const MobileTimeHistory = () => {
   const filteredTravelHours = filteredTravelLogs.reduce((s, l) => s + l.hours_worked, 0);
 
   const listPeriodLabel = listFilter === 'week'
-    ? `${format(listInterval.start, 'd MMM')} – ${format(listInterval.end, 'd MMM yyyy')}`
-    : format(listPeriod, 'MMMM yyyy');
+    ? `${format(listInterval.start, 'd MMM', { locale: dfLocale })} – ${format(listInterval.end, 'd MMM yyyy', { locale: dfLocale })}`
+    : format(listPeriod, 'MMMM yyyy', { locale: dfLocale });
 
   const navigateListPeriod = (dir: 1 | -1) => {
     setListPeriod(p => listFilter === 'week'
@@ -109,12 +113,12 @@ const MobileTimeHistory = () => {
     const rows = groupedListReports.map(({ dateKey, reports: dr }) => {
       const d = parseISO(dateKey);
       const dayNum = format(d, 'd');
-      const dayName = format(d, 'EEE');
+      const dayName = format(d, 'EEE', { locale: dfLocale });
       if (dr.length === 0) {
         return `<tr class="empty"><td>${dayNum}</td><td>${dayName}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
       }
       return dr.map((r, i) => {
-        const client = r.bookings?.client || 'Unknown';
+        const client = r.bookings?.client || t('history.unknown');
         return `<tr class="report">
           <td>${i === 0 ? dayNum : ''}</td>
           <td>${i === 0 ? dayName : ''}</td>
@@ -127,8 +131,9 @@ const MobileTimeHistory = () => {
     }).join('');
 
     const totalOt = filteredListReports.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+    const otSuffix = totalOt > 0 ? t('history.totalOvertime', { n: totalOt.toFixed(0) }) : '';
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Time Report – ${staffName}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('history.pdfTitle', { name: staffName })}</title>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family: -apple-system, system-ui, sans-serif; padding: 32px; color: #1a2a2a; background: #fff; }
@@ -152,16 +157,16 @@ const MobileTimeHistory = () => {
     </style></head><body>
     <div class="card">
       <div class="brand">EventFlow</div>
-      <h1>Time Report – ${staffName}</h1>
-      <p class="meta">${listPeriodLabel} · ${filteredListReports.length} reports</p>
+      <h1>${t('history.pdfTitle', { name: staffName })}</h1>
+      <p class="meta">${listPeriodLabel} · ${filteredListReports.length} ${t('history.reports')}</p>
       <table>
-        <thead><tr><th>Day</th><th></th><th>Client</th><th>Start</th><th>End</th><th>Hrs</th></tr></thead>
+        <thead><tr><th>${t('history.colDate')}</th><th></th><th>${t('history.colClient')}</th><th>${t('history.colStart')}</th><th>${t('history.colEnd')}</th><th>${t('history.colHours')}</th></tr></thead>
         <tbody>${rows}
-          <tr class="total"><td colspan="5">Total${totalOt > 0 ? ` (of which ${totalOt.toFixed(0)}h overtime)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+          <tr class="total"><td colspan="5">${t('history.totalRow')}${otSuffix}</td><td>${filteredTotalHours}h</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="footer">Generated ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
+    <p class="footer">${t('history.generated')} ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
     </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -174,7 +179,7 @@ const MobileTimeHistory = () => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekDays = [t('history.day.mon'), t('history.day.tue'), t('history.day.wed'), t('history.day.thu'), t('history.day.fri'), t('history.day.sat'), t('history.day.sun')];
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
@@ -187,9 +192,9 @@ const MobileTimeHistory = () => {
               <ArrowLeft className="w-5 h-5 text-primary-foreground" />
             </button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">Time reports</h1>
+              <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">{t('history.title')}</h1>
               <p className="text-[11px] text-primary-foreground/50 font-medium">
-                {reports.length} pcs · {formatHoursMinutes(totalHours)} total
+                {t('history.summary', { n: reports.length, hours: formatHoursMinutes(totalHours) })}
               </p>
             </div>
           </div>
@@ -207,7 +212,7 @@ const MobileTimeHistory = () => {
             )}
           >
             <List className="w-4 h-4" />
-            List
+            {t('history.list')}
           </button>
           <button
             onClick={() => setViewMode('calendar')}
@@ -217,7 +222,7 @@ const MobileTimeHistory = () => {
             )}
           >
             <Calendar className="w-4 h-4" />
-            Calendar
+            {t('history.calendar')}
           </button>
         </div>
       </div>
@@ -234,7 +239,7 @@ const MobileTimeHistory = () => {
                 <ChevronLeft className="w-5 h-5 text-foreground" />
               </button>
               <h2 className="text-sm font-bold text-foreground capitalize">
-                {format(currentMonth, 'MMMM yyyy')}
+                {format(currentMonth, 'MMMM yyyy', { locale: dfLocale })}
               </h2>
               <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
@@ -287,11 +292,11 @@ const MobileTimeHistory = () => {
             {selectedDate && (
               <div className="space-y-1.5">
                 <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">
-                  {format(selectedDate, 'd MMMM yyyy')}
+                  {format(selectedDate, 'd MMMM yyyy', { locale: dfLocale })}
                 </h3>
                 {selectedDateReports.length === 0 ? (
                   <div className="text-center py-6">
-                    <p className="text-sm text-muted-foreground">No reports this day</p>
+                    <p className="text-sm text-muted-foreground">{t('history.noReportsThisDay')}</p>
                   </div>
                 ) : (
                   selectedDateReports.map(report => (
@@ -309,7 +314,7 @@ const MobileTimeHistory = () => {
               </button>
               <div className="text-center">
                 <p className="text-sm font-bold text-foreground capitalize">{listPeriodLabel}</p>
-                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} reports · {formatHoursMinutes(filteredTotalHours)}</p>
+                <p className="text-[11px] text-muted-foreground">{t('history.reportsSummary', { n: filteredListReports.length, hours: formatHoursMinutes(filteredTotalHours) })}</p>
               </div>
               <button onClick={() => navigateListPeriod(1)} className="p-2 rounded-xl active:scale-95 transition-all">
                 <ChevronRight className="w-5 h-5 text-foreground" />
@@ -318,16 +323,16 @@ const MobileTimeHistory = () => {
 
             <div className="rounded-2xl border border-primary/20 bg-card shadow-md overflow-hidden">
               <div className="grid grid-cols-[1fr_60px_60px_50px] bg-muted/50 border-b border-border px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Start</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">End</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Hrs</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('history.colDate')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">{t('history.colStart')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">{t('history.colEnd')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">{t('history.colHours')}</span>
               </div>
               {groupedListReports.map(({ dateKey, reports: dateReports, travels: dateTravels }, idx) => {
                 const hasContent = dateReports.length > 0 || dateTravels.length > 0;
                 const isLast = idx === groupedListReports.length - 1;
                 const dayNum = format(parseISO(dateKey), 'd');
-                const dayName = format(parseISO(dateKey), 'EEE');
+                const dayName = format(parseISO(dateKey), 'EEE', { locale: dfLocale });
                 const allEntries = [
                   ...dateReports.map(r => ({ type: 'report' as const, data: r })),
                   ...dateTravels.map(t => ({ type: 'travel' as const, data: t })),
@@ -362,8 +367,8 @@ const MobileTimeHistory = () => {
                     ? (entry.data as MobileTravelLog).end_time?.slice(11, 16)
                     : (entry.data as MobileTimeReport).end_time?.slice(0, 5);
                   const label = isTravel
-                    ? '🚗 Travel'
-                    : ((entry.data as MobileTimeReport).bookings?.client || 'Unknown');
+                    ? t('history.travelEmoji')
+                    : ((entry.data as MobileTimeReport).bookings?.client || t('history.unknown'));
 
                   return (
                     <div key={id} className={cn(
@@ -405,7 +410,7 @@ const MobileTimeHistory = () => {
               })}
               <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
                 <span className="text-xs font-bold text-foreground uppercase">
-                  Total {filteredTravelHours > 0 && <span className="text-primary font-normal">(incl. {formatHoursMinutes(filteredTravelHours)} travel)</span>}
+                  {t('history.totalRow')} {filteredTravelHours > 0 && <span className="text-primary font-normal">{t('history.inclTravel', { h: formatHoursMinutes(filteredTravelHours) })}</span>}
                 </span>
                 <span />
                 <span />
@@ -418,7 +423,7 @@ const MobileTimeHistory = () => {
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm active:scale-[0.98] transition-all shadow-sm"
             >
               <Download className="w-4 h-4" />
-              Export as PDF
+              {t('history.exportPdf')}
             </button>
           </div>
         )}
@@ -428,6 +433,8 @@ const MobileTimeHistory = () => {
 };
 
 const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; showDate?: boolean }) => {
+  const { t, locale } = useLanguage();
+  const dfLocale = locale === 'sv' ? sv : enUS;
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -452,22 +459,22 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
   };
 
   const getEditValidationError = (): string | null => {
-    if (!editStart) return 'Start time is required';
-    if (!editEnd) return 'End time is required';
+    if (!editStart) return t('history.startRequired');
+    if (!editEnd) return t('history.endRequired');
     const [sh, sm] = editStart.split(':').map(Number);
     const [eh, em] = editEnd.split(':').map(Number);
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    if (endMin <= startMin) return 'End time must be after start time';
+    if (endMin <= startMin) return t('history.endAfterStart');
     const breakMin = parseInt(editBreak) || 0;
-    if (breakMin < 0) return 'Break cannot be negative';
-    if (breakMin > 240) return 'Break cannot exceed 240 minutes';
+    if (breakMin < 0) return t('history.breakNeg');
+    if (breakMin > 240) return t('history.breakMax');
     const hours = calculateEditHours();
-    if (hours <= 0) return 'Worked hours after break must be more than 0';
-    if (hours > 16) return 'Worked hours cannot exceed 16 hours';
+    if (hours <= 0) return t('history.hoursMustBe');
+    if (hours > 16) return t('history.hoursMax');
     const ot = parseFloat(editOvertime) || 0;
-    if (ot < 0) return 'Overtime cannot be negative';
-    
+    if (ot < 0) return t('history.otNeg');
+
     return null;
   };
 
@@ -490,11 +497,11 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         break_time: parseInt(editBreak) || 0,
         description: editDesc || undefined,
       });
-      toast.success('Time report updated');
+      toast.success(t('history.updated'));
       setEditing(false);
       invalidateTimeReports();
     } catch (err: any) {
-      toast.error(err.message || 'Could not update');
+      toast.error(err.message || t('history.couldNotUpdate'));
     } finally {
       setSaving(false);
     }
@@ -504,10 +511,10 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
     setSaving(true);
     try {
       await mobileApi.deleteTimeReport(report.id);
-      toast.success('Time report deleted');
+      toast.success(t('history.deleted'));
       invalidateTimeReports();
     } catch (err: any) {
-      toast.error(err.message || 'Could not delete');
+      toast.error(err.message || t('history.couldNotDelete'));
     } finally {
       setSaving(false);
       setDeleting(false);
@@ -520,20 +527,20 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="font-semibold text-sm truncate text-foreground">
-              {report.large_project_name || report.bookings?.client || 'Unknown job'}
+              {report.large_project_name || report.bookings?.client || t('history.unknownJob')}
             </p>
             {isApproved ? (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
-                <Check className="w-2.5 h-2.5" /> Approved
+                <Check className="w-2.5 h-2.5" /> {t('history.approved')}
               </span>
             ) : (
               <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                <Clock4 className="w-2.5 h-2.5" /> Pending
+                <Clock4 className="w-2.5 h-2.5" /> {t('history.pending')}
               </span>
             )}
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {showDate && format(parseISO(report.report_date), 'd MMM yyyy')}
+            {showDate && format(parseISO(report.report_date), 'd MMM yyyy', { locale: dfLocale })}
             {showDate && report.start_time && report.end_time && ' · '}
             {report.start_time && report.end_time && (
               <span>{report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
@@ -554,7 +561,7 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           <div className="text-right shrink-0 ml-1">
             <p className="font-extrabold text-sm tabular-nums">{report.hours_worked}h</p>
             {report.overtime_hours > 0 && (
-              <p className="text-[10px] text-primary font-bold">+{report.overtime_hours}h OT</p>
+              <p className="text-[10px] text-primary font-bold">{t('history.overtimeBadge', { h: report.overtime_hours })}</p>
             )}
           </div>
         </div>
@@ -565,13 +572,13 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
 
       {deleting && (
         <div className="mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium text-destructive">Delete this report?</p>
+          <p className="text-xs font-medium text-destructive">{t('history.deleteConfirm')}</p>
           <div className="flex gap-1.5">
             <button onClick={() => setDeleting(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-muted text-muted-foreground">
-              Cancel
+              {t('history.cancel')}
             </button>
             <button onClick={handleDelete} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-destructive text-destructive-foreground">
-              {saving ? '...' : 'Delete'}
+              {saving ? '...' : t('history.delete')}
             </button>
           </div>
         </div>
@@ -586,40 +593,40 @@ const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; sho
           )}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Start</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">{t('history.start')}</label>
               <Input type="time" value={editStart} onChange={e => { setEditStart(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">End</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">{t('history.end')}</label>
               <Input type="time" value={editEnd} onChange={e => { setEditEnd(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Break (min)</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">{t('history.breakMin')}</label>
               <Input type="number" min="0" max="240" value={editBreak} onChange={e => { setEditBreak(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Overtime (h)</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">{t('history.overtimeH')}</label>
               <Input type="number" step="0.5" min="0" value={editOvertime} onChange={e => { setEditOvertime(e.target.value); setValidationError(null); }} className="h-9 text-sm rounded-lg" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-muted-foreground">Calculated</label>
+              <label className="text-[10px] font-semibold text-muted-foreground">{t('history.calculated')}</label>
               <div className="h-9 flex items-center justify-center rounded-lg bg-muted text-sm font-bold text-foreground">
                 {calculateEditHours() > 0 ? `${calculateEditHours()}h` : '–'}
               </div>
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-muted-foreground">Description</label>
+            <label className="text-[10px] font-semibold text-muted-foreground">{t('history.description')}</label>
             <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="text-sm min-h-[48px] rounded-lg" />
           </div>
           <div className="flex gap-2">
             <button onClick={() => { setEditing(false); setValidationError(null); }} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-muted text-muted-foreground">
-              Cancel
+              {t('history.cancel')}
             </button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground">
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? t('history.saving') : t('history.save')}
             </button>
           </div>
         </div>
