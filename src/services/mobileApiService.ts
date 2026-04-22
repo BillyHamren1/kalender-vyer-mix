@@ -775,6 +775,33 @@ export const mobileApi = {
   listWorkdayFlags: (params?: { resolved?: boolean; limit?: number }) =>
     callApi<{ flags: WorkdayFlag[] }>('list_workday_flags', params || {}),
 
+  // Day-review entrypoint — returnerar workdays + per-dag aggregat över
+  // assistant_events och oklara resor. Default 7 dagar bakåt.
+  listWorkdaysReview: (params?: { days?: number }) =>
+    callApi<{
+      workdays: Array<{
+        id: string;
+        started_at: string;
+        ended_at: string | null;
+        review_status: 'draft' | 'needs_review' | 'ready' | 'approved';
+        review_reasons: string[];
+        review_computed_at: string | null;
+        notes: string | null;
+        day_key: string;
+        counts: { open_events: number; stale_review_events: number; open_travel: number };
+        events_for_day: Array<{
+          id: string;
+          happened_at: string;
+          event_type: string;
+          target_label: string | null;
+          resolution_status: string;
+          stale_for_prompt: boolean;
+          still_relevant_for_review: boolean;
+          suggested_action: string;
+        }>;
+      }>;
+    }>('list_workdays_review', params || {}),
+
   resolveWorkdayFlag: (data: {
     flag_id: string;
     resolution_source: 'staff' | 'admin' | 'auto';
