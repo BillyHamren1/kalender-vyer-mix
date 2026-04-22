@@ -182,13 +182,22 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             <Clock className="h-3 w-3" />
             {formatHoursMinutes(totalHours)} totalt
           </Badge>
-          {openCount > 0 && (
+          {liveCount > 0 && (
             <Badge
               variant="outline"
               className="text-[11px] gap-1 font-medium border-primary/30 text-primary bg-primary/5"
             >
               <Activity className="h-3 w-3" />
-              {openCount} pågående
+              {liveCount} pågående
+            </Badge>
+          )}
+          {staleCount > 0 && (
+            <Badge
+              variant="outline"
+              className="text-[11px] gap-1 font-medium border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+            >
+              <WifiOff className="h-3 w-3" />
+              {staleCount} tappad signal
             </Badge>
           )}
         </div>
