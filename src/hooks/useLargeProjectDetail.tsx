@@ -320,7 +320,7 @@ export const useLargeProjectDetail = (projectId: string) => {
     comments,
     ganttSteps,
     isLoading: projectQuery.isLoading,
-    updateProject: updateProjectMutation.mutate,
+    updateProject: updateProjectMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
