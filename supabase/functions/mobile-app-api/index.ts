@@ -475,6 +475,24 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
+}
+
+Deno.serve(async (req) => {
+  // Per-request rotation slot — local to this Deno.serve invocation, so no
+  // cross-request bleed between concurrent users.
+  const rotationSlot: { token: string | null } = { token: null }
+  const response = await handleRequest(req, rotationSlot)
+  if (rotationSlot.token) {
+    // Clone with the rotated-token header appended. Body is consumed once.
+    const newHeaders = new Headers(response.headers)
+    newHeaders.set('X-New-Token', rotationSlot.token)
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    })
+  }
+  return response
 })
 
 // ==================== HANDLERS ====================
