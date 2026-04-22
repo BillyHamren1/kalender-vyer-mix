@@ -4599,6 +4599,9 @@ export type Database = {
       staff_locations: {
         Row: {
           accuracy: number | null
+          app_build: string | null
+          app_platform: string | null
+          app_version: string | null
           last_address: string | null
           last_address_at: string | null
           last_address_lat: number | null
@@ -4613,6 +4616,9 @@ export type Database = {
         }
         Insert: {
           accuracy?: number | null
+          app_build?: string | null
+          app_platform?: string | null
+          app_version?: string | null
           last_address?: string | null
           last_address_at?: string | null
           last_address_lat?: number | null
@@ -4627,6 +4633,9 @@ export type Database = {
         }
         Update: {
           accuracy?: number | null
+          app_build?: string | null
+          app_platform?: string | null
+          app_version?: string | null
           last_address?: string | null
           last_address_at?: string | null
           last_address_lat?: number | null
