@@ -101,9 +101,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           variant="outline"
           size="sm"
           onClick={() => onDateChange(subDays(selectedDate, 1))}
-          className="rounded-xl shrink-0"
+          className="rounded-lg shrink-0 h-8 px-3 gap-1.5"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <ChevronLeft className="h-3.5 w-3.5" />
           Förra
         </Button>
 
@@ -112,9 +112,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="rounded-xl flex-1 max-w-[280px] gap-2 font-medium capitalize"
+              className="rounded-lg flex-1 max-w-[280px] gap-2 font-medium capitalize h-8"
             >
-              <CalendarDays className="h-4 w-4 text-primary" />
+              <CalendarDays className="h-3.5 w-3.5 text-primary" />
               {dateLabel}
             </Button>
           </PopoverTrigger>
@@ -140,7 +140,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   onDateChange(new Date());
                   setCalendarOpen(false);
                 }}
-                className="rounded-xl text-xs"
+                className="rounded-lg text-xs"
               >
                 Idag
               </Button>
@@ -152,10 +152,10 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           variant="outline"
           size="sm"
           onClick={() => onDateChange(addDays(selectedDate, 1))}
-          className="rounded-xl shrink-0"
+          className="rounded-lg shrink-0 h-8 px-3 gap-1.5"
         >
           Nästa
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
 
@@ -169,7 +169,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           {openCount > 0 && (
             <Badge
               variant="outline"
-              className="text-[11px] gap-1 border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950/20"
+              className="text-[11px] gap-1 font-medium border-primary/30 text-primary bg-primary/5"
             >
               <Activity className="h-3 w-3" />
               {openCount} pågående
@@ -210,8 +210,8 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 onClick={() => onSelectStaff(staff.id, staff.name)}
                 className={`w-full flex items-stretch gap-2.5 px-3 py-2 rounded-lg border transition-all text-left group ${
                   staff.has_open_report
-                    ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10 dark:hover:bg-orange-950/20'
-                    : 'border-transparent hover:bg-muted/50 hover:border-border'
+                    ? 'border-primary/25 bg-primary/[0.04] hover:bg-primary/[0.07]'
+                    : 'border-transparent hover:bg-muted/50 hover:border-border/60'
                 }`}
               >
                 <div
@@ -223,7 +223,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 >
                   {staff.name.charAt(0).toUpperCase()}
                   {staff.has_open_report && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-background animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background animate-pulse" />
                   )}
                 </div>
 
@@ -240,7 +240,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       {staff.has_open_report ? (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-orange-300 text-orange-600"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-primary/30 text-primary bg-primary/5"
                         >
                           <Activity className="h-2.5 w-2.5" />
                           Pågående
@@ -248,7 +248,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-border/60 text-muted-foreground"
                         >
                           <CheckCircle2 className="h-2.5 w-2.5" />
                           Stängd
@@ -265,7 +265,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                             {staff.earliest_start.slice(0, 5)}
                             {' – '}
                             {staff.has_open_report
-                              ? <span className="text-orange-600">pågår</span>
+                              ? <span className="text-primary font-medium">pågår</span>
                               : (staff.latest_end?.slice(0, 5) || '—')}
                           </>
                         )}
@@ -287,20 +287,20 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                             key={seg.id}
                             className={`flex items-center justify-between gap-3 text-xs leading-snug rounded-md px-1.5 py-0.5 ${
                               isLive
-                                ? 'bg-orange-50 dark:bg-orange-950/20 border border-orange-200/70 dark:border-orange-900/40'
+                                ? 'bg-primary/[0.06] border border-primary/20'
                                 : ''
                             }`}
                           >
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               {isLive ? (
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
                               ) : (
                                 <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
                               )}
                               <span
                                 className={`truncate ${
                                   isLive
-                                    ? 'text-orange-700 dark:text-orange-400 font-semibold'
+                                    ? 'text-primary font-semibold'
                                     : 'text-foreground/80'
                                 }`}
                                 title={seg.label}
@@ -313,12 +313,12 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                               <span className="text-muted-foreground">
                                 {formatTimeShort(seg.start)}
                                 {' → '}
-                                {seg.end ? formatTimeShort(seg.end) : <span className="text-orange-600">pågår</span>}
+                                {seg.end ? formatTimeShort(seg.end) : <span className="text-primary font-medium">pågår</span>}
                               </span>
                               {isLive ? (
                                 <LiveDuration
                                   startedAt={seg.start}
-                                  className="font-semibold text-orange-600 dark:text-orange-400 min-w-[64px] text-right"
+                                  className="font-semibold text-primary min-w-[64px] text-right"
                                 />
                               ) : (
                                 <span className="text-muted-foreground min-w-[48px] text-right">

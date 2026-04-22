@@ -836,7 +836,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                             <Badge
                                               key={a.id}
                                               variant="outline"
-                                              className={`text-[10px] gap-1 ${a.auto_classified ? 'border-blue-300 text-blue-700' : ''}`}
+                                              className={`text-[10px] gap-1 ${a.auto_classified ? 'border-primary/30 text-primary' : ''}`}
                                               title={a.work_description || ''}
                                             >
                                               <Briefcase className="h-3 w-3" />
@@ -858,7 +858,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                           );
                                         }
                                         return (
-                                          <Badge key={a.id} variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
+                                          <Badge key={a.id} variant="outline" className="text-[10px] gap-1 border-destructive/30 text-destructive">
                                             <HelpCircle className="h-3 w-3" /> Oklassad {startTime}–{endTime} ({dur}m)
                                           </Badge>
                                         );
