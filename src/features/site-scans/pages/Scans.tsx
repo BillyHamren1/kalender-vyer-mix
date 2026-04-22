@@ -271,7 +271,7 @@ const Scans = () => {
 
   // Actions — all go via Edge Functions for server-side validation
   const handleOpen = useCallback((id: string) => {
-    navigate(`/scans/${id}`);
+    navigate(`/m/tools/measure/${id}`);
   }, [navigate]);
 
   const handleRetry = useCallback((id: string) => {

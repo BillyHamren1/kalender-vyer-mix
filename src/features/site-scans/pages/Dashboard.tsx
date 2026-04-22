@@ -226,7 +226,7 @@ const Dashboard = () => {
           ) : (
             <div className="divide-y divide-border">
               {recentScans.data.map((scan) => (
-                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/scans/${scan.id}`)} />
+                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/m/tools/measure/${scan.id}`)} />
               ))}
             </div>
           )}
@@ -248,7 +248,7 @@ const Dashboard = () => {
           ) : (
             <div className="divide-y divide-border">
               {recentJobs.map((job) => (
-                <JobRow key={job.id} job={job} onClick={() => navigate(`/scans/${job.site_scan_id}`)} />
+                <JobRow key={job.id} job={job} onClick={() => navigate(`/m/tools/measure/${job.site_scan_id}`)} />
               ))}
             </div>
           )}
@@ -278,7 +278,7 @@ const Dashboard = () => {
           ) : (
             <div className="divide-y divide-border">
               {failedScans.data.map((scan) => (
-                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/scans/${scan.id}`)} />
+                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/m/tools/measure/${scan.id}`)} />
               ))}
             </div>
           )}
@@ -305,7 +305,7 @@ const Dashboard = () => {
           ) : (
             <div className="divide-y divide-border">
               {readyScans.data.map((scan) => (
-                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/scans/${scan.id}`)} />
+                <ScanRow key={scan.id} scan={scan} onClick={() => navigate(`/m/tools/measure/${scan.id}`)} />
               ))}
             </div>
           )}
