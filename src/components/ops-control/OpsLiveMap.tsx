@@ -587,14 +587,11 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     applyLayers();
 
-    // Re-cluster when zoom changes so cells stay roughly equal in pixels
+    // Re-cluster on zoom changes so cluster cells stay visually consistent.
     const handleZoomEnd = () => {
-      // trigger a re-render by bumping styleRevision indirectly: just rebuild cluster data
-      // We do this by calling applyLayers again with fresh groups built from current zoom.
-      // Easiest: force effect re-run via styleRevision is heavy — instead recompute inline:
-      // (handled by including zoom dependency would re-run effect; we rely on user zoom triggering).
+      setStyleRevision(prev => prev + 1);
     };
-    mm.on('zoomend', handleZoomEnd);
+    m.on('zoomend', handleZoomEnd);
 
     return () => {
       cancelled = true;
@@ -854,7 +851,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           {mapStyle === 'streets' ? (
             <Satellite className="w-4 h-4 text-muted-foreground" />
           ) : (
-            <Map className="w-4 h-4 text-foreground" />
+            <MapIcon className="w-4 h-4 text-foreground" />
           )}
         </button>
         <button
