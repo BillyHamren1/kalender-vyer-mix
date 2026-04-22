@@ -50,6 +50,21 @@ const formatTimeShort = (iso: string): string => {
   }
 };
 
+// "Tappad signal": rapport fortfarande öppen, men telefonen har inte
+// pingat på >10 min. Vi vet inte säkert om personen jobbar — det är
+// troligare att appen dog / låg i bakgrunden.
+const STALE_PING_MS = 10 * 60 * 1000;
+type LiveStatus = 'live' | 'stale' | 'closed';
+const resolveLiveStatus = (
+  hasOpen: boolean,
+  ping: { updated_at: string | null } | null
+): LiveStatus => {
+  if (!hasOpen) return 'closed';
+  if (!ping?.updated_at) return 'stale';
+  const age = Date.now() - new Date(ping.updated_at).getTime();
+  return age > STALE_PING_MS ? 'stale' : 'live';
+};
+
 interface StaffTimeReportsListProps {
   staffList: StaffWithDayReport[];
   isLoading: boolean;
