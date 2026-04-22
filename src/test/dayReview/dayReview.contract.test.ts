@@ -47,15 +47,17 @@ describe('Day-review contract — actions in useDayReviewActions', () => {
   });
 
   it('start-from-arrival ensures workday FIRST (workday-first kontrakt)', () => {
-    // ensureWorkDay/ensureActive måste kallas innan requestStart i samma function
-    const startFn = HOOK.match(/startWorkFromArrival[\s\S]*?\[ensureWorkDay/);
-    expect(startFn).toBeTruthy();
-    const fnBody = HOOK.split('startWorkFromArrival')[1].split('startWorkNow')[0];
+    // Plocka FUNKTIONS-implementationen (efter "= useCallback"), inte typedefen
+    const impl = HOOK.split(/const\s+startWorkFromArrival\s*=\s*useCallback/)[1] || '';
+    const fnBody = impl.split(/const\s+startWorkNow\s*=\s*useCallback/)[0];
+    expect(fnBody).toMatch(/ensureWorkDay/);
+    expect(fnBody).toMatch(/requestStart/);
     expect(fnBody.indexOf('ensureWorkDay')).toBeLessThan(fnBody.indexOf('requestStart'));
   });
 
   it('end-day-at-home uses syncWorkDayEnd (server-anchored EOD)', () => {
-    const fnBody = HOOK.split('endWorkDayAtHomeArrival')[1].split('adjustTravel')[0];
+    const impl = HOOK.split(/const\s+endWorkDayAtHomeArrival\s*=\s*useCallback/)[1] || '';
+    const fnBody = impl.split(/const\s+adjustTravel\s*=\s*useCallback/)[0];
     expect(fnBody).toMatch(/syncWorkDayEnd\(/);
   });
 
@@ -131,19 +133,20 @@ describe('Day-review contract — service wrappers + edge handlers', () => {
   });
 
   it('approve_workday-handler scopar på staff_id OCH organization_id (RLS-isolering)', () => {
-    const handler = EDGE.split('handleApproveWorkday')[1]?.split(/\nasync function /)[0] || '';
-    expect(handler).toMatch(/\.eq\(['"]staff_id['"],\s*staffId\)/);
-    expect(handler).toMatch(/\.eq\(['"]organization_id['"],\s*organizationId\)/);
+    // Splitta på själva function-definitionen (async function handleApproveWorkday(...))
+    const handler = EDGE.split(/async\s+function\s+handleApproveWorkday\s*\(/)[1]?.split(/\nasync\s+function\s+/)[0] || '';
+    expect(handler).toMatch(/\.eq\(\s*['"]staff_id['"]\s*,\s*staffId\s*\)/);
+    expect(handler).toMatch(/\.eq\(\s*['"]organization_id['"]\s*,\s*organizationId\s*\)/);
   });
 
   it('set_travel_times-handler scopar på staff_id OCH organization_id', () => {
-    const handler = EDGE.split('handleSetTravelTimes')[1]?.split(/\nasync function /)[0] || '';
-    expect(handler).toMatch(/\.eq\(['"]staff_id['"],\s*staffId\)/);
-    expect(handler).toMatch(/\.eq\(['"]organization_id['"],\s*organizationId\)/);
+    const handler = EDGE.split(/async\s+function\s+handleSetTravelTimes\s*\(/)[1]?.split(/\nasync\s+function\s+/)[0] || '';
+    expect(handler).toMatch(/\.eq\(\s*['"]staff_id['"]\s*,\s*staffId\s*\)/);
+    expect(handler).toMatch(/\.eq\(\s*['"]organization_id['"]\s*,\s*organizationId\s*\)/);
   });
 
   it('set_travel_times validerar att end > start', () => {
-    const handler = EDGE.split('handleSetTravelTimes')[1]?.split(/\nasync function /)[0] || '';
+    const handler = EDGE.split(/async\s+function\s+handleSetTravelTimes\s*\(/)[1]?.split(/\nasync\s+function\s+/)[0] || '';
     expect(handler).toMatch(/end_time must be after start_time|endMs\s*<=\s*startMs/);
   });
 
