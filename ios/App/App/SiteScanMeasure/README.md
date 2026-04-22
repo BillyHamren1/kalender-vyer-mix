@@ -1,73 +1,32 @@
-# SiteScan Measure — native iOS module
+# SiteScanMeasure — native iOS Measure module
 
-Den här mappen innehåller Capacitor-bryggan som låter EventFlow Time
-öppna den **riktiga** SiteScan-mätvyn (ARKit + SwiftUI) från React.
+Self-contained ARKit measurement module for EventFlow Time, exposed to React via the `SiteScanMeasure` Capacitor plugin.
 
-## Vad som finns här (committat)
+## Files
+- `SiteScanMeasurePlugin.swift` / `.m` — Capacitor plugin (`openMeasure`)
+- `SiteScanMeasureHostingController.swift` — UIHostingController wrapper
+- `Models/MeasureModels.swift` — ScanMode, MeasurementPoint/Result, MeasureCapture, GeoPoint
+- `Design/Theme.swift` — Spacing/radius tokens + surfaceSecondary color
+- `Services/ARSessionManager.swift` — ARSession lifecycle
+- `ViewModels/MeasureViewModel.swift` — Measurement state machine
+- `Views/ARMeasureView.swift` — ARSCNView (raycast + render)
+- `Screens/MeasureScreen.swift` — Top-level SwiftUI screen
 
-- `SiteScanMeasurePlugin.swift` – Capacitor-plugin som JS anropar via
-  `useNativeSiteScan().openMeasure()`.
-- `SiteScanMeasurePlugin.m` – Obj-C-makro som registrerar pluginet med
-  Capacitor-bryggan.
-- `SiteScanMeasureHostingController.swift` – UIHostingController som
-  presenterar SwiftUI-vyn `MeasureScreen` fullscreen och rapporterar
-  tillbaka när användaren stänger den.
+## Xcode setup (one-time, manual after `npx cap sync ios`)
+1. Project navigator → right-click `App` → *Add Files to "App"* → select the `SiteScanMeasure` folder, "Create groups", target **App** checked.
+2. App target → General → Frameworks: add `ARKit.framework` and `SceneKit.framework`.
+3. Verify `NSCameraUsageDescription` in Info.plist (already in `capacitor.time.config.ts`).
+4. Build on a **physical iPhone** — ARKit doesn't work in the Simulator.
 
-## Vad du måste göra en gång i Xcode (kan inte göras från Lovable)
+## JS usage
+```ts
+const { isAvailable, openMeasure } = useNativeSiteScan();
+if (isAvailable) {
+  const result = await openMeasure({ bookingId, title: 'Lasthöjd port 1' });
+  // { saved, scanId, measurementCount, capture: { measurements: [...] } }
+}
+```
 
-1. **Kopiera in den porterade SiteScanMobile-koden** från
-   ScanSphere Manager (`native/SiteScanMobile/`) till denna mapp eller
-   en parallell mapp i App-targeten. Minst dessa filer behövs för att
-   `MeasureScreen` ska bygga:
-
-   ```
-   Screens/MeasureScreen.swift
-   Screens/CalibrationSheet.swift
-   ViewModels/MeasureViewModel.swift
-   Views/ARMeasureView.swift
-   Services/ARSessionManager.swift
-   Services/CameraPermissionManager.swift
-   Services/DeviceCapabilityService.swift
-   Services/GeoService.swift
-   Services/UploadManager.swift              (kan stubbbas om upload inte används)
-   State/AppState.swift
-   Models/MeasureCapture.swift
-   Models/CalibrationPoint.swift
-   Models/CoreTypes.swift
-   Models/ScanMode.swift
-   Models/DeviceCapabilityState.swift
-   Design/Theme.swift
-   Design/Components/ScanActionButton.swift
-   Design/Components/MeasurementReadout.swift   (om den finns separat)
-   Design/Components/CrosshairOverlay.swift     (om den finns separat)
-   Design/Components/PermissionPromptView.swift
-   Design/Components/SessionErrorAlert.swift
-   Design/Components/ARCameraPlaceholder.swift  (för icke-ARKit-targets)
-   ```
-
-   Plus eventuella små helpers som ovanstående filer importerar.
-
-2. **Lägg till frameworks** i App-targeten:
-   - `ARKit.framework` (Required)
-   - `SceneKit.framework`
-   - `CoreLocation.framework` (om GeoService används)
-
-3. **Verifiera Info.plist-nycklar** (redan satt via
-   `capacitor.time.config.ts`):
-   - `NSCameraUsageDescription`
-   - `NSLocationWhenInUseUsageDescription`
-
-4. **Bygg.** `npx cap sync ios` registrerar pluginet automatiskt
-   tack vare `@objc(SiteScanMeasurePlugin)`-deklarationen.
-
-## Resultatkoppling
-
-`MeasureScreenWrapper` i `SiteScanMeasureHostingController.swift` är
-medvetet en tunn wrapper. När du har den porterade `MeasureScreen` på
-plats kan du modifiera wrappern för att skicka `MeasureCapture` →
-`UploadManager` → backend, och anropa `onSaved(scanId)` när raden är
-synkad till `site_scans`-tabellen. Då navigerar React automatiskt till
-`/m/tools/measure/:id`.
-
-Tills uppladdningskedjan är inkopplad räcker det att stänga vyn — då
-loggas mätningen lokalt och React landar tillbaka i listan.
+## Notes
+- No dependency on SiteScan backend (no AppState/Auth/Upload/Geo). Result is handed to JS for persistence in EventFlow's Supabase.
+- Uses `ARWorldTrackingConfiguration` with smoothed scene depth on LiDAR devices — same as the original SiteScan MeasureScreen.

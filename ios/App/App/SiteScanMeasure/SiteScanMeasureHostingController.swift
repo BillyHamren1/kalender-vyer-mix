@@ -3,21 +3,12 @@ import UIKit
 import SwiftUI
 #endif
 
-/**
- * UIHostingController wrapper that presents the SwiftUI `MeasureScreen`
- * as a fullscreen modal from the Capacitor plugin and reports the result
- * back when the user dismisses it.
- *
- * The actual `MeasureScreen` SwiftUI view is provided by the ported
- * SiteScanMobile sources (see README in this folder). This controller
- * only handles presentation and result delivery.
- */
+/// Hosts the SwiftUI MeasureScreen as a fullscreen modal launched from the
+/// Capacitor plugin. Result (saved measurements as JSON) is delivered via onClose.
 #if canImport(SwiftUI) && canImport(ARKit)
 final class SiteScanMeasureHostingController: UIHostingController<AnyView> {
 
     private let onClose: (SiteScanMeasureResult) -> Void
-    private let scanId: String?
-    private let bookingId: String?
 
     init(
         scanId: String?,
@@ -26,60 +17,38 @@ final class SiteScanMeasureHostingController: UIHostingController<AnyView> {
         onClose: @escaping (SiteScanMeasureResult) -> Void
     ) {
         self.onClose = onClose
-        self.scanId = scanId
-        self.bookingId = bookingId
 
-        // The wrapped SwiftUI view is built lazily so we can inject a
-        // dismiss callback. `MeasureScreen` itself is the ported SwiftUI
-        // screen from SiteScanMobile.
-        let placeholder = AnyView(
-            MeasureScreenWrapper(
-                initialTitle: initialTitle,
-                onSaved: { _ in },
-                onClose: { _ in }
-            )
-        )
-        super.init(rootView: placeholder)
+        // Bootstrap with placeholder; real view is wired below so we can
+        // safely capture self for the callbacks.
+        super.init(rootView: AnyView(EmptyView()))
 
-        let wrapper = MeasureScreenWrapper(
+        let screen = MeasureScreen(
             initialTitle: initialTitle,
-            onSaved: { [weak self] savedScanId in
-                self?.dismissWithResult(saved: true, scanId: savedScanId)
+            onSaved: { [weak self] capture in
+                self?.dismissWithCapture(capture, scanId: scanId, bookingId: bookingId)
             },
-            onClose: { [weak self] _ in
-                self?.dismissWithResult(saved: false, scanId: nil)
+            onClose: { [weak self] in
+                self?.dismissWithResult(SiteScanMeasureResult(
+                    saved: false, scanId: scanId, capture: nil
+                ))
             }
         )
-        self.rootView = AnyView(wrapper)
+        self.rootView = AnyView(screen)
     }
 
     @MainActor required dynamic init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private func dismissWithResult(saved: Bool, scanId: String?) {
-        let result = SiteScanMeasureResult(saved: saved, scanId: scanId)
+    private func dismissWithCapture(_ capture: MeasureCapture, scanId: String?, bookingId: String?) {
+        let result = SiteScanMeasureResult(saved: !capture.measurements.isEmpty, scanId: scanId, capture: capture)
+        dismissWithResult(result)
+    }
+
+    private func dismissWithResult(_ result: SiteScanMeasureResult) {
         dismiss(animated: true) { [weak self] in
             self?.onClose(result)
         }
-    }
-}
-
-/// Thin SwiftUI wrapper around the ported `MeasureScreen` so we can
-/// inject save/close callbacks without modifying the original view.
-struct MeasureScreenWrapper: View {
-    let initialTitle: String
-    let onSaved: (String?) -> Void
-    let onClose: (Void) -> Void
-
-    var body: some View {
-        // NOTE: `MeasureScreen` is the ported SwiftUI view from
-        // SiteScanMobile. It must be added to the Xcode target along
-        // with its dependencies (ARSessionManager, MeasureViewModel,
-        // ARMeasureView, models, design tokens). See README.md in this
-        // folder for the exact file list.
-        MeasureScreen()
-            .onDisappear { onClose(()) }
     }
 }
 #endif
