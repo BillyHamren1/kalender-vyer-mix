@@ -6,6 +6,7 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO } from 'date-fns';
 import { MapPin, ChevronRight, Loader2, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
   if (dates.rigdaydate === assignmentDate) return { label: 'RIG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
@@ -17,11 +18,12 @@ const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | 
 const MobileProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
 
   const projectBookings = bookings.filter(b => b.large_project_id === projectId);
-  const projectName = projectBookings[0]?.large_project_name || 'Project';
+  const projectName = projectBookings[0]?.large_project_name || t('project.fallback');
 
   const sortByDate = (a: MobileBooking, b: MobileBooking) => {
     const dateA = a.rigdaydate || a.eventdate || a.rigdowndate || '';
