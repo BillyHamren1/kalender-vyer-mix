@@ -256,12 +256,12 @@ const MobileTimeReport = () => {
                     const res = await stopSession(target);
                     if (res.cancelled) return;
                     if (res.saved) {
-                      if (target.kind === 'location') toast.success('Aktivitet avslutad');
-                      else toast.success(`Tidrapport sparad — ${res.hoursWorked} h`);
+                      if (target.kind === 'location') toast.success(t('time.activityEnded'));
+                      else toast.success(t('time.reportSavedHours', { hours: res.hoursWorked }));
                       fetchReports();
                     }
                   } catch (err: any) {
-                    toast.error(err?.message || 'Kunde inte avsluta aktiviteten');
+                    toast.error(err?.message || t('time.couldNotEndActivity'));
                   }
                 }}
               />
