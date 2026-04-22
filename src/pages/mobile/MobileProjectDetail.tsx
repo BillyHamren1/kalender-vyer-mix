@@ -18,11 +18,12 @@ const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | 
 const MobileProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
 
   const projectBookings = bookings.filter(b => b.large_project_id === projectId);
-  const projectName = projectBookings[0]?.large_project_name || 'Project';
+  const projectName = projectBookings[0]?.large_project_name || t('project.fallback');
 
   const sortByDate = (a: MobileBooking, b: MobileBooking) => {
     const dateA = a.rigdaydate || a.eventdate || a.rigdowndate || '';
