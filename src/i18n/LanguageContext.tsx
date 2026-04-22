@@ -4,7 +4,7 @@ import { t as translate, type Locale, type TranslationKey } from './translations
 interface LanguageContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
 }
 
 const LOCALE_KEY = 'eventflow-locale';
@@ -22,7 +22,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LOCALE_KEY, l);
   }, []);
 
-  const t = useCallback((key: TranslationKey) => translate(key, locale), [locale]);
+  const t = useCallback(
+    (key: TranslationKey, vars?: Record<string, string | number>) =>
+      translate(key, locale, vars),
+    [locale],
+  );
 
   return (
     <LanguageContext.Provider value={{ locale, setLocale, t }}>

@@ -3,6 +3,7 @@ import { MapPin, Play, Square, X, Building2, FolderOpen, Clock } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { GeofenceEvent } from '@/hooks/useGeofencing';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface GeofencePromptProps {
   event: GeofenceEvent;
@@ -11,6 +12,7 @@ interface GeofencePromptProps {
 }
 
 const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) => {
+  const { t } = useLanguage();
   const isEnter = event.type === 'enter';
   const isLocation = event.locationType === 'fixed';
   const isProject = event.locationType === 'project';
@@ -31,32 +33,51 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
     ? arrivalDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const formatTimeSince = (ms: number) => {
+  const formatTimeSince = (ms: number): string => {
     const mins = Math.floor(ms / 60000);
-    if (mins < 60) return `${mins} min ago`;
+    if (mins < 60) return t('geo.minAgo', { mins });
     const hours = Math.floor(mins / 60);
     const remainMins = mins % 60;
-    return remainMins > 0 ? `${hours}h ${remainMins}min ago` : `${hours}h ago`;
+    return remainMins > 0
+      ? t('geo.hoursMinAgo', { h: hours, m: remainMins })
+      : t('geo.hoursAgo', { h: hours });
   };
 
   const Icon = isProject ? FolderOpen : isLocation ? Building2 : MapPin;
   const label = isProject
-    ? event.largeProjectName || 'Project'
+    ? event.largeProjectName || t('geo.projectFallback')
     : isLocation
-      ? event.locationName || 'Location'
+      ? event.locationName || t('geo.locationFallback')
       : event.booking?.client || '';
+
+  const enterTitle = isProject
+    ? t('geo.atProject')
+    : t('geo.atSite');
+  const exitTitle = isProject
+    ? t('geo.leavingProject')
+    : isLocation
+      ? t('geo.leavingLocation')
+      : t('geo.leavingSite');
+
+  const enterBody = isProject
+    ? t('geo.startProjectQ')
+    : isLocation
+      ? t('geo.startLocationQ')
+      : t('geo.startJobQ');
+  const exitBody = isProject
+    ? t('geo.endProjectQ')
+    : isLocation
+      ? t('geo.endLocationQ')
+      : t('geo.endJobQ');
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
       style={{
-        // Lyft ovanför mobilens bottom-tab (~64px) + safe-area inset.
-        // På sm: och uppåt centreras dialogen så detta påverkar inte desktop.
         paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5.5rem)',
       }}
     >
       <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-        {/* Header */}
         <div className={cn(
           "px-5 py-4 flex items-center gap-3",
           isEnter
@@ -68,20 +89,21 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
           </div>
           <div className="flex-1">
             <p className="text-white font-semibold text-sm">
-              {isEnter
-                ? (isProject ? 'You are at the project!' : isLocation ? 'You are on site!' : 'You are on site!')
-                : (isProject ? 'Leaving the project' : isLocation ? 'Leaving the location' : 'Leaving the worksite')}
+              {isEnter ? enterTitle : exitTitle}
             </p>
             <p className="text-white/80 text-xs">
-              {event.distance}m from {label}
+              {t('geo.distanceFrom', { dist: event.distance, label })}
             </p>
           </div>
-          <button onClick={onDismiss} className="p-1 rounded-full hover:bg-white/20 transition-colors">
+          <button
+            onClick={onDismiss}
+            className="p-1 rounded-full hover:bg-white/20 transition-colors"
+            aria-label={t('geo.dismiss')}
+          >
             <X className="w-4 h-4 text-white" />
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-5 space-y-4">
           <div>
             <h3 className="font-bold text-foreground">{label}</h3>
@@ -100,16 +122,14 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
           </div>
 
           <p className="text-sm text-muted-foreground">
-            {isEnter
-              ? (isProject ? 'Do you want to start time tracking for this project?' : isLocation ? 'Do you want to start time tracking for this location?' : 'Do you want to start the time report for this job?')
-              : (isProject ? 'Do you want to end time tracking for the project?' : isLocation ? 'Do you want to end time tracking?' : 'Do you want to end the time report?')}
+            {isEnter ? enterBody : exitBody}
           </p>
 
           {showArrivalCorrection && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
               <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
               <p className="text-sm text-amber-800 dark:text-amber-200">
-                GPS shows you arrived at <span className="font-semibold">{arrivalTimeStr}</span> ({formatTimeSince(timeSinceArrival)})
+                {t('geo.gpsArrived', { time: arrivalTimeStr, since: formatTimeSince(timeSinceArrival) })}
               </p>
             </div>
           )}
@@ -121,7 +141,7 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 onClick={() => onConfirm(arrivalDate!.toISOString())}
               >
                 <Clock className="w-4 h-4" />
-                Start from {arrivalTimeStr}
+                {t('geo.startFromTime', { time: arrivalTimeStr })}
               </Button>
             )}
             <div className="flex gap-2">
@@ -130,7 +150,7 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 className="flex-1"
                 onClick={onDismiss}
               >
-                Not now
+                {t('geo.notNow')}
               </Button>
               <Button
                 className={cn(
@@ -144,12 +164,12 @@ const GeofencePrompt = ({ event, onConfirm, onDismiss }: GeofencePromptProps) =>
                 {isEnter ? (
                   <>
                     <Play className="w-4 h-4" />
-                    Start now
+                    {t('geo.startNow')}
                   </>
                 ) : (
                   <>
                     <Square className="w-4 h-4" />
-                    End
+                    {t('geo.end')}
                   </>
                 )}
               </Button>

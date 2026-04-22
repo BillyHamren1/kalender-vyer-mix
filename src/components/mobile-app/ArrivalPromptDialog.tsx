@@ -5,34 +5,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Building2, Loader2, MapPin } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export interface ArrivalPromptResult {
-  /** ISO timestamp the user picked as start time */
   startedAtIso: string;
-  /** True if user accepted the suggested arrival time */
   usedSuggestedArrival: boolean;
 }
 
 interface ArrivalPromptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** ISO timestamp of geofence arrival */
   arrivedAtIso: string;
-  /** Display name of the workplace */
   locationName: string;
-  /** Called with the user's choice. Dialog stays open until promise resolves. */
   onConfirm: (result: ArrivalPromptResult) => Promise<void>;
-  /** Called if user dismisses ("Inte nu") */
   onDismiss: () => Promise<void>;
 }
 
-/**
- * Asks the user "Du verkar ha anlänt — vill du starta dagen?".
- * Two main paths:
- *   - "Starta från {arrivalTime}" → use geofence arrival time
- *   - "Starta nu" → use current time
- * "Anpassa tid" reveals a small time-picker so the user can adjust manually.
- */
 export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
   open,
   onOpenChange,
@@ -41,6 +29,7 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
   onConfirm,
   onDismiss,
 }) => {
+  const { t } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customTime, setCustomTime] = useState('');
@@ -54,8 +43,6 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
     if (open) {
       setSubmitting(false);
       setShowCustom(false);
-      // Default custom-time to detected arrival, not "now" — makes
-      // backdating obvious if the user opens the picker.
       setCustomTime(format(arrivedDate, 'HH:mm'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,10 +66,6 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
     }
   };
 
-  // Build a valid past-or-now timestamp from HH:mm input.
-  // Night-shift safe: anchor to arrivalDate's calendar day; if HH:mm comes
-  // BEFORE arrival on that day, roll to the next day. Reject any candidate
-  // in the future (server also rejects, but fail-fast in UI is nicer).
   const buildCustomIso = (): string | null => {
     if (!/^\d{2}:\d{2}$/.test(customTime)) return null;
     const [h, m] = customTime.split(':').map(Number);
@@ -122,11 +105,9 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
-            Starta dagen?
+            {t('arrival.startDay')}
           </DialogTitle>
-          <DialogDescription>
-            Vi har märkt att du anlänt till arbetsplatsen.
-          </DialogDescription>
+          <DialogDescription>{t('arrival.detected')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -136,13 +117,13 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
               {locationName}
             </div>
             <div className="text-3xl font-bold tabular-nums text-foreground">
-              kl {arrivalLabel}
+              {t('eod.atLabel')} {arrivalLabel}
             </div>
           </div>
 
           {showCustom && (
             <div className="space-y-2">
-              <Label htmlFor="arrival-custom-time">Egen starttid</Label>
+              <Label htmlFor="arrival-custom-time">{t('arrival.customStart')}</Label>
               <Input
                 id="arrival-custom-time"
                 type="time"
@@ -151,43 +132,23 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
                 className="text-base"
               />
               {customInvalid && (
-                <p className="text-xs text-destructive">
-                  Tiden måste vara i förflutet (max idag).
-                </p>
+                <p className="text-xs text-destructive">{t('arrival.errPast')}</p>
               )}
             </div>
           )}
         </div>
 
-        {/* Explicit CTA stack — do NOT use DialogFooter here, its
-            flex-col-reverse on mobile makes ordering fragile and was
-            hiding/de-emphasizing the primary backdate button. */}
         {!showCustom ? (
           <div className="mt-4 flex flex-col gap-2">
-            <Button
-              onClick={handleAcceptArrival}
-              disabled={submitting}
-              className="w-full"
-              size="lg"
-            >
+            <Button onClick={handleAcceptArrival} disabled={submitting} className="w-full" size="lg">
               {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Starta från {arrivalLabel}
+              {t('arrival.startFrom', { time: arrivalLabel })}
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleStartNow}
-              disabled={submitting}
-              className="w-full"
-            >
-              Starta nu
+            <Button variant="outline" onClick={handleStartNow} disabled={submitting} className="w-full">
+              {t('arrival.startNow')}
             </Button>
-            <Button
-              variant="ghost"
-              onClick={handleDismiss}
-              disabled={submitting}
-              className="w-full"
-            >
-              Inte nu
+            <Button variant="ghost" onClick={handleDismiss} disabled={submitting} className="w-full">
+              {t('arrival.notNow')}
             </Button>
             <button
               type="button"
@@ -195,27 +156,17 @@ export const ArrivalPromptDialog: React.FC<ArrivalPromptDialogProps> = ({
               onClick={() => setShowCustom(true)}
               disabled={submitting}
             >
-              Anpassa tid
+              {t('arrival.customizeTime')}
             </button>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-2">
-            <Button
-              onClick={handleSubmitCustom}
-              disabled={submitting || !customIso}
-              className="w-full"
-              size="lg"
-            >
+            <Button onClick={handleSubmitCustom} disabled={submitting || !customIso} className="w-full" size="lg">
               {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Starta
+              {t('arrival.start')}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowCustom(false)}
-              disabled={submitting}
-              className="w-full"
-            >
-              Tillbaka
+            <Button variant="outline" onClick={() => setShowCustom(false)} disabled={submitting} className="w-full">
+              {t('arrival.back')}
             </Button>
           </div>
         )}

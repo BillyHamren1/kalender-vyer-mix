@@ -2,12 +2,7 @@
  * StaleDayCorrectionDialog
  * ────────────────────────
  * Shown the morning after the nightly cron auto-closes a workday because
- * the staff member forgot to stop their timer. Lets them confirm or
- * correct the actual end-of-day time using GPS-derived suggestions.
- *
- * The flag's `context.suggested_end_times` is built server-side from the
- * staff member's location history (last workplace exit, longer en-route
- * stops, arrival at inferred home). We never auto-apply — the user picks.
+ * the staff member forgot to stop their timer.
  */
 import { useState } from 'react';
 import {
@@ -23,8 +18,9 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { format, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
 import { Loader2, Clock, MapPin, Home } from 'lucide-react';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export type StaleDaySuggestion = {
   kind: 'left_workplace' | 'stopped_en_route' | 'arrived_home';
@@ -58,17 +54,17 @@ export default function StaleDayCorrectionDialog({
   onConfirm,
   onDismiss,
 }: Props) {
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'en' ? enUS : sv;
   const [selected, setSelected] = useState<string>(
     suggestions[0]?.time_iso || 'custom',
   );
-  // Default custom time = provisional end (visible HH:mm)
   const defaultCustomTime = format(parseISO(provisionalEndIso), 'HH:mm');
   const [customTime, setCustomTime] = useState<string>(defaultCustomTime);
 
   const handleConfirm = () => {
     let chosenIso = selected;
     if (selected === 'custom') {
-      // Combine flagDate + customTime in local time
       const [hh, mm] = customTime.split(':').map(Number);
       const d = parseISO(`${flagDate}T00:00:00`);
       d.setHours(hh, mm, 0, 0);
@@ -81,11 +77,9 @@ export default function StaleDayCorrectionDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onDismiss(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Din arbetsdag stängdes automatiskt</DialogTitle>
+          <DialogTitle>{t('stale.title')}</DialogTitle>
           <DialogDescription>
-            Du glömde stoppa timern{' '}
-            {format(parseISO(flagDate), 'd MMM', { locale: sv })}. När slutade
-            du egentligen?
+            {t('stale.body', { date: format(parseISO(flagDate), 'd MMM', { locale: dateLocale }) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,7 +110,7 @@ export default function StaleDayCorrectionDialog({
             <RadioGroupItem value="custom" id="custom" />
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div className="flex-1">
-              <div className="font-medium">Annan tid</div>
+              <div className="font-medium">{t('stale.other')}</div>
               <Input
                 type="time"
                 value={customTime}
@@ -130,11 +124,11 @@ export default function StaleDayCorrectionDialog({
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={onDismiss} disabled={submitting}>
-            Avbryt
+            {t('stale.cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={submitting}>
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Bekräfta
+            {t('stale.confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

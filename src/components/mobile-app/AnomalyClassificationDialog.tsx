@@ -5,9 +5,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Coffee, Briefcase, Loader2, AlertCircle } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 type PendingAnomaly = {
   id: string;
@@ -31,7 +32,6 @@ type LocalChoice = {
 interface AnomalyClassificationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after all anomalies have been successfully classified */
   onCompleted?: () => void;
 }
 
@@ -42,6 +42,8 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
   onOpenChange,
   onCompleted,
 }) => {
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'en' ? enUS : sv;
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [anomalies, setAnomalies] = useState<PendingAnomaly[]>([]);
@@ -52,7 +54,6 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
     try {
       const res = await mobileApi.listPendingAnomalies();
       setAnomalies(res.anomalies || []);
-      // initialise empty choices
       setChoices(prev => {
         const next: Record<string, LocalChoice> = {};
         for (const a of res.anomalies || []) {
@@ -61,11 +62,11 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
         return next;
       });
     } catch (e: any) {
-      toast.error(e?.message || 'Kunde inte hämta avvikelser');
+      toast.error(e?.message || t('anomaly.fetchFail'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (open) load();
@@ -86,7 +87,6 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
     if (!isComplete) return;
     setSubmitting(true);
     try {
-      // Sequential to keep server load predictable and surface first error clearly
       for (const a of anomalies) {
         const c = choices[a.id];
         await mobileApi.classifyAnomaly({
@@ -98,11 +98,11 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
               : undefined,
         });
       }
-      toast.success('Avvikelser sparade');
+      toast.success(t('anomaly.saved'));
       onCompleted?.();
       onOpenChange(false);
     } catch (e: any) {
-      toast.error(e?.message || 'Kunde inte spara klassificering');
+      toast.error(e?.message || t('anomaly.saveFail'));
     } finally {
       setSubmitting(false);
     }
@@ -114,21 +114,19 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-orange-500" />
-            Klassificera frånvaro
+            {t('anomaly.title')}
           </DialogTitle>
-          <DialogDescription>
-            Du var borta från arbetsplatsen vid följande tillfällen. Markera om det var rast eller arbete.
-          </DialogDescription>
+          <DialogDescription>{t('anomaly.body')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 overflow-y-auto flex-1 -mx-1 px-1">
           {loading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Laddar...
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('anomaly.loading')}
             </div>
           ) : anomalies.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              Inga frånvaroavvikelser att klassificera.
+              {t('anomaly.none')}
             </div>
           ) : (
             anomalies.map(a => {
@@ -144,7 +142,7 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium capitalize">
-                        {format(start, 'EEEE d MMM', { locale: sv })}
+                        {format(start, 'EEEE d MMM', { locale: dateLocale })}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {format(start, 'HH:mm')}–{format(end, 'HH:mm')}
@@ -164,7 +162,7 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
                       className="rounded-xl"
                       onClick={() => setChoice(a.id, { classification: 'break', description: '' })}
                     >
-                      <Coffee className="h-4 w-4 mr-1" /> Rast
+                      <Coffee className="h-4 w-4 mr-1" /> {t('anomaly.break')}
                     </Button>
                     <Button
                       type="button"
@@ -173,30 +171,32 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
                       className="rounded-xl"
                       onClick={() => setChoice(a.id, { classification: 'work' })}
                     >
-                      <Briefcase className="h-4 w-4 mr-1" /> Arbete
+                      <Briefcase className="h-4 w-4 mr-1" /> {t('anomaly.work')}
                     </Button>
                   </div>
 
                   {requiresComment && (
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">
-                        Vilket arbete utfördes? <span className="text-destructive">*</span>
+                        {t('anomaly.workWhat')} <span className="text-destructive">*</span>
                       </label>
                       <Textarea
                         value={c.description}
                         onChange={e => setChoice(a.id, { description: e.target.value })}
-                        placeholder="T.ex. Hämtade material, kundmöte..."
+                        placeholder={t('anomaly.workPlaceholder')}
                         className="min-h-[60px] text-sm"
                       />
                       {commentMissing && (
-                        <p className="text-xs text-destructive">Kommentar krävs för arbete över {COMMENT_THRESHOLD_MIN} min</p>
+                        <p className="text-xs text-destructive">
+                          {t('anomaly.commentRequired', { mins: COMMENT_THRESHOLD_MIN })}
+                        </p>
                       )}
                     </div>
                   )}
 
                   {c.classification === 'break' && (
                     <p className="text-xs text-muted-foreground">
-                      {(durMin / 60).toFixed(2)}h dras av från arbetstiden.
+                      {t('anomaly.deductedHours', { hours: (durMin / 60).toFixed(2) })}
                     </p>
                   )}
                 </div>
@@ -207,11 +207,11 @@ export const AnomalyClassificationDialog: React.FC<AnomalyClassificationDialogPr
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Senare
+            {t('anomaly.later')}
           </Button>
           <Button onClick={handleSubmit} disabled={!isComplete || submitting || anomalies.length === 0}>
             {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Spara alla
+            {t('anomaly.saveAll')}
           </Button>
         </DialogFooter>
       </DialogContent>

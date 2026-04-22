@@ -6,40 +6,38 @@ import type { UnplannedVisit } from '@/hooks/useUnplannedSiteVisit';
 import type { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface Props {
   suggestion: ArrivalContextSuggestion;
   travel: TravelCompletedInfo;
   onAcceptedVisit: (visit: UnplannedVisit) => void;
-  onResolved: () => void; // close smart suggestion (fall back to base UI)
+  onResolved: () => void;
 }
 
-function formatSwedishDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleDateString('sv-SE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-/**
- * SmartArrivalSuggestion — three render modes, picked by suggestion.kind.
- * Sits ABOVE the regular TravelCompletedDialog body. Never replaces it.
- */
 export default function SmartArrivalSuggestion({
   suggestion,
   travel,
   onAcceptedVisit,
   onResolved,
 }: Props) {
+  const { t, locale } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const { data: bookings = [] } = useMobileBookings();
+
+  const formatLocalisedDate = (iso: string | null | undefined): string => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString(locale === 'en' ? 'en-GB' : 'sv-SE', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+    } catch {
+      return iso;
+    }
+  };
 
   const reject = async () => {
     if (suggestion.suggestion_id) {
@@ -60,12 +58,12 @@ export default function SmartArrivalSuggestion({
       eventdate: string | null;
       address?: string | null;
     };
-    const dateLabel = formatSwedishDate(p.eventdate);
+    const dateLabel = formatLocalisedDate(p.eventdate);
     const trimmed = note.trim();
 
     const accept = async () => {
       if (trimmed.length < 3) {
-        toast.error('Skriv en kort kommentar (minst 3 tecken)');
+        toast.error(t('smart.errShortNote'));
         return;
       }
       setBusy(true);
@@ -87,10 +85,10 @@ export default function SmartArrivalSuggestion({
             note: trimmed,
           });
         }
-        toast.success('Tid på plats registrerad');
+        toast.success(t('smart.timeRegistered'));
         onResolved();
       } catch (err: any) {
-        toast.error(err?.message || 'Kunde inte spara');
+        toast.error(err?.message || t('smart.couldNotSave'));
       } finally {
         setBusy(false);
       }
@@ -104,18 +102,17 @@ export default function SmartArrivalSuggestion({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground leading-snug">
-              Är du här i ett ärende kring det planerade jobbet på{' '}
-              <span className="font-bold">{dateLabel}</span> ({p.client})?
+              {t('smart.unplannedQ', { date: dateLabel, client: p.client })}
             </p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Du är inte tilldelad jobbet — vi registrerar bara att du var här.
+              {t('smart.unplannedHint')}
             </p>
           </div>
           <button
             onClick={reject}
             disabled={busy}
             className="p-1.5 rounded-lg hover:bg-muted/60"
-            aria-label="Avvisa förslag"
+            aria-label={t('smart.dismiss')}
           >
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
@@ -124,7 +121,7 @@ export default function SmartArrivalSuggestion({
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value.slice(0, 200))}
-          placeholder="Vad gör du där? (obligatoriskt)"
+          placeholder={t('smart.notePlaceholder')}
           rows={2}
           disabled={busy}
           className="mt-3 w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
@@ -140,14 +137,14 @@ export default function SmartArrivalSuggestion({
             className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
           >
             <Briefcase className="w-4 h-4" />
-            Ja — kopplat till jobbet
+            {t('smart.linkedToJob')}
           </button>
           <button
             onClick={reject}
             disabled={busy}
             className="px-4 py-2.5 rounded-xl bg-muted text-foreground font-semibold text-sm active:scale-[0.98] disabled:opacity-50"
           >
-            Nej
+            {t('smart.no')}
           </button>
         </div>
       </div>
@@ -157,7 +154,7 @@ export default function SmartArrivalSuggestion({
   // ── Scenario B — lunch ───────────────────────────────────────────────
   if (suggestion.kind === 'meal_break') {
     const p = suggestion.payload as { place_name?: string };
-    const placeName = p.place_name || 'platsen';
+    const placeName = p.place_name || t('smart.placeFallback');
 
     const acceptLunch = async () => {
       setBusy(true);
@@ -168,13 +165,13 @@ export default function SmartArrivalSuggestion({
           duration_minutes: minutes,
         });
         if (res.updated_time_report_id) {
-          toast.success(`Paus registrerad (${res.minutes} min)`);
+          toast.success(t('smart.breakRegistered', { mins: res.minutes }));
         } else {
-          toast.success('Paus markerad');
+          toast.success(t('smart.breakMarked'));
         }
         onResolved();
       } catch (err: any) {
-        toast.error(err?.message || 'Kunde inte registrera paus');
+        toast.error(err?.message || t('smart.couldNotRegBreak'));
       } finally {
         setBusy(false);
       }
@@ -188,8 +185,7 @@ export default function SmartArrivalSuggestion({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground leading-snug">
-              Det ser ut som du stannade vid <span className="font-bold">{placeName}</span>. Vill du
-              registrera tiden som lunch?
+              {t('smart.lunchQ', { place: placeName })}
             </p>
           </div>
           <button onClick={reject} disabled={busy} className="p-1.5 rounded-lg hover:bg-muted/60">
@@ -202,14 +198,14 @@ export default function SmartArrivalSuggestion({
             disabled={busy}
             className="flex-1 py-2.5 rounded-xl bg-foreground text-background font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
           >
-            Ja, lunch
+            {t('smart.yesLunch')}
           </button>
           <button
             onClick={reject}
             disabled={busy}
             className="px-4 py-2.5 rounded-xl bg-muted text-foreground font-semibold text-sm active:scale-[0.98] disabled:opacity-50"
           >
-            Nej, jobb
+            {t('smart.noWork')}
           </button>
         </div>
       </div>
@@ -219,9 +215,8 @@ export default function SmartArrivalSuggestion({
   // ── Scenario C — inköp ───────────────────────────────────────────────
   if (suggestion.kind === 'supply_store') {
     const p = suggestion.payload as { place_name?: string };
-    const placeName = p.place_name || 'butiken';
+    const placeName = p.place_name || t('smart.storeFallback');
 
-    // Today + tomorrow bookings the user has access to, plus internal warehouse
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
     const todayBookings = bookings.filter((b) => b.assignment_dates?.includes(today));
@@ -244,10 +239,10 @@ export default function SmartArrivalSuggestion({
           location_id: target.location_id,
           supplier_name: placeName,
         });
-        toast.success(`Inköp kopplat till ${target.label}`);
+        toast.success(t('smart.linkedPurchase', { label: target.label }));
         onResolved();
       } catch (err: any) {
-        toast.error(err?.message || 'Kunde inte koppla inköp');
+        toast.error(err?.message || t('smart.couldNotLink'));
       } finally {
         setBusy(false);
       }
@@ -261,7 +256,7 @@ export default function SmartArrivalSuggestion({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground leading-snug">
-              Handlade du på <span className="font-bold">{placeName}</span> åt något projekt?
+              {t('smart.purchaseQ', { place: placeName })}
             </p>
           </div>
           <button onClick={reject} disabled={busy} className="p-1.5 rounded-lg hover:bg-muted/60">
@@ -269,33 +264,39 @@ export default function SmartArrivalSuggestion({
           </button>
         </div>
         <div className="flex flex-col gap-1.5 mt-3">
-          {todayBookings.slice(0, 1).map((b) => (
-            <button
-              key={`t-${b.id}`}
-              onClick={() => linkTo({ booking_id: b.id, label: `Idag — ${b.client}` })}
-              disabled={busy}
-              className="w-full py-2.5 px-3 rounded-xl bg-background border border-border/60 text-left text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
-            >
-              Idag — {b.client}
-            </button>
-          ))}
-          {tomorrowBookings.slice(0, 1).map((b) => (
-            <button
-              key={`m-${b.id}`}
-              onClick={() => linkTo({ booking_id: b.id, label: `Imorgon — ${b.client}` })}
-              disabled={busy}
-              className="w-full py-2.5 px-3 rounded-xl bg-background border border-border/60 text-left text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
-            >
-              Imorgon — {b.client}
-            </button>
-          ))}
+          {todayBookings.slice(0, 1).map((b) => {
+            const label = t('smart.todayLabel', { client: b.client });
+            return (
+              <button
+                key={`t-${b.id}`}
+                onClick={() => linkTo({ booking_id: b.id, label })}
+                disabled={busy}
+                className="w-full py-2.5 px-3 rounded-xl bg-background border border-border/60 text-left text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
+              >
+                {label}
+              </button>
+            );
+          })}
+          {tomorrowBookings.slice(0, 1).map((b) => {
+            const label = t('smart.tomorrowLabel', { client: b.client });
+            return (
+              <button
+                key={`m-${b.id}`}
+                onClick={() => linkTo({ booking_id: b.id, label })}
+                disabled={busy}
+                className="w-full py-2.5 px-3 rounded-xl bg-background border border-border/60 text-left text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
+              >
+                {label}
+              </button>
+            );
+          })}
           {lager && (
             <button
               onClick={() => linkTo({ booking_id: lager.id, label: 'Lager' })}
               disabled={busy}
               className="w-full py-2.5 px-3 rounded-xl bg-background border border-border/60 text-left text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
             >
-              Lager (alltid tillgängligt)
+              {t('smart.warehouse')}
             </button>
           )}
           <button
@@ -303,7 +304,7 @@ export default function SmartArrivalSuggestion({
             disabled={busy}
             className="w-full py-2 text-xs text-muted-foreground font-medium hover:bg-muted/40 rounded-xl disabled:opacity-50"
           >
-            Privat / Annat
+            {t('smart.privateOther')}
           </button>
         </div>
       </div>

@@ -11,21 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Building2, MapPin, Square, Clock, AlertTriangle } from 'lucide-react';
 import type { ActivityLeaveDecision } from '@/hooks/useWorkDayAssistant';
 import { format, parseISO } from 'date-fns';
+import { useLanguage } from '@/i18n/LanguageContext';
 
-/**
- * ActivityLeaveDialog
- * --------------------
- * Visas av WorkDayAssistant när tolkningen är: "användaren verkar lämna en
- * aktivitet". Den ändrar INGEN tid automatiskt — den bara erbjuder tre
- * tydliga val:
- *
- *   1. Avsluta aktivitet  → kör den vanliga stop-flödet (rastfråga vid behov)
- *   2. Fortsätt timern    → assistenten tystar sig, timern lever vidare
- *   3. Markera som glapp  → skapar en avvikelse för admin-uppföljning
- *
- * "Markera som glapp" är vägen ut när användaren faktiskt inte vet vad som
- * hänt — då gissar systemet INTE, det skapar en anomaly istället.
- */
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,6 +32,7 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
   onKeepRunning,
   onCreateAnomaly,
 }) => {
+  const { t } = useLanguage();
   const isLocation = !!decision.timer.locationId;
   const label = decision.timer.locationName || decision.timer.client;
 
@@ -61,12 +49,15 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
-            Verkar du lämnat aktiviteten?
+            {t('leave.title')}
           </DialogTitle>
           <DialogDescription>
-            Vi ser att du varit ungefär {decision.distanceMeters} m utanför{' '}
-            <strong>{label}</strong> sedan {outsideSince}{' '}
-            ({decision.outsideMinutes} min). Timern är fortfarande igång.
+            {t('leave.body', {
+              dist: decision.distanceMeters,
+              label,
+              since: outsideSince,
+              mins: decision.outsideMinutes,
+            })}
           </DialogDescription>
         </DialogHeader>
 
@@ -79,10 +70,7 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
           <span className="text-sm font-semibold truncate">{label}</span>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Vi gissar ingen tid åt dig. Välj vad som faktiskt hände — eller
-          markera som glapp så följer admin upp.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('leave.guessHint')}</p>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
           <Button
@@ -91,7 +79,7 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
             className="w-full justify-center gap-2"
           >
             <Square className="h-4 w-4" />
-            Avsluta aktiviteten
+            {t('leave.endActivity')}
           </Button>
           <Button
             variant="outline"
@@ -99,7 +87,7 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
             disabled={submitting}
             className="w-full"
           >
-            Jag jobbar fortfarande — låt timern fortsätta
+            {t('leave.keepRunning')}
           </Button>
           <Button
             variant="ghost"
@@ -108,7 +96,7 @@ export const ActivityLeaveDialog: React.FC<Props> = ({
             className="w-full justify-center gap-2 text-muted-foreground"
           >
             <AlertTriangle className="h-4 w-4" />
-            Markera som glapp för uppföljning
+            {t('leave.markGap')}
           </Button>
         </DialogFooter>
       </DialogContent>

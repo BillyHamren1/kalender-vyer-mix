@@ -12,7 +12,8 @@ import {
 import { AlertTriangle } from 'lucide-react';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface StaleTimerDialogProps {
   open: boolean;
@@ -22,10 +23,6 @@ interface StaleTimerDialogProps {
   onClose: () => void;
 }
 
-/**
- * Shown when one or more local timers are older than 24h with no server match.
- * Per architectural decision: never silently delete — user must decide.
- */
 export const StaleTimerDialog: React.FC<StaleTimerDialogProps> = ({
   open,
   staleTimers,
@@ -33,17 +30,19 @@ export const StaleTimerDialog: React.FC<StaleTimerDialogProps> = ({
   onDiscard,
   onClose,
 }) => {
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'en' ? enUS : sv;
   const first = staleTimers[0];
   const remaining = staleTimers.length - 1;
 
   const startedLabel = useMemo(() => {
     if (!first) return '';
     try {
-      return format(new Date(first.timer.startTime), 'PPpp', { locale: sv });
+      return format(new Date(first.timer.startTime), 'PPpp', { locale: dateLocale });
     } catch {
       return first.timer.startTime;
     }
-  }, [first]);
+  }, [first, dateLocale]);
 
   if (!first) return null;
 
@@ -53,32 +52,31 @@ export const StaleTimerDialog: React.FC<StaleTimerDialogProps> = ({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-warning" />
-            Gammal timer hittad
+            {t('staleTimer.title')}
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
             <span className="block">
-              <strong>{first.timer.client || first.timer.locationName || 'Okänd plats'}</strong>
+              <strong>{first.timer.client || first.timer.locationName || t('staleTimer.unknownPlace')}</strong>
             </span>
             <span className="block text-sm">
-              Startad: {startedLabel}
+              {t('staleTimer.startedLabel', { date: startedLabel })}
             </span>
             <span className="block text-sm">
-              Denna timer är äldre än 24 timmar och kunde inte matchas mot servern.
-              Vill du spara den som en tidrapport eller kasta den?
+              {t('staleTimer.body')}
             </span>
             {remaining > 0 && (
               <span className="block text-xs text-muted-foreground">
-                {remaining} ytterligare gammal timer hanteras efter denna.
+                {t('staleTimer.moreCount', { count: remaining })}
               </span>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onDiscard(first.key)}>
-            Kasta
+            {t('staleTimer.discard')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={() => onSaveAndClose(first.key)}>
-            Spara som tidrapport
+            {t('staleTimer.save')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

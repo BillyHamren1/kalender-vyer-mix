@@ -6,38 +6,21 @@ import { Label } from '@/components/ui/label';
 import { Building2, FolderOpen, Loader2, MapPin } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export interface ArrivalPromptResult {
-  /** ISO timestamp the user picked as start time */
   startedAtIso: string;
-  /** True if user accepted the suggested arrival time */
   usedSuggestedArrival: boolean;
 }
 
 interface UnifiedArrivalPromptProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /**
-   * The arrival target. Same shape regardless of whether the user
-   * arrived at a Lager, a stort projekt, or a vanlig bokning. The UI is
-   * deliberately identical for all three kinds — only the icon changes.
-   */
   target: ArrivalTarget;
-  /** Called with the user's choice. Dialog stays open until promise resolves. */
   onConfirm: (result: ArrivalPromptResult) => Promise<void>;
-  /** Called if user dismisses ("Inte nu") */
   onDismiss: () => Promise<void>;
 }
 
-/**
- * UnifiedArrivalPrompt — the single arrival dialog used for ALL arrival
- * targets (fixed locations, large projects, plain bookings).
- *
- * Replaces the old split between `ArrivalPromptDialog` (location-only) and
- * `GeofencePrompt` (booking/project). Same copy, same CTA stack, same
- * backdating semantics for every target kind. Only the leading icon
- * differs so users can recognize the place at a glance.
- */
 export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
   open,
   onOpenChange,
@@ -45,6 +28,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
   onConfirm,
   onDismiss,
 }) => {
+  const { t } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customTime, setCustomTime] = useState('');
@@ -81,7 +65,6 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
     }
   };
 
-  // Build a valid past-or-now timestamp from HH:mm input.
   const buildCustomIso = (): string | null => {
     if (!/^\d{2}:\d{2}$/.test(customTime)) return null;
     const [h, m] = customTime.split(':').map(Number);
@@ -115,7 +98,6 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
     }
   };
 
-  // Pick a leading icon by kind — visual hint only, behaviour is identical.
   const TargetIcon =
     target.kind === 'project' ? FolderOpen :
     target.kind === 'location' ? Building2 :
@@ -131,11 +113,9 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
-            Starta dagen?
+            {t('arrival.startDay')}
           </DialogTitle>
-          <DialogDescription>
-            Vi har märkt att du anlänt till arbetsplatsen.
-          </DialogDescription>
+          <DialogDescription>{t('arrival.detected')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -148,13 +128,13 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               <div className="text-xs text-muted-foreground">{target.address}</div>
             )}
             <div className="text-3xl font-bold tabular-nums text-foreground">
-              kl {arrivalLabel}
+              {t('eod.atLabel')} {arrivalLabel}
             </div>
           </div>
 
           {showCustom && (
             <div className="space-y-2">
-              <Label htmlFor="arrival-custom-time">Egen starttid</Label>
+              <Label htmlFor="arrival-custom-time">{t('arrival.customStart')}</Label>
               <Input
                 id="arrival-custom-time"
                 type="time"
@@ -163,9 +143,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
                 className="text-base"
               />
               {customInvalid && (
-                <p className="text-xs text-destructive">
-                  Tiden måste vara i förflutet (max idag).
-                </p>
+                <p className="text-xs text-destructive">{t('arrival.errPast')}</p>
               )}
             </div>
           )}
@@ -181,7 +159,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               data-testid="arrival-start-from-arrival"
             >
               {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Starta från {arrivalLabel}
+              {t('arrival.startFrom', { time: arrivalLabel })}
             </Button>
             <Button
               variant="outline"
@@ -190,7 +168,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               className="w-full"
               data-testid="arrival-start-now"
             >
-              Starta nu
+              {t('arrival.startNow')}
             </Button>
             <Button
               variant="ghost"
@@ -199,7 +177,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               className="w-full"
               data-testid="arrival-dismiss"
             >
-              Inte nu
+              {t('arrival.notNow')}
             </Button>
             <button
               type="button"
@@ -208,7 +186,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               disabled={submitting}
               data-testid="arrival-show-custom"
             >
-              Anpassa tid
+              {t('arrival.customizeTime')}
             </button>
           </div>
         ) : (
@@ -221,7 +199,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               data-testid="arrival-submit-custom"
             >
               {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Starta
+              {t('arrival.start')}
             </Button>
             <Button
               variant="outline"
@@ -229,7 +207,7 @@ export const UnifiedArrivalPrompt: React.FC<UnifiedArrivalPromptProps> = ({
               disabled={submitting}
               className="w-full"
             >
-              Tillbaka
+              {t('arrival.back')}
             </Button>
           </div>
         )}
