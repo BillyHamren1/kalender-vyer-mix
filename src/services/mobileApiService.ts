@@ -229,7 +229,46 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   }
 }
 
-// API methods
+// ── assistant-events caller ────────────────────────────────────────────────
+// Anropar den dedikerade `assistant-events`-edge-functionen. Använder samma
+// mobile token (Bearer) som mobile-app-api. Skiljer sig från callApi i att
+// den postar `{ action, data }` (utan token i body — auth via header).
+async function callAssistantEvents<T = any>(action: string, data?: any): Promise<T> {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Mobile session required for assistant-events');
+  }
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(ASSISTANT_EVENTS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action, data: data ?? {} }),
+      signal: controller.signal,
+    });
+    let json: any;
+    try { json = await res.json(); } catch {
+      throw new Error(`assistant-events: status ${res.status} men ogiltigt svar`);
+    }
+    if (!res.ok) {
+      throw new Error(json?.error || `assistant-events fel (${res.status})`);
+    }
+    return json as T;
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('assistant-events timeout');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+
 export const mobileApi = {
   login: (email: string, password: string) =>
     callApi<{ success: boolean; token: string; staff: MobileStaff }>('login', { email, password }),
