@@ -284,7 +284,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
           markWorkdayEnded();
           window.dispatchEvent(new CustomEvent('workday-ended'));
         } else {
-          toast.error(result.error || t('workday.endFailed') || 'Kunde inte avsluta arbetsdagen');
+          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
         }
       }
     }
