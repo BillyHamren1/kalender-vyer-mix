@@ -1,27 +1,14 @@
 /**
  * EndDayOnArrivalHomeDialog
  * ─────────────────────────
- * Quiet end-of-day suggestion shown when the user just finished a trip
- * that ended inside their silently-inferred home location AND we still
- * have an open workplace signal earlier today.
- *
  * Hard copy rule: the words "hem", "hemma", "bostad" must NOT appear in
- * any user-visible string. The home is only an internal trigger.
+ * any user-visible string.
  */
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Clock, MapPin, Check, X, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { EndDayOnHomeSuggestion } from '@/hooks/useEndDayOnArrivalHome';
-
-// Centralised copy — see the test that asserts it never mentions "hem".
-export const END_DAY_HOME_COPY = {
-  title: 'Avsluta dagen?',
-  body: (place: string, time: string) =>
-    `Jag misstänker att du avslutade din arbetsdag när du lämnade ${place} kl ${time}. Stämmer detta och du vill rapportera din tid?`,
-  yes: (time: string) => `Ja, rapportera till ${time}`,
-  no: 'Nej, jag ska tillbaka',
-  custom: 'Anpassa tid',
-} as const;
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface Props {
   suggestion: EndDayOnHomeSuggestion;
@@ -30,6 +17,7 @@ interface Props {
 }
 
 export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDismiss }: Props) {
+  const { t } = useLanguage();
   const [picking, setPicking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,20 +47,20 @@ export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDism
             <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
               <Clock className="w-5 h-5 text-primary" />
             </div>
-            <h3 className="font-bold text-foreground text-base">{END_DAY_HOME_COPY.title}</h3>
+            <h3 className="font-bold text-foreground text-base">{t('endHome.title')}</h3>
           </div>
           <button
             onClick={() => onDismiss(false)}
             className="p-2 rounded-xl hover:bg-muted/60 transition-colors"
             disabled={submitting}
-            aria-label="Stäng"
+            aria-label={t('endHome.close')}
           >
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         <p className="text-sm text-foreground leading-relaxed mb-5">
-          {END_DAY_HOME_COPY.body(suggestion.workplaceName, exitTimeLabel)}
+          {t('endHome.body', { place: suggestion.workplaceName, time: exitTimeLabel })}
         </p>
 
         <div className="rounded-2xl bg-muted/40 border border-border/50 p-3.5 mb-5 flex items-center gap-2.5">
@@ -83,7 +71,7 @@ export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDism
 
         {picking ? (
           <div className="space-y-3">
-            <label className="block text-xs font-semibold text-foreground">Välj sluttid</label>
+            <label className="block text-xs font-semibold text-foreground">{t('endHome.pickEnd')}</label>
             <input
               type="time"
               value={chosenTime}
@@ -97,14 +85,14 @@ export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDism
               className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              {submitting ? 'Sparar...' : `Avsluta kl ${chosenTime}`}
+              {submitting ? t('endHome.saving') : t('endHome.endAt', { time: chosenTime })}
             </button>
             <button
               onClick={() => setPicking(false)}
               disabled={submitting}
               className="w-full py-2.5 rounded-2xl text-muted-foreground font-medium text-xs hover:bg-muted/40"
             >
-              Tillbaka
+              {t('endHome.back')}
             </button>
           </div>
         ) : (
@@ -115,14 +103,14 @@ export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDism
               className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              {END_DAY_HOME_COPY.yes(exitTimeLabel)}
+              {t('endHome.yes', { time: exitTimeLabel })}
             </button>
             <button
               onClick={() => onDismiss(true)}
               disabled={submitting}
               className="w-full py-3 rounded-2xl bg-muted text-foreground font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {END_DAY_HOME_COPY.no}
+              {t('endHome.no')}
             </button>
             <button
               onClick={() => setPicking(true)}
@@ -130,7 +118,7 @@ export default function EndDayOnArrivalHomeDialog({ suggestion, onAccept, onDism
               className="w-full py-2.5 rounded-2xl text-muted-foreground font-medium text-xs hover:bg-muted/40 flex items-center justify-center gap-2"
             >
               <Pencil className="w-3.5 h-3.5" />
-              {END_DAY_HOME_COPY.custom}
+              {t('endHome.custom')}
             </button>
           </div>
         )}

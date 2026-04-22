@@ -6,35 +6,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Building2, Clock, Loader2 } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export interface EndOfDayResult {
-  /** ISO timestamp the user picked as end time */
   endedAtIso: string;
-  /** Description of post-exit work, only set when user chose "Nej" */
   workDescription?: string;
-  /** True when user accepted the suggested exit time */
   usedSuggestedExit: boolean;
 }
 
 interface EndOfDayStopDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** ISO timestamp of last geofence exit (suggested end-time) */
   lastExitIso: string;
-  /** Optional name of the workplace they exited */
   locationName?: string | null;
-  /** Called with the user's choice. Dialog stays open until promise resolves. */
   onConfirm: (result: EndOfDayResult) => Promise<void>;
 }
 
 const COMMENT_THRESHOLD_MIN = 10;
 
-/**
- * Confirms end-of-day stop time when the user has left their workplace
- * before manually stopping the timer. Two paths:
- *  - "Ja" → use the geofence-exit time as end_time
- *  - "Nej" → user picks own end time + describes what they did
- */
 export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
   open,
   onOpenChange,
@@ -42,9 +31,10 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
   locationName,
   onConfirm,
 }) => {
+  const { t } = useLanguage();
   const [step, setStep] = useState<'ask' | 'custom'>('ask');
   const [submitting, setSubmitting] = useState(false);
-  const [customTime, setCustomTime] = useState(''); // HH:mm
+  const [customTime, setCustomTime] = useState('');
   const [description, setDescription] = useState('');
 
   useEffect(() => {
@@ -70,18 +60,11 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
     }
   };
 
-  // Build full ISO timestamp from time-of-day input.
-  // Night-shift handling: if the entered HH:mm is BEFORE the exit time AND
-  // the exit happened in the previous calendar evening, assume the user means
-  // the next day (e.g. exit yesterday 23:00, end now 02:00 → next day 02:00).
-  // Heuristic: if HH:mm < 12:00 AND it would land before exitDate, roll to next day.
   const buildCustomIso = (): string | null => {
     if (!/^\d{2}:\d{2}$/.test(customTime)) return null;
     const [h, m] = customTime.split(':').map(Number);
-    // Anchor to the same calendar date as the exit
     const candidate = new Date(exitDate);
     candidate.setHours(h, m, 0, 0);
-    // If candidate is before exit AND chosen hour is "morning" (<12), roll to next day
     if (candidate.getTime() <= exitDate.getTime() && h < 12) {
       candidate.setDate(candidate.getDate() + 1);
     }
@@ -116,12 +99,10 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            Sluttid för dagen
+            {t('eod.title')}
           </DialogTitle>
           <DialogDescription>
-            {step === 'ask'
-              ? 'Vi noterade när du lämnade arbetsplatsen. Stämmer det som sluttid?'
-              : 'Ange din egen sluttid och vad du gjorde efter att du lämnade arbetsplatsen.'}
+            {step === 'ask' ? t('eod.askBody') : t('eod.customBody')}
           </DialogDescription>
         </DialogHeader>
 
@@ -130,23 +111,23 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
             <div className="rounded-xl border bg-muted/40 p-4 space-y-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4" />
-                {locationName ? `Du lämnade ${locationName}` : 'Du lämnade arbetsplatsen'}
+                {locationName ? t('eod.leftPlace', { place: locationName }) : t('eod.leftWorkplace')}
               </div>
               <div className="text-3xl font-bold tabular-nums text-foreground">
-                kl {exitTimeLabel}
+                {t('eod.atLabel')} {exitTimeLabel}
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Vill du använda <strong>{exitTimeLabel}</strong> som sluttid på din tidrapport?
+              {t('eod.useAs', { time: exitTimeLabel })}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="text-xs text-muted-foreground">
-              Du lämnade arbetsplatsen kl <strong>{exitTimeLabel}</strong>.
+              {t('eod.youLeftAt', { time: exitTimeLabel })}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="eod-end-time">Sluttid</Label>
+              <Label htmlFor="eod-end-time">{t('eod.endTime')}</Label>
               <Input
                 id="eod-end-time"
                 type="time"
@@ -156,31 +137,31 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
               />
               {!customTimeIsValid && customTime && (
                 <p className="text-xs text-destructive">
-                  Sluttiden måste vara efter {exitTimeLabel}.
+                  {t('eod.errAfter', { time: exitTimeLabel })}
                 </p>
               )}
               {customTimeIsValid && (
                 <p className="text-xs text-muted-foreground">
-                  {customDurationMin} min efter att du lämnade arbetsplatsen.
+                  {t('eod.minsAfter', { mins: customDurationMin })}
                 </p>
               )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="eod-description">
-                Vad gjorde du efter {exitTimeLabel}?
+                {t('eod.descLabel', { time: exitTimeLabel })}
                 {requiresDescription && <span className="text-destructive ml-1">*</span>}
               </Label>
               <Textarea
                 id="eod-description"
-                placeholder="T.ex. Handlade på Bauhaus, hämtade material…"
+                placeholder={t('eod.descPlaceholder')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="min-h-[80px]"
               />
               {descriptionMissing && (
                 <p className="text-xs text-destructive">
-                  Beskrivning krävs när tiden är längre än {COMMENT_THRESHOLD_MIN} min.
+                  {t('eod.descRequired', { mins: COMMENT_THRESHOLD_MIN })}
                 </p>
               )}
             </div>
@@ -196,7 +177,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
                 disabled={submitting}
                 className="w-full sm:w-auto"
               >
-                Nej, annan tid
+                {t('eod.noOther')}
               </Button>
               <Button
                 onClick={handleAcceptSuggested}
@@ -204,7 +185,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
                 className="w-full sm:w-auto"
               >
                 {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Ja, använd {exitTimeLabel}
+                {t('eod.yesUse', { time: exitTimeLabel })}
               </Button>
             </>
           ) : (
@@ -215,7 +196,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
                 disabled={submitting}
                 className="w-full sm:w-auto"
               >
-                Tillbaka
+                {t('eod.back')}
               </Button>
               <Button
                 onClick={handleSubmitCustom}
@@ -223,7 +204,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
                 className="w-full sm:w-auto"
               >
                 {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Spara tidrapport
+                {t('eod.save')}
               </Button>
             </>
           )}

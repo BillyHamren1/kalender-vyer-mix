@@ -10,13 +10,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Sun, Coffee, AlertCircle, MoonStar } from 'lucide-react';
+import { Sun, Coffee, MoonStar } from 'lucide-react';
 import type {
   AssistantDecision,
   DaystartDecision,
   LongPassNoBreakDecision,
   LastWorkplaceForDayDecision,
-  UnclassifiedAnomalyDecision,
   ActivityLeaveDecision,
 } from '@/hooks/useWorkDayAssistant';
 import { mobileApi } from '@/services/mobileApiService';
@@ -24,25 +23,8 @@ import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { ActivityLeaveDialog } from './ActivityLeaveDialog';
+import { useLanguage } from '@/i18n/LanguageContext';
 
-/**
- * WorkDayAssistant
- * -----------------
- * UI-ytan för den proaktiva timer-assistenten (Prompt 4).
- *
- * Lyssnar på AssistantDecision från useWorkDayAssistant och visar ETT enda
- * dialogfönster åt gången baserat på beslut-typen:
- *
- *   • daystart                 → enkel hälsning + länk till jobben
- *   • activity_leave           → ActivityLeaveDialog (stop / keep / anomaly)
- *   • long_pass_no_break       → påminnelse om att stoppa & välja rast
- *   • last_workplace_for_day   → uppmaning att avsluta dagen
- *   • unclassified_anomaly     → uppmaning att klassificera glapp
- *
- * Komponenten gör INGA tidsberäkningar själv. Stop-flödet går genom samma
- * useWorkSession-motor som "Avsluta aktivitet"-knappen i bannern, så det
- * finns bara EN väg in i tidrapporteringen.
- */
 interface Props {
   decision: AssistantDecision | null;
   onAcknowledge: () => void;
@@ -50,6 +32,7 @@ interface Props {
 
 export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(
@@ -59,12 +42,9 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
   const [submitting, setSubmitting] = useState(false);
 
   if (!decision) {
-    // Render nothing visible, but keep mounting workSessionDialogs so the
-    // break-decision dialog is in the tree if a stop-from-assistant kicks in.
     return <>{workSessionDialogs}</>;
   }
 
-  // Helper: build a WorkTarget from an active timer.
   const targetFromTimer = (
     timerKey: string,
     timer: ActivityLeaveDecision['timer'] | LongPassNoBreakDecision['timer'],
@@ -87,7 +67,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     return { kind: 'booking', bookingId: timerKey, client: timer.client };
   };
 
-  // ──────── DAYSTART ────────
   if (decision.kind === 'daystart') {
     const d = decision as DaystartDecision;
     return (
@@ -97,17 +76,17 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sun className="h-5 w-5 text-primary" />
-                God morgon!
+                {t('assistant.morningTitle')}
               </DialogTitle>
               <DialogDescription>
                 {d.arrivedAtWorkplace
-                  ? 'Du verkar vara på en arbetsplats. Vill du börja dagens jobb?'
-                  : 'Ny dag, nya tag. Vill du kolla vad som ligger på schemat?'}
+                  ? t('assistant.morningAtWorkplace')
+                  : t('assistant.morningGeneric')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
-                Inte nu
+                {t('assistant.notNow')}
               </Button>
               <Button
                 onClick={() => {
@@ -116,7 +95,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
                 }}
                 className="w-full sm:w-auto"
               >
-                Visa dagens jobb
+                {t('assistant.showJobs')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -126,7 +105,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     );
   }
 
-  // ──────── ACTIVITY LEAVE ────────
   if (decision.kind === 'activity_leave') {
     const d = decision as ActivityLeaveDecision;
     const handleStopActivity = async () => {
@@ -135,20 +113,19 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
         const target = targetFromTimer(d.timerKey, d.timer);
         const res = await stopSession(target);
         if (res.cancelled) {
-          // user backed out of break dialog — keep timer alive, dismiss assistant prompt
           onAcknowledge();
           return;
         }
         if (res.saved) {
           toast.success(
             target.kind === 'location'
-              ? 'Aktivitet avslutad'
-              : `Tidrapport sparad: ${res.hoursWorked}h`,
+              ? t('assistant.activityEnded')
+              : t('assistant.reportSaved', { hours: res.hoursWorked ?? '' }),
           );
         }
         onAcknowledge();
       } catch (err: any) {
-        toast.error(err?.message || 'Kunde inte avsluta aktiviteten');
+        toast.error(err?.message || t('assistant.couldNotEnd'));
       } finally {
         setSubmitting(false);
       }
@@ -171,9 +148,9 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
           booking_id: d.timer.locationId || d.timer.largeProjectId ? undefined : d.timerKey,
           large_project_id: d.timer.largeProjectId || undefined,
         });
-        toast.success('Glappet markerat — admin följer upp');
+        toast.success(t('assistant.gapMarked'));
       } catch (err: any) {
-        toast.error(err?.message || 'Kunde inte markera glappet');
+        toast.error(err?.message || t('assistant.couldNotMark'));
       } finally {
         setSubmitting(false);
         onAcknowledge();
@@ -196,7 +173,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     );
   }
 
-  // ──────── LONG PASS WITHOUT BREAK ────────
   if (decision.kind === 'long_pass_no_break') {
     const d = decision as LongPassNoBreakDecision;
     return (
@@ -206,18 +182,18 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Coffee className="h-5 w-5 text-primary" />
-                Långt pass — har du tagit rast?
+                {t('assistant.longShiftTitle')}
               </DialogTitle>
               <DialogDescription>
-                Du har varit igång på <strong>{d.timer.locationName || d.timer.client}</strong>
-                {' '}i ungefär {d.passHours.toFixed(1)} timmar. Vi drar ingen rast
-                automatiskt — när du stoppar aktiviteten frågar vi dig om
-                rasten där.
+                {t('assistant.longShiftBody', {
+                  place: d.timer.locationName || d.timer.client,
+                  hours: d.passHours.toFixed(1),
+                })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
-                Påminn senare
+                {t('assistant.remindLater')}
               </Button>
               <Button
                 onClick={async () => {
@@ -226,10 +202,10 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
                     const target = targetFromTimer(d.timerKey, d.timer);
                     const res = await stopSession(target);
                     if (res.saved) {
-                      toast.success(`Tidrapport sparad: ${res.hoursWorked}h`);
+                      toast.success(t('assistant.reportSaved', { hours: res.hoursWorked ?? '' }));
                     }
                   } catch (err: any) {
-                    toast.error(err?.message || 'Kunde inte avsluta');
+                    toast.error(err?.message || t('assistant.couldNotStop'));
                   } finally {
                     setSubmitting(false);
                     onAcknowledge();
@@ -238,7 +214,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
                 disabled={submitting}
                 className="w-full sm:w-auto"
               >
-                Avsluta nu (svara om rast)
+                {t('assistant.endNowAskBreak')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -248,7 +224,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     );
   }
 
-  // ──────── LAST WORKPLACE FOR DAY ────────
   if (decision.kind === 'last_workplace_for_day') {
     const d = decision as LastWorkplaceForDayDecision;
     return (
@@ -258,22 +233,20 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <MoonStar className="h-5 w-5 text-primary" />
-                Verkar du klar för dagen?
+                {t('assistant.endDayQ')}
               </DialogTitle>
               <DialogDescription>
-                Vi ser att du lämnade {d.locationName || 'arbetsplatsen'} och
-                inte har några aktiva aktiviteter. Vill du avsluta dagen så
-                vi kan dubbelkolla att allt är registrerat?
+                {t('assistant.endDayBody', {
+                  place: d.locationName || t('assistant.workplaceFallback'),
+                })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={onAcknowledge} className="w-full sm:w-auto">
-                Inte än
+                {t('assistant.notYet')}
               </Button>
               <Button
                 onClick={() => {
-                  // Trigga EOD direkt via globalt event som banner lyssnar på.
-                  // Banner äger stop+EOD-flödet — vi duplicerar det inte här.
                   navigate('/m');
                   window.dispatchEvent(new CustomEvent('request-end-day', {
                     detail: { source: 'assistant_last_workplace_for_day' },
@@ -282,7 +255,7 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
                 }}
                 className="w-full sm:w-auto"
               >
-                Avsluta dagen
+                {t('assistant.endDay')}
               </Button>
             </DialogFooter>
           </DialogContent>

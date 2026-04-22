@@ -1,16 +1,3 @@
-/**
- * TimerConflictDialog
- * ====================
- *
- * Surfaces a rule-based conflict between an already-running timer and a
- * new start the user just attempted. Replaces the old silent
- * "alreadyActive" toast with an explicit, actionable choice.
- *
- * Three buttons:
- *   • "Avbryt"               — close, do nothing
- *   • "Behåll pågående"      — close, keep current timer running
- *   • "Stoppa & byt"         — call onSwitch (parent stops old + starts new)
- */
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,31 +9,26 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { StartEvaluation } from '@/lib/timerConcurrency';
+import { useLanguage } from '@/i18n/LanguageContext';
+import type { TranslationKey } from '@/i18n/translations';
 
 interface TimerConflictDialogProps {
   open: boolean;
-  /** The conflict surfaced by evaluateStartConflict — required when open. */
   evaluation: Extract<StartEvaluation, { status: 'switch' }> | null;
-  /** Human label of what the user tried to start. */
   newTargetLabel: string;
   onCancel: () => void;
   onSwitch: () => void;
 }
 
-const REASON_TEXT: Record<
+const REASON_KEY: Record<
   Extract<StartEvaluation, { status: 'switch' }>['reason'],
-  string
+  TranslationKey
 > = {
-  one_active_timer_at_a_time:
-    'Du kan bara ha en aktiv timer åt gången. Vill du stoppa den pågående och börja med den nya?',
-  one_booking_at_a_time:
-    'Du kan bara ha en bokning aktiv åt gången. Vill du stoppa den pågående och börja med den nya?',
-  one_project_at_a_time:
-    'Du kan bara ha ett projekt aktivt åt gången. Vill du stoppa det pågående och byta?',
-  booking_vs_project:
-    'Bokning och projekt kan inte rapporteras samtidigt. Vill du stoppa det pågående och byta?',
-  one_location_at_a_time:
-    'Du är redan inloggad på en plats. Vill du checka ut därifrån och in på den nya?',
+  one_active_timer_at_a_time: 'conflict.reason.oneActive',
+  one_booking_at_a_time: 'conflict.reason.oneBooking',
+  one_project_at_a_time: 'conflict.reason.oneProject',
+  booking_vs_project: 'conflict.reason.bookingVsProject',
+  one_location_at_a_time: 'conflict.reason.oneLocation',
 };
 
 export function TimerConflictDialog({
@@ -56,27 +38,28 @@ export function TimerConflictDialog({
   onCancel,
   onSwitch,
 }: TimerConflictDialogProps) {
-  const reasonText = evaluation ? REASON_TEXT[evaluation.reason] : '';
+  const { t } = useLanguage();
+  const reasonText = evaluation ? t(REASON_KEY[evaluation.reason]) : '';
   const currentLabel = evaluation?.conflict.label ?? '';
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Pågående timer</AlertDialogTitle>
+          <AlertDialogTitle>{t('conflict.title')}</AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
             <span className="block">{reasonText}</span>
             <span className="block text-foreground">
-              <strong className="font-semibold">Pågående:</strong> {currentLabel}
+              <strong className="font-semibold">{t('conflict.current')}</strong> {currentLabel}
             </span>
             <span className="block text-foreground">
-              <strong className="font-semibold">Ny:</strong> {newTargetLabel}
+              <strong className="font-semibold">{t('conflict.new')}</strong> {newTargetLabel}
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Behåll pågående</AlertDialogCancel>
-          <AlertDialogAction onClick={onSwitch}>Stoppa & byt</AlertDialogAction>
+          <AlertDialogCancel onClick={onCancel}>{t('conflict.keep')}</AlertDialogCancel>
+          <AlertDialogAction onClick={onSwitch}>{t('conflict.switch')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

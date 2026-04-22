@@ -12,20 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Coffee, AlertTriangle, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/i18n/LanguageContext';
 
-/**
- * Result returned by StopBreakDecisionDialog.
- *
- * Architectural decision: tidrapporteringen får ALDRIG dra rast automatiskt.
- * När ett pass är så långt att rast normalt skulle krävas måste användaren
- * göra ett explicit val. Tre giltiga utfall:
- *
- *  - 'break'      → användaren anger rasten själv (decimaltimmar)
- *  - 'no_break'   → användaren bekräftar uttryckligen att ingen rast tas
- *  - 'anomaly'    → användaren markerar att detta ska hanteras som avvikelse;
- *                    en time_report_anomaly skapas av anroparen så att admin
- *                    kan följa upp i stället för att gissa.
- */
 export type StopBreakDecision =
   | { kind: 'break'; breakHours: number }
   | { kind: 'no_break' }
@@ -34,24 +22,14 @@ export type StopBreakDecision =
 interface StopBreakDecisionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Längd på passet i decimaltimmar (utan rast-justering) — visas till användaren. */
   passHours: number;
-  /** Etikett för vad som stoppas, t.ex. "Uppdrag X" eller "Lager". */
   context?: string | null;
-  /** Inget förhandsifyllt rast-värde; måste väljas aktivt. */
   onConfirm: (result: StopBreakDecision) => Promise<void> | void;
 }
 
 const MIN_BREAK = 0;
-const MAX_BREAK_HOURS = 4; // matchar backend (240 min)
+const MAX_BREAK_HOURS = 4;
 
-/**
- * Frågar användaren om rast vid timer-stopp.
- *
- *  - Användaren MÅSTE välja ett av de tre alternativen för att kunna spara.
- *  - Ingen 0.5h dras automatiskt — beslutsdokumentet säger uttryckligen
- *    att ingen tid får justeras automatiskt bara för att passet är långt.
- */
 export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = ({
   open,
   onOpenChange,
@@ -59,6 +37,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
   context,
   onConfirm,
 }) => {
+  const { t } = useLanguage();
   const [choice, setChoice] = useState<'break' | 'no_break' | 'anomaly' | null>(null);
   const [breakInput, setBreakInput] = useState<string>('0.5');
   const [note, setNote] = useState<string>('');
@@ -81,15 +60,15 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
     if (choice === 'break') {
       const v = parseFloat(breakInput.replace(',', '.'));
       if (!Number.isFinite(v) || v <= MIN_BREAK) {
-        setError('Ange en rast större än 0.');
+        setError(t('breakDialog.errBreakTooSmall'));
         return null;
       }
       if (v > MAX_BREAK_HOURS) {
-        setError('Rasten kan max vara 4 timmar (240 min).');
+        setError(t('breakDialog.errBreakTooLong'));
         return null;
       }
       if (v >= passHours) {
-        setError('Rasten kan inte vara lika lång som eller längre än passet.');
+        setError(t('breakDialog.errBreakLongerThanShift'));
         return null;
       }
       return { kind: 'break', breakHours: Math.round(v * 100) / 100 };
@@ -100,12 +79,12 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
     if (choice === 'anomaly') {
       const trimmed = note.trim();
       if (!trimmed) {
-        setError('Beskriv kort vad avvikelsen gäller (t.ex. "glömde stoppa", "gick hem tidigare").');
+        setError(t('breakDialog.errAnomalyNote'));
         return null;
       }
       return { kind: 'anomaly', note: trimmed };
     }
-    setError('Välj ett alternativ för rast.');
+    setError(t('breakDialog.errChoose'));
     return null;
   };
 
@@ -117,7 +96,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
     try {
       await onConfirm(decision);
     } catch (e: any) {
-      setError(e?.message || 'Kunde inte spara. Försök igen.');
+      setError(e?.message || t('breakDialog.errSave'));
     } finally {
       setSubmitting(false);
     }
@@ -129,17 +108,14 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Coffee className="h-5 w-5 text-primary" />
-            Hur ska rasten hanteras?
+            {t('breakDialog.title')}
           </DialogTitle>
           <DialogDescription>
-            Passet är <strong>{passLabel}</strong>
-            {context ? ` (${context})` : ''}. Inget rast-avdrag görs
-            automatiskt — välj hur den här tidrapporten ska se ut.
+            {t('breakDialog.body', { pass: passLabel, ctx: context ? ` (${context})` : '' })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* Option a — ange rast */}
           <button
             type="button"
             onClick={() => { setChoice('break'); setError(null); }}
@@ -147,13 +123,11 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
               choice === 'break' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
             }`}
           >
-            <div className="font-semibold text-sm">Ange rast</div>
-            <div className="text-xs text-muted-foreground">
-              Ange hur lång rast du faktiskt tog. Den dras från timmar arbetade.
-            </div>
+            <div className="font-semibold text-sm">{t('breakDialog.optBreak')}</div>
+            <div className="text-xs text-muted-foreground">{t('breakDialog.optBreakDesc')}</div>
             {choice === 'break' && (
               <div className="mt-3 space-y-1">
-                <Label htmlFor="break-hours" className="text-xs">Rast (timmar)</Label>
+                <Label htmlFor="break-hours" className="text-xs">{t('breakDialog.breakLabel')}</Label>
                 <Input
                   id="break-hours"
                   type="number"
@@ -170,7 +144,6 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
             )}
           </button>
 
-          {/* Option b — ingen rast */}
           <button
             type="button"
             onClick={() => { setChoice('no_break'); setError(null); }}
@@ -178,13 +151,10 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
               choice === 'no_break' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
             }`}
           >
-            <div className="font-semibold text-sm">Ingen rast</div>
-            <div className="text-xs text-muted-foreground">
-              Bekräfta att ingen rast togs. Inga timmar justeras.
-            </div>
+            <div className="font-semibold text-sm">{t('breakDialog.optNoBreak')}</div>
+            <div className="text-xs text-muted-foreground">{t('breakDialog.optNoBreakDesc')}</div>
           </button>
 
-          {/* Option c — markera som avvikelse */}
           <button
             type="button"
             onClick={() => { setChoice('anomaly'); setError(null); }}
@@ -194,20 +164,17 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
           >
             <div className="font-semibold text-sm flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-              Markera som avvikelse
+              {t('breakDialog.optAnomaly')}
             </div>
-            <div className="text-xs text-muted-foreground">
-              Du är osäker eller något gick fel. Tidrapporten sparas utan
-              automatisk justering och en avvikelse skickas till admin för uppföljning.
-            </div>
+            <div className="text-xs text-muted-foreground">{t('breakDialog.optAnomalyDesc')}</div>
             {choice === 'anomaly' && (
               <div className="mt-3 space-y-1">
-                <Label htmlFor="anomaly-note" className="text-xs">Kort beskrivning</Label>
+                <Label htmlFor="anomaly-note" className="text-xs">{t('breakDialog.noteLabel')}</Label>
                 <Textarea
                   id="anomaly-note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="T.ex. glömde stoppa, gick hem tidigare, oklar rast"
+                  placeholder={t('breakDialog.notePlaceholder')}
                   className="min-h-[64px]"
                   autoFocus
                 />
@@ -215,9 +182,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
             )}
           </button>
 
-          {error && (
-            <p className="text-xs text-destructive">{error}</p>
-          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
 
         <DialogFooter className="gap-2 flex-col sm:flex-row">
@@ -227,7 +192,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
             disabled={submitting}
             className="w-full sm:w-auto"
           >
-            Avbryt
+            {t('breakDialog.cancel')}
           </Button>
           <Button
             onClick={handleSubmit}
@@ -235,7 +200,7 @@ export const StopBreakDecisionDialog: React.FC<StopBreakDecisionDialogProps> = (
             className="w-full sm:w-auto"
           >
             {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Spara tidrapport
+            {t('breakDialog.save')}
           </Button>
         </DialogFooter>
       </DialogContent>
