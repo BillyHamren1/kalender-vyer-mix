@@ -197,50 +197,44 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     };
   }, [gpsPoints, date]);
 
-  const passPins = useMemo(() => {
-    const pins: Array<{
+  // Resesegment som ska ritas på kartan (linje + start/slut-pinnar)
+  const travelOnMap = useMemo(() => {
+    const segs: Array<{
+      id: string;
+      fromLat: number;
+      fromLng: number;
+      toLat: number;
+      toLng: number;
+      fromTime: string;
+      toTime: string;
       label: string;
-      kind: 'in' | 'out';
-      lat: number;
-      lng: number;
-      time: string;
-      passLabel: string;
     }> = [];
 
-    for (const w of workEntries) {
-      const inP = findGpsAt(w.start_time);
-      const outP = w.end_time ? findGpsAt(w.end_time) : null;
-      const passLabel = w.booking_client + (w.booking_number ? ` (#${w.booking_number})` : '');
-      if (inP && w.start_time) {
-        pins.push({ label: 'Inloggning', kind: 'in', lat: inP.lat, lng: inP.lng, time: toHHMM(w.start_time), passLabel });
-      }
-      if (outP && w.end_time) {
-        pins.push({ label: 'Utloggning', kind: 'out', lat: outP.lat, lng: outP.lng, time: toHHMM(w.end_time), passLabel });
-      }
-    }
-
     for (const t of travelSegments) {
-      const inP = t.from_latitude && t.from_longitude
+      const fromP = t.from_latitude && t.from_longitude
         ? { lat: t.from_latitude, lng: t.from_longitude }
         : findGpsAt(t.start_time);
-      const outP = t.to_latitude && t.to_longitude
+      const toP = t.to_latitude && t.to_longitude
         ? { lat: t.to_latitude, lng: t.to_longitude }
         : findGpsAt(t.end_time);
-      const passLabel = `Resa ${[t.from_address, t.to_address].filter(Boolean).join(' → ') || ''}`.trim();
-      if (inP && t.start_time) {
-        pins.push({ label: 'Avresa', kind: 'in', lat: inP.lat, lng: inP.lng, time: toHHMM(t.start_time), passLabel });
-      }
-      if (outP && t.end_time) {
-        pins.push({ label: 'Ankomst', kind: 'out', lat: outP.lat, lng: outP.lng, time: toHHMM(t.end_time), passLabel });
-      }
+      if (!fromP || !toP) continue;
+      segs.push({
+        id: t.id,
+        fromLat: fromP.lat,
+        fromLng: fromP.lng,
+        toLat: toP.lat,
+        toLng: toP.lng,
+        fromTime: toHHMM(t.start_time),
+        toTime: toHHMM(t.end_time),
+        label: [t.from_address, t.to_address].filter(Boolean).join(' → ') || 'Resa',
+      });
     }
-
-    return pins;
-  }, [workEntries, travelSegments, findGpsAt]);
+    return segs;
+  }, [travelSegments, findGpsAt]);
 
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
-    if (passPins.length === 0) return;
+    if (travelOnMap.length === 0) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -250,7 +244,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
-    const center: [number, number] = [passPins[0].lng, passPins[0].lat];
+    const center: [number, number] = [travelOnMap[0].fromLng, travelOnMap[0].fromLat];
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
@@ -263,36 +257,72 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
     m.on('load', () => {
       const bounds = new mapboxgl.LngLatBounds();
-      passPins.forEach(p => bounds.extend([p.lng, p.lat]));
+      travelOnMap.forEach(t => {
+        bounds.extend([t.fromLng, t.fromLat]);
+        bounds.extend([t.toLng, t.toLat]);
+      });
       if (!bounds.isEmpty()) {
         m.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       }
 
-      passPins.forEach((p, i) => {
-        const el = document.createElement('div');
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.borderRadius = '50%';
-        el.style.backgroundColor = p.kind === 'in' ? '#10b981' : '#ef4444';
-        el.style.border = '3px solid white';
-        el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.color = 'white';
-        el.style.fontSize = '10px';
-        el.style.fontWeight = 'bold';
-        el.textContent = String(i + 1);
+      // Draw a line for each travel segment
+      travelOnMap.forEach((t, idx) => {
+        const sourceId = `travel-line-${idx}`;
+        m.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [[t.fromLng, t.fromLat], [t.toLng, t.toLat]],
+            },
+          },
+        });
+        m.addLayer({
+          id: sourceId,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 4,
+            'line-opacity': 0.85,
+          },
+        });
+      });
 
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([p.lng, p.lat])
-          .setPopup(
-            new mapboxgl.Popup({ offset: 22 }).setHTML(
-              `<strong>${p.label} ${p.time}</strong><br/><span style="font-size:11px">${p.passLabel}</span><br/><span style="font-size:10px;color:#666">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>`
+      // Pins for from (green) and to (red) for each travel
+      travelOnMap.forEach((t, i) => {
+        const makePin = (lat: number, lng: number, kind: 'from' | 'to', time: string) => {
+          const el = document.createElement('div');
+          el.style.width = '24px';
+          el.style.height = '24px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = kind === 'from' ? '#10b981' : '#ef4444';
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+          el.style.color = 'white';
+          el.style.fontSize = '10px';
+          el.style.fontWeight = 'bold';
+          el.textContent = String(i + 1);
+
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([lng, lat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 22 }).setHTML(
+                `<strong>${kind === 'from' ? 'Avresa' : 'Ankomst'} ${time}</strong><br/><span style="font-size:11px">${t.label}</span><br/><span style="font-size:10px;color:#666">${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`
+              )
             )
-          )
-          .addTo(m);
-        markersRef.current.push(marker);
+            .addTo(m);
+          markersRef.current.push(marker);
+        };
+
+        makePin(t.fromLat, t.fromLng, 'from', t.fromTime);
+        makePin(t.toLat, t.toLng, 'to', t.toTime);
       });
     });
 
@@ -306,7 +336,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, passPins]);
+  }, [open, mapboxToken, travelOnMap]);
 
   if (!date) return null;
 
@@ -324,7 +354,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = passPins.length > 0;
+  const hasMapData = travelOnMap.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -347,6 +377,20 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
+
+        {/* Map first — show all travel segments as lines */}
+        {hasMapData ? (
+          <div className="space-y-1">
+            <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
+            <div className="text-xs text-muted-foreground">
+              🟢 Avresa · 🔴 Ankomst · 🔵 Resväg · {travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-[160px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
+            Inga resor registrerade denna dag
+          </div>
+        )}
 
         {ongoingCount > 0 && (
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 text-orange-700 dark:text-orange-400">
@@ -400,21 +444,6 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             </div>
           );
         })()}
-
-
-        {hasMapData ? (
-          <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
-        ) : (
-          <div className="w-full h-[200px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
-            Inga geopositioner rapporterade
-          </div>
-        )}
-
-        {passPins.length > 0 && (
-          <div className="text-xs text-muted-foreground -mt-1">
-            🟢 In · 🔴 Ut · {passPins.length} positioner från {gpsPoints.length} GPS-pings
-          </div>
-        )}
 
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Tidslinje</h4>
@@ -475,28 +504,6 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         </div>
 
-        {passPins.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">In- och utloggningar</h4>
-            <div className="grid grid-cols-1 gap-1 text-xs">
-              {passPins.map((p, i) => (
-                <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30">
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5"
-                    style={{ backgroundColor: p.kind === 'in' ? '#10b981' : '#ef4444' }}
-                  >
-                    {i + 1}
-                  </div>
-                  <span className="font-medium shrink-0">{p.label} {p.time}</span>
-                  <span className="flex-1 text-muted-foreground break-words min-w-0">{p.passLabel}</span>
-                  <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                    {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );
