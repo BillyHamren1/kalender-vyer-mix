@@ -255,17 +255,19 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     return candidates.find(c => c.name.trim().toLowerCase() === trimName);
   }, [localProductsByBooking]);
 
-  const handleUpdateProductCost = useCallback(async (productId: string, field: string, value: number) => {
+  const handleUpdateProductCost = useCallback(async (productId: string, field: 'assembly_cost' | 'handling_cost' | 'purchase_cost', value: number, bookingId: string) => {
     try {
-      const { updateProductViaApi } = await import('@/services/planningApiService');
-      await updateProductViaApi(productId, { [field]: value });
+      const { upsertProductCostOverride } = await import('@/services/productCostOverrideService');
+      await upsertProductCostOverride(largeProjectId, productId, { [field]: value }, bookingId);
+      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', largeProjectId] });
       queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
       queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
       toast.success('Kostnad uppdaterad');
-    } catch {
+    } catch (e) {
+      console.error('[LargeProjectBookingEconomyBreakdown] update cost failed', e);
       toast.error('Kunde inte uppdatera kostnad');
     }
-  }, [queryClient]);
+  }, [queryClient, largeProjectId]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
