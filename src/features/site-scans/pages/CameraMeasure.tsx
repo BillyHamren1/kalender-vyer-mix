@@ -128,19 +128,20 @@ const CameraMeasure: React.FC = () => {
   const reset = () => setPoints([]);
   const undo = () => setPoints((p) => p.slice(0, -1));
 
-  // Drag handlers for moving points
-  const onPointPointerDown = (idx: number, e: React.PointerEvent) => {
-    e.stopPropagation();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDraggingIdx(idx);
-  };
   const onPointerMove = (e: React.PointerEvent) => {
     if (draggingIdx === null) return;
     const p = getRelativePoint(e.clientX, e.clientY);
     if (!p) return;
     setPoints((prev) => prev.map((pt, i) => (i === draggingIdx ? p : pt)));
   };
-  const onPointerUp = () => setDraggingIdx(null);
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (draggingIdx !== null) {
+      try {
+        (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+      } catch {}
+      setDraggingIdx(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
