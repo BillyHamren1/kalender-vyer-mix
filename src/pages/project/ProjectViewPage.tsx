@@ -197,7 +197,7 @@ const ProjectViewPage = () => {
       </div>
 
       {/* Three-column: Filer, Uppgifter, Historik */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 gap-6 items-stretch">
         <div className="flex flex-col h-full">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
           <ProjectFiles
@@ -208,29 +208,6 @@ const ProjectViewPage = () => {
             bookingAttachments={bookingAttachments}
             className="h-full"
           />
-        </div>
-
-        <div className="flex flex-col h-full">
-          <ProjectTaskList
-            tasks={tasks}
-            onAddTask={detail.addTask}
-            onUpdateTask={detail.updateTask}
-            onDeleteTask={detail.deleteTask}
-            bookingId={bookingId}
-            getTaskAction={(task) => {
-              if (task.title === 'Transportbokning' && bookingId) {
-                return () => setTransportBookingOpen(true);
-              }
-              return undefined;
-            }}
-            executionHref="execution"
-            onOpenInChat={(taskId, taskTitle) => setChatTaskRef({ taskId, taskTitle })}
-          />
-        </div>
-
-        <div className="flex flex-col h-full">
-          <SectionHeader icon={History} title="Historik" count={activities.length} />
-          <ProjectActivityLog activities={activities} className="h-full" />
         </div>
       </div>
 
