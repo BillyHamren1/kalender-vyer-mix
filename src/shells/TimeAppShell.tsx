@@ -21,6 +21,7 @@ import MobileInbox from '@/pages/mobile/MobileInbox';
 import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
 import MobileScannerApp from '@/pages/MobileScannerApp';
 import MobileToolsHub from '@/pages/mobile/MobileToolsHub';
+import MobileMeasure from '@/pages/mobile/MobileMeasure';
 import MobileCameraCapture from '@/pages/mobile/MobileCameraCapture';
 import NativeMeasureLauncher from '@/features/site-scans/pages/NativeMeasureLauncher';
 import SiteScanDetailPage from '@/features/site-scans/pages/ScanDetail';
