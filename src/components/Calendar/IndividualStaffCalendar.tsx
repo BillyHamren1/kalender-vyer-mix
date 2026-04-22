@@ -26,7 +26,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [lastProcessedDate, setLastProcessedDate] = useState<string>('');
-  const { handleEventClick } = useEventNavigation();
+  const { handleProjectEventClick } = useEventNavigation();
 
   // Update FullCalendar when currentDate changes from parent
   useEffect(() => {
@@ -43,12 +43,9 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     }
   }, [currentDate, lastProcessedDate]);
 
-  // Updated event click handler to use navigation hook
+  // Staff calendar always navigates to project view (not booking detail)
   const handleStaffEventClick = (clickInfo: any) => {
-    const event = clickInfo.event;
-
-    // Use the event navigation hook to handle booking navigation
-    handleEventClick(clickInfo);
+    handleProjectEventClick(clickInfo);
   };
 
   // Format events for FullCalendar - Show only booking events with client name and event type

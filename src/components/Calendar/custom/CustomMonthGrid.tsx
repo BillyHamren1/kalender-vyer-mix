@@ -20,7 +20,7 @@ const CustomMonthGrid: React.FC<CustomMonthGridProps> = ({
   currentDate,
   isLoading = false,
 }) => {
-  const { handleEventClick } = useEventNavigation();
+  const { handleProjectEventClick: handleEventClick } = useEventNavigation();
 
   // Build weeks grid
   const weeks = useMemo(() => {
