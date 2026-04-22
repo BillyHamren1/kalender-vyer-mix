@@ -1,10 +1,35 @@
 import { Capacitor } from '@capacitor/core';
+import { App, type AppState } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { mobileApi } from './mobileApiService';
 
 let initialized = false;
 let initializing = false;
+let appResumeListenerAttached = false;
+
+const LAST_REGISTER_KEY = 'push:last_register_at';
+const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
+
+function markRegistered(): void {
+  try {
+    localStorage.setItem(LAST_REGISTER_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
+function shouldRefresh(): boolean {
+  try {
+    const raw = localStorage.getItem(LAST_REGISTER_KEY);
+    if (!raw) return true;
+    const last = Number(raw);
+    if (!Number.isFinite(last)) return true;
+    return Date.now() - last > REFRESH_AFTER_MS;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Fire-and-forget push init — NEVER await this from auth/startup.
@@ -34,6 +59,42 @@ export function initPushNotifications(staffId: string): void {
   }).finally(() => {
     initializing = false;
   });
+
+  // Attach the app-resume refresh listener exactly once per session.
+  attachAppResumeRefresh(staffId);
+}
+
+/**
+ * Re-trigger PushNotifications.register() when the app comes to the
+ * foreground if our last successful registration is older than 24h.
+ * This forces FCM/APNs to hand us a fresh token if rotation happened
+ * while the app was backgrounded — keeps device_tokens table healthy.
+ */
+function attachAppResumeRefresh(_staffId: string): void {
+  if (appResumeListenerAttached) return;
+  if (!Capacitor.isNativePlatform()) return;
+  appResumeListenerAttached = true;
+
+  try {
+    App.addListener('appStateChange', (state: AppState) => {
+      if (!state.isActive) return;
+      if (!shouldRefresh()) {
+        console.log('[Push] Resume — token still fresh, skip re-register');
+        return;
+      }
+      console.log('[Push] Resume — last register >24h ago, calling register() again');
+      // Reset listeners not required: register() is idempotent and the
+      // existing 'registration' listener (set up in _doInit) will catch
+      // any new token that FCM/APNs hands back.
+      PushNotifications.register().catch((err) => {
+        console.warn('[Push] Resume register() failed (non-fatal):', err);
+      });
+    }).catch((err) => {
+      console.warn('[Push] Failed to attach appStateChange listener:', err);
+    });
+  } catch (err) {
+    console.warn('[Push] attachAppResumeRefresh threw:', err);
+  }
 }
 
 async function _doInit(staffId: string): Promise<void> {
@@ -67,6 +128,7 @@ async function _doInit(staffId: string): Promise<void> {
     console.log('[Push] Token received:', token.value?.slice(0, 20) + '...');
     // Save token async — never block on this
     mobileApi.registerPushToken(token.value).then(() => {
+      markRegistered();
       console.log('[Push] Token registered with server');
     }).catch((err) => {
       console.error('[Push] Failed to register token with server:', err);
@@ -162,6 +224,7 @@ export async function unregisterPushNotifications(): Promise<void> {
     await PushNotifications.removeAllListeners();
     initialized = false;
     initializing = false;
+    try { localStorage.removeItem(LAST_REGISTER_KEY); } catch { /* ignore */ }
     console.log('[Push] Unregistered');
   } catch (err) {
     console.error('[Push] Unregister error:', err);
@@ -206,4 +269,3 @@ export async function scheduleLocalNotification(
     console.warn('[Push] scheduleLocalNotification failed:', err);
   }
 }
-

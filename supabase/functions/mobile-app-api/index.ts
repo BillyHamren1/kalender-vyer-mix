@@ -4114,6 +4114,26 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
 
   console.log(`[mobile-app-api] [register_push_token] upsert token for staff=${staff?.name || staffId}, platform=${platform || 'android'}, tokenPrefix=${push_token?.slice(0, 12)}...`)
 
+  // Detect token rotation for the same staff (different token already on file).
+  try {
+    const { data: existingTokens } = await supabase
+      .from('device_tokens')
+      .select('token, last_refreshed_at')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+
+    if (existingTokens && existingTokens.length > 0) {
+      const matchesIncoming = existingTokens.some((t: any) => t.token === push_token)
+      if (!matchesIncoming) {
+        const oldPrefixes = existingTokens.map((t: any) => t.token.slice(0, 12)).join(',')
+        console.log(`[mobile-app-api] [register_push_token] token rotated for staff=${staffId} old=[${oldPrefixes}] new=${push_token.slice(0, 12)}`)
+      }
+    }
+  } catch (rotErr) {
+    console.warn('[mobile-app-api] [register_push_token] rotation check failed (non-fatal):', rotErr)
+  }
+
+  const nowIso = new Date().toISOString()
   const { error } = await supabase
     .from('device_tokens')
     .upsert({
@@ -4121,7 +4141,8 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
       token: push_token,
       platform: platform || 'android',
       organization_id: organizationId,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      last_refreshed_at: nowIso,
     }, { onConflict: 'staff_id,token' })
 
   if (error) {
@@ -4132,7 +4153,7 @@ async function handleRegisterPushToken(supabase: any, staffId: string, data: any
     )
   }
 
-  console.log(`[mobile-app-api] [register_push_token] success staff=${staffId}`)
+  console.log(`[mobile-app-api] [register_push_token] success staff=${staffId} refreshed_at=${nowIso}`)
   return new Response(
     JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
