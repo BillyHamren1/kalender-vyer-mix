@@ -197,46 +197,40 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     };
   }, [gpsPoints, date]);
 
-  const passPins = useMemo(() => {
-    const pins: Array<{
+  // Resesegment som ska ritas på kartan (linje + start/slut-pinnar)
+  const travelOnMap = useMemo(() => {
+    const segs: Array<{
+      id: string;
+      fromLat: number;
+      fromLng: number;
+      toLat: number;
+      toLng: number;
+      fromTime: string;
+      toTime: string;
       label: string;
-      kind: 'in' | 'out';
-      lat: number;
-      lng: number;
-      time: string;
-      passLabel: string;
     }> = [];
 
-    for (const w of workEntries) {
-      const inP = findGpsAt(w.start_time);
-      const outP = w.end_time ? findGpsAt(w.end_time) : null;
-      const passLabel = w.booking_client + (w.booking_number ? ` (#${w.booking_number})` : '');
-      if (inP && w.start_time) {
-        pins.push({ label: 'Inloggning', kind: 'in', lat: inP.lat, lng: inP.lng, time: toHHMM(w.start_time), passLabel });
-      }
-      if (outP && w.end_time) {
-        pins.push({ label: 'Utloggning', kind: 'out', lat: outP.lat, lng: outP.lng, time: toHHMM(w.end_time), passLabel });
-      }
-    }
-
     for (const t of travelSegments) {
-      const inP = t.from_latitude && t.from_longitude
+      const fromP = t.from_latitude && t.from_longitude
         ? { lat: t.from_latitude, lng: t.from_longitude }
         : findGpsAt(t.start_time);
-      const outP = t.to_latitude && t.to_longitude
+      const toP = t.to_latitude && t.to_longitude
         ? { lat: t.to_latitude, lng: t.to_longitude }
         : findGpsAt(t.end_time);
-      const passLabel = `Resa ${[t.from_address, t.to_address].filter(Boolean).join(' → ') || ''}`.trim();
-      if (inP && t.start_time) {
-        pins.push({ label: 'Avresa', kind: 'in', lat: inP.lat, lng: inP.lng, time: toHHMM(t.start_time), passLabel });
-      }
-      if (outP && t.end_time) {
-        pins.push({ label: 'Ankomst', kind: 'out', lat: outP.lat, lng: outP.lng, time: toHHMM(t.end_time), passLabel });
-      }
+      if (!fromP || !toP) continue;
+      segs.push({
+        id: t.id,
+        fromLat: fromP.lat,
+        fromLng: fromP.lng,
+        toLat: toP.lat,
+        toLng: toP.lng,
+        fromTime: toHHMM(t.start_time),
+        toTime: toHHMM(t.end_time),
+        label: [t.from_address, t.to_address].filter(Boolean).join(' → ') || 'Resa',
+      });
     }
-
-    return pins;
-  }, [workEntries, travelSegments, findGpsAt]);
+    return segs;
+  }, [travelSegments, findGpsAt]);
 
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
