@@ -12,6 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { markWorkdayEnded } from '@/services/workdayState';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
