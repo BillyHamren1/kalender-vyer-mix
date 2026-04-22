@@ -18,11 +18,16 @@ vi.mock('@/services/workdayApi', () => ({
 }));
 
 import { workdayApi } from '@/services/workdayApi';
-import { syncWorkDayStart, syncWorkDayEnd } from '@/services/workdayServerSync';
+import {
+  syncWorkDayStart,
+  syncWorkDayEnd,
+  __resetWorkDaySyncForTests,
+} from '@/services/workdayServerSync';
 
 describe('workday lifecycle sync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetWorkDaySyncForTests();
   });
 
   it('syncWorkDayStart calls workdayApi.start with startedAtIso', async () => {
