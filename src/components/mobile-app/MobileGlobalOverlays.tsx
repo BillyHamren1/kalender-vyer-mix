@@ -13,6 +13,7 @@ import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useStaleDayCorrection } from '@/hooks/useStaleDayCorrection';
+import { useStaleDayReminder } from '@/hooks/useStaleDayReminder';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
