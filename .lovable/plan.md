@@ -1,45 +1,52 @@
 
+# Säkerställ att push-tokens alltid är färska
 
-## Tidrapporter från stora projekt → ska tillhöra projektet, inte "Lager"/"-"
+## Problem
+- Webb skickar DM → backend hämtar `device_tokens` → token är >30 dagar gammal → FCM svarar `UNREGISTERED` (eller tyst fail) → notisen kommer aldrig fram.
+- `send-push-notification` raderar redan UNREGISTERED-tokens, men ingen ny token registreras automatiskt eftersom mobilappen bara kör `PushNotifications.register()` en gång per session och `'registration'`-eventet emitteras inte alltid om token är cachad.
+- Resultat: efter raderingen står staffen helt utan token tills appen råkar emittera ett nytt registration-event.
 
-### Problem
-När en användare startar en projekt-timer (large project) i mobilappen och sedan stoppar via geofence/EOD så skapas en `location_time_entry` (LTE) med rätt `large_project_id` satt. Men DB-triggern `sync_location_entry_to_time_report` (som skapar motsvarande `time_reports`-rad när timern stängs) **ignorerar både `large_project_id` och `booking_id` på LTE-raden** och tvingar in **Lagerbokningen** som `booking_id`:
+## Lösning (3 lager)
 
-```sql
-_booking_id := public.ensure_internal_lager_booking(NEW.organization_id);
-INSERT INTO time_reports (... booking_id ...) VALUES (..., _booking_id, ...);
-```
+### 1. Mobil: tvinga fram ny token vid varje app-start + heartbeat-refresh
+**Fil:** `src/services/pushNotificationService.ts`
+- Behåll `'registration'`-listenern men gör om `initPushNotifications` så att den:
+  - Alltid kör `PushNotifications.register()` (idempotent på native, triggar nytt token-event om systemet vill rotera).
+  - Lyssnar på `appStateChange` (Capacitor App-plugin, redan installerad) → vid `isActive=true` anropas `register()` igen om senaste lyckade registrering är >24h sedan (spårat i `localStorage`).
+- I `mobileApi.registerPushToken` skicka även en lokal timestamp så vi kan logga drift.
 
-Resultatet blir att projekttimmar landar antingen som "Lager", som "-" (om Lager-bokningen råkar saknas/joinas inte) eller som "Okänt projekt". `large_project_id` skrivs aldrig på `time_reports`-raden.
+### 2. Backend: refresh-fält + auto-cleanup
+**Migration (schema):**
+- Lägg till `last_refreshed_at timestamptz` (default `now()`) på `device_tokens` (kolumnen är skild från `updated_at` så vi kan se att klienten verkligen pingade in).
 
-`useGeofencing.saveAndStopTimer` + `mobile-app-api.create_time_report` skickar redan `large_project_id` korrekt — det är **enbart auto-sync-triggern** som tappar informationen.
+**Edge function `mobile-app-api` (`handleRegisterPushToken`):**
+- Sätt även `last_refreshed_at = now()` vid varje upsert.
+- Logga tydligt om en token byts ut för samma `staff_id` (gammalt prefix → nytt prefix).
 
-### Lösning
-Triggern ska respektera vad LTE-raden faktiskt pekar på, i samma prioritetsordning som UI:t redan använder (`booking_id` > `large_project_id` > `location_id` → Lager-fallback).
+**Edge function `send-push-notification`:**
+- Behåll UNREGISTERED-radering, men lägg till radering även vid FCM-fel `INVALID_ARGUMENT` med detail `INVALID_ARGUMENT` på fältet `token`.
+- Lägg till strukturerad logg `[FCM] stale_token_purged staff=… age_days=…` så vi ser att rensningen sker.
 
-### Ändringar
+### 3. Server-side städning av riktigt gamla tokens
+**Migration (data-säker SQL i ny edge function `cleanup-stale-device-tokens`, körs av cron):**
+- Radera `device_tokens` där `last_refreshed_at < now() - interval '30 days'`.
+- Schemalägg via `pg_cron` (eller manuell trigger från admin) — körs en gång per natt.
+- Detta tvingar mobilappen att registrera om vid nästa app-start, vilket nu sker säkert tack vare lager 1.
 
-**1. Migration: uppdatera `sync_location_entry_to_time_report`**
-- Om `NEW.booking_id` finns → använd den som `booking_id`, sätt `large_project_id = NULL`.
-- Annars om `NEW.large_project_id` finns → sätt `large_project_id = NEW.large_project_id`, `booking_id = NULL`. Beskrivning: `Auto: projekt (<source>)`.
-- Annars (location-only) → fortsätt som idag (Lager-bokning).
-- Backfilla befintliga felaktiga `time_reports` med `source='location_auto'` där LTE-raden har `large_project_id`/`booking_id`: skriv om dem till rätt mål och rensa Lager-pekaren. Endast rader där `approved` är `false` rörs (godkända lämnas — manuell hantering).
+## Vad som INTE ändras
+- `direct_messages`-flödet rörs inte.
+- DM-trigger / broadcast-trigger oförändrade.
+- Befintliga tokens som faktiskt är giltiga lever vidare.
+- Scanner-appen påverkas inte (push är redan disabled där).
 
-**2. Verifiera UI-rendering**
-- `StaffTimeReportDetail` joinar redan `bookings(client, booking_number, large_project_id)` och visar large project-namnet om det finns. Den fungerar för `booking_id`-fallet (där bokningen tillhör ett stort projekt).
-- För rena projekt-rapporter (endast `large_project_id`, inget `booking_id`) behöver join + label-logiken utökas: hämta `large_projects` separat och visa projektnamnet i `booking_client`-kolumnen samt projektnumret i `booking_number`-kolumnen. Då försvinner "-" helt.
-- `StaffTimeReports` (dagsöversikten) hämtar redan `large_project_id` på LTE och resolvar `large_projects.name` → den biten är redan korrekt och påverkas inte.
+## Effekt för Markus / Raivis / övriga
+- Nästa gång de öppnar Time-appen tvingas en ny token registreras hos FCM och sparas i `device_tokens` med ny `last_refreshed_at`.
+- Webb-DM:s börjar nå fram igen så fort den nya token ligger i tabellen (sekunder efter app-open).
+- 30-dagars-cron säkerställer att vi aldrig hamnar i samma stale-läge igen.
 
-**3. Inga ändringar krävs i**
-- `mobile-app-api` (skickar redan rätt fält)
-- `useGeofencing` / `useWorkSession` (stop-flödet är korrekt)
-- Kontrakt-tester för time-reporting (täcker redan `large_project_id`-vägen)
-
-### Filer
-
-**Skapas:**
-- `supabase/migrations/<timestamp>_fix_lte_to_time_report_project_attribution.sql`
-
-**Ändras:**
-- `src/components/staff/StaffTimeReportDetail.tsx` (visa large project-namn även när raden saknar `booking_id` men har `large_project_id`)
-
+## Filer som kommer ändras
+- `src/services/pushNotificationService.ts` — re-register vid app resume + 24h-refresh-policy
+- `supabase/functions/mobile-app-api/index.ts` — sätt `last_refreshed_at`, logga rotation
+- `supabase/functions/send-push-notification/index.ts` — bredare invalid-token-rensning + tydligare loggar
+- `supabase/functions/cleanup-stale-device-tokens/index.ts` (ny) — nattlig rensning
+- Migration: lägg till `last_refreshed_at` på `device_tokens` + pg_cron-jobb
