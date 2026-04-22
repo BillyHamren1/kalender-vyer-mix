@@ -85,7 +85,58 @@ export const useEventNavigation = () => {
     }
   };
 
+  // Variant for staff calendar: ALWAYS navigate to project view
+  // (medium project = /project/:bookingId, large project = /large-project/:id)
+  // Never opens the booking detail page.
+  const handleProjectEventClick = async (info: any) => {
+    const bookingId = info.event.extendedProps?.bookingId ||
+                     info.event.extendedProps?.booking_id ||
+                     info.event._def?.extendedProps?.bookingId ||
+                     info.event._def?.extendedProps?.booking_id ||
+                     info.event.bookingId ||
+                     info.event.booking_id;
+
+    const largeProjectId = info.event.extendedProps?.largeProjectId ||
+                          info.event._def?.extendedProps?.largeProjectId;
+
+    if (!bookingId) {
+      toast.warning("Kan inte öppna projekt", {
+        description: "Detta event är inte kopplat till ett projekt"
+      });
+      return;
+    }
+
+    try {
+      setLastViewedDate(info.event.start);
+      setLastPath(window.location.pathname);
+
+      if (largeProjectId) {
+        navigate(`/large-project/${largeProjectId}`);
+        return;
+      }
+
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('large_project_id')
+        .eq('id', bookingId)
+        .single();
+
+      if (booking?.large_project_id) {
+        navigate(`/large-project/${booking.large_project_id}`);
+      } else {
+        // Medium project route uses bookingId as projectId
+        navigate(`/project/${bookingId}`);
+      }
+    } catch (error) {
+      console.error('Project navigation error:', error);
+      toast.error("Navigering misslyckades", {
+        description: "Kunde inte öppna projektvyn"
+      });
+    }
+  };
+
   return {
-    handleEventClick
+    handleEventClick,
+    handleProjectEventClick
   };
 };
