@@ -217,6 +217,7 @@ const ProjectViewPage = () => {
       {/* Kommunikation */}
       <ProjectCommunication
         projectId={project.id}
+        bookingId={bookingId ?? null}
         senderName={projectLeaderDisplay || 'Projektledare'}
         suppliers={suppliers}
         linkedTaskRef={chatTaskRef}

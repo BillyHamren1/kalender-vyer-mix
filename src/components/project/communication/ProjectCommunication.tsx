@@ -1,15 +1,22 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users, Truck, User, ListChecks } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import MessageThread from "./MessageThread";
 import { useProjectMessages } from "@/hooks/useProjectMessages";
+import { useJobChat } from "@/hooks/useJobChat";
+import { sendJobMessage } from "@/services/jobChatService";
+import { toast } from "sonner";
 import type { MergedSupplier } from "@/types/supplier";
-import type { ProjectMessageType } from "@/types/projectMessage";
+import type { ProjectMessage, ProjectMessageType } from "@/types/projectMessage";
+import type { JobMessage } from "@/services/jobChatService";
 
 interface ProjectCommunicationProps {
   projectId: string;
+  /** Booking id for the project's group chat (job_messages). Required for the Internal tab. */
+  bookingId: string | null;
   senderName: string;
   suppliers: MergedSupplier[];
   /** When set, auto-scrolls to internal tab with task reference pre-filled */
@@ -17,13 +24,27 @@ interface ProjectCommunicationProps {
   onClearTaskRef?: () => void;
 }
 
+/** Adapt a job_messages row into the ProjectMessage shape MessageThread expects. */
+const jobMessageToProjectMessage = (m: JobMessage, projectId: string): ProjectMessage => ({
+  id: m.id,
+  project_id: projectId,
+  project_supplier_link_id: null,
+  linked_task_id: null,
+  type: 'internal',
+  message: m.content,
+  sender_name: m.sender_name,
+  created_at: m.created_at,
+});
+
 const tabClass =
   "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
-const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef, onClearTaskRef }: ProjectCommunicationProps) => {
+const ProjectCommunication = ({ projectId, bookingId, senderName, suppliers, linkedTaskRef, onClearTaskRef }: ProjectCommunicationProps) => {
   const [activeTab, setActiveTab] = useState<ProjectMessageType>("internal");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
+  const [isSendingInternal, setIsSendingInternal] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   // When a task reference is set, switch to internal tab and scroll into view
   useEffect(() => {
@@ -39,13 +60,47 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
     ? selectedSupplierId
     : undefined;
 
-  const { messages, isLoading, sendMessage, isSending } = useProjectMessages(
-    projectId,
-    activeTab,
-    supplierFilter
+  // Internal tab → project's group chat (job_messages, scoped by booking_id).
+  // Supplier/Client tabs → existing project_messages thread.
+  const { messages: jobMessages, isLoadingMessages: isLoadingJob } = useJobChat(
+    activeTab === 'internal' ? bookingId : null,
   );
 
-  const handleSend = (text: string) => {
+  const { messages: projectMessages, isLoading: isLoadingProject, sendMessage, isSending } = useProjectMessages(
+    projectId,
+    activeTab === 'internal' ? undefined : activeTab,
+    supplierFilter,
+  );
+
+  const internalMessages = useMemo(
+    () => jobMessages.map((m) => jobMessageToProjectMessage(m, projectId)),
+    [jobMessages, projectId],
+  );
+
+  const handleSendInternal = async (text: string) => {
+    if (!bookingId) {
+      toast.error('Det här projektet saknar koppling till en bokning — kan inte skicka till gruppchatten.');
+      return;
+    }
+    setIsSendingInternal(true);
+    try {
+      // Prefix the task reference into the message body since job_messages
+      // doesn't have a linked_task_id column. Keeps context visible in chat.
+      const body = linkedTaskRef
+        ? `📋 ${linkedTaskRef.taskTitle}\n${text}`
+        : text;
+      await sendJobMessage(bookingId, body);
+      queryClient.invalidateQueries({ queryKey: ['job-chat', bookingId] });
+      if (linkedTaskRef && onClearTaskRef) onClearTaskRef();
+    } catch (err) {
+      console.error('Failed to send to project group chat:', err);
+      toast.error('Kunde inte skicka meddelandet till gruppchatten.');
+    } finally {
+      setIsSendingInternal(false);
+    }
+  };
+
+  const handleSendSupplierOrClient = (text: string) => {
     sendMessage({
       project_id: projectId,
       type: activeTab,
@@ -56,10 +111,7 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
         : null,
       linked_task_id: linkedTaskRef?.taskId || null,
     });
-    // Clear the task reference after sending
-    if (linkedTaskRef && onClearTaskRef) {
-      onClearTaskRef();
-    }
+    if (linkedTaskRef && onClearTaskRef) onClearTaskRef();
   };
 
   const confirmedSuppliers = suppliers.filter(s => s.status !== "cancelled");
@@ -123,20 +175,24 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
                 </div>
               )}
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
-                isSending={isSending}
-                onSend={handleSend}
-                emptyText="Inga interna meddelanden ännu. Skriv till ditt team."
-                placeholder={linkedTaskRef ? `Kommentera om "${linkedTaskRef.taskTitle}"...` : "Skriv till teamet..."}
+                messages={internalMessages}
+                isLoading={isLoadingJob}
+                isSending={isSendingInternal}
+                onSend={handleSendInternal}
+                emptyText={
+                  bookingId
+                    ? "Inga interna meddelanden ännu. Skriv till projektgruppens chatt."
+                    : "Det här projektet saknar koppling till en bokning – ingen gruppchatt tillgänglig."
+                }
+                placeholder={linkedTaskRef ? `Kommentera om "${linkedTaskRef.taskTitle}" till teamet...` : "Skriv till projektgruppens chatt..."}
               />
             </TabsContent>
             <TabsContent value="supplier" className="h-full m-0">
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
+                messages={projectMessages}
+                isLoading={isLoadingProject}
                 isSending={isSending}
-                onSend={handleSend}
+                onSend={handleSendSupplierOrClient}
                 emptyText={
                   confirmedSuppliers.length === 0
                     ? "Lägg till underleverantörer för att starta kommunikation."
@@ -147,10 +203,10 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
             </TabsContent>
             <TabsContent value="client" className="h-full m-0">
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
+                messages={projectMessages}
+                isLoading={isLoadingProject}
                 isSending={isSending}
-                onSend={handleSend}
+                onSend={handleSendSupplierOrClient}
                 emptyText="Ingen kundkommunikation loggad ännu."
                 placeholder="Logga kundkommunikation..."
               />
