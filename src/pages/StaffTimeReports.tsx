@@ -34,6 +34,9 @@ export interface LatestPing {
   latitude: number | null;
   longitude: number | null;
   updated_at: string | null;
+  app_version: string | null;
+  app_build: string | null;
+  app_platform: string | null;
 }
 
 interface StaffWithDayReport {
@@ -107,7 +110,7 @@ const StaffTimeReports: React.FC = () => {
         // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
-          .select('staff_id, latitude, longitude, updated_at, last_address'),
+          .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -121,6 +124,9 @@ const StaffTimeReports: React.FC = () => {
           latitude: p.latitude ?? null,
           longitude: p.longitude ?? null,
           updated_at: p.updated_at ?? null,
+          app_version: p.app_version ?? null,
+          app_build: p.app_build ?? null,
+          app_platform: p.app_platform ?? null,
         });
       }
 
