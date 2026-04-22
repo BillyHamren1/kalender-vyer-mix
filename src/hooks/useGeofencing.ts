@@ -760,12 +760,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredExitRef.current.add(locKey);
         triggeredEnterRef.current.delete(locKey);
         fireAnomalyStart({ locationId: loc.id });
+        const exitedAtIso = new Date().toISOString();
+        maybeReportDeparture(locKey, exitedAtIso);
         window.dispatchEvent(new CustomEvent('workplace-exit', {
           detail: {
             kind: 'location',
             key: locKey,
             locationId: loc.id,
-            exitedAtIso: new Date().toISOString(),
+            exitedAtIso,
           },
         }));
       }
