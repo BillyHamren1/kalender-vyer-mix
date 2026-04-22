@@ -32,41 +32,41 @@ const CameraMeasure: React.FC = () => {
   const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
   const [calibrationCm, setCalibrationCm] = useState<string>('10');
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [needsManualStart, setNeedsManualStart] = useState(false);
 
-  // Start camera
-  useEffect(() => {
-    let cancelled = false;
-    const start = async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setError('Kameran stöds inte i denna webbläsare.');
-          return;
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-        setCameraReady(true);
-      } catch (e: any) {
-        setError(e?.message || 'Kunde inte starta kameran. Tillåt kameraåtkomst.');
+  const startCamera = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setNeedsManualStart(false);
+        // Don't block measuring — just note camera unavailable
+        return;
       }
-    };
-    start();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      setCameraReady(true);
+      setNeedsManualStart(false);
+      setError(null);
+    } catch (e: any) {
+      setNeedsManualStart(true);
+      setError(e?.message || 'Tryck på "Aktivera kamera" för att tillåta åtkomst.');
+    }
+  }, []);
+
+  // Try auto-start; if it fails, user can tap to enable
+  useEffect(() => {
+    startCamera();
     return () => {
-      cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, []);
+  }, [startCamera]);
 
   useEffect(() => {
     localStorage.setItem('cameraMeasure.pxPerCm', String(pxPerCm));
