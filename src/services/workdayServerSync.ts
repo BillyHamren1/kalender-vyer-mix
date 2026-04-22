@@ -40,16 +40,26 @@ export function syncWorkDayStart(startedAtIso?: string): void {
     });
 }
 
+export interface WorkDayEndResult {
+  ok: boolean;
+  error?: string;
+}
+
 /**
- * Sync the workday-end to the server. Called from
- * GlobalActiveTimerBanner.processNextEod once the EOD queue is drained.
+ * Sync the workday-end to the server. Awaitable: callers MUST check the
+ * returned `ok` before marking local state as ended. Source of truth is
+ * the server `workdays` row — local cache must never claim ended unless
+ * the server has confirmed.
  */
-export function syncWorkDayEnd(endedAtIso?: string): void {
-  workdayApi
-    .end(endedAtIso ? { endedAtIso } : {})
-    .catch((err) => {
-      console.warn('[workday] end sync failed:', err?.message || err);
-    });
+export async function syncWorkDayEnd(endedAtIso?: string): Promise<WorkDayEndResult> {
+  try {
+    await workdayApi.end(endedAtIso ? { endedAtIso } : {});
+    return { ok: true };
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    console.warn('[workday] end sync failed:', msg);
+    return { ok: false, error: msg };
+  }
 }
 
 /** @internal — for tests only. Resets debounce state. */
