@@ -6,10 +6,10 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, Image, X, CheckCircle2 } from 'lucide-react';
+import { Loader2, Camera, X, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { takePhotoBase64 } from '@/utils/capacitorCamera';
-import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface ProductItem {
   id: string;
@@ -92,6 +92,7 @@ interface PendingImage {
 const MobileCompleteJob = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { data: bookingData, isLoading } = useMobileBookingDetails(id);
   const { invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
@@ -118,11 +119,8 @@ const MobileCompleteJob = () => {
   };
 
   const toggleAll = () => {
-    if (allChecked) {
-      setCheckedIds(new Set());
-    } else {
-      setCheckedIds(new Set(allProductIds));
-    }
+    if (allChecked) setCheckedIds(new Set());
+    else setCheckedIds(new Set(allProductIds));
   };
 
   const handleCameraClick = async () => {
@@ -166,13 +164,14 @@ const MobileCompleteJob = () => {
     setIsSaving(true);
 
     try {
+      const pcs = t('complete.pcs');
       const checklistLines = groups.flatMap(group => {
         const lines: string[] = [];
         const parentChecked = checkedIds.has(group.parent.id);
-        lines.push(`${parentChecked ? '✅' : '⬜'} ${cleanProductName(group.parent.name)} (${group.parent.quantity} pcs)`);
+        lines.push(`${parentChecked ? '✅' : '⬜'} ${cleanProductName(group.parent.name)} (${group.parent.quantity} ${pcs})`);
         for (const child of group.children) {
           const childChecked = checkedIds.has(child.id);
-          lines.push(`   ${childChecked ? '✅' : '⬜'} ${cleanProductName(child.name)} (${child.quantity} pcs)`);
+          lines.push(`   ${childChecked ? '✅' : '⬜'} ${cleanProductName(child.name)} (${child.quantity} ${pcs})`);
         }
         return lines;
       });
@@ -180,18 +179,11 @@ const MobileCompleteJob = () => {
       const checkedCount = checkedIds.size;
       const totalCount = allProductIds.length;
 
-      let fullComment = `── COMPLETE JOB ──\n\nChecklist: ${checkedCount}/${totalCount} checked\n\n${checklistLines.join('\n')}`;
-      if (comment.trim()) {
-        fullComment += `\n\nComment:\n${comment.trim()}`;
-      }
-      if (images.length > 0) {
-        fullComment += `\n\n${images.length} image(s) attached`;
-      }
+      let fullComment = t('complete.headerTpl', { checked: checkedCount, total: totalCount, lines: checklistLines.join('\n') });
+      if (comment.trim()) fullComment += t('complete.commentBlock', { text: comment.trim() });
+      if (images.length > 0) fullComment += t('complete.imagesBlock', { n: images.length });
 
-      await mobileApi.createComment({
-        booking_id: id,
-        content: fullComment,
-      });
+      await mobileApi.createComment({ booking_id: id, content: fullComment });
 
       for (const img of images) {
         await mobileApi.uploadFile({
@@ -203,10 +195,10 @@ const MobileCompleteJob = () => {
       }
 
       invalidateBookingDetails(id);
-      toast.success('Job completed and saved!');
+      toast.success(t('complete.savedToast'));
       navigate(`/m/job/${id}`);
     } catch (err: any) {
-      toast.error(err.message || 'Could not save');
+      toast.error(err.message || t('complete.couldNotSave'));
     } finally {
       setIsSaving(false);
     }
@@ -223,31 +215,28 @@ const MobileCompleteJob = () => {
   if (!booking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-card">
-        <p className="text-muted-foreground">Job not found</p>
+        <p className="text-muted-foreground">{t('complete.notFound')}</p>
       </div>
     );
   }
 
+  const pcs = t('complete.pcs');
+
   return (
     <div className="flex flex-col min-h-screen bg-card pb-32">
-      <MobileBackHeader
-        title="Complete job"
-        subtitle={booking.client}
-        backTo={`/m/job/${id}`}
-      />
+      <MobileBackHeader title={t('complete.title')} subtitle={booking.client} backTo={`/m/job/${id}`} />
 
       <div className="flex-1 px-4 py-4 space-y-5">
-        {/* Product checklist */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Product checklist</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('complete.checklistHeader')}</h2>
             <button onClick={toggleAll} className="text-xs text-primary font-medium">
-              {allChecked ? 'Uncheck all' : 'Check all'}
+              {allChecked ? t('complete.uncheckAll') : t('complete.checkAll')}
             </button>
           </div>
 
           {groups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No products in the booking</p>
+            <p className="text-sm text-muted-foreground">{t('complete.noProducts')}</p>
           ) : (
             <div className="space-y-1">
               {groups.map(group => (
@@ -259,28 +248,21 @@ const MobileCompleteJob = () => {
                       className="mt-0.5"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground leading-snug">
-                        {cleanProductName(group.parent.name)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{group.parent.quantity} pcs</p>
+                      <p className="text-sm font-medium text-foreground leading-snug">{cleanProductName(group.parent.name)}</p>
+                      <p className="text-xs text-muted-foreground">{group.parent.quantity} {pcs}</p>
                     </div>
                   </label>
 
                   {group.children.map(child => (
-                    <label
-                      key={child.id}
-                      className="flex items-start gap-3 p-2.5 pl-8 rounded-lg cursor-pointer active:bg-muted/30 transition-colors"
-                    >
+                    <label key={child.id} className="flex items-start gap-3 p-2.5 pl-8 rounded-lg cursor-pointer active:bg-muted/30 transition-colors">
                       <Checkbox
                         checked={checkedIds.has(child.id)}
                         onCheckedChange={() => toggleProduct(child.id)}
                         className="mt-0.5"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-foreground leading-snug">
-                          {cleanProductName(child.name)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{child.quantity} pcs</p>
+                        <p className="text-sm text-foreground leading-snug">{cleanProductName(child.name)}</p>
+                        <p className="text-xs text-muted-foreground">{child.quantity} {pcs}</p>
                       </div>
                     </label>
                   ))}
@@ -290,21 +272,19 @@ const MobileCompleteJob = () => {
           )}
         </section>
 
-        {/* Comment */}
         <section>
-          <h2 className="text-sm font-semibold text-foreground mb-2">Comment</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-2">{t('complete.commentLabel')}</h2>
           <Textarea
             value={comment}
             onChange={e => setComment(e.target.value)}
-            placeholder="Write a closing comment..."
+            placeholder={t('complete.commentPlaceholder')}
             rows={3}
             className="bg-muted/30 border-border"
           />
         </section>
 
-        {/* Images */}
         <section>
-          <h2 className="text-sm font-semibold text-foreground mb-2">Images</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-2">{t('complete.imagesLabel')}</h2>
           <div className="flex gap-2 flex-wrap">
             {images.map(img => (
               <div key={img.id} className="relative w-20 h-20 rounded-xl overflow-hidden border border-border">
@@ -322,32 +302,17 @@ const MobileCompleteJob = () => {
               className="w-20 h-20 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground active:bg-muted/30 transition-colors"
             >
               <Camera className="w-5 h-5" />
-              <span className="text-[10px]">Photo</span>
+              <span className="text-[10px]">{t('complete.photoShort')}</span>
             </button>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} />
         </section>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card border-t border-border safe-area-bottom">
-        <Button
-          onClick={handleSubmit}
-          disabled={isSaving}
-          className="w-full h-12 text-base font-semibold rounded-xl"
-        >
-          {isSaving ? (
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          ) : (
-            <CheckCircle2 className="w-5 h-5 mr-2" />
-          )}
-          Complete job
+        <Button onClick={handleSubmit} disabled={isSaving} className="w-full h-12 text-base font-semibold rounded-xl">
+          {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+          {t('complete.completeButton')}
         </Button>
       </div>
     </div>
