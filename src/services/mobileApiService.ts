@@ -794,13 +794,31 @@ export const mobileApi = {
           happened_at: string;
           event_type: string;
           target_label: string | null;
+          target_type: string | null;
+          target_id: string | null;
           resolution_status: string;
           stale_for_prompt: boolean;
           still_relevant_for_review: boolean;
           suggested_action: string;
+          metadata?: Record<string, unknown>;
+        }>;
+        travels_for_day: Array<{
+          id: string;
+          start_time: string;
+          end_time: string | null;
+          classification: string | null;
         }>;
       }>;
     }>('list_workdays_review', params || {}),
+
+  // Justera tider på en travel_time_log i efterhand (review-flöde).
+  setTravelTimes: (data: { travel_log_id: string; start_time: string; end_time?: string }) =>
+    callApi<{ success: boolean; travel_log: any }>('set_travel_times', data),
+
+  // Markera arbetsdagen godkänd. Trigger respekterar approved och skriver
+  // inte över statusen vid efterföljande recompute.
+  approveWorkday: (workday_id: string) =>
+    callApi<{ success: boolean; workday: any }>('approve_workday', { workday_id }),
 
   resolveWorkdayFlag: (data: {
     flag_id: string;
