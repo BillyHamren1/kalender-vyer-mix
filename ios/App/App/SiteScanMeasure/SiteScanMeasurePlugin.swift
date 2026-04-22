@@ -5,33 +5,22 @@ import UIKit
 import SwiftUI
 #endif
 
-/**
- * Capacitor plugin bridging React (`useNativeSiteScan` →
- * `SiteScanMeasure.openMeasure`) to the native SwiftUI MeasureScreen.
- *
- * The native MeasureScreen + its dependencies (ARSessionManager,
- * MeasureViewModel, ARMeasureView, models, theme, services) are ported
- * from the SiteScanMobile project and live alongside this file under
- * `ios/App/App/SiteScanMeasure/`.
- *
- * Wiring required in Xcode (one-time setup, can't be done from Lovable):
- *   1. Add this folder to the App target.
- *   2. Add ARKit.framework and SceneKit.framework as required frameworks.
- *   3. Confirm `NSCameraUsageDescription` is present (already in
- *      `capacitor.time.config.ts`).
- *
- * After that, `npx cap sync ios` registers the plugin automatically via
- * the @objc(SiteScanMeasurePlugin) declaration below.
- */
+/// Capacitor plugin bridging React (`useNativeSiteScan` → `SiteScanMeasure.openMeasure`)
+/// to the native SwiftUI MeasureScreen.
+///
+/// Returns a JSON payload describing the captured measurements:
+/// {
+///   saved: Bool,
+///   scanId: String?,
+///   measurementCount: Int,
+///   capture: { measurements: [...], captureStartedAt, captureCompletedAt }
+/// }
 @objc(SiteScanMeasurePlugin)
 public class SiteScanMeasurePlugin: CAPPlugin {
 
-    /// Holds the active call so we can resolve it when the user closes the
-    /// native MeasureScreen.
     private var pendingCall: CAPPluginCall?
 
     @objc func openMeasure(_ call: CAPPluginCall) {
-        // Keep the call until the SwiftUI screen closes.
         call.keepAlive = true
         self.pendingCall = call
 
@@ -43,8 +32,6 @@ public class SiteScanMeasurePlugin: CAPPlugin {
             }
 
             #if canImport(SwiftUI) && canImport(ARKit)
-            // The SwiftUI MeasureScreen below is provided by the ported
-            // SiteScanMobile sources (MeasureScreen.swift et al.).
             let scanId = call.getString("scanId")
             let bookingId = call.getString("bookingId")
             let title = call.getString("title") ?? ""
@@ -55,10 +42,7 @@ public class SiteScanMeasurePlugin: CAPPlugin {
                 initialTitle: title
             ) { [weak self] result in
                 guard let self = self, let pending = self.pendingCall else { return }
-                pending.resolve([
-                    "saved": result.saved,
-                    "scanId": result.scanId ?? NSNull()
-                ])
+                pending.resolve(result.toJSObject())
                 self.pendingCall = nil
             }
             host.modalPresentationStyle = .fullScreen
@@ -74,4 +58,22 @@ public class SiteScanMeasurePlugin: CAPPlugin {
 public struct SiteScanMeasureResult {
     public let saved: Bool
     public let scanId: String?
+    public let capture: MeasureCapture?
+
+    func toJSObject() -> [String: Any] {
+        var obj: [String: Any] = [
+            "saved": saved,
+            "scanId": scanId ?? NSNull(),
+            "measurementCount": capture?.measurements.count ?? 0
+        ]
+        if let capture = capture {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if let data = try? encoder.encode(capture),
+               let json = try? JSONSerialization.jsonObject(with: data) {
+                obj["capture"] = json
+            }
+        }
+        return obj
+    }
 }
