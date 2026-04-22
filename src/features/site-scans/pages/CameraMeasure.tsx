@@ -79,13 +79,23 @@ const CameraMeasure: React.FC = () => {
     return { x: clientX - rect.left, y: clientY - rect.top };
   }, []);
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (draggingIdx !== null) return;
+  const handleOverlayPointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    const idxAttr = target?.getAttribute?.('data-point-idx');
+    if (idxAttr != null && !calibrating) {
+      const idx = parseInt(idxAttr, 10);
+      if (!Number.isNaN(idx)) {
+        setDraggingIdx(idx);
+        try {
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+        } catch {}
+        return;
+      }
+    }
     const p = getRelativePoint(e.clientX, e.clientY);
     if (!p) return;
     if (calibrating) {
-      const next = [...calibrationPoints, p].slice(-2);
-      setCalibrationPoints(next);
+      setCalibrationPoints((prev) => [...prev, p].slice(-2));
       return;
     }
     setPoints((prev) => [...prev, p]);
