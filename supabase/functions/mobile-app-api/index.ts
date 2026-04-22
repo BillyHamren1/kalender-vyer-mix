@@ -212,6 +212,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         )
       }
       staffId = tokenResult.staffId!
+      // Sliding refresh: if the token is older than the threshold (or close
+      // to expiry), mint a new one and surface it via X-New-Token. The
+      // client updates localStorage transparently — no UI interruption.
+      rotationSlot.token = maybeRotateToken(staffId, tokenResult.issuedAt, tokenResult.expiresAt)
     } else {
       // Web JWT fallback (planner UI)
       const authHeader = req.headers.get('Authorization') || ''
