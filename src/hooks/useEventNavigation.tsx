@@ -52,8 +52,8 @@ export const useEventNavigation = () => {
 
         // If we already know it's a large project, navigate directly
         if (largeProjectId) {
-          console.log(`Navigating to large project /projects/large/${largeProjectId}`);
-          navigate(`/projects/large/${largeProjectId}`);
+          console.log(`Navigating to large project /large-project/${largeProjectId}`);
+          navigate(`/large-project/${largeProjectId}`);
           return;
         }
 
@@ -65,8 +65,8 @@ export const useEventNavigation = () => {
           .single();
 
         if (booking?.large_project_id) {
-          console.log(`Booking belongs to large project, navigating to /projects/large/${booking.large_project_id}`);
-          navigate(`/projects/large/${booking.large_project_id}`);
+          console.log(`Booking belongs to large project, navigating to /large-project/${booking.large_project_id}`);
+          navigate(`/large-project/${booking.large_project_id}`);
         } else {
           console.log(`Navigating to /booking/${bookingId}`);
           navigate(`/booking/${bookingId}`);
