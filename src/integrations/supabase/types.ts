@@ -6816,6 +6816,7 @@ export type Database = {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
       }
+      promote_stale_assistant_events: { Args: never; Returns: number }
       tr_shift_interval: {
         Args: { _date: string; _end: string; _start: string }
         Returns: unknown
