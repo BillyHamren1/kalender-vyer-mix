@@ -178,7 +178,7 @@ const MobileTimeReport = () => {
         description: description || undefined,
         large_project_id: selectedOption?.largeProjectId,
       });
-      toast.success('Tidrapport sparad');
+      toast.success(t('time.savedToast'));
       invalidateTimeReports();
       setSelectedBookingId('');
       setDescription('');
@@ -189,7 +189,7 @@ const MobileTimeReport = () => {
       setShowForm(false);
       fetchReports();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara tidrapporten');
+      toast.error(err.message || t('time.saveError'));
     } finally {
       setIsSaving(false);
     }
