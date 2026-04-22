@@ -300,13 +300,18 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // request-end-day: enqueue ALL active timers and process sequentially.
   // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
-    const onRequestEndDay = () => {
+    const onRequestEndDay = async () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        markWorkdayEnded();
-        syncWorkDayEnd();
-        window.dispatchEvent(new CustomEvent('workday-ended'));
-        toast.message(t('workday.noActiveTimers'));
+        // Server-first: confirm with backend before flipping local state.
+        const result = await syncWorkDayEnd();
+        if (result.ok) {
+          markWorkdayEnded();
+          window.dispatchEvent(new CustomEvent('workday-ended'));
+          toast.message(t('workday.noActiveTimers'));
+        } else {
+          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
+        }
         return;
       }
       // Avoid duplicate queueing if user fires the event twice
