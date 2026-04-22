@@ -354,7 +354,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = passPins.length > 0;
+  const hasMapData = travelOnMap.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -377,6 +377,20 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
+
+        {/* Map first — show all travel segments as lines */}
+        {hasMapData ? (
+          <div className="space-y-1">
+            <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
+            <div className="text-xs text-muted-foreground">
+              🟢 Avresa · 🔴 Ankomst · 🔵 Resväg · {travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-[160px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
+            Inga resor registrerade denna dag
+          </div>
+        )}
 
         {ongoingCount > 0 && (
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 text-orange-700 dark:text-orange-400">
@@ -430,21 +444,6 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             </div>
           );
         })()}
-
-
-        {hasMapData ? (
-          <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
-        ) : (
-          <div className="w-full h-[200px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
-            Inga geopositioner rapporterade
-          </div>
-        )}
-
-        {passPins.length > 0 && (
-          <div className="text-xs text-muted-foreground -mt-1">
-            🟢 In · 🔴 Ut · {passPins.length} positioner från {gpsPoints.length} GPS-pings
-          </div>
-        )}
 
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Tidslinje</h4>
@@ -505,15 +504,14 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         </div>
 
-        {passPins.length > 0 && (
+        {false && (
           <div className="space-y-2">
             <h4 className="text-sm font-semibold">In- och utloggningar</h4>
             <div className="grid grid-cols-1 gap-1 text-xs">
-              {passPins.map((p, i) => (
+              {[].map((p: any, i: number) => (
                 <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30">
                   <div
                     className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5"
-                    style={{ backgroundColor: p.kind === 'in' ? '#10b981' : '#ef4444' }}
                   >
                     {i + 1}
                   </div>
