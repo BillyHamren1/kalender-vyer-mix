@@ -18,6 +18,7 @@ import JobCostsTab from '@/components/mobile-app/job-tabs/JobCostsTab';
 import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 import { CheckCircle2 } from 'lucide-react';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const tabs = ['Info', 'Team', 'Photos', 'Costs', 'Time'] as const;
 type TabKey = typeof tabs[number];
@@ -93,10 +94,10 @@ const MobileJobDetail = () => {
         if (res.cancelled) return;
         if (res.saved) {
           invalidateTimeReports();
-          toast.success(`Time report saved: ${res.hoursWorked}h`);
+          toast.success(t('time.savedHours' as any, { h: res.hoursWorked }) || `Time report saved: ${res.hoursWorked}h`);
         }
       } catch (err: any) {
-        toast.error(err.message || 'Could not save time report');
+        toast.error(err.message || t('time.couldNotSave' as any));
       }
     } else {
       // START — same engine, only the target descriptor differs.
