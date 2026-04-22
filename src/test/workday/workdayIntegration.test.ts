@@ -46,16 +46,16 @@ describe('workday integration', () => {
     expect(src).not.toMatch(/syncWorkDayStart\(/);
   });
 
-  it('GlobalActiveTimerBanner calls syncWorkDayEnd in EOD drain path', () => {
+  it('GlobalActiveTimerBanner calls syncWorkDayEnd server-first in EOD drain path', () => {
     const src = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
     expect(src).toContain("from '@/services/workdayServerSync'");
-    // Must be invoked next to markWorkdayEnded (both branches).
-    expect(src).toMatch(/markWorkdayEnded\(\);[\s\S]{0,200}syncWorkDayEnd\(\)/);
+    // Server-first: syncWorkDayEnd must be awaited BEFORE markWorkdayEnded.
+    expect(src).toMatch(/await\s+syncWorkDayEnd\(\)[\s\S]{0,200}markWorkdayEnded\(\)/);
   });
 
-  it('syncWorkDayEnd is exported as fire-and-forget (void return)', () => {
+  it('syncWorkDayEnd is awaitable and returns ok/error result', () => {
     const src = read('src/services/workdayServerSync.ts');
-    expect(src).toMatch(/export function syncWorkDayEnd\([^)]*\): void/);
+    expect(src).toMatch(/export\s+async\s+function\s+syncWorkDayEnd\([^)]*\):\s*Promise<WorkDayEndResult>/);
   });
 
   it('workday edge function exposes start | end | current actions', () => {
