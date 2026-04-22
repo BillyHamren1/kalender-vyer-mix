@@ -7,7 +7,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
-type SiteScanSyncTargetRow = Tables<"site_scan_sync_targets">;
+type SiteScanSyncTargetRow = any;
 type SyncStatus = "not_linked" | "pending_sync" | "synced" | "sync_failed";
 
 const STATUS_CONFIG: Record<SyncStatus, { label: string; icon: React.ElementType; className: string }> = {

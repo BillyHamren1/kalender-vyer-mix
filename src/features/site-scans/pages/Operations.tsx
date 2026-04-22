@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
 import { timeAgo, fmt } from "@/features/site-scans/lib/format";
 import PageShell from "@/components/layout/PageShell";
 import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";

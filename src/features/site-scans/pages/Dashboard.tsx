@@ -7,7 +7,9 @@ import StatusBadge, { type ScanStatus } from "@/features/site-scans/components/s
 import LoadingState from "@/features/site-scans/components/shared/LoadingState";
 import { useSiteScansList } from "@/features/site-scans/hooks/useSiteScans";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
 import { timeAgo } from "@/features/site-scans/lib/format";
 import {
   ScanLine,

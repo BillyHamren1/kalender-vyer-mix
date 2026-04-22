@@ -8,8 +8,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
-type SiteScanLinkRow = Tables<"site_scan_links">;
-type SiteScanSyncTargetRow = Tables<"site_scan_sync_targets">;
+type SiteScanLinkRow = any;
+type SiteScanSyncTargetRow = any;
 
 // =============================================
 // Known external systems

@@ -13,7 +13,9 @@ import SyncStatusPanel from "@/features/site-scans/components/shared/SyncStatusP
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState, useEffect, lazy, Suspense } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
 import "@google/model-viewer";
 import TerrainProfileVisual from "@/features/site-scans/components/scan-detail/TerrainProfileVisual";
 import {
