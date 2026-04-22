@@ -203,7 +203,7 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
     try {
       json = await res.json();
     } catch {
-      throw new Error(`Servern svarade med status ${res.status} but ogiltigt svar.`);
+      throw new Error(`Servern svarade med status ${res.status} men ogiltigt svar.`);
     }
 
     if (!res.ok) {
