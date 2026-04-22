@@ -1,43 +1,161 @@
 
+# Fix: “Mätning” ska öppna SiteScans kameramätning, inte scan-listor eller LiDAR-historik
 
-# Fix: Mätning öppnar fel sida (visar admin-listan "Scans" istället för mobil mätning)
+## Verifierat i koden
 
-## Vad som händer nu
-- Du trycker **Verktyg → Mätning** i mobilappen.
-- `/m/tools/measure` är routad till `src/features/site-scans/pages/Scans.tsx`, som är en **admin-listvy** för SiteScan-plattformen (rubrik: "Scans · Alla 3D- och höjdscans från LiDAR-enheter", med statusfilter, sortering, paginering, MoreHorizontal-meny etc.).
-- Det är inte en mätarbetsyta — det är CMS-sidan för site-scans. Därav känslan "den öppnar Ytskanning/Scan istället för Mätning".
+### Var `/m/tools/measure` går idag
+I `src/shells/TimeAppShell.tsx` renderar `/m/tools/measure` just nu:
+- `MeasurementsPage` från `src/features/site-scans/pages/Measurements.tsx`
 
-## Vad du faktiskt vill ha bakom Mätning
-En mobilanpassad **Mätning-vy** som:
-1. Visar dina egna senaste mätningar (inte hela orgens lista, ingen status-/sortering/paginering).
-2. Har en stor primär CTA: **"Ny mätning"** (startar capture-flödet eller upload-flöde).
-3. Listar varje mätning som en mobilkort-rad (titel, datum, status-pil, eventuell preview-thumb).
-4. Tap på rad → `/m/tools/measure/:id` (befintlig `ScanDetail` — den fungerar och har korrekt back-knapp).
+### Varför nuvarande entrypoint är fel
+Det här är inte ett live mätverktyg.
 
-Admin-listsidan (Scans.tsx) får ligga kvar för desktop SiteScan-modulen (om/när den används där) men slutar vara mobilappens Mätning.
+- `src/features/site-scans/pages/Measurements.tsx`
+  - listar senaste scans via `useSiteScansList`
+  - texten säger uttryckligen att nya mätningar “startas på LiDAR-enheten och synkas hit automatiskt”
+  - alltså: historik/lista för SiteScans, inte kameramätning
 
-## Tekniska ändringar
+- `src/features/site-scans/pages/Scans.tsx`
+  - är admin/listvy med filter, sortering, pagination, actions
+  - alltså: register/CMS för scans, inte mätverktyg
 
-**Nya filer:**
-- `src/pages/mobile/MobileMeasure.tsx` — ren mobilvy:
-  - Hämtar egna scans via befintlig `useSiteScansList` med filter `created_by = current user` och `page_size: 20`.
-  - Stor "Ny mätning"-knapp överst (öppnar capture/start-dialog — placeholder toast om backend-flödet inte är på plats än, men knappen finns).
-  - Lista i samma mobilstil som `MobileToolsHub` (kort med icon + titel + meta + chevron).
-  - Tom state: "Inga mätningar ännu — tryck Ny mätning för att börja".
-  - Tap på rad → `navigate('/m/tools/measure/' + id)`.
+- `src/features/site-scans/pages/ScanDetail.tsx`
+  - visar preview, 3D-modell, punktmoln, terrängdata
+  - tillbaka-knappen säger “Tillbaka till SiteScan”
+  - alltså: resultat/detaljvy efter scan, inte live mätning
 
-**Ändrade filer:**
-- `src/shells/TimeAppShell.tsx` — `/m/tools/measure` pekar om från `SiteScansPage` till nya `MobileMeasure`. `/m/tools/measure/:id` → `SiteScanDetailPage` orörd.
-- `src/features/site-scans/pages/ScanDetail.tsx` — back-knappen går redan till `/m/tools/measure`, ingen ändring behövs.
+- `src/features/site-scans/components/booking-details/MeasurementsTerrainCard.tsx`
+  - visar terräng-metrics från aktiv yta
 
-**Inte rört:**
-- `Scans.tsx`, `Dashboard.tsx`, `Operations.tsx`, `Processing.tsx`, `Assets.tsx`, `Sessions.tsx` — desktop SiteScan-modul.
-- Scanner-flöden, kamera-flöden, övriga Time-app-routes.
-- Edge functions, DB, RLS.
+- `src/features/site-scans/components/booking-details/BookingDrawingTab.tsx`
+  - placeholder för 3D-terräng/ritning
 
-## Resultat
-- **Verktyg → Mätning** → en ren mobilvy med "Ny mätning" + dina mätningar.
-- Tap på en mätning → samma detalj-sida som idag.
-- Tillbaka-knappen → tillbaka till mobil-mätningen.
-- Den gamla admin-vyn "Scans" finns kvar för desktop-modulen men är inte längre i Time-appens flöde.
+- `src/features/site-scans/components/booking/BookingSiteScans.tsx`
+- `src/features/site-scans/components/project/ProjectSiteScans.tsx`
+  - länkar/scannar kopplade till bokning/projekt
 
+## Slutsats
+SiteScans är rätt feature-område, men det finns ingen befintlig sida i SiteScans som motsvarar:
+- öppna kameran
+- sätt punkt
+- flytta punkt
+- mäta avstånd på mark eller vägg
+- bete sig som iPhone Measure
+
+Det som finns idag i SiteScans är scan-ingest + scan-visning + 3D/terrain-resultat, inte live kameramätning.
+
+## Rätt entrypoint
+Den korrekta lösningen är därför inte `Scans.tsx` och inte `Measurements.tsx`.
+
+Den korrekta entrypointen behöver vara en ny liten sida inne i SiteScans-featuren, t.ex.:
+
+- `src/features/site-scans/pages/CameraMeasure.tsx`
+
+Den ska vara Time-appens route för `/m/tools/measure`.
+
+## Minimal implementation
+
+### 1. Skapa en riktig SiteScans-entrypoint för kameramätning
+Ny fil:
+- `src/features/site-scans/pages/CameraMeasure.tsx`
+
+Den ska:
+- öppna mätverktyget direkt, inte lista scans
+- visa live kameraområde
+- ha tydliga kontroller för att:
+  - starta mätning
+  - sätta första punkt
+  - sätta andra punkt
+  - visa aktuellt avstånd
+  - nollställa / ny mätning
+- kännas som ett verktyg, inte ett register
+
+Om native/live AR-mätning inte är tillgänglig på den aktuella plattformen ska sidan:
+- visa tydligt unsupported-state
+- inte falla tillbaka till `Scans.tsx` eller `Measurements.tsx`
+
+### 2. Lägg logiken i SiteScans-featuren, inte i mobil-shellen
+För att hålla ändringen liten men korrekt:
+- routen byts i `TimeAppShell`
+- själva verktyget bor i `src/features/site-scans/...`
+
+Om sidan behöver delas upp:
+- `src/features/site-scans/components/camera-measure/...`
+- `src/features/site-scans/hooks/...`
+
+Men bara om det krävs för att hålla sidan ren.
+
+### 3. Byt routen i `TimeAppShell.tsx`
+Ändra endast:
+- `/m/tools/measure`
+
+Från:
+- `MeasurementsPage`
+
+Till:
+- `CameraMeasurePage` / `CameraMeasure`
+
+Behåll wrapper exakt:
+- `MobileProtectedRoute`
+- `TimeAppLayout`
+
+### 4. Lämna detail-routen orörd
+Rör inte:
+- `/m/tools/measure/:id`
+
+Den ska fortsätta gå till:
+- `src/features/site-scans/pages/ScanDetail.tsx`
+
+Det betyder:
+- gamla scan-detaljer fortsätter fungera
+- men de är inte längre entrypoint för “Mätning”
+
+### 5. Gör minimal följdjustering i `ScanDetail.tsx`
+Eftersom `/m/tools/measure` inte längre är en scan-lista bör tillbaka-knappen inte säga:
+- “Tillbaka till SiteScan”
+
+Minsta rimliga fix:
+- ändra texten till bara “Tillbaka”
+- gärna `navigate(-1)` med fallback till `/m/tools/measure`
+
+Det är en liten lokal justering som undviker missvisande navigation.
+
+## Tekniska detaljer
+Nuvarande SiteScans-kod visar att featuren redan äger:
+- scan-sessioner
+- scan-typer som `lidar_terrain`, `lidar_structure`, `indoor_scan`
+- RoomPlan/USDZ-visning
+- scan-resultat och assets
+
+Men den äger inte ännu en live “tap-to-measure”-UI.
+
+Det betyder att routingfelet inte kan lösas genom att bara peka på en annan befintlig SiteScans-sida. Den sidan finns inte i koden idag. Därför är den minsta korrekta fixen:
+1. skapa en liten ny entrypoint i SiteScans
+2. routea `/m/tools/measure` dit
+3. låta scan-detaljer ligga kvar separat
+
+## Filer att ändra
+
+### Ändra
+- `src/shells/TimeAppShell.tsx`
+- `src/features/site-scans/pages/ScanDetail.tsx` (endast tillbaka-knapptext/beteende, om nödvändigt)
+
+### Skapa
+- `src/features/site-scans/pages/CameraMeasure.tsx`
+
+### Eventuellt skapa, bara om det behövs
+- `src/features/site-scans/components/camera-measure/...`
+- `src/features/site-scans/hooks/...`
+
+## Resultat efter fix
+När användaren trycker på “Mätning” i Time-appen:
+- öppnas inte `Scans.tsx`
+- öppnas inte `Measurements.tsx`
+- öppnas inte LiDAR-/3D-/historiklistan
+- användaren landar direkt i SiteScans kameramätning
+
+Och samtidigt:
+- `/m/tools/measure/:id` lämnas kvar
+- befintliga detail pages fortsätter fungera
+- ingen toast-baserad fake-start
+- ingen mellanvy med scan-admin/lista
