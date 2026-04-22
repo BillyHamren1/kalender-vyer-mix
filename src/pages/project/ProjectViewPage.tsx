@@ -205,15 +205,6 @@ const ProjectViewPage = () => {
 
 
 
-
-      {/* PM-dokument */}
-      <ProjectPMDocument
-        project={project}
-        tasks={tasks}
-        suppliers={suppliers}
-        transportAssignments={transportAssignments}
-      />
-
       {/* Kommunikation */}
       <ProjectCommunication
         projectId={project.id}
