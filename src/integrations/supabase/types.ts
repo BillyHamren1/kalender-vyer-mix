@@ -6348,6 +6348,9 @@ export type Database = {
           id: string
           notes: string | null
           organization_id: string
+          review_computed_at: string | null
+          review_reasons: string[]
+          review_status: Database["public"]["Enums"]["workday_review_status"]
           staff_id: string
           started_at: string
           started_by: string
@@ -6360,6 +6363,9 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id: string
+          review_computed_at?: string | null
+          review_reasons?: string[]
+          review_status?: Database["public"]["Enums"]["workday_review_status"]
           staff_id: string
           started_at?: string
           started_by?: string
@@ -6372,6 +6378,9 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id?: string
+          review_computed_at?: string | null
+          review_reasons?: string[]
+          review_status?: Database["public"]["Enums"]["workday_review_status"]
           staff_id?: string
           started_at?: string
           started_by?: string
@@ -6757,6 +6766,10 @@ export type Database = {
           orphans_deleted: number
         }[]
       }
+      compute_workday_review_status: {
+        Args: { p_workday_id: string }
+        Returns: Database["public"]["Enums"]["workday_review_status"]
+      }
       ensure_internal_lager_booking: {
         Args: { _org_id: string }
         Returns: string
@@ -6861,6 +6874,7 @@ export type Database = {
         | "ready_for_handover"
         | "handed_over_to_booking"
         | "invoiced_in_booking"
+      workday_review_status: "draft" | "needs_review" | "ready" | "approved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7038,6 +7052,7 @@ export const Constants = {
         "handed_over_to_booking",
         "invoiced_in_booking",
       ],
+      workday_review_status: ["draft", "needs_review", "ready", "approved"],
     },
   },
 } as const
