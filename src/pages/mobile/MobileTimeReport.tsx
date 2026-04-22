@@ -67,29 +67,29 @@ const MobileTimeReport = () => {
   };
 
   const getValidationError = (): string | null => {
-    if (!selectedBookingId) return 'Välj ett jobb eller projekt.';
-    if (!startTime) return 'Ange starttid.';
-    if (!endTime) return 'Ange sluttid.';
+    if (!selectedBookingId) return t('time.selectJobError');
+    if (!startTime) return t('time.startRequired');
+    if (!endTime) return t('time.endRequired');
 
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
     const startMinutes = sh * 60 + sm;
     const endMinutes = eh * 60 + em;
 
-    if (startMinutes === endMinutes) return 'Sluttiden kan inte vara samma som starttiden.';
+    if (startMinutes === endMinutes) return t('time.endSameAsStart');
 
     const breakHours = parseFloat(breakTime || '0');
     const breakMinutes = breakHours * 60;
-    if (breakHours < 0) return 'Rasten kan inte vara negativ.';
-    if (breakMinutes > 240) return 'Rasten kan max vara 240 minuter.';
+    if (breakHours < 0) return t('time.breakNegative');
+    if (breakMinutes > 240) return t('time.breakMax');
 
     const hours = calculateHours();
-    if (hours <= 0) return 'Arbetade timmar efter rast måste vara mer än 0.';
-    if (hours > 16) return 'Arbetade timmar kan inte överstiga 16 timmar.';
+    if (hours <= 0) return t('time.hoursAfterBreak');
+    if (hours > 16) return t('time.hoursMax');
 
     const ot = parseFloat(overtime || '0');
-    if (ot < 0) return 'Övertid kan inte vara negativ.';
-    
+    if (ot < 0) return t('time.overtimeNegative');
+
 
     return null;
   };
