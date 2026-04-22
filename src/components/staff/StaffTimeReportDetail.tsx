@@ -694,14 +694,14 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   {format(dayDate, 'EEEE d MMMM', { locale: sv })}
                                 </span>
                                 {dayIsToday && (
-                                  <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                  <Badge variant="default" className="text-[10px] bg-primary/15 text-primary border-0 hover:bg-primary/20">
                                     Idag
                                   </Badge>
                                 )}
                                 {hasAnyReport && (hasOpenWork ? (
                                   <Badge
                                     variant="outline"
-                                    className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                    className="text-[10px] gap-1 border-primary/30 text-primary bg-primary/5"
                                   >
                                     <Activity className="h-2.5 w-2.5" />
                                     Pågående
@@ -709,7 +709,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                 ) : (
                                   <Badge
                                     variant="outline"
-                                    className="text-[10px] gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-500"
+                                    className="text-[10px] gap-1 border-border text-muted-foreground"
                                   >
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Stängd
@@ -718,34 +718,34 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
-                                    className="text-orange-500 hover:text-orange-600 transition-colors"
+                                    className="text-destructive/80 hover:text-destructive transition-colors"
                                     title={`${dateAnomalyCount} avvikelse${dateAnomalyCount !== 1 ? 'r' : ''}`}
                                   >
                                     <AlertTriangle className="h-4 w-4" />
                                   </button>
                                 )}
                                 {(unlinkedAnomaliesByDate.get(date) || []).length > 0 && (
-                                  <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600">
+                                  <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
                                     {(unlinkedAnomaliesByDate.get(date) || []).length} oklassad frånvaro
                                   </Badge>
                                 )}
                               </div>
                               {hasAnyReport ? (
                                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  <span>{formatHoursMinutes(dateTotalHours)}</span>
+                                  <span className="font-medium tabular-nums">{formatHoursMinutes(dateTotalHours)}</span>
                                   {dateTravelHours > 0 && (
-                                    <span className="flex items-center gap-1">
+                                    <span className="flex items-center gap-1 tabular-nums">
                                       <Car className="h-3 w-3" /> {formatHoursMinutes(dateTravelHours)}
                                     </span>
                                   )}
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setMovementDate(date); }}
-                                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors text-[10px]"
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-border/60 hover:bg-accent hover:border-border transition-colors text-[10px]"
                                     title="Visa rörelse på karta"
                                   >
                                     <Route className="h-3 w-3" /> Rörelse
                                   </button>
-                                  <Badge variant="outline" className="text-[10px]">
+                                  <Badge variant="outline" className="text-[10px] border-border/60">
                                     Dagöversikt →
                                   </Badge>
                                 </div>
@@ -764,10 +764,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                             : [];
                           return (
                             <React.Fragment key={report.id}>
-                              <TableRow className={report.type === 'travel' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                              <TableRow className={report.type === 'travel' ? 'bg-muted/30' : ''}>
                                 <TableCell>
                                   <div className="truncate max-w-[180px] flex items-center gap-1">
-                                    {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                    {report.type === 'travel' && <Car className="h-3.5 w-3.5 text-primary shrink-0" />}
                                     <span>
                                       {report.booking_client}
                                       {report.booking_number && (
@@ -778,10 +778,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     </span>
                                   </div>
                                 </TableCell>
-                                <TableCell>{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
-                                <TableCell>{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
-                                <TableCell className="text-right">{formatHoursMinutes(report.hours_worked)}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="tabular-nums">{report.start_time ? report.start_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell className="tabular-nums">{report.end_time ? report.end_time.slice(0, 5) : '-'}</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatHoursMinutes(report.hours_worked)}</TableCell>
+                                <TableCell className="text-right tabular-nums">
                                   {report.type === 'travel'
                                     ? '-'
                                     : (report.overtime_hours || 0) > 0
@@ -790,23 +790,23 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                 </TableCell>
                                 <TableCell>
                                   {report.type === 'travel' ? (
-                                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">
+                                    <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
                                       Resa
                                     </Badge>
                                   ) : !report.end_time ? (
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] gap-1 border-orange-300 text-orange-600"
+                                      className="text-[10px] gap-1 border-primary/30 text-primary bg-primary/5"
                                     >
                                       <Activity className="h-2.5 w-2.5" />
                                       Pågående
                                     </Badge>
                                   ) : report.approved ? (
-                                    <Badge variant="default" className="text-[10px] bg-primary/20 text-primary border-0">
+                                    <Badge variant="default" className="text-[10px] bg-primary/15 text-primary border-0 hover:bg-primary/20">
                                       Godkänd
                                     </Badge>
                                   ) : (
-                                    <Badge variant="outline" className="text-[10px]">
+                                    <Badge variant="outline" className="text-[10px] border-border/60">
                                       Väntande
                                     </Badge>
                                   )}
