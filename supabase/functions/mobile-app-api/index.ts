@@ -6599,16 +6599,19 @@ async function handleListWorkdaysReview(supabase: any, staffId: string, data: an
     .order('happened_at', { ascending: false })
     .limit(500)
 
-  let openTravel: any[] = []
+  // travel_time_logs uses start_time / end_time (NOT started_at/ended_at).
+  let openTravel: Array<{ id: string; start_time: string; end_time: string | null }> = []
+  let allTravelInWindow: Array<{ id: string; start_time: string; end_time: string | null; classification: string | null }> = []
   try {
     const { data: travels } = await supabase
       .from('travel_time_logs')
-      .select('id, started_at, ended_at')
+      .select('id, start_time, end_time, classification')
       .eq('staff_id', staffId)
-      .gte('started_at', sinceIso)
-      .is('ended_at', null)
-    openTravel = travels || []
-  } catch { /* tabell finns inte i alla miljöer */ }
+      .eq('organization_id', organizationId)
+      .gte('start_time', sinceIso)
+    allTravelInWindow = travels || []
+    openTravel = (travels || []).filter((t: any) => !t.end_time)
+  } catch { /* table missing in some envs */ }
 
   const dayKeyOf = (iso: string) => new Date(iso).toISOString().slice(0, 10)
   const aggByDay: Record<string, { open_events: number; stale_review_events: number; open_travel: number }> = {}
@@ -6619,7 +6622,7 @@ async function handleListWorkdaysReview(supabase: any, staffId: string, data: an
     if (ev.resolution_status === 'pending' && ev.stale_for_prompt && ev.still_relevant_for_review) aggByDay[key].stale_review_events++
   }
   for (const tr of openTravel) {
-    const key = dayKeyOf(tr.started_at)
+    const key = dayKeyOf(tr.start_time)
     aggByDay[key] ??= { open_events: 0, stale_review_events: 0, open_travel: 0 }
     aggByDay[key].open_travel++
   }
