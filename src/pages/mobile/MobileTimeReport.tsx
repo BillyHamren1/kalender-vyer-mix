@@ -16,9 +16,11 @@ import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
