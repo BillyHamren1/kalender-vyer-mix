@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 
 const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
+const ASSISTANT_EVENTS_URL = `${SUPABASE_URL}/functions/v1/assistant-events`;
 
 const TOKEN_KEY = 'eventflow-mobile-token';
 const STAFF_KEY = 'eventflow-mobile-staff';
@@ -228,7 +229,46 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   }
 }
 
-// API methods
+// ── assistant-events caller ────────────────────────────────────────────────
+// Anropar den dedikerade `assistant-events`-edge-functionen. Använder samma
+// mobile token (Bearer) som mobile-app-api. Skiljer sig från callApi i att
+// den postar `{ action, data }` (utan token i body — auth via header).
+async function callAssistantEvents<T = any>(action: string, data?: any): Promise<T> {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Mobile session required for assistant-events');
+  }
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(ASSISTANT_EVENTS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action, data: data ?? {} }),
+      signal: controller.signal,
+    });
+    let json: any;
+    try { json = await res.json(); } catch {
+      throw new Error(`assistant-events: status ${res.status} men ogiltigt svar`);
+    }
+    if (!res.ok) {
+      throw new Error(json?.error || `assistant-events fel (${res.status})`);
+    }
+    return json as T;
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('assistant-events timeout');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+
 export const mobileApi = {
   login: (email: string, password: string) =>
     callApi<{ success: boolean; token: string; staff: MobileStaff }>('login', { email, password }),
@@ -651,6 +691,65 @@ export const mobileApi = {
     target_id: string;
     arrived_at?: string;
   }) => callApi<{ success: boolean; arrival: any; idempotent?: boolean }>('report_arrival', data),
+
+  /**
+   * Report a departure from a target the staff member dwelled at for ≥5 min.
+   * Pure assistant signal — never stops a timer or creates a time_report.
+   * Server writes an `assistant_events` row with suggested_action='end_activity'.
+   */
+  reportDeparture: (data: {
+    kind: 'location' | 'project' | 'booking';
+    target_id: string;
+    target_label?: string | null;
+    departed_at?: string;
+    dwell_minutes?: number;
+  }) => callApi<{ success: boolean }>('report_departure', data),
+
+  /**
+   * Report arrival at the user's home location. Server writes an
+   * `assistant_events` row with suggested_action='end_workday'. No auto-stop.
+   */
+  reportHomeArrival: (data?: { arrived_at?: string }) =>
+    callApi<{ success: boolean }>('report_home_arrival', data ?? {}),
+
+  // ── Assistant Events (Runda 1b) ────────────────────────────────────
+  // Direct calls against the dedicated `assistant-events` edge function.
+  // List/resolve flows for the new event-driven assistant model.
+  assistantEvents: {
+    listPending: () => callAssistantEvents<{ events: any[] }>('list_pending'),
+    listReview: (sinceIso?: string) =>
+      callAssistantEvents<{ events: any[] }>('list_review', sinceIso ? { since: sinceIso } : {}),
+    create: (data: {
+      event_type: 'arrival' | 'departure' | 'home_arrival' | 'travel_edge';
+      target_type: 'location' | 'project' | 'booking' | 'home' | 'unknown';
+      target_id?: string | null;
+      target_label?: string | null;
+      target_address?: string | null;
+      happened_at?: string;
+      source?: string;
+      suggested_action?: string;
+      metadata?: Record<string, unknown>;
+    }) => callAssistantEvents<{ event: any; idempotent?: boolean }>('create_event', data),
+    resolve: (data: {
+      event_id: string;
+      resolution_status:
+        | 'applied_from_event_time'
+        | 'applied_from_now'
+        | 'applied_from_custom_time'
+        | 'dismissed'
+        | 'merged_into_other_event'
+        | 'auto_closed_by_later_action'
+        | 'ignored_stale';
+      resolution_notes?: string;
+      linked_workday_id?: string;
+      linked_time_report_id?: string;
+      linked_travel_log_id?: string;
+      merged_into_event_id?: string;
+      keep_for_review?: boolean;
+    }) => callAssistantEvents<{ event: any }>('resolve_event', data),
+    markStale: (eventId: string) =>
+      callAssistantEvents<{ event: any }>('mark_stale', { event_id: eventId }),
+  },
 
   // ── Workday flags (PROMPT 6 — anomaly model v2) ─────────────────────
   // Workday flags are the first-class store for "system saw something it

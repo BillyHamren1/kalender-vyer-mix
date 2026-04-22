@@ -449,6 +449,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleMarkArrivalResolved(supabase, staffId, data, organizationId)
       case 'report_arrival':
         return await handleReportArrival(supabase, staffId, data, organizationId)
+      case 'report_departure':
+        return await handleReportDeparture(supabase, staffId, data, organizationId)
+      case 'report_home_arrival':
+        return await handleReportHomeArrival(supabase, staffId, data, organizationId)
       // ── Smart-karta (arrival context) ──
       case 'accept_unplanned_site_visit':
         return await handleAcceptUnplannedSiteVisit(supabase, staffId, data, organizationId)
@@ -7166,121 +7170,14 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     }
   }
 
-  // ── OPTIMISTIC AUTO-CHECKIN ──
-  // Unified rule: if the staff member is *assigned* to this booking/project
-  // today (BSA row exists), treat the arrival like a fixed-location entry —
-  // create a location_time_entries row directly instead of asking. Admin can
-  // edit/delete afterwards if it was wrong. Locations remain auto-checkin via
-  // the report_location flow; here we extend the same behavior to assigned
-  // bookings and projects.
-  if (kind === 'booking' || kind === 'project') {
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      let isAssigned = false
-      let bookingIdForEntry: string | null = null
-      let largeProjectIdForEntry: string | null = null
+  // ── AUTO-CHECKIN BORTTAGEN (Runda 1b) ──
+  // Tidigare skapade detta block automatiskt en location_time_entries-rad
+  // när användaren ankom till en bokning/projekt hen var bemannad på.
+  // Det ledde till "fantom"-time_reports utan event-spår och bröt mot
+  // failproof-modellen där användaren själv ska bekräfta start.
+  // Nu: arrival → prompt + assistant_event. Ingenting startar automatiskt.
 
-      if (kind === 'booking') {
-        const { data: bsa } = await supabase
-          .from('booking_staff_assignments')
-          .select('id')
-          .eq('staff_id', staffId)
-          .eq('booking_id', targetId)
-          .eq('assignment_date', today)
-          .limit(1)
-          .maybeSingle()
-        isAssigned = !!bsa
-        bookingIdForEntry = targetId
-      } else {
-        // project (large_project) — assignment is tracked via large_project_staff
-        const { data: lps } = await supabase
-          .from('large_project_staff')
-          .select('id')
-          .eq('staff_id', staffId)
-          .eq('large_project_id', targetId)
-          .limit(1)
-          .maybeSingle()
-        isAssigned = !!lps
-        largeProjectIdForEntry = targetId
-      }
-
-      if (isAssigned) {
-        // Idempotent: skip if there is already an open entry for this target today.
-        let openQuery = supabase
-          .from('location_time_entries')
-          .select('id')
-          .eq('staff_id', staffId)
-          .eq('entry_date', today)
-          .is('exited_at', null)
-        if (bookingIdForEntry) openQuery = openQuery.eq('booking_id', bookingIdForEntry)
-        if (largeProjectIdForEntry) openQuery = openQuery.eq('large_project_id', largeProjectIdForEntry)
-        const { data: openEntry } = await openQuery.limit(1).maybeSingle()
-
-        if (openEntry) {
-          return new Response(JSON.stringify({
-            success: true, auto_checkin: true, idempotent: true, entry_id: openEntry.id,
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-        }
-
-        // Close any other open entries (e.g. lager) so we don't double-count.
-        const { data: otherOpen } = await supabase
-          .from('location_time_entries')
-          .select('id, entered_at')
-          .eq('staff_id', staffId)
-          .is('exited_at', null)
-          .lt('entered_at', arrivedAt)
-        for (const row of (otherOpen || [])) {
-          const minutes = Math.max(0, Math.round(
-            (new Date(arrivedAt).getTime() - new Date(row.entered_at).getTime()) / 60000
-          ))
-          await supabase
-            .from('location_time_entries')
-            .update({ exited_at: arrivedAt, total_minutes: minutes })
-            .eq('id', row.id)
-            .is('exited_at', null)
-        }
-
-        const insertPayload: any = {
-          organization_id: organizationId,
-          staff_id: staffId,
-          entry_date: today,
-          entered_at: arrivedAt,
-          source: 'auto_assigned',
-        }
-        if (bookingIdForEntry) insertPayload.booking_id = bookingIdForEntry
-        if (largeProjectIdForEntry) insertPayload.large_project_id = largeProjectIdForEntry
-
-        const { data: created, error: insErr } = await supabase
-          .from('location_time_entries')
-          .insert(insertPayload)
-          .select('id')
-          .maybeSingle()
-
-        if (insErr) {
-          console.error('[report_arrival] auto-checkin insert failed, falling back to prompt:', insErr)
-          // fall through to prompt-log path below
-        } else {
-          console.log(`[report_arrival] AUTO check-in for assigned ${kind} ${targetId} (staff=${staffId}, entry=${created?.id})`)
-          // Mark any pending prompt for the same target as resolved so the
-          // mobile UI doesn't show a stale "Anlände — checka in?" dialog.
-          await supabase
-            .from('arrival_prompt_log')
-            .update({ resolved: true, resolved_at: new Date().toISOString() })
-            .eq('staff_id', staffId)
-            .eq('target_type', kind)
-            .eq('target_id', targetId)
-            .eq('resolved', false)
-          return new Response(JSON.stringify({
-            success: true, auto_checkin: true, entry_id: created?.id,
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-        }
-      }
-    } catch (autoErr) {
-      console.warn('[report_arrival] auto-checkin path errored, falling back to prompt:', autoErr)
-    }
-  }
-
-  // ── FALLBACK: arrival_prompt_log (unassigned arrivals) ──
+  // ── prompt-log (alla arrivals — assigned eller ej) ──
   // Dedupe: if there is already an UNRESOLVED log row for the same
   // (staff, target, ~arrived_at) within the last 6h, return it instead of
   // creating a new one. This makes repeated geofence pings safe.
@@ -7323,7 +7220,136 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  // ── DUAL-WRITE → assistant_events (Runda 1b) ──
+  // Skriv parallellt till den nya event-modellen. Best-effort: misslyckande
+  // får INTE förstöra prompt-flödet (gammal väg är fortfarande source of truth).
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'arrival',
+    target_type: kind,
+    target_id: targetId,
+    happened_at: arrivedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'start_activity',
+  })
+
   return new Response(JSON.stringify({ success: true, arrival: inserted }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ── Dual-write helper för assistant_events ─────────────────────────────────
+// Best-effort. Loggar fel men kastar aldrig.
+async function dualWriteAssistantEvent(supabase: any, payload: {
+  organization_id: string
+  staff_id: string
+  event_type: 'arrival' | 'departure' | 'home_arrival' | 'travel_edge'
+  target_type: 'location' | 'project' | 'booking' | 'home' | 'unknown'
+  target_id: string | null
+  target_label?: string | null
+  target_address?: string | null
+  happened_at: string
+  source?: string
+  suggested_action?: string
+  metadata?: Record<string, unknown>
+}) {
+  try {
+    const bucket = Math.floor(new Date(payload.happened_at).getTime() / (5 * 60_000))
+    const dedupeKey = `${payload.staff_id}:${payload.event_type}:${payload.target_type}:${payload.target_id ?? 'null'}:${bucket}`
+
+    const { error } = await supabase
+      .from('assistant_events')
+      .insert({
+        organization_id: payload.organization_id,
+        staff_id: payload.staff_id,
+        event_type: payload.event_type,
+        target_type: payload.target_type,
+        target_id: payload.target_id,
+        target_label: payload.target_label ?? null,
+        target_address: payload.target_address ?? null,
+        happened_at: payload.happened_at,
+        source: payload.source ?? 'geofence_foreground',
+        suggested_action: payload.suggested_action ?? 'review_only',
+        dedupe_key: dedupeKey,
+        metadata: payload.metadata ?? {},
+      })
+
+    if (error && String(error.code) !== '23505') {
+      console.warn('[dualWriteAssistantEvent] insert failed:', error.message)
+    }
+  } catch (err) {
+    console.warn('[dualWriteAssistantEvent] unhandled error:', err)
+  }
+}
+
+// ── handleReportDeparture (Runda 1b) ───────────────────────────────────────
+// Klienten anropar detta när geofence detekterar att användaren lämnat en
+// target hen varit inne på i ≥5 min. Skapar enbart assistant_event — INGEN
+// auto-stop av timer eller anomalitet.
+async function handleReportDeparture(supabase: any, staffId: string, data: any, organizationId: string) {
+  const kind: 'location' | 'project' | 'booking' | undefined = data?.kind
+  const targetId: string | undefined = data?.target_id
+  const targetLabel: string | null = data?.target_label ?? null
+  const departedAtRaw: string | undefined = data?.departed_at
+  const dwellMinutes: number | undefined = data?.dwell_minutes
+
+  if (!kind || !['location', 'project', 'booking'].includes(kind) || !targetId) {
+    return new Response(JSON.stringify({ error: 'kind and target_id are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  let departedAt = new Date().toISOString()
+  if (departedAtRaw) {
+    const parsed = new Date(departedAtRaw)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      departedAt = parsed.toISOString()
+    }
+  }
+
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'departure',
+    target_type: kind,
+    target_id: targetId,
+    target_label: targetLabel,
+    happened_at: departedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'end_activity',
+    metadata: typeof dwellMinutes === 'number' ? { dwell_minutes: dwellMinutes } : {},
+  })
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ── handleReportHomeArrival (Runda 1b) ─────────────────────────────────────
+// Geofence inom användarens "hem"-radie → skapa home_arrival-event.
+// Suggested_action = end_workday. Ingen auto-end, bara underlag.
+async function handleReportHomeArrival(supabase: any, staffId: string, data: any, organizationId: string) {
+  const arrivedAtRaw: string | undefined = data?.arrived_at
+  let arrivedAt = new Date().toISOString()
+  if (arrivedAtRaw) {
+    const parsed = new Date(arrivedAtRaw)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      arrivedAt = parsed.toISOString()
+    }
+  }
+
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'home_arrival',
+    target_type: 'home',
+    target_id: null,
+    happened_at: arrivedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'end_workday',
+  })
+
+  return new Response(JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
