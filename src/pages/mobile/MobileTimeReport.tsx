@@ -272,7 +272,7 @@ const MobileTimeReport = () => {
 
         {/* Header with small "new" button */}
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Mina tidrapporter</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t('time.myReports2')}</h2>
           {!showForm && (
             <Button
               type="button"
@@ -282,7 +282,7 @@ const MobileTimeReport = () => {
               className="h-8 shrink-0 rounded-lg border-border bg-background px-3 text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
-              Ny rapport
+              {t('time.newReportShort')}
             </Button>
           )}
         </div>
