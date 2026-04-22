@@ -51,6 +51,12 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.transistorsoft.fetch</string>
+		<string>com.transistorsoft.customtask</string>
+		<string>com.transistorsoft.react.background.fetch</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>EventFlow Time uses the camera to capture receipts and job-site photos linked to your time reports.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
