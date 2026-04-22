@@ -1,56 +1,53 @@
 
 
-# Bättre synlighet av personal på Ops-kartan
+# Fix: Travel-timern stannar inte när du redan är på lagret
 
-## Problem (från skärmdumparna)
-1. Personalprickarna är små (13 px) och staplas ovanpå varandra när flera står på samma plats — initialbokstaven blir oläslig och man förstår inte att det är flera personer.
-2. Det finns ingen hover idag — man måste klicka för att se vem det är, och då ser man bara EN person i sidopanelen.
-3. När namn väl visas (i sidopanelen / smala chips) klipps de av.
+## Vad som hände
+- 09:40 startade restimern (Bauhaus-ish → mot lagret).
+- 09:43 anlände du till FA Warehouse (du är ~40m från lagrets centrum, geofence-radie 200m).
+- Restimern fortsatte ändå att ticka — den står på 00:43:38 fast du sitter still på lagret.
 
-## Lösning
+## Rotorsak (verifierat mot DB + kod)
+I `useGeofencing.ts` skickas `STOP_TRAVEL_EVENT` (signalen som stoppar `travel_time_logs`) bara i en mycket smal ENTER-gren:
 
-### 1. Klustra överlappande personal
-När två eller flera personer är inom samma lilla pixelradie på aktuell zoom, slå ihop dem till en enda markör som visar antalet (t.ex. en cirkel med "3" istället för en bokstav). Klustret behåller statusfärgen om alla har samma status, annars neutral grå med färgad ring.
+```text
+om (inom radie) OCH (ingen aktiv timer för platsen) OCH (inte redan triggrat ENTER i minnet)
+   → emitStopTravelOnArrival()
+```
 
-### 2. Hover visar ALLA namn
-- **Enskild person**: hover → liten tooltip med fullständigt namn, status, team, sista GPS-tid.
-- **Kluster (flera på samma plats)**: hover → tooltip listar **alla** namn i klustret med statusprick framför varje, t.ex.:
-  ```
-  ● Armands Birznieks — På plats
-  ● Karl Karlsson — På plats
-  ● Anna Andersson — På väg
-  ● Erik Eriksson — Inaktiv
-  ```
-  Tooltipen är scrollbar om listan är lång och bred nog att rymma fulla namn (auto-bredd, max ~280 px).
+Det betyder att travel-raden bara stängs om geofencen "transitionar" från ute → inne **just i den browsersession** travel startades. Allt annat tystar stoppet:
+- App omstartad / fliken refreshad medan du redan var inne → ingen ENTER-transition → travel stannar inte.
+- Lager-/projekt-timer redan aktiv (`hasTimer = true`) → hela ENTER-blocket hoppas över → travel stannar inte.
+- ENTER triggrades en gång tidigare i sessionen (`triggeredEnterRef.current.has(key)`) → resan startar igen senare, du kommer tillbaka till lagret, ingen ny ENTER fyras → travel stannar inte.
 
-### 3. Klick på kluster
-- Klick på enskild person → samma sidopanel som idag.
-- Klick på kluster → antingen zooma in (om det går att separera dem) eller öppna en liten lista där man väljer person, som sedan öppnar sidopanelen.
+DB bekräftar: din travel-rad `7a9c…b38` är öppen (end_time = NULL) och du har ingen `location_time_entries`-rad för lagret idag, men `staff_locations` visar att du är 40m från FA Warehouse-centrum sedan 09:25.
 
-### 4. Större och tydligare markörer
-- Höj basradien från 13 → 15 px så bokstaven syns bättre.
-- Lägg till en mörkare halo/skugga runt cirkeln så den lyfter från kartans bakgrund (särskilt mot gula/gröna trafiklinjer).
-- Etikettens text-halo görs starkare (mörkare, bredare) så den vita bokstaven läses även mot ljusa underlag.
+## Fix
 
-### 5. Sidopanelens textavklippning
-`Armands Birz…` i panelen → ta bort `truncate` på namnet, låt det wrappa till två rader vid behov, och öka panelens bredd något.
+Bryt ut "är jag inne i en känd geofence?" till en separat, **timer-oberoende** check som körs varje GPS-tick **så länge en travel-rad är öppen**:
 
-## Tekniskt (för referens)
+1. Ny effekt i `useGeofencing.ts` (eller direkt i `useTravelDetection.ts`):
+   - Om `travelState.activeTravelLogId` finns OCH `userPosition` ligger inom någon känd geofence (org_location ELLER booking ELLER large_project som du är assigned på)
+   - → fyra `STOP_TRAVEL_EVENT` med din nuvarande position, oberoende av `hasTimer` / `triggeredEnterRef` / accuracy-gating.
+2. Behåll befintlig ENTER-logik för UI-prompten ("Du är på X — vill du klocka in?"). Bara stop-signalen frikopplas.
+3. Lägg till en watchdog: när `useTravelDetection` mountar och en öppen travel-rad finns i state, gör en engångskoll mot senaste GPS-position direkt — så ett app-reload på lagret stänger raden inom sekunder istället för att vänta på en transition som aldrig kommer.
+4. Logga tydligt i konsolen: `[TravelDetection] Stopping travel — user already inside <name> geofence`.
+
+## Tekniska detaljer
 
 Filer som ändras:
-- `src/components/ops-control/OpsLiveMap.tsx`
-  - Bygg ett klusterindex i klienten (enkelt pixel-grid baserat på aktuell zoom — vi kan inte använda Mapbox cluster-source rakt av utan att bryta nuvarande feature-properties, så vi gör en lättviktig egen pass innan vi sätter `staffGeoJson`).
-  - Uppdatera `STAFF_MARKER_LAYER_ID` paint så `circle-radius` och färg reagerar på `clusterSize > 1`.
-  - Uppdatera `STAFF_LABEL_LAYER_ID` så `text-field` blir antalet vid kluster.
-  - Lägg till `mousemove`/`mouseleave` handlers på staff-lagren som visar en HTML-tooltip (absolut-positionerad div ovanpå kartan, inte Mapbox-popup för att undvika flimmer). Vid kluster: rendera lista över alla namn.
-  - Klick på kluster: om zoom < 16, `flyTo` + zoom +2; annars öppna en "välj person"-lista.
-- Eventuell liten justering i sidopanelens namnrad (samma fil, runt rad 850+).
+- `src/hooks/useGeofencing.ts` — ny "presence stop"-effekt som löper parallellt med ENTER-logiken.
+- `src/hooks/useTravelDetection.ts` — vid mount, om `activeTravelLogId` finns och vi har en GPS-position, dispatch:a `STOP_TRAVEL_EVENT` för att utvärderas av geofencing-hooken (eller direkt om vi vet att vi är inne).
 
 Vad som **inte** ändras:
-- Datakällor, hooks, status-logik, sidopanelens funktionalitet i övrigt, jobbmarkörer, kameror, organisationsplatser, fullskärm/satellit-toggle, route-rendering.
+- ENTER/EXIT-promptar, anomaly-tracking, arrival-prompt-flödet, klassificeringsdialog.
+- Backend (`mobile-app-api.handleStopTravelLog`) — anropas via befintlig `mobileApi.stopTravelLog`.
+- Restimerns auto-START-logik (15s sustained speed). Den är OK.
+
+## Engångsstädning
+Din nuvarande öppna rad (`7a9c8eb2-f9bf-48ff-9726-19a7e8789b38`) stängs automatiskt så fort fixen är live och appen tar nästa GPS-tick på lagret. Vill du att jag även stänger den manuellt i samma deploy med end_time = nu och to_address = FA Warehouse? (Default: ja, så slipper du jaga den.)
 
 ## Resultat
-- Du ser direkt var det står flera personer (siffran på markören).
-- Hover visar alla fullständiga namn — ingen klickning behövs för att förstå vilka som är på en plats.
-- Markörerna sticker ut mer mot kartan, även mot färgglada trafiklager.
+- Restimern stannar inom någon sekund efter att du anländer till lagret/projektet/bokningen — även om appen startats om eller en lager-timer redan körde.
+- "På resa" försvinner från headern direkt och dagen visar korrekt **23:53 → 09:43 = Resa**, sedan **09:43 → pågår = Lager**.
 
