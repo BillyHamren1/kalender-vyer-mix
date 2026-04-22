@@ -391,8 +391,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         };
       });
 
-    // Dedupe: closed LTE rows that already became time_reports (location_auto)
-    // would otherwise show twice. Skip closed LTE if a report starts within ±2 min.
+    // Dedupe: historical closed LTE rows that legacy trigger mirrored into
+    // time_reports (source='location_auto', pre 2026-04-22) would otherwise
+    // show twice. New rows go via the single-owner write path so this is
+    // only relevant for back-fill / old data. Skip closed LTE if a report
+    // starts within ±2 min.
     const reportStartMinutes = reportRows
       .map(r => {
         const t = r.start_time;

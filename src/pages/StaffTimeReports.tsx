@@ -89,11 +89,12 @@ const StaffTimeReports: React.FC = () => {
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
       const [reportsRes, travelRes, locationRes, pingsRes] = await Promise.all([
-        // EXCLUDE auto-mirrored rows: a DB trigger (sync_location_entry_to_time_report)
-        // copies every closed location_time_entry into time_reports with
-        // source='location_auto'. That's the SAME shift — counting it again would
-        // start a second timer / row in the UI. The location_time_entry is the
-        // canonical record; we render only that one.
+        // EXCLUDE legacy auto-mirrored rows. The DB trigger
+        // `sync_location_entry_to_time_report` was REMOVED 2026-04-22 and
+        // time_reports are now created exclusively via
+        // `mobile-app-api.handleCreateTimeReport` (single owner).
+        // The exclude-filter remains so historical rows from before that
+        // migration don't double up against the canonical location_time_entry.
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, hours_worked, start_time, end_time, source, source_entry_id')

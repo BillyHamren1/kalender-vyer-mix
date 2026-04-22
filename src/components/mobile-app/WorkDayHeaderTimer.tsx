@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sun } from 'lucide-react';
-import { useWorkDayTimer } from '@/hooks/useWorkDayTimer';
+import { differenceInSeconds, parseISO } from 'date-fns';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 /**
  * WorkDayHeaderTimer — small, calm pill in the header showing how long
  * the current workday has been running.
+ *
+ * SOURCE OF TRUTH: `useWorkDay()` → `workdays` table (server, realtime).
+ * The workday is the PRIMARY signal; activity timers (project/travel/
+ * warehouse/location) are SECONDARY segments. This component MUST NOT
+ * derive its state from active timers or localStorage.
  */
 const formatHMS = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
@@ -18,9 +24,25 @@ const formatHMS = (totalSeconds: number) => {
 };
 
 export const WorkDayHeaderTimer: React.FC = () => {
-  const { isActive, elapsedSeconds } = useWorkDayTimer();
+  const { current } = useWorkDay();
   const { t } = useLanguage();
-  if (!isActive) return null;
+  const [, setTick] = useState(0);
+
+  const startIso = current && !current.ended_at ? current.started_at : null;
+
+  // Tick once per second only when a workday is open.
+  useEffect(() => {
+    if (!startIso) return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [startIso]);
+
+  if (!startIso) return null;
+
+  const elapsedSeconds = Math.max(
+    0,
+    differenceInSeconds(new Date(), parseISO(startIso)),
+  );
 
   return (
     <div
