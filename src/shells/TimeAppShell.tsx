@@ -25,6 +25,11 @@ import MobileCameraCapture from '@/pages/mobile/MobileCameraCapture';
 import SiteScansPage from '@/features/site-scans/pages/Scans';
 import SiteScanDetailPage from '@/features/site-scans/pages/ScanDetail';
 
+const LegacyScanRedirect: React.FC = () => {
+  const params = (window.location.pathname.match(/\/scans\/([^/]+)/) || [])[1];
+  return <Navigate to={params ? `/m/tools/measure/${params}` : '/m/tools/measure'} replace />;
+};
+
 const TimeAppShell: React.FC = () => {
   return (
     <ShellProvider mode="time" appName="EventFlow Time" appTagline="Tidrapportering för fältpersonal">
