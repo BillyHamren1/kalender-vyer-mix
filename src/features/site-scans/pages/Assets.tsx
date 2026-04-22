@@ -356,7 +356,7 @@ const Assets = () => {
                     key={asset.id}
                     asset={asset}
                     onInspect={() => setInspecting(asset)}
-                    onOpenScan={() => navigate(`/scans/${asset.site_scan_id}`)}
+                    onOpenScan={() => navigate(`/m/tools/measure/${asset.site_scan_id}`)}
                   />
                 ))}
               </tbody>
@@ -386,7 +386,7 @@ const Assets = () => {
         open={!!inspecting}
         onClose={() => setInspecting(null)}
         onOpenScan={() => {
-          if (inspecting) navigate(`/scans/${inspecting.site_scan_id}`);
+          if (inspecting) navigate(`/m/tools/measure/${inspecting.site_scan_id}`);
           setInspecting(null);
         }}
       />

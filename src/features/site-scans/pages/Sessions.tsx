@@ -486,7 +486,7 @@ const Sessions = () => {
                 session={session}
                 onInspect={() => setInspecting(session)}
                 onAbandon={() => handleAbandon(session.id)}
-                onViewScan={(scanId) => navigate(`/scans/${scanId}`)}
+                onViewScan={(scanId) => navigate(`/m/tools/measure/${scanId}`)}
               />
             ))}
           </div>

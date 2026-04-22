@@ -227,7 +227,7 @@ const Operations = () => {
                 <div
                   key={t.id}
                   className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/30 -mx-4 px-4 transition-colors"
-                  onClick={() => navigate(`/scans/${t.site_scan_id}`)}
+                  onClick={() => navigate(`/m/tools/measure/${t.site_scan_id}`)}
                 >
                   <div className="h-7 w-7 rounded bg-destructive/10 flex items-center justify-center shrink-0">
                     {t.sync_status === "sync_failed" ? (
@@ -266,7 +266,7 @@ const Operations = () => {
                 <div
                   key={s.id}
                   className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/30 -mx-4 px-4 transition-colors"
-                  onClick={() => navigate(`/scans/${s.id}`)}
+                  onClick={() => navigate(`/m/tools/measure/${s.id}`)}
                 >
                   <div className="h-7 w-7 rounded bg-[hsl(var(--status-uploading)/0.1)] flex items-center justify-center shrink-0">
                     <Upload className="h-3.5 w-3.5 text-[hsl(var(--status-uploading))]" />
@@ -295,7 +295,7 @@ const Operations = () => {
                 <div
                   key={s.id}
                   className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/30 -mx-4 px-4 transition-colors"
-                  onClick={() => navigate(`/scans/${s.id}`)}
+                  onClick={() => navigate(`/m/tools/measure/${s.id}`)}
                 >
                   <div className="h-7 w-7 rounded bg-destructive/10 flex items-center justify-center shrink-0">
                     <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
@@ -324,7 +324,7 @@ const Operations = () => {
                 <div
                   key={j.id}
                   className="flex items-center gap-3 py-3 cursor-pointer hover:bg-muted/30 -mx-4 px-4 transition-colors"
-                  onClick={() => navigate(`/scans/${j.site_scan_id}`)}
+                  onClick={() => navigate(`/m/tools/measure/${j.site_scan_id}`)}
                 >
                   <div className="h-7 w-7 rounded bg-destructive/10 flex items-center justify-center shrink-0">
                     <Cpu className="h-3.5 w-3.5 text-destructive" />
@@ -379,7 +379,7 @@ const Operations = () => {
                 <div
                   key={s.id}
                   className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-muted/30 -mx-4 px-4 transition-colors"
-                  onClick={() => navigate(`/scans/${s.id}`)}
+                  onClick={() => navigate(`/m/tools/measure/${s.id}`)}
                 >
                   <Link2Off className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="text-sm truncate flex-1">{s.title}</span>

@@ -404,7 +404,7 @@ const Processing = () => {
                 job={job}
                 retrying={retryingId === job.id}
                 onRetry={() => handleRetry(job)}
-                onOpenScan={() => navigate(`/scans/${job.site_scan_id}`)}
+                onOpenScan={() => navigate(`/m/tools/measure/${job.site_scan_id}`)}
               />
             ))}
           </div>
