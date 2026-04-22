@@ -5441,6 +5441,99 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
 
   const startIso = new Date().toISOString()
 
+  // ── GUARD: Reject travel-start if the user is currently inside a known
+  // geofence (org_location like FA Warehouse, or a booking delivery point
+  // they are assigned to). Without this guard, GPS jitter while walking
+  // around the warehouse with a forklift triggers auto-travel detection,
+  // which then atomically closes the user's lager-presence timer below.
+  // Result: a perfectly valid lager session is killed at e.g. 07:21 even
+  // though the staff member never left the property.
+  //
+  // We only reject auto_detected starts — manual user-initiated travels
+  // (a person explicitly tapping "Start travel") still go through, in
+  // case they're loading a vehicle and about to drive off.
+  if (auto_detected !== false && typeof from_latitude === 'number' && typeof from_longitude === 'number') {
+    try {
+      const haversine = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+        const R = 6371000
+        const toRad = (d: number) => (d * Math.PI) / 180
+        const dLat = toRad(lat2 - lat1)
+        const dLng = toRad(lng2 - lng1)
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      }
+
+      // 1. Check organization_locations (warehouses, offices, fixed sites)
+      const { data: orgLocs } = await supabase
+        .from('organization_locations')
+        .select('id, name, latitude, longitude, radius_meters, is_active')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+      if (orgLocs && orgLocs.length > 0) {
+        for (const loc of orgLocs) {
+          if (loc.latitude == null || loc.longitude == null) continue
+          const dist = haversine(from_latitude, from_longitude, loc.latitude, loc.longitude)
+          const radius = loc.radius_meters || 200
+          if (dist <= radius) {
+            console.log(`[handleStartTravelLog] BLOCKED — staff ${staffId} is inside org_location "${loc.name}" (${dist.toFixed(0)}m, radius ${radius}m). Travel will not start.`)
+            return new Response(
+              JSON.stringify({
+                success: false,
+                blocked: true,
+                reason: 'inside_geofence',
+                location_name: loc.name,
+                distance_m: Math.round(dist),
+              }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+      }
+
+      // 2. Check bookings the staff is assigned to today (rig/event/rigdown)
+      const today = new Date().toISOString().split('T')[0]
+      const { data: assignments } = await supabase
+        .from('booking_staff_assignments')
+        .select('booking_id')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .eq('assignment_date', today)
+      const bookingIds = Array.from(new Set((assignments || []).map((a: any) => a.booking_id).filter(Boolean)))
+      if (bookingIds.length > 0) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('id, client, delivery_latitude, delivery_longitude')
+          .in('id', bookingIds)
+          .not('delivery_latitude', 'is', null)
+          .not('delivery_longitude', 'is', null)
+        if (bookings && bookings.length > 0) {
+          for (const b of bookings) {
+            const dist = haversine(from_latitude, from_longitude, b.delivery_latitude, b.delivery_longitude)
+            if (dist <= 200) {
+              console.log(`[handleStartTravelLog] BLOCKED — staff ${staffId} is inside booking "${b.client}" geofence (${dist.toFixed(0)}m). Travel will not start.`)
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  blocked: true,
+                  reason: 'inside_geofence',
+                  location_name: b.client,
+                  distance_m: Math.round(dist),
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal — if the guard query fails we still proceed. Better to
+      // create a stoppable travel row than to silently block all trips.
+      console.error('[handleStartTravelLog] geofence guard exception (proceeding anyway):', e)
+    }
+  }
+
   // ── Atomic auto-close of any still-open location_time_entries for this staff.
   // Without this, a forgotten warehouse "presence" timer keeps ticking in
   // parallel with the new travel log → admin sees two live timers and the
