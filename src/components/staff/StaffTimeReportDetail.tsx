@@ -22,6 +22,8 @@ interface StaffTimeReportDetailProps {
   staffId: string;
   staffName: string;
   initialDate?: Date;
+  /** If provided (yyyy-MM-dd), opens the daily overview dialog automatically on mount. */
+  autoOpenDailyOverviewDate?: string;
 }
 
 interface TimeReportRow {
