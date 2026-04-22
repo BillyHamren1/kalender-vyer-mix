@@ -13,7 +13,7 @@ import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
-import ProjectPMDocument from "@/components/project/pm/ProjectPMDocument";
+
 import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
@@ -204,15 +204,6 @@ const ProjectViewPage = () => {
       </div>
 
 
-
-
-      {/* PM-dokument */}
-      <ProjectPMDocument
-        project={project}
-        tasks={tasks}
-        suppliers={suppliers}
-        transportAssignments={transportAssignments}
-      />
 
       {/* Kommunikation */}
       <ProjectCommunication
