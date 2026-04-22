@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * reviewStatus.scenarios.test.ts
  * ──────────────────────────────

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * dayReview.contract.test.ts
  * ──────────────────────────
