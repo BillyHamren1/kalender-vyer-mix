@@ -16,10 +16,12 @@ import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
-import { Loader2, RefreshCw, Clock, Square, Building2, MapPin } from 'lucide-react';
+import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useQuery } from '@tanstack/react-query';
+import { mobileApi } from '@/services/mobileApiService';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
