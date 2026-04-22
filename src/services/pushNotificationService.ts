@@ -98,21 +98,42 @@ function attachAppResumeRefresh(_staffId: string): void {
 }
 
 async function _doInit(staffId: string): Promise<void> {
-  // 1. Request permission — with safety timeout
-  let permResult: { receive: string };
+  // 1. CHECK current permission status first — never re-prompt if the user
+  //    has already answered (granted OR denied). iOS/Android persist the
+  //    answer across launches; asking again every login is a UX bug and on
+  //    iOS the OS silently ignores repeat requests anyway.
+  let currentStatus: string = 'prompt';
   try {
-    permResult = await withTimeout(
-      PushNotifications.requestPermissions(),
-      8000,
-      '[Push] requestPermissions timed out'
+    const check = await withTimeout(
+      PushNotifications.checkPermissions(),
+      4000,
+      '[Push] checkPermissions timed out'
     );
+    currentStatus = check.receive;
+    console.log('[Push] Current permission status:', currentStatus);
   } catch (err) {
-    console.warn('[Push] Permission request failed or timed out:', err);
-    return;
+    console.warn('[Push] checkPermissions failed, assuming prompt:', err);
   }
 
-  if (permResult.receive !== 'granted') {
-    console.log('[Push] Permission not granted');
+  // Only show the OS dialog when the user has NEVER answered before.
+  if (currentStatus === 'prompt' || currentStatus === 'prompt-with-rationale') {
+    console.log('[Push] First-time prompt — requesting permission');
+    let permResult: { receive: string };
+    try {
+      permResult = await withTimeout(
+        PushNotifications.requestPermissions(),
+        8000,
+        '[Push] requestPermissions timed out'
+      );
+    } catch (err) {
+      console.warn('[Push] Permission request failed or timed out:', err);
+      return;
+    }
+    currentStatus = permResult.receive;
+  }
+
+  if (currentStatus !== 'granted') {
+    console.log('[Push] Permission not granted (status:', currentStatus, ') — skipping register');
     return;
   }
 
