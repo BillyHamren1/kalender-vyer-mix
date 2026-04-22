@@ -445,17 +445,17 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v)} />
+                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v, bookingId)} />
                                       ) : fmt(assemblyCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v)} />
+                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v, bookingId)} />
                                       ) : fmt(handlingCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v)} />
+                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v, bookingId)} />
                                       ) : fmt(purchaseCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
