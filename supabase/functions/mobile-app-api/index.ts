@@ -4243,7 +4243,7 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 }
 
 async function handleReportLocation(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { latitude, longitude, accuracy, speed } = data || {}
+  const { latitude, longitude, accuracy, speed, app_version, app_build, app_platform } = data || {}
 
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     return new Response(
@@ -4267,6 +4267,13 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     locationSince = new Date().toISOString()
   }
 
+  // App meta is best-effort: only persist when the client actually sent it,
+  // so older app builds (that don't include it yet) don't blank the column.
+  const appMetaUpdate: Record<string, string | null> = {}
+  if (typeof app_version === 'string') appMetaUpdate.app_version = app_version
+  if (typeof app_build === 'string') appMetaUpdate.app_build = app_build
+  if (typeof app_platform === 'string') appMetaUpdate.app_platform = app_platform
+
   const { error } = await supabase
     .from('staff_locations')
     .upsert({
@@ -4278,6 +4285,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       speed: speed ?? null,
       updated_at: new Date().toISOString(),
       location_since: locationSince,
+      ...appMetaUpdate,
     }, { onConflict: 'staff_id' })
 
   if (error) {
