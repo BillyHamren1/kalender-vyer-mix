@@ -6635,10 +6635,94 @@ async function handleListWorkdaysReview(supabase: any, staffId: string, data: an
       day_key: key,
       counts: agg,
       events_for_day: (events || []).filter((e: any) => dayKeyOf(e.happened_at) === key),
+      travels_for_day: allTravelInWindow.filter((t) => dayKeyOf(t.start_time) === key),
     }
   })
 
   return new Response(JSON.stringify({ workdays: enriched }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * set_travel_times — manuellt justera start/slut på en travel_time_log.
+ *
+ * Används från review-vyn när användaren vill registrera/rätta restid i
+ * efterhand. Räknar om hours_worked. Tillåter ENDAST den egna staff:s
+ * loggar (org-isolerat). Påverkar inte klassificering.
+ */
+async function handleSetTravelTimes(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { travel_log_id, start_time, end_time } = data || {}
+  if (!travel_log_id || !start_time) {
+    return new Response(JSON.stringify({ error: 'travel_log_id and start_time required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const startMs = new Date(start_time).getTime()
+  const endMs = end_time ? new Date(end_time).getTime() : null
+  if (Number.isNaN(startMs) || (endMs !== null && Number.isNaN(endMs))) {
+    return new Response(JSON.stringify({ error: 'invalid timestamps' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  if (endMs !== null && endMs <= startMs) {
+    return new Response(JSON.stringify({ error: 'end_time must be after start_time' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const updateFields: any = { start_time: new Date(startMs).toISOString() }
+  if (endMs !== null) {
+    updateFields.end_time = new Date(endMs).toISOString()
+    updateFields.hours_worked = Math.round(((endMs - startMs) / 3600000) * 100) / 100
+  }
+
+  const { data: updated, error } = await supabase
+    .from('travel_time_logs')
+    .update(updateFields)
+    .eq('id', travel_log_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[set_travel_times] error:', error)
+    return new Response(JSON.stringify({ error: error.message || 'Failed to update travel log' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, travel_log: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+/**
+ * approve_workday — markera dagen som godkänd av användaren.
+ *
+ * Sätter review_status='approved'. Triggern på workdays + assistant_events
+ * recompute-funktionen respekterar approved och skriver inte över den.
+ * Verifierar staff-ownership innan uppdatering.
+ */
+async function handleApproveWorkday(supabase: any, staffId: string, data: any, organizationId: string) {
+  const { workday_id } = data || {}
+  if (!workday_id) {
+    return new Response(JSON.stringify({ error: 'workday_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: updated, error } = await supabase
+    .from('workdays')
+    .update({
+      review_status: 'approved',
+      review_computed_at: new Date().toISOString(),
+    })
+    .eq('id', workday_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[approve_workday] error:', error)
+    return new Response(JSON.stringify({ error: error.message || 'Failed to approve' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ success: true, workday: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
