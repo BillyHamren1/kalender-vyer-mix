@@ -253,8 +253,49 @@ export function useTimerStartFlow(
     [activeTimers],
   );
 
+  /**
+   * Awaitable start used by the arrival-prompt confirm flow.
+   *
+   * Unlike `requestStart`, this resolves with the *actual* outcome of the
+   * start chain (workday-ensure + activity start). The arrival prompt is a
+   * helper — it must only be marked as resolved if the real start succeeded.
+   *
+   * - Skips the distance dialog (user has just confirmed they arrived).
+   * - Treats a target-conflict as a "deferred" outcome so the caller can
+   *   keep the prompt open until the conflict dialog resolves.
+   *
+   * Returns:
+   *   'started'        — workday + activity started successfully
+   *   'duplicate'      — same target already running (treat as success for arrival)
+   *   'workday-failed' — workday could not be ensured; activity NOT started
+   *   'conflict'       — conflict dialog opened; resolution is async
+   */
+  const tryStartFromArrival = useCallback(
+    async (
+      target: WorkTarget,
+      opts: RequestStartOptions = {},
+    ): Promise<'started' | 'duplicate' | 'workday-failed' | 'conflict'> => {
+      const label = opts.label ?? labelFor(target);
+      const evalResult = evaluateStartConflict(target, activeTimers);
+
+      if (evalResult.status === 'duplicate') return 'duplicate';
+
+      if (evalResult.status === 'switch') {
+        // Defer to TimerConflictDialog; arrival caller must NOT mark resolved.
+        setPendingStart({ target, label, startedAtIso: opts.startedAtIso });
+        setConflictEval(evalResult);
+        return 'conflict';
+      }
+
+      // allow → run the real start chain and surface its outcome.
+      return performStart(target, { startedAtIso: opts.startedAtIso, label });
+    },
+    [activeTimers, labelFor, performStart],
+  );
+
   return {
     requestStart,
+    tryStartFromArrival,
     cancelConflict,
     confirmSwitch,
     conflictEval,
