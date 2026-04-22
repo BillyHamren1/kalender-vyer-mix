@@ -104,6 +104,101 @@ export type Database = {
         }
         Relationships: []
       }
+      assistant_events: {
+        Row: {
+          created_at: string
+          dedupe_key: string | null
+          detected_at: string
+          event_type: Database["public"]["Enums"]["assistant_event_type"]
+          happened_at: string
+          id: string
+          linked_time_report_id: string | null
+          linked_travel_log_id: string | null
+          linked_workday_id: string | null
+          merged_into_event_id: string | null
+          metadata: Json
+          organization_id: string
+          resolution_notes: string | null
+          resolution_status: Database["public"]["Enums"]["assistant_event_resolution"]
+          resolved_at: string | null
+          resolved_by: string | null
+          source: Database["public"]["Enums"]["assistant_event_source"]
+          staff_id: string
+          stale_for_prompt: boolean
+          still_relevant_for_review: boolean
+          suggested_action: Database["public"]["Enums"]["assistant_event_suggested_action"]
+          target_address: string | null
+          target_id: string | null
+          target_label: string | null
+          target_type: Database["public"]["Enums"]["assistant_event_target_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key?: string | null
+          detected_at?: string
+          event_type: Database["public"]["Enums"]["assistant_event_type"]
+          happened_at: string
+          id?: string
+          linked_time_report_id?: string | null
+          linked_travel_log_id?: string | null
+          linked_workday_id?: string | null
+          merged_into_event_id?: string | null
+          metadata?: Json
+          organization_id: string
+          resolution_notes?: string | null
+          resolution_status?: Database["public"]["Enums"]["assistant_event_resolution"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: Database["public"]["Enums"]["assistant_event_source"]
+          staff_id: string
+          stale_for_prompt?: boolean
+          still_relevant_for_review?: boolean
+          suggested_action?: Database["public"]["Enums"]["assistant_event_suggested_action"]
+          target_address?: string | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type: Database["public"]["Enums"]["assistant_event_target_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string | null
+          detected_at?: string
+          event_type?: Database["public"]["Enums"]["assistant_event_type"]
+          happened_at?: string
+          id?: string
+          linked_time_report_id?: string | null
+          linked_travel_log_id?: string | null
+          linked_workday_id?: string | null
+          merged_into_event_id?: string | null
+          metadata?: Json
+          organization_id?: string
+          resolution_notes?: string | null
+          resolution_status?: Database["public"]["Enums"]["assistant_event_resolution"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: Database["public"]["Enums"]["assistant_event_source"]
+          staff_id?: string
+          stale_for_prompt?: boolean
+          still_relevant_for_review?: boolean
+          suggested_action?: Database["public"]["Enums"]["assistant_event_suggested_action"]
+          target_address?: string | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: Database["public"]["Enums"]["assistant_event_target_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_events_merged_into_event_id_fkey"
+            columns: ["merged_into_event_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_attachments: {
         Row: {
           booking_id: string
@@ -6724,6 +6819,39 @@ export type Database = {
     Enums: {
       anomaly_classification: "break" | "work"
       app_role: "admin" | "forsaljning" | "projekt" | "lager"
+      assistant_event_resolution:
+        | "pending"
+        | "applied_from_event_time"
+        | "applied_from_now"
+        | "applied_from_custom_time"
+        | "dismissed"
+        | "merged_into_other_event"
+        | "auto_closed_by_later_action"
+        | "ignored_stale"
+      assistant_event_source:
+        | "geofence_foreground"
+        | "geofence_background"
+        | "app_manual"
+        | "system_inferred"
+        | "cron"
+      assistant_event_suggested_action:
+        | "start_workday"
+        | "start_activity"
+        | "end_activity"
+        | "end_workday"
+        | "register_travel"
+        | "review_only"
+      assistant_event_target_type:
+        | "location"
+        | "project"
+        | "booking"
+        | "home"
+        | "unknown"
+      assistant_event_type:
+        | "arrival"
+        | "departure"
+        | "home_arrival"
+        | "travel_edge"
       availability_type: "available" | "unavailable" | "blocked"
       billing_status:
         | "draft"
@@ -6862,6 +6990,44 @@ export const Constants = {
     Enums: {
       anomaly_classification: ["break", "work"],
       app_role: ["admin", "forsaljning", "projekt", "lager"],
+      assistant_event_resolution: [
+        "pending",
+        "applied_from_event_time",
+        "applied_from_now",
+        "applied_from_custom_time",
+        "dismissed",
+        "merged_into_other_event",
+        "auto_closed_by_later_action",
+        "ignored_stale",
+      ],
+      assistant_event_source: [
+        "geofence_foreground",
+        "geofence_background",
+        "app_manual",
+        "system_inferred",
+        "cron",
+      ],
+      assistant_event_suggested_action: [
+        "start_workday",
+        "start_activity",
+        "end_activity",
+        "end_workday",
+        "register_travel",
+        "review_only",
+      ],
+      assistant_event_target_type: [
+        "location",
+        "project",
+        "booking",
+        "home",
+        "unknown",
+      ],
+      assistant_event_type: [
+        "arrival",
+        "departure",
+        "home_arrival",
+        "travel_edge",
+      ],
       availability_type: ["available", "unavailable", "blocked"],
       billing_status: [
         "draft",
