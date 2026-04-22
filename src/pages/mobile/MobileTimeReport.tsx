@@ -224,7 +224,7 @@ const MobileTimeReport = () => {
         {/* Active timers */}
         {activeTimers.size > 0 && (
           <div className="space-y-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">{t('time.activeTimers')}</h2>
             {Array.from(activeTimers.entries()).map(([key, timer]) => (
               <ActiveTimerCard
                 key={key}
