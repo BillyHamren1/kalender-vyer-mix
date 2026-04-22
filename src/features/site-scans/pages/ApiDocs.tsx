@@ -1,5 +1,5 @@
 import { useState } from "react";
-import PageShell from "@/components/layout/PageShell";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
 import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
 import StatusBadge from "@/features/site-scans/components/shared/StatusBadge";
 import { Badge } from "@/components/ui/badge";

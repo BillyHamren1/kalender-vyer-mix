@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import PageShell from "@/components/layout/PageShell";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
 import StatCard from "@/features/site-scans/components/shared/StatCard";
 import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";

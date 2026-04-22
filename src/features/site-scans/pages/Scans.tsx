@@ -4,7 +4,7 @@ import { useSiteScansList, useArchiveScan, useReprocessScan } from "@/features/s
 import type { ListScansParams, SiteScanRow } from "@/features/site-scans/api/site-scans";
 import type { SiteScanStatus } from "@/features/site-scans/types";
 
-import PageShell from "@/components/layout/PageShell";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
 import FilterBar from "@/features/site-scans/components/shared/FilterBar";
 import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import ErrorState from "@/features/site-scans/components/shared/ErrorState";

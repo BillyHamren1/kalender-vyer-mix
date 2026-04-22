@@ -7,7 +7,7 @@ const supabase: any = _supabase;
 import { normalizeError } from "@/features/site-scans/lib/errors";
 import type { Database } from "@/integrations/supabase/types";
 
-import PageShell from "@/components/layout/PageShell";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
 import FilterBar from "@/features/site-scans/components/shared/FilterBar";
 import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import ErrorState from "@/features/site-scans/components/shared/ErrorState";

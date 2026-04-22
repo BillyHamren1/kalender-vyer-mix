@@ -4,7 +4,7 @@ import { supabase as _supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const supabase: any = _supabase;
 import { timeAgo, fmt } from "@/features/site-scans/lib/format";
-import PageShell from "@/components/layout/PageShell";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
 import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
 import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import LoadingState from "@/features/site-scans/components/shared/LoadingState";
