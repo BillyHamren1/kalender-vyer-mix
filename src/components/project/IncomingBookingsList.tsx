@@ -38,7 +38,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       const { data: candidates, error } = await supabase
         .from('bookings')
         .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
-        .in('status', ['CONFIRMED', 'CANCELLED'])
+        .eq('status', 'CONFIRMED')
         .or('assigned_to_project.is.null,assigned_to_project.eq.false')
         .is('large_project_id', null)
         .order('created_at', { ascending: false });

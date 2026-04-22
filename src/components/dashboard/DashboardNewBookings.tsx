@@ -30,8 +30,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 
       const candidates = allBookings.filter((b) => {
         const isConfirmedNew = b.status === 'CONFIRMED' && !b.assignedToProject && !b.largeProjectId;
-        const isCancelledNew = b.status === 'CANCELLED' && !b.assignedToProject && !b.largeProjectId;
-        return isConfirmedNew || isCancelledNew;
+        return isConfirmedNew;
       });
 
       if (candidates.length === 0) return [];
