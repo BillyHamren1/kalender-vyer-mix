@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
-import { closeOpenEntriesForStaff } from '@/services/locationTimeService';
-import { supabase } from '@/integrations/supabase/client';
 import { GpsPosition } from '@/hooks/useGeofencing';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
@@ -170,19 +168,10 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       setTravelState(newState);
       saveTravelState(newState);
       console.log('[TravelDetection] Travel started:', result.travel_log.id);
-
-      // Auto-close any still-open location_time_entries for this staff so a
-      // forgotten warehouse "presence" timer doesn't keep ticking in parallel
-      // with the travel log (root cause of double-counted hours).
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        const staffId = (result.travel_log as any)?.staff_id || user?.id;
-        if (staffId && result.travel_log.start_time) {
-          await closeOpenEntriesForStaff(staffId, result.travel_log.start_time);
-        }
-      } catch (closeErr) {
-        console.warn('[TravelDetection] Failed to auto-close open location entries:', closeErr);
-      }
+      // Note: open location_time_entries are now closed atomically by the
+      // server inside `handleStartTravelLog` (mobile-app-api). The previous
+      // client-side close attempt was unauthenticated for mobile sessions
+      // and silently failed → two timers ticking. Do NOT re-add it here.
     } catch (err) {
       console.error('[TravelDetection] Failed to start travel:', err);
     }

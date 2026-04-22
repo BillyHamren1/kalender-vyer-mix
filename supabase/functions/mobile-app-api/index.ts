@@ -5439,13 +5439,48 @@ async function handleGetLocationTimeEntries(supabase: any, staffId: string, data
 async function handleStartTravelLog(supabase: any, staffId: string, data: any, organizationId: string) {
   const { from_address, from_latitude, from_longitude, description, auto_detected } = data || {}
 
+  const startIso = new Date().toISOString()
+
+  // ── Atomic auto-close of any still-open location_time_entries for this staff.
+  // Without this, a forgotten warehouse "presence" timer keeps ticking in
+  // parallel with the new travel log → admin sees two live timers and the
+  // total double-counts. We close them at the exact travel start_time so
+  // the two segments meet edge-to-edge with no overlap.
+  // total_minutes is a generated column → only set exited_at.
+  try {
+    const { data: openEntries, error: openErr } = await supabase
+      .from('location_time_entries')
+      .select('id')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('exited_at', null)
+      .lt('entered_at', startIso)
+    if (openErr) {
+      console.error('[handleStartTravelLog] fetch open LTE failed:', openErr)
+    } else if (openEntries && openEntries.length > 0) {
+      const ids = openEntries.map((r: any) => r.id)
+      const { error: updErr } = await supabase
+        .from('location_time_entries')
+        .update({ exited_at: startIso })
+        .in('id', ids)
+        .is('exited_at', null)
+      if (updErr) {
+        console.error('[handleStartTravelLog] close open LTE failed:', updErr)
+      } else {
+        console.log(`[handleStartTravelLog] Auto-closed ${ids.length} open location_time_entries for staff ${staffId} at ${startIso}`)
+      }
+    }
+  } catch (e) {
+    console.error('[handleStartTravelLog] auto-close exception:', e)
+  }
+
   const { data: log, error } = await supabase
     .from('travel_time_logs')
     .insert({
       staff_id: staffId,
       organization_id: organizationId,
-      report_date: new Date().toISOString().split('T')[0],
-      start_time: new Date().toISOString(),
+      report_date: startIso.split('T')[0],
+      start_time: startIso,
       from_address: from_address || null,
       from_latitude: from_latitude || null,
       from_longitude: from_longitude || null,
