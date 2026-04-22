@@ -117,16 +117,37 @@ export const useEventNavigation = () => {
 
       const { data: booking } = await supabase
         .from('bookings')
-        .select('large_project_id')
+        .select('assigned_project_id, large_project_id')
         .eq('id', bookingId)
         .single();
 
       if (booking?.large_project_id) {
         navigate(`/large-project/${booking.large_project_id}`);
-      } else {
-        // Medium project route uses bookingId as projectId
-        navigate(`/project/${bookingId}`);
+        return;
       }
+
+      if (booking?.assigned_project_id) {
+        navigate(`/project/${booking.assigned_project_id}`);
+        return;
+      }
+
+      const { data: mediumProject } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .not('status', 'in', '("completed","cancelled")')
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (mediumProject?.id) {
+        navigate(`/project/${mediumProject.id}`);
+        return;
+      }
+
+      toast.warning("Kan inte öppna projekt", {
+        description: "Bokningen saknar kopplat projekt"
+      });
+      return;
     } catch (error) {
       console.error('Project navigation error:', error);
       toast.error("Navigering misslyckades", {
