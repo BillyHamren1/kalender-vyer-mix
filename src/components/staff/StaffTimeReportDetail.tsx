@@ -22,6 +22,8 @@ interface StaffTimeReportDetailProps {
   staffId: string;
   staffName: string;
   initialDate?: Date;
+  /** If provided (yyyy-MM-dd), opens the daily overview dialog automatically on mount. */
+  autoOpenDailyOverviewDate?: string;
 }
 
 interface TimeReportRow {
@@ -58,10 +60,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   staffId,
   staffName,
   initialDate,
+  autoOpenDailyOverviewDate,
 }) => {
   const [currentWeek, setCurrentWeek] = useState(initialDate || new Date());
   const [anomalyDate, setAnomalyDate] = useState<string | null>(null);
-  const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(null);
+  const [dailyOverviewDate, setDailyOverviewDate] = useState<string | null>(autoOpenDailyOverviewDate ?? null);
   const [movementDate, setMovementDate] = useState<string | null>(null);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
