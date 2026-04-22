@@ -100,7 +100,8 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 
   const dateLabel = formatRelativeDate(selectedDate);
   const subLabel = format(selectedDate, "d MMMM yyyy", { locale: sv });
-  const openCount = staffList.filter(s => s.has_open_report).length;
+  const liveCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'live').length;
+  const staleCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'stale').length;
   const totalHours = staffList.reduce((s, x) => s + x.total_hours, 0);
 
   return (
