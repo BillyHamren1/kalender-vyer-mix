@@ -379,7 +379,8 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0 self-center" />
               </button>
-            ))
+              );
+            })
           )}
         </div>
       )}
