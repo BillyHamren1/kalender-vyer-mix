@@ -174,7 +174,12 @@ async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Pro
   return data?.id
 }
 
-Deno.serve(async (req) => {
+// Per-request mutable rotation slot. Set inside the handler when we decide
+// to mint a new token; the outer wrapper appends it as X-New-Token to the
+// final Response (sliding session — no UI interruption).
+const rotationSlot: { token: string | null } = { token: null }
+
+async function handleRequest(req: Request): Promise<Response> {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
