@@ -53,10 +53,10 @@ describe('workday lifecycle sync', () => {
     await new Promise((r) => setTimeout(r, 0));
   });
 
-  it('syncWorkDayEnd calls workdayApi.end', async () => {
-    syncWorkDayEnd('2026-04-22T17:00:00Z');
-    await new Promise((r) => setTimeout(r, 0));
+  it('syncWorkDayEnd calls workdayApi.end and resolves ok=true', async () => {
+    const result = await syncWorkDayEnd('2026-04-22T17:00:00Z');
     expect(workdayApi.end).toHaveBeenCalledWith({ endedAtIso: '2026-04-22T17:00:00Z' });
+    expect(result.ok).toBe(true);
   });
 
   it('soft-fails — start error does not throw', async () => {
@@ -65,9 +65,10 @@ describe('workday lifecycle sync', () => {
     await new Promise((r) => setTimeout(r, 0));
   });
 
-  it('soft-fails — end error does not throw', async () => {
+  it('end error resolves ok=false instead of throwing', async () => {
     (workdayApi.end as any).mockRejectedValueOnce(new Error('network'));
-    expect(() => syncWorkDayEnd()).not.toThrow();
-    await new Promise((r) => setTimeout(r, 0));
+    const result = await syncWorkDayEnd();
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('network');
   });
 });

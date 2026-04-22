@@ -276,20 +276,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
-        // SERVER-FIRST: close the workdays row and only update local
-        // state/UI after the server confirms. The server's `workdays`
-        // table is the source of truth — local cache + 'workday-ended'
-        // event are just UI hints derived from it.
+        // Server-first: close the workdays row BEFORE marking local state.
+        // workdays/useWorkDay is the source of truth — local cache and the
+        // 'workday-ended' event must only fire once the server confirms.
         const result = await syncWorkDayEnd();
         if (result.ok) {
           markWorkdayEnded();
           window.dispatchEvent(new CustomEvent('workday-ended'));
         } else {
-          toast.error(
-            result.error
-              ? `Kunde inte avsluta arbetsdagen: ${result.error}`
-              : 'Kunde inte avsluta arbetsdagen. Försök igen.',
-          );
+          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
         }
       }
     }
@@ -308,20 +303,14 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = async () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        // No active activity timers — still need to close the server's
-        // workdays row before flipping local state. Awaited so a failed
-        // server-end keeps the banner / day-pill honest.
+        // Server-first: confirm with backend before flipping local state.
         const result = await syncWorkDayEnd();
         if (result.ok) {
           markWorkdayEnded();
           window.dispatchEvent(new CustomEvent('workday-ended'));
           toast.message(t('workday.noActiveTimers'));
         } else {
-          toast.error(
-            result.error
-              ? `Kunde inte avsluta arbetsdagen: ${result.error}`
-              : 'Kunde inte avsluta arbetsdagen. Försök igen.',
-          );
+          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
         }
         return;
       }
@@ -334,7 +323,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
     };
     window.addEventListener('request-end-day', onRequestEndDay);
     return () => window.removeEventListener('request-end-day', onRequestEndDay);
-  }, [timers, processNextEod, t]);
+  }, [timers, processNextEod]);
 
   if (location.pathname === '/m/report') return null;
 
