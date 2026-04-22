@@ -33,6 +33,7 @@ const MobileJobDetail = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { data: bookingData, isLoading } = useMobileBookingDetails(id);
+  const { t } = useLanguage();
   const { invalidateTimeReports, invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
