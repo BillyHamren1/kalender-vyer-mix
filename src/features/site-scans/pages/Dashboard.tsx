@@ -1,14 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import PageShell from "@/components/layout/PageShell";
-import StatCard from "@/components/shared/StatCard";
-import EmptyState from "@/components/shared/EmptyState";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import StatusBadge, { type ScanStatus } from "@/components/shared/StatusBadge";
-import LoadingState from "@/components/shared/LoadingState";
-import { useSiteScansList } from "@/hooks/useSiteScans";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
+import StatCard from "@/features/site-scans/components/shared/StatCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import StatusBadge, { type ScanStatus } from "@/features/site-scans/components/shared/StatusBadge";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import { useSiteScansList } from "@/features/site-scans/hooks/useSiteScans";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { timeAgo } from "@/lib/format";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
+import { timeAgo } from "@/features/site-scans/lib/format";
 import {
   ScanLine,
   Layers,

@@ -1,15 +1,15 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSiteScansList, useArchiveScan, useReprocessScan } from "@/hooks/useSiteScans";
-import type { ListScansParams, SiteScanRow } from "@/api/site-scans";
-import type { SiteScanStatus } from "@/types";
+import { useSiteScansList, useArchiveScan, useReprocessScan } from "@/features/site-scans/hooks/useSiteScans";
+import type { ListScansParams, SiteScanRow } from "@/features/site-scans/api/site-scans";
+import type { SiteScanStatus } from "@/features/site-scans/types";
 
-import PageShell from "@/components/layout/PageShell";
-import FilterBar from "@/components/shared/FilterBar";
-import EmptyState from "@/components/shared/EmptyState";
-import ErrorState from "@/components/shared/ErrorState";
-import LoadingState from "@/components/shared/LoadingState";
-import StatusBadge from "@/components/shared/StatusBadge";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
+import FilterBar from "@/features/site-scans/components/shared/FilterBar";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import StatusBadge from "@/features/site-scans/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

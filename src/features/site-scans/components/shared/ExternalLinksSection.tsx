@@ -1,6 +1,6 @@
 import { Link2, ExternalLink, Plus, Server, FileText, Briefcase, Tag, RefreshCw, CheckCircle2, AlertCircle, Clock } from "lucide-react";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,8 +8,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
-type SiteScanLinkRow = Tables<"site_scan_links">;
-type SiteScanSyncTargetRow = Tables<"site_scan_sync_targets">;
+type SiteScanLinkRow = any;
+type SiteScanSyncTargetRow = any;
 
 // =============================================
 // Known external systems

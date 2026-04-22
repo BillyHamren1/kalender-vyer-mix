@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { SiteScanStatus } from "@/types";
+import type { SiteScanStatus } from "@/features/site-scans/types";
 
 export type ScanStatus = SiteScanStatus;
 

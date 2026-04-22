@@ -1,9 +1,9 @@
-import { useProjectSiteScans } from "@/hooks/useProjectSiteScans";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
-import LoadingState from "@/components/shared/LoadingState";
-import ErrorState from "@/components/shared/ErrorState";
-import ScanPreviewCard from "@/components/shared/ScanPreviewCard";
+import { useProjectSiteScans } from "@/features/site-scans/hooks/useProjectSiteScans";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import ScanPreviewCard from "@/features/site-scans/components/shared/ScanPreviewCard";
 import { ScanLine } from "lucide-react";
 
 interface ProjectSiteScansProps {

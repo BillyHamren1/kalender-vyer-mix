@@ -4,8 +4,10 @@
 // file type helpers, and asset management.
 // =============================================
 
-import { supabase } from "@/integrations/supabase/client";
-import type { SiteScanAssetType } from "@/types";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
+import type { SiteScanAssetType } from "@/features/site-scans/types";
 import {
   FileText,
   Box,

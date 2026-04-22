@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import BookingSiteScans from "@/components/booking/BookingSiteScans";
-import MeasurementsTerrainCard from "@/components/booking-details/MeasurementsTerrainCard";
-import BookingDrawingTab from "@/components/booking-details/BookingDrawingTab";
+import BookingSiteScans from "@/features/site-scans/components/booking/BookingSiteScans";
+import MeasurementsTerrainCard from "@/features/site-scans/components/booking-details/MeasurementsTerrainCard";
+import BookingDrawingTab from "@/features/site-scans/components/booking-details/BookingDrawingTab";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 

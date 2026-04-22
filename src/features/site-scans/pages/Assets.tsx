@@ -1,15 +1,17 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { formatFileSize, getAssetTypeIcon } from "@/lib/storage";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
+import { formatFileSize, getAssetTypeIcon } from "@/features/site-scans/lib/storage";
 import type { Database } from "@/integrations/supabase/types";
 
-import PageShell from "@/components/layout/PageShell";
-import FilterBar from "@/components/shared/FilterBar";
-import EmptyState from "@/components/shared/EmptyState";
-import ErrorState from "@/components/shared/ErrorState";
-import LoadingState from "@/components/shared/LoadingState";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
+import FilterBar from "@/features/site-scans/components/shared/FilterBar";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -35,9 +37,9 @@ import {
   Hash,
   HardDrive,
 } from "lucide-react";
-import { fmt } from "@/lib/format";
+import { fmt } from "@/features/site-scans/lib/format";
 
-type AssetType = Database["public"]["Enums"]["site_scan_asset_type"];
+type AssetType = string;
 
 const ASSET_TYPE_OPTIONS: { value: AssetType; label: string }[] = [
   { value: "pointcloud", label: "Point Cloud" },
@@ -158,7 +160,7 @@ function useAssetStats() {
 // Helpers
 // =============================================
 
-// fmt imported from @/lib/format
+// fmt imported from @/features/site-scans/lib/format
 
 function InfoRow({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
   return (

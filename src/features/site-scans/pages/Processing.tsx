@@ -1,16 +1,18 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase: any = _supabase;
 import type { Database } from "@/integrations/supabase/types";
-import { normalizeError } from "@/lib/errors";
+import { normalizeError } from "@/features/site-scans/lib/errors";
 
-import PageShell from "@/components/layout/PageShell";
-import FilterBar from "@/components/shared/FilterBar";
-import EmptyState from "@/components/shared/EmptyState";
-import ErrorState from "@/components/shared/ErrorState";
-import LoadingState from "@/components/shared/LoadingState";
-import StatusBadge, { type ScanStatus } from "@/components/shared/StatusBadge";
+import PageShell from "@/features/site-scans/components/layout/PageShell";
+import FilterBar from "@/features/site-scans/components/shared/FilterBar";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import StatusBadge, { type ScanStatus } from "@/features/site-scans/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -32,9 +34,9 @@ import {
   ExternalLink,
   Loader2,
 } from "lucide-react";
-import { fmt, timeAgo } from "@/lib/format";
+import { fmt, timeAgo } from "@/features/site-scans/lib/format";
 
-type JobStatus = Database["public"]["Enums"]["site_scan_status"];
+type JobStatus = string;
 
 // =============================================
 // Helpers
