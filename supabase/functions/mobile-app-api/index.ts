@@ -4732,6 +4732,14 @@ async function handleUploadLocationBatch(
         locationSince = newest.recordedAt
       }
 
+      // App meta is best-effort: only set columns the client actually sent
+      // so older builds that don't include version metadata don't blank
+      // already-known values.
+      const appMetaUpdate: Record<string, string | null> = {}
+      if (typeof data?.app_version === 'string') appMetaUpdate.app_version = data.app_version
+      if (typeof data?.app_build === 'string') appMetaUpdate.app_build = data.app_build
+      if (typeof data?.app_platform === 'string') appMetaUpdate.app_platform = data.app_platform
+
       const { error: upsertErr } = await supabase
         .from('staff_locations')
         .upsert(
@@ -4744,6 +4752,7 @@ async function handleUploadLocationBatch(
             speed: newest.speed,
             updated_at: newest.recordedAt,
             location_since: locationSince,
+            ...appMetaUpdate,
           },
           { onConflict: 'staff_id' },
         )
