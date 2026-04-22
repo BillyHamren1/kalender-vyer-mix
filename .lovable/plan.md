@@ -1,28 +1,39 @@
 
-## Preferens: Håll filer små och uppdelade
+## Workday-implementation — pragmatisk filstruktur
 
-Jag noterar detta som en regel för framtida arbete i projektet:
+**Princip:** En fil per ansvar, men inte mikro-splittring. Splitta först när filen närmar sig ~500 rader eller blandar tydligt olika ansvar.
 
-**Regel:** Skriv inte stora monolitiska filer. Dela upp i mindre, fokuserade moduler.
+### Filer som skapas
 
-**Hur jag tillämpar det framöver:**
-- Komponenter > ~200 rader → dela i sub-komponenter (egen mapp med `index.tsx` + delar)
-- Hooks > ~150 rader → dela i flera hooks eller extrahera helpers
-- Edge Functions → en fil per ansvar (handler, validation, db-access separat)
-- Tester → en testfil per scenario-grupp, inte en jättefil
-- Inga "god-objects" eller filer som gör allt
+**Backend (Edge Functions)**
+- `supabase/functions/workday/index.ts` — en funktion som hanterar `start`, `end`, `current` via `?action=` eller path. Delad auth, org-isolation, validering på ett ställe. (Hellre än tre nästan-identiska funktioner.)
 
-**Spara som memory:**
-Jag lägger till detta i `mem://preferences/file-size-and-modularity.md` och refererar i `mem://index.md` så att alla framtida sessioner respekterar regeln automatiskt — annars glömmer jag bort det vid nästa loop.
+**Frontend**
+- `src/hooks/useWorkDay.ts` — en hook med `start()`, `end()`, `current`, `isLoading`, realtime-sub. Förväntad storlek ~150–250 rader, helt OK i en fil.
+- `src/services/workdayApi.ts` — tunna fetch-wrappers mot edge-funktionen (om hooken börjar svälla, annars inline).
 
-**Konkret nästa gång (Workday-implementationen):**
-När vi kör backend + hook + flödesintegration delar jag upp så här istället för stora filer:
-- `supabase/functions/workday-start/index.ts`
-- `supabase/functions/workday-end/index.ts`  
-- `supabase/functions/workday-current/index.ts`
-- `src/hooks/workday/useWorkDay.ts` (tunn)
-- `src/hooks/workday/useWorkDayRealtime.ts`
-- `src/hooks/workday/workdayApi.ts`
-- `src/hooks/workday/types.ts`
+**Integration (ändringar i befintliga filer)**
+- `src/hooks/useTimerStartFlow.ts` — anropa `workday.start()` vid första timer-start om ingen aktiv workday finns.
+- `src/components/mobile-app/GlobalActiveTimerBanner.tsx` — anropa `workday.end()` när EOD-kön är dränerad (ersätter/komplementerar `workday-ended`-eventet).
+- `src/hooks/useWorkDayTimer.ts` — läs server-state via `useWorkDay` istället för (eller som primär källa över) localStorage. localStorage blir offline-fallback.
+- `src/components/mobile-app/WorkDayHeaderTimer.tsx` — ingen ändring behövs (den läser via useWorkDayTimer).
 
-Säg till när jag ska köra — så börjar jag med att spara memoryn och sedan fortsätter med Workday-flödet i små filer.
+### Tester
+- `src/test/workday/` — en fil per scenario-grupp:
+  - `workdayLifecycle.test.ts` (start/end/current)
+  - `workdayConcurrency.test.ts` (dubbel-start, end utan start, rollover)
+  - `workdayIntegration.test.ts` (timer-start triggar workday-start, EOD triggar workday-end)
+- Lägg till i `src/test/timeReporting.manifest.ts` så `bash scripts/test-time-reporting.sh` täcker det.
+
+### Memory som uppdateras
+- `mem://features/field-staff/workday-timer-v1.md` — utöka med server-anchor.
+- `mem://preferences/file-size-and-modularity.md` — justera till "pragmatisk modularitet, riktmärke 500 rader, splitta vid blandade ansvar — inte vid 200".
+- `mem://index.md` Core-rad uppdateras motsvarande.
+
+### Leveransordning (en loop)
+1. Edge function `workday` + memory-uppdatering.
+2. `useWorkDay` + `workdayApi` (om behövs).
+3. Integration i `useTimerStartFlow` + `GlobalActiveTimerBanner` + `useWorkDayTimer`.
+4. Testfiler + manifest-uppdatering, kör `scripts/test-time-reporting.sh`.
+
+Allt levereras i en loop. Säg kör så sätter jag igång.
