@@ -258,26 +258,22 @@ const CameraMeasure: React.FC = () => {
           )}
         </div>
 
-        {/* Camera unsupported / error */}
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center p-6 bg-black/80 z-30">
-            <div className="max-w-sm text-center space-y-3">
-              <AlertTriangle className="h-10 w-10 mx-auto text-amber-400" />
-              <h2 className="text-lg font-semibold">Kameran är inte tillgänglig</h2>
-              <p className="text-sm text-white/70">{error}</p>
-              <p className="text-xs text-white/50">
-                Mätverktyget kräver kameraåtkomst. Tillåt kamera i webbläsarinställningarna eller
-                öppna appen på en mobil enhet.
-              </p>
-              <Button variant="secondary" onClick={() => navigate('/m/tools')}>
-                Tillbaka
-              </Button>
-            </div>
+        {/* Camera needs manual start (permission/user-gesture) — non-blocking */}
+        {needsManualStart && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+            <Button
+              onClick={startCamera}
+              className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold gap-2 shadow-lg"
+            >
+              <CameraIcon className="h-4 w-4" />
+              Aktivera kamera
+            </Button>
           </div>
         )}
 
-        {!cameraReady && !error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+        {/* Loading hint — non-blocking so taps still register */}
+        {!cameraReady && !needsManualStart && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 pointer-events-none">
             <div className="text-center space-y-2">
               <CameraIcon className="h-8 w-8 mx-auto animate-pulse" />
               <p className="text-sm text-white/70">Startar kameran…</p>
