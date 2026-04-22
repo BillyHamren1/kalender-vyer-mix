@@ -294,11 +294,11 @@ const ScanDetail = () => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => navigate('/m/tools/measure')}
+        onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/m/tools'))}
         className="-ml-2 gap-1.5"
       >
         <ArrowLeft className="h-4 w-4" />
-        Tillbaka till SiteScan
+        Tillbaka
       </Button>
 ...
       {/* Preview + Info grid */}
