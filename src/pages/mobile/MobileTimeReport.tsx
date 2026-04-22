@@ -480,6 +480,7 @@ const MobileTimeReport = () => {
 };
 
 const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; onStop: () => void; isLocation?: boolean }) => {
+  const { t } = useLanguage();
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -501,16 +502,16 @@ const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; on
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {format(parseISO(timer.startTime), 'HH:mm')}
-          {timer.isAutoStarted && ' (automatiskt)'}
+          {t('time.startedAt', { time: format(parseISO(timer.startTime), 'HH:mm') })}
+          {timer.isAutoStarted && ` ${t('time.autoSuffix')}`}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
-      <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop} title="Avsluta aktiviteten — sparar tidrapporten">
+      <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop} title={t('time.endActivityHint')}>
         <Square className="w-3 h-3" />
-        Avsluta
+        {t('time.end')}
       </Button>
     </div>
   );
