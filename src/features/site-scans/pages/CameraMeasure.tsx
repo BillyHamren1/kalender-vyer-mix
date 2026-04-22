@@ -243,7 +243,7 @@ const CameraMeasure: React.FC = () => {
             <div
               key={`p-${i}`}
               data-point-idx={calibrating ? undefined : i}
-              className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg pointer-events-none"
+              className="absolute w-8 h-8 -ml-4 -mt-4 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg pointer-events-auto touch-none"
               style={{ left: p.x, top: p.y }}
             />
           ))}
