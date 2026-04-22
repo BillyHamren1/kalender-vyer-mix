@@ -1,4 +1,4 @@
-import { Briefcase, Clock, ScanLine, User, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Briefcase, Clock, Wrench, User, MessageCircle, AlertTriangle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
@@ -9,7 +9,7 @@ const tabs: { path: string; labelKey: TranslationKey; icon: typeof Briefcase; ex
   { path: '/m', labelKey: 'nav.jobs', icon: Briefcase, exact: true },
   { path: '/m/report', labelKey: 'nav.time', icon: Clock },
   { path: '/m/inbox', labelKey: 'nav.messages', icon: MessageCircle, showBadge: true },
-  { path: '/m/scan', labelKey: 'nav.scan', icon: ScanLine },
+  { path: '/m/tools', labelKey: 'nav.tools', icon: Wrench },
   { path: '/m/profile', labelKey: 'nav.profile', icon: User },
 ];
 
