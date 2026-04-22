@@ -5,6 +5,7 @@ import { Calendar, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, parseISO, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
@@ -85,15 +86,19 @@ const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
   other: 'bg-muted text-foreground border-border',
 };
 
-const eventTypeLabel: Record<ScheduledShift['event_type'], string> = {
-  rig: 'Rigg',
-  event: 'Event',
-  rigdown: 'Riv',
-  other: 'Övrigt',
+// Event-type labels are translated at render time via useLanguage().t().
+// Keep this map only as a key reference if needed elsewhere.
+type EventTypeKey = ScheduledShift['event_type'];
+const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.event' | 'dayTimeline.rigdown' | 'dayTimeline.other'> = {
+  rig: 'dayTimeline.rig',
+  event: 'dayTimeline.event',
+  rigdown: 'dayTimeline.rigdown',
+  other: 'dayTimeline.other',
 };
 
 const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const today = date ?? new Date();
   const dayStartBase = startOfDay(today);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -231,7 +236,7 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                    {eventTypeLabel[shift.event_type]}
+                    {t(eventTypeI18nKey[shift.event_type])}
                   </span>
                   <span className="text-[10px] font-mono opacity-70">
                     {format(parseISO(shift.start_time), 'HH:mm')}–

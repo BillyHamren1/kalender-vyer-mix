@@ -168,20 +168,20 @@ const MobileGlobalOverlays: React.FC = () => {
     try {
       const startedAt = result.usedSuggestedArrival ? arrivalTarget.arrived_at : result.startedAtIso;
       const workTarget = arrivalToWorkTarget(arrivalTarget);
-      if (!workTarget) throw new Error('Okänd ankomsttyp');
+      if (!workTarget) throw new Error('Unknown arrival type');
 
       // Route through the SAME start flow as manual button taps so the
       // conflict dialog (and distance check) fire identically.
       const status = requestStart(workTarget, { startedAtIso: startedAt });
       if (status === 'duplicate') {
-        toast.message('Timer redan aktiv för platsen');
+        toast.message('Timer already active for this location');
       }
 
       await markResolved(arrivalTarget);
       setArrivalDialogOpen(false);
       refreshArrival();
     } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte starta timer');
+      toast.error(err?.message || 'Could not start timer');
     } finally {
       setArrivalSubmitting(false);
     }
@@ -227,7 +227,7 @@ const MobileGlobalOverlays: React.FC = () => {
       mobileApi.createEndOfDayAnomaly({
         started_at: startTime.toISOString(),
         ended_at: cappedStop.toISOString(),
-        work_description: 'Återställd timer (stale) — rast och sluttid behöver verifieras',
+        work_description: 'Restored timer (stale) — break and end time need verification',
         location_id: entry.timer.locationId || undefined,
         booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
         large_project_id: entry.timer.largeProjectId,
@@ -238,9 +238,9 @@ const MobileGlobalOverlays: React.FC = () => {
         try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
       }
       dismissStale(key);
-      toast.success('Tidrapport sparad och timer rensad — markerad som avvikelse för uppföljning');
+      toast.success('Time report saved and timer cleared — marked as anomaly for follow-up');
     } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte spara tidrapport');
+      toast.error(err?.message || 'Could not save time report');
     }
   }, [staleTimers, dismissStale]);
 

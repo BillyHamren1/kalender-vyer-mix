@@ -12,6 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { markWorkdayEnded } from '@/services/workdayState';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
@@ -50,6 +51,7 @@ interface PendingStop {
 const GlobalActiveTimerBanner: React.FC = () => {
   const location = useLocation();
   const { staff } = useMobileAuth();
+  const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
@@ -188,10 +190,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // the global EOD queue is draining (those timers are already on their
       // way out — no need to re-ask).
       if (res && !res.cancelled && !eodProcessingRef.current) {
-        setNextActionFor({ name: timer.locationName || timer.client || 'aktiviteten' });
+        setNextActionFor({ name: timer.locationName || timer.client || t('workday.activityFallback') });
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte spara — försök igen.');
+      toast.error(err?.message || t('common.couldNotSaveRetry'));
     } finally {
       setSavingKeys(prev => {
         const next = new Set(prev);
@@ -227,7 +229,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
     } catch (err: any) {
       // Auto-retry behaviour: keep dialog open, surface a toast, let user
       // press Spara again. Server is unchanged so retry is safe.
-      toast.error(err?.message || 'Kunde inte spara — försök igen.');
+      toast.error(err?.message || t('common.couldNotSaveRetry'));
       throw err; // re-throw so dialog's submitting state resolves correctly
     } finally {
       setSavingKeys(prev => {
@@ -294,7 +296,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
       if (entries.length === 0) {
         markWorkdayEnded();
         window.dispatchEvent(new CustomEvent('workday-ended'));
-        toast.message('Inga aktiva timers — arbetsdagen avslutades.');
+        toast.message(t('workday.noActiveTimers'));
         return;
       }
       // Avoid duplicate queueing if user fires the event twice
@@ -334,10 +336,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
             className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
             onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
             disabled={savingKeys.size > 0}
-            title="Avsluta hela arbetsdagen — stänger alla aktiva timers och kör dagsavstämning"
+            title={t('workday.endDayTitle')}
           >
             <LogOut className="w-4 h-4" />
-            Avsluta dagen
+            {t('workday.endDay')}
           </Button>
         </div>
       )}
