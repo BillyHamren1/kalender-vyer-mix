@@ -198,7 +198,7 @@ const MobileTimeReport = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetade timmar" />
+        <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
@@ -218,7 +218,7 @@ const MobileTimeReport = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      <MobileHeroHeader eyebrow="TIDRAPPORT" title="Tidrapportering" subtitle="Rapportera arbetade timmar" />
+      <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
         {/* Active timers */}
