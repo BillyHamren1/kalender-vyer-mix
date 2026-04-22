@@ -53,6 +53,10 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
+  // Lugn påminnelse om gårdagen (eller äldre dag) är `needs_review`.
+  // Throttlas till EN toast per kalenderdag och staff. Ingen spam.
+  useStaleDayReminder(!!staff, staff?.id);
+
   // UNIFIED start flow — same conflict + distance + start machinery as
   // every other start-surface in the mobile app. Direct startSession()
   // calls from arrival flow are forbidden.
