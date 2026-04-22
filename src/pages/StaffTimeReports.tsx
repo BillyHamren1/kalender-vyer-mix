@@ -466,8 +466,8 @@ const StaffTimeReports: React.FC = () => {
           subtitle="Tidrapporter per vecka"
           variant="purple"
         >
-          <Button variant="outline" size="sm" onClick={() => setSelectedStaffId(null)} className="rounded-xl">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => setSelectedStaffId(null)} className="rounded-lg gap-1.5 h-8 px-3">
+            <ArrowLeft className="h-3.5 w-3.5" />
             Tillbaka
           </Button>
         </PageHeader>
