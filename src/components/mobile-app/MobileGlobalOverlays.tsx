@@ -57,6 +57,7 @@ const MobileGlobalOverlays: React.FC = () => {
   // calls from arrival flow are forbidden.
   const {
     requestStart,
+    tryStartFromArrival,
     cancelConflict,
     confirmSwitch,
     conflictEval,
