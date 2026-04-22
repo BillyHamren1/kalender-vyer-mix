@@ -172,10 +172,20 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       // server inside `handleStartTravelLog` (mobile-app-api). The previous
       // client-side close attempt was unauthenticated for mobile sessions
       // and silently failed → two timers ticking. Do NOT re-add it here.
-    } catch (err) {
+    } catch (err: any) {
+      // SILENT REJECTION: the server returns 409 when the user is currently
+      // standing inside a known geofence (warehouse / assigned booking).
+      // GPS jitter on the lager floor must NOT spawn a travel log that
+      // then atomically closes the legitimate lager-presence timer.
+      const msg = String(err?.message || '');
+      if (msg.includes('inside_geofence') || msg.includes('blocked')) {
+        console.log('[TravelDetection] Travel start rejected by server — user inside geofence. Lager-timer preserved.');
+        return;
+      }
       console.error('[TravelDetection] Failed to start travel:', err);
     }
   }, []);
+
 
   const stopTravel = useCallback(async (lat: number, lng: number, opts: { auto?: boolean } = {}) => {
     const currentLogId = travelStateRef.current.activeTravelLogId;
