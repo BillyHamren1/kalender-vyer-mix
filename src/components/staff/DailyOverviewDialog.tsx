@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { MapPin, Clock, Car, Navigation, Briefcase, Activity } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { supabase } from '@/integrations/supabase/client';
@@ -367,6 +367,40 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             </span>
           )}
         </div>
+
+        {(() => {
+          const lastGps = gpsPoints.length > 0 ? gpsPoints[gpsPoints.length - 1] : null;
+          if (!lastGps) return null;
+          const recordedDate = new Date(lastGps.recorded_at);
+          const validDate = !Number.isNaN(recordedDate.getTime());
+          const relative = validDate
+            ? formatDistanceToNow(recordedDate, { addSuffix: true, locale: sv })
+            : null;
+          const absolute = validDate
+            ? format(recordedDate, 'HH:mm:ss', { locale: sv })
+            : lastGps.recorded_at.slice(11, 19);
+          const mapsUrl = `https://www.google.com/maps?q=${lastGps.lat},${lastGps.lng}`;
+          return (
+            <div className="flex items-center gap-2 text-sm bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/60 p-3 rounded-lg">
+              <Navigation className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-medium shrink-0">Senaste ping:</span>
+              <span className="text-muted-foreground shrink-0">
+                {absolute}
+                {relative && <span className="ml-1 text-xs">({relative})</span>}
+              </span>
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline ml-auto shrink-0 font-mono"
+                title="Öppna i Google Maps"
+              >
+                {lastGps.lat.toFixed(5)}, {lastGps.lng.toFixed(5)}
+              </a>
+            </div>
+          );
+        })()}
+
 
         {hasMapData ? (
           <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
