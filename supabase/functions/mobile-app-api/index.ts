@@ -395,6 +395,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleListWorkdayFlags(supabase, staffId, data, organizationId)
       case 'list_workdays_review':
         return await handleListWorkdaysReview(supabase, staffId, data, organizationId)
+      case 'set_travel_times':
+        return await handleSetTravelTimes(supabase, staffId, data, organizationId)
+      case 'approve_workday':
+        return await handleApproveWorkday(supabase, staffId, data, organizationId)
       case 'resolve_workday_flag':
         return await handleResolveWorkdayFlag(supabase, staffId, data, organizationId)
       case 'toggle_establishment_task':
