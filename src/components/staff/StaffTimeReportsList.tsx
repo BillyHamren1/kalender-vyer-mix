@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2, CalendarDays, MapPin, Briefcase, Car, WifiOff } from 'lucide-react';
+import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2, CalendarDays, MapPin, Briefcase, Car, WifiOff, Smartphone } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -296,6 +296,21 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                         >
                           <CheckCircle2 className="h-2.5 w-2.5" />
                           Avslutad
+                        </Badge>
+                      )}
+                      {staff.latestPing?.app_version && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-border/60 text-muted-foreground font-mono"
+                          title={[
+                            staff.latestPing.app_platform ? `Plattform: ${staff.latestPing.app_platform}` : null,
+                            staff.latestPing.app_build ? `Build ${staff.latestPing.app_build}` : null,
+                          ].filter(Boolean).join(' · ') || 'Appversion'}
+                        >
+                          <Smartphone className="h-2.5 w-2.5" />
+                          {staff.latestPing.app_platform === 'ios' ? 'iOS ' : staff.latestPing.app_platform === 'android' ? 'Android ' : ''}
+                          {staff.latestPing.app_version}
+                          {staff.latestPing.app_build ? ` (${staff.latestPing.app_build})` : ''}
                         </Badge>
                       )}
                     </div>
