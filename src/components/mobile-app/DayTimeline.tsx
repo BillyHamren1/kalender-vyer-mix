@@ -5,6 +5,7 @@ import { Calendar, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, parseISO, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
