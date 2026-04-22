@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useChatUpload } from './useChatUpload';
 import { CHAT_UPLOAD_ACCEPT_ATTR } from '@/lib/chat/uploadPolicy';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface Props {
   onSend: (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => Promise<void> | void;
@@ -11,7 +12,9 @@ interface Props {
   disabled?: boolean;
 }
 
-export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props) => {
+export const ChatInput = ({ onSend, placeholder, disabled }: Props) => {
+  const { t } = useLanguage();
+  const ph = placeholder ?? t('msg.placeholderImessage');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -31,9 +34,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
     try {
       await uploadFile(file);
     } catch (e: any) {
-      // Only thrown for client-side validation (size). Network/server errors
-      // surface inside the pending chip via `status: 'failed'`.
-      toast.error(e?.message || 'Kunde inte ladda upp filen');
+      toast.error(e?.message || t('msg.couldNotUpload'));
     }
   };
 
@@ -44,7 +45,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
   const send = async () => {
     if (sending || isUploading) return;
     if (isFailed) {
-      toast.error('Bilagan kunde inte laddas upp – tryck på pilen för att försöka igen');
+      toast.error(t('msg.attachmentFailed'));
       return;
     }
     const trimmed = text.trim();
@@ -100,7 +101,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
               <button
                 onClick={cancel}
                 className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center shadow"
-                aria-label="Ta bort bilaga"
+                aria-label={t('msg.removeAttachment')}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -117,7 +118,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
                 </div>
               )}
               {isUploading && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Laddar upp… {pending.progress}%</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{t('msg.uploading', { pct: pending.progress })}</p>
               )}
               {isFailed && (
                 <button
@@ -125,11 +126,11 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
                   className="mt-1 inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
                 >
                   <RotateCw className="w-3 h-3" />
-                  {pending.error || 'Misslyckades'} – försök igen
+                  {pending.error || t('msg.failed')} {t('msg.retrySuffix')}
                 </button>
               )}
               {isReady && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Klar att skicka</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{t('msg.readyToSend')}</p>
               )}
             </div>
           </div>
@@ -165,7 +166,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
           onClick={() => fileRef.current?.click()}
           disabled={isUploading || disabled}
           className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
-          aria-label="Bifoga fil"
+          aria-label={t('msg.attachFile')}
         >
           {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
         </button>
@@ -173,7 +174,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
           onClick={() => cameraRef.current?.click()}
           disabled={isUploading || disabled}
           className="w-9 h-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
-          aria-label="Ta bild"
+          aria-label={t('msg.takePhoto')}
         >
           <Camera className="w-4 h-4" />
         </button>
@@ -190,7 +191,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
               }
             }}
             rows={1}
-            placeholder={placeholder}
+            placeholder={ph}
             disabled={disabled}
             className="flex-1 resize-none bg-transparent text-[15px] leading-snug py-1.5 outline-none text-foreground placeholder:text-muted-foreground"
           />
@@ -203,7 +204,7 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage', disabled }: Props)
             'w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95',
             canSend ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground/50'
           )}
-          aria-label="Skicka"
+          aria-label={t('msg.send')}
         >
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
         </button>

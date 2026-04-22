@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { Check, CheckCheck, FileText, Download } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export interface ChatMessage {
   id: string;
@@ -36,6 +37,7 @@ const isImage = (m: ChatMessage) =>
   !!m.file_url && (m.file_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(m.file_url || ''));
 
 export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, showStatus, footerOverride }: Props) => {
+  const { t } = useLanguage();
   const image = isImage(msg);
   const [lightbox, setLightbox] = useState(false);
 
@@ -56,7 +58,7 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
               'overflow-hidden rounded-[20px] shadow-sm active:opacity-90 transition-opacity',
               hasTail && (isMe ? 'rounded-br-md' : 'rounded-bl-md')
             )}
-            aria-label="Öppna bild"
+            aria-label={t('msg.openImage')}
           >
             <img
               src={msg.file_url!}
@@ -79,7 +81,7 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
             )}
           >
             <FileText className="w-4 h-4 shrink-0 opacity-80" />
-            <span className="truncate flex-1 min-w-0">{msg.file_name || 'Bifogad fil'}</span>
+            <span className="truncate flex-1 min-w-0">{msg.file_name || t('msg.attachedFile')}</span>
             <Download className="w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
           </a>
         ) : (
@@ -113,15 +115,15 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
             {msg.read_at ? (
               <>
                 <CheckCheck className="w-3 h-3" />
-                <span>Läst {format(parseISO(msg.read_at), 'HH:mm')}</span>
+                <span>{t('msg.read', { time: format(parseISO(msg.read_at), 'HH:mm') })}</span>
               </>
             ) : msg.delivered_at ? (
               <>
                 <Check className="w-3 h-3" />
-                <span>Levererat</span>
+                <span>{t('msg.delivered')}</span>
               </>
             ) : (
-              <span className="opacity-60">Skickar…</span>
+              <span className="opacity-60">{t('msg.sending')}</span>
             )}
           </div>
         ) : null}

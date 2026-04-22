@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { format, isToday, isYesterday, parseISO, differenceInMinutes, isSameDay } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
 import { Loader2 } from 'lucide-react';
 import MessageBubble, { ChatMessage } from './MessageBubble';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface Props {
   messages: ChatMessage[];
@@ -17,14 +18,14 @@ interface Props {
   onLoadOlder?: () => void;
 }
 
-const dayLabel = (d: Date) => {
-  if (isToday(d)) return 'Idag';
-  if (isYesterday(d)) return 'Igår';
-  return format(d, 'EEEE d MMMM', { locale: sv });
+const makeDayLabel = (locale: 'sv' | 'en', tToday: string, tYesterday: string) => (d: Date) => {
+  if (isToday(d)) return tToday;
+  if (isYesterday(d)) return tYesterday;
+  return format(d, 'EEEE d MMMM', { locale: locale === 'en' ? enUS : sv });
 };
 
-const timeLabel = (d: Date) =>
-  isToday(d) ? format(d, 'HH:mm') : format(d, 'EEE HH:mm', { locale: sv });
+const makeTimeLabel = (locale: 'sv' | 'en') => (d: Date) =>
+  isToday(d) ? format(d, 'HH:mm') : format(d, 'EEE HH:mm', { locale: locale === 'en' ? enUS : sv });
 
 export const MessageList = ({
   messages,
@@ -35,6 +36,9 @@ export const MessageList = ({
   loadingOlder,
   onLoadOlder,
 }: Props) => {
+  const { t, locale } = useLanguage();
+  const dayLabel = makeDayLabel(locale, t('msg.day.today'), t('msg.day.yesterday'));
+  const timeLabel = makeTimeLabel(locale);
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -111,7 +115,7 @@ export const MessageList = ({
               onClick={onLoadOlder}
               className="text-[11px] text-primary hover:underline active:opacity-70"
             >
-              Visa äldre meddelanden
+              {t('msg.viewOlder')}
             </button>
           ) : null}
         </div>
