@@ -4,11 +4,17 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  // Allow the mobile client to read the rotated-token header from CORS responses.
+  'Access-Control-Expose-Headers': 'X-New-Token',
 }
 
 // Simple token generation using HMAC-like approach
 const TOKEN_SECRET = Deno.env.get('STAFF_SECRET_KEY') || 'default-secret-key'
-const TOKEN_EXPIRY_HOURS = 24
+// Sliding 30-day session. Tokens older than REFRESH_THRESHOLD_HOURS get
+// transparently rotated via the X-New-Token response header so users never
+// hit a hard logout while they keep using the app.
+const TOKEN_EXPIRY_HOURS = 24 * 30
+const REFRESH_THRESHOLD_HOURS = 24 * 7
 
 function generateToken(staffId: string): string {
   const timestamp = Date.now()
@@ -17,7 +23,7 @@ function generateToken(staffId: string): string {
   return btoa(JSON.stringify(payload))
 }
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string } {
+function verifyToken(token: string): { valid: boolean; staffId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
   try {
     const payload = JSON.parse(atob(token))
     if (!payload.staffId || !payload.expiresAt) {
@@ -26,10 +32,32 @@ function verifyToken(token: string): { valid: boolean; staffId?: string; error?:
     if (Date.now() > payload.expiresAt) {
       return { valid: false, error: 'Token expired' }
     }
-    return { valid: true, staffId: payload.staffId }
+    return {
+      valid: true,
+      staffId: payload.staffId,
+      issuedAt: typeof payload.timestamp === 'number' ? payload.timestamp : undefined,
+      expiresAt: payload.expiresAt,
+    }
   } catch {
     return { valid: false, error: 'Invalid token' }
   }
+}
+
+/**
+ * Decide whether a verified token should be rotated. We rotate when:
+ *  - the token is older than REFRESH_THRESHOLD_HOURS since issuance, OR
+ *  - the token has less than REFRESH_THRESHOLD_HOURS left until expiry.
+ * Returns the new token to send back via X-New-Token, or null to keep current.
+ */
+function maybeRotateToken(staffId: string, issuedAt?: number, expiresAt?: number): string | null {
+  const now = Date.now()
+  const refreshMs = REFRESH_THRESHOLD_HOURS * 60 * 60 * 1000
+  const ageOk = typeof issuedAt === 'number' && (now - issuedAt) >= refreshMs
+  const closeToExpiry = typeof expiresAt === 'number' && (expiresAt - now) <= refreshMs
+  if (!ageOk && !closeToExpiry) return null
+  const fresh = generateToken(staffId)
+  console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry})`)
+  return fresh
 }
 
 // Simple Base64 password comparison (matching existing staff_accounts format)
@@ -146,7 +174,7 @@ async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Pro
   return data?.id
 }
 
-Deno.serve(async (req) => {
+async function handleRequest(req: Request, rotationSlot: { token: string | null }): Promise<Response> {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -184,6 +212,10 @@ Deno.serve(async (req) => {
         )
       }
       staffId = tokenResult.staffId!
+      // Sliding refresh: if the token is older than the threshold (or close
+      // to expiry), mint a new one and surface it via X-New-Token. The
+      // client updates localStorage transparently — no UI interruption.
+      rotationSlot.token = maybeRotateToken(staffId, tokenResult.issuedAt, tokenResult.expiresAt)
     } else {
       // Web JWT fallback (planner UI)
       const authHeader = req.headers.get('Authorization') || ''
@@ -443,6 +475,24 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
+}
+
+Deno.serve(async (req) => {
+  // Per-request rotation slot — local to this Deno.serve invocation, so no
+  // cross-request bleed between concurrent users.
+  const rotationSlot: { token: string | null } = { token: null }
+  const response = await handleRequest(req, rotationSlot)
+  if (rotationSlot.token) {
+    // Clone with the rotated-token header appended. Body is consumed once.
+    const newHeaders = new Headers(response.headers)
+    newHeaders.set('X-New-Token', rotationSlot.token)
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    })
+  }
+  return response
 })
 
 // ==================== HANDLERS ====================
