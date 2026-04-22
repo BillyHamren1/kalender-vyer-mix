@@ -27,27 +27,46 @@ export type ReviewEventLite = {
   happened_at: string;
   event_type: string;
   target_label: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
   suggested_action: string;
 };
 
-/** Map ett review-event → WorkTarget. Returnerar null om vi saknar mapping. */
+/**
+ * Map ett review-event → WorkTarget.
+ *
+ * Läser PRIMÄRT från top-level kolumnerna `target_type` + `target_id`
+ * (alltid satta av dual-write i mobile-app-api). Faller tillbaka till
+ * `metadata.target_kind` / `metadata.target_id` för bakåtkompatibilitet
+ * med tidigare events där metadata-spegling saknades.
+ */
 export function eventToTarget(
-  ev: { event_type: string; target_label: string | null; metadata?: any },
+  ev: {
+    event_type: string;
+    target_label: string | null;
+    target_type?: string | null;
+    target_id?: string | null;
+    metadata?: any;
+  },
 ): WorkTarget | null {
   const meta = (ev as any)?.metadata || {};
-  if (meta.target_kind === 'project' && meta.target_id) {
-    return { kind: 'project', largeProjectId: meta.target_id, name: ev.target_label || 'Projekt' };
+  const kind = (ev.target_type ?? meta.target_kind) as string | undefined;
+  const id = (ev.target_id ?? meta.target_id) as string | undefined;
+  if (!kind || !id) return null;
+
+  if (kind === 'project') {
+    return { kind: 'project', largeProjectId: id, name: ev.target_label || 'Projekt' };
   }
-  if (meta.target_kind === 'location' && meta.target_id) {
+  if (kind === 'location') {
     return {
       kind: 'location',
-      locationId: meta.target_id,
+      locationId: id,
       name: ev.target_label || 'Plats',
       createsTimeReport: true,
     };
   }
-  if (meta.target_kind === 'booking' && meta.target_id) {
-    return { kind: 'booking', bookingId: meta.target_id, client: ev.target_label || 'Bokning' };
+  if (kind === 'booking') {
+    return { kind: 'booking', bookingId: id, client: ev.target_label || 'Bokning' };
   }
   return null;
 }
@@ -114,8 +133,6 @@ export function useDayReviewActions(): DayReviewActions {
         toast.error('Saknar mål för detta event');
         return;
       }
-      // ensureWorkDay får arrival-tid → workday startar (eller adopterar)
-      // bakåtdaterat. Aktivitetstimern startar också från samma tid.
       try {
         await ensureWorkDay(ev.happened_at);
       } catch (err) {
@@ -181,13 +198,11 @@ export function useDayReviewActions(): DayReviewActions {
   const endWorkDayAtHomeArrival = useCallback<DayReviewActions['endWorkDayAtHomeArrival']>(
     async (ev) => {
       try {
-        // Steg 1: server-first EOD vid hemkomst-tid
         const result = await syncWorkDayEnd(ev.happened_at);
         if (!result.ok) {
           toast.error(`Kunde inte avsluta arbetsdag: ${result.error || 'okänt fel'}`);
           return;
         }
-        // Steg 2: refresh lokal workday-state
         await endWorkDay({ endedAtIso: ev.happened_at }).catch(() => null);
         toast.success('Arbetsdag avslutad vid hemkomst');
         await resolveEvent(ev.id, 'applied_from_event_time', {
@@ -207,7 +222,6 @@ export function useDayReviewActions(): DayReviewActions {
           await mobileApi.setTravelTimes({ travel_log_id, start_time, end_time });
           toast.success('Restid uppdaterad');
         } else {
-          // Skapa + stoppa direkt så det blir en sluten resa
           const created = await mobileApi.createTravelLog({});
           const newId = created?.travel_log?.id;
           if (newId) {

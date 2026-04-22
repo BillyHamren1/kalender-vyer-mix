@@ -13,7 +13,6 @@ import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useStaleDayCorrection } from '@/hooks/useStaleDayCorrection';
-import { useStaleDayReminder } from '@/hooks/useStaleDayReminder';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -52,10 +51,6 @@ const MobileGlobalOverlays: React.FC = () => {
   const queryClient = useQueryClient();
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
-
-  // Lugn påminnelse om gårdagen (eller äldre dag) är `needs_review`.
-  // Throttlas till EN toast per kalenderdag och staff. Ingen spam.
-  useStaleDayReminder(!!staff, staff?.id);
 
   // UNIFIED start flow — same conflict + distance + start machinery as
   // every other start-surface in the mobile app. Direct startSession()

@@ -794,10 +794,13 @@ export const mobileApi = {
           happened_at: string;
           event_type: string;
           target_label: string | null;
+          target_type: string | null;
+          target_id: string | null;
           resolution_status: string;
           stale_for_prompt: boolean;
           still_relevant_for_review: boolean;
           suggested_action: string;
+          metadata?: Record<string, unknown>;
         }>;
         travels_for_day: Array<{
           id: string;
