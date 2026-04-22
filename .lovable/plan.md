@@ -1,51 +1,56 @@
 
 
-# Full översättning av mobilappen — alla synliga UI-strängar
+# Bättre synlighet av personal på Ops-kartan
 
-## Mål
-När användaren väljer engelska i mobilappen ska **inget** svenskt visas. Inga halvöversatta dialoger, inga svenska toasts, inga svenska knappar.
+## Problem (från skärmdumparna)
+1. Personalprickarna är små (13 px) och staplas ovanpå varandra när flera står på samma plats — initialbokstaven blir oläslig och man förstår inte att det är flera personer.
+2. Det finns ingen hover idag — man måste klicka för att se vem det är, och då ser man bara EN person i sidopanelen.
+3. När namn väl visas (i sidopanelen / smala chips) klipps de av.
 
-## Vad som täcks (allt UI i `/m/`)
+## Lösning
 
-### Skärmar (pages)
-Alla sidor under `src/pages/mobile/`:
-- Hem, Mina jobb, Jobbdetalj, Tidrapport, Mina avvikelser, Mina flaggor, Profil, Inställningar, Inloggning, Resor, Kvitton, Meddelanden, Lager-uppgifter, Uppgiftsdetalj, m.fl.
-- Inkluderar: rubriker, tomma states ("Inga jobb idag"), filterchips, statusbadges, datum-/tidsformat, knapp­etiketter.
+### 1. Klustra överlappande personal
+När två eller flera personer är inom samma lilla pixelradie på aktuell zoom, slå ihop dem till en enda markör som visar antalet (t.ex. en cirkel med "3" istället för en bokstav). Klustret behåller statusfärgen om alla har samma status, annars neutral grå med färgad ring.
 
-### Dialoger & overlays
-Alla 14 dialoger från etapp 1 + alla övriga modaler:
-- Stop/Break, WorkDayAssistant, ActivityLeave, EndOfDay, AnomalyClassification, Arrival, EndDayOnArrivalHome, LastShift, NextAction, StaleDay, StaleTimer, TimerConflict, TravelCompleted, UnifiedArrival, Geofence, SmartArrival, samt bekräftelse-/varningsdialoger.
+### 2. Hover visar ALLA namn
+- **Enskild person**: hover → liten tooltip med fullständigt namn, status, team, sista GPS-tid.
+- **Kluster (flera på samma plats)**: hover → tooltip listar **alla** namn i klustret med statusprick framför varje, t.ex.:
+  ```
+  ● Armands Birznieks — På plats
+  ● Karl Karlsson — På plats
+  ● Anna Andersson — På väg
+  ● Erik Eriksson — Inaktiv
+  ```
+  Tooltipen är scrollbar om listan är lång och bred nog att rymma fulla namn (auto-bredd, max ~280 px).
 
-### Komponenter i mobil-shell
-- `MobileHeader`, `MobileBottomNav`, `GlobalActiveTimerBanner`, `WorkDayHeaderTimer` (label only — siffror är språk­neutrala), notis-toasts, offline-banner, sync-indikator.
+### 3. Klick på kluster
+- Klick på enskild person → samma sidopanel som idag.
+- Klick på kluster → antingen zooma in (om det går att separera dem) eller öppna en liten lista där man väljer person, som sedan öppnar sidopanelen.
 
-### Toasts & systemmeddelanden
-Alla `toast.success/error/info`-anrop som skickas från mobilkoden — felmeddelanden vid timer-start, sparbekräftelser, GPS-fel, nätverksfel, etc.
+### 4. Större och tydligare markörer
+- Höj basradien från 13 → 15 px så bokstaven syns bättre.
+- Lägg till en mörkare halo/skugga runt cirkeln så den lyfter från kartans bakgrund (särskilt mot gula/gröna trafiklinjer).
+- Etikettens text-halo görs starkare (mörkare, bredare) så den vita bokstaven läses även mot ljusa underlag.
 
-### Formulär
-Placeholders, valideringsfel, hjälptexter, knappar (Spara/Avbryt/Bekräfta osv).
+### 5. Sidopanelens textavklippning
+`Armands Birz…` i panelen → ta bort `truncate` på namnet, låt det wrappa till två rader vid behov, och öka panelens bredd något.
 
-## Arbetssätt
+## Tekniskt (för referens)
 
-1. **Inventera**: gå igenom varje fil under `src/pages/mobile/` och `src/components/mobile-app/` och lista varje hårdkodad svensk sträng.
-2. **Lägg in nycklar**: alla strängar läggs in i `src/i18n/translations.ts` med svenska + engelska parallellt.
-3. **Koppla in**: byt ut hårdkodade strängar mot `t('nyckel')` (med interpolation där det behövs, t.ex. `t('greeting', { name })`).
-4. **Verifiera per skärm**: gå igenom appen skärm för skärm i engelskt läge och bekräfta att inget svenskt syns.
-5. **Lås in**: lägg till en enkel lint-regel/guideline så framtida kod aldrig kan introducera hårdkodad svenska i `/m/`.
+Filer som ändras:
+- `src/components/ops-control/OpsLiveMap.tsx`
+  - Bygg ett klusterindex i klienten (enkelt pixel-grid baserat på aktuell zoom — vi kan inte använda Mapbox cluster-source rakt av utan att bryta nuvarande feature-properties, så vi gör en lättviktig egen pass innan vi sätter `staffGeoJson`).
+  - Uppdatera `STAFF_MARKER_LAYER_ID` paint så `circle-radius` och färg reagerar på `clusterSize > 1`.
+  - Uppdatera `STAFF_LABEL_LAYER_ID` så `text-field` blir antalet vid kluster.
+  - Lägg till `mousemove`/`mouseleave` handlers på staff-lagren som visar en HTML-tooltip (absolut-positionerad div ovanpå kartan, inte Mapbox-popup för att undvika flimmer). Vid kluster: rendera lista över alla namn.
+  - Klick på kluster: om zoom < 16, `flyTo` + zoom +2; annars öppna en "välj person"-lista.
+- Eventuell liten justering i sidopanelens namnrad (samma fil, runt rad 850+).
 
-## Etapper (så du ser progress, inte en jätteklump)
+Vad som **inte** ändras:
+- Datakällor, hooks, status-logik, sidopanelens funktionalitet i övrigt, jobbmarkörer, kameror, organisationsplatser, fullskärm/satellit-toggle, route-rendering.
 
-- **Etapp A — Dialoger** (de 14 från förra omgången): koppla in nycklarna jag redan lagt in.
-- **Etapp B — Mobil-shell**: header, bottom nav, banners, toasts.
-- **Etapp C — Huvudskärmar**: Hem, Mina jobb, Jobbdetalj, Tidrapport.
-- **Etapp D — Sekundära skärmar**: Resor, Kvitton, Meddelanden, Lager-uppgifter, Profil, Inställningar, Mina flaggor, Mina avvikelser.
-- **Etapp E — Slutgenomgång**: jag går igenom appen i engelskt läge och fixar allt jag ser som fortfarande är svenskt.
-
-Efter varje etapp får du tillbaka appen i fungerande skick — du kan testa och säga "fortsätt".
-
-## Vad du som användare behöver göra
-Ingenting tekniskt. Bara byta språk i appen och säga till om du ser något svenskt kvar.
-
-## Garanti
-Inga ändringar i logik, dataflöden, timer-arkitektur eller dagtimer. Bara strängar.
+## Resultat
+- Du ser direkt var det står flera personer (siffran på markören).
+- Hover visar alla fullständiga namn — ingen klickning behövs för att förstå vilka som är på en plats.
+- Markörerna sticker ut mer mot kartan, även mot färgglada trafiklager.
 
