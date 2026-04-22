@@ -6245,6 +6245,45 @@ export type Database = {
           },
         ]
       }
+      workdays: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          staff_id: string
+          started_at: string
+          started_by: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          staff_id: string
+          started_at?: string
+          started_by?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          staff_id?: string
+          started_at?: string
+          started_by?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       confirmed_bookings: {
