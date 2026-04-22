@@ -22,7 +22,7 @@ import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
 import MobileScannerApp from '@/pages/MobileScannerApp';
 import MobileToolsHub from '@/pages/mobile/MobileToolsHub';
 import MobileCameraCapture from '@/pages/mobile/MobileCameraCapture';
-import SiteScansPage from '@/features/site-scans/pages/Scans';
+import MeasurementsPage from '@/features/site-scans/pages/Measurements';
 import SiteScanDetailPage from '@/features/site-scans/pages/ScanDetail';
 
 const LegacyScanRedirect: React.FC = () => {
@@ -52,7 +52,7 @@ const TimeAppShell: React.FC = () => {
           <Route path="/m/tools" element={<MobileProtectedRoute><TimeAppLayout><MobileToolsHub /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/camera" element={<MobileProtectedRoute><TimeAppLayout><MobileCameraCapture /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/scanner" element={<MobileProtectedRoute><TimeAppLayout><MobileScannerApp /></TimeAppLayout></MobileProtectedRoute>} />
-          <Route path="/m/tools/measure" element={<MobileProtectedRoute><TimeAppLayout><SiteScansPage /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/tools/measure" element={<MobileProtectedRoute><TimeAppLayout><MeasurementsPage /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/measure/:id" element={<MobileProtectedRoute><TimeAppLayout><SiteScanDetailPage /></TimeAppLayout></MobileProtectedRoute>} />
           {/* Legacy SiteScan paths */}
           <Route path="/scans" element={<Navigate to="/m/tools/measure" replace />} />
