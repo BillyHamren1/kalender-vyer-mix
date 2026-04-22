@@ -1,161 +1,45 @@
 
-# Fix: “Mätning” ska öppna SiteScans kameramätning, inte scan-listor eller LiDAR-historik
 
-## Verifierat i koden
+# Fix: Punkter fastnar inte i CameraMeasure
 
-### Var `/m/tools/measure` går idag
-I `src/shells/TimeAppShell.tsx` renderar `/m/tools/measure` just nu:
-- `MeasurementsPage` från `src/features/site-scans/pages/Measurements.tsx`
+## Vad som är fel i koden idag (`src/features/site-scans/pages/CameraMeasure.tsx`)
 
-### Varför nuvarande entrypoint är fel
-Det här är inte ett live mätverktyg.
+1. **Overlay använder `onClick` + `touch-none`**
+   - `touch-none` (Tailwind → `touch-action: none`) i kombination med `onClick` gör att tap-eventet i mobil WebView ofta inte konverteras till ett synthetic click. Tappet "fastnar" inte → ingen punkt sätts.
+2. **Click-handlern ligger på samma element som `onPointerMove`/`onPointerUp`**
+   - Pointer-capture på en barn-punkt + globala move/up på overlay → onClick på overlay kan svälja eller missa.
+3. **Inget visuellt fallback om kameran inte fått permission i Capacitor**
+   - I native WebView krävs ofta att `getUserMedia` triggas i ett user-gesture. Idag startas det i `useEffect`, så på iOS/Android Capacitor blir `cameraReady` aldrig true → overlayn täcks av "Startar kameran…" och tappar event.
 
-- `src/features/site-scans/pages/Measurements.tsx`
-  - listar senaste scans via `useSiteScansList`
-  - texten säger uttryckligen att nya mätningar “startas på LiDAR-enheten och synkas hit automatiskt”
-  - alltså: historik/lista för SiteScans, inte kameramätning
+## Fix (minimal, en fil)
 
-- `src/features/site-scans/pages/Scans.tsx`
-  - är admin/listvy med filter, sortering, pagination, actions
-  - alltså: register/CMS för scans, inte mätverktyg
+Endast `src/features/site-scans/pages/CameraMeasure.tsx`.
 
-- `src/features/site-scans/pages/ScanDetail.tsx`
-  - visar preview, 3D-modell, punktmoln, terrängdata
-  - tillbaka-knappen säger “Tillbaka till SiteScan”
-  - alltså: resultat/detaljvy efter scan, inte live mätning
+### 1. Byt `onClick` → `onPointerDown` på overlay
+- Sätt punkten direkt i `pointerdown` (ignorera om event-target är en befintlig punkt → då startar drag i stället).
+- Detta funkar identiskt för mus, touch och penna och kringgår click-svalg i WebView.
 
-- `src/features/site-scans/components/booking-details/MeasurementsTerrainCard.tsx`
-  - visar terräng-metrics från aktiv yta
+### 2. Behåll `touch-none` men flytta event-logiken
+- Overlay: `onPointerDown` (sätter punkt eller startar drag), `onPointerMove` (drag), `onPointerUp`/`onPointerCancel` (släpper drag).
+- Punkter får `data-point-idx` så overlayn vet om tappet träffade en punkt → starta drag i stället för att lägga till ny.
+- Ta bort separat `onPointPointerDown` på varje punkt (centralisera på overlay → inga capture-problem).
 
-- `src/features/site-scans/components/booking-details/BookingDrawingTab.tsx`
-  - placeholder för 3D-terräng/ritning
+### 3. Loading-overlay får `pointer-events-none`
+- "Startar kameran…" får inte blockera taps om kameran ändå inte hinner igång på desktop preview.
 
-- `src/features/site-scans/components/booking/BookingSiteScans.tsx`
-- `src/features/site-scans/components/project/ProjectSiteScans.tsx`
-  - länkar/scannar kopplade till bokning/projekt
+### 4. Starta kameran lazy om autostart misslyckas
+- Om `getUserMedia` failar i `useEffect` (t.ex. permission denied/inte user-gesture), visa en "Aktivera kamera"-knapp som startar streamen på klick (uppfyller user-gesture-kravet i Capacitor/iOS Safari).
+- Om kameran inte är tillgänglig (preview/desktop utan kamera) ska mätfunktionen **fortfarande funka** mot en svart bakgrund — punkter ska sättas oavsett.
 
-## Slutsats
-SiteScans är rätt feature-område, men det finns ingen befintlig sida i SiteScans som motsvarar:
-- öppna kameran
-- sätt punkt
-- flytta punkt
-- mäta avstånd på mark eller vägg
-- bete sig som iPhone Measure
+### 5. Säkerställ att punkter renderas ovanpå
+- SVG behåller `pointer-events-none`. Punkt-divar tar inte längre egna pointer-events (overlayn hanterar allt via `data-point-idx` lookup).
 
-Det som finns idag i SiteScans är scan-ingest + scan-visning + 3D/terrain-resultat, inte live kameramätning.
+## Resultat
+- Tap på bilden → punkt fastnar direkt (mobil + desktop preview).
+- Tap på befintlig punkt + dra → flyttar punkten.
+- Kamera-fail blockerar inte mätningen.
+- Ingen ny fil, ingen ny route, inga andra delar av appen rörs.
 
-## Rätt entrypoint
-Den korrekta lösningen är därför inte `Scans.tsx` och inte `Measurements.tsx`.
+## Filer som ändras
+- `src/features/site-scans/pages/CameraMeasure.tsx` (enda filen)
 
-Den korrekta entrypointen behöver vara en ny liten sida inne i SiteScans-featuren, t.ex.:
-
-- `src/features/site-scans/pages/CameraMeasure.tsx`
-
-Den ska vara Time-appens route för `/m/tools/measure`.
-
-## Minimal implementation
-
-### 1. Skapa en riktig SiteScans-entrypoint för kameramätning
-Ny fil:
-- `src/features/site-scans/pages/CameraMeasure.tsx`
-
-Den ska:
-- öppna mätverktyget direkt, inte lista scans
-- visa live kameraområde
-- ha tydliga kontroller för att:
-  - starta mätning
-  - sätta första punkt
-  - sätta andra punkt
-  - visa aktuellt avstånd
-  - nollställa / ny mätning
-- kännas som ett verktyg, inte ett register
-
-Om native/live AR-mätning inte är tillgänglig på den aktuella plattformen ska sidan:
-- visa tydligt unsupported-state
-- inte falla tillbaka till `Scans.tsx` eller `Measurements.tsx`
-
-### 2. Lägg logiken i SiteScans-featuren, inte i mobil-shellen
-För att hålla ändringen liten men korrekt:
-- routen byts i `TimeAppShell`
-- själva verktyget bor i `src/features/site-scans/...`
-
-Om sidan behöver delas upp:
-- `src/features/site-scans/components/camera-measure/...`
-- `src/features/site-scans/hooks/...`
-
-Men bara om det krävs för att hålla sidan ren.
-
-### 3. Byt routen i `TimeAppShell.tsx`
-Ändra endast:
-- `/m/tools/measure`
-
-Från:
-- `MeasurementsPage`
-
-Till:
-- `CameraMeasurePage` / `CameraMeasure`
-
-Behåll wrapper exakt:
-- `MobileProtectedRoute`
-- `TimeAppLayout`
-
-### 4. Lämna detail-routen orörd
-Rör inte:
-- `/m/tools/measure/:id`
-
-Den ska fortsätta gå till:
-- `src/features/site-scans/pages/ScanDetail.tsx`
-
-Det betyder:
-- gamla scan-detaljer fortsätter fungera
-- men de är inte längre entrypoint för “Mätning”
-
-### 5. Gör minimal följdjustering i `ScanDetail.tsx`
-Eftersom `/m/tools/measure` inte längre är en scan-lista bör tillbaka-knappen inte säga:
-- “Tillbaka till SiteScan”
-
-Minsta rimliga fix:
-- ändra texten till bara “Tillbaka”
-- gärna `navigate(-1)` med fallback till `/m/tools/measure`
-
-Det är en liten lokal justering som undviker missvisande navigation.
-
-## Tekniska detaljer
-Nuvarande SiteScans-kod visar att featuren redan äger:
-- scan-sessioner
-- scan-typer som `lidar_terrain`, `lidar_structure`, `indoor_scan`
-- RoomPlan/USDZ-visning
-- scan-resultat och assets
-
-Men den äger inte ännu en live “tap-to-measure”-UI.
-
-Det betyder att routingfelet inte kan lösas genom att bara peka på en annan befintlig SiteScans-sida. Den sidan finns inte i koden idag. Därför är den minsta korrekta fixen:
-1. skapa en liten ny entrypoint i SiteScans
-2. routea `/m/tools/measure` dit
-3. låta scan-detaljer ligga kvar separat
-
-## Filer att ändra
-
-### Ändra
-- `src/shells/TimeAppShell.tsx`
-- `src/features/site-scans/pages/ScanDetail.tsx` (endast tillbaka-knapptext/beteende, om nödvändigt)
-
-### Skapa
-- `src/features/site-scans/pages/CameraMeasure.tsx`
-
-### Eventuellt skapa, bara om det behövs
-- `src/features/site-scans/components/camera-measure/...`
-- `src/features/site-scans/hooks/...`
-
-## Resultat efter fix
-När användaren trycker på “Mätning” i Time-appen:
-- öppnas inte `Scans.tsx`
-- öppnas inte `Measurements.tsx`
-- öppnas inte LiDAR-/3D-/historiklistan
-- användaren landar direkt i SiteScans kameramätning
-
-Och samtidigt:
-- `/m/tools/measure/:id` lämnas kvar
-- befintliga detail pages fortsätter fungera
-- ingen toast-baserad fake-start
-- ingen mellanvy med scan-admin/lista
