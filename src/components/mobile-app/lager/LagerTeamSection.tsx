@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
 import { Users, Phone, Mail, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const LagerTeamSection = () => {
+  const { t } = useLanguage();
   const [team, setTeam] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +20,7 @@ const LagerTeamSection = () => {
       <div className="flex items-center gap-2 mb-2.5">
         <Users className="w-3.5 h-3.5 text-muted-foreground" />
         <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          Lagerteam idag
+          {t('lager.teamToday')}
         </h2>
       </div>
       {loading ? (
@@ -27,7 +29,7 @@ const LagerTeamSection = () => {
         </div>
       ) : team.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-4 text-center">
-          <p className="text-sm text-muted-foreground">Ingen aktiverad lagerpersonal idag</p>
+          <p className="text-sm text-muted-foreground">{t('lager.noTeamActive')}</p>
         </div>
       ) : (
         <div className="space-y-2">

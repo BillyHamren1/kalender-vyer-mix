@@ -8,6 +8,7 @@ import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import { ChatMessage } from './MessageBubble';
 import { useChatPagination } from './useChatPagination';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 interface Props {
   bookingId: string;
@@ -22,6 +23,7 @@ interface PendingMessage extends ChatMessage {
 
 export const JobChatView = ({ bookingId, client, onBack }: Props) => {
   const { staff } = useMobileAuth();
+  const { t } = useLanguage();
   const myIdsRef = useRef<Set<string>>(new Set([staff?.id || '']));
 
   const fetcher = useCallback(
@@ -102,7 +104,7 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
       });
     } catch (err: any) {
       console.error('[JobChat] send failed', err);
-      toast.error('Kunde inte skicka – tryck för att försöka igen');
+      toast.error(t('msg.couldNotSend'));
       setMessages((prev) =>
         prev.map((m) => m.id === optimisticId ? { ...(m as PendingMessage), _status: 'failed', _payload: payload } : m)
       );
@@ -113,7 +115,7 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
     const text = data.content?.trim() || '';
     if (!text && !data.file_url) return;
     const payload = {
-      content: text || (data.file_name ? `📎 ${data.file_name}` : '📎 Bifogad fil'),
+      content: text || (data.file_name ? `📎 ${data.file_name}` : `📎 ${t('msg.attachedFile')}`),
       file_url: data.file_url,
       file_name: data.file_name,
       file_type: data.file_type,
@@ -157,7 +159,7 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
           <button
             onClick={onBack}
             className="p-2 rounded-full text-primary active:scale-95 transition-transform"
-            aria-label="Tillbaka"
+            aria-label={t('msg.back')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -184,7 +186,7 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm active:scale-95 transition-transform"
           >
             <RefreshCw className="w-4 h-4" />
-            Försök igen
+            {t('msg.tryAgain')}
           </button>
         </div>
       ) : (
@@ -202,21 +204,21 @@ export const JobChatView = ({ bookingId, client, onBack }: Props) => {
                 <button
                   onClick={() => handleRetry(pm)}
                   className="flex items-center gap-1 mt-1 mr-1.5 text-[10px] text-destructive hover:underline"
-                  aria-label="Skicka igen"
+                  aria-label={t('msg.sendAgain')}
                 >
                   <AlertCircle className="w-3 h-3" />
-                  Ej skickat – tryck för att försöka igen
+                  {t('msg.notSent')}
                 </button>
               );
             }
             if (pm._status === 'sending') {
-              return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">Skickar…</span>;
+              return <span className="mt-1 mr-1.5 text-[10px] text-muted-foreground/70">{t('msg.sending')}</span>;
             }
             return null;
           }}
         />
       )}
-      <ChatInput onSend={handleSend} placeholder="Meddelande till teamet" />
+      <ChatInput onSend={handleSend} placeholder={t('msg.placeholderTeam')} />
     </div>
   );
 };

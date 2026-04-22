@@ -1,18 +1,7 @@
 /**
- * MobileMyFlags — "Mina avvikelser"
+ * MobileMyFlags — "My flags"
  * ─────────────────────────────────
- * Listar workday_flags som tillhör inloggad personal. Avvikelser är platsen
- * där systemet samlar saker det SETT men inte säkert kan avgöra själv. Här
- * ska personalen kunna svara med en kort förklaring så systemet vet vad det
- * faktiskt var (t.ex. "det var rast", "jag glömde stoppa timern").
- *
- * Designprinciper:
- *   • Avvikelser ändrar ALDRIG personalens rapporterade tid automatiskt —
- *     det här gränssnittet skickar bara en resolution_note + flaggar
- *     resolved=true via mobile-app-api. Admin kan sedan agera på noten.
- *   • Vi visar två sektioner: "Behöver svar" (needs_user_input) först,
- *     "Övriga öppna" sedan. Lösta avvikelser göms (admin-vyn äger historik).
- *   • Inline i mobilappen — assistenten skickar hit via "Visa alla"-länk.
+ * Lists workday_flags for the logged-in staff. See ARCH docs for design.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,39 +9,38 @@ import { ArrowLeft, AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { mobileApi, type WorkdayFlag } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
+import { useLanguage, } from '@/i18n/LanguageContext';
+import type { TranslationKey } from '@/i18n/translations';
 
-// Human-readable labels per flag_type — keep in sync with the CHECK
-// constraint in the workday_flags migration.
-const FLAG_LABELS: Record<string, string> = {
-  missing_break: 'Saknad rast',
-  unclear_day_end: 'Oklart dagsslut',
-  presence_without_report: 'Närvaro utan rapport',
-  activity_ended_day_continues: 'Aktivitet avslutad — dagen fortsätter',
-  geofence_presence_mismatch: 'Närvaro matchar inte rapport',
-  team_time_deviation: 'Teamtidavvikelse',
-  unreasonable_travel: 'Orimlig restid',
-  time_gap: 'Tidslucka',
-  missing_report: 'Saknad tidrapport',
-  long_day: 'Extremt lång arbetsdag',
-  overlapping_times: 'Överlappande tider',
-  auto_closed_overnight: 'Arbetsdagen stängdes automatiskt',
-  auto_closed_travel: 'Restimer stängdes automatiskt',
-  auto_closed_report: 'Tidrapport stängdes automatiskt',
+const FLAG_LABEL_KEYS: Record<string, TranslationKey> = {
+  missing_break: 'flags.type.missing_break',
+  unclear_day_end: 'flags.type.unclear_day_end',
+  presence_without_report: 'flags.type.presence_without_report',
+  activity_ended_day_continues: 'flags.type.activity_ended_day_continues',
+  geofence_presence_mismatch: 'flags.type.geofence_presence_mismatch',
+  team_time_deviation: 'flags.type.team_time_deviation',
+  unreasonable_travel: 'flags.type.unreasonable_travel',
+  time_gap: 'flags.type.time_gap',
+  missing_report: 'flags.type.missing_report',
+  long_day: 'flags.type.long_day',
+  overlapping_times: 'flags.type.overlapping_times',
+  auto_closed_overnight: 'flags.type.auto_closed_overnight',
+  auto_closed_travel: 'flags.type.auto_closed_travel',
+  auto_closed_report: 'flags.type.auto_closed_report',
 };
 
-// Quick-reply chips per flag type. Keeps the staff in/out flow fast for
-// the common cases without opening a free-text editor every time.
-const QUICK_REPLIES: Record<string, string[]> = {
-  missing_break: ['Det var rast', 'Jag jobbade hela tiden', 'Glömde rapportera rast'],
-  unclear_day_end: ['Glömde stoppa timern', 'Jobbade till denna tid', 'Privat ärende'],
-  presence_without_report: ['Glömde starta timern', 'Privat besök', 'Hämtade material'],
-  activity_ended_day_continues: ['Bytte till annan plats', 'Tog rast och kom tillbaka', 'Dagen var slut'],
-  geofence_presence_mismatch: ['GPS var fel', 'Stämmer som rapporterat', 'Behöver justera tid'],
+const QUICK_REPLY_KEYS: Record<string, TranslationKey[]> = {
+  missing_break: ['flags.reply.itWasBreak', 'flags.reply.workedAll', 'flags.reply.forgotBreak'],
+  unclear_day_end: ['flags.reply.forgotStop', 'flags.reply.workedUntil', 'flags.reply.privateErrand'],
+  presence_without_report: ['flags.reply.forgotStart', 'flags.reply.privateVisit', 'flags.reply.pickedUpMaterial'],
+  activity_ended_day_continues: ['flags.reply.switchedPlace', 'flags.reply.breakAndBack', 'flags.reply.dayWasDone'],
+  geofence_presence_mismatch: ['flags.reply.gpsWrong', 'flags.reply.matchesReport', 'flags.reply.needAdjust'],
 };
 
 export default function MobileMyFlags() {
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
   const [flags, setFlags] = useState<WorkdayFlag[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -65,7 +53,7 @@ export default function MobileMyFlags() {
       setFlags(res.flags || []);
     } catch (err) {
       console.error('[MyFlags] load failed:', err);
-      toast.error('Kunde inte ladda avvikelser');
+      toast.error(t('flags.couldNotLoad'));
     } finally {
       setLoading(false);
     }
@@ -81,11 +69,11 @@ export default function MobileMyFlags() {
         resolution_source: 'staff',
         resolution_note: note,
       });
-      toast.success('Tack! Avvikelsen är besvarad.');
+      toast.success(t('flags.thanks'));
       setFlags((prev) => prev.filter((f) => f.id !== flag.id));
     } catch (err) {
       console.error('[MyFlags] resolve failed:', err);
-      toast.error('Kunde inte spara svaret');
+      toast.error(t('flags.couldNotSave'));
     } finally {
       setResolvingId(null);
     }
@@ -96,20 +84,19 @@ export default function MobileMyFlags() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-xl border-b border-border/60">
         <div className="flex items-center gap-3 p-4 max-w-lg mx-auto">
           <button
             onClick={() => navigate('/m/profile')}
             className="p-2 rounded-xl hover:bg-muted/60 transition-colors"
-            aria-label="Tillbaka"
+            aria-label={t('common.back')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-base font-bold">Mina avvikelser</h1>
+            <h1 className="text-base font-bold">{t('flags.title')}</h1>
             <p className="text-xs text-muted-foreground">
-              {loading ? 'Laddar…' : `${flags.length} öppna`}
+              {loading ? t('flags.loading') : t('flags.openCount', { n: flags.length })}
             </p>
           </div>
         </div>
@@ -127,9 +114,9 @@ export default function MobileMyFlags() {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-sm font-semibold">Inga öppna avvikelser</p>
+            <p className="text-sm font-semibold">{t('flags.noOpen')}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Allt ser bra ut just nu.
+              {t('flags.allGood')}
             </p>
           </div>
         )}
@@ -137,7 +124,7 @@ export default function MobileMyFlags() {
         {needsInput.length > 0 && (
           <section>
             <h2 className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground mb-2 px-1">
-              Behöver ditt svar
+              {t('flags.needsYourAnswer')}
             </h2>
             <div className="space-y-2">
               {needsInput.map((flag) => (
@@ -149,6 +136,7 @@ export default function MobileMyFlags() {
                   onResolve={(note) => resolve(flag, note)}
                   resolving={resolvingId === flag.id}
                   highlight
+                  locale={locale}
                 />
               ))}
             </div>
@@ -158,7 +146,7 @@ export default function MobileMyFlags() {
         {others.length > 0 && (
           <section>
             <h2 className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground mb-2 px-1">
-              Övriga öppna
+              {t('flags.otherOpen')}
             </h2>
             <div className="space-y-2">
               {others.map((flag) => (
@@ -169,6 +157,7 @@ export default function MobileMyFlags() {
                   onNoteChange={(v) => setOpenNote((p) => ({ ...p, [flag.id]: v }))}
                   onResolve={(note) => resolve(flag, note)}
                   resolving={resolvingId === flag.id}
+                  locale={locale}
                 />
               ))}
             </div>
@@ -186,12 +175,16 @@ interface FlagCardProps {
   onResolve: (note: string) => void;
   resolving: boolean;
   highlight?: boolean;
+  locale: 'sv' | 'en';
 }
 
-function FlagCard({ flag, noteValue, onNoteChange, onResolve, resolving, highlight }: FlagCardProps) {
-  const label = FLAG_LABELS[flag.flag_type] || flag.flag_type;
-  const quickReplies = QUICK_REPLIES[flag.flag_type] || [];
-  const dateLabel = format(new Date(flag.flag_date), 'EEE d MMM', { locale: sv });
+function FlagCard({ flag, noteValue, onNoteChange, onResolve, resolving, highlight, locale }: FlagCardProps) {
+  const { t } = useLanguage();
+  const labelKey = FLAG_LABEL_KEYS[flag.flag_type];
+  const label = labelKey ? t(labelKey) : flag.flag_type;
+  const quickKeys = QUICK_REPLY_KEYS[flag.flag_type] || [];
+  const dateFnsLocale = locale === 'en' ? enUS : sv;
+  const dateLabel = format(new Date(flag.flag_date), 'EEE d MMM', { locale: dateFnsLocale });
 
   return (
     <article
@@ -221,38 +214,39 @@ function FlagCard({ flag, noteValue, onNoteChange, onResolve, resolving, highlig
         <p className="text-xs text-muted-foreground mb-3 pl-11">{flag.description}</p>
       )}
 
-      {/* Quick replies */}
-      {quickReplies.length > 0 && (
+      {quickKeys.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2 pl-11">
-          {quickReplies.map((reply) => (
-            <button
-              key={reply}
-              onClick={() => onResolve(reply)}
-              disabled={resolving}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
-            >
-              {reply}
-            </button>
-          ))}
+          {quickKeys.map((key) => {
+            const reply = t(key);
+            return (
+              <button
+                key={key}
+                onClick={() => onResolve(reply)}
+                disabled={resolving}
+                className="px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
+              >
+                {reply}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Free-text answer */}
       <div className="pl-11 mt-2 flex gap-2">
         <input
           type="text"
           value={noteValue}
           onChange={(e) => onNoteChange(e.target.value)}
-          placeholder="Eller skriv ett eget svar…"
+          placeholder={t('flags.writeYourOwn')}
           className="flex-1 rounded-xl border border-border/60 bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           disabled={resolving}
         />
         <button
-          onClick={() => onResolve(noteValue || 'Bekräftat utan kommentar')}
+          onClick={() => onResolve(noteValue || t('flags.confirmedNoComment'))}
           disabled={resolving}
           className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50"
         >
-          {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Spara'}
+          {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t('common.save')}
         </button>
       </div>
     </article>

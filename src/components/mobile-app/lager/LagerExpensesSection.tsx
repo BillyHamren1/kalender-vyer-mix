@@ -9,9 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { takePhotoBase64 } from '@/utils/capacitorCamera';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { sv, enUS } from 'date-fns/locale';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const LagerExpensesSection = () => {
+  const { t, locale } = useLanguage();
+  const dateFnsLocale = locale === 'en' ? enUS : sv;
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -49,7 +52,7 @@ const LagerExpensesSection = () => {
   const handleSubmit = async () => {
     const amt = parseFloat(amount.replace(',', '.'));
     if (!description.trim() || !amt || isNaN(amt)) {
-      toast.error('Beskrivning och belopp krävs');
+      toast.error(t('lager.descAndAmountRequired'));
       return;
     }
     setSubmitting(true);
@@ -60,7 +63,7 @@ const LagerExpensesSection = () => {
         supplier: supplier.trim() || undefined,
         receipt_image: receiptImage || undefined,
       });
-      toast.success('Inköp sparat');
+      toast.success(t('lager.purchaseSaved'));
       setDescription('');
       setAmount('');
       setSupplier('');
@@ -68,7 +71,7 @@ const LagerExpensesSection = () => {
       setOpen(false);
       load();
     } catch (e: any) {
-      toast.error(e?.message || 'Kunde inte spara');
+      toast.error(e?.message || t('common.couldNotSave'));
     } finally {
       setSubmitting(false);
     }
@@ -82,11 +85,11 @@ const LagerExpensesSection = () => {
         <div className="flex items-center gap-2">
           <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            Inköp
+            {t('lager.purchases')}
           </h2>
           {purchases.length > 0 && (
             <span className="text-[11px] text-muted-foreground">
-              · {total.toLocaleString('sv-SE')} kr
+              · {total.toLocaleString(locale === 'en' ? 'en-US' : 'sv-SE')} kr
             </span>
           )}
         </div>
@@ -94,7 +97,7 @@ const LagerExpensesSection = () => {
           onClick={() => setOpen(true)}
           className="flex items-center gap-1 text-xs font-semibold text-primary active:opacity-70"
         >
-          <Plus className="w-3.5 h-3.5" /> Nytt
+          <Plus className="w-3.5 h-3.5" /> {t('lager.new')}
         </button>
       </div>
 
@@ -104,7 +107,7 @@ const LagerExpensesSection = () => {
         </div>
       ) : purchases.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-5 text-center">
-          <p className="text-sm text-muted-foreground">Inga inköp registrerade ännu</p>
+          <p className="text-sm text-muted-foreground">{t('lager.noPurchases')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -124,11 +127,11 @@ const LagerExpensesSection = () => {
                 <p className="text-[11px] text-muted-foreground truncate">
                   {p.supplier ? `${p.supplier} · ` : ''}
                   {p.created_by || ''}
-                  {p.purchase_date && ` · ${format(new Date(p.purchase_date), 'd MMM', { locale: sv })}`}
+                  {p.purchase_date && ` · ${format(new Date(p.purchase_date), 'd MMM', { locale: dateFnsLocale })}`}
                 </p>
               </div>
               <p className="text-sm font-bold text-foreground shrink-0">
-                {Number(p.amount).toLocaleString('sv-SE')} kr
+                {Number(p.amount).toLocaleString(locale === 'en' ? 'en-US' : 'sv-SE')} kr
               </p>
             </div>
           ))}
@@ -138,23 +141,23 @@ const LagerExpensesSection = () => {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nytt lagerinköp</DialogTitle>
+            <DialogTitle>{t('lager.newPurchaseTitle')}</DialogTitle>
           </DialogHeader>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
           <div className="space-y-3 py-1">
             <div className="space-y-1.5">
-              <Label>Beskrivning</Label>
+              <Label>{t('lager.descLabel')}</Label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="t.ex. Tejp och buntband"
+                placeholder={t('lager.descPlaceholder')}
                 rows={2}
                 autoFocus
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Belopp (kr)</Label>
+                <Label>{t('lager.amountLabel')}</Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -164,19 +167,19 @@ const LagerExpensesSection = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Leverantör</Label>
+                <Label>{t('lager.supplierLabel')}</Label>
                 <Input
                   value={supplier}
                   onChange={(e) => setSupplier(e.target.value)}
-                  placeholder="(valfritt)"
+                  placeholder={t('lager.optional')}
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Kvitto</Label>
+              <Label>{t('lager.receipt')}</Label>
               {receiptImage ? (
                 <div className="relative rounded-xl overflow-hidden border bg-muted">
-                  <img src={receiptImage} alt="Kvitto" className="w-full max-h-48 object-contain" />
+                  <img src={receiptImage} alt={t('lager.receipt')} className="w-full max-h-48 object-contain" />
                   <button
                     onClick={() => setReceiptImage(null)}
                     className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
@@ -187,19 +190,19 @@ const LagerExpensesSection = () => {
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <Button type="button" variant="outline" onClick={handleCamera} className="gap-2">
-                    <Camera className="w-4 h-4" /> Foto
+                    <Camera className="w-4 h-4" /> {t('lager.photo')}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
-                    <ImageIcon className="w-4 h-4" /> Välj
+                    <ImageIcon className="w-4 h-4" /> {t('lager.choose')}
                   </Button>
                 </div>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>Avbryt</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>{t('common.cancel')}</Button>
             <Button onClick={handleSubmit} disabled={submitting || !description.trim() || !amount}>
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Spara'}
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

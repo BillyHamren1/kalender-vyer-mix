@@ -2,30 +2,32 @@ import { useCallback, useRef, useState } from 'react';
 import { getToken } from '@/services/mobileApiService';
 import { validateChatAttachment } from '@/lib/chat/uploadPolicy';
 import { supabase } from '@/integrations/supabase/client';
+import { t as translate, type Locale } from '@/i18n/translations';
 
-// Derive the edge-function URL from the configured Supabase client so we don't
-// duplicate the project URL in source. `supabaseUrl` is exposed by the JS SDK
-// and reflects whatever was passed to `createClient()` in `integrations/supabase/client.ts`,
-// which itself is driven by Vite env vars at build time.
 const SUPABASE_URL = (supabase as unknown as { supabaseUrl: string }).supabaseUrl;
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
+
+const getLocale = (): Locale => {
+  try {
+    const stored = localStorage.getItem('eventflow-locale');
+    return stored === 'en' ? 'en' : 'sv';
+  } catch {
+    return 'sv';
+  }
+};
+const tr = (key: any, vars?: any) => translate(key, getLocale(), vars);
 
 export interface UploadedAttachment {
   url: string;
   name: string;
   type: string;
-  /** Local object URL for preview while message is in-flight */
   preview?: string;
 }
 
 export interface PendingAttachment extends UploadedAttachment {
-  /** lifecycle */
   status: 'uploading' | 'ready' | 'failed';
-  /** 0–100 */
   progress: number;
-  /** original File so we can retry without re-asking the picker */
   source?: File;
-  /** error message when status === 'failed' */
   error?: string;
 }
 
@@ -33,7 +35,7 @@ const fileToBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(((r.result as string) || '').split(',')[1] || '');
-    r.onerror = () => reject(r.error || new Error('Kunde inte läsa filen'));
+    r.onerror = () => reject(r.error || new Error(tr('chat.couldNotReadFile')));
     r.readAsDataURL(file);
   });
 
@@ -45,13 +47,6 @@ interface UploadResponse {
   error?: string;
 }
 
-/**
- * Upload a chat attachment to the mobile-app-api edge function with
- * real upload progress (XHR), abort support, and a stable retry path.
- *
- * Why XHR: the standard `fetch` API still does not expose request upload
- * progress in browsers/WebViews; XHR's `upload.onprogress` does.
- */
 export const useChatUpload = () => {
   const [pending, setPending] = useState<PendingAttachment | null>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
@@ -67,11 +62,10 @@ export const useChatUpload = () => {
 
   const uploadFile = useCallback(async (file: File) => {
     const v = validateChatAttachment(file);
-    if (!v.ok) throw new Error(v.error || 'Filen kan inte laddas upp');
+    if (!v.ok) throw new Error(v.error || tr('chat.fileNotAllowed'));
 
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
 
-    // Seed the pending entry immediately so the UI can show the chip + 0%.
     setPending({
       url: '',
       name: file.name,
@@ -86,7 +80,7 @@ export const useChatUpload = () => {
     try {
       base64 = await fileToBase64(file);
     } catch (err: any) {
-      setPending((p) => p ? { ...p, status: 'failed', error: err?.message || 'Kunde inte läsa filen' } : p);
+      setPending((p) => p ? { ...p, status: 'failed', error: err?.message || tr('chat.couldNotReadFile') } : p);
       return;
     }
 
@@ -111,13 +105,13 @@ export const useChatUpload = () => {
     xhr.onload = () => {
       xhrRef.current = null;
       if (xhr.status < 200 || xhr.status >= 300) {
-        setPending((p) => p ? { ...p, status: 'failed', error: `Uppladdning misslyckades (${xhr.status})` } : p);
+        setPending((p) => p ? { ...p, status: 'failed', error: tr('chat.uploadFailedStatus', { status: xhr.status }) } : p);
         return;
       }
       let parsed: UploadResponse | null = null;
       try { parsed = JSON.parse(xhr.responseText); } catch { /* fallthrough */ }
       if (!parsed?.success || !parsed.url) {
-        setPending((p) => p ? { ...p, status: 'failed', error: parsed?.error || 'Ogiltigt svar från servern' } : p);
+        setPending((p) => p ? { ...p, status: 'failed', error: parsed?.error || tr('chat.invalidServerResponse') } : p);
         return;
       }
       setPending((p) => p ? {
@@ -133,25 +127,22 @@ export const useChatUpload = () => {
 
     xhr.onerror = () => {
       xhrRef.current = null;
-      setPending((p) => p ? { ...p, status: 'failed', error: 'Nätverksfel – kontrollera anslutningen' } : p);
+      setPending((p) => p ? { ...p, status: 'failed', error: tr('chat.networkError') } : p);
     };
 
     xhr.onabort = () => {
       xhrRef.current = null;
-      // cancel() already cleared the pending entry; nothing more to do.
     };
 
     xhr.send(body);
   }, []);
 
-  /** Re-runs the upload using the originally-picked file. */
   const retry = useCallback(() => {
     const f = pending?.source;
     if (!f) return;
     void uploadFile(f);
   }, [pending?.source, uploadFile]);
 
-  /** Clears pending after the message has been sent. */
   const consume = useCallback(() => {
     setPending((p) => {
       if (p?.preview) URL.revokeObjectURL(p.preview);
