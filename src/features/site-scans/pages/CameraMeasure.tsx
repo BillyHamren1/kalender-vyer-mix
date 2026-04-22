@@ -185,10 +185,11 @@ const CameraMeasure: React.FC = () => {
         {/* Overlay for taps + SVG lines */}
         <div
           ref={overlayRef}
-          onClick={handleOverlayClick}
+          onPointerDown={handleOverlayPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          className="absolute inset-0 touch-none"
+          onPointerCancel={onPointerUp}
+          className="absolute inset-0 touch-none select-none"
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
             {(calibrating ? calibrationPoints : points).map((p, i, arr) => {
