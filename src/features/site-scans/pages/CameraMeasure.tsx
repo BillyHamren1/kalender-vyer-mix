@@ -242,8 +242,8 @@ const CameraMeasure: React.FC = () => {
           {(calibrating ? calibrationPoints : points).map((p, i) => (
             <div
               key={`p-${i}`}
-              onPointerDown={(e) => !calibrating && onPointPointerDown(i, e)}
-              className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg cursor-grab active:cursor-grabbing pointer-events-auto"
+              data-point-idx={calibrating ? undefined : i}
+              className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg pointer-events-none"
               style={{ left: p.x, top: p.y }}
             />
           ))}
