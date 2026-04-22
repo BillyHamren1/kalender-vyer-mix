@@ -892,6 +892,8 @@ const translations = {
   'msg.archivedCount': { sv: 'Arkiverade ({n})', en: 'Archived ({n})' },
   'msg.from': { sv: 'Från', en: 'From' },
   'msg.noneYet': { sv: 'Inga meddelanden ännu', en: 'No messages yet' },
+  'msg.image': { sv: 'Bild', en: 'Image' },
+  'msg.attachment': { sv: 'Bilaga', en: 'Attachment' },
 
   // Expense categories
   'expenses.cat.material': { sv: 'Material', en: 'Materials' },
