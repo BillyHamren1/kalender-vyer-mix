@@ -32,41 +32,41 @@ const CameraMeasure: React.FC = () => {
   const [calibrationPoints, setCalibrationPoints] = useState<Point[]>([]);
   const [calibrationCm, setCalibrationCm] = useState<string>('10');
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [needsManualStart, setNeedsManualStart] = useState(false);
 
-  // Start camera
-  useEffect(() => {
-    let cancelled = false;
-    const start = async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setError('Kameran stöds inte i denna webbläsare.');
-          return;
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-        setCameraReady(true);
-      } catch (e: any) {
-        setError(e?.message || 'Kunde inte starta kameran. Tillåt kameraåtkomst.');
+  const startCamera = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setNeedsManualStart(false);
+        // Don't block measuring — just note camera unavailable
+        return;
       }
-    };
-    start();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      setCameraReady(true);
+      setNeedsManualStart(false);
+      setError(null);
+    } catch (e: any) {
+      setNeedsManualStart(true);
+      setError(e?.message || 'Tryck på "Aktivera kamera" för att tillåta åtkomst.');
+    }
+  }, []);
+
+  // Try auto-start; if it fails, user can tap to enable
+  useEffect(() => {
+    startCamera();
     return () => {
-      cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, []);
+  }, [startCamera]);
 
   useEffect(() => {
     localStorage.setItem('cameraMeasure.pxPerCm', String(pxPerCm));
@@ -79,13 +79,23 @@ const CameraMeasure: React.FC = () => {
     return { x: clientX - rect.left, y: clientY - rect.top };
   }, []);
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (draggingIdx !== null) return;
+  const handleOverlayPointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    const idxAttr = target?.getAttribute?.('data-point-idx');
+    if (idxAttr != null && !calibrating) {
+      const idx = parseInt(idxAttr, 10);
+      if (!Number.isNaN(idx)) {
+        setDraggingIdx(idx);
+        try {
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+        } catch {}
+        return;
+      }
+    }
     const p = getRelativePoint(e.clientX, e.clientY);
     if (!p) return;
     if (calibrating) {
-      const next = [...calibrationPoints, p].slice(-2);
-      setCalibrationPoints(next);
+      setCalibrationPoints((prev) => [...prev, p].slice(-2));
       return;
     }
     setPoints((prev) => [...prev, p]);
@@ -118,19 +128,20 @@ const CameraMeasure: React.FC = () => {
   const reset = () => setPoints([]);
   const undo = () => setPoints((p) => p.slice(0, -1));
 
-  // Drag handlers for moving points
-  const onPointPointerDown = (idx: number, e: React.PointerEvent) => {
-    e.stopPropagation();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDraggingIdx(idx);
-  };
   const onPointerMove = (e: React.PointerEvent) => {
     if (draggingIdx === null) return;
     const p = getRelativePoint(e.clientX, e.clientY);
     if (!p) return;
     setPoints((prev) => prev.map((pt, i) => (i === draggingIdx ? p : pt)));
   };
-  const onPointerUp = () => setDraggingIdx(null);
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (draggingIdx !== null) {
+      try {
+        (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+      } catch {}
+      setDraggingIdx(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
@@ -174,10 +185,11 @@ const CameraMeasure: React.FC = () => {
         {/* Overlay for taps + SVG lines */}
         <div
           ref={overlayRef}
-          onClick={handleOverlayClick}
+          onPointerDown={handleOverlayPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          className="absolute inset-0 touch-none"
+          onPointerCancel={onPointerUp}
+          className="absolute inset-0 touch-none select-none"
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
             {(calibrating ? calibrationPoints : points).map((p, i, arr) => {
@@ -230,8 +242,8 @@ const CameraMeasure: React.FC = () => {
           {(calibrating ? calibrationPoints : points).map((p, i) => (
             <div
               key={`p-${i}`}
-              onPointerDown={(e) => !calibrating && onPointPointerDown(i, e)}
-              className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg cursor-grab active:cursor-grabbing pointer-events-auto"
+              data-point-idx={calibrating ? undefined : i}
+              className="absolute w-8 h-8 -ml-4 -mt-4 rounded-full border-2 border-white bg-cyan-400/80 shadow-lg pointer-events-auto touch-none"
               style={{ left: p.x, top: p.y }}
             />
           ))}
@@ -246,26 +258,22 @@ const CameraMeasure: React.FC = () => {
           )}
         </div>
 
-        {/* Camera unsupported / error */}
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center p-6 bg-black/80 z-30">
-            <div className="max-w-sm text-center space-y-3">
-              <AlertTriangle className="h-10 w-10 mx-auto text-amber-400" />
-              <h2 className="text-lg font-semibold">Kameran är inte tillgänglig</h2>
-              <p className="text-sm text-white/70">{error}</p>
-              <p className="text-xs text-white/50">
-                Mätverktyget kräver kameraåtkomst. Tillåt kamera i webbläsarinställningarna eller
-                öppna appen på en mobil enhet.
-              </p>
-              <Button variant="secondary" onClick={() => navigate('/m/tools')}>
-                Tillbaka
-              </Button>
-            </div>
+        {/* Camera needs manual start (permission/user-gesture) — non-blocking */}
+        {needsManualStart && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+            <Button
+              onClick={startCamera}
+              className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold gap-2 shadow-lg"
+            >
+              <CameraIcon className="h-4 w-4" />
+              Aktivera kamera
+            </Button>
           </div>
         )}
 
-        {!cameraReady && !error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+        {/* Loading hint — non-blocking so taps still register */}
+        {!cameraReady && !needsManualStart && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 pointer-events-none">
             <div className="text-center space-y-2">
               <CameraIcon className="h-8 w-8 mx-auto animate-pulse" />
               <p className="text-sm text-white/70">Startar kameran…</p>
