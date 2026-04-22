@@ -34,6 +34,16 @@ const MobileJobs = () => {
   const { data: shifts = [] } = useScheduledShifts();
   const { t } = useLanguage();
 
+  // Day-review badge — antal needs_review-dagar senaste 7 dagar
+  const { data: reviewData } = useQuery({
+    queryKey: ['workdays-review-summary'],
+    queryFn: () => mobileApi.listWorkdaysReview({ days: 7 }),
+    enabled: !!staff?.id,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const needsReviewCount = (reviewData?.workdays || []).filter(w => w.review_status === 'needs_review').length;
+
   // Calendar view state — persisted in localStorage
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
     const stored = localStorage.getItem(VIEW_MODE_KEY);
