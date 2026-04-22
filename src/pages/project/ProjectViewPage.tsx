@@ -211,16 +211,8 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Tidslinje */}
-      <ProjectTimeline
-        tasks={tasks}
-        onUpdateTask={detail.updateTask}
-        onAddTask={detail.addTask}
-        projectId={project.id}
-      />
 
-      {/* Underleverantörer */}
-      <ProjectSuppliersTab projectId={project.id} />
+
 
       {/* PM-dokument */}
       <ProjectPMDocument
