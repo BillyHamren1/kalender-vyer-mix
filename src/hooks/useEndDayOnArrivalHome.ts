@@ -193,6 +193,7 @@ export function useEndDayOnArrivalHome(
       );
 
       try {
+        // 1) Stop active activity (if any) at the chosen end time.
         if (suggestion.timer && suggestion.timerKey) {
           const target = timerToTarget(suggestion.timerKey, suggestion.timer);
           await stopSession(target, {
@@ -211,7 +212,16 @@ export function useEndDayOnArrivalHome(
           });
         }
 
-        // Workday flag if user adjusted by > 30 min
+        // 2) Server-first: end the workday on the server. Source of truth is
+        //    workdays/useWorkDay — local state must NOT mark ended until the
+        //    server has confirmed. Mirrors GlobalActiveTimerBanner.
+        const result = await syncWorkDayEnd(chosenEndIso);
+        if (!result.ok) {
+          toast.error(result.error || 'Kunde inte avsluta arbetsdagen på servern');
+          return;
+        }
+
+        // 3) Workday flag if user adjusted by > 30 min (post-server, non-fatal).
         if (driftMin > 30 && staff?.id) {
           try {
             await mobileApi.createWorkdayFlag?.({
@@ -230,7 +240,9 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
+        // 4) Only now mark local state — server has confirmed.
         markWorkdayEnded(chosenEndIso);
+        try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
         toast.success('Arbetsdag avslutad');
         setSuggestion(null);
       } catch (err: any) {
