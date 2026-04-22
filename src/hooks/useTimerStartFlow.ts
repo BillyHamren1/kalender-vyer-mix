@@ -80,13 +80,22 @@ export function useTimerStartFlow(
   /**
    * Actually create the timer through the unified engine.
    *
-   * WORKDAY-FIRST: we ALWAYS await `ensureWorkDayActive()` before starting
-   * an activity. This guarantees the workday row exists before any
-   * secondary segment (project/travel/warehouse/location) is created.
-   * The server is idempotent so an already-open workday is a cheap no-op.
+   * WORKDAY-FIRST (HARD REQUIREMENT):
+   *   We ALWAYS await `ensureWorkDayActive()` before starting an activity.
+   *   If the workday cannot be ensured (network/server error, no staff,
+   *   etc.) the activity MUST NOT start. The workday is the primary
+   *   signal — activity segments only exist on top of it. No soft-fail.
+   *
+   * Returns:
+   *   'started'        — workday active + activity timer created
+   *   'duplicate'      — same target already running (no-op)
+   *   'workday-failed' — workday could not be ensured; activity NOT started
    */
   const performStart = useCallback(
-    async (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
+    async (
+      target: WorkTarget,
+      opts: { startedAtIso?: string; label: string },
+    ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
       // This is one of the two sanctioned auto-stop triggers (the other is
       // geofence ENTER on a known place). Speed alone never stops travel.
@@ -99,23 +108,31 @@ export function useTimerStartFlow(
         window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
       }
 
-      // WORKDAY-FIRST guarantee. Awaited so activities can never be
-      // created before the workday row exists.
+      // WORKDAY-FIRST hard gate. Activity may not start without an active
+      // workday. The server is idempotent so an already-open workday is a
+      // cheap no-op; a real failure here means we genuinely have no
+      // workday and must abort the activity start.
+      let workday: Awaited<ReturnType<typeof ensureWorkDayActive>> = null;
       try {
-        await ensureWorkDayActive(opts.startedAtIso);
+        workday = await ensureWorkDayActive(opts.startedAtIso);
       } catch (err) {
-        // Soft-fail: server-side workday is the audit anchor, but the
-        // local activity flow must not be blocked by a transient outage.
-        console.warn('[StartFlow] ensureWorkDayActive failed, continuing:', err);
+        console.error('[StartFlow] ensureWorkDayActive threw:', err);
+        workday = null;
+      }
+      if (!workday) {
+        toast.error(
+          'Kunde inte starta arbetsdagen. Försök igen — aktiviteten startades inte.',
+        );
+        return 'workday-failed';
       }
 
       const ok = startSession(target, { startedAtIso: opts.startedAtIso });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
-      } else {
-        toast.message('Timer redan aktiv för platsen');
+        return 'started';
       }
-      return ok;
+      toast.message('Timer redan aktiv för platsen');
+      return 'duplicate';
     },
     [startSession, userPosition, ensureWorkDayActive],
   );
