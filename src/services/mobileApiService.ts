@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 
 const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
+const ASSISTANT_EVENTS_URL = `${SUPABASE_URL}/functions/v1/assistant-events`;
 
 const TOKEN_KEY = 'eventflow-mobile-token';
 const STAFF_KEY = 'eventflow-mobile-staff';
