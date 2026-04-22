@@ -39,10 +39,12 @@ const jobMessageToProjectMessage = (m: JobMessage, projectId: string): ProjectMe
 const tabClass =
   "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
 
-const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef, onClearTaskRef }: ProjectCommunicationProps) => {
+const ProjectCommunication = ({ projectId, bookingId, senderName, suppliers, linkedTaskRef, onClearTaskRef }: ProjectCommunicationProps) => {
   const [activeTab, setActiveTab] = useState<ProjectMessageType>("internal");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
+  const [isSendingInternal, setIsSendingInternal] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   // When a task reference is set, switch to internal tab and scroll into view
   useEffect(() => {
@@ -58,13 +60,47 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
     ? selectedSupplierId
     : undefined;
 
-  const { messages, isLoading, sendMessage, isSending } = useProjectMessages(
-    projectId,
-    activeTab,
-    supplierFilter
+  // Internal tab → project's group chat (job_messages, scoped by booking_id).
+  // Supplier/Client tabs → existing project_messages thread.
+  const { messages: jobMessages, isLoadingMessages: isLoadingJob } = useJobChat(
+    activeTab === 'internal' ? bookingId : null,
   );
 
-  const handleSend = (text: string) => {
+  const { messages: projectMessages, isLoading: isLoadingProject, sendMessage, isSending } = useProjectMessages(
+    projectId,
+    activeTab === 'internal' ? undefined : activeTab,
+    supplierFilter,
+  );
+
+  const internalMessages = useMemo(
+    () => jobMessages.map((m) => jobMessageToProjectMessage(m, projectId)),
+    [jobMessages, projectId],
+  );
+
+  const handleSendInternal = async (text: string) => {
+    if (!bookingId) {
+      toast.error('Det här projektet saknar koppling till en bokning — kan inte skicka till gruppchatten.');
+      return;
+    }
+    setIsSendingInternal(true);
+    try {
+      // Prefix the task reference into the message body since job_messages
+      // doesn't have a linked_task_id column. Keeps context visible in chat.
+      const body = linkedTaskRef
+        ? `📋 ${linkedTaskRef.taskTitle}\n${text}`
+        : text;
+      await sendJobMessage(bookingId, body);
+      queryClient.invalidateQueries({ queryKey: ['job-chat', bookingId] });
+      if (linkedTaskRef && onClearTaskRef) onClearTaskRef();
+    } catch (err) {
+      console.error('Failed to send to project group chat:', err);
+      toast.error('Kunde inte skicka meddelandet till gruppchatten.');
+    } finally {
+      setIsSendingInternal(false);
+    }
+  };
+
+  const handleSendSupplierOrClient = (text: string) => {
     sendMessage({
       project_id: projectId,
       type: activeTab,
@@ -75,10 +111,7 @@ const ProjectCommunication = ({ projectId, senderName, suppliers, linkedTaskRef,
         : null,
       linked_task_id: linkedTaskRef?.taskId || null,
     });
-    // Clear the task reference after sending
-    if (linkedTaskRef && onClearTaskRef) {
-      onClearTaskRef();
-    }
+    if (linkedTaskRef && onClearTaskRef) onClearTaskRef();
   };
 
   const confirmedSuppliers = suppliers.filter(s => s.status !== "cancelled");
