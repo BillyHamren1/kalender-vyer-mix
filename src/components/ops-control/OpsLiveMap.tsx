@@ -70,6 +70,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
+  // Hover tooltip state for staff/clusters on the map
+  const [hoverTip, setHoverTip] = useState<{
+    x: number;
+    y: number;
+    members: Array<{ id: string; name: string; status: StaffStatus; teamName?: string | null; lastSeen?: string | null; isOffline?: boolean }>;
+  } | null>(null);
+
+  // Cluster picker (shown when user clicks a cluster but cannot zoom further)
+  const [clusterPicker, setClusterPicker] = useState<{
+    x: number;
+    y: number;
+    members: StaffLocation[];
+  } | null>(null);
+
   // Init map
   useEffect(() => {
     let cancelled = false;
