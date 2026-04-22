@@ -503,15 +503,15 @@ const ActiveTimerCard = ({ timer, onStop, isLocation }: { timer: ActiveTimer; on
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {t('time.startedAt', { time: format(parseISO(timer.startTime), 'HH:mm') })}
-          {timer.isAutoStarted && ` ${t('time.autoSuffix')}`}
+          {timer.isAutoStarted && t('time.autoStarted')}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
-      <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop} title={t('time.endActivityHint')}>
+      <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop} title={t('time.endActivityTitle')}>
         <Square className="w-3 h-3" />
-        {t('time.end')}
+        {t('time.endActivity')}
       </Button>
     </div>
   );
