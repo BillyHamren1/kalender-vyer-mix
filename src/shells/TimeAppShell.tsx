@@ -22,7 +22,7 @@ import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
 import MobileScannerApp from '@/pages/MobileScannerApp';
 import MobileToolsHub from '@/pages/mobile/MobileToolsHub';
 import MobileCameraCapture from '@/pages/mobile/MobileCameraCapture';
-import MeasurementsPage from '@/features/site-scans/pages/Measurements';
+import CameraMeasure from '@/features/site-scans/pages/CameraMeasure';
 import SiteScanDetailPage from '@/features/site-scans/pages/ScanDetail';
 
 const LegacyScanRedirect: React.FC = () => {
