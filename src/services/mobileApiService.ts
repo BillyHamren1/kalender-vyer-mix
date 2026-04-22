@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
 
@@ -412,7 +414,10 @@ export const mobileApi = {
 
   // Push notifications
   registerPushToken: (pushToken: string, platform?: string) =>
-    callApi<{ success: boolean }>('register_push_token', { push_token: pushToken, platform: platform || 'android' }),
+    callApi<{ success: boolean }>('register_push_token', {
+      push_token: pushToken,
+      platform: platform || (Capacitor.getPlatform() === 'ios' ? 'ios' : 'android'),
+    }),
 
   unregisterPushToken: (pushToken: string) =>
     callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
