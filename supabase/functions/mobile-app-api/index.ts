@@ -6561,6 +6561,80 @@ async function handleListWorkdayFlags(supabase: any, staffId: string, data: any,
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+/**
+ * list_workdays_review — Review-entrypoint för dagavstämning.
+ *
+ * Returnerar workdays för senaste N dagar (default 7) tillsammans med
+ * aggregerad räknare för öppna assistant_events och oklara resor. Detta
+ * är källan för MobileDayReview-vyn. Ändrar inte data.
+ */
+async function handleListWorkdaysReview(supabase: any, staffId: string, data: any, organizationId: string) {
+  const days = Math.min(Math.max(typeof data?.days === 'number' ? data.days : 7, 1), 30)
+  const sinceIso = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString()
+
+  const { data: workdays, error: wdErr } = await supabase
+    .from('workdays')
+    .select('id, started_at, ended_at, review_status, review_reasons, review_computed_at, notes')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .gte('started_at', sinceIso)
+    .order('started_at', { ascending: false })
+    .limit(50)
+
+  if (wdErr) {
+    return new Response(JSON.stringify({ error: wdErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: events } = await supabase
+    .from('assistant_events')
+    .select('id, happened_at, event_type, target_label, resolution_status, stale_for_prompt, still_relevant_for_review, suggested_action')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .gte('happened_at', sinceIso)
+    .order('happened_at', { ascending: false })
+    .limit(500)
+
+  let openTravel: any[] = []
+  try {
+    const { data: travels } = await supabase
+      .from('travel_time_logs')
+      .select('id, started_at, ended_at')
+      .eq('staff_id', staffId)
+      .gte('started_at', sinceIso)
+      .is('ended_at', null)
+    openTravel = travels || []
+  } catch { /* tabell finns inte i alla miljöer */ }
+
+  const dayKeyOf = (iso: string) => new Date(iso).toISOString().slice(0, 10)
+  const aggByDay: Record<string, { open_events: number; stale_review_events: number; open_travel: number }> = {}
+  for (const ev of events || []) {
+    const key = dayKeyOf(ev.happened_at)
+    aggByDay[key] ??= { open_events: 0, stale_review_events: 0, open_travel: 0 }
+    if (ev.resolution_status === 'pending' && !ev.stale_for_prompt) aggByDay[key].open_events++
+    if (ev.resolution_status === 'pending' && ev.stale_for_prompt && ev.still_relevant_for_review) aggByDay[key].stale_review_events++
+  }
+  for (const tr of openTravel) {
+    const key = dayKeyOf(tr.started_at)
+    aggByDay[key] ??= { open_events: 0, stale_review_events: 0, open_travel: 0 }
+    aggByDay[key].open_travel++
+  }
+
+  const enriched = (workdays || []).map((wd: any) => {
+    const key = dayKeyOf(wd.started_at)
+    const agg = aggByDay[key] || { open_events: 0, stale_review_events: 0, open_travel: 0 }
+    return {
+      ...wd,
+      day_key: key,
+      counts: agg,
+      events_for_day: (events || []).filter((e: any) => dayKeyOf(e.happened_at) === key),
+    }
+  })
+
+  return new Response(JSON.stringify({ workdays: enriched }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
 async function handleResolveWorkdayFlag(supabase: any, staffId: string, data: any, organizationId: string) {
   const { flag_id, resolution_source, resolution_note } = data || {}
   if (!flag_id || !['staff','admin','auto'].includes(resolution_source)) {
