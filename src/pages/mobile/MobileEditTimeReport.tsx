@@ -12,10 +12,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const MobileEditTimeReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { staff } = useMobileAuth();
   const { invalidateTimeReports } = useInvalidateMobileData();
 
@@ -54,8 +56,6 @@ const MobileEditTimeReport = () => {
     fetchReport();
   }, [id]);
 
-  // === UNIFIED TIME MODEL — must match MobileTimeReport.tsx (create) ===
-  // break_time / overtime: decimal HOURS. Night shift: end < start crosses midnight.
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
     const [sh, sm] = startTime.split(':').map(Number);
@@ -75,23 +75,23 @@ const MobileEditTimeReport = () => {
   })();
 
   const getValidationError = (): string | null => {
-    if (!startTime) return 'Start time is required';
-    if (!endTime) return 'End time is required';
+    if (!startTime) return t('edit.startRequired');
+    if (!endTime) return t('edit.endRequired');
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    if (sh * 60 + sm === eh * 60 + em) return 'End time cannot be the same as start time';
+    if (sh * 60 + sm === eh * 60 + em) return t('edit.endSameAsStart');
 
     const breakHours = parseFloat(breakTime || '0');
-    if (breakHours < 0) return 'Break cannot be negative';
-    if (breakHours * 60 > 240) return 'Break cannot exceed 240 minutes';
+    if (breakHours < 0) return t('edit.breakNegative');
+    if (breakHours * 60 > 240) return t('edit.breakMax');
 
     const hours = calculateHours();
-    if (hours <= 0) return 'Worked hours after break must be more than 0';
-    if (hours > 16) return 'Worked hours cannot exceed 16 hours';
+    if (hours <= 0) return t('edit.hoursAfterBreak');
+    if (hours > 16) return t('edit.hoursMax');
 
     const ot = parseFloat(overtime || '0');
-    if (ot < 0) return 'Overtime cannot be negative';
-    if (ot > 16) return 'Overtime cannot exceed 16 hours';
+    if (ot < 0) return t('edit.overtimeNegative');
+    if (ot > 16) return t('edit.overtimeMax');
     return null;
   };
 
@@ -110,7 +110,7 @@ const MobileEditTimeReport = () => {
     if (!report || !id) return;
 
     if (!editReason.trim()) {
-      toast.error('You must provide a reason for the change');
+      toast.error(t('edit.reasonRequired'));
       return;
     }
 
@@ -124,25 +124,23 @@ const MobileEditTimeReport = () => {
 
     setSaving(true);
     try {
-      const updatedDescription = description
-        ? `${description}\n\n[Changed: ${editReason.trim()}]`
-        : `[Changed: ${editReason.trim()}]`;
+      const suffix = t('edit.changedSuffix', { reason: editReason.trim() });
+      const updatedDescription = description ? `${description}\n\n${suffix}` : suffix;
 
       await mobileApi.updateTimeReport({
         time_report_id: id,
         start_time: startTime,
         end_time: endTime,
         hours_worked: hours,
-        // break_time in decimal HOURS (matches create + DB column).
         break_time: parseFloat(breakTime || '0'),
         overtime_hours: parseFloat(overtime || '0'),
         description: updatedDescription,
       });
-      toast.success('Time report updated');
+      toast.success(t('edit.savedToast'));
       invalidateTimeReports();
       navigate(-1);
     } catch (err: any) {
-      toast.error(err.message || 'Could not update time report');
+      toast.error(err.message || t('edit.saveError'));
     } finally {
       setSaving(false);
     }
@@ -152,18 +150,18 @@ const MobileEditTimeReport = () => {
     if (!id) return;
 
     if (!editReason.trim()) {
-      toast.error('You must provide a reason before deleting');
+      toast.error(t('edit.deleteReasonRequired'));
       return;
     }
 
     setDeleting(true);
     try {
       await mobileApi.deleteTimeReport(id);
-      toast.success('Time report deleted');
+      toast.success(t('edit.deletedToast'));
       invalidateTimeReports();
       navigate(-1);
     } catch (err: any) {
-      toast.error(err.message || 'Could not delete time report');
+      toast.error(err.message || t('edit.deleteError'));
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -173,7 +171,7 @@ const MobileEditTimeReport = () => {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIME REPORT" title="Edit" subtitle="Loading..." />
+        <MobileHeroHeader eyebrow={t('edit.eyebrowShort')} title={t('edit.titleEdit')} subtitle={t('edit.loading')} />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
@@ -184,22 +182,22 @@ const MobileEditTimeReport = () => {
   if (!report) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <MobileHeroHeader eyebrow="TIME REPORT" title="Not found" subtitle="" />
+        <MobileHeroHeader eyebrow={t('edit.eyebrowShort')} title={t('edit.titleNotFound')} subtitle="" />
         <div className="flex-1 flex items-center justify-center flex-col gap-3">
-          <p className="text-sm text-muted-foreground">The time report could not be found</p>
-          <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
+          <p className="text-sm text-muted-foreground">{t('edit.notFoundBody')}</p>
+          <Button variant="outline" onClick={() => navigate(-1)}>{t('edit.back')}</Button>
         </div>
       </div>
     );
   }
 
-  const jobName = report.large_project_name || report.bookings?.client || 'Unknown job';
+  const jobName = report.large_project_name || report.bookings?.client || t('edit.unknownJob');
   const dateLabel = format(parseISO(report.report_date), 'd MMMM yyyy');
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileHeroHeader
-        eyebrow="EDIT TIME REPORT"
+        eyebrow={t('edit.eyebrow')}
         title={jobName}
         subtitle={dateLabel}
         rightAction={
@@ -213,25 +211,23 @@ const MobileEditTimeReport = () => {
       />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-5">
-        {/* Current values summary */}
         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Current</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">{t('edit.current')}</p>
           <p className="text-sm text-foreground">
             {report.start_time?.slice(0, 5)} – {report.end_time?.slice(0, 5)}
-            {report.break_time > 0 && ` · ${report.break_time}h break`}
+            {report.break_time > 0 && ` · ${report.break_time}${t('edit.breakSuffix')}`}
             {' · '}
             <span className="font-bold">{formatHoursMinutes(report.hours_worked)}</span>
           </p>
           {report.approved && (
-            <p className="text-[11px] text-primary font-semibold mt-1">✓ Approved</p>
+            <p className="text-[11px] text-primary font-semibold mt-1">{t('edit.approved')}</p>
           )}
         </div>
 
-        {/* Edit fields */}
         <div className="space-y-4">
           <div className="flex gap-3 w-full">
             <div className="flex-1 min-w-0 space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('edit.start')}</Label>
               <input
                 type="time"
                 value={startTime}
@@ -240,7 +236,7 @@ const MobileEditTimeReport = () => {
               />
             </div>
             <div className="flex-1 min-w-0 space-y-2">
-              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">End</Label>
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('edit.end')}</Label>
               <input
                 type="time"
                 value={endTime}
@@ -251,10 +247,10 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Break</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('edit.break')}</Label>
             <div className="grid grid-cols-4 gap-1.5">
               {[
-                { label: 'None', value: '0' },
+                { label: t('edit.breakNone'), value: '0' },
                 { label: '30m', value: '0.5' },
                 { label: '45m', value: '0.75' },
                 { label: '60m', value: '1' },
@@ -276,7 +272,7 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Overtime (h)</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('edit.overtime')}</Label>
             <Input
               type="number"
               step="0.5"
@@ -287,41 +283,39 @@ const MobileEditTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Description</Label>
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t('edit.description')}</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="What did you do..."
+              placeholder={t('edit.descriptionPlaceholder')}
               className="rounded-xl min-h-[72px] text-sm bg-muted/40 border-border"
             />
           </div>
 
           {isNightShift && (
-            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <p className="text-xs font-medium" style={{ color: 'hsl(var(--warning, 38 92% 50%))' }}>⏰ Night shift detected – time calculated over midnight</p>
+            <div className="px-3 py-2 rounded-xl bg-warning/10 border border-warning/20">
+              <p className="text-xs font-medium text-warning">{t('edit.nightShift')}</p>
             </div>
           )}
 
           <div className="h-px bg-border/50" />
 
-          {/* Mandatory reason */}
           <div className="space-y-2">
             <Label className="text-[11px] font-semibold text-destructive uppercase tracking-wide">
-              Reason for change *
+              {t('edit.reasonLabel')}
             </Label>
             <Textarea
               value={editReason}
               onChange={e => setEditReason(e.target.value)}
-              placeholder="Explain why you are changing this report..."
+              placeholder={t('edit.reasonPlaceholder')}
               className="rounded-xl min-h-[72px] text-sm bg-destructive/5 border-destructive/20 placeholder:text-muted-foreground"
             />
           </div>
         </div>
 
-        {/* Summary + actions */}
         <div className="flex items-center justify-between pt-3 border-t border-border/40">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs text-muted-foreground">New time:</span>
+            <span className="text-xs text-muted-foreground">{t('edit.newTime')}</span>
             <span className="text-lg font-extrabold text-foreground tabular-nums">{formatHoursMinutes(calculateHours())}</span>
           </div>
           <Button
@@ -330,11 +324,10 @@ const MobileEditTimeReport = () => {
             className="rounded-xl gap-2 h-11 px-6 text-sm font-semibold active:scale-[0.98] transition-all"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save
+            {t('edit.save')}
           </Button>
         </div>
 
-        {/* Delete section */}
         <div className="pt-4 border-t border-border/40">
           {!showDeleteConfirm ? (
             <button
@@ -342,11 +335,11 @@ const MobileEditTimeReport = () => {
               className="flex items-center gap-2 text-xs text-destructive/70 hover:text-destructive transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Delete time report
+              {t('edit.delete')}
             </button>
           ) : (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 space-y-3">
-              <p className="text-xs font-semibold text-destructive">Are you sure? This cannot be undone.</p>
+              <p className="text-xs font-semibold text-destructive">{t('edit.deleteConfirm')}</p>
               <div className="flex gap-2">
                 <Button
                   variant="destructive"
@@ -356,7 +349,7 @@ const MobileEditTimeReport = () => {
                   className="rounded-xl text-xs"
                 >
                   {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  Delete
+                  {t('edit.deleteButton')}
                 </Button>
                 <Button
                   variant="outline"
@@ -364,7 +357,7 @@ const MobileEditTimeReport = () => {
                   onClick={() => setShowDeleteConfirm(false)}
                   className="rounded-xl text-xs"
                 >
-                  Cancel
+                  {t('edit.cancel')}
                 </Button>
               </div>
             </div>
