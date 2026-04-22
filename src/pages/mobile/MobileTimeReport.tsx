@@ -417,7 +417,7 @@ const MobileTimeReport = () => {
           ) : sortedDates.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Inga tidrapporter ännu</p>
+              <p className="text-sm text-muted-foreground">{t('time.noReports')}</p>
             </div>
           ) : (
             sortedDates.map(date => {
