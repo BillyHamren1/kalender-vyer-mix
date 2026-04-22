@@ -82,6 +82,12 @@ FRONTEND_TESTS=(
   # och markResolved skickar (target_type, target_id, arrived_at) för
   # alla tre kindar.
   "src/test/arrivalPromptHook.parity.test.ts"
+  # Workday server-anchor: edge function `workday` (start/end/current,
+  # idempotent), client sync (debounce, soft-fail) och integration i
+  # timer-start + EOD.
+  "src/test/workday/workdayLifecycle.test.ts"
+  "src/test/workday/workdayConcurrency.test.ts"
+  "src/test/workday/workdayIntegration.test.ts"
 )
 
 BACKEND_TESTS=(
