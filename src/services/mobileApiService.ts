@@ -171,6 +171,18 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     console.log(`[mobileApi] ← ${action} status=${res.status}`);
 
+    // Sliding session: if the server rotated our token, update localStorage
+    // transparently. UI never sees this — user stays logged in seamlessly.
+    try {
+      const newToken = res.headers.get('X-New-Token');
+      if (newToken && newToken !== token) {
+        localStorage.setItem(TOKEN_KEY, newToken);
+        console.log(`[mobileApi] 🔄 token rotated by server (action=${action})`);
+      }
+    } catch (e) {
+      console.warn('[mobileApi] Could not read X-New-Token header:', e);
+    }
+
     if (res.status === 401) {
       // Only clear mobile auth if we were using the mobile token.
       if (token) {
@@ -191,7 +203,7 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
     try {
       json = await res.json();
     } catch {
-      throw new Error(`Servern svarade med status ${res.status} men ogiltigt svar.`);
+      throw new Error(`Servern svarade med status ${res.status} but ogiltigt svar.`);
     }
 
     if (!res.ok) {
