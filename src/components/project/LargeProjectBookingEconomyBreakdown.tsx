@@ -255,17 +255,19 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     return candidates.find(c => c.name.trim().toLowerCase() === trimName);
   }, [localProductsByBooking]);
 
-  const handleUpdateProductCost = useCallback(async (productId: string, field: string, value: number) => {
+  const handleUpdateProductCost = useCallback(async (productId: string, field: 'assembly_cost' | 'handling_cost' | 'purchase_cost', value: number, bookingId: string) => {
     try {
-      const { updateProductViaApi } = await import('@/services/planningApiService');
-      await updateProductViaApi(productId, { [field]: value });
+      const { upsertProductCostOverride } = await import('@/services/productCostOverrideService');
+      await upsertProductCostOverride(largeProjectId, productId, { [field]: value }, bookingId);
+      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', largeProjectId] });
       queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
       queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
       toast.success('Kostnad uppdaterad');
-    } catch {
+    } catch (e) {
+      console.error('[LargeProjectBookingEconomyBreakdown] update cost failed', e);
       toast.error('Kunde inte uppdatera kostnad');
     }
-  }, [queryClient]);
+  }, [queryClient, largeProjectId]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
@@ -443,17 +445,17 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v)} />
+                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v, bookingId)} />
                                       ) : fmt(assemblyCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v)} />
+                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v, bookingId)} />
                                       ) : fmt(handlingCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right">
                                       {localMatch ? (
-                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v)} />
+                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v, bookingId)} />
                                       ) : fmt(purchaseCost)}
                                     </TableCell>
                                     <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
