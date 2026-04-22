@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import ProjectSiteScans from "@/components/project/ProjectSiteScans";
+import ProjectSiteScans from "@/features/site-scans/components/project/ProjectSiteScans";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FolderOpen } from "lucide-react";
 

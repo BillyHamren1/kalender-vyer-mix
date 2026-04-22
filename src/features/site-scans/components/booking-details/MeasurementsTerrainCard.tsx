@@ -1,9 +1,9 @@
-import { useActiveTerrainSurface } from "@/hooks/useBookingSiteSurfaces";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
-import LoadingState from "@/components/shared/LoadingState";
-import ErrorState from "@/components/shared/ErrorState";
-import StatusBadge from "@/components/shared/StatusBadge";
+import { useActiveTerrainSurface } from "@/features/site-scans/hooks/useBookingSiteSurfaces";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import StatusBadge from "@/features/site-scans/components/shared/StatusBadge";
 import { Mountain, Layers } from "lucide-react";
 
 interface MeasurementsTerrainCardProps {

@@ -13,7 +13,7 @@ import {
   type SyncResult,
   type ManageScanResult,
   type ProcessScanResult,
-} from "@/api/site-scans";
+} from "@/features/site-scans/api/site-scans";
 
 // =============================================
 // Query keys

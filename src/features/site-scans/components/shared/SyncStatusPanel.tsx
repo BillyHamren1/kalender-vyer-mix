@@ -1,6 +1,6 @@
 import { RefreshCw, CheckCircle2, AlertCircle, Clock, Link2, Server, Briefcase } from "lucide-react";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";

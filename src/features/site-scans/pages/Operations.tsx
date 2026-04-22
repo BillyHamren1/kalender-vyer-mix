@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { timeAgo, fmt } from "@/lib/format";
+import { timeAgo, fmt } from "@/features/site-scans/lib/format";
 import PageShell from "@/components/layout/PageShell";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
-import LoadingState from "@/components/shared/LoadingState";
-import StatusBadge, { type ScanStatus } from "@/components/shared/StatusBadge";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import StatusBadge, { type ScanStatus } from "@/features/site-scans/components/shared/StatusBadge";
 import {
   AlertTriangle,
   RefreshCw,

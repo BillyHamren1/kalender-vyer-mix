@@ -1,5 +1,5 @@
 import PageShell from "@/components/layout/PageShell";
-import DataSectionCard from "@/components/shared/DataSectionCard";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
 import { Badge } from "@/components/ui/badge";
 import {
   ScanLine,

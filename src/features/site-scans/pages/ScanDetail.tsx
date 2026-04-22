@@ -1,21 +1,21 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useSiteScanDetail } from "@/hooks/useSiteScans";
-import { formatFileSize, getAssetTypeIcon } from "@/lib/storage";
-import { fmt } from "@/lib/format";
-import { useTriggerSync } from "@/hooks/useSiteScans";
-import StatusBadge from "@/components/shared/StatusBadge";
-import DataSectionCard from "@/components/shared/DataSectionCard";
-import EmptyState from "@/components/shared/EmptyState";
-import ErrorState from "@/components/shared/ErrorState";
-import LoadingState from "@/components/shared/LoadingState";
-import ExternalLinksSection from "@/components/shared/ExternalLinksSection";
-import SyncStatusPanel from "@/components/shared/SyncStatusPanel";
+import { useSiteScanDetail } from "@/features/site-scans/hooks/useSiteScans";
+import { formatFileSize, getAssetTypeIcon } from "@/features/site-scans/lib/storage";
+import { fmt } from "@/features/site-scans/lib/format";
+import { useTriggerSync } from "@/features/site-scans/hooks/useSiteScans";
+import StatusBadge from "@/features/site-scans/components/shared/StatusBadge";
+import DataSectionCard from "@/features/site-scans/components/shared/DataSectionCard";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import ErrorState from "@/features/site-scans/components/shared/ErrorState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
+import ExternalLinksSection from "@/features/site-scans/components/shared/ExternalLinksSection";
+import SyncStatusPanel from "@/features/site-scans/components/shared/SyncStatusPanel";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import "@google/model-viewer";
-import TerrainProfileVisual from "@/components/scan-detail/TerrainProfileVisual";
+import TerrainProfileVisual from "@/features/site-scans/components/scan-detail/TerrainProfileVisual";
 import {
   ArrowLeft,
   ScanLine,
@@ -39,7 +39,7 @@ import {
 // Helpers
 // =============================================
 
-const UsdzViewer = lazy(() => import("@/components/scan-detail/UsdzViewer"));
+const UsdzViewer = lazy(() => import("@/features/site-scans/components/scan-detail/UsdzViewer"));
 
 type StorageRef = {
   bucket: "site-scan-raw" | "site-scan-processed" | "site-scan-preview";

@@ -1,6 +1,6 @@
-import { useActiveTerrainSurface } from "@/hooks/useBookingSiteSurfaces";
-import EmptyState from "@/components/shared/EmptyState";
-import LoadingState from "@/components/shared/LoadingState";
+import { useActiveTerrainSurface } from "@/features/site-scans/hooks/useBookingSiteSurfaces";
+import EmptyState from "@/features/site-scans/components/shared/EmptyState";
+import LoadingState from "@/features/site-scans/components/shared/LoadingState";
 import { Mountain } from "lucide-react";
 
 interface BookingDrawingTabProps {

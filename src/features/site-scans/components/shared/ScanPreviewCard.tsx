@@ -1,6 +1,6 @@
 import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
-import { fmt } from "@/lib/format";
+import { fmt } from "@/features/site-scans/lib/format";
 import {
   ExternalLink,
   Image as ImageIcon,

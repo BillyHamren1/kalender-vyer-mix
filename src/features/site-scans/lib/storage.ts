@@ -5,7 +5,7 @@
 // =============================================
 
 import { supabase } from "@/integrations/supabase/client";
-import type { SiteScanAssetType } from "@/types";
+import type { SiteScanAssetType } from "@/features/site-scans/types";
 import {
   FileText,
   Box,
