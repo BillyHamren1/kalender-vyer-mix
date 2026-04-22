@@ -423,17 +423,26 @@ export const mobileApi = {
     callApi<{ success: boolean }>('unregister_push_token', { push_token: pushToken }),
 
   // Location reporting
-  reportLocation: (data: {
+  reportLocation: async (data: {
     latitude: number;
     longitude: number;
     accuracy?: number | null;
     speed?: number | null;
-  }) => callApi<{ success: boolean; at_location?: { id: string; name: string } | null }>('report_location', data),
+  }) => {
+    const { getAppMeta } = await import('./appMeta');
+    const meta = await getAppMeta();
+    return callApi<{ success: boolean; at_location?: { id: string; name: string } | null }>(
+      'report_location',
+      { ...data, ...meta },
+    );
+  },
 
   // Batch upload of GPS points from the offline-first sync queue.
   // Each point carries its own client id + recordedAt so the server can
   // dedupe and the client can drop confirmed points from local storage.
-  uploadLocationBatch: (points: Array<{
+  // App version metadata is sent at the top level (not per-point) since it
+  // describes the device, not the GPS sample.
+  uploadLocationBatch: async (points: Array<{
     id: string;
     latitude: number;
     longitude: number;
@@ -441,13 +450,16 @@ export const mobileApi = {
     speed: number | null;
     source: string;
     recordedAt: string;
-  }>) =>
-    callApi<{
+  }>) => {
+    const { getAppMeta } = await import('./appMeta');
+    const meta = await getAppMeta();
+    return callApi<{
       success: boolean;
       accepted: string[];
       rejected: { id: string; reason: string }[];
       received: number;
-    }>('upload_location_batch', { points }),
+    }>('upload_location_batch', { points, ...meta });
+  },
 
   // Organization locations (fixed places)
   getOrganizationLocations: () =>
