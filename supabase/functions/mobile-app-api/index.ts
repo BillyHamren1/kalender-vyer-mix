@@ -6535,7 +6535,7 @@ async function handleListWorkdaysReview(supabase: any, staffId: string, data: an
 
   const { data: events } = await supabase
     .from('assistant_events')
-    .select('id, happened_at, event_type, target_label, resolution_status, stale_for_prompt, still_relevant_for_review, suggested_action')
+    .select('id, happened_at, event_type, target_label, target_type, target_id, resolution_status, stale_for_prompt, still_relevant_for_review, suggested_action, metadata')
     .eq('organization_id', organizationId)
     .eq('staff_id', staffId)
     .gte('happened_at', sinceIso)
