@@ -38,9 +38,15 @@ export async function fetchLocationTimeEntries(filters?: {
 }
 
 /**
- * Close all open location_time_entries for a staff member that started before
- * the given cutoff time. Used to prevent double-counting when a travel log
- * starts while a presence (warehouse) timer is still ticking.
+ * ADMIN-ONLY helper. Close all open location_time_entries for a staff member
+ * that started before the given cutoff time.
+ *
+ * ⚠️ Do NOT call this from the mobile app. Mobile sessions authenticate via
+ * the custom `mobile-app-api` token, not a Supabase auth session, so this
+ * direct write fails silently and leaves orphan open rows. The mobile flow
+ * is now handled atomically server-side inside `handleStartTravelLog`.
+ *
+ * Use this only from web/admin code that runs under a real Supabase session.
  *
  * @param staffId  Staff member id.
  * @param beforeIso Cutoff ISO timestamp. Open entries with entered_at < this

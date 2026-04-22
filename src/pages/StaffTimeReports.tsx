@@ -320,11 +320,36 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(t.staff_id, a);
       }
 
+      // Build a map of open travel logs per staff (start_time only) so we can
+      // suppress any older still-open location_time_entries for the same staff
+      // that should have been closed at travel start. Server-side handler now
+      // does this atomically, but legacy/in-flight rows may still leak through.
+      const openTravelStartByStaff = new Map<string, number>();
+      for (const t of travel as any[]) {
+        if (t.end_time) continue;
+        if (!t.start_time) continue;
+        const ms = new Date(t.start_time).getTime();
+        const prev = openTravelStartByStaff.get(t.staff_id);
+        if (prev === undefined || ms < prev) openTravelStartByStaff.set(t.staff_id, ms);
+      }
+
       // Location-based time entries.
       // These are the canonical record for: warehouse stays, auto-assigned check-ins
       // on bookings, and large project check-ins. Choose the right label based on
       // what the row points to (booking_id > large_project_id > location_id).
       for (const e of locationEntries as any[]) {
+        // Suppress shadowed open LTE: if this row is still open AND a later
+        // open travel log exists for the same staff, the LTE is a "ghost"
+        // that should have been closed at travel start. Drop it from totals
+        // and segments so admin doesn't see two parallel "NU" timers.
+        if (!e.exited_at) {
+          const travelStartMs = openTravelStartByStaff.get(e.staff_id);
+          const enteredMs = new Date(e.entered_at).getTime();
+          if (travelStartMs !== undefined && enteredMs < travelStartMs) {
+            continue;
+          }
+        }
+
         const a = byStaff.get(e.staff_id) || newAgg();
         const isOpen = !e.exited_at;
         const hours = e.total_minutes
