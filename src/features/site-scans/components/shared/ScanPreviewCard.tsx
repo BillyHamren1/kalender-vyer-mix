@@ -74,11 +74,11 @@ export interface ScanPreviewData {
 
 interface ScanPreviewCardProps {
   scan: ScanPreviewData;
-  /** URL or path for the "Open in SiteScan" button. Defaults to /scans */
+  /** URL or path for the "Open in SiteScan" button. Defaults to /m/tools/measure */
   scanUrl?: string;
 }
 
-const ScanPreviewCard = ({ scan, scanUrl = "/scans" }: ScanPreviewCardProps) => {
+const ScanPreviewCard = ({ scan, scanUrl = "/m/tools/measure" }: ScanPreviewCardProps) => {
   const terrainMetrics = extractTerrainMetrics(scan.metrics_json);
 
   return (
