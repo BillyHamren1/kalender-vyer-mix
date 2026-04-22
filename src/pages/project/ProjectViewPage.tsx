@@ -188,9 +188,9 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Three-column: Filer, Uppgifter, Historik */}
-      <div className="grid grid-cols-1 gap-6 items-stretch">
-        <div className="flex flex-col h-full">
+      {/* Filer + Kommunikation sida vid sida */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        <div className="flex flex-col h-full min-h-[480px]">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
           <ProjectFiles
             files={files}
@@ -201,19 +201,18 @@ const ProjectViewPage = () => {
             className="h-full"
           />
         </div>
+
+        <div className="flex flex-col h-full min-h-[480px]">
+          <ProjectCommunication
+            projectId={project.id}
+            bookingId={bookingId ?? null}
+            senderName={projectLeaderDisplay || 'Projektledare'}
+            suppliers={suppliers}
+            linkedTaskRef={chatTaskRef}
+            onClearTaskRef={() => setChatTaskRef(null)}
+          />
+        </div>
       </div>
-
-
-
-      {/* Kommunikation */}
-      <ProjectCommunication
-        projectId={project.id}
-        bookingId={bookingId ?? null}
-        senderName={projectLeaderDisplay || 'Projektledare'}
-        suppliers={suppliers}
-        linkedTaskRef={chatTaskRef}
-        onClearTaskRef={() => setChatTaskRef(null)}
-      />
 
 
       {bookingId && (
