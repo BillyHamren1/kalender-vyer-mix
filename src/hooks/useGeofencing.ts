@@ -175,6 +175,53 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const staffIdRef = useRef(staffId);
   const activeTimersRef = useRef(activeTimers);
 
+  // ── Departure-promotion (Runda 1b) ─────────────────────────────────
+  // Spårar enter-tidpunkt per geofence-target. När user lämnar och varit inne
+  // ≥5 min → rapportera departure-event. Pure signal — ingen auto-stop.
+  const DEPARTURE_DWELL_MS = 5 * 60 * 1000;
+  const dwellTrackerRef = useRef<Map<string, {
+    enteredAtMs: number;
+    kind: 'location' | 'project' | 'booking';
+    targetId: string;
+    label: string | null;
+    reported: boolean;
+  }>>(new Map());
+
+  const noteEnterForDeparture = useCallback((
+    key: string,
+    kind: 'location' | 'project' | 'booking',
+    targetId: string,
+    label: string | null,
+  ) => {
+    const existing = dwellTrackerRef.current.get(key);
+    if (existing && !existing.reported) return;
+    dwellTrackerRef.current.set(key, {
+      enteredAtMs: Date.now(),
+      kind, targetId, label, reported: false,
+    });
+  }, []);
+
+  const maybeReportDeparture = useCallback((key: string, exitedAtIso: string) => {
+    const tracked = dwellTrackerRef.current.get(key);
+    if (!tracked || tracked.reported) return;
+    const dwellMs = new Date(exitedAtIso).getTime() - tracked.enteredAtMs;
+    if (dwellMs < DEPARTURE_DWELL_MS) {
+      dwellTrackerRef.current.delete(key);
+      return;
+    }
+    tracked.reported = true;
+    const dwellMin = Math.round(dwellMs / 60000);
+    mobileApi
+      .reportDeparture({
+        kind: tracked.kind,
+        target_id: tracked.targetId,
+        target_label: tracked.label,
+        departed_at: exitedAtIso,
+        dwell_minutes: dwellMin,
+      })
+      .catch((err) => console.warn('[Departure] report failed:', err?.message || err));
+  }, []);
+
   // Keep refs in sync
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
   useEffect(() => { activeTimersRef.current = activeTimers; }, [activeTimers]);
