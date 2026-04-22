@@ -276,11 +276,21 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
-        markWorkdayEnded();
-        // Server-anchor: close the workdays row. Fire-and-forget; the
-        // local 'workday-ended' event still drives the UI.
-        syncWorkDayEnd();
-        window.dispatchEvent(new CustomEvent('workday-ended'));
+        // SERVER-FIRST: close the workdays row and only update local
+        // state/UI after the server confirms. The server's `workdays`
+        // table is the source of truth — local cache + 'workday-ended'
+        // event are just UI hints derived from it.
+        const result = await syncWorkDayEnd();
+        if (result.ok) {
+          markWorkdayEnded();
+          window.dispatchEvent(new CustomEvent('workday-ended'));
+        } else {
+          toast.error(
+            result.error
+              ? `Kunde inte avsluta arbetsdagen: ${result.error}`
+              : 'Kunde inte avsluta arbetsdagen. Försök igen.',
+          );
+        }
       }
     }
   }, [handleStop, waitForLocalTimerDrain]);
@@ -295,13 +305,24 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // request-end-day: enqueue ALL active timers and process sequentially.
   // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
-    const onRequestEndDay = () => {
+    const onRequestEndDay = async () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        markWorkdayEnded();
-        syncWorkDayEnd();
-        window.dispatchEvent(new CustomEvent('workday-ended'));
-        toast.message(t('workday.noActiveTimers'));
+        // No active activity timers — still need to close the server's
+        // workdays row before flipping local state. Awaited so a failed
+        // server-end keeps the banner / day-pill honest.
+        const result = await syncWorkDayEnd();
+        if (result.ok) {
+          markWorkdayEnded();
+          window.dispatchEvent(new CustomEvent('workday-ended'));
+          toast.message(t('workday.noActiveTimers'));
+        } else {
+          toast.error(
+            result.error
+              ? `Kunde inte avsluta arbetsdagen: ${result.error}`
+              : 'Kunde inte avsluta arbetsdagen. Försök igen.',
+          );
+        }
         return;
       }
       // Avoid duplicate queueing if user fires the event twice
@@ -313,7 +334,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
     };
     window.addEventListener('request-end-day', onRequestEndDay);
     return () => window.removeEventListener('request-end-day', onRequestEndDay);
-  }, [timers, processNextEod]);
+  }, [timers, processNextEod, t]);
 
   if (location.pathname === '/m/report') return null;
 
