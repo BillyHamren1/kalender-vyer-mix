@@ -1,53 +1,51 @@
 
 
-# Fix: stäng första timern när resa startar — utan att röra dagtimern
+# Full översättning av mobilappen — alla synliga UI-strängar
 
-## Vad som ska hända
+## Mål
+När användaren väljer engelska i mobilappen ska **inget** svenskt visas. Inga halvöversatta dialoger, inga svenska toasts, inga svenska knappar.
 
-När en resa startar ska den öppna plats-/lager-timern (`location_time_entries`) stängas exakt vid resans `start_time`. Detta sker idag i klienten via en direkt Supabase-skrivning som inte har rätt auth → raden blir kvar öppen och admin ser två tickande timers.
+## Vad som täcks (allt UI i `/m/`)
 
-## Vad som INTE ska hända
+### Skärmar (pages)
+Alla sidor under `src/pages/mobile/`:
+- Hem, Mina jobb, Jobbdetalj, Tidrapport, Mina avvikelser, Mina flaggor, Profil, Inställningar, Inloggning, Resor, Kvitton, Meddelanden, Lager-uppgifter, Uppgiftsdetalj, m.fl.
+- Inkluderar: rubriker, tomma states ("Inga jobb idag"), filterchips, statusbadges, datum-/tidsformat, knapp­etiketter.
 
-**Dagtimern (WorkDayHeaderTimer) lämnas helt orörd.**
-- Inga ändringar i `useWorkDayTimer.ts`, `WorkDayHeaderTimer.tsx`, `MobileHeader.tsx` eller `workdayState.ts`.
-- Inga `workday-ended`-events skickas av denna fix.
-- Resan fortsätter ticka som aktivitets-timer → `timer-state-changed` håller dagtimern vid liv som vanligt.
-- Om något oväntat händer tar auto-recovery i `useWorkDayTimer` över (adopterar tidigaste aktiva `startTime`).
+### Dialoger & overlays
+Alla 14 dialoger från etapp 1 + alla övriga modaler:
+- Stop/Break, WorkDayAssistant, ActivityLeave, EndOfDay, AnomalyClassification, Arrival, EndDayOnArrivalHome, LastShift, NextAction, StaleDay, StaleTimer, TimerConflict, TravelCompleted, UnifiedArrival, Geofence, SmartArrival, samt bekräftelse-/varningsdialoger.
 
-## Ändringar
+### Komponenter i mobil-shell
+- `MobileHeader`, `MobileBottomNav`, `GlobalActiveTimerBanner`, `WorkDayHeaderTimer` (label only — siffror är språk­neutrala), notis-toasts, offline-banner, sync-indikator.
 
-### 1. `supabase/functions/mobile-app-api/index.ts`
-I `handleStartTravelLog`: innan resan skapas, hitta alla öppna `location_time_entries` för samma `staff_id` och stäng dem med `exited_at = travel.start_time` + beräknat `total_minutes`. Atomisk, server-säker, auth-korrekt.
+### Toasts & systemmeddelanden
+Alla `toast.success/error/info`-anrop som skickas från mobilkoden — felmeddelanden vid timer-start, sparbekräftelser, GPS-fel, nätverksfel, etc.
 
-### 2. `src/hooks/useTravelDetection.ts`
-Ta bort anropet till `closeOpenEntriesForStaff(...)` (klient-skrivvägen som inte fungerar). Klienten startar bara resan via `mobileApi.createTravelLog(...)` och servern sköter resten.
+### Formulär
+Placeholders, valideringsfel, hjälptexter, knappar (Spara/Avbryt/Bekräfta osv).
 
-### 3. `src/services/locationTimeService.ts`
-Markera `closeOpenEntriesForStaff` som admin-only (används kvar i admin-vyer som har full Supabase-session). Mobilen använder den inte längre.
+## Arbetssätt
 
-### 4. `src/pages/StaffTimeReports.tsx`
-- Räkna live-tid för öppna `travel_time_logs` (inte 0).
-- Filtrera bort äldre öppen `location_time_entries` om det finns en senare öppen resa för samma staff samma dag (visar inte längre "spöktimer").
+1. **Inventera**: gå igenom varje fil under `src/pages/mobile/` och `src/components/mobile-app/` och lista varje hårdkodad svensk sträng.
+2. **Lägg in nycklar**: alla strängar läggs in i `src/i18n/translations.ts` med svenska + engelska parallellt.
+3. **Koppla in**: byt ut hårdkodade strängar mot `t('nyckel')` (med interpolation där det behövs, t.ex. `t('greeting', { name })`).
+4. **Verifiera per skärm**: gå igenom appen skärm för skärm i engelskt läge och bekräfta att inget svenskt syns.
+5. **Lås in**: lägg till en enkel lint-regel/guideline så framtida kod aldrig kan introducera hårdkodad svenska i `/m/`.
 
-### 5. Engångsreparation av befintlig data
-SQL-migration som stänger redan korrupta öppna `location_time_entries` som överlappar en senare öppen `travel_time_logs` för samma staff. Cutoff = resans `start_time`.
+## Etapper (så du ser progress, inte en jätteklump)
 
-## Filer
-- `supabase/functions/mobile-app-api/index.ts`
-- `src/hooks/useTravelDetection.ts`
-- `src/services/locationTimeService.ts`
-- `src/pages/StaffTimeReports.tsx`
-- Ny migration
+- **Etapp A — Dialoger** (de 14 från förra omgången): koppla in nycklarna jag redan lagt in.
+- **Etapp B — Mobil-shell**: header, bottom nav, banners, toasts.
+- **Etapp C — Huvudskärmar**: Hem, Mina jobb, Jobbdetalj, Tidrapport.
+- **Etapp D — Sekundära skärmar**: Resor, Kvitton, Meddelanden, Lager-uppgifter, Profil, Inställningar, Mina flaggor, Mina avvikelser.
+- **Etapp E — Slutgenomgång**: jag går igenom appen i engelskt läge och fixar allt jag ser som fortfarande är svenskt.
 
-## Filer som garanterat INTE ändras
-- `src/hooks/useWorkDayTimer.ts`
-- `src/components/mobile-app/WorkDayHeaderTimer.tsx`
-- `src/components/mobile-app/MobileHeader.tsx`
-- `src/services/workdayState.ts`
-- `src/components/mobile-app/GlobalActiveTimerBanner.tsx` (EOD-flödet)
+Efter varje etapp får du tillbaka appen i fungerande skick — du kan testa och säga "fortsätt".
 
-## Effekt
-- Dubbel "NU"-bugg försvinner — bara resan är öppen efter resestart.
-- Dagtimern fortsätter rulla obrutet under hela arbetspasset.
-- Admin-totalen blir korrekt även med öppen resa.
+## Vad du som användare behöver göra
+Ingenting tekniskt. Bara byta språk i appen och säga till om du ser något svenskt kvar.
+
+## Garanti
+Inga ändringar i logik, dataflöden, timer-arkitektur eller dagtimer. Bara strängar.
 
