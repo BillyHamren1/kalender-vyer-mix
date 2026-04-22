@@ -425,7 +425,7 @@ const MobileTimeReport = () => {
               const totalHours = reports.reduce((sum, r) => sum + (r.hours_worked || 0), 0);
               const isToday = date === format(new Date(), 'yyyy-MM-dd');
               const dateLabel = isToday
-                ? 'Idag'
+                ? t('time.today')
                 : format(parseISO(date), 'd MMM yyyy');
 
               return (
@@ -442,7 +442,7 @@ const MobileTimeReport = () => {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {r.large_project_name || r.bookings?.client || 'Okänt jobb'}
+                          {r.large_project_name || r.bookings?.client || t('time.unknownJob')}
                         </p>
                         {r.description && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>
@@ -451,7 +451,7 @@ const MobileTimeReport = () => {
                           {r.start_time && r.end_time
                             ? `${r.start_time.slice(0, 5)} – ${r.end_time.slice(0, 5)}`
                             : ''}
-                          {r.break_time > 0 ? ` · ${r.break_time} h rast` : ''}
+                          {r.break_time > 0 ? ` · ${r.break_time} h ${t('time.breakSuffix')}` : ''}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -459,7 +459,7 @@ const MobileTimeReport = () => {
                           {formatHoursMinutes(r.hours_worked)}
                         </p>
                         {r.overtime_hours > 0 && (
-                          <p className="text-[10px] text-muted-foreground">+{r.overtime_hours} h övertid</p>
+                          <p className="text-[10px] text-muted-foreground">+{r.overtime_hours} h {t('time.overtimeSuffix')}</p>
                         )}
                         {r.approved && (
                           <Check className="w-3.5 h-3.5 text-primary inline-block" />
