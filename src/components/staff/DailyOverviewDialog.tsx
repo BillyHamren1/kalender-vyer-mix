@@ -504,27 +504,6 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         </div>
 
-        {false && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">In- och utloggningar</h4>
-            <div className="grid grid-cols-1 gap-1 text-xs">
-              {[].map((p: any, i: number) => (
-                <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30">
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5"
-                  >
-                    {i + 1}
-                  </div>
-                  <span className="font-medium shrink-0">{p.label} {p.time}</span>
-                  <span className="flex-1 text-muted-foreground break-words min-w-0">{p.passLabel}</span>
-                  <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                    {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );
