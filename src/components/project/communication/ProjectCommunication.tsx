@@ -175,20 +175,24 @@ const ProjectCommunication = ({ projectId, bookingId, senderName, suppliers, lin
                 </div>
               )}
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
-                isSending={isSending}
-                onSend={handleSend}
-                emptyText="Inga interna meddelanden ännu. Skriv till ditt team."
-                placeholder={linkedTaskRef ? `Kommentera om "${linkedTaskRef.taskTitle}"...` : "Skriv till teamet..."}
+                messages={internalMessages}
+                isLoading={isLoadingJob}
+                isSending={isSendingInternal}
+                onSend={handleSendInternal}
+                emptyText={
+                  bookingId
+                    ? "Inga interna meddelanden ännu. Skriv till projektgruppens chatt."
+                    : "Det här projektet saknar koppling till en bokning – ingen gruppchatt tillgänglig."
+                }
+                placeholder={linkedTaskRef ? `Kommentera om "${linkedTaskRef.taskTitle}" till teamet...` : "Skriv till projektgruppens chatt..."}
               />
             </TabsContent>
             <TabsContent value="supplier" className="h-full m-0">
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
+                messages={projectMessages}
+                isLoading={isLoadingProject}
                 isSending={isSending}
-                onSend={handleSend}
+                onSend={handleSendSupplierOrClient}
                 emptyText={
                   confirmedSuppliers.length === 0
                     ? "Lägg till underleverantörer för att starta kommunikation."
@@ -199,10 +203,10 @@ const ProjectCommunication = ({ projectId, bookingId, senderName, suppliers, lin
             </TabsContent>
             <TabsContent value="client" className="h-full m-0">
               <MessageThread
-                messages={messages}
-                isLoading={isLoading}
+                messages={projectMessages}
+                isLoading={isLoadingProject}
                 isSending={isSending}
-                onSend={handleSend}
+                onSend={handleSendSupplierOrClient}
                 emptyText="Ingen kundkommunikation loggad ännu."
                 placeholder="Logga kundkommunikation..."
               />
