@@ -1,53 +1,43 @@
 
 
-# Fix: Travel-timern stannar inte när du redan är på lagret
+# Fix: Mätning öppnar fel sida (visar admin-listan "Scans" istället för mobil mätning)
 
-## Vad som hände
-- 09:40 startade restimern (Bauhaus-ish → mot lagret).
-- 09:43 anlände du till FA Warehouse (du är ~40m från lagrets centrum, geofence-radie 200m).
-- Restimern fortsatte ändå att ticka — den står på 00:43:38 fast du sitter still på lagret.
+## Vad som händer nu
+- Du trycker **Verktyg → Mätning** i mobilappen.
+- `/m/tools/measure` är routad till `src/features/site-scans/pages/Scans.tsx`, som är en **admin-listvy** för SiteScan-plattformen (rubrik: "Scans · Alla 3D- och höjdscans från LiDAR-enheter", med statusfilter, sortering, paginering, MoreHorizontal-meny etc.).
+- Det är inte en mätarbetsyta — det är CMS-sidan för site-scans. Därav känslan "den öppnar Ytskanning/Scan istället för Mätning".
 
-## Rotorsak (verifierat mot DB + kod)
-I `useGeofencing.ts` skickas `STOP_TRAVEL_EVENT` (signalen som stoppar `travel_time_logs`) bara i en mycket smal ENTER-gren:
+## Vad du faktiskt vill ha bakom Mätning
+En mobilanpassad **Mätning-vy** som:
+1. Visar dina egna senaste mätningar (inte hela orgens lista, ingen status-/sortering/paginering).
+2. Har en stor primär CTA: **"Ny mätning"** (startar capture-flödet eller upload-flöde).
+3. Listar varje mätning som en mobilkort-rad (titel, datum, status-pil, eventuell preview-thumb).
+4. Tap på rad → `/m/tools/measure/:id` (befintlig `ScanDetail` — den fungerar och har korrekt back-knapp).
 
-```text
-om (inom radie) OCH (ingen aktiv timer för platsen) OCH (inte redan triggrat ENTER i minnet)
-   → emitStopTravelOnArrival()
-```
+Admin-listsidan (Scans.tsx) får ligga kvar för desktop SiteScan-modulen (om/när den används där) men slutar vara mobilappens Mätning.
 
-Det betyder att travel-raden bara stängs om geofencen "transitionar" från ute → inne **just i den browsersession** travel startades. Allt annat tystar stoppet:
-- App omstartad / fliken refreshad medan du redan var inne → ingen ENTER-transition → travel stannar inte.
-- Lager-/projekt-timer redan aktiv (`hasTimer = true`) → hela ENTER-blocket hoppas över → travel stannar inte.
-- ENTER triggrades en gång tidigare i sessionen (`triggeredEnterRef.current.has(key)`) → resan startar igen senare, du kommer tillbaka till lagret, ingen ny ENTER fyras → travel stannar inte.
+## Tekniska ändringar
 
-DB bekräftar: din travel-rad `7a9c…b38` är öppen (end_time = NULL) och du har ingen `location_time_entries`-rad för lagret idag, men `staff_locations` visar att du är 40m från FA Warehouse-centrum sedan 09:25.
+**Nya filer:**
+- `src/pages/mobile/MobileMeasure.tsx` — ren mobilvy:
+  - Hämtar egna scans via befintlig `useSiteScansList` med filter `created_by = current user` och `page_size: 20`.
+  - Stor "Ny mätning"-knapp överst (öppnar capture/start-dialog — placeholder toast om backend-flödet inte är på plats än, men knappen finns).
+  - Lista i samma mobilstil som `MobileToolsHub` (kort med icon + titel + meta + chevron).
+  - Tom state: "Inga mätningar ännu — tryck Ny mätning för att börja".
+  - Tap på rad → `navigate('/m/tools/measure/' + id)`.
 
-## Fix
+**Ändrade filer:**
+- `src/shells/TimeAppShell.tsx` — `/m/tools/measure` pekar om från `SiteScansPage` till nya `MobileMeasure`. `/m/tools/measure/:id` → `SiteScanDetailPage` orörd.
+- `src/features/site-scans/pages/ScanDetail.tsx` — back-knappen går redan till `/m/tools/measure`, ingen ändring behövs.
 
-Bryt ut "är jag inne i en känd geofence?" till en separat, **timer-oberoende** check som körs varje GPS-tick **så länge en travel-rad är öppen**:
-
-1. Ny effekt i `useGeofencing.ts` (eller direkt i `useTravelDetection.ts`):
-   - Om `travelState.activeTravelLogId` finns OCH `userPosition` ligger inom någon känd geofence (org_location ELLER booking ELLER large_project som du är assigned på)
-   - → fyra `STOP_TRAVEL_EVENT` med din nuvarande position, oberoende av `hasTimer` / `triggeredEnterRef` / accuracy-gating.
-2. Behåll befintlig ENTER-logik för UI-prompten ("Du är på X — vill du klocka in?"). Bara stop-signalen frikopplas.
-3. Lägg till en watchdog: när `useTravelDetection` mountar och en öppen travel-rad finns i state, gör en engångskoll mot senaste GPS-position direkt — så ett app-reload på lagret stänger raden inom sekunder istället för att vänta på en transition som aldrig kommer.
-4. Logga tydligt i konsolen: `[TravelDetection] Stopping travel — user already inside <name> geofence`.
-
-## Tekniska detaljer
-
-Filer som ändras:
-- `src/hooks/useGeofencing.ts` — ny "presence stop"-effekt som löper parallellt med ENTER-logiken.
-- `src/hooks/useTravelDetection.ts` — vid mount, om `activeTravelLogId` finns och vi har en GPS-position, dispatch:a `STOP_TRAVEL_EVENT` för att utvärderas av geofencing-hooken (eller direkt om vi vet att vi är inne).
-
-Vad som **inte** ändras:
-- ENTER/EXIT-promptar, anomaly-tracking, arrival-prompt-flödet, klassificeringsdialog.
-- Backend (`mobile-app-api.handleStopTravelLog`) — anropas via befintlig `mobileApi.stopTravelLog`.
-- Restimerns auto-START-logik (15s sustained speed). Den är OK.
-
-## Engångsstädning
-Din nuvarande öppna rad (`7a9c8eb2-f9bf-48ff-9726-19a7e8789b38`) stängs automatiskt så fort fixen är live och appen tar nästa GPS-tick på lagret. Vill du att jag även stänger den manuellt i samma deploy med end_time = nu och to_address = FA Warehouse? (Default: ja, så slipper du jaga den.)
+**Inte rört:**
+- `Scans.tsx`, `Dashboard.tsx`, `Operations.tsx`, `Processing.tsx`, `Assets.tsx`, `Sessions.tsx` — desktop SiteScan-modul.
+- Scanner-flöden, kamera-flöden, övriga Time-app-routes.
+- Edge functions, DB, RLS.
 
 ## Resultat
-- Restimern stannar inom någon sekund efter att du anländer till lagret/projektet/bokningen — även om appen startats om eller en lager-timer redan körde.
-- "På resa" försvinner från headern direkt och dagen visar korrekt **23:53 → 09:43 = Resa**, sedan **09:43 → pågår = Lager**.
+- **Verktyg → Mätning** → en ren mobilvy med "Ny mätning" + dina mätningar.
+- Tap på en mätning → samma detalj-sida som idag.
+- Tillbaka-knappen → tillbaka till mobil-mätningen.
+- Den gamla admin-vyn "Scans" finns kvar för desktop-modulen men är inte längre i Time-appens flöde.
 
