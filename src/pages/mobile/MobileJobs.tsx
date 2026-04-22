@@ -160,12 +160,26 @@ const MobileJobs = () => {
         title={staff?.name?.split(' ')[0] || 'Hej'}
         subtitle={t('jobs.subtitle')}
         rightAction={
-          <button
-            onClick={() => refetch()}
-            className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
-          >
-            <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => navigate('/m/day-review')}
+              className="relative p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+              aria-label="Dagavstämning"
+            >
+              <ClipboardCheck className="w-4.5 h-4.5 text-primary-foreground/80" />
+              {needsReviewCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  {needsReviewCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => refetch()}
+              className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+            >
+              <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
+            </button>
+          </div>
         }
       />
 
