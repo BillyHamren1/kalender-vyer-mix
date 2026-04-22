@@ -1,21 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users, Truck, User, ListChecks } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import MessageThread from "./MessageThread";
 import { useProjectMessages } from "@/hooks/useProjectMessages";
+import { useJobChat } from "@/hooks/useJobChat";
+import { sendJobMessage } from "@/services/jobChatService";
+import { toast } from "sonner";
 import type { MergedSupplier } from "@/types/supplier";
-import type { ProjectMessageType } from "@/types/projectMessage";
+import type { ProjectMessage, ProjectMessageType } from "@/types/projectMessage";
+import type { JobMessage } from "@/services/jobChatService";
 
 interface ProjectCommunicationProps {
   projectId: string;
+  /** Booking id for the project's group chat (job_messages). Required for the Internal tab. */
+  bookingId: string | null;
   senderName: string;
   suppliers: MergedSupplier[];
   /** When set, auto-scrolls to internal tab with task reference pre-filled */
   linkedTaskRef?: { taskId: string; taskTitle: string } | null;
   onClearTaskRef?: () => void;
 }
+
+/** Adapt a job_messages row into the ProjectMessage shape MessageThread expects. */
+const jobMessageToProjectMessage = (m: JobMessage, projectId: string): ProjectMessage => ({
+  id: m.id,
+  project_id: projectId,
+  project_supplier_link_id: null,
+  linked_task_id: null,
+  type: 'internal',
+  message: m.content,
+  sender_name: m.sender_name,
+  created_at: m.created_at,
+});
 
 const tabClass =
   "relative px-4 py-2.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
