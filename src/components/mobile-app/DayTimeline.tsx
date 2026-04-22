@@ -98,6 +98,7 @@ const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.ev
 
 const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const today = date ?? new Date();
   const dayStartBase = startOfDay(today);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -235,7 +236,7 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                    {eventTypeLabel[shift.event_type]}
+                    {t(eventTypeI18nKey[shift.event_type])}
                   </span>
                   <span className="text-[10px] font-mono opacity-70">
                     {format(parseISO(shift.start_time), 'HH:mm')}–
