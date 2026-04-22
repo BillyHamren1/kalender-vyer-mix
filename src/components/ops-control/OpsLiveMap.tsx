@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map, Satellite, Clock, Wifi, Building2 } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2 } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -69,6 +69,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showOrgLocations, setShowOrgLocations] = useState(true);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
+
+  // Hover tooltip state for staff/clusters on the map
+  const [hoverTip, setHoverTip] = useState<{
+    x: number;
+    y: number;
+    members: Array<{ id: string; name: string; status: StaffStatus; teamName?: string | null; lastSeen?: string | null; isOffline?: boolean }>;
+  } | null>(null);
+
+  // Cluster picker (shown when user clicks a cluster but cannot zoom further)
+  const [clusterPicker, setClusterPicker] = useState<{
+    x: number;
+    y: number;
+    members: StaffLocation[];
+  } | null>(null);
 
   // Init map
   useEffect(() => {
@@ -281,25 +295,86 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
     const staffWithCoords = locations.filter(loc => loc.latitude && loc.longitude);
 
+    // Build pixel-grid clusters so overlapping staff merge into one marker.
+    // We snap each point to a grid cell sized in pixels at the current zoom.
+    const zoom = m.getZoom();
+    // Cell size shrinks slightly at higher zoom so people nearby separate when you zoom in.
+    const CELL_PX = zoom >= 16 ? 22 : zoom >= 13 ? 30 : 38;
+
+    type ClusterGroup = {
+      key: string;
+      lng: number;
+      lat: number;
+      members: StaffLocation[];
+      statuses: StaffStatus[];
+    };
+    const groups = new Map<string, ClusterGroup>();
+
+    staffWithCoords.forEach(loc => {
+      const status = getStaffStatus(loc, mapJobs);
+      const p = m.project([loc.longitude!, loc.latitude!]);
+      const cx = Math.round(p.x / CELL_PX);
+      const cy = Math.round(p.y / CELL_PX);
+      const key = `${cx}:${cy}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.members.push(loc);
+        existing.statuses.push(status);
+      } else {
+        groups.set(key, {
+          key,
+          lng: loc.longitude!,
+          lat: loc.latitude!,
+          members: [loc],
+          statuses: [status],
+        });
+      }
+    });
+
+    // Status priority: on_site > on_way > idle (for cluster color when mixed → use highest priority)
+    const statusPriority: Record<StaffStatus, number> = { on_site: 3, on_way: 2, idle: 1 };
+
     const staffGeoJson = {
       type: 'FeatureCollection',
-      features: staffWithCoords.map(loc => {
-        const status = getStaffStatus(loc, mapJobs);
-        const hasRecentGps = Boolean(loc.isGps && !loc.isOffline);
+      features: Array.from(groups.values()).map(g => {
+        const isCluster = g.members.length > 1;
+        const allSameStatus = g.statuses.every(s => s === g.statuses[0]);
+        const dominantStatus = g.statuses.reduce((a, b) =>
+          statusPriority[a] >= statusPriority[b] ? a : b
+        );
+        const color = allSameStatus
+          ? statusStyles[g.statuses[0]].color
+          : statusStyles[dominantStatus].color;
+
+        // Highlight if any member is in selected job
+        const isHighlighted = g.members.some(loc => assignedIds.has(loc.id));
+        // Recent GPS if any member has it
+        const hasRecentGps = g.members.some(loc => Boolean(loc.isGps && !loc.isOffline));
+        // Offline only if ALL members are offline
+        const allOffline = g.members.every(loc => loc.isOffline);
+
+        const memberIds = g.members.map(loc => loc.id).join(',');
+        const label = isCluster
+          ? String(g.members.length)
+          : g.members[0].name.charAt(0).toUpperCase();
 
         return {
           type: 'Feature',
           geometry: {
             type: 'Point',
-            coordinates: [loc.longitude!, loc.latitude!],
+            coordinates: [g.lng, g.lat],
           },
           properties: {
-            id: loc.id,
-            initial: loc.name.charAt(0).toUpperCase(),
-            color: statusStyles[status].color,
-            isHighlighted: assignedIds.has(loc.id) ? 1 : 0,
+            id: g.members[0].id,
+            memberIds,
+            clusterSize: g.members.length,
+            isCluster: isCluster ? 1 : 0,
+            initial: label,
+            color,
+            mixedStatus: !allSameStatus ? 1 : 0,
+            isHighlighted: isHighlighted ? 1 : 0,
             hasRecentGps: hasRecentGps ? 1 : 0,
-            isOffline: loc.isOffline ? 1 : 0,
+            isOffline: allOffline ? 1 : 0,
           },
         };
       }),
@@ -307,8 +382,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     console.debug('[OpsLiveMap] render staff', {
       count: staffWithCoords.length,
+      groups: groups.size,
       total: locations.length,
-      sample: staffWithCoords[0]?.name,
     });
 
     let cancelled = false;
@@ -343,7 +418,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           source: STAFF_SOURCE_ID,
           filter: ['==', ['get', 'isHighlighted'], 1],
           paint: {
-            'circle-radius': 17,
+            'circle-radius': 21,
             'circle-color': 'hsl(184, 55%, 38%)',
             'circle-opacity': 0.22,
             'circle-stroke-color': '#ffffff',
@@ -359,11 +434,27 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'circle',
           source: STAFF_SOURCE_ID,
           paint: {
-            'circle-radius': 13,
+            // Larger base + grow with cluster size
+            'circle-radius': [
+              'interpolate', ['linear'], ['get', 'clusterSize'],
+              1, 16,
+              3, 19,
+              6, 22,
+              10, 26,
+            ],
             'circle-color': ['get', 'color'],
             'circle-opacity': ['case', ['==', ['get', 'isOffline'], 1], 0.55, 1],
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 3,
+            // Darker outer ring for clusters with mixed statuses
+            'circle-stroke-color': [
+              'case',
+              ['==', ['get', 'mixedStatus'], 1], '#1f2937',
+              '#ffffff',
+            ],
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'isCluster'], 1], 3.5,
+              3,
+            ],
             'circle-stroke-opacity': 1,
           },
         }, beforeId);
@@ -376,15 +467,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           source: STAFF_SOURCE_ID,
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': 11,
+            'text-size': [
+              'interpolate', ['linear'], ['get', 'clusterSize'],
+              1, 12,
+              3, 13,
+              6, 14,
+            ],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0,0,0,0.08)',
-            'text-halo-width': 0.5,
+            'text-halo-color': 'rgba(0,0,0,0.55)',
+            'text-halo-width': 1.4,
           },
         });
       }
@@ -394,69 +490,87 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           id: STAFF_GPS_DOT_LAYER_ID,
           type: 'circle',
           source: STAFF_SOURCE_ID,
-          filter: ['==', ['get', 'hasRecentGps'], 1],
+          filter: ['all',
+            ['==', ['get', 'hasRecentGps'], 1],
+            ['==', ['get', 'isCluster'], 0],
+          ],
           paint: {
             'circle-radius': 4,
             'circle-color': '#22c55e',
             'circle-stroke-color': '#ffffff',
             'circle-stroke-width': 1.5,
-            'circle-translate': [8, -8],
+            'circle-translate': [10, -10],
             'circle-opacity': 1,
           },
         });
       }
 
-      // Fallback: HTML markers if WebGL layer didn't register
-      if (!mm.getLayer(STAFF_MARKER_LAYER_ID)) {
-        console.warn('[OpsLiveMap] WebGL layer missing, falling back to HTML markers');
-        staffMarkersRef.current.forEach(mk => mk.remove());
-        staffMarkersRef.current = [];
-        staffWithCoords.forEach(loc => {
-          const status = getStaffStatus(loc, mapJobs);
-          const el = document.createElement('div');
-          el.style.cssText = `
-            width: 26px; height: 26px; border-radius: 50%;
-            background: ${statusStyles[status].color};
-            border: 3px solid white;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-            color: white; font-weight: 700; font-size: 11px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; opacity: ${loc.isOffline ? 0.55 : 1};
-          `;
-          el.textContent = loc.name.charAt(0).toUpperCase();
-          el.addEventListener('click', () => {
-            setStaffPanel(loc);
-            setSelectedJob(null);
-          });
-          const mk = new mapboxgl.Marker({ element: el })
-            .setLngLat([loc.longitude!, loc.latitude!])
-            .addTo(mm);
-          staffMarkersRef.current.push(mk);
-        });
-      }
+      const findMembers = (memberIdsStr: string) => {
+        const ids = memberIdsStr.split(',');
+        return ids
+          .map(id => locations.find(l => l.id === id))
+          .filter((l): l is StaffLocation => Boolean(l));
+      };
 
       const handleStaffClick = (event: mapboxgl.MapLayerMouseEvent) => {
         const feature = event.features?.[0];
-        const staffId = feature?.properties?.id;
-        if (!staffId) return;
-        const location = locations.find(loc => loc.id === staffId);
-        if (!location) return;
-        setStaffPanel(location);
-        setSelectedJob(null);
+        if (!feature) return;
+        const memberIdsStr = (feature.properties?.memberIds as string) || '';
+        const members = findMembers(memberIdsStr);
+        if (members.length === 0) return;
+
+        if (members.length === 1) {
+          setStaffPanel(members[0]);
+          setSelectedJob(null);
+          setClusterPicker(null);
+          return;
+        }
+
+        // Cluster click: zoom in if not already deep
+        const z = mm.getZoom();
+        if (z < 16) {
+          mm.flyTo({
+            center: (feature.geometry as GeoJSON.Point).coordinates as [number, number],
+            zoom: Math.min(z + 2, 17),
+            duration: 600,
+          });
+          setClusterPicker(null);
+        } else {
+          // Show picker
+          setClusterPicker({
+            x: event.point.x,
+            y: event.point.y,
+            members,
+          });
+        }
       };
 
-      const handleMouseEnter = () => {
+      const handleMouseMove = (event: mapboxgl.MapLayerMouseEvent) => {
         mm.getCanvas().style.cursor = 'pointer';
+        const feature = event.features?.[0];
+        if (!feature) return;
+        const memberIdsStr = (feature.properties?.memberIds as string) || '';
+        const members = findMembers(memberIdsStr).map(loc => ({
+          id: loc.id,
+          name: loc.name,
+          status: getStaffStatus(loc, mapJobs),
+          teamName: loc.teamName,
+          lastSeen: loc.lastReportTime,
+          isOffline: loc.isOffline,
+        }));
+        if (members.length === 0) return;
+        setHoverTip({ x: event.point.x, y: event.point.y, members });
       };
 
       const handleMouseLeave = () => {
         mm.getCanvas().style.cursor = '';
+        setHoverTip(null);
       };
 
       mm.on('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
       mm.on('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
-      mm.on('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
-      mm.on('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+      mm.on('mousemove', STAFF_MARKER_LAYER_ID, handleMouseMove);
+      mm.on('mousemove', STAFF_LABEL_LAYER_ID, handleMouseMove);
       mm.on('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
       mm.on('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
 
@@ -464,8 +578,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         if (!map.current) return;
         map.current.off('click', STAFF_MARKER_LAYER_ID, handleStaffClick);
         map.current.off('click', STAFF_LABEL_LAYER_ID, handleStaffClick);
-        map.current.off('mouseenter', STAFF_MARKER_LAYER_ID, handleMouseEnter);
-        map.current.off('mouseenter', STAFF_LABEL_LAYER_ID, handleMouseEnter);
+        map.current.off('mousemove', STAFF_MARKER_LAYER_ID, handleMouseMove);
+        map.current.off('mousemove', STAFF_LABEL_LAYER_ID, handleMouseMove);
         map.current.off('mouseleave', STAFF_MARKER_LAYER_ID, handleMouseLeave);
         map.current.off('mouseleave', STAFF_LABEL_LAYER_ID, handleMouseLeave);
       };
@@ -473,9 +587,16 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     applyLayers();
 
+    // Re-cluster on zoom changes so cluster cells stay visually consistent.
+    const handleZoomEnd = () => {
+      setStyleRevision(prev => prev + 1);
+    };
+    m.on('zoomend', handleZoomEnd);
+
     return () => {
       cancelled = true;
       cleanupHandlers?.();
+      if (map.current) map.current.off('zoomend', handleZoomEnd);
     };
   }, [mapReady, locations, mapJobs, selectedJob, styleRevision]);
 
@@ -730,7 +851,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           {mapStyle === 'streets' ? (
             <Satellite className="w-4 h-4 text-muted-foreground" />
           ) : (
-            <Map className="w-4 h-4 text-foreground" />
+            <MapIcon className="w-4 h-4 text-foreground" />
           )}
         </button>
         <button
@@ -825,18 +946,102 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       )}
 
+      {/* Hover tooltip — shows ALL names when hovering a staff marker or cluster */}
+      {hoverTip && hoverTip.members.length > 0 && (
+        <div
+          className="pointer-events-none absolute z-30 bg-popover text-popover-foreground border border-border rounded-md shadow-lg px-2.5 py-1.5"
+          style={{
+            left: Math.min(hoverTip.x + 14, (wrapperRef.current?.clientWidth || 800) - 290),
+            top: Math.max(hoverTip.y - 8, 8),
+            minWidth: 180,
+            maxWidth: 280,
+            maxHeight: 240,
+            overflowY: 'auto',
+          }}
+        >
+          {hoverTip.members.length > 1 && (
+            <div className="text-[9px] font-bold uppercase text-muted-foreground mb-1">
+              {hoverTip.members.length} personer på platsen
+            </div>
+          )}
+          <div className="space-y-1">
+            {hoverTip.members.map(m => (
+              <div key={m.id} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                <span
+                  className="w-2 h-2 rounded-full shrink-0 mt-1"
+                  style={{ background: statusStyles[m.status].color, opacity: m.isOffline ? 0.55 : 1 }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-foreground break-words">{m.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {statusStyles[m.status].label}
+                    {m.teamName && ` · ${m.teamName}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cluster picker — shown when clicking a cluster that cannot be zoomed apart */}
+      {clusterPicker && (
+        <div
+          className="absolute z-40 bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+          style={{
+            left: Math.min(clusterPicker.x + 10, (wrapperRef.current?.clientWidth || 800) - 240),
+            top: Math.max(clusterPicker.y - 10, 8),
+            width: 230,
+            maxHeight: 300,
+          }}
+        >
+          <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Välj person</span>
+            <button onClick={() => setClusterPicker(null)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+          </div>
+          <div className="overflow-y-auto" style={{ maxHeight: 250 }}>
+            {clusterPicker.members.map(loc => {
+              const status = getStaffStatus(loc, mapJobs);
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => {
+                    setStaffPanel(loc);
+                    setSelectedJob(null);
+                    setClusterPicker(null);
+                  }}
+                  className="w-full flex items-start gap-2 px-2.5 py-1.5 text-left hover:bg-muted transition-colors border-b border-border/30 last:border-0"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
+                    style={{ background: statusStyles[status].color, opacity: loc.isOffline ? 0.55 : 1 }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold text-foreground break-words">{loc.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {statusStyles[status].label}
+                      {loc.teamName && ` · ${loc.teamName}`}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Staff quick panel */}
       {staffPanel && (
-        <div className="absolute bottom-2 right-2 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
-          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
+        <div className="absolute bottom-2 right-2 w-72 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
+          <div className="px-3 py-2 border-b border-border flex items-start justify-between gap-2">
+            <div className="flex items-start gap-1.5 min-w-0 flex-1">
               <div
-                className="w-2.5 h-2.5 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
                 style={{ background: statusStyles[getStaffStatus(staffPanel, mapJobs)].color }}
               />
-              <span className="text-[11px] font-bold text-foreground truncate">{staffPanel.name}</span>
+              <span className="text-[11px] font-bold text-foreground break-words leading-tight">{staffPanel.name}</span>
             </div>
-            <button onClick={() => setStaffPanel(null)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+            <button onClick={() => setStaffPanel(null)} className="text-muted-foreground hover:text-foreground text-xs shrink-0">✕</button>
           </div>
           <div className="px-3 py-2 space-y-1.5">
             <div className="text-[10px] text-muted-foreground">
