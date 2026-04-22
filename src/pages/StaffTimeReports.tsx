@@ -475,6 +475,7 @@ const StaffTimeReports: React.FC = () => {
           staffId={selectedStaffId}
           staffName={selectedStaffName}
           initialDate={selectedDate}
+          autoOpenDailyOverviewDate={dateStr}
         />
       </PageContainer>
     );
