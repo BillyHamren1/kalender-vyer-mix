@@ -1,58 +1,53 @@
 
 
-# Håll alla användare inloggade — eliminera oavsiktliga utloggningar
+# Fix: stäng första timern när resa startar — utan att röra dagtimern
 
-## Problem (rotorsaker)
+## Vad som ska hända
 
-**Mobil (Time-app):**
-- Egen token i `mobile-app-api` har **hård 24h expiry** (`TOKEN_EXPIRY_HOURS = 24`) och **ingen refresh-mekanism**. Efter 24h → 401 → `clearAuth()` → tillbaka till login-skärmen.
-- `verifyToken()` returnerar bara `valid:false` när tiden gått ut, aldrig en förnyad token.
+När en resa startar ska den öppna plats-/lager-timern (`location_time_entries`) stängas exakt vid resans `start_time`. Detta sker idag i klienten via en direkt Supabase-skrivning som inte har rätt auth → raden blir kvar öppen och admin ser två tickande timers.
 
-**Webb (Planning):**
-- `AuthContext` behandlar `event === 'TOKEN_REFRESHED' && !session` som "logga ut nu". I praktiken kan refresh-eventet komma med tom session vid tillfälliga nätverksfel/sleep — då blir användaren oväntat utloggad trots att refresh-token fortfarande är giltig.
-- `getSession()`-error → setSession(null) ger samma symptom vid tillfälliga fel.
+## Vad som INTE ska hända
 
-## Lösning
+**Dagtimern (WorkDayHeaderTimer) lämnas helt orörd.**
+- Inga ändringar i `useWorkDayTimer.ts`, `WorkDayHeaderTimer.tsx`, `MobileHeader.tsx` eller `workdayState.ts`.
+- Inga `workday-ended`-events skickas av denna fix.
+- Resan fortsätter ticka som aktivitets-timer → `timer-state-changed` håller dagtimern vid liv som vanligt.
+- Om något oväntat händer tar auto-recovery i `useWorkDayTimer` över (adopterar tidigaste aktiva `startTime`).
 
-### 1. Mobil: rullande token (sliding 30-dagars session + auto-refresh)
+## Ändringar
 
-**`supabase/functions/mobile-app-api/index.ts`**
-- Höj `TOKEN_EXPIRY_HOURS` från 24 → **720 (30 dagar)**.
-- Lägg till `refreshThresholdHours = 168` (7 dagar). När en request kommer in med en token som är nära utgång (<7 dagar kvar) eller äldre än 7 dagar sedan utfärdande, generera en **ny token** och skicka tillbaka i response-headern `X-New-Token`.
-- `verifyToken()` returnerar även `issuedAt` så servern kan avgöra om refresh behövs.
+### 1. `supabase/functions/mobile-app-api/index.ts`
+I `handleStartTravelLog`: innan resan skapas, hitta alla öppna `location_time_entries` för samma `staff_id` och stäng dem med `exited_at = travel.start_time` + beräknat `total_minutes`. Atomisk, server-säker, auth-korrekt.
 
-**`src/services/mobileApiService.ts`**
-- I `callApi()`: läs `X-New-Token` från response, och om satt → `localStorage.setItem(TOKEN_KEY, newToken)`. Helt transparent för UI.
-- Behåll 401 → clearAuth (men det händer nu bara om token verkligen är 30 dagar gammal eller manuellt återkallad).
+### 2. `src/hooks/useTravelDetection.ts`
+Ta bort anropet till `closeOpenEntriesForStaff(...)` (klient-skrivvägen som inte fungerar). Klienten startar bara resan via `mobileApi.createTravelLog(...)` och servern sköter resten.
 
-**`src/contexts/MobileAuthContext.tsx`**
-- Behåll nuvarande "tysta" beteende: nätverksfel/timeout vid `me()` → behåll session.
-- Ta bort 8s-timeout som "ger upp" — låt API-lagret styra (15s default) men logga inte ut vid timeout.
+### 3. `src/services/locationTimeService.ts`
+Markera `closeOpenEntriesForStaff` som admin-only (används kvar i admin-vyer som har full Supabase-session). Mobilen använder den inte längre.
 
-### 2. Webb: stoppa felaktiga utloggningar i `AuthContext`
+### 4. `src/pages/StaffTimeReports.tsx`
+- Räkna live-tid för öppna `travel_time_logs` (inte 0).
+- Filtrera bort äldre öppen `location_time_entries` om det finns en senare öppen resa för samma staff samma dag (visar inte längre "spöktimer").
 
-**`src/contexts/AuthContext.tsx`**
-- Ta bort blocket som sätter `setSession(null)` på `TOKEN_REFRESHED && !session`. Behåll bara `SIGNED_OUT` som utloggningssignal.
-- Vid `getSession()`-error: **logga felet men behåll befintlig state** (försök igen om 30s i stället för att nolla användaren).
-- Lägg till tyst bakgrunds-retry: om `getSession()` failar pga nätverk, schemalägg en ny `getSession()` om 30s utan att rendera login-skärmen.
+### 5. Engångsreparation av befintlig data
+SQL-migration som stänger redan korrupta öppna `location_time_entries` som överlappar en senare öppen `travel_time_logs` för samma staff. Cutoff = resans `start_time`.
 
-### 3. Diagnostik
+## Filer
+- `supabase/functions/mobile-app-api/index.ts`
+- `src/hooks/useTravelDetection.ts`
+- `src/services/locationTimeService.ts`
+- `src/pages/StaffTimeReports.tsx`
+- Ny migration
 
-- Logga i konsolen varje gång token förnyas (mobil) och vid varje `SIGNED_OUT`/`TOKEN_REFRESHED` (webb), med orsak. Detta så att vi kan bekräfta i fält att utloggningarna upphör.
-
-## Vad ändras INTE
-- Inloggnings-flödet (email + lösen) är oförändrat.
-- Logout-knappen fungerar som vanligt — explicit `logout()` rensar token direkt.
-- Scanner-appen påverkas inte.
-- RLS, edge function-säkerhet eller behörigheter rörs inte.
-
-## Filer som kommer ändras
-- `supabase/functions/mobile-app-api/index.ts` — 30-dagars token + sliding refresh via `X-New-Token`-header
-- `src/services/mobileApiService.ts` — läs `X-New-Token` och uppdatera localStorage transparent
-- `src/contexts/MobileAuthContext.tsx` — ta bort tidig 8s-timeout som råkar logga ut
-- `src/contexts/AuthContext.tsx` — sluta nolla session vid `TOKEN_REFRESHED` utan session och vid `getSession()`-fel
+## Filer som garanterat INTE ändras
+- `src/hooks/useWorkDayTimer.ts`
+- `src/components/mobile-app/WorkDayHeaderTimer.tsx`
+- `src/components/mobile-app/MobileHeader.tsx`
+- `src/services/workdayState.ts`
+- `src/components/mobile-app/GlobalActiveTimerBanner.tsx` (EOD-flödet)
 
 ## Effekt
-- Mobilanvändare hålls inloggade i upp till 30 dagar och förnyas automatiskt så länge de använder appen ≥ en gång i veckan.
-- Webbanvändare slutar bli oväntat utloggade vid tillfälliga nätverkshicka/sleep-resume.
+- Dubbel "NU"-bugg försvinner — bara resan är öppen efter resestart.
+- Dagtimern fortsätter rulla obrutet under hela arbetspasset.
+- Admin-totalen blir korrekt även med öppen resa.
 
