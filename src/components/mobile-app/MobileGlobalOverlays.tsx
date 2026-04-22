@@ -20,14 +20,13 @@ import { useArrivalPrompt } from '@/hooks/useArrivalPrompt';
 import { useTimerReconciliation } from '@/hooks/useTimerReconciliation';
 import { useWorkDayAssistant } from '@/hooks/useWorkDayAssistant';
 import { useMobileBookings } from '@/hooks/useMobileData';
-import { type WorkTarget } from '@/hooks/useWorkSession';
+import { useWorkSession, timerToTarget, type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 
@@ -65,6 +64,14 @@ const MobileGlobalOverlays: React.FC = () => {
     distanceWarning,
     dismissDistanceWarning,
   } = useTimerStartFlow(bookings, staff?.id);
+
+  // UNIFIED stop engine — stale-save now goes through stopSession so the
+  // same break/anomaly/time_report ownership rules apply (no rogue
+  // mobileApi.createTimeReport calls; correct time_report_id linkage).
+  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(
+    bookings,
+    staff?.id,
+  );
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
@@ -207,42 +214,37 @@ const MobileGlobalOverlays: React.FC = () => {
     try {
       const stopTime = new Date();
       const startTime = new Date(entry.timer.startTime);
+      // Midnight-cap any pass that has been open longer than 24h so we
+      // never accidentally write a multi-day report.
       const cappedStop = stopTime.getTime() - startTime.getTime() > 24 * 3600 * 1000
         ? new Date(startTime.getTime() + 24 * 3600 * 1000)
         : stopTime;
-      const totalHours = (cappedStop.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-      const hoursWorked = Math.max(0, Number(totalHours.toFixed(2)));
 
-      const tr = await mobileApi.createTimeReport({
-        booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
-        report_date: format(cappedStop, 'yyyy-MM-dd'),
-        start_time: format(startTime, 'HH:mm'),
-        end_time: format(cappedStop, 'HH:mm'),
-        hours_worked: hoursWorked,
-        break_time: 0,
-        description: `Återställd timer: ${entry.timer.locationName || entry.timer.client}`,
-        large_project_id: entry.timer.largeProjectId,
+      // Route through the unified stop engine. This guarantees:
+      //  • single owner of time_reports (mobile-app-api.createTimeReport)
+      //  • correct time_report_id linkage on the anomaly (handled inside
+      //    stopSession via the saveAndStopTimer return shape)
+      //  • location_id / booking_id / large_project_id mapped via
+      //    timerToTarget — no stale stringly-typed `key.startsWith(...)`.
+      const target = timerToTarget(key, entry.timer);
+      const result = await stopSession(target, {
+        stopAtIso: cappedStop.toISOString(),
+        breakChoice: { kind: 'no_break' },
+        endOfDayContext: {
+          lastExitIso: startTime.toISOString(),
+          endedAtIso: cappedStop.toISOString(),
+          workDescription:
+            'Restored timer (stale) — break and end time need verification',
+        },
       });
-      const trId = (tr as any)?.time_report?.id;
-      mobileApi.createEndOfDayAnomaly({
-        started_at: startTime.toISOString(),
-        ended_at: cappedStop.toISOString(),
-        work_description: 'Restored timer (stale) — break and end time need verification',
-        location_id: entry.timer.locationId || undefined,
-        booking_id: key.startsWith('project-') || key.startsWith('location-') ? undefined : key,
-        large_project_id: entry.timer.largeProjectId,
-        time_report_id: trId,
-      }).catch(err => console.warn('Stale anomaly failed:', err));
 
-      if (entry.timer.locationId) {
-        try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
-      }
+      if (result.cancelled) return;
       dismissStale(key);
-      toast.success('Time report saved and timer cleared — marked as anomaly for follow-up');
+      toast.success('Tidrapport sparad och timer rensad — markerad som avvikelse för uppföljning');
     } catch (err: any) {
-      toast.error(err?.message || 'Could not save time report');
+      toast.error(err?.message || 'Kunde inte spara tidrapport');
     }
-  }, [staleTimers, dismissStale]);
+  }, [staleTimers, dismissStale, stopSession]);
 
   const handleStaleDiscard = useCallback(async (key: string) => {
     const entry = staleTimers.find((s) => s.key === key);
@@ -348,6 +350,9 @@ const MobileGlobalOverlays: React.FC = () => {
           onDismiss={staleDay.dismiss}
         />
       )}
+
+      {/* Break-decision dialog used by stopSession (incl. stale-save flow). */}
+      {workSessionDialogs}
     </>
   );
 };

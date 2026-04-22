@@ -1,151 +1,110 @@
 /**
- * useWorkDayTimer — the "day timer".
+ * useWorkDayTimer — server-driven day timer.
  *
- * Starts the moment the user's first activity timer of the day starts and
- * keeps ticking until the user actively ends the day (Avsluta dagen).
+ * SOURCE OF TRUTH: the `workdays` table, exposed via `useWorkDay`.
  *
- * Robustness rules:
- *  - Persisted in localStorage (`eventflow-workday-start`) so it survives
- *    reloads, app kills and tab switches.
- *  - Auto-recovery: if the workday key is missing but at least one
- *    activity timer is running, we adopt the EARLIEST active timer's
- *    `startTime` as the workday start. This makes it impossible to "lose"
- *    the day timer just because the user reloaded mid-shift.
- *  - Day-rollover safety: if a stored workday start is older than 18h
- *    AND there are no active timers, we discard it instead of showing
- *    yesterday's clock.
- *  - Cleared on `workday-ended` (dispatched by the EOD pipeline once all
- *    activity timers have been stopped).
+ * Architectural rule (workday-first, post 2026-04-22):
+ *   The workday is PRIMARY. Activity timers (project/travel/warehouse/
+ *   location) are SECONDARY segments. This hook NEVER derives the day
+ *   from active timers. It reads the open WorkdayRecord from the server
+ *   and ticks the elapsed-seconds clock.
+ *
+ * Local cache (`eventflow-workday-cache`) is kept as a thin first-render
+ * fallback so the header pill doesn't blink to "off" while the network
+ * round-trip resolves on cold start. It is OVERWRITTEN by server state
+ * on first response and is never the canonical source.
+ *
+ * The legacy `eventflow-workday-start` key (which used to be derived from
+ * the earliest active timer) is no longer read here. It is left in
+ * localStorage so an in-flight EOD pipeline can finish unaware, but it
+ * has no effect on what this hook reports.
  */
-import { useEffect, useState, useCallback } from 'react';
-import { parseISO, differenceInSeconds } from 'date-fns';
-import type { ActiveTimer } from '@/hooks/useGeofencing';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { differenceInSeconds, parseISO } from 'date-fns';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import {
-  clearWorkdayEnded,
   hasWorkdayEndedToday,
   WORKDAY_ENDED_STATE_CHANGED_EVENT,
 } from '@/services/workdayState';
 
-const WORKDAY_KEY = 'eventflow-workday-start';
-const TIMERS_KEY = 'eventflow-mobile-timers';
-const MAX_AGE_HOURS = 18;
+const CACHE_KEY = 'eventflow-workday-cache';
 
-function readTimers(): Map<string, ActiveTimer> {
-  try {
-    const raw = localStorage.getItem(TIMERS_KEY);
-    if (!raw) return new Map();
-    return new Map(JSON.parse(raw));
-  } catch {
-    return new Map();
-  }
+interface CachedWorkday {
+  startedAt: string;
+  endedAt: string | null;
 }
 
-function readWorkdayStart(): string | null {
+function readCache(): CachedWorkday | null {
   try {
-    return localStorage.getItem(WORKDAY_KEY);
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedWorkday;
+    if (!parsed?.startedAt) return null;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function writeWorkdayStart(iso: string | null) {
+function writeCache(record: CachedWorkday | null) {
   try {
-    if (iso) localStorage.setItem(WORKDAY_KEY, iso);
-    else localStorage.removeItem(WORKDAY_KEY);
-    window.dispatchEvent(new CustomEvent('workday-timer-changed'));
+    if (record) localStorage.setItem(CACHE_KEY, JSON.stringify(record));
+    else localStorage.removeItem(CACHE_KEY);
   } catch {
     /* ignore */
   }
 }
 
-/** Pick the earliest startTime across active timers (or null). */
-function earliestActiveStart(timers: Map<string, ActiveTimer>): string | null {
-  let min: number | null = null;
-  let iso: string | null = null;
-  for (const t of timers.values()) {
-    const ts = parseISO(t.startTime).getTime();
-    if (!Number.isFinite(ts)) continue;
-    if (min === null || ts < min) {
-      min = ts;
-      iso = t.startTime;
-    }
-  }
-  return iso;
-}
-
-/** Reconcile workday-start against current timers. Pure, idempotent. */
-function reconcile(): string | null {
-  const timers = readTimers();
-  const stored = readWorkdayStart();
-  const earliest = earliestActiveStart(timers);
-
-   if (hasWorkdayEndedToday() && !earliest) {
-    if (stored) writeWorkdayStart(null);
-    return null;
-   }
-
-  // Auto-start: at least one active timer but no workday start saved.
-  if (!stored && earliest) {
-    clearWorkdayEnded();
-    writeWorkdayStart(earliest);
-    return earliest;
-  }
-
-  // Auto-recover earlier start: an active timer started BEFORE the saved
-  // workday start (e.g. backdated start from arrival popup).
-  if (stored && earliest) {
-    const storedTs = parseISO(stored).getTime();
-    const earliestTs = parseISO(earliest).getTime();
-    if (Number.isFinite(storedTs) && Number.isFinite(earliestTs) && earliestTs < storedTs) {
-      clearWorkdayEnded();
-      writeWorkdayStart(earliest);
-      return earliest;
-    }
-  }
-
-  // Day-rollover safety: stale workday start with no active timers.
-  if (stored && !earliest) {
-    const storedTs = parseISO(stored).getTime();
-    if (
-      Number.isFinite(storedTs) &&
-      Date.now() - storedTs > MAX_AGE_HOURS * 3600 * 1000
-    ) {
-      writeWorkdayStart(null);
-      return null;
-    }
-  }
-
-  return stored;
-}
-
 export function useWorkDayTimer() {
-  const [startIso, setStartIso] = useState<string | null>(() => reconcile());
+  const { current } = useWorkDay();
+  const [cache, setCache] = useState<CachedWorkday | null>(() => readCache());
   const [, setTick] = useState(0);
 
-  // Re-reconcile whenever timer-state changes.
+  // Mirror server state into the cache so the next cold render is instant.
   useEffect(() => {
-    const refresh = () => setStartIso(reconcile());
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === null || e.key === TIMERS_KEY || e.key === WORKDAY_KEY) refresh();
-    };
-    const onWorkdayEnded = () => {
-      writeWorkdayStart(null);
-      setStartIso(null);
-    };
+    if (current) {
+      const next: CachedWorkday = {
+        startedAt: current.started_at,
+        endedAt: current.ended_at,
+      };
+      writeCache(next);
+      setCache(next);
+    } else {
+      // Server says no open workday. Honour it — clear cache.
+      writeCache(null);
+      setCache(null);
+    }
+  }, [current?.id, current?.started_at, current?.ended_at, current]);
 
-    window.addEventListener('timer-state-changed', refresh);
-    window.addEventListener('workday-timer-changed', refresh);
-    window.addEventListener('workday-ended', onWorkdayEnded);
-    window.addEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, refresh);
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('timer-state-changed', refresh);
-      window.removeEventListener('workday-timer-changed', refresh);
-      window.removeEventListener('workday-ended', onWorkdayEnded);
-      window.removeEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, refresh);
-      window.removeEventListener('storage', onStorage);
+  // Clear cache on explicit workday-ended UI hint (banner/EOD pipeline).
+  useEffect(() => {
+    const onEnded = () => {
+      writeCache(null);
+      setCache(null);
     };
-  }, []);
+    const onStateChanged = () => {
+      if (hasWorkdayEndedToday() && !current) {
+        writeCache(null);
+        setCache(null);
+      }
+    };
+    window.addEventListener('workday-ended', onEnded);
+    window.addEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, onStateChanged);
+    return () => {
+      window.removeEventListener('workday-ended', onEnded);
+      window.removeEventListener(WORKDAY_ENDED_STATE_CHANGED_EVENT, onStateChanged);
+    };
+  }, [current]);
+
+  // Resolve the start ISO. Server wins; cache is only used pre-first-response.
+  const startIso = useMemo<string | null>(() => {
+    if (current && !current.ended_at) return current.started_at;
+    if (current && current.ended_at) return null;
+    // current === null → either still loading, or genuinely no open workday.
+    // Use cache as a pre-resolve hint.
+    if (cache && !cache.endedAt) return cache.startedAt;
+    return null;
+  }, [current, cache]);
 
   // Tick once per second to refresh the displayed elapsed time.
   useEffect(() => {
@@ -158,9 +117,14 @@ export function useWorkDayTimer() {
     ? Math.max(0, differenceInSeconds(new Date(), parseISO(startIso)))
     : 0;
 
+  /**
+   * UI hint only — clears local cache and broadcasts the legacy event.
+   * The actual server-side end happens via `workday.end` in the EOD
+   * pipeline (GlobalActiveTimerBanner → syncWorkDayEnd).
+   */
   const endWorkDay = useCallback(() => {
-    writeWorkdayStart(null);
-    setStartIso(null);
+    writeCache(null);
+    setCache(null);
     window.dispatchEvent(new CustomEvent('workday-ended'));
   }, []);
 

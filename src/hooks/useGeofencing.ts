@@ -922,8 +922,25 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   }, []);
 
   /**
+   * Result of a save-then-stop. Three distinct id types — each can be
+   * null if the corresponding side-effect didn't apply or failed:
+   *   • timer         — the cleared local ActiveTimer record.
+   *   • serverEntryId — `location_time_entries.id` (presence row).
+   *                     Null if the start was still pending-sync.
+   *   • timeReportId  — `time_reports.id`. The ONLY id valid for linking
+   *                     anomalies via `time_report_id`.
+   */
+  interface SaveAndStopResult {
+    timer: ActiveTimer;
+    serverEntryId: string | null;
+    timeReportId: string | null;
+  }
+
+  /**
    * Save-then-stop. The ONLY sanctioned way to convert an active
-   * booking/project timer into a time_report.
+   * booking/project timer into a time_report. Sole owner of
+   * `time_reports` creation (the legacy DB trigger that auto-created
+   * reports from `location_time_entries` was removed 2026-04-22).
    *
    * 1. POST the time_report to the server (mobile-app-api).
    * 2. Close the matching open `location_time_entries` row.
@@ -935,12 +952,14 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const saveAndStopTimer = useCallback(async (
     key: string,
     reportPayload: Parameters<typeof mobileApi.createTimeReport>[0],
-  ): Promise<ActiveTimer> => {
+  ): Promise<SaveAndStopResult> => {
     const timer = activeTimersRef.current.get(key);
     if (!timer) throw new Error('No active timer for key: ' + key);
 
     // 1. SAVE FIRST — never clear local state before this succeeds.
-    await mobileApi.createTimeReport(reportPayload);
+    const createRes = await mobileApi.createTimeReport(reportPayload);
+    const timeReportId =
+      (createRes as any)?.time_report?.id ?? (createRes as any)?.id ?? null;
 
     // 2. Best-effort: close the server-side open entry. We do NOT
     //    re-throw here because the time_report is already safely stored;
@@ -957,7 +976,11 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
 
     // 3. Clear local last.
     _clearLocalTimer(key);
-    return timer;
+    return {
+      timer,
+      serverEntryId: timer.serverEntryId ?? null,
+      timeReportId,
+    };
   }, [_clearLocalTimer, _resolveStopPayload]);
 
   /**

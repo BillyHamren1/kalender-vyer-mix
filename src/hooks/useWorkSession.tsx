@@ -328,7 +328,9 @@ export function useWorkSession(
       );
 
       // STEP 3/4 — branch ONLY on whether a time_report should be created.
-      let savedReportId: string | undefined;
+      // savedTimeReportId is `time_reports.id` (NOT location_time_entries.id).
+      // This is the ONLY id valid for linking anomalies via `time_report_id`.
+      let savedTimeReportId: string | undefined;
       try {
         if (shouldCreateTimeReport(target)) {
           const targetFields = resolveReportTargetFields(target);
@@ -346,7 +348,7 @@ export function useWorkSession(
             }`,
             establishment_task_id: timer.establishmentTaskId,
           });
-          savedReportId = (stopped as any)?.serverEntryId;
+          savedTimeReportId = stopped.timeReportId ?? undefined;
         } else {
           await stopLocationTimerWithoutReport(key);
         }
@@ -368,7 +370,7 @@ export function useWorkSession(
               target.kind === 'location' ? target.locationId : undefined,
             booking_id: targetFields.booking_id,
             large_project_id: targetFields.large_project_id,
-            time_report_id: savedReportId,
+            time_report_id: savedTimeReportId,
           });
         } catch (err) {
           console.warn('[WorkSession] break-anomaly persist failed (non-fatal):', err);
@@ -405,7 +407,7 @@ export function useWorkSession(
                 : timer.locationId || undefined,
             booking_id: targetFields.booking_id,
             large_project_id: targetFields.large_project_id,
-            time_report_id: savedReportId,
+            time_report_id: savedTimeReportId,
           });
         } catch (err) {
           console.warn('[WorkSession] end-of-day anomaly persist failed (non-fatal):', err);

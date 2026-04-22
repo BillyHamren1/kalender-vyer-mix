@@ -1,11 +1,14 @@
 /**
- * Workday integration contract — verifies the timer-start and EOD flows
- * trigger the server-anchor sync.
+ * Workday integration contract — verifies that the timer-start flow is
+ * WORKDAY-FIRST and that the EOD pipeline still server-anchors the end.
  *
- * We don't drive the full hooks here (they need MobileAuth + bookings
- * context); we assert the modules wire `syncWorkDayStart` / `syncWorkDayEnd`
- * onto the right places by source-grep, which is the same pattern other
- * contract tests in this repo use to lock in integration points.
+ * Source-grep contract style (same pattern other contract tests use).
+ *
+ * Workday-first rule (post 2026-04-22):
+ *   `useTimerStartFlow.performStart` MUST `await ensureWorkDayActive(...)`
+ *   BEFORE calling `startSession(...)`. The legacy fire-and-forget
+ *   `syncWorkDayStart` import was removed from this hook because the
+ *   guarantee is now baked into `ensureActive` on `useWorkDay`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -16,15 +19,31 @@ function read(rel: string): string {
 }
 
 describe('workday integration', () => {
-  it('useTimerStartFlow calls syncWorkDayStart on successful start', () => {
+  it('useTimerStartFlow awaits ensureWorkDayActive BEFORE startSession (workday-first)', () => {
     const src = read('src/hooks/useTimerStartFlow.ts');
-    expect(src).toContain("from '@/services/workdayServerSync'");
-    expect(src).toMatch(/syncWorkDayStart\(/);
-    // Must be inside the success branch (after toast.success).
-    const successIdx = src.indexOf("toast.success(`Timer startad");
-    const syncIdx = src.indexOf('syncWorkDayStart(');
-    expect(successIdx).toBeGreaterThan(-1);
-    expect(syncIdx).toBeGreaterThan(successIdx);
+    expect(src).toContain("from '@/hooks/useWorkDay'");
+    expect(src).toMatch(/ensureActive:\s*ensureWorkDayActive/);
+
+    // Locate the performStart body and assert ordering.
+    const fnStart = src.indexOf('const performStart = useCallback');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnEnd = src.indexOf('[startSession, userPosition, ensureWorkDayActive]', fnStart);
+    expect(fnEnd).toBeGreaterThan(fnStart);
+    const body = src.slice(fnStart, fnEnd);
+
+    const idxEnsure = body.indexOf('ensureWorkDayActive(');
+    const idxStart = body.indexOf('startSession(target,');
+    expect(idxEnsure).toBeGreaterThan(-1);
+    expect(idxStart).toBeGreaterThan(-1);
+    expect(idxEnsure).toBeLessThan(idxStart);
+    // Must be awaited (not fire-and-forget).
+    expect(body).toMatch(/await\s+ensureWorkDayActive\(/);
+  });
+
+  it('useTimerStartFlow no longer imports syncWorkDayStart (replaced by ensureActive)', () => {
+    const src = read('src/hooks/useTimerStartFlow.ts');
+    expect(src).not.toMatch(/from\s+['"]@\/services\/workdayServerSync['"]/);
+    expect(src).not.toMatch(/syncWorkDayStart\(/);
   });
 
   it('GlobalActiveTimerBanner calls syncWorkDayEnd in EOD drain path', () => {
@@ -34,9 +53,8 @@ describe('workday integration', () => {
     expect(src).toMatch(/markWorkdayEnded\(\);[\s\S]{0,200}syncWorkDayEnd\(\)/);
   });
 
-  it('syncWorkDayStart / syncWorkDayEnd are exported as fire-and-forget (void return)', () => {
+  it('syncWorkDayEnd is exported as fire-and-forget (void return)', () => {
     const src = read('src/services/workdayServerSync.ts');
-    expect(src).toMatch(/export function syncWorkDayStart\([^)]*\): void/);
     expect(src).toMatch(/export function syncWorkDayEnd\([^)]*\): void/);
   });
 
@@ -49,5 +67,13 @@ describe('workday integration', () => {
     expect(src).toMatch(/created: false/);
     // Idempotency on end.
     expect(src).toMatch(/alreadyClosed: true/);
+  });
+
+  it('useWorkDay exposes ensureActive + restore as part of the public API', () => {
+    const src = read('src/hooks/useWorkDay.ts');
+    expect(src).toMatch(/ensureActive:\s*\(startedAtIso\?:\s*string\)\s*=>\s*Promise/);
+    expect(src).toMatch(/restore:\s*\(\)\s*=>\s*Promise<void>/);
+    // Must de-dupe concurrent ensureActive calls (in-flight ref).
+    expect(src).toMatch(/inFlightEnsure/);
   });
 });

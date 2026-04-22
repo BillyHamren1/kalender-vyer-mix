@@ -129,10 +129,14 @@ export const TIME_REPORTING_QUALITY_GATE = {
 
     // Workday server-anchor (lifecycle / concurrency / integration):
     // verifierar att workday-edge-funktionen är idempotent och att
-    // timer-start + EOD verkligen syncar mot servern.
+    // timer-start är workday-first (await ensureActive) + EOD verkligen
+    // syncar mot servern. singleOwnerTimeReport låser fast att
+    // time_reports har EN ägare (mobile-app-api.createTimeReport) — den
+    // gamla DB-triggern är borttagen.
     'src/test/workday/workdayLifecycle.test.ts',
     'src/test/workday/workdayConcurrency.test.ts',
     'src/test/workday/workdayIntegration.test.ts',
+    'src/test/workday/singleOwnerTimeReport.test.ts',
   ],
 
   /**
