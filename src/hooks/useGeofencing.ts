@@ -728,6 +728,72 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     setNearbyBookings(nearby);
   }, [userPosition, bookings, activeTimers, orgLocations]);
 
+  // ─────────────────────────────────────────────────────────────────────
+  // PRESENCE-BASED TRAVEL STOP (timer-independent watchdog)
+  //
+  // The ENTER-branches above only fire on a real out→in transition AND
+  // require !hasTimer + !alreadyTriggered. That means a refresh while
+  // already inside, or arrival while a lager-/projekt-timer is already
+  // running, leaves the open travel_time_logs row ticking forever.
+  //
+  // This effect runs every GPS tick and, IF a travel row is open, emits
+  // STOP_TRAVEL_EVENT whenever the user is currently inside ANY known
+  // geofence (org_location, booking, or large project they're assigned
+  // to). It does NOT touch ENTER-prompts or anomaly tracking.
+  // ─────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userPosition) return;
+    // Cheap localStorage read — TravelDetection persists state here.
+    let hasOpenTravel = false;
+    try {
+      const raw = localStorage.getItem('eventflow-travel-state');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        hasOpenTravel = !!parsed?.activeTravelLogId;
+      }
+    } catch { /* ignore */ }
+    if (!hasOpenTravel) return;
+
+    const todayLocal = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const isAssignedToday = (b: MobileBooking) =>
+      Array.isArray(b.assignment_dates) && b.assignment_dates.includes(todayLocal);
+
+    // 1) Inside any fixed org location?
+    for (const loc of orgLocations) {
+      const target = {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        radius_meters: loc.radius_meters,
+        geofence_mode: loc.geofence_mode || 'circle',
+        geofence_polygon: loc.geofence_polygon || null,
+      };
+      if (isInsideGeofence(userPosition.lat, userPosition.lng, target)) {
+        console.log(`[TravelDetection] Stopping travel — user already inside ${loc.name} geofence`);
+        emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+        return;
+      }
+    }
+
+    // 2) Inside any assigned-today booking / large-project geofence?
+    for (const booking of bookings) {
+      if (!booking.delivery_latitude || !booking.delivery_longitude) continue;
+      if (!isAssignedToday(booking)) continue;
+      const dist = haversineDistance(
+        userPosition.lat, userPosition.lng,
+        booking.delivery_latitude, booking.delivery_longitude
+      );
+      if (dist <= ENTER_RADIUS) {
+        const label = booking.large_project_name || booking.client || 'workplace';
+        console.log(`[TravelDetection] Stopping travel — user already inside ${label} geofence`);
+        emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+        return;
+      }
+    }
+  }, [userPosition, bookings, orgLocations]);
+
   const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
     // Resolve a single canonical key per (target).
     const key = locationId
