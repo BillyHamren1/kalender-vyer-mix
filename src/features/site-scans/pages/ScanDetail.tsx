@@ -291,6 +291,15 @@ const ScanDetail = () => {
 
   return (
     <div className="flex-1 p-6 md:p-8 space-y-6 max-w-6xl">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate('/m/tools/measure')}
+        className="-ml-2 gap-1.5"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Tillbaka till SiteScan
+      </Button>
 ...
       {/* Preview + Info grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
