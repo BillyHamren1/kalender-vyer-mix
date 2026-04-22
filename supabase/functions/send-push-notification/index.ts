@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     // Get device tokens for the target staff
     const { data: tokens, error: tokenError } = await supabase
       .from('device_tokens')
-      .select('token, staff_id, platform')
+      .select('token, staff_id, platform, last_refreshed_at')
       .in('staff_id', staff_ids)
       .eq('organization_id', organization_id)
 
@@ -233,11 +233,26 @@ Deno.serve(async (req) => {
         } else {
           failCount++
           console.error(`FCM error for token ${deviceToken.token.slice(0, 10)}...:`, fcmData)
-          
-          // Remove invalid tokens
-          if (fcmData?.error?.code === 404 || fcmData?.error?.details?.[0]?.errorCode === 'UNREGISTERED') {
+
+          // Remove invalid tokens — broaden detection to all FCM signals
+          // that mean "this token will never deliver again".
+          const errCode = fcmData?.error?.code
+          const errStatus = fcmData?.error?.status
+          const errorCode = fcmData?.error?.details?.[0]?.errorCode
+          const isUnregistered = errorCode === 'UNREGISTERED' || errCode === 404
+          const isInvalidArgument =
+            errStatus === 'INVALID_ARGUMENT' ||
+            errCode === 400 ||
+            errorCode === 'INVALID_ARGUMENT'
+
+          if (isUnregistered || isInvalidArgument) {
+            const ageDays = deviceToken.last_refreshed_at
+              ? Math.round((Date.now() - new Date(deviceToken.last_refreshed_at).getTime()) / (24 * 60 * 60 * 1000))
+              : -1
             await supabase.from('device_tokens').delete().eq('token', deviceToken.token)
-            console.log(`Removed invalid token: ${deviceToken.token.slice(0, 10)}...`)
+            console.log(
+              `[FCM] stale_token_purged staff=${deviceToken.staff_id} reason=${isUnregistered ? 'UNREGISTERED' : 'INVALID_ARGUMENT'} age_days=${ageDays} prefix=${deviceToken.token.slice(0, 10)}`
+            )
           }
         }
 
