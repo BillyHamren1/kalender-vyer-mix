@@ -229,14 +229,21 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 : `Ingen personal har rapporterat tid ${dateLabel.toLowerCase()}`}
             </div>
           ) : (
-            filtered.map(staff => (
+            filtered.map(staff => {
+              const liveStatus = resolveLiveStatus(staff.has_open_report, staff.latestPing);
+              const pingAgeMin = staff.latestPing?.updated_at
+                ? Math.floor((Date.now() - new Date(staff.latestPing.updated_at).getTime()) / 60000)
+                : null;
+              return (
               <button
                 key={staff.id}
                 onClick={() => onSelectStaff(staff.id, staff.name)}
                 className={`w-full flex items-stretch gap-2.5 px-3 py-2 rounded-lg border transition-all text-left group ${
-                  staff.has_open_report
+                  liveStatus === 'live'
                     ? 'border-primary/25 bg-primary/[0.04] hover:bg-primary/[0.07]'
-                    : 'border-transparent hover:bg-muted/50 hover:border-border/60'
+                    : liveStatus === 'stale'
+                      ? 'border-amber-500/30 bg-amber-500/[0.04] hover:bg-amber-500/[0.07]'
+                      : 'border-transparent hover:bg-muted/50 hover:border-border/60'
                 }`}
               >
                 <div
@@ -247,8 +254,11 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   }}
                 >
                   {staff.name.charAt(0).toUpperCase()}
-                  {staff.has_open_report && (
+                  {liveStatus === 'live' && (
                     <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background animate-pulse" />
+                  )}
+                  {liveStatus === 'stale' && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-background" />
                   )}
                 </div>
 
@@ -262,7 +272,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                           {staff.role}
                         </Badge>
                       )}
-                      {staff.has_open_report ? (
+                      {liveStatus === 'live' ? (
                         <Badge
                           variant="outline"
                           className="text-[10px] px-1.5 py-0 gap-1 border-primary/30 text-primary bg-primary/5"
@@ -270,13 +280,22 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                           <Activity className="h-2.5 w-2.5" />
                           Pågående
                         </Badge>
+                      ) : liveStatus === 'stale' ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                          title={pingAgeMin != null ? `Senaste signal för ${pingAgeMin} min sedan` : 'Ingen signal från telefonen'}
+                        >
+                          <WifiOff className="h-2.5 w-2.5" />
+                          Tappad signal{pingAgeMin != null ? ` · ${pingAgeMin}m` : ''}
+                        </Badge>
                       ) : (
                         <Badge
                           variant="outline"
                           className="text-[10px] px-1.5 py-0 gap-1 border-border/60 text-muted-foreground"
                         >
                           <CheckCircle2 className="h-2.5 w-2.5" />
-                          Stängd
+                          Avslutad
                         </Badge>
                       )}
                     </div>
