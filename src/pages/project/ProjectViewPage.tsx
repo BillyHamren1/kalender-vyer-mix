@@ -215,14 +215,6 @@ const ProjectViewPage = () => {
         onClearTaskRef={() => setChatTaskRef(null)}
       />
 
-      {/* Kommentarer */}
-      <div>
-        <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
-        <ProjectComments
-          comments={comments}
-          onAddComment={detail.addComment}
-        />
-      </div>
 
       {bookingId && (
         <ProjectTransportBookingDialog
