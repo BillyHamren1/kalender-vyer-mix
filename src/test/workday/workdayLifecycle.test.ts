@@ -32,11 +32,20 @@ describe('workday lifecycle sync', () => {
   });
 
   it('syncWorkDayStart debounces bursts (only one in-flight)', async () => {
+    // Use a never-resolving promise so the in-flight guard stays engaged
+    // for the whole burst.
+    let resolveStart: (v: any) => void = () => {};
+    (workdayApi.start as any).mockReturnValueOnce(
+      new Promise((r) => {
+        resolveStart = r;
+      })
+    );
     syncWorkDayStart('2026-04-22T08:00:00Z');
     syncWorkDayStart('2026-04-22T08:00:01Z');
     syncWorkDayStart('2026-04-22T08:00:02Z');
-    await new Promise((r) => setTimeout(r, 0));
     expect(workdayApi.start).toHaveBeenCalledTimes(1);
+    resolveStart({ workday: { id: 'w1' } });
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   it('syncWorkDayEnd calls workdayApi.end', async () => {
