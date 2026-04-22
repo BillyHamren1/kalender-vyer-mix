@@ -83,11 +83,13 @@ FRONTEND_TESTS=(
   # alla tre kindar.
   "src/test/arrivalPromptHook.parity.test.ts"
   # Workday server-anchor: edge function `workday` (start/end/current,
-  # idempotent), client sync (debounce, soft-fail) och integration i
-  # timer-start + EOD.
+  # idempotent), client sync (debounce, soft-fail), workday-first
+  # integration i timer-start + EOD, samt single-owner-kontraktet för
+  # time_reports (DB-trigger borttagen 2026-04-22).
   "src/test/workday/workdayLifecycle.test.ts"
   "src/test/workday/workdayConcurrency.test.ts"
   "src/test/workday/workdayIntegration.test.ts"
+  "src/test/workday/singleOwnerTimeReport.test.ts"
 )
 
 BACKEND_TESTS=(
