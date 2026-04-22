@@ -35,24 +35,25 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     if (token && storedStaff) {
       setStaff(storedStaff);
-      // Verify token is still valid in background with timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 8000)
-      );
-      Promise.race([mobileApi.me(), timeoutPromise])
+      // Verify token in background. We deliberately do NOT impose a tight
+      // timeout here — the API layer already enforces a 30s ceiling for
+      // `me`. Any failure short of an explicit 401 keeps the user logged in
+      // (sliding 30-day session + transparent token rotation handle the
+      // rest server-side).
+      mobileApi.me()
         .then((res: any) => {
           setStaff(res.staff);
-          setAuth(token, res.staff);
+          setAuth(getToken() ?? token, res.staff);
         })
         .catch((err) => {
-          // Only clear auth on explicit 401 (Session expired) — keep user
-          // logged in through network errors, timeouts, etc.
-          if (err.message === 'Session expired') {
+          // Only clear auth on explicit 401 (Session expired). Network
+          // errors, timeouts, cold starts, etc. → keep the session.
+          if (err?.message === 'Session expired' || err?.code === 'SESSION_EXPIRED') {
             console.warn('[MobileAuth] Token rejected (401), logging out');
             clearAuth();
             setStaff(null);
           } else {
-            console.warn('[MobileAuth] Session verify failed (keeping session):', err.message);
+            console.warn('[MobileAuth] Session verify failed (keeping session):', err?.message);
           }
         })
         .finally(() => setIsLoading(false));
