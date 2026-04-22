@@ -8,9 +8,7 @@
  * from `useWorkSession.stopSession`).
  *
  * This test pins:
- *   1. Frontend: `useWorkDayTimer` is server-driven (no derivation from
- *      active timers, no `earliestActiveStart` heuristic).
- *   2. Frontend: `MobileGlobalOverlays.handleStaleSave` no longer calls
+ *   1. Frontend: `MobileGlobalOverlays.handleStaleSave` no longer calls
  *      `mobileApi.createTimeReport` directly — it routes through
  *      `stopSession` so the same single-owner rule applies.
  *   3. Frontend: `useWorkSession.stopSession` links anomalies via
@@ -29,15 +27,17 @@ function read(rel: string): string {
 }
 
 describe('single-owner time_reports contract', () => {
-  it('useWorkDayTimer is server-driven (no activity-derived heuristics)', () => {
-    const src = read('src/hooks/useWorkDayTimer.ts');
-    // Must consume the server hook.
-    expect(src).toContain("from '@/hooks/useWorkDay'");
-    // Must NOT derive from active timers any more.
-    expect(src).not.toMatch(/earliestActiveStart/);
-    expect(src).not.toMatch(/eventflow-mobile-timers/);
-    // Legacy reconcile/auto-recover heuristics removed.
-    expect(src).not.toMatch(/function reconcile\(/);
+  it('legacy useWorkDayTimer hook is fully removed (server-driven useWorkDay is the only source)', () => {
+    // The legacy activity-derived day clock must not exist any more.
+    // UI reads workday status exclusively via `useWorkDay()` against the
+    // `workdays` table.
+    let exists = true;
+    try {
+      read('src/hooks/useWorkDayTimer.ts');
+    } catch {
+      exists = false;
+    }
+    expect(exists).toBe(false);
   });
 
   it('MobileGlobalOverlays.handleStaleSave routes through stopSession (no rogue createTimeReport)', () => {

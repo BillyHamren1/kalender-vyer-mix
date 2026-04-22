@@ -141,7 +141,8 @@ Deno.serve(async (req) => {
     if (existing.error) return errorResponse(`Failed to load workday: ${existing.error.message}`, 500)
     if (existing.data) {
       // If the caller is back-dating earlier than what we have stored, move
-      // the start backwards (mirrors the localStorage rule in useWorkDayTimer).
+      // the start backwards. The server `workdays` row is the single source
+      // of truth — there is no client-side day clock to mirror any more.
       const storedTs = Date.parse(existing.data.started_at)
       const incomingTs = Date.parse(startedAt)
       if (Number.isFinite(storedTs) && Number.isFinite(incomingTs) && incomingTs < storedTs) {
