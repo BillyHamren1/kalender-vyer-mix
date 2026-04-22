@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus, X, Crown, Users, Briefcase, HardHat, Shield } from 'lucide-react';
+import { Plus, X, Crown, Users, Loader2 } from 'lucide-react';
 import { useProjectTeam } from '@/hooks/useProjectTeam';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
@@ -12,23 +13,15 @@ interface ProjectTeamPanelProps {
   bookingId: string | null;
   projectLeader: string | null;
   onChangeLeader?: (newLeader: string) => void;
-  /** Date range for adding project managers (defaults to a wide range) */
   projectStartDate?: string | null;
   projectEndDate?: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  field: 'FÄLT',
-  project_manager: 'PROJEKTLEDARE',
-  coordinator: 'KOORDINATOR',
-  team_leader: 'TEAMLEDARE',
-};
-
-const ROLE_ICONS: Record<string, React.ElementType> = {
-  field: HardHat,
-  project_manager: Briefcase,
-  coordinator: Users,
-  team_leader: Shield,
+  field: 'Fält',
+  team_leader: 'Teamledare',
+  coordinator: 'Koordinator',
+  project_manager: 'Projektledare',
 };
 
 const ProjectTeamPanel = ({
@@ -38,14 +31,12 @@ const ProjectTeamPanel = ({
   projectStartDate,
   projectEndDate,
 }: ProjectTeamPanelProps) => {
-  const [adding, setAdding] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState('');
-  const [selectedRole, setSelectedRole] = useState('project_manager');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [selectedRole, setSelectedRole] = useState('field');
   const [editingLeader, setEditingLeader] = useState(false);
 
-  const { teamMembers, fieldStaff, projectStaff, isLoading, addTeamMember, removeTeamMember, isAdding } = useProjectTeam(bookingId);
+  const { teamMembers, isLoading, addTeamMember, removeTeamMember, isAdding } = useProjectTeam(bookingId);
 
-  // Fetch all available staff and profiles for adding
   const { data: allStaff = [] } = useQuery({
     queryKey: ['all-staff-for-team'],
     queryFn: async () => {
@@ -70,18 +61,17 @@ const ProjectTeamPanel = ({
 
       return Array.from(combined.entries()).map(([id, name]) => ({ id, name }));
     },
-    enabled: adding,
   });
 
   const existingIds = new Set(teamMembers.map(m => m.staff_id));
+  const availableStaff = allStaff.filter(s => !existingIds.has(s.id));
 
-  const handleAddMember = async () => {
-    if (!selectedStaff || !bookingId) return;
+  const handleAdd = async () => {
+    if (!selectedStaffId || !bookingId) return;
 
-    // Generate dates for the team member
     const start = projectStartDate || format(new Date(), 'yyyy-MM-dd');
     const end = projectEndDate || start;
-    
+
     let dates: string[];
     try {
       dates = eachDayOfInterval({
@@ -92,9 +82,8 @@ const ProjectTeamPanel = ({
       dates = [start];
     }
 
-    await addTeamMember({ staffId: selectedStaff, role: selectedRole, dates });
-    setAdding(false);
-    setSelectedStaff('');
+    await addTeamMember({ staffId: selectedStaffId, role: selectedRole, dates });
+    setSelectedStaffId('');
   };
 
   const handleLeaderChange = (name: string) => {
@@ -105,157 +94,113 @@ const ProjectTeamPanel = ({
   const leaderDisplayName = projectLeader || 'Ej tilldelad';
 
   return (
-    <div className="rounded-lg border border-border bg-card">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <Users className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Projektteam</h3>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {teamMembers.length} {teamMembers.length === 1 ? 'person' : 'personer'}
-        </span>
-      </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          Projektteam
+          {teamMembers.length > 0 && (
+            <Badge variant="secondary" className="ml-1">{teamMembers.length}</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Add member */}
+        <div className="flex gap-2">
+          <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Välj..." />
+            </SelectTrigger>
+            <SelectContent>
+              {availableStaff.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedRole} onValueChange={setSelectedRole}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(ROLE_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="icon"
+            onClick={handleAdd}
+            disabled={!selectedStaffId || isAdding}
+          >
+            {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          </Button>
+        </div>
 
-      {/* Project leader row */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60">
-        <Crown className="h-4 w-4 text-primary flex-shrink-0" />
-        {editingLeader ? (
+        {/* Project leader row */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Select onValueChange={handleLeaderChange}>
-              <SelectTrigger className="h-7 text-sm flex-1">
-                <SelectValue placeholder={leaderDisplayName} />
-              </SelectTrigger>
-              <SelectContent>
-                {allStaff.map(s => (
-                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                ))}
-                {teamMembers.map(m => (
-                  !allStaff.find(s => s.name === m.staff_name) && (
-                    <SelectItem key={m.staff_id} value={m.staff_name}>{m.staff_name}</SelectItem>
-                  )
-                ))}
-              </SelectContent>
-            </Select>
-            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingLeader(false)}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        ) : (
-          <>
-            <button
-              onClick={() => setEditingLeader(true)}
-              className="text-sm font-medium text-foreground hover:underline cursor-pointer text-left flex-1"
-            >
-              {leaderDisplayName}
-            </button>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary font-semibold flex-shrink-0">
-              HUVUDANSVARIG
-            </Badge>
-          </>
-        )}
-      </div>
-
-      {/* Project staff rows (non-field) */}
-      {projectStaff.map(m => {
-        const RoleIcon = ROLE_ICONS[m.role] || Briefcase;
-        return (
-          <div key={m.staff_id} className="flex items-center gap-2 px-4 py-2 border-b border-border/60 group">
-            <RoleIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-sm text-foreground flex-1 truncate">{m.staff_name}</span>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground font-medium">
-              {ROLE_LABELS[m.role] || m.role.toUpperCase()}
-            </Badge>
-            <button
-              onClick={() => removeTeamMember(m.staff_id)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10"
-            >
-              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-            </button>
-          </div>
-        );
-      })}
-
-      {/* Field staff section */}
-      {fieldStaff.length > 0 && (
-        <>
-          <div className="flex items-center gap-1.5 px-4 py-1.5 bg-muted/30 border-b border-border/60">
-            <HardHat className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Fältpersonal ({fieldStaff.length})
-            </span>
-          </div>
-          {fieldStaff.map(m => (
-            <div key={m.staff_id} className="flex items-center gap-2 px-4 py-2 border-b border-border/60 last:border-b-0">
-              <HardHat className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm text-foreground flex-1 truncate">{m.staff_name}</span>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground font-medium">
-                FÄLT
-              </Badge>
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Empty state */}
-      {!isLoading && teamMembers.length === 0 && (
-        <p className="text-xs text-muted-foreground px-4 py-3 italic">
-          Bemanna via kalendern för att lägga till fältpersonal
-        </p>
-      )}
-
-      {/* Add team member */}
-      <div className="px-3 py-2 border-t border-border">
-        {adding ? (
-          <div className="space-y-2">
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="team_leader">Teamledare</SelectItem>
-                <SelectItem value="project_manager">Projektledare</SelectItem>
-                <SelectItem value="coordinator">Koordinator</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                <SelectTrigger className="h-8 text-sm flex-1">
-                  <SelectValue placeholder="Välj person..." />
+            <Crown className="w-4 h-4 text-primary flex-shrink-0" />
+            {editingLeader ? (
+              <Select onValueChange={handleLeaderChange}>
+                <SelectTrigger className="h-7 text-sm flex-1">
+                  <SelectValue placeholder={leaderDisplayName} />
                 </SelectTrigger>
                 <SelectContent>
-                  {allStaff
-                    .filter(s => !existingIds.has(s.id))
-                    .map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
+                  {allStaff.map(s => (
+                    <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8"
-                onClick={handleAddMember}
-                disabled={!selectedStaff || isAdding}
+            ) : (
+              <button
+                onClick={() => setEditingLeader(true)}
+                className="text-sm font-medium hover:underline text-left truncate"
               >
-                Lägg till
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8" onClick={() => { setAdding(false); setSelectedStaff(''); }}>
-                Avbryt
-              </Button>
-            </div>
+                {leaderDisplayName}
+              </button>
+            )}
           </div>
+          <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-semibold flex-shrink-0">
+            HUVUDANSVARIG
+          </Badge>
+        </div>
+
+        {/* Team list */}
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : teamMembers.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Ingen personal tillagd i projektteamet ännu.
+          </p>
         ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-full justify-start text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setAdding(true)}
-          >
-            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-            Lägg till i projektteam
-          </Button>
+          <div className="space-y-1.5">
+            {teamMembers.map(member => (
+              <div
+                key={member.staff_id}
+                className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 border border-border/50"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-medium truncate">{member.staff_name}</span>
+                  <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                    {ROLE_LABELS[member.role] || member.role}
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeTeamMember(member.staff_id)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
