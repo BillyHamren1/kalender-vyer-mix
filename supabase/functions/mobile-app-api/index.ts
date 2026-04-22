@@ -7216,7 +7216,136 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  // ── DUAL-WRITE → assistant_events (Runda 1b) ──
+  // Skriv parallellt till den nya event-modellen. Best-effort: misslyckande
+  // får INTE förstöra prompt-flödet (gammal väg är fortfarande source of truth).
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'arrival',
+    target_type: kind,
+    target_id: targetId,
+    happened_at: arrivedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'start_activity',
+  })
+
   return new Response(JSON.stringify({ success: true, arrival: inserted }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ── Dual-write helper för assistant_events ─────────────────────────────────
+// Best-effort. Loggar fel men kastar aldrig.
+async function dualWriteAssistantEvent(supabase: any, payload: {
+  organization_id: string
+  staff_id: string
+  event_type: 'arrival' | 'departure' | 'home_arrival' | 'travel_edge'
+  target_type: 'location' | 'project' | 'booking' | 'home' | 'unknown'
+  target_id: string | null
+  target_label?: string | null
+  target_address?: string | null
+  happened_at: string
+  source?: string
+  suggested_action?: string
+  metadata?: Record<string, unknown>
+}) {
+  try {
+    const bucket = Math.floor(new Date(payload.happened_at).getTime() / (5 * 60_000))
+    const dedupeKey = `${payload.staff_id}:${payload.event_type}:${payload.target_type}:${payload.target_id ?? 'null'}:${bucket}`
+
+    const { error } = await supabase
+      .from('assistant_events')
+      .insert({
+        organization_id: payload.organization_id,
+        staff_id: payload.staff_id,
+        event_type: payload.event_type,
+        target_type: payload.target_type,
+        target_id: payload.target_id,
+        target_label: payload.target_label ?? null,
+        target_address: payload.target_address ?? null,
+        happened_at: payload.happened_at,
+        source: payload.source ?? 'geofence_foreground',
+        suggested_action: payload.suggested_action ?? 'review_only',
+        dedupe_key: dedupeKey,
+        metadata: payload.metadata ?? {},
+      })
+
+    if (error && String(error.code) !== '23505') {
+      console.warn('[dualWriteAssistantEvent] insert failed:', error.message)
+    }
+  } catch (err) {
+    console.warn('[dualWriteAssistantEvent] unhandled error:', err)
+  }
+}
+
+// ── handleReportDeparture (Runda 1b) ───────────────────────────────────────
+// Klienten anropar detta när geofence detekterar att användaren lämnat en
+// target hen varit inne på i ≥5 min. Skapar enbart assistant_event — INGEN
+// auto-stop av timer eller anomalitet.
+async function handleReportDeparture(supabase: any, staffId: string, data: any, organizationId: string) {
+  const kind: 'location' | 'project' | 'booking' | undefined = data?.kind
+  const targetId: string | undefined = data?.target_id
+  const targetLabel: string | null = data?.target_label ?? null
+  const departedAtRaw: string | undefined = data?.departed_at
+  const dwellMinutes: number | undefined = data?.dwell_minutes
+
+  if (!kind || !['location', 'project', 'booking'].includes(kind) || !targetId) {
+    return new Response(JSON.stringify({ error: 'kind and target_id are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  let departedAt = new Date().toISOString()
+  if (departedAtRaw) {
+    const parsed = new Date(departedAtRaw)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      departedAt = parsed.toISOString()
+    }
+  }
+
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'departure',
+    target_type: kind,
+    target_id: targetId,
+    target_label: targetLabel,
+    happened_at: departedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'end_activity',
+    metadata: typeof dwellMinutes === 'number' ? { dwell_minutes: dwellMinutes } : {},
+  })
+
+  return new Response(JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ── handleReportHomeArrival (Runda 1b) ─────────────────────────────────────
+// Geofence inom användarens "hem"-radie → skapa home_arrival-event.
+// Suggested_action = end_workday. Ingen auto-end, bara underlag.
+async function handleReportHomeArrival(supabase: any, staffId: string, data: any, organizationId: string) {
+  const arrivedAtRaw: string | undefined = data?.arrived_at
+  let arrivedAt = new Date().toISOString()
+  if (arrivedAtRaw) {
+    const parsed = new Date(arrivedAtRaw)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      arrivedAt = parsed.toISOString()
+    }
+  }
+
+  await dualWriteAssistantEvent(supabase, {
+    organization_id: organizationId,
+    staff_id: staffId,
+    event_type: 'home_arrival',
+    target_type: 'home',
+    target_id: null,
+    happened_at: arrivedAt,
+    source: 'geofence_foreground',
+    suggested_action: 'end_workday',
+  })
+
+  return new Response(JSON.stringify({ success: true }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
