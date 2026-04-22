@@ -75,6 +75,12 @@ function defaultSuggestedAction(eventType: string, targetType: string): string {
 // ── Action handlers ────────────────────────────────────────────────────────
 
 async function handleListPending(supabase: any, staffId: string, organizationId: string) {
+  // Promote stale events first so prompt-kön aldrig visar gammalt skräp.
+  // still_relevant_for_review lämnas orört → review-listan ser dem fortfarande.
+  await supabase.rpc('promote_stale_assistant_events').catch((e: any) => {
+    console.warn('[assistant-events] promote_stale failed (non-fatal):', e?.message)
+  })
+
   const { data, error } = await supabase
     .from('assistant_events')
     .select('*')
