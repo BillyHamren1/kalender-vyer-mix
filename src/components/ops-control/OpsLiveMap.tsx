@@ -946,18 +946,102 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       )}
 
+      {/* Hover tooltip — shows ALL names when hovering a staff marker or cluster */}
+      {hoverTip && hoverTip.members.length > 0 && (
+        <div
+          className="pointer-events-none absolute z-30 bg-popover text-popover-foreground border border-border rounded-md shadow-lg px-2.5 py-1.5"
+          style={{
+            left: Math.min(hoverTip.x + 14, (wrapperRef.current?.clientWidth || 800) - 290),
+            top: Math.max(hoverTip.y - 8, 8),
+            minWidth: 180,
+            maxWidth: 280,
+            maxHeight: 240,
+            overflowY: 'auto',
+          }}
+        >
+          {hoverTip.members.length > 1 && (
+            <div className="text-[9px] font-bold uppercase text-muted-foreground mb-1">
+              {hoverTip.members.length} personer på platsen
+            </div>
+          )}
+          <div className="space-y-1">
+            {hoverTip.members.map(m => (
+              <div key={m.id} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                <span
+                  className="w-2 h-2 rounded-full shrink-0 mt-1"
+                  style={{ background: statusStyles[m.status].color, opacity: m.isOffline ? 0.55 : 1 }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-foreground break-words">{m.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {statusStyles[m.status].label}
+                    {m.teamName && ` · ${m.teamName}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cluster picker — shown when clicking a cluster that cannot be zoomed apart */}
+      {clusterPicker && (
+        <div
+          className="absolute z-40 bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+          style={{
+            left: Math.min(clusterPicker.x + 10, (wrapperRef.current?.clientWidth || 800) - 240),
+            top: Math.max(clusterPicker.y - 10, 8),
+            width: 230,
+            maxHeight: 300,
+          }}
+        >
+          <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Välj person</span>
+            <button onClick={() => setClusterPicker(null)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+          </div>
+          <div className="overflow-y-auto" style={{ maxHeight: 250 }}>
+            {clusterPicker.members.map(loc => {
+              const status = getStaffStatus(loc, mapJobs);
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => {
+                    setStaffPanel(loc);
+                    setSelectedJob(null);
+                    setClusterPicker(null);
+                  }}
+                  className="w-full flex items-start gap-2 px-2.5 py-1.5 text-left hover:bg-muted transition-colors border-b border-border/30 last:border-0"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
+                    style={{ background: statusStyles[status].color, opacity: loc.isOffline ? 0.55 : 1 }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold text-foreground break-words">{loc.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {statusStyles[status].label}
+                      {loc.teamName && ` · ${loc.teamName}`}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Staff quick panel */}
       {staffPanel && (
-        <div className="absolute bottom-2 right-2 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
-          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
+        <div className="absolute bottom-2 right-2 w-72 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
+          <div className="px-3 py-2 border-b border-border flex items-start justify-between gap-2">
+            <div className="flex items-start gap-1.5 min-w-0 flex-1">
               <div
-                className="w-2.5 h-2.5 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
                 style={{ background: statusStyles[getStaffStatus(staffPanel, mapJobs)].color }}
               />
-              <span className="text-[11px] font-bold text-foreground truncate">{staffPanel.name}</span>
+              <span className="text-[11px] font-bold text-foreground break-words leading-tight">{staffPanel.name}</span>
             </div>
-            <button onClick={() => setStaffPanel(null)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+            <button onClick={() => setStaffPanel(null)} className="text-muted-foreground hover:text-foreground text-xs shrink-0">✕</button>
           </div>
           <div className="px-3 py-2 space-y-1.5">
             <div className="text-[10px] text-muted-foreground">
