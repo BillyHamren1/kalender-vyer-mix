@@ -14,6 +14,16 @@ interface PushPayload {
   organization_id: string
 }
 
+function sanitizeDataPayload(data?: Record<string, unknown>): Record<string, string> {
+  if (!data) return {}
+
+  return Object.fromEntries(
+    Object.entries(data)
+      .filter(([key, value]) => /^[a-zA-Z0-9_]+$/.test(key) && value !== null && value !== undefined)
+      .map(([key, value]) => [key, String(value)])
+  )
+}
+
 async function getAccessToken(serviceAccount: any): Promise<string> {
   // Create JWT for Google OAuth2
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
@@ -160,6 +170,7 @@ Deno.serve(async (req) => {
 
     const payload: PushPayload = await req.json()
     const { staff_ids, title, body, notification_type, data, organization_id } = payload
+    const safeData = sanitizeDataPayload(data)
 
     // Get device tokens for the target staff
     const { data: tokens, error: tokenError } = await supabase
@@ -194,7 +205,7 @@ Deno.serve(async (req) => {
             data: {
               notification_type,
               click_action: 'FLUTTER_NOTIFICATION_CLICK',
-              ...data,
+              ...safeData,
             },
             android: {
               priority: 'high',
@@ -263,7 +274,7 @@ Deno.serve(async (req) => {
             title,
             body,
             notification_type,
-            data: data || {},
+             data: safeData,
             success: fcmRes.ok,
             error_message: fcmRes.ok ? null : JSON.stringify(fcmData),
             organization_id,
