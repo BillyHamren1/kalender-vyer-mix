@@ -10,7 +10,7 @@ import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail'
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
 
-export type SegmentKind = 'location' | 'booking' | 'travel';
+export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
 export interface DaySegment {
   id: string;
@@ -69,6 +69,12 @@ const StaffTimeReports: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const dayStart = new Date(selectedDate);
+  dayStart.setHours(0, 0, 0, 0);
+  const nextDay = new Date(dayStart);
+  nextDay.setDate(nextDay.getDate() + 1);
+  const dayStartIso = dayStart.toISOString();
+  const nextDayIso = nextDay.toISOString();
 
   // Realtime: refresh the day view when any of the source tables change for today.
   useRealtimeInvalidation({
@@ -77,6 +83,7 @@ const StaffTimeReports: React.FC = () => {
       { table: 'time_reports', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'travel_time_logs', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'location_time_entries', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'workdays', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'staff_locations', events: ['INSERT', 'UPDATE'] },
     ],
     queryKeys: [['staff-time-reports-day', dateStr]],
@@ -88,7 +95,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, pingsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes] = await Promise.all([
         // EXCLUDE legacy auto-mirrored rows. The DB trigger
         // `sync_location_entry_to_time_report` was REMOVED 2026-04-22 and
         // time_reports are now created exclusively via
@@ -108,6 +115,11 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
+        supabase
+          .from('workdays')
+          .select('id, staff_id, started_at, ended_at')
+          .lt('started_at', nextDayIso)
+          .or(`ended_at.is.null,ended_at.gte.${dayStartIso}`),
         // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
@@ -117,6 +129,7 @@ const StaffTimeReports: React.FC = () => {
       if (reportsRes.error) throw reportsRes.error;
       if (travelRes.error) throw travelRes.error;
       if (locationRes.error) throw locationRes.error;
+      if (workdaysRes.error) throw workdaysRes.error;
       // pingsRes is non-fatal — fall back to no ping data on error.
       const pingMap = new Map<string, LatestPing>();
       for (const p of (pingsRes.data || []) as any[]) {
@@ -145,6 +158,7 @@ const StaffTimeReports: React.FC = () => {
       const reports = reportsRes.data || [];
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
+      const workdays = workdaysRes.data || [];
 
       // Resolve location -> internal booking (e.g. Lager) for project label
       const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
@@ -415,6 +429,37 @@ const StaffTimeReports: React.FC = () => {
           hours,
         });
         byStaff.set(e.staff_id, a);
+      }
+
+      for (const wd of workdays as any[]) {
+        const a = byStaff.get(wd.staff_id) || newAgg();
+        const isOpen = !wd.ended_at;
+        const startHHMM = format(new Date(wd.started_at), 'HH:mm:ss');
+
+        if (!a.earliest_start || startHHMM < a.earliest_start) {
+          a.earliest_start = startHHMM;
+        }
+
+        if (isOpen) {
+          a.has_open_report = true;
+        } else if (wd.ended_at) {
+          const endHHMM = format(new Date(wd.ended_at), 'HH:mm:ss');
+          if (!a.latest_end || endHHMM > a.latest_end) {
+            a.latest_end = endHHMM;
+          }
+        }
+
+        a.segments.push({
+          id: `wd:${wd.id}`,
+          kind: 'workday',
+          label: 'Arbetsdag startad',
+          start: wd.started_at,
+          end: wd.ended_at,
+          isOpen,
+          hours: 0,
+        });
+
+        byStaff.set(wd.staff_id, a);
       }
 
       const staffIds = [...byStaff.keys()];

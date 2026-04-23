@@ -37,6 +37,7 @@ interface StaffWithDayReport {
 }
 
 const segmentIcon = (kind: SegmentKind) => {
+  if (kind === 'workday') return Clock;
   if (kind === 'location') return MapPin;
   if (kind === 'travel') return Car;
   return Briefcase;
@@ -364,7 +365,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                                 }`}
                                 title={seg.label}
                               >
-                                {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide">NU:</span>}
+                                 {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide">NU:</span>}
                                 {seg.label}
                               </span>
                             </div>
