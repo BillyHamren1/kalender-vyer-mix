@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Säkerställer att stale-day-reminder navigerar till /m/day-review
  * MED ?day=<dayKey> så att rätt dag öppnas direkt.
