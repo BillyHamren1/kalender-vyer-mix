@@ -168,6 +168,31 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
         )}
 
       </CardContent>
+
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-4xl p-2">
+          {previewImage && (
+            <>
+              <img
+                src={previewImage.url}
+                alt={previewImage.name || 'Bild'}
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+              />
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <p className="text-xs text-muted-foreground truncate">{previewImage.name}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(previewImage.url, '_blank')}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Ladda ner
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
