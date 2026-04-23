@@ -13,8 +13,8 @@
  *
  * Hittas via knappen i MobileJobs-headern (badge med antal needs_review).
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane,
   PlayCircle, StopCircle, HomeIcon, X as XIcon, Check,
@@ -77,12 +77,16 @@ function actionsForEvent(ev: ReviewEvent): {
 
 export default function MobileDayReview() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusDayKey = searchParams.get('day');
   const { locale } = useLanguage();
   const [workdays, setWorkdays] = useState<ReviewWorkday[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [busyDayId, setBusyDayId] = useState<string | null>(null);
+  const [highlightedDayKey, setHighlightedDayKey] = useState<string | null>(null);
+  const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const actions = useDayReviewActions();
 
   const load = async (showSpinner: boolean) => {
@@ -99,6 +103,22 @@ export default function MobileDayReview() {
   };
 
   useEffect(() => { load(true); }, []);
+
+  // Scroll/highlight requested day after load.
+  useEffect(() => {
+    if (loading || !focusDayKey || workdays.length === 0) return;
+    const match = workdays.find((w) => w.day_key === focusDayKey);
+    if (!match) return; // ogiltig/borta dag → tyst fallback (visa hela listan)
+    setHighlightedDayKey(match.day_key);
+    const el = dayRefs.current[match.day_key];
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    const t = window.setTimeout(() => setHighlightedDayKey(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [loading, focusDayKey, workdays]);
 
   const runEventAction = async (
     ev: ReviewEvent,
@@ -178,12 +198,16 @@ export default function MobileDayReview() {
             const canApprove = !isSynthetic
               && (wd.review_status === 'ready' || wd.review_status === 'needs_review')
               && total === 0;
+            const isHighlighted = highlightedDayKey === wd.day_key;
             return (
               <div
                 key={wd.id}
+                ref={(el) => { dayRefs.current[wd.day_key] = el; }}
+                data-day-key={wd.day_key}
                 className={cn(
-                  'rounded-2xl border bg-card p-4 shadow-sm',
+                  'rounded-2xl border bg-card p-4 shadow-sm transition-all',
                   wd.review_status === 'needs_review' && 'border-destructive/30',
+                  isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                 )}
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
