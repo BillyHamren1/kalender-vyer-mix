@@ -89,6 +89,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "fabric": "^6.6.6",
+    "happy-dom": "15.11.7",
     "html-to-image": "^1.11.13",
     "input-otp": "^1.2.4",
     "jsdom": "^20.0.3",

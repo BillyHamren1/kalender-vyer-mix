@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Scenario-tester för dagavstämningsmodellen via oracle.
  * Täcker de 10 kraven från review-prompten.
