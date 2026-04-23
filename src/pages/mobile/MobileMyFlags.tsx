@@ -53,15 +53,28 @@ export default function MobileMyFlags() {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const [flags, setFlags] = useState<WorkdayFlag[]>([]);
+  const [corrections, setCorrections] = useState<AICorrection[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
   const [openNote, setOpenNote] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await mobileApi.listWorkdayFlags({ resolved: false });
-      setFlags(res.flags || []);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const [flagsRes, correctionsRes] = await Promise.all([
+        mobileApi.listWorkdayFlags({ resolved: false }),
+        supabase
+          .from('ai_reality_corrections')
+          .select('id, detected_at, situation_kind, confidence, ai_reasoning, status, applied_actions')
+          .gte('detected_at', sevenDaysAgo)
+          .in('status', ['applied', 'reverted'])
+          .order('detected_at', { ascending: false })
+          .limit(20),
+      ]);
+      setFlags(flagsRes.flags || []);
+      setCorrections((correctionsRes.data as AICorrection[]) || []);
     } catch (err) {
       console.error('[MyFlags] load failed:', err);
       toast.error(t('flags.couldNotLoad'));
@@ -71,6 +84,24 @@ export default function MobileMyFlags() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const revertCorrection = async (id: string) => {
+    setRevertingId(id);
+    try {
+      const { error } = await supabase
+        .from('ai_reality_corrections')
+        .update({ status: 'reverted', reverted_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      setCorrections((prev) => prev.map((c) => c.id === id ? { ...c, status: 'reverted' } : c));
+      toast.success('Återställd');
+    } catch (err) {
+      console.error('[MyFlags] revert failed:', err);
+      toast.error('Kunde inte återställa');
+    } finally {
+      setRevertingId(null);
+    }
+  };
 
   const resolve = async (flag: WorkdayFlag, note: string) => {
     setResolvingId(flag.id);
