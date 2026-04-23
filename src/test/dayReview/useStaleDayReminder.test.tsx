@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Verkliga tester för useStaleDayReminder:
  *   • visar toast när tidigare dag har needs_review (gårdagen)
