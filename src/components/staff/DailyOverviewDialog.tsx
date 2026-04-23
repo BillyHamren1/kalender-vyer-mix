@@ -262,7 +262,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
-    if (travelOnMap.length === 0) return;
+    const plannedStops = (plannedRoute?.stops || []).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+    if (travelOnMap.length === 0 && plannedStops.length === 0) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -272,7 +273,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
-    const center: [number, number] = [travelOnMap[0].fromLng, travelOnMap[0].fromLat];
+    const center: [number, number] = travelOnMap.length > 0
+      ? [travelOnMap[0].fromLng, travelOnMap[0].fromLat]
+      : [plannedStops[0].lng, plannedStops[0].lat];
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
