@@ -132,7 +132,9 @@ export default function MobileDayReview() {
                       {dayLabel || dateFmt(wd.started_at)}
                     </div>
                     <div className="text-base font-semibold mt-0.5">
-                      {timeFmt(wd.started_at)} – {timeFmt(wd.ended_at)}
+                      {(wd as any).synthetic
+                        ? 'Ingen arbetsdag startad'
+                        : `${timeFmt(wd.started_at)} – ${timeFmt(wd.ended_at)}`}
                     </div>
                   </div>
                   <span className={cn('text-[11px] font-semibold uppercase px-2 py-1 rounded-full', STATUS_STYLE[wd.review_status])}>
