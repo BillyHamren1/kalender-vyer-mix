@@ -77,12 +77,16 @@ function actionsForEvent(ev: ReviewEvent): {
 
 export default function MobileDayReview() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusDayKey = searchParams.get('day');
   const { locale } = useLanguage();
   const [workdays, setWorkdays] = useState<ReviewWorkday[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [busyDayId, setBusyDayId] = useState<string | null>(null);
+  const [highlightedDayKey, setHighlightedDayKey] = useState<string | null>(null);
+  const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const actions = useDayReviewActions();
 
   const load = async (showSpinner: boolean) => {
@@ -99,6 +103,22 @@ export default function MobileDayReview() {
   };
 
   useEffect(() => { load(true); }, []);
+
+  // Scroll/highlight requested day after load.
+  useEffect(() => {
+    if (loading || !focusDayKey || workdays.length === 0) return;
+    const match = workdays.find((w) => w.day_key === focusDayKey);
+    if (!match) return; // ogiltig/borta dag → tyst fallback (visa hela listan)
+    setHighlightedDayKey(match.day_key);
+    const el = dayRefs.current[match.day_key];
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    const t = window.setTimeout(() => setHighlightedDayKey(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [loading, focusDayKey, workdays]);
 
   const runEventAction = async (
     ev: ReviewEvent,
