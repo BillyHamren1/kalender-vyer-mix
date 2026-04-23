@@ -31,6 +31,7 @@ const REASON_LABELS: Record<string, string> = {
   missing_end: 'Dagen saknar slut',
   unresolved_travel: 'Oklara resor',
   missed_prompts_all_day: 'Många missade prompts',
+  no_workday_started: 'Ingen arbetsdag startades',
 };
 
 const STATUS_STYLE: Record<ReviewWorkday['review_status'], string> = {
@@ -131,7 +132,9 @@ export default function MobileDayReview() {
                       {dayLabel || dateFmt(wd.started_at)}
                     </div>
                     <div className="text-base font-semibold mt-0.5">
-                      {timeFmt(wd.started_at)} – {timeFmt(wd.ended_at)}
+                      {(wd as any).synthetic
+                        ? 'Ingen arbetsdag startad'
+                        : `${timeFmt(wd.started_at)} – ${timeFmt(wd.ended_at)}`}
                     </div>
                   </div>
                   <span className={cn('text-[11px] font-semibold uppercase px-2 py-1 rounded-full', STATUS_STYLE[wd.review_status])}>

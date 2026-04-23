@@ -6575,10 +6575,55 @@ async function handleListWorkdaysReview(supabase: any, staffId: string, data: an
       day_key: key,
       counts: agg,
       events_for_day: (events || []).filter((e: any) => dayKeyOf(e.happened_at) === key),
+      travels_for_day: openTravel.filter((t: any) => dayKeyOf(t.started_at) === key),
+      synthetic: false,
     }
   })
 
-  return new Response(JSON.stringify({ workdays: enriched }),
+  // ----- Syntetiska review-dagar -----
+  // Om assistant_events eller öppna resor finns för ett datum men ingen workday
+  // skapats (användaren missade hela dagen), måste dagen ändå gå att reviewa.
+  // Skapa en virtuell workday-post per saknat datum.
+  const realDayKeys = new Set((workdays || []).map((w: any) => dayKeyOf(w.started_at)))
+  const syntheticDays: any[] = []
+  for (const [key, agg] of Object.entries(aggByDay)) {
+    if (realDayKeys.has(key)) continue
+    const hasSignal = agg.open_events > 0 || agg.stale_review_events > 0 || agg.open_travel > 0
+    if (!hasSignal) continue
+
+    const dayEvents = (events || []).filter((e: any) => dayKeyOf(e.happened_at) === key)
+    const dayTravels = openTravel.filter((t: any) => dayKeyOf(t.started_at) === key)
+    const firstEventIso = [...dayEvents].sort((a: any, b: any) =>
+      new Date(a.happened_at).getTime() - new Date(b.happened_at).getTime()
+    )[0]?.happened_at || `${key}T00:00:00.000Z`
+
+    const reasons: string[] = ['no_workday_started']
+    if (agg.open_events > 0 || agg.stale_review_events > 0) reasons.push('open_assistant_events')
+    if (agg.stale_review_events > 0) reasons.push('stale_review_events')
+    if (agg.open_travel > 0) reasons.push('unresolved_travel')
+    reasons.push('missing_end')
+
+    syntheticDays.push({
+      id: `synthetic:${key}`,
+      started_at: firstEventIso,
+      ended_at: null,
+      review_status: 'needs_review',
+      review_reasons: reasons,
+      review_computed_at: new Date().toISOString(),
+      notes: null,
+      day_key: key,
+      counts: agg,
+      events_for_day: dayEvents,
+      travels_for_day: dayTravels,
+      synthetic: true,
+    })
+  }
+
+  const all = [...enriched, ...syntheticDays].sort((a, b) =>
+    (b.day_key || '').localeCompare(a.day_key || '')
+  )
+
+  return new Response(JSON.stringify({ workdays: all }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
