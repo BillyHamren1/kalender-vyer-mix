@@ -9,9 +9,9 @@
  *
  * TRIGGERS:
  *   1. App open / hook mount (när staff finns)
- *   2. App foreground (document visibilitychange → visible)
+ *   2. App foreground (document visibilitychange → visible, window focus)
  *   3. Avslut av ny arbetsdag — custom event 'workday-ended' som
- *      `syncWorkDayEnd` kan skicka (eller någon annan stop-flow).
+ *      `syncWorkDayEnd` skickar.
  *
  * THROTTLE:
  *   localStorage-key `eventflow-stale-day-reminder-shown` håller
@@ -68,7 +68,7 @@ export function useStaleDayReminder(enabled: boolean) {
     if (!enabled || checkingRef.current) return;
     checkingRef.current = true;
     try {
-      const res = await mobileApi.listWorkdaysReview({ days: 7 });
+      const res = await (mobileApi as any).listWorkdaysReview({ days: 7 });
       const workdays = res?.workdays || [];
       const today = todayKey();
 
@@ -117,7 +117,7 @@ export function useStaleDayReminder(enabled: boolean) {
     return () => window.clearTimeout(t);
   }, [enabled, check]);
 
-  // 2. App foreground (visibilitychange → visible)
+  // 2. App foreground (visibilitychange → visible, window focus)
   useEffect(() => {
     if (!enabled) return;
     const onVis = () => {

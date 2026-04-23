@@ -53,6 +53,9 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
+  // Lugn påminnelse om ofärdig tidigare dag (gårdagen). Throttlas internt.
+  useStaleDayReminder(!!staff);
+
   // UNIFIED start flow — same conflict + distance + start machinery as
   // every other start-surface in the mobile app. Direct startSession()
   // calls from arrival flow are forbidden.
@@ -143,10 +146,6 @@ const MobileGlobalOverlays: React.FC = () => {
   // Stale-day correction — server cron flagged a forgotten timer overnight;
   // ask the user to confirm/correct the actual end-of-day time.
   const staleDay = useStaleDayCorrection(!!staff);
-
-  // Lugn påminnelse om gårdagen / tidigare dagar som fortfarande needs_review.
-  // Triggas vid app open, foreground och 'workday-ended'. Throttlas internt.
-  useStaleDayReminder(!!staff);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
