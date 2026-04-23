@@ -77,6 +77,8 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           eventType: 'delivery' as const,
           deliveryAddress: t.booking?.deliveryaddress || undefined,
           viewed: true,
+          backgroundColor: '#BFDBFE',
+          borderColor: '#93C5FD',
           extendedProps: {
             bookingNumber: t.booking?.booking_number || undefined,
             booking_id: t.booking?.id,
