@@ -8,6 +8,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
+import { optimizeStaffRoute, StaffRouteResult, RouteStop } from '@/services/staffRouteService';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -83,6 +84,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
   const [gpsPoints, setGpsPoints] = useState<GpsPoint[]>([]);
+  const [plannedRoute, setPlannedRoute] = useState<StaffRouteResult | null>(null);
+  const [plannedLoading, setPlannedLoading] = useState(false);
+  const [plannedError, setPlannedError] = useState<string | null>(null);
 
   // Fetch mapbox token
   useEffect(() => {
@@ -116,6 +120,30 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       .catch((e) => {
         console.error('Failed to fetch GPS trail:', e);
         if (!cancelled) setGpsPoints([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date, staffId]);
+
+  // Fetch planned day (assigned bookings + optimized route)
+  useEffect(() => {
+    if (!open || !date || !staffId) return;
+    let cancelled = false;
+    setPlannedLoading(true);
+    setPlannedError(null);
+    setPlannedRoute(null);
+    optimizeStaffRoute(staffId, date)
+      .then((res) => {
+        if (cancelled) return;
+        setPlannedRoute(res);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setPlannedError(e?.message || 'Kunde inte hämta planerad dag');
+      })
+      .finally(() => {
+        if (!cancelled) setPlannedLoading(false);
       });
     return () => {
       cancelled = true;
@@ -234,7 +262,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
   useEffect(() => {
     if (!open || !mapContainer.current || !mapboxToken) return;
-    if (travelOnMap.length === 0) return;
+    const plannedStops = (plannedRoute?.stops || []).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+    if (travelOnMap.length === 0 && plannedStops.length === 0) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -244,7 +273,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
       map.current = null;
     }
 
-    const center: [number, number] = [travelOnMap[0].fromLng, travelOnMap[0].fromLat];
+    const center: [number, number] = travelOnMap.length > 0
+      ? [travelOnMap[0].fromLng, travelOnMap[0].fromLat]
+      : [plannedStops[0].lng, plannedStops[0].lat];
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
@@ -261,11 +292,12 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         bounds.extend([t.fromLng, t.fromLat]);
         bounds.extend([t.toLng, t.toLat]);
       });
+      plannedStops.forEach(s => bounds.extend([s.lng, s.lat]));
       if (!bounds.isEmpty()) {
         m.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       }
 
-      // Draw a line for each travel segment
+      // Draw a line for each travel segment (actual movement)
       travelOnMap.forEach((t, idx) => {
         const sourceId = `travel-line-${idx}`;
         m.addSource(sourceId, {
@@ -324,6 +356,69 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         makePin(t.fromLat, t.fromLng, 'from', t.fromTime);
         makePin(t.toLat, t.toLng, 'to', t.toTime);
       });
+
+      // Planned route: optimized polyline (dashed purple) + numbered stop pins
+      if (plannedStops.length > 0) {
+        const order = plannedRoute?.optimized_order && plannedRoute.optimized_order.length === plannedStops.length
+          ? plannedRoute.optimized_order
+          : plannedStops.map((_, i) => i);
+        const orderedStops = order.map(idx => plannedStops[idx]).filter(Boolean);
+
+        const coords: [number, number][] = plannedRoute?.polyline?.coordinates && plannedRoute.polyline.coordinates.length > 1
+          ? (plannedRoute.polyline.coordinates as [number, number][])
+          : orderedStops.map(s => [s.lng, s.lat] as [number, number]);
+
+        if (coords.length > 1) {
+          m.addSource('planned-line', {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'LineString', coordinates: coords },
+            },
+          });
+          m.addLayer({
+            id: 'planned-line',
+            type: 'line',
+            source: 'planned-line',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#8b5cf6',
+              'line-width': 3,
+              'line-opacity': 0.7,
+              'line-dasharray': [2, 2],
+            },
+          });
+        }
+
+        orderedStops.forEach((stop, i) => {
+          const el = document.createElement('div');
+          el.style.width = '26px';
+          el.style.height = '26px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = '#8b5cf6';
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+          el.style.color = 'white';
+          el.style.fontSize = '11px';
+          el.style.fontWeight = 'bold';
+          el.textContent = String(i + 1);
+
+          const timeStr = [stop.startTime, stop.endTime].filter(Boolean).join(' – ') || 'Tid ej satt';
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([stop.lng, stop.lat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 22 }).setHTML(
+                `<strong>Stopp ${i + 1}: ${stop.client}</strong><br/><span style="font-size:11px">${stop.address || ''}</span><br/><span style="font-size:10px;color:#666">${timeStr}</span>`
+              )
+            )
+            .addTo(m);
+          markersRef.current.push(marker);
+        });
+      }
     });
 
     map.current = m;
@@ -336,7 +431,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, travelOnMap]);
+  }, [open, mapboxToken, travelOnMap, plannedRoute]);
 
   if (!date) return null;
 
@@ -354,7 +449,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = travelOnMap.length > 0;
+  const plannedStops = (plannedRoute?.stops || []).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const hasMapData = travelOnMap.length > 0 || plannedStops.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -383,7 +479,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <div className="space-y-1">
             <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
             <div className="text-xs text-muted-foreground">
-              🟢 Avresa · 🔴 Ankomst · 🔵 Resväg · {travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
+              🟢 Avresa · 🔴 Ankomst · 🔵 Faktisk resväg
+              {plannedStops.length > 0 && <> · 🟣 Planerade stopp ({plannedStops.length})</>}
+              {' · '}{travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
             </div>
           </div>
         ) : (
@@ -444,6 +542,63 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             </div>
           );
         })()}
+
+        {/* Planerad dag — assigned bookings + optimized route */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold flex items-center gap-1.5">
+              <Navigation className="h-4 w-4 text-purple-500" /> Planerad dag
+            </h4>
+            {plannedRoute && plannedStops.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {plannedStops.length} {plannedStops.length === 1 ? 'stopp' : 'stopp'} · {plannedRoute.total_distance_km.toFixed(1)} km · ~{Math.round(plannedRoute.total_duration_min)} min
+              </div>
+            )}
+          </div>
+          {plannedLoading && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">Hämtar planerad dag…</div>
+          )}
+          {!plannedLoading && plannedError && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">{plannedError}</div>
+          )}
+          {!plannedLoading && !plannedError && plannedStops.length === 0 && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">
+              Inga planerade jobb denna dag.
+            </div>
+          )}
+          {!plannedLoading && plannedStops.length > 0 && (
+            <div className="space-y-1">
+              {(plannedRoute?.optimized_order && plannedRoute.optimized_order.length === plannedStops.length
+                ? plannedRoute.optimized_order.map(idx => plannedStops[idx]).filter(Boolean)
+                : plannedStops
+              ).map((stop, i) => (
+                <div
+                  key={stop.bookingId + i}
+                  className="flex items-start gap-3 p-2.5 rounded-lg text-sm bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/50"
+                >
+                  <div className="flex items-center justify-center shrink-0 w-7 h-7 rounded-full bg-purple-500 text-white text-xs font-bold">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium break-words">{stop.client}</div>
+                    {stop.address && (
+                      <div className="text-xs text-muted-foreground break-words">{stop.address}</div>
+                    )}
+                    <div className="text-[11px] text-muted-foreground">
+                      {[stop.startTime, stop.endTime].filter(Boolean).join(' – ') || 'Tid ej satt'}
+                      {stop.eventType && <> · {stop.eventType}</>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {plannedRoute?.ai_suggestions && (
+                <div className="text-xs text-muted-foreground italic p-2 rounded-md bg-muted/40 border">
+                  💡 {plannedRoute.ai_suggestions}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Tidslinje</h4>
