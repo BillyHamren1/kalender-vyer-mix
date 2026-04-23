@@ -13,37 +13,43 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 // --- Mocks (måste ligga FÖRE import av hooken) ----------------------------
-const tryStartFromArrival = vi.fn();
-const requestStart = vi.fn();
-const stopSession = vi.fn();
-const ensureActive = vi.fn();
-const endWorkDay = vi.fn();
-const syncWorkDayEnd = vi.fn();
-const resolveAssistantEvent = vi.fn();
-const approveWorkdayApi = vi.fn();
-const setTravelTimes = vi.fn();
-const createTravelLog = vi.fn();
+const mocks = vi.hoisted(() => ({
+  tryStartFromArrival: vi.fn(),
+  requestStart: vi.fn(),
+  stopSession: vi.fn(),
+  ensureActive: vi.fn(),
+  endWorkDay: vi.fn(),
+  syncWorkDayEnd: vi.fn(),
+  resolveAssistantEvent: vi.fn(),
+  approveWorkdayApi: vi.fn(),
+  setTravelTimes: vi.fn(),
+  createTravelLog: vi.fn(),
+}));
+const {
+  tryStartFromArrival, requestStart, stopSession, ensureActive, endWorkDay,
+  syncWorkDayEnd, resolveAssistantEvent, approveWorkdayApi, setTravelTimes, createTravelLog,
+} = mocks;
 
 vi.mock('@/hooks/useMobileData', () => ({ useMobileBookings: () => ({ data: [] }) }));
 vi.mock('@/contexts/MobileAuthContext', () => ({
   useMobileAuth: () => ({ staff: { id: 'staff-1' } }),
 }));
 vi.mock('@/hooks/useTimerStartFlow', () => ({
-  useTimerStartFlow: () => ({ tryStartFromArrival, requestStart }),
+  useTimerStartFlow: () => ({ tryStartFromArrival: mocks.tryStartFromArrival, requestStart: mocks.requestStart }),
 }));
 vi.mock('@/hooks/useWorkSession', () => ({
-  useWorkSession: () => ({ stopSession }),
+  useWorkSession: () => ({ stopSession: mocks.stopSession }),
 }));
 vi.mock('@/hooks/useWorkDay', () => ({
-  useWorkDay: () => ({ ensureActive, end: endWorkDay, current: { id: 'wd-1' } }),
+  useWorkDay: () => ({ ensureActive: mocks.ensureActive, end: mocks.endWorkDay, current: { id: 'wd-1' } }),
 }));
-vi.mock('@/services/workdayServerSync', () => ({ syncWorkDayEnd }));
+vi.mock('@/services/workdayServerSync', () => ({ syncWorkDayEnd: mocks.syncWorkDayEnd }));
 vi.mock('@/services/mobileApiService', () => ({
   mobileApi: {
-    assistantEvents: { resolve: resolveAssistantEvent },
-    approveWorkday: approveWorkdayApi,
-    setTravelTimes,
-    createTravelLog,
+    assistantEvents: { resolve: mocks.resolveAssistantEvent },
+    approveWorkday: mocks.approveWorkdayApi,
+    setTravelTimes: mocks.setTravelTimes,
+    createTravelLog: mocks.createTravelLog,
   },
 }));
 vi.mock('sonner', () => ({
