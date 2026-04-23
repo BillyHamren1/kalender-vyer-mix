@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Verklig unit-test av `eventToTarget` — den enskilda hetaste regressionsrisken
  * (review-flödet bröts tidigare för att target_kind bara fanns i metadata).
