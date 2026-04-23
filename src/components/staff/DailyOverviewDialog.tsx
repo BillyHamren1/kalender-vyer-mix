@@ -479,7 +479,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <div className="space-y-1">
             <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
             <div className="text-xs text-muted-foreground">
-              🟢 Avresa · 🔴 Ankomst · 🔵 Resväg · {travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
+              🟢 Avresa · 🔴 Ankomst · 🔵 Faktisk resväg
+              {plannedStops.length > 0 && <> · 🟣 Planerade stopp ({plannedStops.length})</>}
+              {' · '}{travelOnMap.length} {travelOnMap.length === 1 ? 'resa' : 'resor'} från {gpsPoints.length} GPS-pings
             </div>
           </div>
         ) : (
