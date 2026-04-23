@@ -342,10 +342,13 @@ const GlobalActiveTimerBanner: React.FC = () => {
           ))}
         </div>
       )}
-      {/* "Avsluta dagen" — fixed längst ner ovanför bottennaven så den
-          aldrig hamnar bakom innehåll eller dubblerar timer-raderna. */}
+      {/* "Avsluta dagen" — fixed ovanför bottennaven (h-16 = 64px) +
+          iOS safe-area så hela knappen alltid syns på alla enheter. */}
       {timers.size > 0 && location.pathname !== '/m/report' && (
-        <div className="fixed bottom-20 left-0 right-0 z-30 px-5 pointer-events-none">
+        <div
+          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
+          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
+        >
           <Button
             variant="default"
             className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
