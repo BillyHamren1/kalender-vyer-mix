@@ -543,6 +543,63 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           );
         })()}
 
+        {/* Planerad dag — assigned bookings + optimized route */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold flex items-center gap-1.5">
+              <Navigation className="h-4 w-4 text-purple-500" /> Planerad dag
+            </h4>
+            {plannedRoute && plannedStops.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {plannedStops.length} {plannedStops.length === 1 ? 'stopp' : 'stopp'} · {plannedRoute.total_distance_km.toFixed(1)} km · ~{Math.round(plannedRoute.total_duration_min)} min
+              </div>
+            )}
+          </div>
+          {plannedLoading && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">Hämtar planerad dag…</div>
+          )}
+          {!plannedLoading && plannedError && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">{plannedError}</div>
+          )}
+          {!plannedLoading && !plannedError && plannedStops.length === 0 && (
+            <div className="text-xs text-muted-foreground p-3 rounded-md border bg-muted/30">
+              Inga planerade jobb denna dag.
+            </div>
+          )}
+          {!plannedLoading && plannedStops.length > 0 && (
+            <div className="space-y-1">
+              {(plannedRoute?.optimized_order && plannedRoute.optimized_order.length === plannedStops.length
+                ? plannedRoute.optimized_order.map(idx => plannedStops[idx]).filter(Boolean)
+                : plannedStops
+              ).map((stop, i) => (
+                <div
+                  key={stop.bookingId + i}
+                  className="flex items-start gap-3 p-2.5 rounded-lg text-sm bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/50"
+                >
+                  <div className="flex items-center justify-center shrink-0 w-7 h-7 rounded-full bg-purple-500 text-white text-xs font-bold">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium break-words">{stop.client}</div>
+                    {stop.address && (
+                      <div className="text-xs text-muted-foreground break-words">{stop.address}</div>
+                    )}
+                    <div className="text-[11px] text-muted-foreground">
+                      {[stop.startTime, stop.endTime].filter(Boolean).join(' – ') || 'Tid ej satt'}
+                      {stop.eventType && <> · {stop.eventType}</>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {plannedRoute?.ai_suggestions && (
+                <div className="text-xs text-muted-foreground italic p-2 rounded-md bg-muted/40 border">
+                  💡 {plannedRoute.ai_suggestions}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Tidslinje</h4>
           <div className="space-y-1">
