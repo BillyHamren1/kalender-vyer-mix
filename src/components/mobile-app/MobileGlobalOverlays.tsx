@@ -144,6 +144,10 @@ const MobileGlobalOverlays: React.FC = () => {
   // ask the user to confirm/correct the actual end-of-day time.
   const staleDay = useStaleDayCorrection(!!staff);
 
+  // Lugn påminnelse om gårdagen / tidigare dagar som fortfarande needs_review.
+  // Triggas vid app open, foreground och 'workday-ended'. Throttlas internt.
+  useStaleDayReminder(!!staff);
+
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 
   useEffect(() => {
