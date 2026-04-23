@@ -5412,6 +5412,36 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
 
   const startIso = new Date().toISOString()
 
+  // Idempotency / recovery: if the client already has an open travel row for
+  // this staff member, reuse it instead of creating a second one. This covers
+  // stale localStorage, retry storms, and slow network races where the app
+  // fires "start travel" twice before the first response comes back.
+  const { data: existingOpenTravel, error: existingOpenTravelError } = await supabase
+    .from('travel_time_logs')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('end_time', null)
+    .order('start_time', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existingOpenTravelError) {
+    console.error('[handleStartTravelLog] fetch existing open travel failed:', existingOpenTravelError)
+  } else if (existingOpenTravel) {
+    console.log(
+      `[handleStartTravelLog] Reusing existing open travel ${existingOpenTravel.id} for staff ${staffId}`
+    )
+    return new Response(
+      JSON.stringify({
+        success: true,
+        recovered_existing: true,
+        travel_log: existingOpenTravel,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   // ── GUARD: Reject travel-start if the user is currently inside a known
   // geofence (org_location like FA Warehouse, or a booking delivery point
   // they are assigned to). Without this guard, GPS jitter while walking
@@ -5557,6 +5587,35 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
 
   if (error) {
     console.error('Create travel log error:', error)
+
+    if (String(error?.message || '').includes('single_open_travel_log_violation')) {
+      const { data: recoveredOpenTravel, error: recoverErr } = await supabase
+        .from('travel_time_logs')
+        .select('*')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .is('end_time', null)
+        .order('start_time', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recoverErr) {
+        console.error('[handleStartTravelLog] recover existing open travel failed:', recoverErr)
+      } else if (recoveredOpenTravel) {
+        console.log(
+          `[handleStartTravelLog] Recovered existing open travel ${recoveredOpenTravel.id} after unique guard for staff ${staffId}`
+        )
+        return new Response(
+          JSON.stringify({
+            success: true,
+            recovered_existing: true,
+            travel_log: recoveredOpenTravel,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     return new Response(
       JSON.stringify({ error: 'Failed to create travel log' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -5581,24 +5640,63 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
     )
   }
 
-  // Get the existing log to calculate hours
+  // Get the requested log first. If the client points at a stale/orphan id,
+  // fall back to the newest currently-open travel row for this staff member.
   const { data: existing, error: fetchError } = await supabase
     .from('travel_time_logs')
-    .select('start_time')
+    .select('id, start_time, end_time')
     .eq('id', travel_log_id)
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .single()
+    .maybeSingle()
 
-  if (fetchError || !existing) {
+  let targetLog = existing
+
+  if (!targetLog || fetchError) {
+    if (fetchError) {
+      console.warn('[handleStopTravelLog] requested travel log lookup failed, trying fallback:', fetchError)
+    }
+
+    const { data: fallbackOpenTravel, error: fallbackErr } = await supabase
+      .from('travel_time_logs')
+      .select('id, start_time, end_time')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .is('end_time', null)
+      .order('start_time', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (fallbackErr) {
+      console.error('[handleStopTravelLog] fallback open travel lookup failed:', fallbackErr)
+    } else if (fallbackOpenTravel) {
+      console.log(
+        `[handleStopTravelLog] Requested ${travel_log_id} missing/stale; falling back to open travel ${fallbackOpenTravel.id} for staff ${staffId}`
+      )
+      targetLog = fallbackOpenTravel
+    }
+  }
+
+  if (!targetLog) {
     return new Response(
       JSON.stringify({ error: 'Travel log not found' }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
+  if (targetLog.end_time) {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        already_stopped: true,
+        travel_log: targetLog,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   const endTime = new Date()
-  const startTime = new Date(existing.start_time)
+  const startTime = new Date(targetLog.start_time)
   const hoursWorked = Math.round(((endTime.getTime() - startTime.getTime()) / 3600000) * 100) / 100
 
   // Try to match destination to a booking address (within 300m)
@@ -5670,13 +5768,14 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
       manual_project_name: destinationBookingId ? null : (to_address || null),
       classification,
     })
-    .eq('id', travel_log_id)
+    .eq('id', targetLog.id)
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
+    .is('end_time', null)
     .select()
-    .single()
+    .maybeSingle()
 
-  if (error) {
+  if (error || !updated) {
     console.error('Stop travel log error:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to stop travel log' }),
@@ -5685,7 +5784,7 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
   }
 
   console.log(
-    `Travel log stopped: ${travel_log_id}, hours: ${hoursWorked}, ` +
+    `Travel log stopped: ${targetLog.id}, hours: ${hoursWorked}, ` +
     `matchedBooking: ${destinationBookingId}, classification: ${classification}`
   )
 
