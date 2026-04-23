@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Verkliga UI-tester för MobileDayReview:
  *   • renderar en SYNTETISK dag (utan workday) korrekt
