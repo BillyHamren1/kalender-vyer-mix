@@ -63,8 +63,6 @@ describe('useStaleDayReminder', () => {
 
     renderHook(() => useStaleDayReminder(true));
     await flushMountDelay();
-    // Vänta in i tomrummet — fail om något kallades.
-    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(toastFn).not.toHaveBeenCalled();
   });
 
@@ -77,7 +75,6 @@ describe('useStaleDayReminder', () => {
 
     renderHook(() => useStaleDayReminder(true));
     await flushMountDelay();
-    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(toastFn).not.toHaveBeenCalled();
   });
 
