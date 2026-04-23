@@ -10,6 +10,7 @@ import {
   isInsideGeofence,
   GEOFENCE_MAX_ACCURACY_M,
 } from '@/lib/geofenceEval';
+import { autoStartWorkDay } from '@/services/workdayServerSync';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
@@ -625,6 +626,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+          autoStartWorkDay('geofence_enter');
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
           noteEnterForDeparture(projectKey, 'project', lpId, lpName);
@@ -673,6 +675,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+          autoStartWorkDay('geofence_enter');
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: new Date().toISOString() })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
           noteEnterForDeparture(booking.id, 'booking', booking.id, booking.client || null);
@@ -732,6 +735,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
+        autoStartWorkDay('geofence_enter');
         noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
         setGeofenceEvent({
           type: 'enter',

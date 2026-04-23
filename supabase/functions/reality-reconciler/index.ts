@@ -194,6 +194,54 @@ async function tryDeterministicRules(
     }
   }
 
+  // Rule 4: missed_workday_autostart — staff has been physically inside a
+  // known geofence for ≥10 min (≥3 pings) but no workday is open. Treat as
+  // a missed autostart (offline / app crash / no GPS push) and create one
+  // anchored at first_inside_at.
+  if (!sit.open_workday && !sit.todays_workday_exists && sit.geofence_hits.length > 0) {
+    const top = sit.geofence_hits[0];
+    if (
+      top.pings_inside >= TRAVEL_ARRIVED_MIN_PINGS &&
+      top.first_inside_at &&
+      top.last_inside_at &&
+      minutesBetween(top.first_inside_at, top.last_inside_at) >= TRAVEL_ARRIVED_MIN_MINUTES
+    ) {
+      const arriveIso = top.first_inside_at;
+      const r = await applyEnsureWorkday(supabase, {
+        staffId: sit.staff_id,
+        organizationId: sit.organization_id,
+        atIso: arriveIso,
+      });
+      results.push({ action: 'ensure_workday', at: arriveIso, ...r });
+
+      // Stamp notes for audit trail (only on actually-created rows).
+      if (r.changed) {
+        const createdId = (r.detail as any)?.created_workday_id;
+        if (createdId) {
+          await supabase
+            .from('workdays')
+            .update({ notes: 'Autostarted: ai_reconciled (missed_workday)' })
+            .eq('id', createdId)
+            .is('ended_at', null);
+        }
+      }
+
+      await logCorrection(supabase, {
+        organization_id: sit.organization_id,
+        staff_id: sit.staff_id,
+        situation_kind: 'missed_workday_autostart',
+        confidence: 0.9,
+        ai_reasoning: `Personal befinner sig i geofence "${top.location_name}" sedan ${arriveIso} (${top.pings_inside} pings, ${Math.round(minutesBetween(top.first_inside_at, top.last_inside_at))} min) men ingen arbetsdag är öppen. Skapade workday som backup för missad autostart.`,
+        ai_model: 'deterministic_rules',
+        situation_snapshot: sit,
+        suggested_actions: [{ kind: 'ensure_workday', at: arriveIso }],
+        applied_actions: results,
+        status: 'applied',
+      });
+      return { applied: true, results };
+    }
+  }
+
   return { applied: false, results: [] };
 }
 

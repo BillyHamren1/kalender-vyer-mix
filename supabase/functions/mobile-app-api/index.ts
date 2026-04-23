@@ -7401,6 +7401,32 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     suggested_action: 'start_activity',
   })
 
+  // ── AUTOSTART WORKDAY (Strategy v2 — primary autostart) ──
+  // Arrival på en känd plats är ett starkt signal att arbetsdagen är igång.
+  // Använd delade reality-actions/applyEnsureWorkday — idempotent, no-op
+  // om en workday redan är öppen idag.
+  try {
+    const { applyEnsureWorkday } = await import('../_shared/reality-actions.ts')
+    const r = await applyEnsureWorkday(supabase, {
+      staffId,
+      organizationId,
+      atIso: arrivedAt,
+    })
+    if (r.changed) {
+      // Stämpla notes så audit visar varför dagen startades.
+      const createdId = (r.detail as any)?.created_workday_id
+      if (createdId) {
+        await supabase
+          .from('workdays')
+          .update({ notes: 'Autostarted: arrival_report' })
+          .eq('id', createdId)
+          .is('ended_at', null)
+      }
+    }
+  } catch (wdErr) {
+    console.warn('[mobile-app-api] arrival autostart workday failed:', (wdErr as any)?.message || wdErr)
+  }
+
   return new Response(JSON.stringify({ success: true, arrival: inserted }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }

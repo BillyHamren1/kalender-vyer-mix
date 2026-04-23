@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
 import { GpsPosition } from '@/hooks/useGeofencing';
+import { autoStartWorkDay } from '@/services/workdayServerSync';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
 const START_DEBOUNCE_MS = 15000; // 15s sustained speed
@@ -173,6 +174,9 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       };
       setTravelState(newState);
       saveTravelState(newState);
+      // Workday autostart: travel-begin är ett starkt signal att dagen
+      // pågår. Idempotent — om en workday redan är öppen är detta no-op.
+      autoStartWorkDay('travel_start', { startedAtIso: result.travel_log.start_time });
       console.log('[TravelDetection] Travel started:', result.travel_log.id);
       // Note: open location_time_entries are now closed atomically by the
       // server inside `handleStartTravelLog` (mobile-app-api). The previous
