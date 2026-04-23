@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ProjectFile } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -27,6 +28,7 @@ interface ProjectFilesProps {
 
 const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,7 +100,8 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                 return (
                   <div
                     key={file.id}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group"
+                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${isImage ? 'cursor-pointer' : ''}`}
+                    onClick={isImage ? () => setPreviewImage({ url: file.url, name: file.file_name }) : undefined}
                   >
                     {isImage ? (
                       <img
@@ -127,7 +130,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => window.open(file.url, '_blank')}
+                        onClick={(e) => { e.stopPropagation(); window.open(file.url, '_blank'); }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
@@ -135,7 +138,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => onDelete({ id: file.id, url: file.url })}
+                        onClick={(e) => { e.stopPropagation(); onDelete({ id: file.id, url: file.url }); }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -165,6 +168,31 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
         )}
 
       </CardContent>
+
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-4xl p-2">
+          {previewImage && (
+            <>
+              <img
+                src={previewImage.url}
+                alt={previewImage.name || 'Bild'}
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+              />
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <p className="text-xs text-muted-foreground truncate">{previewImage.name}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(previewImage.url, '_blank')}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Ladda ner
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
