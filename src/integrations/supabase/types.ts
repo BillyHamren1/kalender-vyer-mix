@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_reality_corrections: {
+        Row: {
+          ai_model: string | null
+          ai_reasoning: string
+          applied_actions: Json
+          applied_at: string | null
+          confidence: number
+          created_at: string
+          detected_at: string
+          id: string
+          organization_id: string
+          push_response: string | null
+          push_sent_at: string | null
+          reverted_at: string | null
+          reverted_by: string | null
+          situation_kind: string
+          situation_snapshot: Json
+          staff_id: string
+          status: string
+          suggested_actions: Json
+          updated_at: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_reasoning?: string
+          applied_actions?: Json
+          applied_at?: string | null
+          confidence: number
+          created_at?: string
+          detected_at?: string
+          id?: string
+          organization_id: string
+          push_response?: string | null
+          push_sent_at?: string | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          situation_kind: string
+          situation_snapshot?: Json
+          staff_id: string
+          status?: string
+          suggested_actions?: Json
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_reasoning?: string
+          applied_actions?: Json
+          applied_at?: string | null
+          confidence?: number
+          created_at?: string
+          detected_at?: string
+          id?: string
+          organization_id?: string
+          push_response?: string | null
+          push_sent_at?: string | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          situation_kind?: string
+          situation_snapshot?: Json
+          staff_id?: string
+          status?: string
+          suggested_actions?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       arrival_context_suggestions: {
         Row: {
           confidence: number
