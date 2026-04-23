@@ -1,119 +1,105 @@
 
-# Tidrapport-fix: workday primär, aktivitet sekundär, en ägare för time_reports
 
-## Problem (nuläge, exakt)
+# AI verklighetschecker — auto-korrigerar tyst, ingen admin-övervakning
 
-1. **`useWorkDayTimer.ts`** härleder fortfarande dagen från `eventflow-workday-start` i localStorage + earliest active timer. Workdays-tabellen finns men frontend ignorerar den. Två parallella sanningar.
-2. **DB-trigger `trg_sync_location_entry_to_time_report`** skriver fortfarande `time_reports` (source `location_auto`) varje gång en `location_time_entries`-rad stängs. Samtidigt skapar `useWorkSession.stopSession` egna `time_reports` via `createTimeReport`. Båda kan stämpla samma pass → dubbelrapport-risk + `tr_prevent_time_report_overlap` kan skjuta ner det "äkta" sparet.
-3. **`useWorkSession.tsx` rad 349**: `savedReportId = (stopped as any)?.serverEntryId`. `serverEntryId` är `location_time_entries.id`, inte `time_reports.id`. `createEndOfDayAnomaly` länkar därmed `time_report_id` mot fel id-typ.
-4. **Stale-flow (`MobileGlobalOverlays.handleStaleSave`)** skapar `time_report` direkt mot `mobileApi.createTimeReport` och anropar separat `stopLocationTimer` — utan att gå genom workday-modellen och utan att rätt id-koppling används.
-5. **Startflöde**: `requestStart` → `performStart` → `startSession` → *sen* `syncWorkDayStart` (fire-and-forget). Activity skapas innan workday garanterat finns. "Aktivitet först, dag sen".
+## Princip
 
-## Åtgärder per fil
+Systemet observerar löpande vad GPS säger vs vad loggarna säger. När AI:n är **högst sannolikt** säker (>0.85) **rättas det tyst** utan notis till användaren eller admin. Bara osäkra fall (0.5–0.85) frågar användaren själv. Admin involveras aldrig i den löpande korrigeringen.
 
-### A. `useWorkDayTimer.ts` — server-driven, ingen activity-härledning
-Skrivs om så att den enda källan är **`useWorkDay` (server)** + en tunn lokal cache (`eventflow-workday-cache`) som *bara* behövs för första render innan nätverket svarat. Ta bort:
-- `earliestActiveStart()`
-- auto-start från active timers
-- 18h day-rollover-skydd (servern äger detta)
-- `eventflow-workday-start` som primär (migreras till read-only legacy fallback en release, sen bort)
+## Konfidensnivåer och handling
 
-Ny shape:
-```ts
-const { current } = useWorkDay();          // server, realtime
-const startIso = current?.started_at ?? cache;
-const isActive = !!startIso && !current?.ended_at;
+| Konfidens | Handling | Synlighet |
+|---|---|---|
+| **>0.85** | Auto-korrigera tyst | Loggas i `ai_reality_corrections` (audit), ingen UI-notis |
+| **0.5–0.85** | Push till användaren själv: "Är du på Lager nu? Ja/Nej" | Bara användarens egen mobil |
+| **<0.5** | Ingen åtgärd | Loggas tyst som "uncertain", inget händer |
+
+Admin-banner i `StaffTimeReports` **utgår helt** från planen.
+
+## Vad som auto-korrigeras tyst (>0.85)
+
+Konkreta fall där GPS-bevis är så starkt att inget mänskligt beslut behövs:
+
+1. **Travel utan destination + 3+ pings inne i känd geofence i 10+ min** → stäng travel på första pingen i geofencen, öppna location-entry, skapa workday om saknas. Exakt Raivis-fallet idag.
+2. **Öppen location-entry + GPS visar att personen lämnat geofencen för >30 min** → stäng location-entry på sista pingen inne i geofencen.
+3. **Workday öppen + ingen aktivitet senaste 4h + sista GPS-ping >2h gammal** → stäng workday på sista aktivitetsspår.
+4. **Öppen workday över midnatt utan aktivitet efter 22:00** → stäng på sista aktivitet samma dag.
+
+Allt loggas till `ai_reality_corrections` så att:
+- användaren kan se vad som korrigerades i `/m/my-flags` (fortfarande transparent, bara inte avbrytande)
+- admin kan i efterhand revidera via en passiv historik-vy (inte en aktiv banner)
+- en `Ångra`-knapp finns på varje korrigering i 7 dagar
+
+## Vad som frågar användaren (0.5–0.85)
+
+- Travel öppen + GPS i okänd plats utan geofence → push: "Är du framme? Vart?"
+- Två geofences överlappar → push: "Är du på Lager eller på Westmans?"
+- Workday öppen utan aktivitet men GPS rör sig → push: "Jobbar du fortfarande?"
+
+Push:en visas en gång, snooze 1h om ignorerad, max 3 ggr/dag.
+
+## Tekniska komponenter
+
+**Ny edge function:** `reality-reconciler`
+- Cron var 5:e min via `pg_cron` + `pg_net`
+- Auth via `x-cron-secret`
+- Per org: hämta aktiva staff (öppen workday/travel/location eller GPS-ping senaste 30 min)
+- Pre-filter: hoppa över staff där inget ändrats sedan senaste check (sparar ~80% av AI-anrop)
+- För övriga: bygg situationsrapport, anropa Lovable AI Gateway (`google/gemini-3-flash-preview`, low effort, structured output via tool calling)
+- Branchning på konfidens enligt tabell ovan
+- Auto-apply via befintliga helpers i `mobile-app-api` (close_travel, create_location_entry, ensure_workday)
+
+**Ny tabell:** `ai_reality_corrections`
 ```
-`endWorkDay()` blir bara ett event som banner redan dispatchar — själva stoppet är server-funktionen `workday.end`.
-
-### B. `useWorkDay.ts` — utöka till riktig kontrollyta
-Lägg till:
-- `ensureActive(startedAtIso?)` — POST start, no-op om redan öppen (idempotent på server). Returnerar workday.
-- `restore()` — explicit alias för `refresh` så call-sites blir läsbara.
-
-API blir: `current`, `isLoading`, `start`, `end`, `ensureActive`, `restore`.
-
-### C. `useTimerStartFlow.ts` — workday-first, await
-`performStart` ändras till `async`:
-```ts
-await ensureWorkDayActive(opts.startedAtIso);  // garanti före aktivitet
-const ok = startSession(target, ...);
+id uuid PK
+organization_id uuid
+staff_id uuid
+detected_at timestamptz
+situation_kind text
+confidence numeric
+ai_reasoning text             -- svensk förklaring
+applied_actions jsonb         -- vad som faktiskt gjordes
+status text                   -- applied | asked_user | uncertain | reverted
+reverted_at timestamptz
+reverted_by uuid
+push_sent_at timestamptz
+push_response text            -- yes | no | snoozed | ignored
 ```
-Tar bort `syncWorkDayStart` därifrån (det är nu inbakat i ensureActive). Samma regel gäller alla call-sites eftersom alla går via `requestStart`.
+RLS: tenant-isolerad, staff ser sina egna, admin ser alla i org.
 
-### D. DB-migration — ta bort triggern som skapar `time_reports`
-Ny migration:
-```sql
-DROP TRIGGER IF EXISTS trg_sync_location_entry_to_time_report ON public.location_time_entries;
--- Behåll funktionen ett tag (kan kallas manuellt om backfill behövs), men inaktivera som källa.
-COMMENT ON FUNCTION public.sync_location_entry_to_time_report() IS
-  'DEPRECATED 2026-04-22: trigger removed. time_reports skapas nu enbart via mobile-app-api.createTimeReport. Funktionen kvar för manuell engångs-backfill.';
-```
-**Konsekvens:** `location_time_entries` blir ren presence/kontext-data. `time_reports` har en enda ägare: `useWorkSession.stopSession` → `mobileApi.createTimeReport`.
-Uppdatera `mobile-app-api/index.ts` kommentaren rad 1215–1219 (Lager-merge) — Lager-presence går nu *via* stopSession som vanligt (med `createsTimeReport: true`-flagga som redan finns för banner-stoppade location-timers).
-Uppdatera `StaffTimeReports.tsx` kommentaren rad 90-94 — `source='location_auto'`-rader uppstår inte längre, exclude-filtret kan vara kvar för historiska rader.
+**Ny delad helper:** `supabase/functions/_shared/situation-builder.ts`
+- En SQL-batch per staff som returnerar: öppen workday, öppen travel, öppna location-entries, senaste 2h GPS-pings, geofence-träffar, senaste manuella interaktion.
 
-### E. `useGeofencing.ts` — tydligt typat returvärde från save-then-stop
-Byt `saveAndStopTimer` så det returnerar:
-```ts
-{ timer: ActiveTimer; serverEntryId: string | null; timeReportId: string | null }
-```
-Hämta `time_report.id` från `mobileApi.createTimeReport`-svaret (det kommer redan tillbaka som `time_report.id`). Variabelnamn:
-- `serverEntryId` = `location_time_entries.id`
-- `timeReportId` = `time_reports.id`
-- `workdayId` = `workdays.id` (från `useWorkDay`)
+**Ny delad helper:** `supabase/functions/_shared/reality-actions.ts`
+- `applyCloseTravelAndOpenLocation(staffId, geofenceId, atIso)`
+- `applyCloseStaleLocation(staffId, entryId, atIso)`
+- `applyCloseStaleWorkday(staffId, workdayId, atIso)`
+- `applyEnsureWorkday(staffId, atIso)`
+Alla idempotenta, alla loggar till `ai_reality_corrections`.
 
-### F. `useWorkSession.tsx` — använd rätt id för anomalies
-- Byt `savedReportId = (stopped as any)?.serverEntryId` → `savedReportId = stopped.timeReportId`.
-- Båda `createEndOfDayAnomaly`-anropen (break-anomaly + post-exit) får rätt `time_report_id`.
-- Inget annat ändras i stop-pipelinen — den var redan korrekt arkitektoniskt.
-- `endDay()` (om/när det införs som separat verb) anropar `workdayApi.end` direkt utan att stoppa aktivitetstimers. (Aktiviteter stoppas separat via samma EOD-kö i banner.)
+**Push-notiser:** befintlig FCM-pipeline via `unified-messaging` — ny notistyp `reality_check` med Ja/Nej-knappar.
 
-### G. `MobileGlobalOverlays.handleStaleSave` — gå genom samma motor
-Skriv om så stale-save anropar `stopSession(target, { stopAtIso: cappedStop, breakChoice: { kind:'no_break' } })` istället för rå `mobileApi.createTimeReport`. Då får anomaly-länkningen rätt `time_report_id` automatiskt och `report_date`/midnatt-cap hanteras på samma ställe som vanlig stopp. Tappar inte `location_id` eftersom `timerToTarget` redan plockar upp den.
+**Mobil UI:** `/m/my-flags` får en sektion "Automatiska korrigeringar (senaste 7d)" med ångra-knapp. Inga avbrytande dialoger.
 
-### H. Borttagning / rensning
-- `eventflow-workday-start` localStorage-nyckeln läses inte längre som primär; behåll `clearWorkdayEnded`/`markWorkdayEnded` som UI-hint men koppla även dem till server-state.
-- Reconcile-funktionen i `useWorkDayTimer` försvinner i samband med A.
-- Kommentarer i `mobile-app-api` och `StaffTimeReports` om `location_auto` uppdateras.
+**Engångs-cleanup för Raivis idag:** migration som stänger travel kl 13:31, skapar Lager-entry från 13:31, skapar workday från 07:05.
 
-## Migration-krav (måste köras före frontend-deploy)
+## Filer som skapas/ändras
 
-Ja — **steg D måste köras innan frontend-ändringen i E/F/G deployas**, annars får man en period med både trigger-skapade och hook-skapade rapporter samtidigt → overlap-trigger blockerar sparet.
+- **Ny:** `supabase/functions/reality-reconciler/index.ts`
+- **Ny:** `supabase/functions/_shared/situation-builder.ts`
+- **Ny:** `supabase/functions/_shared/reality-actions.ts`
+- **Ny migration:** `ai_reality_corrections`-tabell + RLS + index
+- **Engångs-fix:** Raivis 2026-04-23 (close travel + open location + create workday)
+- **Cron:** `pg_cron` schedule var 5:e min
+- **Ändras:** `src/pages/mobile/MyFlags.tsx` — sektion för auto-korrigeringar med ångra
+- **Ändras:** `supabase/config.toml` — `reality-reconciler` med `verify_jwt = false`
+- **Test:** `supabase/functions/reality-reconciler/situation_builder_test.ts` — Raivis-fallet detekteras och auto-korrigeras
 
-## Flöden efter ändring
+## Resultat
 
-**Start arbetsdag (explicit eller implicit)**
-`requestStart(target)` → `ensureWorkDayActive()` (POST `/workday start`, idempotent) → `startSession(target)` → server-anchored entry i `location_time_entries`.
+- Raivis-typ-fall städas tyst inom 5 min — ingen ser, inget stör
+- Användaren får bara en push när AI:n faktiskt är osäker
+- Admin behöver aldrig sitta och övervaka — `StaffTimeReports` förblir ren
+- Full audit i `ai_reality_corrections` om något skulle se konstigt ut i efterhand
+- Ångra-möjlighet i 7 dagar för transparens, utan att tvinga användaren att agera
 
-**Start aktivitet med aktiv dag**
-`ensureWorkDayActive` returnerar existerande workday omedelbart (en server-tur, idempotent) → activity startar normalt. Dagen rörs inte.
-
-**Stoppa aktivitet ("Avsluta aktivitet")**
-`stopSession(target)` → break-dialog vid behov → `createTimeReport` (enda ägaren) → `stopLocationTimer` → ev. `createEndOfDayAnomaly` med korrekt `timeReportId`. Workday lever vidare.
-
-**Avsluta arbetsdag ("Avsluta dagen")**
-Banner dispatchar `request-end-day` → kör `stopSession` per aktiv timer sekventiellt → väntar på local-drain → `syncWorkDayEnd()` (POST `/workday end`) → `markWorkdayEnded()` + `workday-ended` event. Header-pillen släcks via realtime från `useWorkDay` (eller event som fallback).
-
-**Stale / recovery**
-`StaleTimerDialog` → `handleStaleSave` → `stopSession` med cappad `stopAtIso` → samma motor, samma id-typer, ingen extra trigger inblandad. Workday återställs vid app-mount via `useWorkDay.refresh()` mot servern, inte från activity-timers.
-
-## Filer som ändras
-
-1. `src/hooks/useWorkDayTimer.ts` — skrivs om (server-first)
-2. `src/hooks/useWorkDay.ts` — `ensureActive`, `restore` läggs till
-3. `src/hooks/useTimerStartFlow.ts` — workday-first await
-4. `src/hooks/useGeofencing.ts` — typat returvärde från `saveAndStopTimer`
-5. `src/hooks/useWorkSession.tsx` — använd `timeReportId` (rad 349 + båda anomaly-anrop)
-6. `src/components/mobile-app/MobileGlobalOverlays.tsx` — `handleStaleSave` via `stopSession`
-7. `src/components/mobile-app/GlobalActiveTimerBanner.tsx` — minimal: läs `useWorkDay` för pill-hint, ingen logik-ändring
-8. `supabase/functions/mobile-app-api/index.ts` — uppdatera kommentar (rad 1215–1219)
-9. `src/pages/StaffTimeReports.tsx` — uppdatera kommentar (rad 90-94)
-10. **Ny migration**: `DROP TRIGGER trg_sync_location_entry_to_time_report` + comment
-11. Tester: utöka `src/test/workday/` med `workdayFirstStart.test.ts` (ensureActive körs före startSession), `singleOwnerTimeReport.test.ts` (ingen `source='location_auto'` skapas vid stopp), uppdatera `endDayReconciliation.contract.test.ts`-förväntningar.
-
-## Regressionsskydd
-- UI på header-pill, banner och TimerRow oförändrat.
-- Servern är idempotent på start/end → en burst skapar ingen skada under refaktorn.
-- Triggern droppas, inte funktionen — engångs-backfill möjlig om historik visar luckor.
-- Kontraktstest låser att `time_reports` bara skapas via `mobile-app-api.createTimeReport`-vägen.
