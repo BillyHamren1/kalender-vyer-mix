@@ -100,7 +100,8 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                 return (
                   <div
                     key={file.id}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group"
+                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${isImage ? 'cursor-pointer' : ''}`}
+                    onClick={isImage ? () => setPreviewImage({ url: file.url, name: file.file_name }) : undefined}
                   >
                     {isImage ? (
                       <img
@@ -129,7 +130,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => window.open(file.url, '_blank')}
+                        onClick={(e) => { e.stopPropagation(); window.open(file.url, '_blank'); }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
@@ -137,7 +138,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => onDelete({ id: file.id, url: file.url })}
+                        onClick={(e) => { e.stopPropagation(); onDelete({ id: file.id, url: file.url }); }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
