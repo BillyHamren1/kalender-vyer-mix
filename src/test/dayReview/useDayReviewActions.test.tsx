@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Verkliga tester för useDayReviewActions:
  *   • event resolvas FÖRST efter lyckad start
