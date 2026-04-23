@@ -130,41 +130,62 @@ export function useDayReviewActions(): DayReviewActions {
     async (ev) => {
       const target = eventToTarget(ev);
       if (!target) {
-        toast.error('Saknar mål för detta event');
+        toast.error('Saknar mål för detta event — händelsen kvarstår');
         return;
       }
+      // Awaitbar väg via tryStartFromArrival: vi resolvar EVENTET endast
+      // efter att hela start-kedjan (workday-first + activity start) lyckats.
       try {
-        await ensureWorkDay(ev.happened_at);
-      } catch (err) {
-        console.warn('[DayReviewActions] ensureWorkDay failed:', err);
-      }
-      const result = startFlow.requestStart(target, { startedAtIso: ev.happened_at });
-      if (result === 'started') {
-        toast.success('Arbete startat från ankomsttid');
-        await resolveEvent(ev.id, 'applied_from_event_time');
-      } else if (result === 'duplicate') {
-        toast.info('Aktivitet redan igång — markerar händelsen som hanterad');
-        await resolveEvent(ev.id, 'auto_closed_by_later_action' as any);
-      } else if (result === 'conflict') {
-        toast.message('Lös pågående timer-konflikt först');
+        const result = await startFlow.tryStartFromArrival(target, {
+          startedAtIso: ev.happened_at,
+        });
+        if (result === 'started') {
+          toast.success('Arbete startat från ankomsttid');
+          await resolveEvent(ev.id, 'applied_from_event_time');
+        } else if (result === 'duplicate') {
+          toast.info('Aktivitet redan igång — markerar händelsen som hanterad');
+          await resolveEvent(ev.id, 'auto_closed_by_later_action' as any);
+        } else if (result === 'conflict') {
+          // Konfliktdialogen tar över — eventet förblir öppet tills användaren
+          // bekräftar bytet och en ny start sker. Ingen resolve här.
+          toast.message('Lös pågående timer-konflikt först — händelsen kvarstår');
+        } else if (result === 'workday-failed') {
+          // performStart har redan visat ett tydligt felmeddelande.
+          toast.error('Arbetsdagen kunde inte säkerställas — händelsen kvarstår');
+        }
+      } catch (err: any) {
+        console.error('[DayReviewActions] startWorkFromArrival failed:', err);
+        toast.error(err?.message || 'Kunde inte starta arbetet — händelsen kvarstår');
       }
     },
-    [ensureWorkDay, startFlow, resolveEvent],
+    [startFlow, resolveEvent],
   );
 
   const startWorkNow = useCallback<DayReviewActions['startWorkNow']>(
     async (ev) => {
       const target = eventToTarget(ev);
       if (!target) {
-        toast.error('Saknar mål för detta event');
+        toast.error('Saknar mål för detta event — händelsen kvarstår');
         return;
       }
-      const result = startFlow.requestStart(target);
-      if (result === 'started') {
-        toast.success('Arbete startat nu');
-        await resolveEvent(ev.id, 'applied_from_now');
-      } else if (result === 'duplicate') {
-        toast.info('Redan igång');
+      try {
+        // Använd tryStartFromArrival utan startedAtIso → "nu". Awaitbar och
+        // ger samma garantier (workday-first + verifierad start) som arrival.
+        const result = await startFlow.tryStartFromArrival(target);
+        if (result === 'started') {
+          toast.success('Arbete startat nu');
+          await resolveEvent(ev.id, 'applied_from_now');
+        } else if (result === 'duplicate') {
+          toast.info('Redan igång — markerar händelsen som hanterad');
+          await resolveEvent(ev.id, 'auto_closed_by_later_action' as any);
+        } else if (result === 'conflict') {
+          toast.message('Lös pågående timer-konflikt först — händelsen kvarstår');
+        } else if (result === 'workday-failed') {
+          toast.error('Arbetsdagen kunde inte säkerställas — händelsen kvarstår');
+        }
+      } catch (err: any) {
+        console.error('[DayReviewActions] startWorkNow failed:', err);
+        toast.error(err?.message || 'Kunde inte starta arbetet — händelsen kvarstår');
       }
     },
     [startFlow, resolveEvent],
