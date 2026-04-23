@@ -13,8 +13,8 @@
  *
  * Hittas via knappen i MobileJobs-headern (badge med antal needs_review).
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane,
   PlayCircle, StopCircle, HomeIcon, X as XIcon, Check,
