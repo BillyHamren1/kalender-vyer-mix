@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ProjectFile } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
