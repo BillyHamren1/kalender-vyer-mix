@@ -5,13 +5,24 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Check, Loader2, Sparkles, Undo2 } from 'lucide-react';
 import { mobileApi, type WorkdayFlag } from '@/services/mobileApiService';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage, } from '@/i18n/LanguageContext';
 import type { TranslationKey } from '@/i18n/translations';
+
+interface AICorrection {
+  id: string;
+  detected_at: string;
+  situation_kind: string;
+  confidence: number;
+  ai_reasoning: string;
+  status: string;
+  applied_actions: any;
+}
 
 const FLAG_LABEL_KEYS: Record<string, TranslationKey> = {
   missing_break: 'flags.type.missing_break',
@@ -42,15 +53,28 @@ export default function MobileMyFlags() {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const [flags, setFlags] = useState<WorkdayFlag[]>([]);
+  const [corrections, setCorrections] = useState<AICorrection[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
   const [openNote, setOpenNote] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await mobileApi.listWorkdayFlags({ resolved: false });
-      setFlags(res.flags || []);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const [flagsRes, correctionsRes] = await Promise.all([
+        mobileApi.listWorkdayFlags({ resolved: false }),
+        supabase
+          .from('ai_reality_corrections')
+          .select('id, detected_at, situation_kind, confidence, ai_reasoning, status, applied_actions')
+          .gte('detected_at', sevenDaysAgo)
+          .in('status', ['applied', 'reverted'])
+          .order('detected_at', { ascending: false })
+          .limit(20),
+      ]);
+      setFlags(flagsRes.flags || []);
+      setCorrections((correctionsRes.data as AICorrection[]) || []);
     } catch (err) {
       console.error('[MyFlags] load failed:', err);
       toast.error(t('flags.couldNotLoad'));
@@ -60,6 +84,24 @@ export default function MobileMyFlags() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const revertCorrection = async (id: string) => {
+    setRevertingId(id);
+    try {
+      const { error } = await supabase
+        .from('ai_reality_corrections')
+        .update({ status: 'reverted', reverted_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      setCorrections((prev) => prev.map((c) => c.id === id ? { ...c, status: 'reverted' } : c));
+      toast.success('Återställd');
+    } catch (err) {
+      console.error('[MyFlags] revert failed:', err);
+      toast.error('Kunde inte återställa');
+    } finally {
+      setRevertingId(null);
+    }
+  };
 
   const resolve = async (flag: WorkdayFlag, note: string) => {
     setResolvingId(flag.id);
@@ -160,6 +202,61 @@ export default function MobileMyFlags() {
                   locale={locale}
                 />
               ))}
+            </div>
+          </section>
+        )}
+
+        {!loading && corrections.length > 0 && (
+          <section>
+            <h2 className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" />
+              Automatiska korrigeringar (senaste 7d)
+            </h2>
+            <div className="space-y-2">
+              {corrections.map((c) => {
+                const isReverted = c.status === 'reverted';
+                const dateFnsLocale = locale === 'en' ? enUS : sv;
+                const ago = formatDistanceToNow(new Date(c.detected_at), { addSuffix: true, locale: dateFnsLocale });
+                return (
+                  <article
+                    key={c.id}
+                    className={`rounded-2xl border p-4 ${
+                      isReverted ? 'bg-muted/30 border-border/40 opacity-70' : 'bg-primary/5 border-primary/20'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-tight">
+                          {isReverted ? 'Återställd' : 'Auto-rättad'}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {ago} · {Math.round(c.confidence * 100)}% säkerhet
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-11 mb-3">{c.ai_reasoning}</p>
+                    {!isReverted && (
+                      <div className="pl-11">
+                        <button
+                          onClick={() => revertCorrection(c.id)}
+                          disabled={revertingId === c.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
+                        >
+                          {revertingId === c.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Undo2 className="w-3 h-3" />
+                          )}
+                          Ångra
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
         )}
