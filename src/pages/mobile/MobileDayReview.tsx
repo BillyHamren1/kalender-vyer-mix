@@ -31,6 +31,7 @@ const REASON_LABELS: Record<string, string> = {
   missing_end: 'Dagen saknar slut',
   unresolved_travel: 'Oklara resor',
   missed_prompts_all_day: 'Många missade prompts',
+  no_workday_started: 'Ingen arbetsdag startades',
 };
 
 const STATUS_STYLE: Record<ReviewWorkday['review_status'], string> = {
