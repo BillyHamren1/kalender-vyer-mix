@@ -126,6 +126,30 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     };
   }, [open, date, staffId]);
 
+  // Fetch planned day (assigned bookings + optimized route)
+  useEffect(() => {
+    if (!open || !date || !staffId) return;
+    let cancelled = false;
+    setPlannedLoading(true);
+    setPlannedError(null);
+    setPlannedRoute(null);
+    optimizeStaffRoute(staffId, date)
+      .then((res) => {
+        if (cancelled) return;
+        setPlannedRoute(res);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setPlannedError(e?.message || 'Kunde inte hämta planerad dag');
+      })
+      .finally(() => {
+        if (!cancelled) setPlannedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date, staffId]);
+
   // Sorted timeline
   const timeline = useMemo(() => {
     const items: Array<{
