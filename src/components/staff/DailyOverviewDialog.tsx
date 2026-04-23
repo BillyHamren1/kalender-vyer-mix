@@ -449,7 +449,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
-  const hasMapData = travelOnMap.length > 0;
+  const plannedStops = (plannedRoute?.stops || []).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const hasMapData = travelOnMap.length > 0 || plannedStops.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
