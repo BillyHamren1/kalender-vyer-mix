@@ -67,6 +67,49 @@ export async function syncWorkDayEnd(endedAtIso?: string): Promise<WorkDayEndRes
   }
 }
 
+/**
+ * Auto-start trigger sources. Used as audit trail in `workdays.notes` so
+ * we can later answer "varför startades dagen?" without guessing.
+ */
+export type WorkDayAutoStartTrigger =
+  | 'geofence_enter'
+  | 'travel_start'
+  | 'arrival_report'
+  | 'ai_reconciled';
+
+/**
+ * Autostart wrapper around `syncWorkDayStart` that stamps the trigger
+ * source into `workdays.notes` (e.g. "Autostarted: geofence_enter").
+ *
+ * Uses the same fire-and-forget semantics + debounce as `syncWorkDayStart`:
+ * safe to call from multiple places (geofence ENTER, travel start, arrival
+ * report) within the same second — only the first call hits the server.
+ *
+ * The server endpoint is idempotent: if a workday is already open, the
+ * existing row is returned and `notes` is NOT overwritten. Only the very
+ * first autostart per day records its trigger, which is exactly what we
+ * want for the audit trail.
+ */
+export function autoStartWorkDay(
+  trigger: WorkDayAutoStartTrigger,
+  opts: { startedAtIso?: string } = {},
+): void {
+  const now = Date.now();
+  if (inFlightStart) return;
+  if (now - lastStartAt < 1500) return;
+  lastStartAt = now;
+  const notes = `Autostarted: ${trigger}`;
+  inFlightStart = workdayApi
+    .start({ ...(opts.startedAtIso ? { startedAtIso: opts.startedAtIso } : {}), notes })
+    .then(() => undefined)
+    .catch((err) => {
+      console.warn(`[workday] autostart (${trigger}) failed:`, err?.message || err);
+    })
+    .finally(() => {
+      inFlightStart = null;
+    });
+}
+
 /** @internal — for tests only. Resets debounce state. */
 export function __resetWorkDaySyncForTests(): void {
   lastStartAt = 0;
