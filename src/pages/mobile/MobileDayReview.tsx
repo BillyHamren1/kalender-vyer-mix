@@ -198,12 +198,16 @@ export default function MobileDayReview() {
             const canApprove = !isSynthetic
               && (wd.review_status === 'ready' || wd.review_status === 'needs_review')
               && total === 0;
+            const isHighlighted = highlightedDayKey === wd.day_key;
             return (
               <div
                 key={wd.id}
+                ref={(el) => { dayRefs.current[wd.day_key] = el; }}
+                data-day-key={wd.day_key}
                 className={cn(
-                  'rounded-2xl border bg-card p-4 shadow-sm',
+                  'rounded-2xl border bg-card p-4 shadow-sm transition-all',
                   wd.review_status === 'needs_review' && 'border-destructive/30',
+                  isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                 )}
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
