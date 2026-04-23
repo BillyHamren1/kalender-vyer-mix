@@ -9,16 +9,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
-const listWorkdaysReview = vi.fn();
-const navigate = vi.fn();
-const toastFn = vi.fn();
+const mocks = vi.hoisted(() => ({
+  listWorkdaysReview: vi.fn(),
+  navigate: vi.fn(),
+  toastFn: vi.fn(),
+}));
+const { listWorkdaysReview, navigate, toastFn } = mocks;
 
 vi.mock('@/services/mobileApiService', () => ({
-  mobileApi: { listWorkdaysReview },
+  mobileApi: { listWorkdaysReview: mocks.listWorkdaysReview },
 }));
-vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('sonner', () => ({
-  toast: Object.assign(toastFn, {
+  toast: Object.assign(mocks.toastFn, {
     success: vi.fn(), error: vi.fn(), info: vi.fn(), message: vi.fn(), warning: vi.fn(),
   }),
 }));
