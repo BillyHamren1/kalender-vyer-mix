@@ -84,6 +84,9 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
   const [gpsPoints, setGpsPoints] = useState<GpsPoint[]>([]);
+  const [plannedRoute, setPlannedRoute] = useState<StaffRouteResult | null>(null);
+  const [plannedLoading, setPlannedLoading] = useState(false);
+  const [plannedError, setPlannedError] = useState<string | null>(null);
 
   // Fetch mapbox token
   useEffect(() => {
