@@ -1,12 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, ScanLine, Ruler, ChevronRight } from 'lucide-react';
+import { Camera, ScanLine, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 const MobileToolsHub: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
+  // NOTE: "Measure" är tillfälligt dolt i UI inför iOS-release — verktyget
+  // är inte stabilt ännu. Rutten /m/tools/measure finns kvar så att
+  // djuplänkar och admin-vyer fortsätter fungera; bara ingången från
+  // verktygsmenyn är borttagen. Återinför kortet när Measure är redo.
   const tools = [
     {
       key: 'camera',
@@ -21,13 +25,6 @@ const MobileToolsHub: React.FC = () => {
       label: t('tools.scanner'),
       desc: t('tools.scannerDesc'),
       path: '/m/tools/scanner',
-    },
-    {
-      key: 'measure',
-      icon: Ruler,
-      label: t('tools.measure'),
-      desc: t('tools.measureDesc'),
-      path: '/m/tools/measure',
     },
   ];
 
