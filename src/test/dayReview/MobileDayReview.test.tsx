@@ -11,22 +11,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-const listWorkdaysReview = vi.fn();
-const startWorkFromArrival = vi.fn();
-const startWorkNow = vi.fn();
-const endActivityAtDeparture = vi.fn();
-const endWorkDayAtHomeArrival = vi.fn();
-const dismissEvent = vi.fn();
-const adjustTravel = vi.fn();
-const approveWorkday = vi.fn();
+const mocks = vi.hoisted(() => ({
+  listWorkdaysReview: vi.fn(),
+  startWorkFromArrival: vi.fn(),
+  startWorkNow: vi.fn(),
+  endActivityAtDeparture: vi.fn(),
+  endWorkDayAtHomeArrival: vi.fn(),
+  dismissEvent: vi.fn(),
+  adjustTravel: vi.fn(),
+  approveWorkday: vi.fn(),
+}));
+const {
+  listWorkdaysReview, startWorkFromArrival, startWorkNow, endActivityAtDeparture,
+  endWorkDayAtHomeArrival, dismissEvent, adjustTravel, approveWorkday,
+} = mocks;
 
 vi.mock('@/services/mobileApiService', () => ({
-  mobileApi: { listWorkdaysReview },
+  mobileApi: { listWorkdaysReview: mocks.listWorkdaysReview },
 }));
 vi.mock('@/hooks/useDayReviewActions', () => ({
   useDayReviewActions: () => ({
-    startWorkFromArrival, startWorkNow, endActivityAtDeparture,
-    endWorkDayAtHomeArrival, dismissEvent, adjustTravel, approveWorkday,
+    startWorkFromArrival: mocks.startWorkFromArrival,
+    startWorkNow: mocks.startWorkNow,
+    endActivityAtDeparture: mocks.endActivityAtDeparture,
+    endWorkDayAtHomeArrival: mocks.endWorkDayAtHomeArrival,
+    dismissEvent: mocks.dismissEvent,
+    adjustTravel: mocks.adjustTravel,
+    approveWorkday: mocks.approveWorkday,
   }),
 }));
 vi.mock('@/i18n/LanguageContext', () => ({ useLanguage: () => ({ locale: 'sv' }) }));
