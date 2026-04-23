@@ -99,7 +99,7 @@ export function useStaleDayReminder(enabled: boolean) {
         duration: 8000,
         action: {
           label: 'Öppna',
-          onClick: () => navigate('/m/day-review'),
+          onClick: () => navigate(`/m/day-review?day=${encodeURIComponent(target.day_key)}`),
         },
       });
     } catch (err) {
