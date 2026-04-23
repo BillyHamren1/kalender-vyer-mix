@@ -33,13 +33,11 @@ const yesterdayKey = () => new Date(Date.now() - 86_400_000).toISOString().slice
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.useFakeTimers();
   localStorage.clear();
 });
 
-const flushMountDelay = async () => {
-  await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
-};
+// Mount-delay i hooken är 2500ms; vi väntar lite extra med riktiga timers.
+const flushMountDelay = () => new Promise((r) => setTimeout(r, 2700));
 
 describe('useStaleDayReminder', () => {
   it('visar toast när gårdagen är needs_review', async () => {
