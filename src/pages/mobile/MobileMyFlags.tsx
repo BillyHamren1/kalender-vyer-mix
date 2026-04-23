@@ -205,6 +205,61 @@ export default function MobileMyFlags() {
             </div>
           </section>
         )}
+
+        {!loading && corrections.length > 0 && (
+          <section>
+            <h2 className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" />
+              Automatiska korrigeringar (senaste 7d)
+            </h2>
+            <div className="space-y-2">
+              {corrections.map((c) => {
+                const isReverted = c.status === 'reverted';
+                const dateFnsLocale = locale === 'en' ? enUS : sv;
+                const ago = formatDistanceToNow(new Date(c.detected_at), { addSuffix: true, locale: dateFnsLocale });
+                return (
+                  <article
+                    key={c.id}
+                    className={`rounded-2xl border p-4 ${
+                      isReverted ? 'bg-muted/30 border-border/40 opacity-70' : 'bg-primary/5 border-primary/20'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-tight">
+                          {isReverted ? 'Återställd' : 'Auto-rättad'}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {ago} · {Math.round(c.confidence * 100)}% säkerhet
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-11 mb-3">{c.ai_reasoning}</p>
+                    {!isReverted && (
+                      <div className="pl-11">
+                        <button
+                          onClick={() => revertCorrection(c.id)}
+                          disabled={revertingId === c.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
+                        >
+                          {revertingId === c.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Undo2 className="w-3 h-3" />
+                          )}
+                          Ångra
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
