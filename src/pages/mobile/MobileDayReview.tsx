@@ -1,29 +1,34 @@
 /**
  * MobileDayReview — Review-entrypoint för dagavstämning.
  *
- * Visar de senaste 7 dagarnas workdays och deras `review_status`. För varje
- * dag visas räknare för:
- *   - öppna assistant_events (pending + ej stale)
- *   - staleade events kvar i review-underlaget
- *   - oklara resor (öppna travel_time_logs)
- *   - skäl-koder från workdays.review_reasons
+ * Visar dagar (riktiga workdays + syntetiska för dagar utan workday) och
+ * låter användaren rätta dem direkt via useDayReviewActions.
  *
- * Sidan är ett rent fönster — den löser inte events själv (det görs i
- * WorkDayAssistant-dialogerna och MobileMyFlags). Syftet är att ge
- * användaren EN plats där hen kan se vad som behöver rättas.
+ * Per event visas endast actions som matchar event_type:
+ *   • arrival              → Starta från ankomst, Starta nu, Irrelevant
+ *   • departure            → Avsluta vid avgång, Irrelevant
+ *   • home_arrival         → Avsluta dagen vid hemkomst, Irrelevant
+ *   • travel_*             → Justera restid (öppen resa), Irrelevant
+ *   • övriga               → Endast Irrelevant
  *
  * Hittas via knappen i MobileJobs-headern (badge med antal needs_review).
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane } from 'lucide-react';
+import {
+  ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane,
+  PlayCircle, StopCircle, HomeIcon, X as XIcon, Check,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
 import { mobileApi } from '@/services/mobileApiService';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
+import { useDayReviewActions } from '@/hooks/useDayReviewActions';
+import { Button } from '@/components/ui/button';
 
 type ReviewWorkday = Awaited<ReturnType<typeof mobileApi.listWorkdaysReview>>['workdays'][number];
+type ReviewEvent = ReviewWorkday['events_for_day'][number];
 
 const REASON_LABELS: Record<string, string> = {
   open_assistant_events: 'Öppna händelser i kön',
@@ -48,12 +53,37 @@ const STATUS_LABEL: Record<ReviewWorkday['review_status'], string> = {
   approved: 'Godkänd',
 };
 
+/** Vilka actions som passar givet event_type. */
+function actionsForEvent(ev: ReviewEvent): {
+  startFromArrival: boolean;
+  startNow: boolean;
+  endAtDeparture: boolean;
+  endDayAtHome: boolean;
+  adjustTravel: boolean;
+} {
+  const t = (ev.event_type || '').toLowerCase();
+  const isArrival = t.includes('arrival') && !t.includes('home');
+  const isDeparture = t.includes('departure') || t.includes('exit');
+  const isHome = t.includes('home');
+  const isTravel = t.includes('travel');
+  return {
+    startFromArrival: isArrival,
+    startNow: isArrival,
+    endAtDeparture: isDeparture,
+    endDayAtHome: isHome,
+    adjustTravel: isTravel,
+  };
+}
+
 export default function MobileDayReview() {
   const navigate = useNavigate();
   const { locale } = useLanguage();
   const [workdays, setWorkdays] = useState<ReviewWorkday[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [busyEventId, setBusyEventId] = useState<string | null>(null);
+  const [busyDayId, setBusyDayId] = useState<string | null>(null);
+  const actions = useDayReviewActions();
 
   const load = async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true); else setRefreshing(true);
@@ -69,6 +99,32 @@ export default function MobileDayReview() {
   };
 
   useEffect(() => { load(true); }, []);
+
+  const runEventAction = async (
+    ev: ReviewEvent,
+    fn: () => Promise<void>,
+  ) => {
+    if (busyEventId) return;
+    setBusyEventId(ev.id);
+    try {
+      await fn();
+      await load(false);
+    } finally {
+      setBusyEventId(null);
+    }
+  };
+
+  const handleApprove = async (wd: ReviewWorkday) => {
+    if (busyDayId) return;
+    if ((wd as any).synthetic) return; // syntetisk dag kan inte godkännas direkt
+    setBusyDayId(wd.id);
+    try {
+      await actions.approveWorkday(wd.id);
+      await load(false);
+    } finally {
+      setBusyDayId(null);
+    }
+  };
 
   const dateFmt = (iso: string) => format(new Date(iso), 'EEE d MMM', { locale: locale === 'sv' ? sv : enUS });
   const timeFmt = (iso: string | null) => iso ? format(new Date(iso), 'HH:mm') : '—';
@@ -118,6 +174,10 @@ export default function MobileDayReview() {
             const dayLabel = labelForDayKey(wd.day_key);
             const total = wd.counts.open_events + wd.counts.stale_review_events + wd.counts.open_travel;
             const reasonChips = (wd.review_reasons || []).filter((r) => REASON_LABELS[r]);
+            const isSynthetic = (wd as any).synthetic === true;
+            const canApprove = !isSynthetic
+              && (wd.review_status === 'ready' || wd.review_status === 'needs_review')
+              && total === 0;
             return (
               <div
                 key={wd.id}
@@ -132,7 +192,7 @@ export default function MobileDayReview() {
                       {dayLabel || dateFmt(wd.started_at)}
                     </div>
                     <div className="text-base font-semibold mt-0.5">
-                      {(wd as any).synthetic
+                      {isSynthetic
                         ? 'Ingen arbetsdag startad'
                         : `${timeFmt(wd.started_at)} – ${timeFmt(wd.ended_at)}`}
                     </div>
@@ -177,26 +237,112 @@ export default function MobileDayReview() {
                   </div>
                 )}
 
-                {/* Event preview */}
+                {/* Events with actions */}
                 {wd.events_for_day.length > 0 && (
-                  <details className="mt-3 group">
-                    <summary className="text-xs text-primary cursor-pointer select-none">
-                      {wd.events_for_day.length} händelser — visa
-                    </summary>
-                    <ul className="mt-2 space-y-1">
-                      {wd.events_for_day.slice(0, 8).map((ev) => (
-                        <li key={ev.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          <span className="font-mono">{format(new Date(ev.happened_at), 'HH:mm')}</span>
-                          <span className="font-medium text-foreground">{ev.event_type}</span>
-                          <span className="truncate">{ev.target_label || '—'}</span>
-                          {ev.stale_for_prompt && (
-                            <span className="ml-auto text-[10px] uppercase text-amber-600">stale</span>
-                          )}
-                        </li>
-                      ))}
+                  <div className="mt-3 space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Händelser ({wd.events_for_day.length})
+                    </div>
+                    <ul className="space-y-2">
+                      {wd.events_for_day.slice(0, 12).map((ev) => {
+                        const av = actionsForEvent(ev);
+                        const busy = busyEventId === ev.id;
+                        const anyAction = av.startFromArrival || av.startNow || av.endAtDeparture || av.endDayAtHome || av.adjustTravel;
+                        return (
+                          <li key={ev.id} className="rounded-lg border bg-background/40 p-2.5">
+                            <div className="flex items-center gap-2 text-xs">
+                              <MapPin className="w-3 h-3 shrink-0 text-muted-foreground" />
+                              <span className="font-mono text-muted-foreground">{format(new Date(ev.happened_at), 'HH:mm')}</span>
+                              <span className="font-medium text-foreground">{ev.event_type}</span>
+                              <span className="truncate text-muted-foreground">{ev.target_label || '—'}</span>
+                              {ev.stale_for_prompt && (
+                                <span className="ml-auto text-[10px] uppercase text-amber-600">stale</span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {av.startFromArrival && (
+                                <Button
+                                  size="sm" variant="default" disabled={busy}
+                                  onClick={() => runEventAction(ev, () => actions.startWorkFromArrival(ev as any))}
+                                >
+                                  <PlayCircle className="w-3.5 h-3.5 mr-1" />
+                                  Starta från {format(new Date(ev.happened_at), 'HH:mm')}
+                                </Button>
+                              )}
+                              {av.startNow && (
+                                <Button
+                                  size="sm" variant="outline" disabled={busy}
+                                  onClick={() => runEventAction(ev, () => actions.startWorkNow(ev as any))}
+                                >
+                                  <PlayCircle className="w-3.5 h-3.5 mr-1" />
+                                  Starta nu
+                                </Button>
+                              )}
+                              {av.endAtDeparture && (
+                                <Button
+                                  size="sm" variant="default" disabled={busy}
+                                  onClick={() => runEventAction(ev, () => actions.endActivityAtDeparture(ev as any))}
+                                >
+                                  <StopCircle className="w-3.5 h-3.5 mr-1" />
+                                  Avsluta vid {format(new Date(ev.happened_at), 'HH:mm')}
+                                </Button>
+                              )}
+                              {av.endDayAtHome && (
+                                <Button
+                                  size="sm" variant="default" disabled={busy}
+                                  onClick={() => runEventAction(ev, () => actions.endWorkDayAtHomeArrival(ev as any))}
+                                >
+                                  <HomeIcon className="w-3.5 h-3.5 mr-1" />
+                                  Avsluta dagen ({format(new Date(ev.happened_at), 'HH:mm')})
+                                </Button>
+                              )}
+                              {av.adjustTravel && (
+                                <Button
+                                  size="sm" variant="outline" disabled={busy}
+                                  onClick={() => runEventAction(ev, () => actions.adjustTravel({
+                                    travel_log_id: (ev as any).linked_travel_log_id || undefined,
+                                    start_time: ev.happened_at,
+                                    end_time: new Date().toISOString(),
+                                  }))}
+                                >
+                                  <Plane className="w-3.5 h-3.5 mr-1" />
+                                  Registrera restid
+                                </Button>
+                              )}
+                              <Button
+                                size="sm" variant="ghost" disabled={busy}
+                                onClick={() => runEventAction(ev, () => actions.dismissEvent(ev.id))}
+                              >
+                                <XIcon className="w-3.5 h-3.5 mr-1" />
+                                Irrelevant
+                              </Button>
+                              {!anyAction && (
+                                <span className="text-[11px] text-muted-foreground self-center">
+                                  Inga automatiska åtgärder för denna typ
+                                </span>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
-                  </details>
+                  </div>
+                )}
+
+                {/* Approve day */}
+                {!isSynthetic && (
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant={canApprove ? 'default' : 'outline'}
+                      disabled={!canApprove || busyDayId === wd.id || wd.review_status === 'approved'}
+                      onClick={() => handleApprove(wd)}
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      {wd.review_status === 'approved' ? 'Godkänd' : 'Godkänn dagen'}
+                    </Button>
+                  </div>
                 )}
               </div>
             );
