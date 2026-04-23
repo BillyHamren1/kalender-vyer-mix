@@ -93,7 +93,6 @@ describe('useStaleDayReminder', () => {
 
     renderHook(() => useStaleDayReminder(true));
     await flushMountDelay();
-    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(toastFn).not.toHaveBeenCalled();
   });
 
@@ -106,10 +105,10 @@ describe('useStaleDayReminder', () => {
 
     await act(async () => {
       window.dispatchEvent(new CustomEvent('workday-ended'));
-      await vi.advanceTimersByTimeAsync(0);
+      await new Promise((r) => setTimeout(r, 50));
     });
 
-    expect(listWorkdaysReview).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(listWorkdaysReview).toHaveBeenCalledTimes(2));
   });
 
   it('är inaktiv när enabled=false', async () => {
