@@ -292,11 +292,12 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         bounds.extend([t.fromLng, t.fromLat]);
         bounds.extend([t.toLng, t.toLat]);
       });
+      plannedStops.forEach(s => bounds.extend([s.lng, s.lat]));
       if (!bounds.isEmpty()) {
         m.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       }
 
-      // Draw a line for each travel segment
+      // Draw a line for each travel segment (actual movement)
       travelOnMap.forEach((t, idx) => {
         const sourceId = `travel-line-${idx}`;
         m.addSource(sourceId, {
@@ -355,6 +356,69 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         makePin(t.fromLat, t.fromLng, 'from', t.fromTime);
         makePin(t.toLat, t.toLng, 'to', t.toTime);
       });
+
+      // Planned route: optimized polyline (dashed purple) + numbered stop pins
+      if (plannedStops.length > 0) {
+        const order = plannedRoute?.optimized_order && plannedRoute.optimized_order.length === plannedStops.length
+          ? plannedRoute.optimized_order
+          : plannedStops.map((_, i) => i);
+        const orderedStops = order.map(idx => plannedStops[idx]).filter(Boolean);
+
+        const coords: [number, number][] = plannedRoute?.polyline?.coordinates && plannedRoute.polyline.coordinates.length > 1
+          ? (plannedRoute.polyline.coordinates as [number, number][])
+          : orderedStops.map(s => [s.lng, s.lat] as [number, number]);
+
+        if (coords.length > 1) {
+          m.addSource('planned-line', {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'LineString', coordinates: coords },
+            },
+          });
+          m.addLayer({
+            id: 'planned-line',
+            type: 'line',
+            source: 'planned-line',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#8b5cf6',
+              'line-width': 3,
+              'line-opacity': 0.7,
+              'line-dasharray': [2, 2],
+            },
+          });
+        }
+
+        orderedStops.forEach((stop, i) => {
+          const el = document.createElement('div');
+          el.style.width = '26px';
+          el.style.height = '26px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = '#8b5cf6';
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+          el.style.color = 'white';
+          el.style.fontSize = '11px';
+          el.style.fontWeight = 'bold';
+          el.textContent = String(i + 1);
+
+          const timeStr = [stop.startTime, stop.endTime].filter(Boolean).join(' – ') || 'Tid ej satt';
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([stop.lng, stop.lat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 22 }).setHTML(
+                `<strong>Stopp ${i + 1}: ${stop.client}</strong><br/><span style="font-size:11px">${stop.address || ''}</span><br/><span style="font-size:10px;color:#666">${timeStr}</span>`
+              )
+            )
+            .addTo(m);
+          markersRef.current.push(marker);
+        });
+      }
     });
 
     map.current = m;
@@ -367,7 +431,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
         map.current = null;
       }
     };
-  }, [open, mapboxToken, travelOnMap]);
+  }, [open, mapboxToken, travelOnMap, plannedRoute]);
 
   if (!date) return null;
 
