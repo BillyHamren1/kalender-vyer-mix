@@ -5,13 +5,24 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Check, Loader2, Sparkles, Undo2 } from 'lucide-react';
 import { mobileApi, type WorkdayFlag } from '@/services/mobileApiService';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage, } from '@/i18n/LanguageContext';
 import type { TranslationKey } from '@/i18n/translations';
+
+interface AICorrection {
+  id: string;
+  detected_at: string;
+  situation_kind: string;
+  confidence: number;
+  ai_reasoning: string;
+  status: string;
+  applied_actions: any;
+}
 
 const FLAG_LABEL_KEYS: Record<string, TranslationKey> = {
   missing_break: 'flags.type.missing_break',
