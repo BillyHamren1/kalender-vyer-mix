@@ -13,6 +13,7 @@ import { useEndDayOnArrivalHome } from '@/hooks/useEndDayOnArrivalHome';
 import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useStaleDayCorrection } from '@/hooks/useStaleDayCorrection';
+import { useStaleDayReminder } from '@/hooks/useStaleDayReminder';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -142,6 +143,10 @@ const MobileGlobalOverlays: React.FC = () => {
   // Stale-day correction — server cron flagged a forgotten timer overnight;
   // ask the user to confirm/correct the actual end-of-day time.
   const staleDay = useStaleDayCorrection(!!staff);
+
+  // Lugn påminnelse om gårdagen / tidigare dagar som fortfarande needs_review.
+  // Triggas vid app open, foreground och 'workday-ended'. Throttlas internt.
+  useStaleDayReminder(!!staff);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
 

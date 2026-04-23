@@ -54,6 +54,11 @@ export interface WorkDayEndResult {
 export async function syncWorkDayEnd(endedAtIso?: string): Promise<WorkDayEndResult> {
   try {
     await workdayApi.end(endedAtIso ? { endedAtIso } : {});
+    // Notifiera lyssnare (t.ex. useStaleDayReminder) att en arbetsdag just
+    // avslutats — bra trigger för att kontrollera om gårdagen ligger kvar.
+    try {
+      window.dispatchEvent(new CustomEvent('workday-ended', { detail: { endedAtIso } }));
+    } catch { /* SSR/test no-op */ }
     return { ok: true };
   } catch (err: any) {
     const msg = err?.message || String(err);
