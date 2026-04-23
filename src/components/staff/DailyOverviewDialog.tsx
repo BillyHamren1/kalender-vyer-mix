@@ -8,6 +8,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
+import { optimizeStaffRoute, StaffRouteResult, RouteStop } from '@/services/staffRouteService';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
