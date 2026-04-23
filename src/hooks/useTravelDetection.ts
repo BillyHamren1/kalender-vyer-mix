@@ -117,6 +117,8 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const startDebounceRef = useRef<number | null>(null);
+  const startInFlightRef = useRef(false);
+  const stopInFlightRef = useRef<string | null>(null);
   
   // Use refs for values accessed in GPS callback to avoid effect restart loops
   const travelStateRef = useRef(travelState);
@@ -146,6 +148,10 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
   }, []);
 
   const startTravel = useCallback(async (lat: number, lng: number) => {
+    if (startInFlightRef.current || travelStateRef.current.activeTravelLogId) {
+      return;
+    }
+    startInFlightRef.current = true;
     console.log('[TravelDetection] Starting travel tracking...');
     const address = await reverseGeocode(lat, lng);
     
@@ -183,6 +189,8 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
         return;
       }
       console.error('[TravelDetection] Failed to start travel:', err);
+    } finally {
+      startInFlightRef.current = false;
     }
   }, []);
 
@@ -190,6 +198,8 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
   const stopTravel = useCallback(async (lat: number, lng: number, opts: { auto?: boolean } = {}) => {
     const currentLogId = travelStateRef.current.activeTravelLogId;
     if (!currentLogId) return;
+    if (stopInFlightRef.current === currentLogId) return;
+    stopInFlightRef.current = currentLogId;
     console.log('[TravelDetection] Stopping travel tracking...', { auto: !!opts.auto });
 
     const address = await reverseGeocode(lat, lng);
@@ -217,6 +227,10 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       console.log('[TravelDetection] Travel stopped, classification:', result.travel_log?.classification);
     } catch (err) {
       console.error('[TravelDetection] Failed to stop travel:', err);
+    } finally {
+      if (stopInFlightRef.current === currentLogId) {
+        stopInFlightRef.current = null;
+      }
     }
   }, [clearTravelState]);
 
