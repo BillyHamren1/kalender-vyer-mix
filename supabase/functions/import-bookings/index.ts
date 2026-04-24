@@ -908,10 +908,10 @@ async function reconcileCalendarEvents(
   }
 
   // 5. Delete stale events
-  const staleEvents = (existingEvents || []).filter(e => !matchedExistingIds.has(e.id));
+  const staleEvents = (existingEvents || []).filter((e: any) => !matchedExistingIds.has(e.id));
   if (staleEvents.length > 0) {
-    const staleIds = staleEvents.map(e => e.id);
-    console.log(`[Calendar Reconcile] DELETE ${staleEvents.length} stale events: ${staleEvents.map(e => `${e.event_type}@${e.start_time?.split('T')[0]}`).join(', ')}`);
+    const staleIds = staleEvents.map((e: any) => e.id);
+    console.log(`[Calendar Reconcile] DELETE ${staleEvents.length} stale events: ${staleEvents.map((e: any) => `${e.event_type}@${e.start_time?.split('T')[0]}`).join(', ')}`);
     const { error: deleteErr } = await supabase
       .from('calendar_events')
       .delete()
@@ -965,8 +965,8 @@ async function reconcileCalendarEvents(
 
     const expectedKeys = new Set(desiredEvents.map(d => `${d.event_type}|${d.date}`));
     const actualKeys = new Set(actualEventsJson.map((a: any) => `${a.event_type}|${a.date}`));
-    const missingKeys = [...expectedKeys].filter(k => !actualKeys.has(k));
-    const extraKeys = [...actualKeys].filter(k => !expectedKeys.has(k));
+    const missingKeys = [...expectedKeys].filter((k: any) => !actualKeys.has(k));
+    const extraKeys = [...actualKeys].filter((k: any) => !expectedKeys.has(k as string));
 
     const hasMismatch = missingKeys.length > 0 || extraKeys.length > 0;
     let mismatchDetails: string | null = null;
@@ -1158,8 +1158,8 @@ const checkProductChanges = async (
   const updated: string[] = [];
   
   // Check for added and updated products
-  for (const [name, extProduct] of externalMap) {
-    const existing = existingMap.get(name);
+  for (const [name, extProduct] of externalMap as Map<string, any>) {
+    const existing = existingMap.get(name) as any;
     if (!existing) {
       added.push(extProduct.name || extProduct.product_name || 'Unknown');
     } else if (existing.quantity !== (extProduct.quantity || 1)) {
@@ -1168,7 +1168,7 @@ const checkProductChanges = async (
   }
   
   // Check for removed products
-  for (const [name, existingProduct] of existingMap) {
+  for (const [name, existingProduct] of existingMap as Map<string, any>) {
     if (!externalMap.has(name)) {
       removed.push(existingProduct.name);
     }
@@ -2351,7 +2351,7 @@ serve(async (req) => {
           
           if (externalBooking.products && Array.isArray(externalBooking.products)) {
             productChanges = await checkProductChanges(supabase, existingBooking.id, externalBooking.products);
-            needsProductUpdate = productChanges.changed;
+            needsProductUpdate = (productChanges as any).changed;
             
             if (needsProductUpdate) {
               console.log(`[Product Update] Products changed for booking ${bookingData.id}:`, {
@@ -3262,7 +3262,7 @@ serve(async (req) => {
                 continue;
               }
 
-              const attachmentData: AttachmentData = {
+              const attachmentData: any = {
                 booking_id: bookingData.id,
                 url: attUrl,
                 file_name: attFileName,
@@ -3359,8 +3359,9 @@ serve(async (req) => {
         }
 
       } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
         console.error(`Error processing booking ${externalBooking.id}:`, error)
-        results.errors.push({ booking_id: externalBooking.id, error: error.message })
+        results.errors.push({ booking_id: externalBooking.id, error: errMsg })
         results.failed++
       }
     }

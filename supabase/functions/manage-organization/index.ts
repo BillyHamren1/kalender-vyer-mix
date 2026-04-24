@@ -121,9 +121,10 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('[manage-organization] Unexpected error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', detail: error.message }),
+      JSON.stringify({ error: 'Internal server error', detail: message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
