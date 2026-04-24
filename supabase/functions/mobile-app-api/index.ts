@@ -2453,17 +2453,27 @@ async function handleCreateComment(supabase: any, staffId: string, data: any, or
     )
   }
 
-  // Create comment
-  const { data: comment, error } = await supabase
-    .from('project_comments')
-    .insert({
-      project_id: project.id,
-      author_name: staffMember?.name || 'Mobile App User',
-      content,
-      organization_id: organizationId
-    })
-    .select()
-    .single()
+  // project_comments-tabellen är borttagen — anslagstavlan är nu `internalnotes`.
+  // Appenda meddelandet med tidsstämpel + författare.
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+  const author = staffMember?.name || 'Mobile App User'
+  const newLine = `${stamp} ${author}: ${content}`
+
+  const { data: existing } = await supabase
+    .from('projects')
+    .select('internalnotes')
+    .eq('id', project.id)
+    .maybeSingle()
+  const merged = existing?.internalnotes
+    ? `${existing.internalnotes}\n${newLine}`
+    : newLine
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ internalnotes: merged })
+    .eq('id', project.id)
+
+  const comment = { id: crypto.randomUUID(), content, author_name: author, created_at: new Date().toISOString() }
 
   if (error) {
     console.error('Comment creation error:', error)
@@ -2861,14 +2871,8 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       .order('sort_order', { ascending: true })
     projectTasks = tasks || []
 
-    // Fetch project comments (last 20)
-    const { data: comments } = await supabase
-      .from('project_comments')
-      .select('id, author_name, content, created_at')
-      .eq('project_id', project.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    projectComments = comments || []
+    // project_comments borttagen — anslagstavla finns på projects.internalnotes
+    projectComments = []
 
     // Fetch project files
     const { data: files } = await supabase
@@ -3043,19 +3047,8 @@ async function handleGetProjectComments(supabase: any, data: { booking_id: strin
     )
   }
 
-  const { data: comments, error } = await supabase
-    .from('project_comments')
-    .select('id, author_name, content, created_at')
-    .eq('project_id', project.id)
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch comments' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+  // project_comments borttagen — returnera tom lista. Anslagstavla finns på projects.internalnotes
+  const comments: any[] = []
 
   return new Response(
     JSON.stringify({ comments: comments || [] }),
