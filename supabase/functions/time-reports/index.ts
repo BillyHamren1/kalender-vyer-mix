@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ⚠️ DEPRECATED — DO NOT USE
 //
 // This Edge Function previously exposed generic CRUD against `time_reports`

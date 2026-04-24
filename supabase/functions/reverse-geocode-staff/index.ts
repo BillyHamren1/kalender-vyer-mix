@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Reverse-geocodes any staff_locations rows where last_address IS NULL.
 // Called on-demand from the time-reports page (no cron). Uses Mapbox.
 // Idempotent + cheap: writes only the address columns; the BEFORE trigger
