@@ -2261,6 +2261,7 @@ export type Database = {
           end_date: string[] | null
           event_date: string[] | null
           id: string
+          internalnotes: string | null
           location: string | null
           name: string
           organization_id: string
@@ -2282,6 +2283,7 @@ export type Database = {
           end_date?: string[] | null
           event_date?: string[] | null
           id?: string
+          internalnotes?: string | null
           location?: string | null
           name: string
           organization_id?: string
@@ -2303,6 +2305,7 @@ export type Database = {
           end_date?: string[] | null
           event_date?: string[] | null
           id?: string
+          internalnotes?: string | null
           location?: string | null
           name?: string
           organization_id?: string
