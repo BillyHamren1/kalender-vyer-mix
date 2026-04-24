@@ -69,11 +69,12 @@ const addDays = (iso: string, days: number): string => {
 export const fetchInboxItemSuggestedDates = async (
   item: WarehouseProjectInboxItem
 ): Promise<SuggestedTaskDates> => {
+  let rigDate: string | null = null;
   let eventDate: string | null = null;
   let rigdownDate: string | null = null;
 
   if (item.source_type === 'project') {
-    // projects.booking_id -> bookings.eventdate / rigdowndate
+    // projects.booking_id -> bookings.rigdaydate / eventdate / rigdowndate
     const { data: proj } = await supabase
       .from('projects')
       .select('booking_id')
@@ -82,32 +83,40 @@ export const fetchInboxItemSuggestedDates = async (
     if (proj?.booking_id) {
       const { data: booking } = await supabase
         .from('bookings')
-        .select('eventdate, rigdowndate')
+        .select('rigdaydate, eventdate, rigdowndate')
         .eq('id', proj.booking_id)
         .maybeSingle();
+      rigDate = booking?.rigdaydate ?? null;
       eventDate = booking?.eventdate ?? null;
-      rigdownDate = booking?.rigdowndate ?? eventDate;
+      rigdownDate = booking?.rigdowndate ?? null;
     }
   } else if (item.source_type === 'large_project') {
     const { data: lp } = await supabase
       .from('large_projects')
-      .select('event_date, end_date')
+      .select('start_date, event_date, end_date')
       .eq('id', item.source_id)
       .maybeSingle();
+    const starts = (lp?.start_date || []).filter(Boolean).sort();
     const events = (lp?.event_date || []).filter(Boolean).sort();
     const ends = (lp?.end_date || []).filter(Boolean).sort();
+    rigDate = starts[0] || null;
     eventDate = events[0] || item.event_date || null;
-    rigdownDate = ends[ends.length - 1] || eventDate;
+    rigdownDate = ends[ends.length - 1] || null;
   }
 
   if (!eventDate) eventDate = item.event_date;
-  if (!rigdownDate) rigdownDate = eventDate;
+
+  // Packning ska vara klar innan rigg/event börjar.
+  // Ankare i prioritetsordning: rigdaydate → eventdate → rigdowndate
+  const packAnchor = rigDate || eventDate || rigdownDate;
+  // Retur efter att projektet är klart: rigdowndate → eventdate → rigdaydate
+  const returnAnchor = rigdownDate || eventDate || rigDate;
 
   return {
-    packStart: eventDate ? addDays(eventDate, -3) : null,
-    packEnd: eventDate ? addDays(eventDate, -1) : null,
-    returnStart: rigdownDate ? addDays(rigdownDate, 1) : null,
-    returnEnd: rigdownDate ? addDays(rigdownDate, 2) : null,
+    packStart: packAnchor ? addDays(packAnchor, -3) : null,
+    packEnd: packAnchor ? addDays(packAnchor, -1) : null,
+    returnStart: returnAnchor ? addDays(returnAnchor, 1) : null,
+    returnEnd: returnAnchor ? addDays(returnAnchor, 2) : null,
   };
 };
 
