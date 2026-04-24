@@ -6,7 +6,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Mail, User, Clock, Loader2, ChevronDown } from 'lucide-react';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -236,6 +236,40 @@ const MobileJobDetail = () => {
             <Navigation className="w-4 h-4 text-primary-foreground" />
           </div>
         </button>
+      )}
+
+      {(booking.contact_name || booking.contact_phone || booking.contact_email) && (
+        <div className="mx-4 mt-2 p-3 rounded-2xl bg-card border border-border space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <User className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              {t('contact.label' as any) || 'Kontaktperson'}
+            </span>
+          </div>
+          {booking.contact_name && (
+            <p className="text-sm font-semibold text-foreground">{booking.contact_name}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {booking.contact_phone && (
+              <a
+                href={`tel:${booking.contact_phone.replace(/\s+/g, '')}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium active:scale-95 transition-all"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {booking.contact_phone}
+              </a>
+            )}
+            {booking.contact_email && (
+              <a
+                href={`mailto:${booking.contact_email}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-foreground text-xs font-medium active:scale-95 transition-all"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[180px]">{booking.contact_email}</span>
+              </a>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Tab navigation */}
