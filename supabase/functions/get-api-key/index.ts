@@ -26,7 +26,7 @@ serve(async (req) => {
     // Get the key type from request body
     const { key_type } = await req.json()
     
-    let apiKey: string | null = null
+    let apiKey: string | undefined = undefined
     
     // Return the appropriate API key based on the requested type
     switch (key_type) {
@@ -66,9 +66,10 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('Error processing API key request:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: 'Internal server error', details: message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

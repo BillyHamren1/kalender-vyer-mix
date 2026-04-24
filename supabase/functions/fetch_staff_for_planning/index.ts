@@ -95,10 +95,11 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('Error in fetch_staff_for_planning function:', error);
     // Return an empty array on error to prevent client-side errors
     return new Response(JSON.stringify({ 
-      error: error.message, 
+      error: message, 
       success: false, 
       data: [] 
     }), {
