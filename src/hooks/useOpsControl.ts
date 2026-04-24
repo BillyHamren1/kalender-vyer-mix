@@ -11,7 +11,7 @@ export const useOpsControl = () => {
 
   useRealtimeInvalidation({
     channelName: 'ops-control-realtime',
-    tables: ['calendar_events', 'staff_assignments', 'booking_staff_assignments', 'bookings', 'staff_messages', 'project_comments', 'broadcast_messages'],
+    tables: ['calendar_events', 'staff_assignments', 'booking_staff_assignments', 'bookings', 'staff_messages', 'broadcast_messages'],
     queryKeys: [['ops-control']],
   });
 
