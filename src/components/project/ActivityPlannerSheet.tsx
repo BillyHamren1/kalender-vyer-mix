@@ -391,9 +391,10 @@ const ActivityPlannerSheet = ({
         if (row.syncToCalendar && newTask?.id) {
           try {
             await syncActivityToCalendar(newTask.id);
-          } catch (syncErr) {
+          } catch (syncErr: any) {
             console.error('[ActivityPlanner] Calendar sync failed for', row.title, syncErr);
-            toast.warning(`"${row.title}" sparades, men kalendersynk misslyckades`);
+            const detail = syncErr?.message || syncErr?.details || String(syncErr);
+            toast.warning(`"${row.title}" sparades, men kalendersynk misslyckades: ${detail}`);
           }
         }
         ok++;
