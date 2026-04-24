@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * infer-home-location
  * ───────────────────

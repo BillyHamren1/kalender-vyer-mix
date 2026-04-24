@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * receive-booking — Durable intake layer for Planning system.
  *

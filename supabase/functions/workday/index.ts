@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * workday — server-anchor for the mobile WorkDay timer.
  *

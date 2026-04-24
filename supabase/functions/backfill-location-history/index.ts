@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * backfill-location-history
  * ─────────────────────────

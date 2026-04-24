@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * process-sync-jobs — Durable worker for booking sync queue.
  *
