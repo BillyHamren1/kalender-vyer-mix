@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useOutletContext, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
@@ -15,7 +15,7 @@ import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
-import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
+
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
