@@ -84,6 +84,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
   const [name, setName] = useState('');
   const [packStart, setPackStart] = useState<string | null>(null);
   const [packEnd, setPackEnd] = useState<string | null>(null);
+  const [hasReturn, setHasReturn] = useState(true);
   const [returnStart, setReturnStart] = useState<string | null>(null);
   const [returnEnd, setReturnEnd] = useState<string | null>(null);
   const [loadingDates, setLoadingDates] = useState(false);
@@ -92,6 +93,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
   useEffect(() => {
     if (!item || !open) return;
     setName(item.client_name || 'Lagerprojekt');
+    setHasReturn(true);
     setLoadingDates(true);
     fetchInboxItemSuggestedDates(item)
       .then((d) => {
@@ -110,10 +112,8 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
     !!name.trim() &&
     !!packStart &&
     !!packEnd &&
-    !!returnStart &&
-    !!returnEnd &&
     packEnd >= packStart &&
-    returnEnd >= returnStart;
+    (!hasReturn || (!!returnStart && !!returnEnd && returnEnd >= returnStart));
 
   const handleSubmit = async () => {
     if (!item || !isValid) return;
