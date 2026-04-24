@@ -182,16 +182,36 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
               </div>
 
               <div className="rounded-lg border border-border/60 p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4 text-primary" />
-                  <h4 className="text-sm font-medium">Retur</h4>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-primary" />
+                    <h4 className="text-sm font-medium">Retur</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="has-return" className="text-xs text-muted-foreground cursor-pointer">
+                      Detta projekt har retur
+                    </Label>
+                    <Switch
+                      id="has-return"
+                      checked={hasReturn}
+                      onCheckedChange={setHasReturn}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <DateField label="Startdatum" value={returnStart} onChange={setReturnStart} />
-                  <DateField label="Slutdatum" value={returnEnd} onChange={setReturnEnd} />
-                </div>
-                {returnStart && returnEnd && returnEnd < returnStart && (
-                  <p className="text-xs text-destructive">Slutdatum måste vara efter startdatum.</p>
+                {hasReturn ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <DateField label="Startdatum" value={returnStart} onChange={setReturnStart} />
+                      <DateField label="Slutdatum" value={returnEnd} onChange={setReturnEnd} />
+                    </div>
+                    {returnStart && returnEnd && returnEnd < returnStart && (
+                      <p className="text-xs text-destructive">Slutdatum måste vara efter startdatum.</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Ingen retur skapas. Du kan lägga till moment senare om det behövs.
+                  </p>
                 )}
               </div>
             </>
