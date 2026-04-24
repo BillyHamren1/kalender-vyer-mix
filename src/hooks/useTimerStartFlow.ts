@@ -221,7 +221,6 @@ export function useTimerStartFlow(
           kind: 'location',
           locationId: existing.locationId,
           name: existing.locationName || existing.client,
-          createsTimeReport: false,
         }
       : existing.largeProjectId
         ? {

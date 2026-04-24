@@ -133,7 +133,6 @@ const MobileJobs = () => {
       kind: 'location',
       locationId: loc.id,
       name: loc.name,
-      createsTimeReport: false,
     };
     requestStart(target);
   };
