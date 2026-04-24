@@ -1930,48 +1930,6 @@ export type Database = {
           },
         ]
       }
-      large_project_comments: {
-        Row: {
-          author_name: string
-          content: string
-          created_at: string
-          id: string
-          large_project_id: string
-          organization_id: string
-        }
-        Insert: {
-          author_name: string
-          content: string
-          created_at?: string
-          id?: string
-          large_project_id: string
-          organization_id?: string
-        }
-        Update: {
-          author_name?: string
-          content?: string
-          created_at?: string
-          id?: string
-          large_project_id?: string
-          organization_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "large_project_comments_large_project_id_fkey"
-            columns: ["large_project_id"]
-            isOneToOne: false
-            referencedRelation: "large_projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "large_project_comments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       large_project_files: {
         Row: {
           file_name: string
@@ -2261,6 +2219,7 @@ export type Database = {
           end_date: string[] | null
           event_date: string[] | null
           id: string
+          internalnotes: string | null
           location: string | null
           name: string
           organization_id: string
@@ -2282,6 +2241,7 @@ export type Database = {
           end_date?: string[] | null
           event_date?: string[] | null
           id?: string
+          internalnotes?: string | null
           location?: string | null
           name: string
           organization_id?: string
@@ -2303,6 +2263,7 @@ export type Database = {
           end_date?: string[] | null
           event_date?: string[] | null
           id?: string
+          internalnotes?: string | null
           location?: string | null
           name?: string
           organization_id?: string
@@ -3605,48 +3566,6 @@ export type Database = {
           },
         ]
       }
-      project_comments: {
-        Row: {
-          author_name: string
-          content: string
-          created_at: string
-          id: string
-          organization_id: string
-          project_id: string
-        }
-        Insert: {
-          author_name: string
-          content: string
-          created_at?: string
-          id?: string
-          organization_id?: string
-          project_id: string
-        }
-        Update: {
-          author_name?: string
-          content?: string
-          created_at?: string
-          id?: string
-          organization_id?: string
-          project_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_comments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_comments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       project_files: {
         Row: {
           file_name: string
@@ -3825,64 +3744,6 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_messages: {
-        Row: {
-          created_at: string
-          id: string
-          linked_task_id: string | null
-          message: string
-          organization_id: string
-          project_id: string
-          project_supplier_link_id: string | null
-          sender_name: string
-          type: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          linked_task_id?: string | null
-          message: string
-          organization_id: string
-          project_id: string
-          project_supplier_link_id?: string | null
-          sender_name: string
-          type?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          linked_task_id?: string | null
-          message?: string
-          organization_id?: string
-          project_id?: string
-          project_supplier_link_id?: string | null
-          sender_name?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_messages_linked_task_id_fkey"
-            columns: ["linked_task_id"]
-            isOneToOne: false
-            referencedRelation: "establishment_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_messages_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_messages_project_supplier_link_id_fkey"
-            columns: ["project_supplier_link_id"]
-            isOneToOne: false
-            referencedRelation: "project_supplier_links"
             referencedColumns: ["id"]
           },
         ]

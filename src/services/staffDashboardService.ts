@@ -81,24 +81,8 @@ export const fetchJobActivity = async (): Promise<JobActivityItem[]> => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const items: JobActivityItem[] = [];
 
-  // Fetch recent comments
-  const { data: comments } = await supabase
-    .from('project_comments')
-    .select('id, author_name, content, created_at, project_id, projects!inner(name)')
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  comments?.forEach((c: any) => {
-    items.push({
-      id: c.id,
-      type: 'comment',
-      author: c.author_name,
-      content: c.content,
-      project_name: c.projects?.name || '',
-      created_at: c.created_at,
-    });
-  });
+  // Project comments removed — internalnotes is now the unified bulletin board.
+  // (Notes don't generate per-row activity; activity feed shows files & status events instead.)
 
   // Fetch recent files (photos)
   const { data: files } = await supabase

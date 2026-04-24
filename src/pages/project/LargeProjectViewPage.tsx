@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
-import ProjectComments from "@/components/project/ProjectComments";
+import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
@@ -22,7 +22,7 @@ const LargeProjectViewPage = () => {
   const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
   const navigate = useNavigate();
 
-  const { project, tasks, files, comments, ganttSteps } = detail;
+  const { project, tasks, files, ganttSteps } = detail;
 
   // Get first booking ID for transport (large projects may have multiple)
   const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
@@ -38,12 +38,19 @@ const LargeProjectViewPage = () => {
           <ProjectOverviewHeader
             tasks={tasks}
             filesCount={files.length}
-            commentsCount={comments.length}
+            commentsCount={0}
             activities={[]}
           />
         </div>
         <LargeProjectTeam largeProjectId={project.id} />
       </div>
+
+      {/* Anslagstavla — interna anteckningar (ETT enhetligt fält) */}
+      <ProjectInternalNotes
+        bookingId={bookingId}
+        currentNotes={(project as any).internalnotes}
+        projectId={project.id}
+      />
 
       {/* Tabbed content */}
       <Tabs defaultValue="tasks" className="space-y-6">
@@ -65,14 +72,6 @@ const LargeProjectViewPage = () => {
               {files.length > 0 && (
                 <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                   {files.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="comments" className={tabTriggerClass}>
-              Kommentarer
-              {comments.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {comments.length}
                 </span>
               )}
             </TabsTrigger>
@@ -98,9 +97,7 @@ const LargeProjectViewPage = () => {
             onDeleteTask={detail.deleteTask}
             bookingId={bookingId}
             executionHref="establishment"
-            onOpenInChat={(taskId, taskTitle) =>
-              navigate("collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } })
-            }
+            onOpenInChat={undefined}
           />
         </TabsContent>
 
@@ -130,10 +127,6 @@ const LargeProjectViewPage = () => {
             onDelete={detail.deleteFile}
             isUploading={detail.isUploadingFile}
           />
-        </TabsContent>
-
-        <TabsContent value="comments">
-          <ProjectComments comments={comments} onAddComment={detail.addComment} />
         </TabsContent>
 
         <TabsContent value="products">

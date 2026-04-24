@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useOutletContext, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
@@ -10,14 +10,12 @@ import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
-import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 
-import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
-import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
+
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
@@ -41,28 +39,11 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
-  const location = useLocation();
-  const [chatTaskRef, setChatTaskRef] = useState<{ taskId: string; taskTitle: string } | null>(null);
 
-  // Pick up linkedTaskRef from navigation state (e.g. from EstablishmentPage)
-  useEffect(() => {
-    const navRef = (location.state as any)?.linkedTaskRef;
-    if (navRef?.taskId) {
-      setChatTaskRef(navRef);
-      // Clear navigation state so it doesn't re-trigger on re-render
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
-
-  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
-    setChatTaskRef({ taskId, taskTitle });
-  }, []);
-
-  const { project, tasks, files, comments, activities, bookingAttachments } = detail;
+  const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
-  const { suppliers } = useProjectSuppliers(project?.id);
 
   // Auto-complete Transportbokning task if transport assignments exist
   const incompleteTransportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
@@ -140,7 +121,7 @@ const ProjectViewPage = () => {
       <ProjectOverviewHeader
         tasks={tasks}
         filesCount={files.length}
-        commentsCount={comments.length}
+        commentsCount={0}
         activities={activities}
       />
 
@@ -188,8 +169,8 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Filer + Kommunikation sida vid sida */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      {/* Filer */}
+      <div className="grid grid-cols-1 gap-6 items-stretch">
         <div className="flex flex-col h-full min-h-[480px]">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
           <ProjectFiles
@@ -199,17 +180,6 @@ const ProjectViewPage = () => {
             isUploading={detail.isUploadingFile}
             bookingAttachments={bookingAttachments}
             className="h-full"
-          />
-        </div>
-
-        <div className="flex flex-col h-full min-h-[480px]">
-          <ProjectCommunication
-            projectId={project.id}
-            bookingId={bookingId ?? null}
-            senderName={projectLeaderDisplay || 'Projektledare'}
-            suppliers={suppliers}
-            linkedTaskRef={chatTaskRef}
-            onClearTaskRef={() => setChatTaskRef(null)}
           />
         </div>
       </div>

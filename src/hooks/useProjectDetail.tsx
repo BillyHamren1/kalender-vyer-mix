@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   fetchProject, 
   fetchProjectTasks, 
-  fetchProjectComments, 
   fetchProjectFiles,
   fetchBookingAttachments,
   updateProjectStatus,
@@ -12,7 +11,6 @@ import {
   createProjectTask,
   updateProjectTask,
   deleteProjectTask,
-  createProjectComment,
   uploadProjectFile,
   deleteProjectFile
 } from "@/services/projectService";
@@ -35,12 +33,6 @@ export const useProjectDetail = (projectId: string) => {
   const tasksQuery = useQuery({
     queryKey: ['project-tasks', projectId],
     queryFn: () => fetchProjectTasks(projectId),
-    enabled: !!projectId
-  });
-
-  const commentsQuery = useQuery({
-    queryKey: ['project-comments', projectId],
-    queryFn: () => fetchProjectComments(projectId),
     enabled: !!projectId
   });
 
@@ -355,34 +347,6 @@ export const useProjectDetail = (projectId: string) => {
     onSettled: deleteTaskOptimistic.onSettled,
   });
 
-  const addCommentOptimistic = createOptimisticCallbacks<any, { author_name: string; content: string }>({
-    queryClient,
-    queryKey: ['project-comments', projectId],
-    type: 'add',
-    optimisticData: (vars) => ({
-      id: `temp-${Date.now()}`,
-      author_name: vars.author_name,
-      content: vars.content,
-      project_id: projectId,
-      created_at: new Date().toISOString(),
-    }),
-    errorMessage: 'Kunde inte lägga till kommentar',
-  });
-
-  const addCommentMutation = useMutation({
-    mutationFn: async (data: { author_name: string; content: string }) => {
-      return createProjectComment({ ...data, project_id: projectId });
-    },
-    ...addCommentOptimistic,
-    onSuccess: (_data, variables) => {
-      logActivity('comment_added', `Kommentar av ${variables.author_name}`, {
-        preview: variables.content.substring(0, 100),
-      });
-    },
-    onError: addCommentOptimistic.onError,
-    onSettled: addCommentOptimistic.onSettled,
-  });
-
   // File mutations remain non-optimistic (server generates URL)
   const uploadFileMutation = useMutation({
     mutationFn: ({ file, uploadedBy }: { file: File; uploadedBy?: string }) => 
@@ -408,7 +372,6 @@ export const useProjectDetail = (projectId: string) => {
   return {
     project: projectQuery.data,
     tasks: tasksQuery.data || [],
-    comments: commentsQuery.data || [],
     files: filesQuery.data || [],
     activities: activitiesQuery.data || [],
     bookingAttachments: bookingAttachmentsQuery.data || [],
@@ -418,7 +381,6 @@ export const useProjectDetail = (projectId: string) => {
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
     deleteTask: deleteTaskMutation.mutate,
-    addComment: addCommentMutation.mutate,
     uploadFile: uploadFileMutation.mutate,
     deleteFile: deleteFileMutation.mutate,
     isUploadingFile: uploadFileMutation.isPending

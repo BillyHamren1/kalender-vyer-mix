@@ -1,43 +1,103 @@
-Jag har hittat var detta kommer ifrån och planen är att ta bort det ordentligt.
+## Mål
+**ETT** anslagstavla-fält i hela systemet: `internalnotes` (på `projects` och `bookings`).
+**Direktmeddelanden** (DM mellan personer) påverkas INTE — det är en separat funktion.
 
-## Vad som faktiskt händer
-Det här är inte "produkter i lagerprojektet" i egentlig mening. Det är en separat loggfunktion som skapades nyligen:
+## Vad som verifierats
+- `project_comments` har **7 rader** att migrera (stora projekt)
+- `project_messages` har **0 rader** — tom, men koden är aktiv (delas mellan "Kommunikation"-flik och mobilens jobb-chat)
+- `projects.internalnotes` används redan på 3 projekt
+- `bookings.internalnotes` används på 24 bokningar
+- `internalnotes` synkas redan via `import-bookings` från Booking-systemet
+- `internalnotes` läses redan av: AI-assistent, mobilapp, normala projekt, bokningsvy
 
-- `warehouse_project_changes` skapades i migrationen `20260417081726_...`
-- Där skapades också triggern `track_warehouse_product_changes_trg` på `booking_products`
-- Varje gång produkter på en bokning ändras skriver triggern rader till `warehouse_project_changes`
-- `WarehouseProjectInbox` renderar dessutom alltid `WarehouseProjectChanges`, så loggen visas direkt på lagerdashboarden
-- `import-bookings` gör på flera ställen delete/reinsert av `booking_products`, vilket gör att triggern tolkar synk som "produkt borttagen / produkt tillagd" om och om igen
+---
 
-Det är alltså en pålagd ändringslogg ovanpå bokningsprodukterna, inte en riktig del av lagerprojektets arbetsflöde.
+## Steg 1 — Migrera `project_comments` → `internalnotes`
 
-## Plan
-1. Ta bort ändringsloggen från lager-UI
-- Ta bort `WarehouseProjectChanges` från dashboard/inbox
-- Ta bort fliken `Ändringar` i `WarehouseProjectDetail`
-- Ta bort notifieringsräkning från `useWarehouseNotificationCount` så dessa loggrader inte längre påverkar badges
+Engångs-SQL (via migration-tool):
 
-2. Stäng av källan som skapar raderna
-- Skapa en migration som droppar triggern `track_warehouse_product_changes_trg`
-- Droppa även datum-triggern `track_warehouse_date_changes_trg`
-- Lämna inte fortsatt skrivning till `warehouse_project_changes`
+```sql
+-- Slå ihop kommentarer per projekt och appenda till internalnotes med tidsstämpel + författare
+WITH grouped AS (
+  SELECT 
+    project_id,
+    string_agg(
+      to_char(created_at, 'YYYY-MM-DD HH24:MI') || ' ' || author_name || ': ' || content,
+      E'\n'
+      ORDER BY created_at
+    ) AS comment_block
+  FROM project_comments
+  GROUP BY project_id
+)
+UPDATE projects p
+SET internalnotes = 
+  CASE 
+    WHEN COALESCE(p.internalnotes, '') = '' 
+      THEN '--- Tidigare kommentarer ---' || E'\n' || g.comment_block
+    ELSE p.internalnotes || E'\n\n' || '--- Tidigare kommentarer ---' || E'\n' || g.comment_block
+  END
+FROM grouped g
+WHERE p.id = g.project_id;
+```
 
-3. Rensa bort det som redan skapats
-- Radera befintliga rader i `warehouse_project_changes` så dashboarden blir ren direkt
-- Om du hellre vill spara historiken kan jag istället bara gömma funktionen och markera allt som hanterat, men utifrån det du skriver är rätt väg att tömma tabellen
+Visa SELECT på resultatet **innan** vi droppar tabellen så användaren kan verifiera.
 
-4. Stabiliseringsfix
-- Ta bort den återstående React-varningen med dublettnyckeln `unknown` genom att inte längre rendera den här listan, och vid behov säkra keys där fallback idag är `unknown`
+## Steg 2 — Stora projekt: lägg till anslagstavla, ta bort kommentarer
+**`LargeProjectViewPage.tsx`** (eller motsvarande):
+- Ta bort "Kommentarer"-fliken som använder `ProjectComments.tsx`
+- Lägg till `ProjectInternalNotes`-komponenten på Översikt-fliken (samma plats som normala projekt)
+- Säkerställ att `useLargeProjectDetail` hämtar `internalnotes` från projektet
 
-## Teknisk detalj
-Berörda filer/tabeller:
-- `supabase/migrations/20260417081726_5b87f4cb-3b15-40b3-9ff6-da56edc3bbd5.sql`
-- `supabase/migrations/20260421113141_a3cdbddb-9afc-4c08-b0ab-91a945e8405f.sql`
-- `supabase/migrations/20260421113831_f18b52ae-d776-4ff4-91bd-7044d54ebdee.sql`
-- `src/components/warehouse/WarehouseProjectInbox.tsx`
-- `src/components/warehouse/WarehouseProjectChanges.tsx`
-- `src/components/warehouse/WarehouseProjectChangesTab.tsx`
-- `src/services/warehouseProjectChangesService.ts`
-- `src/hooks/useWarehouseNotificationCount.ts`
+## Steg 3 — Normala projekt: ta bort "Kommunikation"-fliken
+**`ProjectViewPage.tsx`**:
+- Ta bort `ProjectCommunication`-modulen (Internt/Leverantör/Kund-flikarna med tomma `project_messages`)
+- Behåll `ProjectInternalNotes` som primär anslagstavla
 
-När du godkänner detta genomför jag borttagningen så lagerprojekt inte längre visar eller sparar dessa "ändringar".
+## Steg 4 — Mobilappen: visa + tillåt redigering av `internalnotes`
+- **`MobileJobDetail.tsx`**: visa `internalnotes` med en redigera-knapp (modal/inline textarea + spara via `mobile-app-api`)
+- **`MobileProjectDetail.tsx`**: samma — `internalnotes` på projektnivå med redigeringsmöjlighet
+- Ta bort `JobChatView` från mobilen om den **enbart** används mot `project_messages` (den per-jobb-chat-funktionen blir överflödig). Verifiera först att den inte används för DM också.
+- `mobile-app-api` får ny endpoint `updateProjectInternalNotes(projectId, notes)` med org_id-isolering
+
+## Steg 5 — Kodstädning (radera)
+- `src/components/project/ProjectComments.tsx`
+- `src/components/project/communication/ProjectCommunication.tsx` (hela mappen)
+- `src/hooks/useProjectMessages.ts`
+- `src/services/projectMessageService.ts`
+- `src/types/projectMessage.ts`
+- `src/hooks/useJobChat.ts` (om det enbart är för project_messages)
+- `src/components/mobile-app/messages/JobChatView.tsx` (om det enbart är för project_messages)
+- `src/services/__tests__/jobChatService.test.ts`
+- Endpoints i `mobile-app-api/index.ts` som hanterar `project_messages` (chat-relaterade — verifiera att DM-endpoints inte påverkas)
+- Refs i `useStaffDashboard`, `useMobileInbox`, `useUnreadMessageCount`, `push-notification-trigger` — uppdatera så att räknare/inbox bara visar **riktiga** DM, inte project_messages
+
+## Steg 6 — Databas-städning (efter Steg 1-5 verifierats)
+- `DROP TABLE project_comments`
+- `DROP TABLE project_messages` 
+- Tillhörande RLS-policies, index, realtime-publikationer
+
+## Steg 7 — Bevara DM-systemet
+**Detta rörs INTE:**
+- Tabeller för direktmeddelanden mellan personer (kollar exakt namn — sannolikt `direct_messages` eller liknande)
+- Inbox/notifikations-räknare för DM
+- Push-notiser för DM
+- `unified-messaging` ramverket
+
+## Steg 8 — Memory-uppdatering
+Lägg till constraint:
+> **One Bulletin Board Policy:** `internalnotes` är ENDA fältet för projekt/bokningsanslagstavla. Tabellerna `project_comments` och `project_messages` är borttagna. Återinför ej. DM-funktionen är separat och orörd.
+
+---
+
+## Riskbedömning
+- ✅ **Ingen dataförlust** — 7 kommentarer migreras innan drop, project_messages är tom
+- ✅ **DM-systemet orört** — verifieras explicit i steg 4 & 7 innan kod tas bort
+- ⚠️ **JobChatView i mobilen** — måste verifieras om den används för DM också. Om ja: behåll, koppla bort från `project_messages`.
+- ⚠️ **Push-notifikationer** — `push-notification-trigger` refererar `project_messages`. Måste rensas så inga notiser försöker skickas mot tom/borttagen tabell.
+
+## Leveransordning
+1. Migrera data (steg 1) + visa verifiering
+2. UI-ändringar (steg 2-4) så inget bryts
+3. Kodstädning (steg 5)
+4. Schema-drop (steg 6) — sista steget
+5. Memory + dokumentation (steg 8)

@@ -459,43 +459,8 @@ export async function uploadLargeProjectFile(
 }
 
 // ============================================
-// COMMENTS
+// COMMENTS — REMOVED. Use `internalnotes` on large_projects instead.
 // ============================================
-
-export async function fetchLargeProjectComments(largeProjectId: string): Promise<LargeProjectComment[]> {
-  const { data, error } = await supabase
-    .from('large_project_comments')
-    .select('*')
-    .eq('large_project_id', largeProjectId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
-}
-
-export async function createLargeProjectComment(comment: {
-  large_project_id: string;
-  author_name: string;
-  content: string;
-}): Promise<LargeProjectComment> {
-  const { data, error } = await supabase
-    .from('large_project_comments')
-    .insert(comment)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-export async function deleteLargeProjectComment(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('large_project_comments')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-}
 
 // ============================================
 // PURCHASES
