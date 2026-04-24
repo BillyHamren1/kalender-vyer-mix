@@ -3266,7 +3266,8 @@ serve(async (req) => {
                 url: attUrl,
                 file_name: attFileName,
                 file_type: attachment.file_type || attachment.type || 'unknown',
-                source: 'import'
+                source: 'import',
+                organization_id: organizationId
               }
 
               const { error: attachmentError } = await supabase
