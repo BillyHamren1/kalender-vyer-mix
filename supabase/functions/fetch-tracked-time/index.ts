@@ -108,11 +108,12 @@ serve(async (req) => {
     }
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('Error in fetch-tracked-time function:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
-        details: error.message 
+        details: message 
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
