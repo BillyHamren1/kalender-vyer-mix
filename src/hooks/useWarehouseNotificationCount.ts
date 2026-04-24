@@ -11,32 +11,24 @@ export interface WarehouseNotificationCount {
 /**
  * Counts warehouse notifications for the sidebar badge.
  * - newProjects: warehouse_project_inbox rows with status='new'
- * - changes: unacknowledged warehouse_project_changes rows
  */
 export function useWarehouseNotificationCount(): WarehouseNotificationCount {
   useRealtimeInvalidation({
     channelName: 'warehouse-notification-count',
-    tables: ['warehouse_project_inbox', 'warehouse_project_changes'],
+    tables: ['warehouse_project_inbox'],
     queryKeys: [['warehouse-notification-count']],
   });
 
   const { data } = useQuery({
     queryKey: ['warehouse-notification-count'],
     queryFn: async (): Promise<WarehouseNotificationCount> => {
-      const [inboxRes, changesRes] = await Promise.all([
-        supabase
-          .from('warehouse_project_inbox')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'new'),
-        supabase
-          .from('warehouse_project_changes')
-          .select('id', { count: 'exact', head: true })
-          .eq('acknowledged', false),
-      ]);
+      const inboxRes = await supabase
+        .from('warehouse_project_inbox')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'new');
 
       const newProjects = inboxRes.count ?? 0;
-      const changes = changesRes.count ?? 0;
-      return { total: newProjects + changes, newProjects, changes };
+      return { total: newProjects, newProjects, changes: 0 };
     },
     staleTime: 30000,
   });

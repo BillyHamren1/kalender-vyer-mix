@@ -14,7 +14,6 @@ import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
-import { WarehouseProjectChanges } from './WarehouseProjectChanges';
 
 export const WarehouseProjectInbox: React.FC = () => {
   const navigate = useNavigate();
@@ -47,9 +46,8 @@ export const WarehouseProjectInbox: React.FC = () => {
     }
   };
 
-  // Show changes section even when there are no new inbox items
   if (isLoading) return null;
-  if (items.length === 0) return <WarehouseProjectChanges />;
+  if (items.length === 0) return null;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
@@ -151,7 +149,6 @@ export const WarehouseProjectInbox: React.FC = () => {
         }}
       />
     </div>
-    <WarehouseProjectChanges />
     </div>
   );
 };
