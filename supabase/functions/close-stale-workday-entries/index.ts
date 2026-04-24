@@ -24,6 +24,7 @@
 
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { computePlannedDaySignals, type BookingTimes } from "./plannedDay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,11 +51,29 @@ function endOfDayIso(dateStr: string): string {
   return new Date(`${dateStr}T23:59:59Z`).toISOString();
 }
 
-function clampToEndOfDay(startIso: string, dateStr: string, hours: number): string {
+/**
+ * Cap auto-close time at the EARLIEST of:
+ *   • start + provisionalHours   (legacy default)
+ *   • plannedEndOfDay (if known) (Fas 2 — respects actual schedule)
+ *   • end of report day          (never bleed into next day)
+ *
+ * `plannedEndIso` is the staff member's latest scheduled end-of-activity
+ * for that day, computed from booking_staff_assignments. When null we
+ * fall back to legacy behavior.
+ */
+function clampAutoCloseEnd(
+  startIso: string,
+  dateStr: string,
+  hours: number,
+  plannedEndIso: string | null,
+): string {
   const start = new Date(startIso).getTime();
   const proposed = start + hours * 60 * 60 * 1000;
   const eod = new Date(endOfDayIso(dateStr)).getTime();
-  return new Date(Math.min(proposed, eod)).toISOString();
+  const planned = plannedEndIso ? new Date(plannedEndIso).getTime() : Infinity;
+  // Planned end must be after start to be a meaningful cap.
+  const plannedCap = planned > start ? planned : Infinity;
+  return new Date(Math.min(proposed, eod, plannedCap)).toISOString();
 }
 
 function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
