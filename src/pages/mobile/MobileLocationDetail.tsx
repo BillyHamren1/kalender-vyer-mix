@@ -144,7 +144,6 @@ const MobileLocationDetail = () => {
           kind: 'location',
           locationId: existing.locationId,
           name: existing.locationName || existing.client,
-          createsTimeReport: false,
         }
       : existing.largeProjectId
         ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
