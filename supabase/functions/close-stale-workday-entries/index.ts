@@ -395,7 +395,18 @@ async function processOrganization(supabase: any, organizationId: string) {
     if (!row.start_time) continue;
     // start_time is TIME without date — combine with report_date
     const startCombinedIso = new Date(`${row.report_date}T${row.start_time}Z`).toISOString();
-    const endIso = clampToEndOfDay(startCombinedIso, row.report_date, PROVISIONAL_DURATION_HOURS);
+    const plannedEnd = await getPlannedEndOfDay(
+      supabase,
+      organizationId,
+      row.staff_id,
+      row.report_date,
+    );
+    const endIso = clampAutoCloseEnd(
+      startCombinedIso,
+      row.report_date,
+      PROVISIONAL_DURATION_HOURS,
+      plannedEnd,
+    );
     const endTimeOnly = new Date(endIso).toISOString().slice(11, 19);
     const hours =
       Math.max(
