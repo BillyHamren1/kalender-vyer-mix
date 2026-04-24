@@ -54,7 +54,6 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
         kind: 'location',
         locationId: timer.locationId,
         name: timer.locationName || timer.client,
-        createsTimeReport: false,
       };
     }
     if (timer.largeProjectId) {
