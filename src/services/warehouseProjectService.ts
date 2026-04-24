@@ -115,8 +115,9 @@ export interface CreateFromInboxOptions {
   name: string;
   packStart: string;
   packEnd: string;
-  returnStart: string;
-  returnEnd: string;
+  /** Optional — vissa projekt har ingen retur (t.ex. förbrukningsmaterial). */
+  returnStart: string | null;
+  returnEnd: string | null;
 }
 
 export const createWarehouseProjectFromInbox = async (
