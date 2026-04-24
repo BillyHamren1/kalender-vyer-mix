@@ -12,13 +12,11 @@ import {
   fetchLargeProjectFiles,
   uploadLargeProjectFile,
   deleteLargeProjectFile,
-  fetchLargeProjectComments,
-  createLargeProjectComment,
   fetchLargeProjectGanttSteps,
   saveLargeProjectGanttSteps,
 } from "@/services/largeProjectService";
 import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
-import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
+import { ProjectTask, ProjectFile } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
 import { bridgeProjectTaskToExecution, ensureBridgeAndSync } from "@/services/projectTaskBridgeService";
@@ -43,12 +41,6 @@ export const useLargeProjectDetail = (projectId: string) => {
   const filesQuery = useQuery({
     queryKey: ['large-project-files', projectId],
     queryFn: () => fetchLargeProjectFiles(projectId),
-    enabled: !!projectId,
-  });
-
-  const commentsQuery = useQuery({
-    queryKey: ['large-project-comments', projectId],
-    queryFn: () => fetchLargeProjectComments(projectId),
     enabled: !!projectId,
   });
 
@@ -86,14 +78,6 @@ export const useLargeProjectDetail = (projectId: string) => {
     url: f.url,
     uploaded_by: f.uploaded_by,
     uploaded_at: f.uploaded_at,
-  }));
-
-  const comments: ProjectComment[] = (commentsQuery.data || []).map(c => ({
-    id: c.id,
-    project_id: c.large_project_id,
-    author_name: c.author_name,
-    content: c.content,
-    created_at: c.created_at,
   }));
 
   const ganttSteps: GanttStep[] = (ganttQuery.data || []).map(s => ({
@@ -194,16 +178,6 @@ export const useLargeProjectDetail = (projectId: string) => {
       toast.success('Uppgift borttagen');
     },
     onError: () => toast.error('Kunde inte ta bort uppgift'),
-  });
-
-  // Comment mutation
-  const addCommentMutation = useMutation({
-    mutationFn: (data: { author_name: string; content: string }) =>
-      createLargeProjectComment({ ...data, large_project_id: projectId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['large-project-comments', projectId] });
-    },
-    onError: () => toast.error('Kunde inte lägga till kommentar'),
   });
 
   // File mutations
@@ -317,7 +291,6 @@ export const useLargeProjectDetail = (projectId: string) => {
     project: projectQuery.data,
     tasks,
     files,
-    comments,
     ganttSteps,
     isLoading: projectQuery.isLoading,
     updateProject: updateProjectMutation.mutateAsync,
@@ -325,7 +298,6 @@ export const useLargeProjectDetail = (projectId: string) => {
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
     deleteTask: deleteTaskMutation.mutate,
-    addComment: addCommentMutation.mutate,
     uploadFile: uploadFileMutation.mutate,
     deleteFile: deleteFileMutation.mutate,
     isUploadingFile: uploadFileMutation.isPending,
