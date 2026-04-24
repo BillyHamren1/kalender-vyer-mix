@@ -138,7 +138,7 @@ const ProjectViewPage = () => {
       <ProjectOverviewHeader
         tasks={tasks}
         filesCount={files.length}
-        commentsCount={comments.length}
+        commentsCount={0}
         activities={activities}
       />
 
