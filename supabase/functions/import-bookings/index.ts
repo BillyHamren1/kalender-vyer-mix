@@ -3439,15 +3439,16 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
     console.error('[import-bookings] Pipeline failed', JSON.stringify({
-      error: error.message,
-      import_started: typeof importStartedAt !== 'undefined' ? importStartedAt : null,
+      error: errMsg,
+      import_started: null,
       import_completed: new Date().toISOString(),
     }))
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: errMsg,
         results: {
           total: 0,
           imported: 0,
@@ -3462,7 +3463,7 @@ serve(async (req) => {
           cancelled_bookings_skipped: [],
           duplicates_skipped: [],
           unchanged_bookings_skipped: [],
-          errors: [error.message],
+          errors: [errMsg],
           sync_mode: 'failed',
           team_distribution: {}
         }
