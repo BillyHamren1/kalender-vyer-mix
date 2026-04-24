@@ -312,32 +312,7 @@ export const deleteProjectTask = async (id: string): Promise<void> => {
   if (error) throw error;
 };
 
-// Comments
-export const fetchProjectComments = async (projectId: string): Promise<ProjectComment[]> => {
-  const { data, error } = await supabase
-    .from('project_comments')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as unknown as ProjectComment[];
-};
-
-export const createProjectComment = async (comment: {
-  project_id: string;
-  author_name: string;
-  content: string;
-}): Promise<ProjectComment> => {
-  const { data, error } = await supabase
-    .from('project_comments')
-    .insert(comment)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as unknown as ProjectComment;
-};
+// Comments — REMOVED. Use `internalnotes` field on the project instead.
 
 // Files
 export const fetchProjectFiles = async (projectId: string): Promise<ProjectFile[]> => {
