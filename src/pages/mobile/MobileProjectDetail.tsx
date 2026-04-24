@@ -71,6 +71,34 @@ const MobileProjectDetail = () => {
                 <span className="truncate">{booking.deliveryaddress}</span>
               </div>
             )}
+            {(booking.contact_name || booking.contact_phone) && (
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {booking.contact_name && (
+                  <span className="text-[11px] text-foreground font-medium">
+                    {booking.contact_name}
+                  </span>
+                )}
+                {booking.contact_phone && (
+                  <a
+                    href={`tel:${booking.contact_phone.replace(/\s+/g, '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-medium active:scale-95"
+                  >
+                    <Phone className="w-3 h-3" />
+                    {booking.contact_phone}
+                  </a>
+                )}
+                {booking.contact_email && (
+                  <a
+                    href={`mailto:${booking.contact_email}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-medium active:scale-95"
+                  >
+                    <Mail className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground/30 mt-1 shrink-0" />
         </div>
