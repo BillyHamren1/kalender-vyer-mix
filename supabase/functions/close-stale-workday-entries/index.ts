@@ -241,6 +241,49 @@ async function writeFlag(
   });
 }
 
+/**
+ * Resolve `plannedEndOfDay` for a (staff, date) pair by reading the
+ * staff's bookings via booking_staff_assignments. Returns null if the
+ * staff has no booked phases that day or if no times are set — in which
+ * case the caller falls back to the legacy 8h cap.
+ */
+async function getPlannedEndOfDay(
+  supabase: any,
+  organizationId: string,
+  staffId: string,
+  dateStr: string,
+): Promise<string | null> {
+  const { data: assignments } = await supabase
+    .from("booking_staff_assignments")
+    .select("booking_id")
+    .eq("organization_id", organizationId)
+    .eq("staff_id", staffId)
+    .eq("assignment_date", dateStr);
+
+  const bookingIds = Array.from(
+    new Set((assignments || []).map((a: any) => a.booking_id).filter(Boolean)),
+  );
+  if (bookingIds.length === 0) return null;
+
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select(
+      "id, eventdate, rigdaydate, rigdowndate, " +
+        "event_start_time, event_end_time, " +
+        "rig_start_time, rig_end_time, " +
+        "rigdown_start_time, rigdown_end_time",
+    )
+    .in("id", bookingIds);
+
+  if (!bookings || bookings.length === 0) return null;
+
+  // Anchor "now" at noon of the report date so the YMD comparison inside
+  // computePlannedDaySignals matches the day we're closing for.
+  const anchor = new Date(`${dateStr}T12:00:00Z`);
+  const signals = computePlannedDaySignals(bookings as BookingTimes[], anchor);
+  return signals.plannedEndOfDay;
+}
+
 async function processOrganization(supabase: any, organizationId: string) {
   const now = new Date();
   const horizonIso = new Date(now.getTime() - SAFETY_HORIZON_HOURS * 60 * 60 * 1000).toISOString();
@@ -261,7 +304,18 @@ async function processOrganization(supabase: any, organizationId: string) {
     .lt("entered_at", horizonIso);
 
   for (const row of openLocs || []) {
-    const exitedAt = clampToEndOfDay(row.entered_at, row.entry_date, PROVISIONAL_DURATION_HOURS);
+    const plannedEnd = await getPlannedEndOfDay(
+      supabase,
+      organizationId,
+      row.staff_id,
+      row.entry_date,
+    );
+    const exitedAt = clampAutoCloseEnd(
+      row.entered_at,
+      row.entry_date,
+      PROVISIONAL_DURATION_HOURS,
+      plannedEnd,
+    );
     const totalMinutes = Math.max(
       0,
       Math.round((new Date(exitedAt).getTime() - new Date(row.entered_at).getTime()) / 60000),
