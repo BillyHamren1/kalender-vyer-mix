@@ -115,8 +115,9 @@ export interface CreateFromInboxOptions {
   name: string;
   packStart: string;
   packEnd: string;
-  returnStart: string;
-  returnEnd: string;
+  /** Optional — vissa projekt har ingen retur (t.ex. förbrukningsmaterial). */
+  returnStart: string | null;
+  returnEnd: string | null;
 }
 
 export const createWarehouseProjectFromInbox = async (
@@ -142,27 +143,32 @@ export const createWarehouseProjectFromInbox = async (
 
   if (wpError) throw wpError;
 
-  // Insert the two mandatory tasks (Packa + Returnera)
+  // Insert default tasks — Packning is mandatory, Retur only if dates given
+  const defaultTasks: any[] = [
+    {
+      warehouse_project_id: wp.id,
+      title: 'Packning',
+      start_date: options.packStart,
+      end_date: options.packEnd,
+      status: 'planning',
+      sort_order: 0,
+    },
+  ];
+
+  if (options.returnStart && options.returnEnd) {
+    defaultTasks.push({
+      warehouse_project_id: wp.id,
+      title: 'Retur',
+      start_date: options.returnStart,
+      end_date: options.returnEnd,
+      status: 'planning',
+      sort_order: 1,
+    });
+  }
+
   const { error: tasksError } = await supabase
     .from('warehouse_project_tasks')
-    .insert([
-      {
-        warehouse_project_id: wp.id,
-        title: 'Packning',
-        start_date: options.packStart,
-        end_date: options.packEnd,
-        status: 'planning',
-        sort_order: 0,
-      },
-      {
-        warehouse_project_id: wp.id,
-        title: 'Retur',
-        start_date: options.returnStart,
-        end_date: options.returnEnd,
-        status: 'planning',
-        sort_order: 1,
-      },
-    ] as any);
+    .insert(defaultTasks);
 
   if (tasksError) {
     console.error('Failed to create default tasks:', tasksError);

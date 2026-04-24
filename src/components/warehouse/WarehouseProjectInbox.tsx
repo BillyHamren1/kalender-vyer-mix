@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, Loader2, Layers, Package, X } from 'lucide-react';
+import { Inbox, Calendar, Layers, Package, X } from 'lucide-react';
 import {
   fetchInbox,
   dismissInboxItem,
@@ -16,7 +15,6 @@ import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 
 export const WarehouseProjectInbox: React.FC = () => {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WarehouseProjectInboxItem | null>(null);
@@ -142,10 +140,9 @@ export const WarehouseProjectInbox: React.FC = () => {
         item={activeItem}
         open={!!activeItem}
         onOpenChange={(o) => !o && setActiveItem(null)}
-        onSuccess={async (wp) => {
+        onSuccess={async () => {
           await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
           await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
-          navigate(`/warehouse/projects/${wp.id}`);
         }}
       />
     </div>
