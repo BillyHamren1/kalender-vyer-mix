@@ -123,8 +123,8 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
         name: name.trim(),
         packStart: packStart!,
         packEnd: packEnd!,
-        returnStart: returnStart!,
-        returnEnd: returnEnd!,
+        returnStart: hasReturn ? returnStart! : null,
+        returnEnd: hasReturn ? returnEnd! : null,
       });
       toast.success(`Lagerprojekt ${wp.project_number} skapat`);
       onSuccess(wp);
