@@ -10,11 +10,9 @@ import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
-import ProjectComments from "@/components/project/ProjectComments";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 
-import ProjectCommunication from "@/components/project/communication/ProjectCommunication";
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
@@ -58,7 +56,7 @@ const ProjectViewPage = () => {
     setChatTaskRef({ taskId, taskTitle });
   }, []);
 
-  const { project, tasks, files, comments, activities, bookingAttachments } = detail;
+  const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
@@ -188,8 +186,8 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Filer + Kommunikation sida vid sida */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      {/* Filer */}
+      <div className="grid grid-cols-1 gap-6 items-stretch">
         <div className="flex flex-col h-full min-h-[480px]">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
           <ProjectFiles
@@ -199,17 +197,6 @@ const ProjectViewPage = () => {
             isUploading={detail.isUploadingFile}
             bookingAttachments={bookingAttachments}
             className="h-full"
-          />
-        </div>
-
-        <div className="flex flex-col h-full min-h-[480px]">
-          <ProjectCommunication
-            projectId={project.id}
-            bookingId={bookingId ?? null}
-            senderName={projectLeaderDisplay || 'Projektledare'}
-            suppliers={suppliers}
-            linkedTaskRef={chatTaskRef}
-            onClearTaskRef={() => setChatTaskRef(null)}
           />
         </div>
       </div>
