@@ -93,13 +93,13 @@ export const fetchInboxItemSuggestedDates = async (
   } else if (item.source_type === 'large_project') {
     const { data: lp } = await supabase
       .from('large_projects')
-      .select('rig_date, event_date, end_date')
+      .select('start_date, event_date, end_date')
       .eq('id', item.source_id)
       .maybeSingle();
-    const rigs = (lp?.rig_date || []).filter(Boolean).sort();
+    const starts = (lp?.start_date || []).filter(Boolean).sort();
     const events = (lp?.event_date || []).filter(Boolean).sort();
     const ends = (lp?.end_date || []).filter(Boolean).sort();
-    rigDate = rigs[0] || null;
+    rigDate = starts[0] || null;
     eventDate = events[0] || item.event_date || null;
     rigdownDate = ends[ends.length - 1] || null;
   }
