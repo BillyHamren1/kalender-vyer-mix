@@ -140,10 +140,9 @@ export const WarehouseProjectInbox: React.FC = () => {
         item={activeItem}
         open={!!activeItem}
         onOpenChange={(o) => !o && setActiveItem(null)}
-        onSuccess={async (wp) => {
+        onSuccess={async () => {
           await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
           await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
-          navigate(`/warehouse/projects/${wp.id}`);
         }}
       />
     </div>
