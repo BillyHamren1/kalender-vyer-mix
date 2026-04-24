@@ -15,7 +15,6 @@ import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 
 export const WarehouseProjectInbox: React.FC = () => {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WarehouseProjectInboxItem | null>(null);
