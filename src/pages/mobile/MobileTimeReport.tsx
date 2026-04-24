@@ -239,10 +239,8 @@ const MobileTimeReport = () => {
                         kind: 'location',
                         locationId: timer.locationId,
                         name: timer.locationName || timer.client,
-                        // Location timers from the time-report screen are
-                        // pure presence — no time_report. Set createsTimeReport
-                        // = true here if you ever need to log work time.
-                        createsTimeReport: false,
+                        // UNIFIED (Fas 1): location timers create time_reports
+                        // by default — same path as bookings/projects.
                       }
                     : timer.largeProjectId
                       ? {
