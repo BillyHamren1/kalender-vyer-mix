@@ -4,7 +4,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { format, parseISO } from 'date-fns';
-import { MapPin, ChevronRight, Loader2, FolderOpen } from 'lucide-react';
+import { MapPin, ChevronRight, Loader2, FolderOpen, Phone, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 
