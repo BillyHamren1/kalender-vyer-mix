@@ -679,6 +679,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
               bookingId: projectKey,
               largeProjectId: lpId,
               exitedAtIso,
+              decision: exitDecision,
             },
           }));
         }
@@ -718,6 +719,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
               key: booking.id,
               bookingId: booking.id,
               exitedAtIso,
+              decision: exitDecision,
             },
           }));
         }
@@ -789,6 +791,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             key: locKey,
             locationId: loc.id,
             exitedAtIso,
+            decision: exitDecision,
           },
         }));
       }
