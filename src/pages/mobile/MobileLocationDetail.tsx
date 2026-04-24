@@ -102,9 +102,10 @@ const MobileLocationDetail = () => {
     return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // Pure fixed-location presence target (no time_report on stop).
+  // Location target — UNIFIED (Fas 1): creates a time_report just like
+  // booking/project timers, so workdays + time_reports stay in sync.
   const locationTarget: WorkTarget | null = location
-    ? { kind: 'location', locationId: location.id, name: location.name, createsTimeReport: false }
+    ? { kind: 'location', locationId: location.id, name: location.name }
     : null;
 
   /**
