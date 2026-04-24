@@ -92,6 +92,12 @@ export function resolveTargetKey(target: WorkTarget): string {
 /**
  * Map a target to the booking_id / large_project_id fields used by
  * createTimeReport. Returns whatever combination the backend expects.
+ *
+ * Location targets are intentionally encoded as `booking_id: 'location-<id>'`
+ * because the backend (`mobile-app-api.handleCreateTimeReport`) already
+ * understands this prefix and resolves it to either the location's internal
+ * project booking_id OR a `location_id` column on time_reports. This keeps
+ * the unified write-path identical for all three target types.
  */
 function resolveReportTargetFields(
   target: WorkTarget,
@@ -102,12 +108,14 @@ function resolveReportTargetFields(
   if (target.kind === 'booking') {
     return { booking_id: target.bookingId };
   }
-  // Location presence timers don't tag a booking or project.
-  return {};
+  // location → encoded as 'location-<id>' so backend resolves correctly.
+  return { booking_id: `location-${target.locationId}` };
 }
 
 function shouldCreateTimeReport(target: WorkTarget): boolean {
-  if (target.kind === 'location') return target.createsTimeReport === true;
+  // UNIFICATION (Fas 1): default to TRUE for all target types — including
+  // location. Only explicit `createsTimeReport: false` skips the report.
+  if (target.kind === 'location') return target.createsTimeReport !== false;
   return true;
 }
 
