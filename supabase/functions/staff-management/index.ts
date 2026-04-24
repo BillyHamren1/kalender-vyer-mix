@@ -413,13 +413,17 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
     const staffMap = new Map(staffMembers?.map(staff => [staff.id, staff.name]) || [])
 
-    // FIXED: Get staff assignments for the date range to validate actual assignments
-    const { data: staffAssignments, error: assignmentError } = await supabase
-      .from('staff_assignments')
-      .select('staff_id, team_id, assignment_date')
+    // Read from the active assignment table (booking_staff_assignments).
+    // The legacy `staff_assignments` table is frozen and no longer written to.
+    let assignmentQuery = supabase
+      .from('booking_staff_assignments')
+      .select('staff_id, team_id, assignment_date, booking_id')
       .in('staff_id', staffIds)
       .gte('assignment_date', startDate)
       .lte('assignment_date', endDate)
+    if (organizationId) assignmentQuery = assignmentQuery.eq('organization_id', organizationId)
+
+    const { data: staffAssignments, error: assignmentError } = await assignmentQuery
 
     if (assignmentError) throw assignmentError
 
