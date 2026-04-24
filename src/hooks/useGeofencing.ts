@@ -11,6 +11,11 @@ import {
   GEOFENCE_MAX_ACCURACY_M,
 } from '@/lib/geofenceEval';
 import { autoStartWorkDay } from '@/services/workdayServerSync';
+import {
+  computePlannedDaySignals,
+  decideExitAction,
+  type ExitDecision,
+} from '@/lib/workday/plannedDay';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
