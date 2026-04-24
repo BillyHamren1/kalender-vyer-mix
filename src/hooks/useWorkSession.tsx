@@ -69,9 +69,15 @@ export type WorkTarget =
       locationId: string;
       name: string;
       /**
-       * Pure fixed-location presence (e.g. Lager) does NOT produce a
-       * time_report on stop — it just closes the server entry. This is
-       * the only intentional behavioural difference between target types.
+       * UNIFICATION (Fas 1, 2026-04-24):
+       *   Location timers (e.g. Lager) now produce time_reports by default —
+       *   exactly like booking and large-project timers. This eliminates
+       *   the historical Lager-vs-projekt split that left workdays without
+       *   matching time entries.
+       *
+       *   The flag is kept (defaults to `true`) so a tiny set of legitimate
+       *   non-work presence cases can still opt out — but feature code MUST
+       *   NOT pass `false`. Enforced by `timerStartUnification.contract.test.ts`.
        */
       createsTimeReport?: boolean;
     };
