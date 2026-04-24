@@ -51,6 +51,9 @@ interface BookingData {
   delivery_postal_code?: string;
   delivery_latitude?: number;
   delivery_longitude?: number;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
   carry_more_than_10m?: boolean;
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
@@ -1266,7 +1269,8 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
     'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
     'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time',
-    'rigdown_start_time', 'rigdown_end_time'
+    'rigdown_start_time', 'rigdown_end_time',
+    'contact_name', 'contact_phone', 'contact_email'
   ];
   
   for (const field of fields) {
@@ -2215,6 +2219,9 @@ serve(async (req) => {
           delivery_postal_code: externalBooking.delivery_postal_code,
           delivery_latitude: externalBooking.delivery_geocode?.lat,
           delivery_longitude: externalBooking.delivery_geocode?.lng,
+          contact_name: externalBooking.contact_name ?? externalBooking.contact_person ?? externalBooking.contact?.name ?? null,
+          contact_phone: externalBooking.contact_phone ?? externalBooking.contact?.phone ?? externalBooking.phone ?? null,
+          contact_email: externalBooking.contact_email ?? externalBooking.contact?.email ?? externalBooking.email ?? null,
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,

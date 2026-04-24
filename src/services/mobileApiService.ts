@@ -38,6 +38,9 @@ export interface MobileBooking {
   rigdown_start_time: string | null;
   rigdown_end_time: string | null;
   internalnotes: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
   assigned_project_id: string | null;
   assigned_project_name: string | null;
   large_project_id: string | null;
