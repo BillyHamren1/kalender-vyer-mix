@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, Loader2, Layers, Package, X } from 'lucide-react';
+import { Inbox, Calendar, Layers, Package, X } from 'lucide-react';
 import {
   fetchInbox,
   dismissInboxItem,
