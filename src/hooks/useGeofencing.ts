@@ -574,6 +574,18 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
     };
 
+    // ── PLANNING-AWARE EXIT DECISION ─────────────────────────────────
+    // Compute once per GPS tick; reused by all three EXIT branches
+    // (project / standalone booking / fixed location). The decision is
+    // attached to the `workplace-exit` event so downstream listeners
+    // (timer banner, EOD reconciliation) can choose between auto-stop,
+    // auto-start-travel and "where are you going?" prompts instead of
+    // always defaulting to anomaly-only.
+    const exitDecision: ExitDecision = (() => {
+      const signals = computePlannedDaySignals(bookings, new Date());
+      return decideExitAction(signals);
+    })();
+
     // Today (local YYYY-MM-DD) — bookings/projects only auto-prompt if user is
     // assigned TODAY. Geofence is for warehouses + jobs you're scheduled on,
     // never for jobs planned weeks ahead.
