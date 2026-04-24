@@ -1269,7 +1269,8 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
     'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
     'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time',
-    'rigdown_start_time', 'rigdown_end_time'
+    'rigdown_start_time', 'rigdown_end_time',
+    'contact_name', 'contact_phone', 'contact_email'
   ];
   
   for (const field of fields) {
