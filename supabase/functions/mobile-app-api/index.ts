@@ -784,6 +784,9 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         rigdown_start_time,
         rigdown_end_time,
         internalnotes,
+        contact_name,
+        contact_phone,
+        contact_email,
         assigned_project_id,
         assigned_project_name,
         large_project_id
