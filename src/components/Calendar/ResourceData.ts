@@ -62,6 +62,10 @@ export const getEventColor = (eventType: string | undefined): string => {
       return '#BFDBFE'; // Light blue
     case 'task_admin':
       return '#F1F5F9'; // Slate-100
+    // --- Activity / transport sync (calendar_events.event_type='activity') ---
+    case 'activity':
+    case 'transport':
+      return '#BFDBFE'; // Light blue (matches delivery)
     default:
       return '#6b7280'; // gray-500
   }
