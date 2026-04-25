@@ -134,26 +134,59 @@ const ProjectDashboardWidgets = () => {
     try { return format(new Date(dateStr), 'd MMM', { locale: sv }); } catch { return '—'; }
   };
 
-  const ProjectRow = ({ item }: { item: UnifiedItem }) => (
-    <div
-      onClick={() => navigate(item.navigateTo)}
-      className="flex items-center justify-between py-2.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group"
-    >
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${TYPE_BADGE_CLASSES[item.type]}`}>
-          {TYPE_LABELS[item.type]}
-        </Badge>
-        <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{item.name}</p>
-          <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
+  const handleOpenInCalendar = (e: React.MouseEvent, item: UnifiedItem) => {
+    e.stopPropagation();
+    const target = item.rigDate ?? item.date;
+    if (!target) return;
+    try {
+      const d = new Date(target);
+      sessionStorage.setItem('calendarDate', d.toISOString());
+    } catch {
+      // ignore
+    }
+    navigate('/calendar');
+  };
+
+  const ProjectRow = ({ item }: { item: UnifiedItem }) => {
+    const calendarTarget = item.rigDate ?? item.date;
+    return (
+      <div
+        onClick={() => navigate(item.navigateTo)}
+        className="flex items-center justify-between py-2.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${TYPE_BADGE_CLASSES[item.type]}`}>
+            {TYPE_LABELS[item.type]}
+          </Badge>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{item.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {calendarTarget && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenInCalendar(e, item)}
+                    aria-label="Öppna i personalkalender"
+                    className="p-1 rounded-md text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Öppna rigdag i personalkalender</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <span className="text-xs text-muted-foreground">{formatDate(item.date)}</span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-xs text-muted-foreground">{formatDate(item.date)}</span>
-        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4">
