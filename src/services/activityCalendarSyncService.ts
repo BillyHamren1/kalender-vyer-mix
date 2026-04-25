@@ -96,8 +96,7 @@ const buildEventPayload = async (task: TaskRow) => {
   const startTime = task.start_time || "08:00";
   const endTime = task.end_time || "16:00";
 
-  const typeLabel = TASK_TYPE_LABEL[task.task_type || "crew"] || "Aktivitet";
-  const title = `[${typeLabel}] ${task.title}`;
+  const title = task.title;
 
   return {
     title,
