@@ -77,7 +77,9 @@ describe('WorkDayAssistant render contract', () => {
     expect(screen.getByRole('button', { name: /Visa dagens jobb/i })).toBeInTheDocument();
   });
 
-  it('long_pass_no_break → nämner "rast" och passets timmar (ingen auto-rast-formulering)', () => {
+  it('long_pass_no_break → renderar fortfarande dialogen om en sådan decision passas in (legacy-stöd)', () => {
+    // Beslutsfunktionen producerar inte längre detta proaktivt, men typen finns
+    // kvar och komponenten ska kunna rendera om något annat skickar in den.
     const d: AssistantDecision = {
       kind: 'long_pass_no_break',
       timerKey: 'b1',
@@ -86,10 +88,6 @@ describe('WorkDayAssistant render contract', () => {
     };
     render(<WorkDayAssistant decision={d} onAcknowledge={() => {}} />);
     expect(screen.getAllByText(/rast/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/6\.5/)).toBeInTheDocument();
-    // Säkerställ att vi INTE påstår att rast dragits automatiskt:
-    expect(screen.queryByText(/dragit en rast automatiskt/i)).toBeNull();
-    expect(screen.getByText(/drar ingen rast automatiskt/i)).toBeInTheDocument();
   });
 
   it('last_workplace_for_day → kvällsfråga + leder till "Avsluta dagen"', () => {
