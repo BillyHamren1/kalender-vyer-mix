@@ -441,7 +441,14 @@ const StaffTimeReports: React.FC = () => {
 
       for (const wd of workdays as any[]) {
         const a = byStaff.get(wd.staff_id) || newAgg();
-        const isOpen = !wd.ended_at;
+        // Belt-and-suspenders: even though the query above scopes to today,
+        // refuse to render an "open workday" that is older than 18h. The
+        // watchdog will close it on the next run; in the meantime show it
+        // as a closed anomaly rather than a 50h running timer.
+        const ageHours =
+          (Date.now() - new Date(wd.started_at).getTime()) / (1000 * 60 * 60);
+        const isStaleOpen = !wd.ended_at && ageHours > 18;
+        const isOpen = !wd.ended_at && !isStaleOpen;
         const startHHMM = format(new Date(wd.started_at), 'HH:mm:ss');
 
         if (!a.earliest_start || startHHMM < a.earliest_start) {
@@ -460,7 +467,9 @@ const StaffTimeReports: React.FC = () => {
         a.segments.push({
           id: `wd:${wd.id}`,
           kind: 'workday',
-          label: 'Arbetsdag startad',
+          label: isStaleOpen
+            ? 'Arbetsdag — ej avslutad (anomali)'
+            : 'Arbetsdag startad',
           start: wd.started_at,
           end: wd.ended_at,
           isOpen,
