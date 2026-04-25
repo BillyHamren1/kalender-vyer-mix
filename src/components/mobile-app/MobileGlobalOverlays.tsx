@@ -30,6 +30,7 @@ import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
+import { initLocationPingHandler } from '@/services/locationPingHandler';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
