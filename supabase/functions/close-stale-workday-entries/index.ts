@@ -648,6 +648,7 @@ serve(async (req) => {
       location_closed: 0,
       travel_closed: 0,
       reports_closed: 0,
+      workdays_closed: 0,
       flags_created: 0,
       pushes_sent: 0,
     };
@@ -658,6 +659,7 @@ serve(async (req) => {
       summary.location_closed += r.locationClosed;
       summary.travel_closed += r.travelClosed;
       summary.reports_closed += r.reportsClosed;
+      summary.workdays_closed += r.workdaysClosed;
       summary.flags_created += r.flagsCreated;
       summary.pushes_sent += r.pushesSent;
     }
