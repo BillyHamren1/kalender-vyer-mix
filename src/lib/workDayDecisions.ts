@@ -156,12 +156,14 @@ export function cooldownExpired(
  * här — det är ett medvetet val. Wrapper-hooken speglar det den behöver.
  *
   * Prioritetsordning (högst → lägst):
-  *   1. long_pass_no_break    (timer länge utan paus-svar)
-  *   2. activity_leave        (per aktiv timer, suppressas under travel)
-  *   3. last_workplace_for_day (kvällsförslag att stänga dagen)
-  *   4. daystart              (morgonhälsning)
+  *   1. activity_leave        (per aktiv timer, suppressas under travel)
+  *   2. last_workplace_for_day (kvällsförslag att stänga dagen)
+  *   3. daystart              (morgonhälsning)
   *
   * OBS: `unclassified_anomaly` visas inte längre proaktivt som popup.
+  * OBS: `long_pass_no_break` triggas INTE proaktivt — rast hanteras endast
+  * vid timer-stop via `breakPolicy` (StopBreakDecisionDialog) när passet >5h.
+  * Användarbeslut: inga upprepade rast-påminnelser under arbetsdagen.
   */
 export function nextAssistantDecision(state: WorkDayState): AssistantDecision | null {
   if (!state.enabled) return null;
@@ -169,22 +171,7 @@ export function nextAssistantDecision(state: WorkDayState): AssistantDecision | 
   const { now } = state;
   const nowDate = new Date(now);
 
-  // ── 2) Långt pass utan registrerad rast ──
-  // Vi vet inte om de tagit rast — vi vet bara att timern varit öppen
-  // länge. Ingen automatisk rast subtraheras (det var poängen med
-  // arbetsdagsmotorn). Vi NUDGAR bara.
-  for (const { key, timer } of state.timers) {
-    if (timer.isStale) continue;
-    const passHours = (now - new Date(timer.startTime).getTime()) / 3_600_000;
-    if (
-      passHours >= LONG_PASS_HOURS &&
-      cooldownExpired('long_pass_no_break', now, state.lastShownByKind)
-    ) {
-      return { kind: 'long_pass_no_break', timerKey: key, timer, passHours };
-    }
-  }
-
-  // ── 3) Activity-leave (per aktiv timer, suppressas under travel) ──
+  // ── Activity-leave (per aktiv timer, suppressas under travel) ──
   if (state.latestPosition && state.timers.length > 0 && !state.isTravelling) {
     for (const { key, timer } of state.timers) {
       const target = state.cachedTargets.find((t) => t.key === key);
