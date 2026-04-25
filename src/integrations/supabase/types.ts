@@ -6756,6 +6756,10 @@ export type Database = {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
       }
+      upsert_task_calendar_event: {
+        Args: { _task_id: string }
+        Returns: string
+      }
     }
     Enums: {
       anomaly_classification: "break" | "work"

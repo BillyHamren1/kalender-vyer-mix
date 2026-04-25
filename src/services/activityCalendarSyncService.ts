@@ -16,7 +16,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-const DEFAULT_RESOURCE_ID = "team-tasks";
+// All activities now route to the Transport column in the personal planning calendar.
+// (Per user decision 2026-04-25.)
+const DEFAULT_RESOURCE_ID = "transport";
 const TRANSPORT_RESOURCE_ID = "transport";
 
 const TASK_TYPE_LABEL: Record<string, string> = {
