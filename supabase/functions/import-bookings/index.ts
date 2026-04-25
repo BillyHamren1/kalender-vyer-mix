@@ -967,7 +967,13 @@ async function reconcileCalendarEvents(
     }));
 
     const expectedKeys = new Set(desiredEvents.map(d => `${d.event_type}|${d.date}`));
-    const actualKeys = new Set(actualEventsJson.map((a: any) => `${a.event_type}|${a.date}`));
+    // Filter out activity rows from actualKeys — those are user-managed task syncs,
+    // not owned by this reconciler, and would cause false "extra:" mismatches.
+    const actualKeys = new Set(
+      actualEventsJson
+        .filter((a: any) => a.event_type !== 'activity')
+        .map((a: any) => `${a.event_type}|${a.date}`)
+    );
     const missingKeys = [...expectedKeys].filter((k: any) => !actualKeys.has(k));
     const extraKeys = [...actualKeys].filter((k: any) => !expectedKeys.has(k as string));
 
