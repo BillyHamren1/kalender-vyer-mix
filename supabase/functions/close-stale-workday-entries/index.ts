@@ -35,6 +35,10 @@ const corsHeaders = {
 const SAFETY_HORIZON_HOURS = 14;
 const PROVISIONAL_DURATION_HOURS = 8;
 const PROVISIONAL_TRAVEL_HOURS = 1;
+// Workdays without `ended_at` for longer than this are considered abandoned
+// and will be force-closed. Keep generous so genuine night shifts survive.
+const WORKDAY_STALE_HOURS = 18;
+const WORKDAY_FALLBACK_DURATION_HOURS = 10;
 
 type Suggestion =
   | { kind: "left_workplace"; label: string; time_iso: string; source_id?: string | null }
