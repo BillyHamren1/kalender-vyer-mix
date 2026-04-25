@@ -98,7 +98,9 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
   // 1. NO AUTO-BREAK — assistant only ASKS, never mutates time
   // ───────────────────────────────────────────────────────────────────
   describe('1. No automatic break', () => {
-    it('long pass över 5h ger long_pass_no_break-FRÅGA, inte tysta tidsändringar', () => {
+    it('långt pass (>5h) triggar INTE proaktivt long_pass_no_break — rast hanteras vid stop', () => {
+      // Beslut: assistenten ska inte påminna om rast under arbetsdagen.
+      // Rast frågas endast vid timer-stop via breakPolicy (StopBreakDecisionDialog).
       const now = Date.parse('2026-04-18T15:00:00Z');
       const state = makeState({
         now,
@@ -106,34 +108,20 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
           { key: 'booking-1', timer: activeTimer({ startTime: '2026-04-18T08:00:00Z', bookingId: 'b1' }) },
         ],
       });
-      const d = nextAssistantDecision(state);
-      expect(d?.kind).toBe('long_pass_no_break');
-      // Och eftersom det är en ren funktion: inga side-effects möjliga.
-      // (Detta är hela poängen med att extrahera regelmotorn.)
-    });
-
-    it('stale timer triggar INTE long_pass_no_break (stale-dialog äger det)', () => {
-      const now = Date.parse('2026-04-18T15:00:00Z');
-      const stale = activeTimer({ startTime: '2026-04-17T08:00:00Z', bookingId: 'b1' });
-      stale.isStale = true;
-      const state = makeState({ now, timers: [{ key: 'booking-1', timer: stale }] });
       const d = nextAssistantDecision(state);
       expect(d?.kind).not.toBe('long_pass_no_break');
     });
 
-    it('cooldown håller — samma fråga visas inte två gånger inom 60 min', () => {
-      const now = Date.parse('2026-04-18T15:00:00Z');
-      const lastShownByKind = new Map();
-      lastShownByKind.set('long_pass_no_break', now - 10 * 60_000); // 10 min sen
+    it('mycket långt pass (>10h) triggar fortfarande INTE proaktiv rast-popup', () => {
+      const now = Date.parse('2026-04-18T20:00:00Z');
       const state = makeState({
         now,
         timers: [
           { key: 'booking-1', timer: activeTimer({ startTime: '2026-04-18T08:00:00Z', bookingId: 'b1' }) },
         ],
-        lastShownByKind,
       });
       const d = nextAssistantDecision(state);
-      expect(d).toBeNull();
+      expect(d?.kind).not.toBe('long_pass_no_break');
     });
   });
 
