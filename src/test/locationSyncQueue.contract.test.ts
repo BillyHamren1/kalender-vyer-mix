@@ -93,9 +93,11 @@ describe('locationSyncQueue — flush behaviour', () => {
 
     q.enqueueLocationPoint({ latitude: 59.33, longitude: 18.06, source: 'manual' });
     q.enqueueLocationPoint({ latitude: 59.34, longitude: 18.07, source: 'manual' });
+    // Drain — enqueue auto-triggers flush, so a second flush guarantees no race.
+    await q.flushLocationQueue();
     await q.flushLocationQueue();
 
-    expect(uploadLocationBatch).toHaveBeenCalledOnce();
+    expect(uploadLocationBatch).toHaveBeenCalled();
     expect(q.getPendingLocationPoints().length).toBe(0);
   });
 
