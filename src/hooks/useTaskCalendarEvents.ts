@@ -65,11 +65,9 @@ export function useTaskCalendarEvents(enabled: boolean) {
         const start = `${startStr}T08:00:00`;
         const end = `${endStr}T09:00:00`;
 
-        const typeLabel = TASK_TYPE_LABEL[taskType] || "Uppgift";
-
         return {
           id: `task-${t.id}`,
-          title: `[${typeLabel}] ${t.title}`,
+          title: t.title,
           start,
           end,
           resourceId: TASK_TYPE_RESOURCE[taskType],
