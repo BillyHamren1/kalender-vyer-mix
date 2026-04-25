@@ -821,7 +821,17 @@ async function reconcileCalendarEvents(
 
   console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${desiredEvents.length} desired events (rig:${rigDates.length}, event:${eventDates.length}, rigDown:${rigdownDates.length})`);
 
-  // 3. Build lookup of existing events by composite key: event_type|source_date
+  // ── Safety guard: empty payload + existing rows → skip reconciliation entirely
+  // The Booking system occasionally returns empty date arrays mid-flight. Without
+  // this guard, the reconciler would delete every event for the booking, then
+  // recreate them on the next pass → flicker. We only delete events on explicit
+  // CANCELLED status, never on empty payload.
+  const nonActivityExisting = (existingEvents || []).filter((e: any) => e.event_type !== 'activity');
+  if (desiredEvents.length === 0 && nonActivityExisting.length > 0 && bookingData.status === 'CONFIRMED') {
+    console.warn(`[Calendar Reconcile] ⚠️ Booking ${bookingData.id} has ${nonActivityExisting.length} existing events but desired=0. Skipping to avoid mass-delete (likely transient empty payload from Booking API).`);
+    return;
+  }
+
   const existingByKey = new Map<string, any>();
   for (const evt of (existingEvents || [])) {
     const evtDate = evt.source_date || evt.start_time?.split('T')[0] || '';
