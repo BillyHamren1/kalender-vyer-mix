@@ -391,7 +391,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
       expect(nextAssistantDecision(makeState())).toBeNull();
     });
 
-    it('PRIO: unclassified_anomaly slår long_pass_no_break', () => {
+    it('långt pass + pending anomalies → ingen proaktiv popup (varken long_pass_no_break eller unclassified_anomaly)', () => {
       const now = Date.parse('2026-04-18T15:00:00Z');
       const state = makeState({
         now,
@@ -400,7 +400,9 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
         ],
         pendingAnomalies: { count: 2, oldestStartedAtIso: '2026-04-18T10:00:00Z' },
       });
-      expect(nextAssistantDecision(state)?.kind).toBe('unclassified_anomaly');
+      const d = nextAssistantDecision(state);
+      // Långt pass varnar bara vid stop (breakPolicy), och unclassified_anomaly visas i sin egen vy.
+      expect(d).toBeNull();
     });
 
     it('activity_leave: kräver ≥10 min utanför zon för att triggas', () => {
