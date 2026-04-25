@@ -47,6 +47,7 @@ const ProjectDashboardWidgets = () => {
       name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name, 
       type: 'small',
       date: j.booking?.eventDate ?? null,
+      rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
@@ -62,6 +63,7 @@ const ProjectDashboardWidgets = () => {
       items.push({
         id: p.id, name: displayName, type: 'medium',
         date: p.booking?.eventdate ?? null,
+        rigDate: p.booking?.rigdaydate ?? p.booking?.eventdate ?? null,
         status: p.status,
         subtitle: fullAddress,
         navigateTo: `/project/${p.id}`,
@@ -72,6 +74,7 @@ const ProjectDashboardWidgets = () => {
     largeProjects.forEach(lp => items.push({
       id: lp.id, name: lp.name, type: 'large',
       date: lp.start_date?.[0] ?? null,
+      rigDate: lp.start_date?.[0] ?? lp.event_date?.[0] ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,
