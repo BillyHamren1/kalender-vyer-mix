@@ -57,6 +57,34 @@ const MobileGlobalOverlays: React.FC = () => {
   // Lugn påminnelse om ofärdig tidigare dag (gårdagen). Throttlas internt.
   useStaleDayReminder(!!staff);
 
+  // Server-triggered "ping the phone" — listen for FCM data-pushes with
+  // notification_type=location_ping and respond with a fresh GPS sample.
+  // Idempotent: handler is mounted once globally regardless of re-renders.
+  useEffect(() => {
+    if (!staff) return;
+    const dispose = initLocationPingHandler({
+      getCurrentPosition: () =>
+        new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('no geolocation'));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                accuracy: pos.coords.accuracy ?? null,
+                speed: pos.coords.speed ?? null,
+              }),
+            reject,
+            { timeout: 8000, maximumAge: 30_000, enableHighAccuracy: true },
+          );
+        }),
+    });
+    return dispose;
+  }, [staff]);
+
   // UNIFIED start flow — same conflict + distance + start machinery as
   // every other start-surface in the mobile app. Direct startSession()
   // calls from arrival flow are forbidden.
