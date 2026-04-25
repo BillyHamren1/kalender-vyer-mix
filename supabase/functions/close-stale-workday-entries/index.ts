@@ -35,6 +35,10 @@ const corsHeaders = {
 const SAFETY_HORIZON_HOURS = 14;
 const PROVISIONAL_DURATION_HOURS = 8;
 const PROVISIONAL_TRAVEL_HOURS = 1;
+// Workdays without `ended_at` for longer than this are considered abandoned
+// and will be force-closed. Keep generous so genuine night shifts survive.
+const WORKDAY_STALE_HOURS = 18;
+const WORKDAY_FALLBACK_DURATION_HOURS = 10;
 
 type Suggestion =
   | { kind: "left_workplace"; label: string; time_iso: string; source_id?: string | null }
@@ -438,7 +442,144 @@ async function processOrganization(supabase: any, organizationId: string) {
     staffWithClosure.add(row.staff_id);
   }
 
-  // ── D. Morning push to affected staff ──
+  // ── D. workdays open and stale (>18h) ──
+  // Even when timers/reports were closed in A–C, the parent `workdays` row
+  // can be stuck with `ended_at IS NULL`. Without this step, StaffTimeReports
+  // shows a 50h "still active" pill on every report date after the open day.
+  let workdaysClosed = 0;
+  const workdayHorizonIso = new Date(
+    now.getTime() - WORKDAY_STALE_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: openWorkdays } = await supabase
+    .from("workdays")
+    .select("id, staff_id, started_at, review_status, notes")
+    .eq("organization_id", organizationId)
+    .is("ended_at", null)
+    .lt("started_at", workdayHorizonIso);
+
+  for (const wd of openWorkdays || []) {
+    const dateStr = wd.started_at.slice(0, 10);
+    const plannedEnd = await getPlannedEndOfDay(
+      supabase,
+      organizationId,
+      wd.staff_id,
+      dateStr,
+    );
+
+    // Use the latest of: time_reports.end_time, location_time_entries.exited_at
+    // for that staff/date. Falls back to plannedEnd, else started_at + 10h.
+    const [{ data: lastTr }, { data: lastLte }] = await Promise.all([
+      supabase
+        .from("time_reports")
+        .select("report_date, end_time")
+        .eq("organization_id", organizationId)
+        .eq("staff_id", wd.staff_id)
+        .eq("report_date", dateStr)
+        .not("end_time", "is", null)
+        .order("end_time", { ascending: false })
+        .limit(1),
+      supabase
+        .from("location_time_entries")
+        .select("exited_at")
+        .eq("organization_id", organizationId)
+        .eq("staff_id", wd.staff_id)
+        .eq("entry_date", dateStr)
+        .not("exited_at", "is", null)
+        .order("exited_at", { ascending: false })
+        .limit(1),
+    ]);
+
+    const candidateIsos: string[] = [];
+    const trRow = lastTr?.[0];
+    if (trRow?.end_time) {
+      // end_time is TIME — combine with report_date
+      candidateIsos.push(new Date(`${trRow.report_date}T${trRow.end_time}Z`).toISOString());
+    }
+    const lteRow = lastLte?.[0];
+    if (lteRow?.exited_at) candidateIsos.push(lteRow.exited_at);
+    if (plannedEnd) candidateIsos.push(plannedEnd);
+
+    let endedAtIso: string;
+    if (candidateIsos.length > 0) {
+      endedAtIso = candidateIsos
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+    } else {
+      endedAtIso = clampAutoCloseEnd(
+        wd.started_at,
+        dateStr,
+        WORKDAY_FALLBACK_DURATION_HOURS,
+        plannedEnd,
+      );
+    }
+    // Never let ended_at be before started_at.
+    if (new Date(endedAtIso).getTime() <= new Date(wd.started_at).getTime()) {
+      endedAtIso = new Date(
+        new Date(wd.started_at).getTime() + 60 * 60 * 1000,
+      ).toISOString();
+    }
+
+    const noteMark = "[auto-closed: stale >18h]";
+    const newNotes = wd.notes && wd.notes.includes(noteMark)
+      ? wd.notes
+      : [wd.notes, noteMark].filter(Boolean).join(" ");
+
+    const { error: wdErr } = await supabase
+      .from("workdays")
+      .update({
+        ended_at: endedAtIso,
+        ended_by: "system_watchdog",
+        review_status: wd.review_status === "approved" ? wd.review_status : "needs_review",
+        notes: newNotes,
+      })
+      .eq("id", wd.id)
+      .is("ended_at", null); // idempotency
+
+    if (wdErr) {
+      console.error(`[stale-cron] workdays ${wd.id} update failed`, wdErr.message);
+      continue;
+    }
+    workdaysClosed++;
+
+    // Only write a flag if not already flagged for that date.
+    const { data: existingFlag } = await supabase
+      .from("workday_flags")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("staff_id", wd.staff_id)
+      .eq("flag_date", dateStr)
+      .eq("flag_type", "auto_closed_overnight")
+      .limit(1);
+    if (!existingFlag || existingFlag.length === 0) {
+      const suggestions = await buildSuggestions(
+        supabase,
+        wd.staff_id,
+        organizationId,
+        wd.started_at,
+      );
+      await supabase.from("workday_flags").insert({
+        organization_id: organizationId,
+        staff_id: wd.staff_id,
+        flag_type: "auto_closed_overnight",
+        severity: "warning",
+        flag_date: dateStr,
+        title: "Din arbetsdag stängdes automatiskt",
+        description:
+          "Din arbetsdag låg öppen i mer än 18 timmar och stängdes automatiskt. Bekräfta din riktiga sluttid.",
+        needs_user_input: true,
+        resolution_source: null,
+        context: {
+          provisional_end_iso: endedAtIso,
+          suggested_end_times: suggestions,
+          affected_entries: [{ table: "workdays", id: wd.id }],
+          reason: "workday_stale_18h",
+        },
+      });
+      flagsCreated++;
+    }
+    staffWithClosure.add(wd.staff_id);
+  }
+
+  // ── E. Morning push to affected staff ──
   let pushesSent = 0;
   if (staffWithClosure.size > 0) {
     try {
@@ -466,7 +607,14 @@ async function processOrganization(supabase: any, organizationId: string) {
     }
   }
 
-  return { locationClosed, travelClosed, reportsClosed, flagsCreated, pushesSent };
+  return {
+    locationClosed,
+    travelClosed,
+    reportsClosed,
+    workdaysClosed,
+    flagsCreated,
+    pushesSent,
+  };
 }
 
 serve(async (req) => {
@@ -500,6 +648,7 @@ serve(async (req) => {
       location_closed: 0,
       travel_closed: 0,
       reports_closed: 0,
+      workdays_closed: 0,
       flags_created: 0,
       pushes_sent: 0,
     };
@@ -510,6 +659,7 @@ serve(async (req) => {
       summary.location_closed += r.locationClosed;
       summary.travel_closed += r.travelClosed;
       summary.reports_closed += r.reportsClosed;
+      summary.workdays_closed += r.workdaysClosed;
       summary.flags_created += r.flagsCreated;
       summary.pushes_sent += r.pushesSent;
     }

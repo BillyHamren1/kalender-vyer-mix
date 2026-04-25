@@ -115,11 +115,19 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
+        // Workdays scoped strictly to the selected day:
+        //   - row started today, OR
+        //   - row started earlier but ended sometime today (spans midnight)
+        // An "open" workday from a previous day is a stale ghost (handled
+        // by the close-stale-workday-entries watchdog) and must NOT spill
+        // into the current day's view as a 50h "still active" timer.
         supabase
           .from('workdays')
           .select('id, staff_id, started_at, ended_at')
-          .lt('started_at', nextDayIso)
-          .or(`ended_at.is.null,ended_at.gte.${dayStartIso}`),
+          .or(
+            `and(started_at.gte.${dayStartIso},started_at.lt.${nextDayIso}),` +
+              `and(ended_at.gte.${dayStartIso},ended_at.lt.${nextDayIso})`
+          ),
         // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
@@ -433,7 +441,14 @@ const StaffTimeReports: React.FC = () => {
 
       for (const wd of workdays as any[]) {
         const a = byStaff.get(wd.staff_id) || newAgg();
-        const isOpen = !wd.ended_at;
+        // Belt-and-suspenders: even though the query above scopes to today,
+        // refuse to render an "open workday" that is older than 18h. The
+        // watchdog will close it on the next run; in the meantime show it
+        // as a closed anomaly rather than a 50h running timer.
+        const ageHours =
+          (Date.now() - new Date(wd.started_at).getTime()) / (1000 * 60 * 60);
+        const isStaleOpen = !wd.ended_at && ageHours > 18;
+        const isOpen = !wd.ended_at && !isStaleOpen;
         const startHHMM = format(new Date(wd.started_at), 'HH:mm:ss');
 
         if (!a.earliest_start || startHHMM < a.earliest_start) {
@@ -452,7 +467,9 @@ const StaffTimeReports: React.FC = () => {
         a.segments.push({
           id: `wd:${wd.id}`,
           kind: 'workday',
-          label: 'Arbetsdag startad',
+          label: isStaleOpen
+            ? 'Arbetsdag — ej avslutad (anomali)'
+            : 'Arbetsdag startad',
           start: wd.started_at,
           end: wd.ended_at,
           isOpen,

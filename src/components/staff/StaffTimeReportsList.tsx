@@ -12,6 +12,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { LiveDuration } from './LiveDuration';
 import { StaffLatestPing } from './StaffLatestPing';
+import { PingPhoneButton } from './PingPhoneButton';
 import type { DaySegment, SegmentKind, LatestPing } from '@/pages/StaffTimeReports';
 
 interface ProjectInfo {
@@ -335,8 +336,12 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 
                   {/* Chronological segment timeline — open at top, then newest → oldest */}
                   {/* Latest GPS ping (no live tick — backend updates) */}
-                  <StaffLatestPing ping={staff.latestPing} className="mt-1" />
-
+                  <div className="mt-1 flex items-center gap-2">
+                    <StaffLatestPing ping={staff.latestPing} className="flex-1 min-w-0" />
+                    {liveStatus === 'stale' && (
+                      <PingPhoneButton staffId={staff.id} staffName={staff.name} />
+                    )}
+                  </div>
                   {(staff.segments?.length ?? 0) > 0 && (
                     <div className="mt-1.5 border-l-2 border-border/60 pl-2 space-y-0.5">
                       {staff.segments.map(seg => {
