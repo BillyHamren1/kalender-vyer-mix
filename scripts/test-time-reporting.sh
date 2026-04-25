@@ -73,6 +73,9 @@ FRONTEND_TESTS=(
   # survival över app-omstart.
   "src/test/endDayReconciliation.contract.test.ts"
   "src/test/projectStaff.test.ts"
+  # Day-filter regression: spök-arbetsdag (50h-pinnen) får aldrig spilla
+  # in i efterföljande dagars vy.
+  "src/test/staffTimeReports.dayFilter.contract.test.ts"
   # Unified arrival prompt (parity-suite): låser fast att Lager / stort
   # projekt / vanlig bokning visar EXAKT samma promptstruktur, samma CTA,
   # samma payload till onConfirm/onDismiss. Utan dessa tester driver de
@@ -101,6 +104,8 @@ BACKEND_TESTS=(
   # location_time_entries. Auth-guard mot cron + kontrakt för stop-endpoint.
   # Tester som beror på (kommande) close-stale-location-entries är ignored.
   "supabase/functions/mobile-app-api/staleEntryAutoClose.test.ts"
+  # closeStaleWorkdays steg D — workdays_closed-kontrakt + plannedEndOfDay-clamp.
+  "supabase/functions/close-stale-workday-entries/closeStaleWorkdays.contract.test.ts"
   # Unified arrival API parity (location/project/booking): report_arrival,
   # mark_arrival_resolved och get_arrival_state måste behandla alla tre
   # target-kindar likadant på auth/validation-ytan.
