@@ -115,11 +115,19 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
+        // Workdays scoped strictly to the selected day:
+        //   - row started today, OR
+        //   - row started earlier but ended sometime today (spans midnight)
+        // An "open" workday from a previous day is a stale ghost (handled
+        // by the close-stale-workday-entries watchdog) and must NOT spill
+        // into the current day's view as a 50h "still active" timer.
         supabase
           .from('workdays')
           .select('id, staff_id, started_at, ended_at')
-          .lt('started_at', nextDayIso)
-          .or(`ended_at.is.null,ended_at.gte.${dayStartIso}`),
+          .or(
+            `and(started_at.gte.${dayStartIso},started_at.lt.${nextDayIso}),` +
+              `and(ended_at.gte.${dayStartIso},ended_at.lt.${nextDayIso})`
+          ),
         // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
