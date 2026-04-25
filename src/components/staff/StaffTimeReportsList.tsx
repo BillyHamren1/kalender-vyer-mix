@@ -12,6 +12,7 @@ import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { LiveDuration } from './LiveDuration';
 import { StaffLatestPing } from './StaffLatestPing';
+import { PingPhoneButton } from './PingPhoneButton';
 import type { DaySegment, SegmentKind, LatestPing } from '@/pages/StaffTimeReports';
 
 interface ProjectInfo {
