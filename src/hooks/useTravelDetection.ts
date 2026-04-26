@@ -174,22 +174,31 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       };
       setTravelState(newState);
       saveTravelState(newState);
-      // Workday autostart: travel-begin är ett starkt signal att dagen
-      // pågår. Idempotent — om en workday redan är öppen är detta no-op.
-      autoStartWorkDay('travel_start', { startedAtIso: result.travel_log.start_time });
+      // NOTE: travel_start is NEVER allowed to open the workday.
+      // The workday must be opened by a real work-presence signal
+      // (geofence ENTER on a known workplace, arrival report, or
+      // explicit user action). Auto-detected travel before the day
+      // has begun is morning commute and is rejected by the server
+      // with reason='pre_workday_commute'. Do NOT call autoStartWorkDay() here.
       console.log('[TravelDetection] Travel started:', result.travel_log.id);
       // Note: open location_time_entries are now closed atomically by the
       // server inside `handleStartTravelLog` (mobile-app-api). The previous
       // client-side close attempt was unauthenticated for mobile sessions
       // and silently failed → two timers ticking. Do NOT re-add it here.
     } catch (err: any) {
-      // SILENT REJECTION: the server returns 409 when the user is currently
-      // standing inside a known geofence (warehouse / assigned booking).
-      // GPS jitter on the lager floor must NOT spawn a travel log that
-      // then atomically closes the legitimate lager-presence timer.
+      // SILENT REJECTION: the server returns 409 in two situations:
+      //   • inside_geofence — user is currently standing inside a known
+      //     workplace; GPS jitter must not spawn a phantom travel row.
+      //   • pre_workday_commute — no real work presence today yet, so
+      //     this auto-detected movement is morning commute and must
+      //     never be auto-logged as travel time.
       const msg = String(err?.message || '');
-      if (msg.includes('inside_geofence') || msg.includes('blocked')) {
-        console.log('[TravelDetection] Travel start rejected by server — user inside geofence. Lager-timer preserved.');
+      if (
+        msg.includes('inside_geofence') ||
+        msg.includes('pre_workday_commute') ||
+        msg.includes('blocked')
+      ) {
+        console.log('[TravelDetection] Travel start rejected by server:', msg);
         return;
       }
       console.error('[TravelDetection] Failed to start travel:', err);
