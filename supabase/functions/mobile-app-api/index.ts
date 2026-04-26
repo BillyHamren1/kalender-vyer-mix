@@ -620,10 +620,10 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
     )
   }
 
-  // Get staff member info
+  // Get staff member info (incl. user_id so we can resolve app_roles)
   const { data: staffMember, error: staffError } = await supabase
     .from('staff_members')
-    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate')
+    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id')
     .eq('id', account.staff_id)
     .single()
 
@@ -635,25 +635,57 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
     )
   }
 
+  // Resolve app_roles + is_planner. Anyone with at least one row in
+  // user_roles is a "system user" (web login = planner).
+  const enriched = await enrichStaffWithRoles(supabase, staffMember)
+
   // Generate token
   const token = generateToken(account.staff_id)
 
-  console.log(`Login successful for: ${staffMember.name}`)
+  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner})`)
 
   return new Response(
     JSON.stringify({
       success: true,
       token,
-      staff: staffMember
+      staff: enriched
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// enrichStaffWithRoles
+//
+// Single source of truth for the "is this user a planner" rule.
+// A user is a planner iff they have at least one row in user_roles —
+// which matches "can log in to the web". Used by both `login` and `me`
+// so the mobile client always sees consistent role data.
+// ─────────────────────────────────────────────────────────────────────
+async function enrichStaffWithRoles(supabase: any, staffMember: any) {
+  let app_roles: string[] = []
+  if (staffMember?.user_id) {
+    const { data: rolesRows, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', staffMember.user_id)
+    if (error) {
+      console.error('[enrichStaffWithRoles] user_roles lookup failed:', error)
+    } else {
+      app_roles = (rolesRows || []).map((r: any) => r.role).filter(Boolean)
+    }
+  }
+  return {
+    ...staffMember,
+    app_roles,
+    is_planner: app_roles.length > 0,
+  }
+}
+
 async function handleMe(supabase: any, staffId: string, organizationId: string) {
   const { data: staffMember, error } = await supabase
     .from('staff_members')
-    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate')
+    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id')
     .eq('id', staffId)
     .eq('organization_id', organizationId)
     .single()
@@ -665,8 +697,10 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
     )
   }
 
+  const enriched = await enrichStaffWithRoles(supabase, staffMember)
+
   return new Response(
-    JSON.stringify({ staff: staffMember }),
+    JSON.stringify({ staff: enriched }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
