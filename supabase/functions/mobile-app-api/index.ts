@@ -469,6 +469,13 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
       case 'correct_stale_day_end':
         return await handleCorrectStaleDayEnd(supabase, staffId, data, organizationId)
+      // ── Planner overview (gated on user_roles row presence) ──
+      case 'get_overview_calendar':
+        return await handleGetOverviewCalendar(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'get_overview_assignments':
+        return await handleGetOverviewAssignments(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'get_overview_threads':
+        return await handleGetOverviewThreads(supabase, staffOrg?.user_id || null, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
