@@ -1,11 +1,14 @@
-import { Briefcase, Clock, Wrench, User, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Briefcase, Clock, Wrench, User, MessageCircle, LayoutGrid } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import type { TranslationKey } from '@/i18n/translations';
 
-const tabs: { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean }[] = [
+type Tab = { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean };
+
+const baseTabs: Tab[] = [
   { path: '/m', labelKey: 'nav.jobs', icon: Briefcase, exact: true },
   { path: '/m/report', labelKey: 'nav.time', icon: Clock },
   { path: '/m/inbox', labelKey: 'nav.messages', icon: MessageCircle, showBadge: true },
@@ -13,12 +16,21 @@ const tabs: { path: string; labelKey: TranslationKey; icon: typeof Briefcase; ex
   { path: '/m/profile', labelKey: 'nav.profile', icon: User },
 ];
 
+const plannerTab: Tab = { path: '/m/overview', labelKey: 'nav.overview', icon: LayoutGrid };
+
 const MobileBottomNav = () => {
   const location = useLocation();
   if (location.pathname.includes('/complete')) return null;
   const navigate = useNavigate();
   const { count: unreadCount } = useUnreadMessageCount();
   const { t } = useLanguage();
+  const { isPlanner } = useMobileRoles();
+
+  // Planners replace "Verktyg" with "Översikt" — they use tools from web.
+  const tabs: Tab[] = isPlanner
+    ? baseTabs.map(tab => (tab.path === '/m/tools' ? plannerTab : tab))
+    : baseTabs;
+
 
   const isActive = (tab: typeof tabs[0]) => {
     if (tab.exact) return location.pathname === tab.path;
