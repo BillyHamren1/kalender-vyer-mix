@@ -469,6 +469,13 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
       case 'correct_stale_day_end':
         return await handleCorrectStaleDayEnd(supabase, staffId, data, organizationId)
+      // ── Planner overview (gated on user_roles row presence) ──
+      case 'get_overview_calendar':
+        return await handleGetOverviewCalendar(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'get_overview_assignments':
+        return await handleGetOverviewAssignments(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'get_overview_threads':
+        return await handleGetOverviewThreads(supabase, staffOrg?.user_id || null, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -620,10 +627,10 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
     )
   }
 
-  // Get staff member info
+  // Get staff member info (incl. user_id so we can resolve app_roles)
   const { data: staffMember, error: staffError } = await supabase
     .from('staff_members')
-    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate')
+    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id')
     .eq('id', account.staff_id)
     .single()
 
@@ -635,25 +642,57 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
     )
   }
 
+  // Resolve app_roles + is_planner. Anyone with at least one row in
+  // user_roles is a "system user" (web login = planner).
+  const enriched = await enrichStaffWithRoles(supabase, staffMember)
+
   // Generate token
   const token = generateToken(account.staff_id)
 
-  console.log(`Login successful for: ${staffMember.name}`)
+  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner})`)
 
   return new Response(
     JSON.stringify({
       success: true,
       token,
-      staff: staffMember
+      staff: enriched
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// enrichStaffWithRoles
+//
+// Single source of truth for the "is this user a planner" rule.
+// A user is a planner iff they have at least one row in user_roles —
+// which matches "can log in to the web". Used by both `login` and `me`
+// so the mobile client always sees consistent role data.
+// ─────────────────────────────────────────────────────────────────────
+async function enrichStaffWithRoles(supabase: any, staffMember: any) {
+  let app_roles: string[] = []
+  if (staffMember?.user_id) {
+    const { data: rolesRows, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', staffMember.user_id)
+    if (error) {
+      console.error('[enrichStaffWithRoles] user_roles lookup failed:', error)
+    } else {
+      app_roles = (rolesRows || []).map((r: any) => r.role).filter(Boolean)
+    }
+  }
+  return {
+    ...staffMember,
+    app_roles,
+    is_planner: app_roles.length > 0,
+  }
+}
+
 async function handleMe(supabase: any, staffId: string, organizationId: string) {
   const { data: staffMember, error } = await supabase
     .from('staff_members')
-    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate')
+    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id')
     .eq('id', staffId)
     .eq('organization_id', organizationId)
     .single()
@@ -665,8 +704,10 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
     )
   }
 
+  const enriched = await enrichStaffWithRoles(supabase, staffMember)
+
   return new Response(
-    JSON.stringify({ staff: staffMember }),
+    JSON.stringify({ staff: enriched }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
@@ -8131,4 +8172,214 @@ async function handleCorrectStaleDayEnd(
 
   return new Response(JSON.stringify({ success: true, flag: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+// ============================================================================
+// PLANNER OVERVIEW HANDLERS
+// ----------------------------------------------------------------------------
+// Backend for the mobile "Översikt"-tab that only system users (any row in
+// user_roles) get to see. All three handlers strictly:
+//   1. Verify caller is a planner (user_roles row exists). 403 otherwise.
+//   2. Filter all reads by organization_id (multi-tenant isolation).
+//   3. Return data shaped for the mobile UI (no joins the client can't use).
+// ============================================================================
+
+async function callerIsPlanner(supabase: any, callerUserId: string | null): Promise<boolean> {
+  if (!callerUserId) return false
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', callerUserId)
+    .limit(1)
+  if (error) {
+    console.error('[overview] planner check failed:', error)
+    return false
+  }
+  return Array.isArray(data) && data.length > 0
+}
+
+function plannerForbidden() {
+  return new Response(
+    JSON.stringify({ error: 'Forbidden: planner role required' }),
+    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ── get_overview_calendar ──
+// Returns ALL calendar_events in the org for the requested date range.
+// Defaults to today−7d / today+14d. Caller passes optional { from, to } ISO dates.
+async function handleGetOverviewCalendar(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerIsPlanner(supabase, callerUserId))) return plannerForbidden()
+
+  const now = new Date()
+  const defaultFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const defaultTo = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+  const fromIso = (typeof data?.from === 'string' && data.from) || defaultFrom.toISOString()
+  const toIso = (typeof data?.to === 'string' && data.to) || defaultTo.toISOString()
+
+  const { data: events, error } = await supabase
+    .from('calendar_events')
+    .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address, source_date')
+    .eq('organization_id', organizationId)
+    .gte('start_time', fromIso)
+    .lt('start_time', toIso)
+    .order('start_time', { ascending: true })
+
+  if (error) {
+    console.error('[overview-calendar] fetch failed:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch calendar events' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ events: events || [], from: fromIso, to: toIso }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ── get_overview_assignments ──
+// Returns booking_staff_assignments for given booking_ids (and optional date range)
+// joined with staff_members (name, role, color).
+async function handleGetOverviewAssignments(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerIsPlanner(supabase, callerUserId))) return plannerForbidden()
+
+  const bookingIds = Array.isArray(data?.booking_ids)
+    ? data.booking_ids.filter((s: any) => typeof s === 'string')
+    : []
+  if (bookingIds.length === 0) {
+    return new Response(
+      JSON.stringify({ assignments: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  let query = supabase
+    .from('booking_staff_assignments')
+    .select('id, booking_id, staff_id, team_id, assignment_date, role')
+    .eq('organization_id', organizationId)
+    .in('booking_id', bookingIds)
+    .order('assignment_date', { ascending: true })
+
+  if (typeof data?.from === 'string') query = query.gte('assignment_date', data.from)
+  if (typeof data?.to === 'string') query = query.lte('assignment_date', data.to)
+
+  const { data: bsaRows, error: bsaErr } = await query
+  if (bsaErr) {
+    console.error('[overview-assignments] BSA fetch failed:', bsaErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch assignments' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const staffIds = [...new Set((bsaRows || []).map((r: any) => r.staff_id).filter(Boolean))]
+  const staffMap: Record<string, { id: string; name: string; role: string | null; color: string | null }> = {}
+  if (staffIds.length > 0) {
+    const { data: staffRows } = await supabase
+      .from('staff_members')
+      .select('id, name, role, color')
+      .in('id', staffIds)
+      .eq('organization_id', organizationId)
+    for (const s of staffRows || []) staffMap[s.id] = s
+  }
+
+  const enriched = (bsaRows || []).map((r: any) => ({
+    ...r,
+    staff: staffMap[r.staff_id] || null,
+  }))
+
+  return new Response(
+    JSON.stringify({ assignments: enriched }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ── get_overview_threads ──
+// Cross-project unified inbox for planners: every active project chat
+// (job_messages aggregated per booking) the org has touched in the last 30
+// days, regardless of whether the planner is assigned to it.
+async function handleGetOverviewThreads(
+  supabase: any,
+  callerUserId: string | null,
+  organizationId: string,
+) {
+  if (!(await callerIsPlanner(supabase, callerUserId))) return plannerForbidden()
+
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: messages, error: msgErr } = await supabase
+    .from('job_messages')
+    .select('id, booking_id, content, created_at, sender_name, read_by')
+    .eq('organization_id', organizationId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(2000)
+
+  if (msgErr) {
+    console.error('[overview-threads] message fetch failed:', msgErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch threads' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const byBooking = new Map<string, { last: any; unread: number; total: number }>()
+  for (const m of messages || []) {
+    if (!m.booking_id) continue
+    const readBy = Array.isArray(m.read_by) ? m.read_by : []
+    const isUnread = !readBy.includes(callerUserId!)
+    const existing = byBooking.get(m.booking_id)
+    if (!existing) {
+      byBooking.set(m.booking_id, { last: m, unread: isUnread ? 1 : 0, total: 1 })
+    } else {
+      existing.total += 1
+      if (isUnread) existing.unread += 1
+      // messages are pre-sorted desc → first one we saw is "last"
+    }
+  }
+
+  const bookingIds = [...byBooking.keys()]
+  const bookingsMap: Record<string, { id: string; client: string; booking_number: string | null }> = {}
+  if (bookingIds.length > 0) {
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number')
+      .in('id', bookingIds)
+      .eq('organization_id', organizationId)
+    for (const b of bookings || []) bookingsMap[b.id] = b
+  }
+
+  const threads = bookingIds
+    .map((id) => {
+      const agg = byBooking.get(id)!
+      const bk = bookingsMap[id]
+      return {
+        booking_id: id,
+        client: bk?.client || 'Okänd kund',
+        booking_number: bk?.booking_number || null,
+        last_message: agg.last.content,
+        last_message_at: agg.last.created_at,
+        last_sender: agg.last.sender_name,
+        unread_count: agg.unread,
+        total_messages: agg.total,
+      }
+    })
+    .sort((a, b) => b.last_message_at.localeCompare(a.last_message_at))
+
+  return new Response(
+    JSON.stringify({ threads }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
