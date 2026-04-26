@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
 import { GpsPosition } from '@/hooks/useGeofencing';
-import { autoStartWorkDay } from '@/services/workdayServerSync';
 
 const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
 const START_DEBOUNCE_MS = 15000; // 15s sustained speed
