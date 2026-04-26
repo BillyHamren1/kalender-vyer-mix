@@ -102,16 +102,20 @@ describe('StaffTimeReports day filter — regression: spök-arbetsdag', () => {
     expect(selectWorkdaysForDay([today], dayStart, nextDay)).toHaveLength(1);
   });
 
-  it('inkluderar nattskift som spänner midnatt (ended_at i valt dygn)', () => {
+  it('nattskift T-1 23:30 → T 00:38 hör till T-1, INTE T (start-day binding)', () => {
     const overnight: Workday = {
       id: 'night-1',
       staff_id: 'staff_1',
-      started_at: '2026-04-24T22:00:00Z',
-      ended_at: '2026-04-25T06:30:00Z',
+      started_at: '2026-04-24T23:30:00Z',
+      ended_at: '2026-04-25T00:38:00Z',
     };
-    const dayStart = new Date('2026-04-25T00:00:00Z');
-    const nextDay = new Date('2026-04-26T00:00:00Z');
-    expect(selectWorkdaysForDay([overnight], dayStart, nextDay)).toHaveLength(1);
+    const dayT = new Date('2026-04-25T00:00:00Z');
+    const dayTNext = new Date('2026-04-26T00:00:00Z');
+    const dayTMinus1 = new Date('2026-04-24T00:00:00Z');
+    // Hör hemma på T-1
+    expect(selectWorkdaysForDay([overnight], dayTMinus1, dayT)).toHaveLength(1);
+    // Får INTE läcka in på T
+    expect(selectWorkdaysForDay([overnight], dayT, dayTNext)).toEqual([]);
   });
 
   it('separerar färska öppna workdays från stale anomalier (>18h regel)', () => {
