@@ -92,6 +92,8 @@ import MobileInbox from "./pages/mobile/MobileInbox";
 import MobileMyFlags from "./pages/mobile/MobileMyFlags";
 import MobileDayReview from "./pages/mobile/MobileDayReview";
 import MobileCompleteJob from "./pages/mobile/MobileCompleteJob";
+import MobileOverview from "./pages/mobile/MobileOverview";
+import PlannerOnlyRoute from "@/components/mobile-app/PlannerOnlyRoute";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
@@ -199,6 +201,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/profile" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/time-history" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/inbox" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/overview" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><PlannerOnlyRoute><MobileAppLayout><MobileOverview /></MobileAppLayout></PlannerOnlyRoute></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/my-flags" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileMyFlags /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/day-review" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileDayReview /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
 

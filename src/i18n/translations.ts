@@ -26,6 +26,17 @@ const translations = {
   'tools.cameraSaved': { sv: 'Bilden sparad', en: 'Photo saved' },
   'tools.cameraError': { sv: 'Kunde inte spara bilden', en: 'Failed to save photo' },
   'nav.profile': { sv: 'Profil', en: 'Profile' },
+  'nav.overview': { sv: 'Översikt', en: 'Overview' },
+  'overview.title': { sv: 'Översikt', en: 'Overview' },
+  'overview.subtitle': { sv: 'Hela organisationen', en: 'Whole organization' },
+  'overview.tabs.calendar': { sv: 'Kalender', en: 'Calendar' },
+  'overview.tabs.staffing': { sv: 'Bemanning', en: 'Staffing' },
+  'overview.tabs.messages': { sv: 'Meddelanden', en: 'Messages' },
+  'overview.empty.calendar': { sv: 'Inga händelser i intervallet', en: 'No events in range' },
+  'overview.empty.staffing': { sv: 'Ingen bemanning planerad', en: 'No staffing planned' },
+  'overview.empty.messages': { sv: 'Inga aktiva trådar', en: 'No active threads' },
+  'overview.loading': { sv: 'Laddar…', en: 'Loading…' },
+  'overview.error': { sv: 'Kunde inte ladda data', en: 'Failed to load data' },
 
   // Jobs page
   'jobs.eyebrow': { sv: 'MINA JOBB', en: 'MY JOBS' },
