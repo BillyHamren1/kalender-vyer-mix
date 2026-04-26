@@ -60,8 +60,9 @@ function aggregateWorkdays(workdays: Workday[], now: Date): AggregatedSegment[] 
 }
 
 // Mirror the post-fix Supabase filter as a JS predicate for unit testing.
-// Real query: `.gte(started_at, dayStartIso).lt(started_at, nextDayIso)`
-// `.or(and(started_at.gte.X,started_at.lt.Y),and(ended_at.gte.X,ended_at.lt.Y))`
+// Real query: `.gte('started_at', dayStartIso).lt('started_at', nextDayIso)`
+// We strictly bind workdays to their START day. A shift that starts T-1
+// 23:30 and ends T 00:38 belongs to T-1 only — never bleeds into T.
 function selectWorkdaysForDay(
   rows: Workday[],
   dayStart: Date,
@@ -69,13 +70,7 @@ function selectWorkdaysForDay(
 ): Workday[] {
   return rows.filter((wd) => {
     const start = new Date(wd.started_at);
-    const startedToday = start >= dayStart && start < nextDay;
-    if (startedToday) return true;
-    if (wd.ended_at) {
-      const end = new Date(wd.ended_at);
-      if (end >= dayStart && end < nextDay) return true;
-    }
-    return false;
+    return start >= dayStart && start < nextDay;
   });
 }
 
