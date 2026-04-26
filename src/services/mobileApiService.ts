@@ -478,6 +478,16 @@ export const mobileApi = {
   unarchiveJobConversation: (bookingId: string) =>
     callApi<{ success: boolean; unarchived_count: number }>('unarchive_job_conversation', { booking_id: bookingId }),
 
+  // === Planner Overview (gated to is_planner === true) ===
+  getOverviewCalendar: (opts?: { from?: string; to?: string }) =>
+    callApi<{ events: OverviewCalendarEvent[] }>('get_overview_calendar', opts || {}),
+
+  getOverviewAssignments: (opts?: { from?: string; to?: string }) =>
+    callApi<{ assignments: OverviewAssignment[] }>('get_overview_assignments', opts || {}),
+
+  getOverviewThreads: () =>
+    callApi<{ threads: OverviewThread[] }>('get_overview_threads'),
+
   // Broadcasts
   getBroadcasts: () =>
     callApi<{ broadcasts: any[] }>('get_broadcasts'),
