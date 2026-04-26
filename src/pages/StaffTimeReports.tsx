@@ -115,19 +115,18 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
-        // Workdays scoped strictly to the selected day:
-        //   - row started today, OR
-        //   - row started earlier but ended sometime today (spans midnight)
-        // An "open" workday from a previous day is a stale ghost (handled
-        // by the close-stale-workday-entries watchdog) and must NOT spill
-        // into the current day's view as a 50h "still active" timer.
+        // Workdays scoped strictly by start day. A workday that starts at
+        // T-1 23:30 and ends T 00:38 belongs to T-1 (its start day) — not
+        // both days. This matches the mobile UI grouping. Real night shifts
+        // (start 22:00, end 02:00) thus appear only on the start day, which
+        // is consistent and predictable. Open workdays from earlier days
+        // are ghosts (handled by close-stale-workday-entries watchdog) and
+        // must NOT bleed into today's view as 50h "still active" timers.
         supabase
           .from('workdays')
-          .select('id, staff_id, started_at, ended_at')
-          .or(
-            `and(started_at.gte.${dayStartIso},started_at.lt.${nextDayIso}),` +
-              `and(ended_at.gte.${dayStartIso},ended_at.lt.${nextDayIso})`
-          ),
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes')
+          .gte('started_at', dayStartIso)
+          .lt('started_at', nextDayIso),
         // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
