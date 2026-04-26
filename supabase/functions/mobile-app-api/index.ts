@@ -5492,6 +5492,80 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
   // (a person explicitly tapping "Start travel") still go through, in
   // case they're loading a vehicle and about to drive off.
   if (auto_detected !== false && typeof from_latitude === 'number' && typeof from_longitude === 'number') {
+    // ── PRE-WORKDAY GATE ────────────────────────────────────────────
+    // Auto-detected travel may NEVER be the day's first work signal.
+    // Travel time only counts as work AFTER the staff member has had
+    // at least one real work presence today: a fixed location (lager/
+    // office), an internal warehouse project, a regular booking, or a
+    // large project. Morning commute home → first job is private and
+    // must not auto-log travel.
+    //
+    // We accept any of these as "the day has truly started":
+    //   • a location_time_entries row that started today (any kind)
+    //   • a time_reports row with a start_time today
+    //   • an arrival_signals/assistant_events arrival happened earlier today
+    //
+    // If none of those exist BEFORE the proposed travel start time,
+    // we reject with 409 reason=pre_workday_commute.
+    try {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const todayStartIso = todayStart.toISOString()
+
+      const [lteRes, trRes, arrRes] = await Promise.all([
+        supabase
+          .from('location_time_entries')
+          .select('entered_at')
+          .eq('staff_id', staffId)
+          .eq('organization_id', organizationId)
+          .gte('entered_at', todayStartIso)
+          .lt('entered_at', startIso)
+          .limit(1),
+        supabase
+          .from('time_reports')
+          .select('start_time')
+          .eq('staff_id', staffId)
+          .eq('organization_id', organizationId)
+          .gte('start_time', todayStartIso)
+          .lt('start_time', startIso)
+          .limit(1),
+        supabase
+          .from('assistant_events')
+          .select('happened_at')
+          .eq('staff_id', staffId)
+          .eq('organization_id', organizationId)
+          .eq('event_type', 'arrival')
+          .in('target_type', ['location', 'project', 'booking'])
+          .gte('happened_at', todayStartIso)
+          .lt('happened_at', startIso)
+          .limit(1),
+      ])
+
+      const hadEarlierWorkPresence =
+        (lteRes.data && lteRes.data.length > 0) ||
+        (trRes.data && trRes.data.length > 0) ||
+        (arrRes.data && arrRes.data.length > 0)
+
+      if (!hadEarlierWorkPresence) {
+        console.log(
+          `[handleStartTravelLog] BLOCKED — staff ${staffId} has no prior work presence today; refusing to auto-start morning commute travel.`
+        )
+        return new Response(
+          JSON.stringify({
+            success: false,
+            blocked: true,
+            reason: 'pre_workday_commute',
+            message: 'Auto-detected travel cannot start before the first work visit of the day.',
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    } catch (e) {
+      // Soft-fail: if the lookup itself errors, proceed. Better to log a
+      // travel row that admin can edit than to silently kill all trips.
+      console.error('[handleStartTravelLog] pre-workday gate exception (proceeding anyway):', e)
+    }
+
     try {
       const haversine = (lat1: number, lng1: number, lat2: number, lng2: number) => {
         const R = 6371000
