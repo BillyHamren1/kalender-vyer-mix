@@ -7,6 +7,8 @@ const ASSISTANT_EVENTS_URL = `${SUPABASE_URL}/functions/v1/assistant-events`;
 const TOKEN_KEY = 'eventflow-mobile-token';
 const STAFF_KEY = 'eventflow-mobile-staff';
 
+export type MobileAppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
+
 export interface MobileStaff {
   id: string;
   name: string;
@@ -16,6 +18,43 @@ export interface MobileStaff {
   department: string | null;
   hourly_rate: number | null;
   overtime_rate: number | null;
+  app_roles?: MobileAppRole[];
+  is_planner?: boolean;
+}
+
+// === Planner overview types ===
+export interface OverviewCalendarEvent {
+  id: string;
+  title: string;
+  event_type: string | null;
+  start_time: string;
+  end_time: string;
+  source_date: string;
+  resource_id: string;
+  booking_id: string | null;
+  booking_number: string | null;
+  delivery_address: string | null;
+}
+
+export interface OverviewAssignment {
+  id: string;
+  booking_id: string;
+  staff_id: string;
+  staff_name: string;
+  role: string;
+  assignment_date: string;
+  team_id: string;
+}
+
+export interface OverviewThread {
+  booking_id: string;
+  client: string;
+  booking_number: string | null;
+  last_message_at: string;
+  last_message_preview: string;
+  last_sender_name: string;
+  unread_count: number;
+  total_messages: number;
 }
 
 export interface MobileBooking {
