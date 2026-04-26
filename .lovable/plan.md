@@ -1,81 +1,92 @@
-# Planner-vy i mobilappen — för systemanvändare
+## Mål
+Restid ska aldrig auto-starta på morgonpendlingen till första jobbet. Men när arbetsdagen väl har börjat ska systemet inte bli så hårt att legitima arbetsresor blockeras bara för att användaren mellanlandar på t.ex. Bauhaus.
 
-## Insikt från datan
+## Fastslagna regler
+1. Auto-restid får aldrig skapa dagens första arbetssignal.
+2. Före dagens första riktiga arbetsbesök ska all auto-detekterad resa ignoreras.
+3. Ett riktigt arbetsbesök kan vara:
+   - fast plats / lager
+   - internt lagerprojekt
+   - vanligt jobb / booking
+   - stort projekt
+4. När arbetsdagen redan har börjat får resa fortsätta fungera mellan arbetsärenden samma dag.
+5. Okända stopp under pågående resa (t.ex. Bauhaus, tankning, lunch) ska varken avsluta eller ogiltigförklara resan.
+6. `travel_start` får inte längre starta arbetsdagen.
+7. Privat resa ska aldrig auto-loggas före första arbetsbesöket; vill användaren lägga in sådan tid får det ske manuellt i efterhand.
 
-De fyra som ska se Planner-vyn (Billy, Joel, Nana, Ranjan) har alla **minst en roll i `user_roles`** — `admin`, `forsaljning`, `projekt` eller `lager`. De övriga 18 aktiva i `staff_members` har **inga** `user_roles` alls; de finns bara i mobilappen för att rapportera tid.
+## Varför Upplandsgatan startade men inte Wenngarn
+Nuvarande flöde startar resa när hastigheten varit hög nog i 15 sekunder. Servern blockerar bara om användaren fortfarande är inne i en känd geofence. Det betyder:
+- Wenngarn blockerades medan användaren fortfarande var "inne på jobbet".
+- Först när hastighetströskeln uppfylldes utanför geofence blev start tillåten.
+- Då råkade första giltiga punkten vara Upplandsgatan.
+- Dessutom kopplas resa idag till `autoStartWorkDay('travel_start')`, vilket gör felet större än bara restiden.
 
-**Behörighetsregeln blir alltså enkel och rätt:**
+## Implementation
+### 1. Gör första-resan-spärren explicit
+Uppdatera klient och server så att auto-detekterad resa bara får starta om dagen redan har börjat på riktigt.
 
-> En användare är "Planner" om de har **minst en rad i `user_roles`** (oavsett vilken av rollerna).
+Klientlogik:
+- `src/hooks/useTravelDetection.ts`
+  - innan `createTravelLog` körs, kontrollera om användaren redan har haft ett riktigt arbetsbesök idag
+  - om inte: nollställ debounce och starta inte resa
+  - ta bort kopplingen som idag kör `autoStartWorkDay('travel_start')`
 
-Det matchar exakt "de som kan logga in på webben" — för det är just det `user_roles` markerar i systemet idag.
+Serverlogik:
+- `supabase/functions/mobile-app-api/index.ts`
+  - i `handleStartTravelLog` lägg en hård backstop för `auto_detected`
+  - returnera `409` för första-morgon-resor där ingen tidigare arbetsnärvaro finns idag
+  - tillåt manuell restid även fortsättningsvis
 
-Ingen ny roll behövs. Ingen hårdkodad lista. Inget val mellan `admin` vs `projekt` vs `forsaljning` — alla fyra rollerna ger samma access till översiktsvyn.
+### 2. Räkna även lager/fasta platser som giltig dagstart
+Idag skickas `reportArrival` för project/booking, men inte för fasta platser.
 
----
+Ändring:
+- `src/hooks/useGeofencing.ts`
+  - när användaren går in i en fast plats/lager, skicka också `mobileApi.reportArrival({ kind: 'location', ... })`
 
-## Steg 1 — Backend: exponera roller i `mobile-app-api`
+Det gör att "kom till jobbet först, åk sedan vidare" fungerar även om första stoppet är lager/fast plats.
 
-I `supabase/functions/mobile-app-api/index.ts` → `handleMe`:
+### 3. Behåll mjukt beteende efter dagstart
+Efter att första arbetsbesöket finns registrerat ska vi inte lägga på en för hård spärr som blockerar senare resor samma dag.
 
-- Efter att `staff_members` hämtats: om `staff.user_id` finns, slå upp `user_roles` för den `user_id`.
-- Returnera `app_roles: AppRole[]` (tom array om inget finns) på `MobileStaff`-payloaden.
-- Lägg till `is_planner: boolean` (= `app_roles.length > 0`) som beräknad bekvämlighetsflagga, så frontend slipper duplicera regeln.
+Det innebär:
+- vi kräver inte att varje ny GPS-punkt måste vara ett projekt
+- vi kräver inte att Bauhaus eller annat mellan-stopp ska vara en känd arbetsplats
+- pågående resa fortsätter tills användaren anländer till nästa kända arbetsplats eller stoppar manuellt
 
-## Steg 2 — Backend: tre nya overview-actions
+### 4. Använd arbetskontext som stöd, inte som total spärr
+Vi kan fortfarande bära med senaste `workplace-exit` som klientkontext för bättre felsökning och återhämtning, men inte göra den till en absolut blockerare efter dagstart.
 
-Alla tre kräver `is_planner === true` (annars 403). Alla filtrerar strikt på `organization_id` (RESTRICTIVE RLS-policy).
+### 5. Testning
+Lägg till regressionstester för att låsa följande:
+- morgonpendling hem -> jobb startar inte auto-restid
+- Wenngarn/lager som första arbetsbesök öppnar för senare resa samma dag
+- jobb/lager -> Bauhaus -> nästa jobb blockeras inte mitt i dagen
+- `travel_start` kan inte längre öppna workday
+- servern returnerar tydlig 409-reason för pre-workday commute
 
-1. **`get_overview_calendar`** — hämtar `calendar_events` för valt datumintervall (default: idag ±14 dagar) för hela organisationen, oavsett team. Inkluderar event_type, title, start/end, color, booking_id, project_id.
-2. **`get_overview_assignments`** — hämtar `booking_staff_assignments` för bokningarna i intervallet, joinat med `staff_members` (namn, role i BSA: field/project_manager/etc). Grupperat per booking.
-3. **`get_overview_threads`** — hämtar aktiva projekttrådar (broadcasts/internalnotes från projects + large_projects + bookings de senaste 30 dagarna), med senaste meddelandet och oläst-räknare.
+## Filer att ändra
+- `src/hooks/useTravelDetection.ts`
+- `src/hooks/useGeofencing.ts`
+- `src/services/workdayServerSync.ts`
+- `supabase/functions/mobile-app-api/index.ts`
+- relevanta testfiler för travel/workday-regler
 
-## Steg 3 — Frontend: `useMobileRoles`
+## Tekniska detaljer
+Föreslagen serverdefinition av "dagen har börjat":
+- minst en giltig arbetsnärvaro idag före resans starttid, t.ex. via befintlig workday/arrival/presence-signal
+- inte bara rörelsehastighet utanför geofence
 
-Ny hook `src/hooks/mobile/useMobileRoles.ts`:
-- Läser `app_roles` + `is_planner` från `mobileApiService.getMe()`-payloaden (cachat via React Query).
-- Returnerar `{ roles, isPlanner, isLoading }`.
-- Inga nya nätverksanrop — piggybackar på befintligt `me`-anrop.
+ASCII-flöde:
+```text
+FÖRE första arbetsbesöket:
+hem/privat adress + rörelse -> ingen auto-restid
 
-## Steg 4 — Frontend: `PlannerOnlyRoute`
+EFTER första arbetsbesöket:
+jobb/lager -> lämnar plats -> resa kan starta
+resa -> Bauhaus/tankning -> resa fortsätter
+resa -> nästa kända arbetsplats -> resa stoppas
+```
 
-`src/components/mobile-app/PlannerOnlyRoute.tsx` — wrapper som redirectar till `/m` om `!isPlanner`. Används för `/m/overview/*`.
-
-## Steg 5 — UI: villkorlig "Översikt"-tab i `MobileBottomNav`
-
-I `src/components/mobile-app/MobileBottomNav.tsx`:
-- Hämta `isPlanner` via `useMobileRoles`.
-- Om `isPlanner`: byt ut "Verktyg" mot "Översikt" som femte tab (eller lägg in den mellan Meddelanden och Verktyg och håll 5 tabbar genom att slå ihop Profil i en menyflik). 
-- **Förslag**: behåll 5 tabbar — ersätt **"Verktyg"** för planners (de använder verktygen från web). Fältarbetarna ser oförändrad nav.
-- Ikon: `LayoutGrid` eller `Eye`.
-
-## Steg 6 — Sida: `MobileOverview` med tre flikar
-
-Ny `src/pages/mobile/MobileOverview.tsx` med tabs:
-
-1. **Kalender** — kompakt dagsvy/veckovy. Återanvänd `useRealTimeCalendarEvents` om möjligt; annars konsumera `get_overview_calendar`. Tap på event → går till befintlig event-detalj via `useEventNavigation` (som redan prioriterar large project hub).
-2. **Bemanning** — lista per dag → per booking → personal med BSA-roll-badge (FÄLT/PL/etc).
-3. **Meddelanden** — enad inkorg över alla projekt-trådar; tap öppnar befintlig tråd-vy.
-
-## Steg 7 — Routing
-
-I `src/App.tsx` (eller mobil-shell-routern): lägg in `/m/overview` skyddad av `PlannerOnlyRoute`, med nestade rutter `/m/overview/calendar`, `/m/overview/staffing`, `/m/overview/messages`.
-
-## Steg 8 — Tester
-
-- `mobileApi.handleMe.appRoles.test.ts` — verifierar att `app_roles` + `is_planner` returneras korrekt för (a) staff utan user_id, (b) staff med user_id men utan user_roles, (c) staff med en roll, (d) staff med flera roller.
-- `mobileOverview.roleGating.contract.test.ts` — verifierar att `isPlanner = app_roles.length > 0` (regeln "har någon systemroll").
-- `mobileOverview.routeGuard.contract.test.ts` — verifierar att `PlannerOnlyRoute` redirectar icke-planners.
-
-## Vad som **inte** ändras
-
-- `staff_members` rörs inte. Inga nya kolumner, ingen ny roll-tabell.
-- Web-kalendern (`/calendar`) påverkas inte.
-- Befintliga mobile-actions (jobs, time, messages för individen) är oförändrade — Planner ser sin egen vanliga vy + en extra "Översikt"-tab.
-- Ingen ny inloggningsflik eller separat app — samma `/m/`-shell.
-
-## Resultat
-
-- **Billy, Joel, Nana, Ranjan** ser "Översikt"-fliken automatiskt nästa gång de loggar in i appen — utan ny config eller manuell inställning.
-- **Övriga 18** märker ingen skillnad alls.
-- Om någon framöver får en `user_roles`-rad (t.ex. ny säljare läggs till i webben) får de Översikt-fliken automatiskt.
+## Städning efter implementation
+När ändringen är godkänd och byggläget öppnas kan jag också rensa Billys felaktiga restid/workday från idag så logiken och datat matchar varandra.
