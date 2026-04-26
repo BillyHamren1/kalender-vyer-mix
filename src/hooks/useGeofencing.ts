@@ -755,6 +755,12 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
         autoStartWorkDay('geofence_enter');
+        // Report arrival to the server as well — the pre-workday travel
+        // gate uses arrival signals to know that "the day has truly started".
+        // Without this call, arriving at the warehouse first wouldn't unlock
+        // legitimate auto-travel later in the day.
+        mobileApi.reportArrival({ kind: 'location', target_id: loc.id, arrived_at: new Date().toISOString() })
+          .catch(err => console.warn('[Arrival] location register failed:', err?.message || err));
         noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
         setGeofenceEvent({
           type: 'enter',
