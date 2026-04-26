@@ -463,12 +463,28 @@ const StaffTimeReports: React.FC = () => {
           }
         }
 
+        // Watchdog signal: workday is closed but flagged needs_review,
+        // OR notes explicitly say "auto-closed". Show as "⚠ Auto-stängd"
+        // so admins can see when a stop wasn't user-initiated.
+        const notesStr: string = typeof wd.notes === 'string' ? wd.notes : '';
+        const isAutoClosed =
+          !!wd.ended_at &&
+          (notesStr.toLowerCase().includes('auto-closed') ||
+            wd.review_status === 'needs_review');
+
+        let label: string;
+        if (isStaleOpen) {
+          label = 'Arbetsdag — ej avslutad (anomali)';
+        } else if (isAutoClosed) {
+          label = '⚠ Auto-stängd arbetsdag';
+        } else {
+          label = 'Arbetsdag startad';
+        }
+
         a.segments.push({
           id: `wd:${wd.id}`,
           kind: 'workday',
-          label: isStaleOpen
-            ? 'Arbetsdag — ej avslutad (anomali)'
-            : 'Arbetsdag startad',
+          label,
           start: wd.started_at,
           end: wd.ended_at,
           isOpen,
