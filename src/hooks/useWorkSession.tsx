@@ -40,6 +40,14 @@
  * mobileApi.stopLocationTimer / mobileApi.createTimeReport from feature
  * code are the legacy shape and must be migrated.
  * ---------------------------------------------------------------------
+ * RELATION TILL RESTID:
+ *   Restid är inte den här hookens ansvar. Officiella modellen är att
+ *   restid härleds från GAPET mellan två aktiviteter (stopp på en
+ *   aktivitet → start på nästa). Live GPS-travel (useTravelDetection) är
+ *   numera ett legacy/assist-spår. När en ny aktivitet startas dispatchas
+ *   STOP_TRAVEL_EVENT för att stänga ev. öppen GPS-rad — men gap-tiden
+ *   är den auktoritativa restidskällan, inte GPS-fart.
+ * ---------------------------------------------------------------------
  */
 
 import { useCallback } from 'react';
