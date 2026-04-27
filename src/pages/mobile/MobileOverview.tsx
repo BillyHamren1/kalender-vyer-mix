@@ -11,6 +11,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { mobileApi, getToken } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
+import { extractUTCDate, extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
 const RANGE_DAYS_BACK = 7;
 const RANGE_DAYS_FWD = 21;
@@ -94,22 +95,17 @@ const MobileOverview: React.FC = () => {
   }, [assignmentsQ.data]);
 
   const formatDay = (iso: string) => {
-    try {
-      const d = parseISO(iso);
-      if (isToday(d)) return t('jobs.today');
-      if (isTomorrow(d)) return t('jobs.tomorrow');
-      return format(d, 'EEE d MMM', { locale: dateLocale });
-    } catch {
-      return iso;
-    }
+    const d = parsePlannerDate(iso);
+    if (!d) return iso;
+    if (isToday(d)) return t('jobs.today');
+    if (isTomorrow(d)) return t('jobs.tomorrow');
+    return format(d, 'EEE d MMM', { locale: dateLocale });
   };
 
   const formatTimeRange = (start: string, end: string) => {
-    try {
-      return `${format(parseISO(start), 'HH:mm')}–${format(parseISO(end), 'HH:mm')}`;
-    } catch {
-      return '';
-    }
+    const startClock = extractUTCTime(start);
+    const endClock = extractUTCTime(end);
+    return `${startClock}–${endClock}`;
   };
 
   const eventTypeColor = (type: string | null) => {
@@ -162,7 +158,7 @@ const MobileOverview: React.FC = () => {
           )}
           {eventsByDay.map(([day, events]) => (
             <div key={day}>
-              <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
+              <DayHeader label={formatDay(day)} sub={format(parsePlannerDate(day) ?? parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
               <div className="space-y-2 mt-2">
                 {events.map(ev => (
                   <button

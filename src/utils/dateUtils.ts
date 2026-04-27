@@ -108,6 +108,29 @@ export const buildPlannerDateTime = (datePart: string, time: string): string => 
   return `${datePart}T${time}:00`;
 };
 
+/**
+ * Parse YYYY-MM-DD explicitly to a stable local Date at 12:00.
+ * Avoids timezone shifts and engine inconsistencies from string Date parsing.
+ */
+export const parsePlannerDate = (value: string): Date | null => {
+  if (!value) return null;
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if ([year, month, day].some((v) => Number.isNaN(v))) return null;
+  const result = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (
+    result.getFullYear() !== year ||
+    result.getMonth() !== month - 1 ||
+    result.getDate() !== day
+  ) {
+    return null;
+  }
+  return result;
+};
+
 /** Normalize planner event types to the canonical casing used in bookings/planner UI. */
 export const normalizePlannerEventType = (value: string | null | undefined): 'rig' | 'event' | 'rigDown' | undefined => {
   if (!value) return undefined;
