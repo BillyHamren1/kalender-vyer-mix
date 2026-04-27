@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
       }
 
       case 'verify_product': {
-        const { packingId, sku: serialNumber, verifiedBy } = params
+        const { packingId, sku: serialNumber, verifiedBy, activeParcelId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
         // STATUS FLOW: First scan → set to in_progress
@@ -559,8 +559,23 @@ Deno.serve(async (req) => {
           quantity_packed: newQuantity,
           packed_at: now,
           packed_by: verifiedBy,
-          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
+          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+          ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', (selectedItem as any).id)
+
+        // PARCEL ALLOCATION: log how many units of this scan went into the active parcel
+        if (activeParcelId && incrementBy > 0 && !isAlreadyFull) {
+          const allocQty = Math.min(incrementBy, quantityToPack - currentPacked)
+          if (allocQty > 0) {
+            await supabase.from('packing_list_item_allocations').insert({
+              packing_list_item_id: (selectedItem as any).id,
+              parcel_id: activeParcelId,
+              quantity: allocQty,
+              scanned_by: verifiedBy || null,
+              organization_id: ORG_ID,
+            })
+          }
+        }
 
         // STATUS FLOW: Check if all items are now packed
         await checkIfAllPacked(supabase, packingId, ORG_ID)
