@@ -155,9 +155,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Calendar === */}
         <TabsContent value="calendar" className="mt-4 space-y-4">
-          {calendarQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'calendar') || calendarQ.isLoading) && <ListSkeleton />}
           {calendarQ.isError && <ErrorState text={t('overview.error')} />}
-          {!calendarQ.isLoading && eventsByDay.length === 0 && (
+          {hasToken && !calendarQ.isLoading && !calendarQ.isError && eventsByDay.length === 0 && (
             <EmptyState text={t('overview.empty.calendar')} />
           )}
           {eventsByDay.map(([day, events]) => (
