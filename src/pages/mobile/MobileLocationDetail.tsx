@@ -4,6 +4,7 @@ import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Na
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,6 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
-import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
