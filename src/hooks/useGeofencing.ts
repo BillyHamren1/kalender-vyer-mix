@@ -822,7 +822,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          autoStartWorkDay('geofence_enter');
+          // (workday is ensured centrally by autoActionsRef.start →
+          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
           const arrivedAtIso = new Date().toISOString();
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
