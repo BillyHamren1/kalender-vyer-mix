@@ -911,7 +911,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-        autoStartWorkDay('geofence_enter');
+        // (workday is ensured centrally by autoActionsRef.start →
+        // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
         // Report arrival to the server as well — the pre-workday travel
         // gate uses arrival signals to know that "the day has truly started".
         // Without this call, arriving at the warehouse first wouldn't unlock
