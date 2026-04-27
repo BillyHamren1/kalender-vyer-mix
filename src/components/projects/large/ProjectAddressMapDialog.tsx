@@ -177,7 +177,7 @@ export default function ProjectAddressMapDialog({
       return;
     }
     if (!token) return;
-    if (!containerRef.current) return;
+    if (!containerNode) return;
     if (mapRef.current) return;
 
     setMapStatus('loading-map');
@@ -198,7 +198,7 @@ export default function ProjectAddressMapDialog({
     let map: mapboxgl.Map;
     try {
       map = new mapboxgl.Map({
-        container: containerRef.current,
+        container: containerNode,
         style: 'mapbox://styles/mapbox/streets-v12',
         center: initialCenter,
         zoom: coords.lat != null ? 14 : 4.5,
@@ -323,7 +323,7 @@ export default function ProjectAddressMapDialog({
       setMapStatus('idle');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, token, retryCounter]);
+  }, [open, token, retryCounter, containerNode]);
 
   // Update marker + radius circle when coords/radius/mode change
   useEffect(() => {
