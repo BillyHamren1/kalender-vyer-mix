@@ -671,10 +671,104 @@ Deno.serve(async (req) => {
       }
 
       case 'assign_item_to_parcel': {
-        const { itemId, parcelId } = params
-        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
+        // New allocation-based model: a single item can be split across multiple parcels.
+        // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate
+        // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
+        const { itemId, parcelId, quantity, scannedBy, clearAllocations } = params
+
+        if (clearAllocations) {
+          const { error } = await supabase
+            .from('packing_list_item_allocations')
+            .delete()
+            .eq('packing_list_item_id', itemId)
+            .eq('organization_id', ORG_ID)
+          if (error) throw error
+          // Legacy column cleanup
+          await supabase.from('packing_list_items').update({ parcel_id: null }).eq('id', itemId).eq('organization_id', ORG_ID)
+          return json({ success: true })
+        }
+
+        if (!parcelId) return json({ success: false, error: 'parcelId required' })
+
+        const qty = Math.max(1, Number(quantity) || 1)
+
+        // Cap allocation so total allocated never exceeds quantity_to_pack
+        const { data: itemRow } = await supabase
+          .from('packing_list_items')
+          .select('quantity_to_pack')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const { data: existing } = await supabase
+          .from('packing_list_item_allocations')
+          .select('quantity')
+          .eq('packing_list_item_id', itemId)
+          .eq('organization_id', ORG_ID)
+
+        const alreadyAllocated = (existing || []).reduce((s: number, r: any) => s + (r.quantity || 0), 0)
+        const cap = itemRow?.quantity_to_pack ?? qty
+        const remaining = Math.max(0, cap - alreadyAllocated)
+        const finalQty = Math.min(qty, remaining)
+
+        if (finalQty <= 0) {
+          return json({ success: true, skipped: true, reason: 'fully_allocated' })
+        }
+
+        const { error } = await supabase
+          .from('packing_list_item_allocations')
+          .insert({
+            packing_list_item_id: itemId,
+            parcel_id: parcelId,
+            quantity: finalQty,
+            scanned_by: scannedBy || null,
+            organization_id: ORG_ID,
+          })
         if (error) throw error
-        return json({ success: true })
+
+        // Keep legacy parcel_id pointing at the most recent parcel for back-compat consumers.
+        await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        return json({ success: true, quantityAllocated: finalQty })
+      }
+
+      case 'get_item_allocations': {
+        // Returns: { [itemId]: [{ parcelId, parcelNumber, quantity }] }
+        const { packingId } = params
+
+        const { data: items } = await supabase
+          .from('packing_list_items')
+          .select('id')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+
+        const itemIds = (items || []).map((i: any) => i.id)
+        if (itemIds.length === 0) return json({})
+
+        const { data: allocs } = await supabase
+          .from('packing_list_item_allocations')
+          .select('packing_list_item_id, parcel_id, quantity, scanned_at')
+          .in('packing_list_item_id', itemIds)
+          .eq('organization_id', ORG_ID)
+          .order('scanned_at', { ascending: true })
+
+        const parcelIds = [...new Set((allocs || []).map((a: any) => a.parcel_id))]
+        const { data: parcels } = parcelIds.length
+          ? await supabase.from('packing_parcels').select('id, parcel_number').in('id', parcelIds)
+          : { data: [] }
+        const parcelMap: Record<string, number> = {}
+        ;(parcels || []).forEach((p: any) => { parcelMap[p.id] = p.parcel_number })
+
+        const result: Record<string, Array<{ parcelId: string; parcelNumber: number; quantity: number }>> = {}
+        ;(allocs || []).forEach((a: any) => {
+          const arr = result[a.packing_list_item_id] || (result[a.packing_list_item_id] = [])
+          // Merge same parcel rows for compact UI
+          const existing = arr.find(x => x.parcelId === a.parcel_id)
+          if (existing) existing.quantity += a.quantity
+          else arr.push({ parcelId: a.parcel_id, parcelNumber: parcelMap[a.parcel_id] ?? 0, quantity: a.quantity })
+        })
+
+        return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
       case 'get_parcels': {
