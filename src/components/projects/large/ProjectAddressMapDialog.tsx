@@ -12,6 +12,14 @@
  *    Mapbox Draw).
  *  • Sparar address, address_latitude, address_longitude,
  *    address_radius_meters, address_geofence_mode, address_geofence_polygon.
+ *
+ * ROBUSTHET (2026-04):
+ *  • Karta init har explicit error/timeout state — ingen evig spinner.
+ *  • map.on('error', ...) fångar token-/style-/tile-fel och visar UI.
+ *  • Saftytimeout (8s): om `load` aldrig fyrar markeras kartan som
+ *    misslyckad istället för att spinnern hänger för alltid.
+ *  • Retry-knapp river ner mapRef och försöker igen.
+ *  • Adressfältet/typeahead är användbart även om kartan failar.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
@@ -27,7 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Loader2, MapPin, Search, Trash2, Pencil } from 'lucide-react';
+import { Loader2, MapPin, Search, Trash2, Pencil, AlertTriangle, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MapboxFeature {
@@ -58,6 +66,9 @@ export interface ProjectAddressMapDialogProps {
 }
 
 const DEFAULT_CENTER: [number, number] = [15.5, 62.0]; // Sweden centroid
+const MAP_LOAD_TIMEOUT_MS = 8000;
+
+type MapStatus = 'idle' | 'loading-token' | 'loading-map' | 'ready' | 'error';
 
 export default function ProjectAddressMapDialog({
   open,
@@ -74,8 +85,12 @@ export default function ProjectAddressMapDialog({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
+  const loadTimeoutRef = useRef<number | null>(null);
+
   const [token, setToken] = useState<string | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const [mapStatus, setMapStatus] = useState<MapStatus>('idle');
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [retryCounter, setRetryCounter] = useState(0);
 
   const [address, setAddress] = useState(initialAddress ?? '');
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({
@@ -102,36 +117,72 @@ export default function ProjectAddressMapDialog({
     setMode(initialGeofenceMode ?? 'circle');
     setPolygon(initialGeofencePolygon ?? null);
     setSuggestions([]);
+    setMapError(null);
   }, [open, initialAddress, initialLatitude, initialLongitude, initialRadiusMeters, initialGeofenceMode, initialGeofencePolygon]);
 
-  // Fetch token once
+  // Fetch token (re-fetched on retry too)
   useEffect(() => {
+    if (!open) return;
     if (token) return;
+    let cancelled = false;
+    setMapStatus('loading-token');
+    setMapError(null);
     supabase.functions.invoke('mapbox-token')
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error || !data?.token) {
           console.error('[ProjectAddressMapDialog] mapbox-token failed:', error);
-          toast.error('Kunde inte ladda Mapbox-token');
+          setMapError('Kunde inte hämta Mapbox-token. Kontrollera att MAPBOX_PUBLIC_TOKEN är satt.');
+          setMapStatus('error');
           return;
         }
         setToken(data.token);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[ProjectAddressMapDialog] mapbox-token threw:', err);
+        setMapError(err?.message || 'Kunde inte hämta Mapbox-token');
+        setMapStatus('error');
       });
-  }, [token]);
+    return () => { cancelled = true; };
+  }, [open, token, retryCounter]);
 
   // Init map when dialog open + token ready
   useEffect(() => {
-    if (!open || !token || !containerRef.current || mapRef.current) return;
+    if (!open || !token) return;
+    if (!containerRef.current) return;
+    if (mapRef.current) return;
 
-    mapboxgl.accessToken = token;
+    setMapStatus('loading-map');
+    setMapError(null);
+
+    try {
+      mapboxgl.accessToken = token;
+    } catch (e) {
+      console.error('[ProjectAddressMapDialog] failed to set accessToken:', e);
+      setMapError('Mapbox-token kunde inte sättas');
+      setMapStatus('error');
+      return;
+    }
+
     const initialCenter: [number, number] =
       coords.lng != null && coords.lat != null ? [coords.lng, coords.lat] : DEFAULT_CENTER;
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: initialCenter,
-      zoom: coords.lat != null ? 14 : 4.5,
-    });
+    let map: mapboxgl.Map;
+    try {
+      map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: initialCenter,
+        zoom: coords.lat != null ? 14 : 4.5,
+        attributionControl: false,
+      });
+    } catch (e: any) {
+      console.error('[ProjectAddressMapDialog] mapboxgl.Map ctor failed:', e);
+      setMapError(e?.message || 'Kunde inte skapa kartan');
+      setMapStatus('error');
+      return;
+    }
     mapRef.current = map;
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
@@ -144,8 +195,37 @@ export default function ProjectAddressMapDialog({
     drawRef.current = draw;
     map.addControl(draw as any, 'top-left');
 
+    // Safety timeout — if `load` never fires, surface an error instead of
+    // an eternal spinner. Common causes: network blocked, invalid token,
+    // tile CDN unreachable.
+    loadTimeoutRef.current = window.setTimeout(() => {
+      if (mapRef.current === map && mapStatus !== 'ready') {
+        console.warn('[ProjectAddressMapDialog] map load timeout');
+        setMapError('Kartan tog för lång tid att ladda. Kontrollera nätverk och Mapbox-token.');
+        setMapStatus('error');
+      }
+    }, MAP_LOAD_TIMEOUT_MS);
+
+    const onError = (e: any) => {
+      const msg = e?.error?.message || e?.message || 'Okänt kartfel';
+      console.error('[ProjectAddressMapDialog] map error:', msg, e);
+      // Only flip to error if we are not yet ready (post-ready errors are
+      // tile-specific and shouldn't kill the UI).
+      setMapStatus((prev) => {
+        if (prev === 'ready') return prev;
+        setMapError(msg);
+        return 'error';
+      });
+    };
+    map.on('error', onError);
+
     map.on('load', () => {
-      setMapReady(true);
+      if (loadTimeoutRef.current) {
+        window.clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
+      setMapStatus('ready');
+      setMapError(null);
 
       // Initial marker
       if (coords.lat != null && coords.lng != null) {
@@ -168,7 +248,7 @@ export default function ProjectAddressMapDialog({
         }
       }
 
-      // Initial radius circle
+      // Initial radius circle (only safe after style.load)
       ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
     });
 
@@ -190,19 +270,24 @@ export default function ProjectAddressMapDialog({
     map.on('draw.delete', onDraw);
 
     return () => {
-      map.remove();
+      if (loadTimeoutRef.current) {
+        window.clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
+      try { map.off('error', onError); } catch { /* noop */ }
+      try { map.remove(); } catch { /* noop */ }
       mapRef.current = null;
       markerRef.current = null;
       drawRef.current = null;
-      setMapReady(false);
+      setMapStatus('idle');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, token]);
+  }, [open, token, retryCounter]);
 
   // Update marker + radius circle when coords/radius/mode change
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady) return;
+    if (!map || mapStatus !== 'ready') return;
 
     if (coords.lat != null && coords.lng != null) {
       if (markerRef.current) {
@@ -223,9 +308,9 @@ export default function ProjectAddressMapDialog({
     }
 
     ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
-  }, [coords, radius, mode, mapReady]);
+  }, [coords, radius, mode, mapStatus]);
 
-  // Address typeahead (debounced)
+  // Address typeahead (debounced) — works even if the map failed
   useEffect(() => {
     if (!token) return;
     if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
@@ -254,9 +339,28 @@ export default function ProjectAddressMapDialog({
     setSearchInput(f.place_name);
     setCoords({ lat, lng });
     setSuggestions([]);
-    if (mapRef.current) {
+    if (mapRef.current && mapStatus === 'ready') {
       mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
     }
+  }, [mapStatus]);
+
+  const handleRetry = useCallback(() => {
+    // Tear down current map and re-init.
+    if (loadTimeoutRef.current) {
+      window.clearTimeout(loadTimeoutRef.current);
+      loadTimeoutRef.current = null;
+    }
+    if (mapRef.current) {
+      try { mapRef.current.remove(); } catch { /* noop */ }
+      mapRef.current = null;
+      markerRef.current = null;
+      drawRef.current = null;
+    }
+    setMapError(null);
+    setMapStatus('idle');
+    // Force token re-fetch as well in case it expired.
+    setToken(null);
+    setRetryCounter((n) => n + 1);
   }, []);
 
   const handleSave = async () => {
@@ -288,6 +392,9 @@ export default function ProjectAddressMapDialog({
     setPolygon(null);
   };
 
+  const showLoading = mapStatus === 'loading-token' || mapStatus === 'loading-map' || mapStatus === 'idle';
+  const showError = mapStatus === 'error';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden">
@@ -301,13 +408,37 @@ export default function ProjectAddressMapDialog({
           {/* Map */}
           <div className="relative h-[480px] bg-muted">
             <div ref={containerRef} className="absolute inset-0" />
-            {(!token || !mapReady) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-muted/60">
+
+            {showLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/70 text-xs text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>
+                  {mapStatus === 'loading-token' ? 'Hämtar Mapbox-token…' : 'Laddar karta…'}
+                </span>
               </div>
             )}
+
+            {showError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/90 px-6 text-center">
+                <AlertTriangle className="h-7 w-7 text-destructive" />
+                <div className="text-sm font-medium text-foreground">
+                  Kartan kunde inte laddas
+                </div>
+                <div className="text-xs text-muted-foreground max-w-xs">
+                  {mapError || 'Okänt fel vid kartinit.'}
+                </div>
+                <Button size="sm" variant="outline" onClick={handleRetry} className="mt-1">
+                  <RotateCw className="h-3.5 w-3.5 mr-1.5" />
+                  Försök igen
+                </Button>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Du kan fortfarande söka adress och spara koordinater i panelen till höger.
+                </p>
+              </div>
+            )}
+
             {coords.lat != null && coords.lng != null && (
-              <div className="absolute bottom-3 left-3 bg-card/95 backdrop-blur rounded-md px-2.5 py-1.5 shadow-md border border-border text-xs font-medium">
+              <div className="absolute bottom-3 left-3 bg-card/95 backdrop-blur rounded-md px-2.5 py-1.5 shadow-md border border-border text-xs font-medium pointer-events-none">
                 📍 {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
               </div>
             )}
@@ -432,14 +563,19 @@ function ensureRadiusCircle(
   radiusM: number,
   mode: 'circle' | 'polygon',
 ) {
+  // Defensive: never touch sources/layers before the style is ready.
+  if (!map.isStyleLoaded()) return;
+
   const SRC = 'project-radius-src';
   const LAYER_FILL = 'project-radius-fill';
   const LAYER_LINE = 'project-radius-line';
 
   const remove = () => {
-    if (map.getLayer(LAYER_FILL)) map.removeLayer(LAYER_FILL);
-    if (map.getLayer(LAYER_LINE)) map.removeLayer(LAYER_LINE);
-    if (map.getSource(SRC)) map.removeSource(SRC);
+    try {
+      if (map.getLayer(LAYER_FILL)) map.removeLayer(LAYER_FILL);
+      if (map.getLayer(LAYER_LINE)) map.removeLayer(LAYER_LINE);
+      if (map.getSource(SRC)) map.removeSource(SRC);
+    } catch { /* swallow */ }
   };
 
   if (mode !== 'circle' || lat == null || lng == null) {
@@ -460,15 +596,19 @@ function ensureRadiusCircle(
     return;
   }
 
-  map.addSource(SRC, { type: 'geojson', data: data as any });
-  map.addLayer({
-    id: LAYER_FILL, type: 'fill', source: SRC,
-    paint: { 'fill-color': '#2dd4bf', 'fill-opacity': 0.15 },
-  });
-  map.addLayer({
-    id: LAYER_LINE, type: 'line', source: SRC,
-    paint: { 'line-color': '#0d9488', 'line-width': 2 },
-  });
+  try {
+    map.addSource(SRC, { type: 'geojson', data: data as any });
+    map.addLayer({
+      id: LAYER_FILL, type: 'fill', source: SRC,
+      paint: { 'fill-color': '#2dd4bf', 'fill-opacity': 0.15 },
+    });
+    map.addLayer({
+      id: LAYER_LINE, type: 'line', source: SRC,
+      paint: { 'line-color': '#0d9488', 'line-width': 2 },
+    });
+  } catch (e) {
+    console.warn('[ensureRadiusCircle] failed:', e);
+  }
 }
 
 function circlePolygon(center: [number, number], radiusM: number, points = 64): number[][] {
