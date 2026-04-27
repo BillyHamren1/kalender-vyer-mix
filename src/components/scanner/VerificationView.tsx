@@ -63,7 +63,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   // --- Hooks ---
   const {
-    packing, items, progress, isLoading, loadData,
+    packing, items, progress, isLoading, notReady, loadData,
     recalcProgress, applyOptimisticIncrement, applyOptimisticDecrement, setItems,
   } = useOptimisticPacking(packingId);
 
@@ -202,6 +202,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       <div className="flex items-center justify-center min-h-[50vh]">
         <RefreshCw className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // --- Not-ready state: server explicitly refused (booking has products,
+  // packing list is empty). Show repair UI instead of mounting scanner. ---
+  if (notReady) {
+    return (
+      <PackingNotReadyView
+        notReady={notReady}
+        onBack={onBack}
+        onRepaired={() => loadData(false)}
+      />
     );
   }
 
