@@ -170,7 +170,40 @@ const parseTimeRange = (value: unknown): { start: string; end: string } | undefi
 };
 
 /**
+ * Compute Europe/Stockholm UTC offset (in minutes) for a given wall-clock instant.
+ * DST-aware: returns 60 for CET, 120 for CEST. Uses Intl.DateTimeFormat which is
+ * available in the Deno runtime.
+ */
+const stockholmOffsetMinutes = (date: string, time: string): number => {
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm, ss] = time.split(':').map(Number);
+  if ([y, m, d, hh, mm].some((v) => Number.isNaN(v))) return 60;
+  const utcGuess = Date.UTC(y, m - 1, d, hh, mm, ss || 0);
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  });
+  const parts = fmt.formatToParts(new Date(utcGuess)).reduce<Record<string, string>>((acc, p) => {
+    if (p.type !== 'literal') acc[p.type] = p.value;
+    return acc;
+  }, {});
+  const wallUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour === 24 ? 0 : +parts.hour, +parts.minute, ss || 0);
+  return Math.round((wallUtc - utcGuess) / 60000);
+};
+
+/** Format an offset in minutes as `+HH:MM` / `-HH:MM`. */
+const formatOffset = (offsetMin: number): string => {
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+};
+
+/**
  * Build a datetime string from a date and an explicit time value.
+ * The result includes the Europe/Stockholm UTC offset (DST-aware) so that
+ * Postgres `timestamptz` columns store the correct instant.
+ *
  * Returns { dateTime, isExplicit } so callers know whether a real
  * booking time was used or a fallback default.
  */
@@ -181,7 +214,8 @@ const buildDateTimeFromPartsEx = (
 ): { dateTime: string; isExplicit: boolean } => {
   const extracted = extractTimePart(explicitTime);
   const time = extracted || fallbackTime;
-  return { dateTime: `${date}T${time}`, isExplicit: !!extracted };
+  const offset = formatOffset(stockholmOffsetMinutes(date, time));
+  return { dateTime: `${date}T${time}${offset}`, isExplicit: !!extracted };
 };
 
 /** Legacy wrapper — returns just the datetime string */
