@@ -84,28 +84,24 @@ async function transitionToInProgress(supabase: any, packingId: string, orgId: s
 }
 
 async function checkIfAllPacked(supabase: any, packingId: string, orgId: string) {
-  // Check if all items have quantity_packed >= quantity_to_pack
+  // Use the shared packing-progress helper so this evaluation is BIT-FOR-BIT
+  // identical to what the UI shows. See `supabase/functions/_shared/packing-progress.ts`
+  // and its mirror `src/lib/packing/progress.ts` for the rule.
+  //
+  // We must fetch the same columns the helper inspects: `excluded` (so excluded
+  // rows don't keep status stuck at in_progress when the UI considers them done)
+  // and the booking_products id + parent_product_id (so package headers are
+  // collapsed exactly the same way).
   const { data: items, error } = await supabase
     .from('packing_list_items')
-    .select('id, quantity_to_pack, quantity_packed, booking_products!inner(is_package_component, parent_product_id)')
+    .select('id, excluded, quantity_to_pack, quantity_packed, booking_products(id, parent_product_id)')
     .eq('packing_id', packingId)
     .eq('organization_id', orgId)
 
   if (error || !items || items.length === 0) return
 
-  // Only count non-parent items (exclude package headers)
-  const countableItems = items.filter((item: any) => {
-    const bp = item.booking_products
-    // Exclude items that are package headers (have children but are not components themselves)
-    return bp?.is_package_component !== false || bp?.parent_product_id !== null
-  })
-
-  // If no countable items, check all items instead
-  const itemsToCheck = countableItems.length > 0 ? countableItems : items
-
-  const allPacked = itemsToCheck.every((item: any) => 
-    (item.quantity_packed || 0) >= item.quantity_to_pack
-  )
+  const desired = deriveStatusFromProgress(items)
+  if (desired === null) return // empty list — leave status untouched
 
   const { data: packing } = await supabase
     .from('packing_projects')
@@ -114,16 +110,18 @@ async function checkIfAllPacked(supabase: any, packingId: string, orgId: string)
     .eq('organization_id', orgId)
     .single()
 
-  if (allPacked && packing?.status === 'in_progress') {
+  const current = packing?.status
+  // Only flip between in_progress ↔ packed. `pending` is owned by upstream
+  // creation logic and must not be overwritten here.
+  if (desired === 'packed' && current === 'in_progress') {
     console.log(`[status-flow] ${packingId}: in_progress → packed`)
     await supabase
       .from('packing_projects')
       .update({ status: 'packed', updated_at: new Date().toISOString() })
       .eq('id', packingId)
       .eq('organization_id', orgId)
-  } else if (!allPacked && packing?.status === 'packed') {
-    // Revert if items were decremented/unpacked
-    console.log(`[status-flow] ${packingId}: packed → in_progress (items unpacked)`)
+  } else if (desired === 'in_progress' && current === 'packed') {
+    console.log(`[status-flow] ${packingId}: packed → in_progress (items unpacked or excluded changed)`)
     await supabase
       .from('packing_projects')
       .update({ status: 'in_progress', updated_at: new Date().toISOString() })
