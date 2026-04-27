@@ -94,10 +94,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'codabar'],
       });
       setHasBarcodeDetector(true);
+      debugRef.current.detectorReady = true;
       console.log('[QRScanner] BarcodeDetector ready (native:', 'BarcodeDetector' in window, ')');
     } catch (e) {
       console.warn('[QRScanner] BarcodeDetector init failed:', e);
       setHasBarcodeDetector(false);
+      debugRef.current.detectorReady = false;
       reportDiagnostic({
         code: 'BARCODE_DETECTOR_INIT_FAILED',
         source: 'scanner.qr',
@@ -109,6 +111,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       });
     }
   }, [shouldSkipCamera]);
+
+  // Periodic debug re-render (only when overlay enabled)
+  useEffect(() => {
+    if (!debugVisible) return;
+    const id = setInterval(() => forceDebugTick((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, [debugVisible]);
 
   // Stable ref for onScan to avoid callback chain recreation
   const onScanRef = useRef(onScan);
