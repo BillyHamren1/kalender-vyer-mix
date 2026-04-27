@@ -45,6 +45,11 @@ const MobileJobDetail = () => {
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
   const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
 
+  // If this booking belongs to a large project, all time is reported on the
+  // project total (not per sub-booking). Hide the standalone timer here and
+  // direct the user back to the project card to start/stop.
+  const largeProjectId = (booking as any)?.large_project_id ?? null;
+  const isProjectBooking = Boolean(largeProjectId);
 
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
