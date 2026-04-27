@@ -883,24 +883,34 @@ async function reconcileCalendarEvents(
 
     if (existing) {
       matchedExistingIds.add(existing.id);
-      const needsUpdate =
+
+      // STABILITY: never move a non-explicit (default 08:00) event that's already
+      // been placed by an earlier reconcile pass. The desired.start_time is just
+      // a preference for *new* events. Only force a time update when the booking
+      // now has an EXPLICIT time and that explicit time differs from existing.
+      const explicitTimeChanged = desired.isExplicitStart && (
         existing.start_time !== desired.start_time ||
-        existing.end_time !== desired.end_time ||
+        existing.end_time !== desired.end_time
+      );
+      const metaChanged =
         existing.title !== desired.title ||
         existing.booking_number !== desired.booking_number ||
         existing.delivery_address !== desired.delivery_address;
 
-      if (needsUpdate) {
-        console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): time/title/address changed`);
+      if (explicitTimeChanged || metaChanged) {
+        console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): ${explicitTimeChanged ? 'explicit time' : 'meta'} changed`);
+        const updatePayload: any = {
+          title: desired.title,
+          booking_number: desired.booking_number,
+          delivery_address: desired.delivery_address,
+        };
+        if (explicitTimeChanged) {
+          updatePayload.start_time = desired.start_time;
+          updatePayload.end_time = desired.end_time;
+        }
         const { error: updateErr } = await supabase
           .from('calendar_events')
-          .update({
-            start_time: desired.start_time,
-            end_time: desired.end_time,
-            title: desired.title,
-            booking_number: desired.booking_number,
-            delivery_address: desired.delivery_address,
-          })
+          .update(updatePayload)
           .eq('id', existing.id);
 
         if (updateErr) {
@@ -912,7 +922,7 @@ async function reconcileCalendarEvents(
         console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
       }
     } else {
-      const assignedTeam = await getNextTeamAssignment(
+      const placement = await assignTeamAndTime(
         supabase,
         desired.event_type,
         desired.date,
@@ -923,11 +933,11 @@ async function reconcileCalendarEvents(
         desired.isExplicitStart
       );
 
-      if (results.team_distribution[assignedTeam] !== undefined) {
-        results.team_distribution[assignedTeam]++;
+      if (results.team_distribution[placement.team] !== undefined) {
+        results.team_distribution[placement.team]++;
       }
 
-      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${assignedTeam}`);
+      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}`);
 
       const { error: insertErr } = await supabase
         .from('calendar_events')
@@ -935,11 +945,11 @@ async function reconcileCalendarEvents(
           booking_id: bookingData.id,
           booking_number: desired.booking_number,
           title: desired.title,
-          start_time: desired.start_time,
-          end_time: desired.end_time,
+          start_time: placement.start_time,
+          end_time: placement.end_time,
           event_type: desired.event_type,
           delivery_address: desired.delivery_address,
-          resource_id: assignedTeam,
+          resource_id: placement.team,
           organization_id: bookingData.organization_id || organizationId,
           source_date: desired.date
         });
