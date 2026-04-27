@@ -4,6 +4,8 @@ import App from './App.tsx'
 import './index.css'
 import { APP_MODE, isScannerApp, getDefaultRoute } from './config/appMode'
 import { Capacitor } from '@capacitor/core'
+import { initializeGlobalDiagnostics } from './services/diagnostics/diagnostics'
+import { GlobalErrorBoundary } from './components/diagnostics/GlobalErrorBoundary'
 
 // Detect scanner mode and swap icons/manifest dynamically
 if (isScannerApp) {
@@ -27,4 +29,10 @@ if (Capacitor.isNativePlatform() && window.location.pathname === '/') {
   window.history.replaceState(null, '', getDefaultRoute());
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+initializeGlobalDiagnostics();
+
+createRoot(document.getElementById("root")!).render(
+  <GlobalErrorBoundary>
+    <App />
+  </GlobalErrorBoundary>
+);
