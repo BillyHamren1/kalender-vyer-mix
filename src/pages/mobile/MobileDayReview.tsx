@@ -146,6 +146,23 @@ export default function MobileDayReview() {
     }
   };
 
+  /**
+   * Wrap any gap action with busy-state and force a re-render so locally
+   * resolved gaps disappear immediately. We only re-fetch the server list
+   * when the action actually creates a travel_time_log.
+   */
+  const runGapAction = async (gapKey: string, fn: () => Promise<void>, refetch = false) => {
+    if (busyGapKey) return;
+    setBusyGapKey(gapKey);
+    try {
+      await fn();
+      setResolvedTick((n) => n + 1);
+      if (refetch) await load(false);
+    } finally {
+      setBusyGapKey(null);
+    }
+  };
+
   const handleApprove = async (wd: ReviewWorkday) => {
     if (busyDayId) return;
     if ((wd as any).synthetic) return; // syntetisk dag kan inte godkännas direkt
