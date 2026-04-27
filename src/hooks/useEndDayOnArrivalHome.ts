@@ -198,9 +198,10 @@ export function useEndDayOnArrivalHome(
             }
           }
 
-          const result = await syncWorkDayEnd(chosenEndIso);
+          const result = await endWorkdayFlow({ endedAtIso: chosenEndIso });
           if (!result.ok) {
-            console.warn('[useEndDayOnArrivalHome] syncWorkDayEnd failed:', result.error);
+            console.warn('[useEndDayOnArrivalHome] endWorkdayFlow failed:', result.error);
+            // needsReview → fallback-dialog tar över via suggestion.
             setSuggestion({ workplaceName, exitedAtIso, timerKey, timer, reason: 'workday_end_failed' });
             return;
           }
@@ -224,9 +225,7 @@ export function useEndDayOnArrivalHome(
             } catch { /* non-fatal */ }
           }
 
-          markWorkdayEnded(chosenEndIso);
           localStorage.setItem(AUTO_ENDED_KEY_PREFIX + today, '1');
-          try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
 
           const hhmm = new Date(chosenEndIso).toLocaleTimeString('sv-SE', {
             hour: '2-digit', minute: '2-digit',
