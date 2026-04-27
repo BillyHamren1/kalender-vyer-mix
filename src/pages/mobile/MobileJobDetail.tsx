@@ -6,7 +6,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Mail, User, Clock, Loader2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Mail, User, Clock, Loader2, ChevronDown, FolderOpen } from 'lucide-react';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
