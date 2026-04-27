@@ -269,8 +269,16 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
       clearTravelState();
       console.log('[TravelDetection] Travel stopped, classification:', result.travel_log?.classification);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[TravelDetection] Failed to stop travel:', err);
+      // If the server explicitly says the row is gone / not found, clear
+      // the local banner so the user is not stuck. Network errors leave
+      // local state intact so a retry can happen.
+      const msg = String(err?.message || '');
+      if (msg.includes('not found') || msg.includes('404')) {
+        console.log('[TravelDetection] Server reports travel gone — clearing local banner.');
+        clearTravelState();
+      }
     } finally {
       if (stopInFlightRef.current === currentLogId) {
         stopInFlightRef.current = null;
