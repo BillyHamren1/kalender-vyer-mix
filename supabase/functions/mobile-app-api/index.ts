@@ -953,7 +953,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   }
 
   const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
-  const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds])]
+  const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds, ...teamDerivedBookingIds])]
 
   // Separate location-based booking IDs from real booking IDs
   const locationBookingIds = allBookingIds.filter(id => id.startsWith('location-'))
