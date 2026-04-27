@@ -169,8 +169,24 @@ const MobileGlobalOverlays: React.FC = () => {
   // Registrera auto-start (tryStartFromArrival) + auto-stop (stopSession)
   // som modul-globala callbacks som useGeofencing kallar i ENTER/EXIT.
   // Utan denna registrering faller geofence tillbaka på prompt-flödet.
+  //
+  // STOP-AT-TIME-OF-EXIT (2026-04 fix):
+  //   `activeTimersForAssistant` är en cached snapshot som uppdateras via
+  //   event + 15s-poll och kan vara stale när EXIT triggar. För att stoppa
+  //   rätt timer läser vi FRESH state direkt från localStorage vid stop-
+  //   tillfället. Vi har också en lokal in-flight-set som dedupar parallella
+  //   exit-events för samma key.
+  const stopInFlightRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!staff) return;
+    const readFreshTimers = (): Map<string, ActiveTimer> => {
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-timers');
+        return new Map(raw ? JSON.parse(raw) : []);
+      } catch {
+        return new Map();
+      }
+    };
     const dispose = registerGeofenceAutoActions({
       start: async ({ kind, targetId, label }) => {
         const workTarget: WorkTarget | null =
@@ -182,14 +198,29 @@ const MobileGlobalOverlays: React.FC = () => {
         return { status };
       },
       stop: async ({ key, exitedAtIso }) => {
-        const t = activeTimersForAssistant.get(key);
-        if (!t) return; // inget att stoppa
-        const target = timerToTarget(key, t);
-        await stopSession(target, { stopAtIso: exitedAtIso });
+        // Dedupe: ignorera om ett stop för samma key redan är pågående.
+        if (stopInFlightRef.current.has(key)) {
+          console.log('[GeofenceAutoStop] skip — already in flight', { key });
+          return;
+        }
+        // Läs FRESH timer-state vid stop-tillfället, inte snapshot.
+        const fresh = readFreshTimers();
+        const t = fresh.get(key);
+        if (!t) {
+          console.log('[GeofenceAutoStop] skip — no active timer for key', { key });
+          return;
+        }
+        stopInFlightRef.current.add(key);
+        try {
+          const target = timerToTarget(key, t);
+          await stopSession(target, { stopAtIso: exitedAtIso });
+        } finally {
+          stopInFlightRef.current.delete(key);
+        }
       },
     });
     return dispose;
-  }, [staff, tryStartFromArrival, stopSession, activeTimersForAssistant]);
+  }, [staff, tryStartFromArrival, stopSession]);
 
   // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
   const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
