@@ -607,8 +607,10 @@ Deno.serve(async (req) => {
 
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
-            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null
+            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
+          // Clear all parcel allocations on full reset
+          await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
         } else {
           // STATUS FLOW: First manual toggle → set to in_progress
           if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
@@ -617,13 +619,25 @@ Deno.serve(async (req) => {
           const currentQty = currentItem?.quantity_packed || 0
           const newQty = Math.min(currentQty + 1, quantityToPack)
           const isFull = newQty >= quantityToPack
+          const activeParcelId = (params as any).activeParcelId
 
           await supabase.from('packing_list_items').update({
             quantity_packed: newQty,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {})
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
           }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+          if (activeParcelId && newQty > currentQty) {
+            await supabase.from('packing_list_item_allocations').insert({
+              packing_list_item_id: itemId,
+              parcel_id: activeParcelId,
+              quantity: newQty - currentQty,
+              scanned_by: verifiedBy || null,
+              organization_id: ORG_ID,
+            })
+          }
         }
 
         // STATUS FLOW: Check if all items are now packed (or reverted)
@@ -651,8 +665,26 @@ Deno.serve(async (req) => {
           quantity_packed: newQty,
           verified_at: null,
           verified_by: null,
-          ...(newQty === 0 ? { packed_at: null, packed_by: null } : {})
+          ...(newQty === 0 ? { packed_at: null, packed_by: null, parcel_id: null } : {})
         }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        // PARCEL ALLOCATION: remove 1 unit from the most-recent allocation
+        const { data: lastAlloc } = await supabase
+          .from('packing_list_item_allocations')
+          .select('id, quantity')
+          .eq('packing_list_item_id', itemId)
+          .eq('organization_id', ORG_ID)
+          .order('scanned_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (lastAlloc) {
+          if ((lastAlloc as any).quantity <= 1) {
+            await supabase.from('packing_list_item_allocations').delete().eq('id', (lastAlloc as any).id)
+          } else {
+            await supabase.from('packing_list_item_allocations').update({ quantity: (lastAlloc as any).quantity - 1 }).eq('id', (lastAlloc as any).id)
+          }
+        }
 
         // STATUS FLOW: Items decremented, may revert from packed → in_progress
         if (currentItem?.packing_id) {
