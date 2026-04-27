@@ -339,6 +339,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
     const onRequestEndDay = async () => {
+      // Fresh end-day attempt → clear any stale "cancelled" flag from a
+      // previous run so we actually end the day this time.
+      eodCancelledRef.current = false;
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
         // Inga aktiva timers → kör direkt central end-day-rutin.
