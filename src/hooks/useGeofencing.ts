@@ -645,9 +645,40 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     };
   }, []); // Single watcher, refs used for current values
 
-  // Geofence checks for bookings AND fixed locations
-  // Also: trigger background anomalies (absence tracking) when leaving/re-entering
-  // a geofence while a timer is active. Job timer KEEPS running.
+  // ── GEOFENCE ENTER/EXIT CONTRACT (Tidappen, Auto-first 2026-04) ───────
+  //
+  // Geofence ENTER = "användaren har kommit till en riktig arbetsplats".
+  // Den hanteras ALLTID i denna ordning, oavsett target (project / booking /
+  // location):
+  //
+  //   1. Confidence-gate FÖRST. Vi startar inget automatiskt om matchen
+  //      inte är tillförlitlig:
+  //        • bookings/projects  → kräver att användaren är assigned IDAG
+  //          (`isAssignedToday`). Att bara råka passera adressen räknas
+  //          inte som arrival.
+  //        • fixed locations    → kräver `accuracyOk` (GPS accuracy under
+  //          GEOFENCE_MAX_ACCURACY_M) + hysteresis via `evalShouldEnter`.
+  //      Faller gaten → vi startar varken workday eller aktivitet. Vi kan
+  //      logga assistant-event för review, men gör ingen autostart.
+  //
+  //   2. Delegera start till central action (`autoActionsRef.start`), som
+  //      i sin tur går genom useTimerStartFlow.tryStartFromArrival. Den
+  //      vägen säkerställer:
+  //        a) Workday-first: `ensureWorkDayActive()` körs FÖRST.
+  //           - Ingen dag aktiv → starta dag.
+  //           - Dag redan aktiv → no-op (server idempotent + lokal dedupe).
+  //           Misslyckas workday → aktivitet startas INTE.
+  //        b) Aktivitet startas för rätt target (project | booking | location).
+  //        c) Konfliktlogik: redan aktiv för exakt samma target = duplicate
+  //           (no-op). Annan timer aktiv = TimerConflictDialog.
+  //      → Ingen dubbelstart av workday och inga parallella aktiva timers.
+  //
+  // Denna hook äger ENDAST signal-sidan (detect + delegate). Den startar
+  // aldrig workday själv och skriver inte time_reports direkt.
+  //
+  // EXIT-grenarna stoppar löpande activity via autoActionsRef.stop och
+  // skickar `workplace-exit`-event för downstream-beslut. Att stoppa en
+  // aktivitet avslutar ALDRIG workdayen (det är "Avsluta dagen", separat).
   useEffect(() => {
     if (!userPosition) return;
 
