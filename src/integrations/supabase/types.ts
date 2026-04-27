@@ -2755,6 +2755,54 @@ export type Database = {
           },
         ]
       }
+      packing_list_item_allocations: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          packing_list_item_id: string
+          parcel_id: string
+          quantity: number
+          scanned_at: string
+          scanned_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          packing_list_item_id: string
+          parcel_id: string
+          quantity: number
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          packing_list_item_id?: string
+          parcel_id?: string
+          quantity?: number
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_list_item_allocations_packing_list_item_id_fkey"
+            columns: ["packing_list_item_id"]
+            isOneToOne: false
+            referencedRelation: "packing_list_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_item_allocations_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "packing_parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_list_items: {
         Row: {
           booking_product_id: string | null
