@@ -145,8 +145,8 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
   const [completedTravel, setCompletedTravel] = useState<TravelCompletedInfo | null>(null);
 
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
-  const startDebounceRef = useRef<number | null>(null);
-  const startInFlightRef = useRef(false);
+  // startDebounceRef + startInFlightRef removed — we no longer auto-start
+  // travel from GPS speed (gap-modellen är auktoritativ).
   const stopInFlightRef = useRef<string | null>(null);
   
   // Use refs for values accessed in GPS callback to avoid effect restart loops
