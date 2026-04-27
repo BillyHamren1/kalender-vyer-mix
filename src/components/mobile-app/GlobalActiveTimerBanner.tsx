@@ -439,7 +439,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
           Visas så länge arbetsdagen är öppen — även om alla aktivitets-
           timers redan är stoppade. Annars går det inte att avsluta dagen
           efter att man stoppat sin sista aktivitet. */}
-      {workdayOpen && location.pathname !== '/m/report' && (
+      {(workdayOpen || endingDay) && location.pathname !== '/m/report' && (
         <div
           className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
           style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
@@ -447,12 +447,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
           <Button
             variant="default"
             className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
-            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-            disabled={savingKeys.size > 0}
+            onClick={() => {
+              if (endingDay) return;
+              window.dispatchEvent(new CustomEvent('request-end-day'));
+            }}
+            disabled={savingKeys.size > 0 || endingDay}
             title={t('workday.endDayTitle')}
           >
-            <LogOut className="w-4 h-4" />
-            {t('workday.endDay')}
+            {endingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+            {endingDay ? t('workday.ending') : t('workday.endDay')}
           </Button>
         </div>
       )}
