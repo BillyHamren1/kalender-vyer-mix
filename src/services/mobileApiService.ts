@@ -979,6 +979,7 @@ export type WorkdayFlagType =
   | 'long_day'
   | 'overlapping_times'
   | 'home_arrival_end_day_adjusted'
+  | 'home_arrival_auto_ended'
   | 'auto_closed_overnight'
   | 'auto_closed_travel'
   | 'auto_closed_report';

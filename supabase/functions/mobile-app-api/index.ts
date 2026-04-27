@@ -7616,12 +7616,12 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     }
   }
 
-  // ── AUTO-CHECKIN BORTTAGEN (Runda 1b) ──
-  // Tidigare skapade detta block automatiskt en location_time_entries-rad
-  // när användaren ankom till en bokning/projekt hen var bemannad på.
-  // Det ledde till "fantom"-time_reports utan event-spår och bröt mot
-  // failproof-modellen där användaren själv ska bekräfta start.
-  // Nu: arrival → prompt + assistant_event. Ingenting startar automatiskt.
+  // ── AUTO-FIRST 2026-04 ──
+  // Klienten startar activity-timern direkt efter detta anrop via
+  // tryStartFromArrival. Server-side autostartar workday här (idempotent),
+  // men vi skapar INGEN time_report — det gör start_*_timer-actions.
+  // arrival_prompt_log skrivs som AUDIT-spegling och driver inte längre
+  // klientens normalflöde; den används bara av push-cron som fallback.
 
   // ── prompt-log (alla arrivals — assigned eller ej) ──
   // Dedupe: if there is already an UNRESOLVED log row for the same

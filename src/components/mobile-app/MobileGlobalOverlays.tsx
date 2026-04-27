@@ -29,6 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
+import { registerGeofenceAutoActions } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
 
@@ -158,6 +159,32 @@ const MobileGlobalOverlays: React.FC = () => {
   // silently-inferred home location and a workplace timer is still open.
   const { suggestion: endDayHomeSuggestion, dismissSuggestion: dismissEndDayHome, acceptSuggestion: acceptEndDayHome } =
     useEndDayOnArrivalHome(completedTravel, activeTimersForAssistant);
+
+  // ── AUTO-FIRST WIRING (2026-04) ────────────────────────────────────
+  // Registrera auto-start (tryStartFromArrival) + auto-stop (stopSession)
+  // som modul-globala callbacks som useGeofencing kallar i ENTER/EXIT.
+  // Utan denna registrering faller geofence tillbaka på prompt-flödet.
+  useEffect(() => {
+    if (!staff) return;
+    const dispose = registerGeofenceAutoActions({
+      start: async ({ kind, targetId, label }) => {
+        const workTarget: WorkTarget | null =
+          kind === 'location' ? { kind: 'location', locationId: targetId, name: label }
+          : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
+          : { kind: 'booking', bookingId: targetId, client: label };
+        if (!workTarget) return { status: 'workday-failed' };
+        const status = await tryStartFromArrival(workTarget, { label });
+        return { status };
+      },
+      stop: async ({ key, exitedAtIso }) => {
+        const t = activeTimersForAssistant.get(key);
+        if (!t) return; // inget att stoppa
+        const target = timerToTarget(key, t);
+        await stopSession(target, { stopAtIso: exitedAtIso });
+      },
+    });
+    return dispose;
+  }, [staff, tryStartFromArrival, stopSession, activeTimersForAssistant]);
 
   // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
   const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
