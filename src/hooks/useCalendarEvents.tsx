@@ -37,8 +37,31 @@ export const useCalendarEvents = () => {
       setIsLoading(true);
       const data = await fetchCalendarEvents();
       if (activeRef.current) {
-        console.log(`📅 [useCalendarEvents] Loaded ${data.length} events successfully`);
-        setEvents(data);
+        // Anti-flicker guard: if a non-forced poll returns dramatically fewer
+        // events than we previously had (e.g. sync mid-flight), keep the
+        // previous snapshot rather than blanking the UI. A forced refresh
+        // (manual reload, mount, or empty initial state) always wins.
+        setEvents(prev => {
+          if (
+            !force &&
+            prev.length > 0 &&
+            data.length > 0 &&
+            data.length < prev.length * 0.5
+          ) {
+            console.warn(
+              `⚠️ [useCalendarEvents] Suspicious shrink ${prev.length} → ${data.length}, keeping previous snapshot`
+            );
+            return prev;
+          }
+          if (!force && prev.length > 0 && data.length === 0) {
+            console.warn(
+              `⚠️ [useCalendarEvents] Empty payload while we had ${prev.length} events, keeping previous snapshot`
+            );
+            return prev;
+          }
+          console.log(`📅 [useCalendarEvents] Loaded ${data.length} events successfully`);
+          return data;
+        });
         lastUpdateRef.current = new Date();
       }
     } catch (error: any) {
