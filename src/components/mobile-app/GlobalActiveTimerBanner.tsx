@@ -110,6 +110,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // Sequential EOD queue: keys waiting to be processed one-by-one
   const eodQueueRef = useRef<string[]>([]);
   const eodProcessingRef = useRef(false);
+  // Set when the user explicitly cancels EOD inside the dialog. Tells the
+  // queue processor to stop draining AND to skip the final endWorkdayFlow.
+  const eodCancelledRef = useRef(false);
 
   const waitForLocalTimerDrain = useCallback(async () => {
     for (let i = 0; i < 12; i += 1) {
@@ -286,11 +289,17 @@ const GlobalActiveTimerBanner: React.FC = () => {
   }, [pendingStop, stopSession]);
 
   // Sequential EOD processor — drains the queue one timer at a time.
+  // Honors eodCancelledRef: if the user cancels in the dialog the queue
+  // is dropped and the workday is NOT ended.
   const processNextEod = useCallback(async () => {
     if (eodProcessingRef.current) return;
     eodProcessingRef.current = true;
     try {
       while (eodQueueRef.current.length > 0) {
+        if (eodCancelledRef.current) {
+          eodQueueRef.current = [];
+          break;
+        }
         const key = eodQueueRef.current.shift()!;
         const current = loadTimersFromStorage();
         const timer = current.get(key);
@@ -319,7 +328,11 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // before ending the day. This avoids the header day-timer surviving
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
-      if (localTimersDrained && !pendingStopRef.current) {
+      if (
+        !eodCancelledRef.current &&
+        localTimersDrained &&
+        !pendingStopRef.current
+      ) {
         // Server-first end-day via central rutin. Vid fel: lämna dagen
         // tydligt needs-review (lokal cache rörs inte) och toasta.
         const result = await endWorkdayFlow();
@@ -341,6 +354,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
     const onRequestEndDay = async () => {
+      // Fresh end-day attempt → clear any stale "cancelled" flag from a
+      // previous run so we actually end the day this time.
+      eodCancelledRef.current = false;
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
         // Inga aktiva timers → kör direkt central end-day-rutin.
@@ -426,8 +442,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
         <EndOfDayStopDialog
           open={!!pendingStop}
           onOpenChange={(open) => {
-            // Closing without confirming = behåll timer + dialog tills användaren
-            // gör ett aktivt val. Dialogen hindrar själv stängning under save.
+            // Outside-click / Escape are intercepted inside the dialog and
+            // routed to onCancel — this prop is only triggered by an
+            // explicit programmatic close. While saving we ignore it so
+            // the dialog stays mounted until the request settles.
             if (!open && !savingKeys.has(pendingStop.key)) {
               setPendingStop(null);
             }
@@ -435,6 +453,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
           lastExitIso={pendingStop.lastExitIso}
           locationName={pendingStop.locationName}
           onConfirm={handleDialogConfirm}
+          onCancel={() => {
+            // Explicit user cancel = abort the entire end-day flow:
+            //   • close dialog
+            //   • DO NOT stop the active timer
+            //   • drain the EOD queue and skip endWorkdayFlow
+            // The timer keeps running, the workday stays open. The user
+            // is back in a known, safe state.
+            if (savingKeys.has(pendingStop.key)) return;
+            eodCancelledRef.current = true;
+            eodQueueRef.current = [];
+            setPendingStop(null);
+            toast.message(t('workday.endDayCancelled'));
+          }}
         />
       )}
       {nextActionFor && (

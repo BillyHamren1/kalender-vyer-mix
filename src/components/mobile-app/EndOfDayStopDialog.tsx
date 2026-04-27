@@ -20,6 +20,12 @@ interface EndOfDayStopDialogProps {
   lastExitIso: string;
   locationName?: string | null;
   onConfirm: (result: EndOfDayResult) => Promise<void>;
+  /**
+   * Explicit cancel from user. Required so the host can decide what
+   * "Avbryt" means (e.g. abort end-day queue vs. just close dialog).
+   * Outside-click and Escape are routed here too — never closes silently.
+   */
+  onCancel: () => void;
 }
 
 const COMMENT_THRESHOLD_MIN = 10;
@@ -30,6 +36,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
   lastExitIso,
   locationName,
   onConfirm,
+  onCancel,
 }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState<'ask' | 'custom'>('ask');
@@ -93,9 +100,23 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
     }
   };
 
+  // The dialog must NEVER close silently. Outside-click and Escape are
+  // intercepted and routed to onCancel so the host always knows whether
+  // the user confirmed or cancelled — no ambiguous "pendingStop" middle
+  // state can survive a backdrop tap.
+  const handleSilentClose = () => {
+    if (submitting) return;
+    onCancel();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleSilentClose(); else onOpenChange(o); }}>
+      <DialogContent
+        className="max-w-md"
+        onPointerDownOutside={(e) => { e.preventDefault(); handleSilentClose(); }}
+        onEscapeKeyDown={(e) => { e.preventDefault(); handleSilentClose(); }}
+        onInteractOutside={(e) => { e.preventDefault(); handleSilentClose(); }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
@@ -169,6 +190,17 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
         )}
 
         <DialogFooter className="gap-2 flex-col sm:flex-row">
+          {/* Always-present explicit Cancel — guarantees the user can never
+              be left in a state where the dialog disappeared without them
+              actively choosing. Mirrors the "no silent close" rule above. */}
+          <Button
+            variant="ghost"
+            onClick={() => { if (!submitting) onCancel(); }}
+            disabled={submitting}
+            className="w-full sm:w-auto sm:mr-auto"
+          >
+            {t('eod.cancel')}
+          </Button>
           {step === 'ask' ? (
             <>
               <Button

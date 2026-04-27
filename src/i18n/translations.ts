@@ -277,6 +277,8 @@ const translations = {
   'eod.yesUse': { sv: 'Ja, använd {time}', en: 'Yes, use {time}' },
   'eod.back': { sv: 'Tillbaka', en: 'Back' },
   'eod.save': { sv: 'Spara tidrapport', en: 'Save time report' },
+  'eod.cancel': { sv: 'Avbryt – fortsätt dagen', en: 'Cancel – keep day open' },
+  'eod.cancelShort': { sv: 'Avbryt', en: 'Cancel' },
 
   // AnomalyClassificationDialog
   'anomaly.title': { sv: 'Klassificera frånvaro', en: 'Classify absence' },
@@ -471,6 +473,7 @@ const translations = {
   // Workday
   'workday.endDay': { sv: 'Avsluta dagen', en: 'End the day' },
   'workday.endDayTitle': { sv: 'Avsluta hela arbetsdagen — stänger alla aktiva timers och kör dagsavstämning', en: 'End the entire workday — closes all active timers and runs day reconciliation' },
+  'workday.endDayCancelled': { sv: 'Avslutning av dagen avbruten — timern fortsätter', en: 'End-day cancelled — timer keeps running' },
   'workday.lengthTitle': { sv: 'Arbetsdagens längd — pågår tills du avslutar dagen', en: 'Workday length — runs until you end the day' },
   'workday.todayTime': { sv: 'Dagens arbetstid', en: 'Today’s work time' },
   'workday.activityFallback': { sv: 'aktiviteten', en: 'the activity' },
