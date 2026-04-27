@@ -147,9 +147,13 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
     [shifts, today]
   );
 
+  // Consolidate same-day large-project shifts into ONE card per project so
+  // the calendar stays readable even for projects with many sub-bookings.
+  const items = useMemo(() => consolidateShifts(todaysShifts), [todaysShifts]);
+
   const positioned = useMemo(
-    () => layoutShifts(todaysShifts, dayStart, dayEnd),
-    [todaysShifts, dayStart, dayEnd]
+    () => layoutItems(items, dayStart, dayEnd),
+    [items, dayStart, dayEnd]
   );
 
   // Now-line tick (per minute) + initial auto-scroll.
