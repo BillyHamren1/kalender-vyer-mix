@@ -145,11 +145,9 @@ const buildTimes = (
 const phasesForBookingDate = (booking: BookingLite, date: string): Phase[] => {
   const phases: Phase[] = [];
   if (booking.rigdaydate === date) phases.push('rig');
-  if (booking.eventdate === date) phases.push('event');
   if (booking.rigdowndate === date) phases.push('rigDown');
-  // If the booking has no matching field for this assignment date, treat it
-  // as a generic "event" so it still renders rather than disappearing.
-  if (phases.length === 0) phases.push('event');
+  // NOTE: event-dagen visas INTE i personalkalendern — bara rig/rigDown.
+  // Om datumet bara matchar booking.eventdate (eller inget), faller raden bort.
   return phases;
 };
 
@@ -370,7 +368,7 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
 
     const phaseDates: Array<{ date: string; phase: Phase }> = [
       ...((project.start_date || []).map(d => ({ date: d, phase: 'rig' as Phase }))),
-      ...((project.event_date || []).map(d => ({ date: d, phase: 'event' as Phase }))),
+      // event_date utelämnas medvetet — event-dagen visas inte i personalkalendern.
       ...((project.end_date || []).map(d => ({ date: d, phase: 'rigDown' as Phase }))),
     ].filter(p => p.date && inRange(p.date, startDate, endDate));
 
