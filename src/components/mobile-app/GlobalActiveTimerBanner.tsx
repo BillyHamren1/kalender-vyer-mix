@@ -39,11 +39,26 @@ interface PendingStop {
 }
 
 /**
- * GlobalActiveTimerBanner — visar aktiva timers + driver Avsluta-flödet.
+ * GlobalActiveTimerBanner — visar aktiva timers + driver Avsluta-flödet,
+ * samt erbjuder explicit "Starta dagen" när ingen workday är öppen.
  *
- * ROBUSTHET (Fas 1): All persistens går nu via useWorkSession.stopSession.
- * Den här komponenten har INGEN egen createTimeReport / closeOpenAnomalies
- * / break-dialog-logik längre — den bara samlar in användarens val (vanligt
+ * UNIFIED MODEL (Tidappen):
+ *   1. Dagtimer = HUVUDSPÅR. Visas/handhas via useWorkDay (server). Knappen
+ *      "Starta dagen" här är en av två giltiga sätt att skapa dagen
+ *      (det andra är riktig geofence/start-action via useTimerStartFlow).
+ *      App-open startar ALDRIG dagen implicit.
+ *   2. Aktivitetstid = INUTI dagen. Banner-raderna (projekt/plats/bokning)
+ *      är aktiviteter — att stoppa en aktivitet avslutar ALDRIG dagen.
+ *   3. "Avsluta dagen" = SEPARAT handling. Knappen kör endWorkdayFlow som
+ *      först stoppar aktiva aktiviteter (samma stopSession-väg) och
+ *      DÄREFTER stänger workday. Lokala UI-knep får aldrig låtsas att
+ *      dagen är slut innan servern bekräftat.
+ *   4. Geofence = SIGNAL. Den här komponenten reagerar på 'request-end-day'
+ *      från assistenten men gör själv ingen geo-logik.
+ *
+ * ROBUSTHET (Fas 1): All persistens går via useWorkSession.stopSession.
+ * Komponenten har INGEN egen createTimeReport / closeOpenAnomalies /
+ * break-dialog-logik längre — den samlar bara in användarens val (vanligt
  * stopp, EOD-dialog) och delegerar.
  *
  * ROBUSTHET (Fas 2): Vid 'request-end-day' med flera aktiva timers körs
