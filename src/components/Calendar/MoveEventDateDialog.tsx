@@ -75,10 +75,40 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
 
     setIsSubmitting(true);
 
+    // Set up a structured trace for this move attempt
+    const traceId = Math.random().toString(36).slice(2, 8);
+    const trace = (label: string, payload?: any) => {
+      // eslint-disable-next-line no-console
+      console.log(`🚚 [MoveEvent/${traceId}] ${label}`, payload ?? '');
+    };
+    const traceError = (label: string, payload?: any) => {
+      // eslint-disable-next-line no-console
+      console.error(`❌ [MoveEvent/${traceId}] ${label}`, payload ?? '');
+    };
+
     try {
       const newDateStr = format(selectedDate, 'yyyy-MM-dd');
       const newStartISO = buildUTCDateTime(newDateStr, startTime);
       const newEndISO = buildUTCDateTime(newDateStr, endTime);
+
+      const currentDateStr = (typeof event.start === 'string' ? event.start : event.start.toISOString()).split('T')[0];
+      const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
+
+      trace('START', {
+        eventId: event.id,
+        bookingId: event.bookingId,
+        bookingNumber: event.bookingNumber,
+        eventType: event.eventType,
+        title: event.title,
+        oldDate: currentDateStr,
+        newDate: newDateStr,
+        oldTeam: event.resourceId,
+        newTeam: selectedResourceId,
+        teamChanged,
+        newStartISO,
+        newEndISO,
+        largeProjectId: event.extendedProps?.largeProjectId,
+      });
 
       // Optimistic UI update — move the event instantly before DB write
       if (setEvents) {
@@ -99,21 +129,32 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       // ── LARGE PROJECT: move whole project day + save team override
       const largeProjectId: string | undefined = event.extendedProps?.largeProjectId;
       const phase = event.eventType as LargeProjectPhase | undefined;
-      const currentDateStr = (typeof event.start === 'string' ? event.start : event.start.toISOString()).split('T')[0];
-      const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
 
       if (largeProjectId && phase) {
-        // Always run — handles date change, time change, or both.
-        await moveLargeProjectDay({
-          largeProjectId,
-          phase,
-          fromDate: currentDateStr,
-          toDate: newDateStr,
-          newStartISO,
-          newEndISO,
-        });
+        trace('LARGE_PROJECT branch', { largeProjectId, phase });
+        try {
+          await moveLargeProjectDay({
+            largeProjectId,
+            phase,
+            fromDate: currentDateStr,
+            toDate: newDateStr,
+            newStartISO,
+            newEndISO,
+          });
+          trace('moveLargeProjectDay OK');
+        } catch (err) {
+          traceError('moveLargeProjectDay FAILED', err);
+          throw new Error(`Steg "Flytta projektdag" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         if (teamChanged && selectedResourceId) {
-          await setLargeProjectDayTeam(largeProjectId, phase, newDateStr, selectedResourceId);
+          try {
+            await setLargeProjectDayTeam(largeProjectId, phase, newDateStr, selectedResourceId);
+            trace('setLargeProjectDayTeam OK', { team: selectedResourceId });
+          } catch (err) {
+            traceError('setLargeProjectDayTeam FAILED', err);
+            throw new Error(`Steg "Spara team för projektdag" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
 
         const teamName = resources.find(r => r.id === selectedResourceId)?.title;
@@ -131,6 +172,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const isWarehouseEvent = !!event.eventType && WAREHOUSE_TYPES.includes(event.eventType);
 
       if (isWarehouseEvent) {
+        trace('WAREHOUSE branch');
         const whPayload: any = {
           start_time: newStartISO,
           end_time: newEndISO,
@@ -144,9 +186,13 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           .from('warehouse_calendar_events')
           .update(whPayload)
           .eq('id', event.id);
-        if (whErr) throw whErr;
+        if (whErr) {
+          traceError('warehouse_calendar_events update FAILED', whErr);
+          throw new Error(`Steg "Uppdatera lagerhändelse" misslyckades: ${whErr.message}`);
+        }
+        trace('warehouse_calendar_events OK');
       } else {
-        const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
+        trace('NORMAL branch');
 
         const updatePayload: any = {
           start: newStartISO,
@@ -155,7 +201,13 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         if (teamChanged) {
           updatePayload.resourceId = selectedResourceId;
         }
-        await updateCalendarEvent(event.id, updatePayload);
+        try {
+          await updateCalendarEvent(event.id, updatePayload);
+          trace('updateCalendarEvent OK', updatePayload);
+        } catch (err) {
+          traceError('updateCalendarEvent FAILED', err);
+          throw new Error(`Steg "Uppdatera kalenderhändelse" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+        }
 
         // Mirror date/time onto the booking row for staff event types only.
         if (event.bookingId && event.eventType) {
@@ -166,14 +218,20 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           }[event.eventType as 'rig' | 'event' | 'rigDown'];
 
           if (bookingFields) {
-            await supabase
+            const bkUpdate = {
+              [bookingFields.date]: newDateStr,
+              [bookingFields.start]: newStartISO,
+              [bookingFields.end]: newEndISO,
+            };
+            const { error: bkErr } = await supabase
               .from('bookings')
-              .update({
-                [bookingFields.date]: newDateStr,
-                [bookingFields.start]: newStartISO,
-                [bookingFields.end]: newEndISO
-              })
+              .update(bkUpdate)
               .eq('id', event.bookingId);
+            if (bkErr) {
+              traceError('bookings update FAILED', { bkErr, bkUpdate });
+              throw new Error(`Steg "Uppdatera bokning" misslyckades: ${bkErr.message}`);
+            }
+            trace('bookings update OK', bkUpdate);
           }
         }
 
@@ -182,21 +240,49 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         // not only calendar_events.resource_id. So persist a real booking move when the
         // team changed for the same booking/day.
         if (event.bookingId && event.eventType && event.resourceId && selectedResourceId && teamChanged) {
-          const moveResult = await handleBookingMove(
-            event.bookingId,
-            event.resourceId,
-            selectedResourceId,
-            currentDateStr,
-            newDateStr
-          );
-
-          if (!moveResult.success) {
-            const conflictCount = moveResult.conflicts?.length || 0;
-            throw new Error(
-              conflictCount > 0
-                ? `Kunde inte flytta bemanningen till valt team (${conflictCount} konflikter).`
-                : 'Kunde inte flytta bokningen till valt team.'
+          trace('handleBookingMove call', {
+            bookingId: event.bookingId,
+            oldTeam: event.resourceId,
+            newTeam: selectedResourceId,
+            oldDate: currentDateStr,
+            newDate: newDateStr,
+          });
+          let moveResult;
+          try {
+            moveResult = await handleBookingMove(
+              event.bookingId,
+              event.resourceId,
+              selectedResourceId,
+              currentDateStr,
+              newDateStr
             );
+          } catch (err) {
+            traceError('handleBookingMove THREW', err);
+            throw new Error(`Steg "Flytta bemanning" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          trace('handleBookingMove RESULT', moveResult);
+
+          if (!moveResult?.success) {
+            const conflicts = (moveResult as any)?.conflicts || [];
+            const staffIds = conflicts.map((c: any) => c.staff_id).filter(Boolean);
+
+            // Look up names for nicer message
+            let names: string[] = [];
+            if (staffIds.length > 0) {
+              const { data: staff } = await supabase
+                .from('staff_members')
+                .select('id, name')
+                .in('id', staffIds);
+              names = (staff || []).map(s => s.name).filter(Boolean);
+            }
+
+            const teamName = resources.find(r => r.id === selectedResourceId)?.title || selectedResourceId;
+            const detail = names.length > 0
+              ? `${names.join(', ')} ligger inte i ${teamName} den ${format(selectedDate, 'd MMM yyyy')}.`
+              : `Ingen personal kunde flyttas till ${teamName} den ${format(selectedDate, 'd MMM yyyy')}.`;
+
+            traceError('Move blocked by conflicts', { conflicts, detail });
+            throw new Error(`Kunde inte flytta bemanningen: ${detail}`);
           }
         }
       }
@@ -206,6 +292,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         ? ` → ${teamName}`
         : '';
 
+      trace('SUCCESS');
       toast.success('Händelse flyttad', {
         description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${movedToTeam}`
       });
@@ -213,8 +300,12 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       if (onUpdate) await onUpdate();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error moving event:', error);
-      toast.error('Kunde inte flytta händelsen');
+      const message = error instanceof Error ? error.message : String(error);
+      traceError('CAUGHT — move aborted', { message, error });
+      toast.error('Kunde inte flytta händelsen', {
+        description: message,
+        duration: 8000,
+      });
       // Revert optimistic update on error
       if (onUpdate) await onUpdate();
     } finally {

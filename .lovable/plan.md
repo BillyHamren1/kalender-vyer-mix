@@ -1,80 +1,71 @@
 ## Plan
 
-I will replace the current fragmented staff-calendar logic with one deterministic source of truth so personal calendars stop dropping jobs like Skolfest/Tiomila.
+Jag kommer att instrumentera exakt flyttflödet för Skolfest 2604-64 och därefter rätta den underliggande logiken som idag ger det generiska felet "Kunde inte flytta händelsen".
 
-### What I found
-- There are currently multiple competing calendar pipelines:
-  - `src/services/staffCalendarService.ts` has newer large-project consolidation + fallback logic.
-  - `supabase/functions/staff-management/index.ts` still uses an older per-team/per-day lookup against `calendar_events` only.
-  - `mobile-app-api` overview also reads raw `calendar_events` only.
-- `import-bookings` is the single writer for `calendar_events`, but it intentionally no longer persists `event` days to `calendar_events` after the Live column removal.
-- Because some views still assume `calendar_events` contains the full job schedule, jobs can appear/disappear when backend syncs briefly remove or omit rows, especially for large projects and project-wide assignments.
+### Vad som redan är bekräftat
+- **2604-64 / Skolfest är en vanlig bokning**, inte ett large project.
+- Den använder riktiga `calendar_events`-rader för:
+  - `rig` 2026-04-23 på `team-2`
+  - `rigDown` 2026-04-26 på `team-1`
+- Nuvarande flyttdialog kör detta för vanliga bokningar:
+  1. uppdaterar `calendar_events`
+  2. uppdaterar `bookings`
+  3. kör RPC `handle_booking_move(...)`
+- Den RPC:n är idag **osäker**: den **tar bort gamla `booking_staff_assignments` först** och kontrollerar konflikter efteråt. Vid konflikt returneras `success: false`, vilket mycket sannolikt är varför flytten upplevs som att den misslyckas eller hoppar tillbaka.
 
 ### Implementation
-1. Build a shared staff-calendar derivation layer
-- Create one canonical function that derives staff-visible job days from:
-  - `booking_staff_assignments`
-  - `large_project_staff`
-  - `large_projects.start_date[] / event_date[] / end_date[]`
-  - `large_project_bookings`
-  - `bookings`
-  - `calendar_events` only as a timing/team-detail source when present
-- Make this function produce a stable result even if some `calendar_events` rows are temporarily missing.
-- Use `source_date` / project date arrays as the identity for a visible staff day, not transient row presence.
+1. **Lägg till tydliga frontend-loggar i flyttdialogen**
+   - Instrumentera `src/components/Calendar/MoveEventDateDialog.tsx` med strukturerade `console.log` / `console.error` före och efter varje steg:
+     - inkommande event-id / booking-id / booking-number / eventType
+     - gammalt datum/team och nytt datum/team
+     - resultat från `updateCalendarEvent`
+     - resultat från bokningsuppdateringen
+     - resultat från `handleBookingMove`
+     - full felpayload vid catch
+   - Ersätt dagens generiska toast med en toast som även visar **vilket steg** som failade och konfliktinfo när det finns.
 
-2. Stop relying on raw `calendar_events` as the only visibility source
-- Refactor `src/services/staffCalendarService.ts` so visibility is assignment/date-driven first, event-row-driven second.
-- Ensure large projects always render from project-owned dates, with optional enrichment from linked calendar rows.
-- Ensure single bookings still render when assignments exist, even if a sync pass has not yet recreated a row.
+2. **Lägg till tydliga service-loggar och bättre felpayload**
+   - Instrumentera `src/services/staffCalendarService.ts` och `src/services/eventService.ts` så att vi får:
+     - RPC-parametrar
+     - Supabase-fel (`message`, `details`, `hint`, `code`)
+     - tydlig logg när en move returnerar `success: false` utan att kasta databasfel
+   - Säkerställ att fel inte maskeras bakom bara "Kunde inte flytta händelsen".
 
-3. Unify the server-side APIs with the same logic
-- Update `supabase/functions/staff-management/index.ts` so `get_staff_calendar_events` uses the same canonical derivation rules as the web UI.
-- Update `mobile-app-api` overview calendar endpoint so planner/mobile overview uses the same stable event set instead of raw `calendar_events`.
-- Remove the current mismatch where different screens compute different answers.
+3. **Lägg till Postgres-loggar i `handle_booking_move`**
+   - Skapa migration som uppdaterar DB-funktionen `public.handle_booking_move(...)` med `RAISE LOG` för:
+     - start på anropet
+     - booking/team/date-parametrar
+     - vilka staff som påverkas
+     - vilka konflikter som hittas
+     - slutresultat
+   - Loggarna ska gå att läsa i Supabase Postgres Logs så vi kan se exakt varför just Skolfest faller.
 
-4. Normalize identities and consolidation rules
-- Use stable grouping keys for staff-visible rows:
-  - normal booking: `staff_id + booking_id + source_date + phase`
-  - large project: `staff_id + large_project_id + source_date + phase`
-- Consolidate large-project sub-bookings into one row per project/day/phase for each staff member.
-- Preserve explicit times from `calendar_events` when available; otherwise use deterministic fallback windows.
+4. **Rätta den trasiga move-logiken**
+   - Ändra `handle_booking_move(...)` så att den **validerar först och muterar sen**.
+   - Om flytten inte kan genomföras fullt ut ska gamla `booking_staff_assignments` **inte raderas**.
+   - Returnera tydlig konfliktpayload så UI:t kan säga t.ex. "2 personer ligger inte i Team 1 den dagen" istället för bara generell feltoast.
 
-5. Harden against temporary sync gaps
-- Add guards so transient empty or incomplete backend payloads do not blank the staff calendar.
-- Prefer last-known valid derived row for the same identity within the fetch pass instead of treating missing enrichment as deletion.
-- Keep rendering project date-array rows even when linked booking event rows are incomplete.
+5. **Verifiera exakt med Skolfest 2604-64**
+   - Testa flytten i previewn via dialogen på den bokning användaren pekat ut.
+   - Läs browser-console + Postgres logs efter testet.
+   - Bekräfta i databilden att:
+     - `calendar_events` sparas korrekt
+     - `booking_staff_assignments` inte tappas vid misslyckad flytt
+     - UI inte längre hoppar tillbaka tyst
 
-6. Verify with the failing scenarios
-- Tiomila: all project days must render, not only Wednesday.
-- Skolfest 27:e: job must remain visible and not blink in/out.
-- Large projects must stay visible in both personal calendar and planner/mobile overview.
-- Sequential jobs on the same team/day must still keep correct ordering logic after the refactor.
-
-## Technical details
-- Files likely to change:
+## Tekniska detaljer
+- Filer som sannolikt ändras:
+  - `src/components/Calendar/MoveEventDateDialog.tsx`
   - `src/services/staffCalendarService.ts`
-  - `supabase/functions/staff-management/index.ts`
-  - `supabase/functions/mobile-app-api/index.ts`
-  - possibly a new shared calendar-derivation utility to avoid logic drift
-- Key architectural rule:
-  - `import-bookings` remains the only writer to `calendar_events`
-  - staff visibility logic becomes assignment/date-driven and tolerant of partial event sync state
-- Goal state:
-```text
-Assignments + project date arrays
-        │
-        ├─ determine whether a staff-visible day exists
-        │
-calendar_events (optional enrichment)
-        │
-        ├─ provide explicit team/start/end/details when available
-        │
-Canonical derived staff calendar rows
-        │
-        ├─ web staff calendar
-        ├─ staff-management edge function
-        └─ mobile/planner overview
-```
+  - `src/services/eventService.ts`
+  - `supabase/migrations/...sql` (uppdaterad `handle_booking_move` med loggning + säkrare transaktionsflöde)
+- Förväntad huvudorsak just nu:
+  - flytten av eventet försöker samtidigt flytta dess bokningsbemanning,
+  - men nuvarande RPC raderar gamla BSA-rader innan den vet att målteamet/måldatumet är giltigt,
+  - och därför får ni ett generiskt fel utan att veta exakt vilken person/team-krock som orsakade det.
 
-## Expected outcome
-After this rewrite, the staff calendar will no longer depend on fragile moment-to-moment `calendar_events` presence to decide whether a job exists. Jobs should remain visible consistently, especially for large projects and multi-day assignments, while still showing real times when synced calendar rows are available.
+## Resultat efter genomförande
+- Vi vet exakt **vilket steg** som faller för Skolfest.
+- Databasloggar visar **varför** flytten nekas.
+- Misslyckade flyttar blir **diagnostiska och reversibla**, inte tysta och destruktiva.
+- När root cause är bekräftad i loggarna kan flytten göras stabil istället för att "hoppa tillbaka".

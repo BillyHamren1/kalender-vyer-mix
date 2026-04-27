@@ -285,25 +285,33 @@ export const handleBookingMove = async (
   oldDate: string,
   newDate: string
 ): Promise<BookingMoveResult> => {
-  try {
-    console.log(`Handling booking move: ${bookingId} from team ${oldTeamId} (${oldDate}) to team ${newTeamId} (${newDate})`);
+  const params = {
+    p_booking_id: bookingId,
+    p_old_team_id: oldTeamId,
+    p_new_team_id: newTeamId,
+    p_old_date: oldDate,
+    p_new_date: newDate,
+  };
+  console.log('🚚 [handleBookingMove] RPC call →', params);
 
-    const { data, error } = await supabase.rpc('handle_booking_move', {
-      p_booking_id: bookingId,
-      p_old_team_id: oldTeamId,
-      p_new_team_id: newTeamId,
-      p_old_date: oldDate,
-      p_new_date: newDate
-    });
+  try {
+    const { data, error } = await supabase.rpc('handle_booking_move', params);
 
     if (error) {
-      console.error('Error handling booking move:', error);
+      console.error('❌ [handleBookingMove] Supabase RPC error:', {
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+        code: (error as any).code,
+        params,
+      });
       throw error;
     }
 
+    console.log('✅ [handleBookingMove] RPC result:', data);
     return data as unknown as BookingMoveResult;
   } catch (error) {
-    console.error('Error in handleBookingMove:', error);
+    console.error('❌ [handleBookingMove] Threw:', error, 'params:', params);
     throw error;
   }
 };
