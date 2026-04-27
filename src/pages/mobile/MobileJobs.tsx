@@ -16,6 +16,7 @@ import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
+import MobileListView from '@/components/mobile-app/calendar/MobileListView';
 import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
