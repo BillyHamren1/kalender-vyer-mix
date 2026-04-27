@@ -10,7 +10,6 @@ import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
 import { extractUTCDate } from '@/utils/dateUtils';
 import './Carousel3DStyles.css';
-...
   const eventIndex = useMemo(() => {
     const index = new Map<string, CalendarEvent[]>();
     for (const event of stableEvents) {

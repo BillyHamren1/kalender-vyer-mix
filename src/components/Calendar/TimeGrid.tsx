@@ -9,7 +9,6 @@ import TeamVisibilityControl from './TeamVisibilityControl';
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { extractUTCDate, extractUTCTime } from '@/utils/dateUtils';
 import './TimeGrid.css';
-...
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
     const startClock = extractUTCTime(event.start);
