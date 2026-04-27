@@ -323,53 +323,19 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
     setCompletedTravel(null);
   }, []);
 
-  // Process GPS position from useGeofencing (no own watcher needed)
+  // ── GPS position consumer (assist only) ─────────────────────────────
+  // Vi konsumerar position från useGeofencing endast för att:
+  //   • hålla `lastPositionRef` aktuell så manuell stopp av en legacy
+  //     travel-rad kan skicka destination-koordinater till servern.
+  //   • låta downstream-flöden (home-arrival, end-of-day) läsa senaste
+  //     fix utan en egen watcher.
+  // Inga auto-starter av travel sker här. Hastighet/tröskel är borta.
   useEffect(() => {
     if (!enabled || !gpsPosition) return;
-
-    const { lat: latitude, lng: longitude, accuracy, speed, timestamp: now } = gpsPosition;
-
-    // Filter out inaccurate GPS readings
-    if (accuracy !== null && accuracy > MAX_ACCURACY_M) {
-      return;
-    }
-
-    // Calculate speed from position delta (iOS fallback)
-    let calculatedSpeed = 0;
-    const lastPos = lastPositionRef.current;
-    if (lastPos) {
-      const distance = haversineDistance(lastPos.lat, lastPos.lng, latitude, longitude);
-      const timeDiff = (now - lastPos.time) / 1000;
-      if (timeDiff > 0 && timeDiff < 60) {
-        calculatedSpeed = distance / timeDiff;
-      }
-    }
+    const { lat: latitude, lng: longitude, accuracy, timestamp: now } = gpsPosition;
+    if (accuracy !== null && accuracy > MAX_ACCURACY_M) return;
     lastPositionRef.current = { lat: latitude, lng: longitude, time: now };
-
-    // Use native speed if available, otherwise calculated
-    const currentSpeed = (speed !== null && speed >= 0) ? speed : calculatedSpeed;
-
-    const currentState = travelStateRef.current;
-
-    // Auto-START on sustained speed. Auto-STOP based on low speed has been
-    // intentionally removed — a parked car at an unknown address (Bauhaus,
-    // lunch, fuel) must NOT end the trip. Travel only ends when the user
-    // arrives at a known geofence (warehouse / project / booking) or
-    // starts a new activity timer via useTimerStartFlow. Both fire the
-    // STOP_TRAVEL_EVENT handled above.
-    if (!currentState.isMoving) {
-      if (currentSpeed >= SPEED_THRESHOLD) {
-        if (!startDebounceRef.current) {
-          startDebounceRef.current = now;
-        } else if (now - startDebounceRef.current >= START_DEBOUNCE_MS) {
-          startDebounceRef.current = null;
-          startTravel(latitude, longitude);
-        }
-      } else {
-        startDebounceRef.current = null;
-      }
-    }
-  }, [enabled, gpsPosition, startTravel]);
+  }, [enabled, gpsPosition]);
 
   return {
     travelState,
