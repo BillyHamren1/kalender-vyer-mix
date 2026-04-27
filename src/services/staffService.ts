@@ -279,17 +279,34 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
   }
 };
 
-// Remove staff assignment for a specific date
-export const removeStaffAssignment = async (staffId: string, date: Date): Promise<void> => {
+// Remove staff assignment for a specific date.
+// If teamId is provided, only that team's assignment row is removed
+// (so other team memberships for the same day are preserved).
+// If teamId is omitted, all team assignments for that date are removed
+// (legacy behaviour, used when fully unassigning a staff member).
+export const removeStaffAssignment = async (
+  staffId: string,
+  date: Date,
+  teamId?: string
+): Promise<void> => {
   try {
     const dateStr = date.toISOString().split('T')[0];
-    console.log(`Removing assignment for staff ${staffId} on date ${dateStr}`);
+    console.log(
+      `Removing assignment for staff ${staffId} on date ${dateStr}` +
+        (teamId ? ` (team ${teamId})` : ' (all teams)')
+    );
 
-    const { error } = await supabase
+    let query = supabase
       .from('staff_assignments')
       .delete()
       .eq('staff_id', staffId)
       .eq('assignment_date', dateStr);
+
+    if (teamId) {
+      query = query.eq('team_id', teamId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error('Error removing staff assignment:', error);
