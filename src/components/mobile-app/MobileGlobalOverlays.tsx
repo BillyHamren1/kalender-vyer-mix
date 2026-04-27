@@ -56,6 +56,11 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
+  // WORKDAY-FIRST bootstrap: ensure an open workday exists as soon as the
+  // mobile app is opened by a logged-in staff member, even if no activity
+  // timer has been started yet.
+  useWorkdayBootstrap();
+
   // Lugn påminnelse om ofärdig tidigare dag (gårdagen). Throttlas internt.
   useStaleDayReminder(!!staff);
 
