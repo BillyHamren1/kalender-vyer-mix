@@ -1028,24 +1028,29 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
       const hasRealAssignment = realBsaBookingIds.has(booking.id)
       const hasProjectMembership = projectMembershipBookingIds.has(booking.id)
+      const teamDerivedDates = derivedBookingDates[booking.id]
+      const hasTeamDerived = !!teamDerivedDates && teamDerivedDates.size > 0
 
-      // For project bookings discovered via expansion: only include dates the user is actually scheduled on
-      let assignmentDates: string[] = []
+      // Combine date sources:
+      //  1. BSA rader (riktigt team eller project-membership) → explicit per-person scheduling
+      //  2. Team-härledning (staff_assignments × calendar_events.resource_id=team-Y) → speglar planeringskalendern 1:1
+      //  3. Project-expansion (large_project) → övriga bokningar i samma stora projekt på dagar personen är schemalagd på projektet
+      const dateSet = new Set<string>()
       if (hasRealAssignment || hasProjectMembership) {
-        // Directly assigned (real team OR project membership): include ALL BSA dates
-        // for this booking. Previously we filtered out team_id='project' rows, which
-        // meant a staffer who was only project-tagged on a specific date never got a
-        // shift built for that day. We now include them so fallback shifts can be
-        // generated even when no calendar_events row exists yet.
-        assignmentDates = [...new Set(
-          bookingAssignments.map((a: any) => a.assignment_date).filter(Boolean)
-        )]
-      } else if (booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
-        // Project-expanded booking: intersect project scheduled dates with booking's own dates
+        for (const a of bookingAssignments) {
+          if (a.assignment_date) dateSet.add(a.assignment_date)
+        }
+      }
+      if (hasTeamDerived) {
+        for (const d of teamDerivedDates) dateSet.add(d)
+      }
+      if (dateSet.size === 0 && booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
         const bookingDates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
         const projectDates = scheduledProjectDates[booking.large_project_id]
-        assignmentDates = bookingDates.filter((d: string) => projectDates.has(d))
+        for (const d of bookingDates) if (projectDates.has(d)) dateSet.add(d)
       }
+
+      let assignmentDates: string[] = [...dateSet]
 
       // If no dates matched (shouldn't happen but safety), fall back
       if (assignmentDates.length === 0) {
@@ -1072,9 +1077,12 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     // Filter out project-expanded bookings that have no matching dates
     // (booking dates don't overlap with the user's scheduled project dates).
-    // Always keep bookings the user has a direct BSA on (real team OR project membership).
+    // Always keep bookings the user has a direct BSA on (real team OR project membership)
+    // OR a team-derived assignment (planning calendar parity).
     bookingsWithAssignments = bookingsWithAssignments.filter((b: any) => {
-      if (!b.large_project_id || realBsaBookingIds.has(b.id) || projectMembershipBookingIds.has(b.id)) return true
+      if (!b.large_project_id) return true
+      if (realBsaBookingIds.has(b.id) || projectMembershipBookingIds.has(b.id)) return true
+      if (teamDerivedBookingIds.has(b.id)) return true
       // For expanded bookings: only keep if at least one assignment date is a real scheduled project date
       const projectDates = scheduledProjectDates[b.large_project_id]
       if (!projectDates) return false
