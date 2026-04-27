@@ -142,7 +142,10 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       setIsLoading(true);
 
       if (targetTeamId) {
-        // Assign staff to team
+        // Assign staff to team — multi-team allowed.
+        // Conflict key includes team_id so the same staff can join several
+        // teams the same day; only an exact (staff, team, date) duplicate
+        // is treated as a conflict.
         const { error } = await supabase
           .from('staff_assignments')
           .upsert({
@@ -150,7 +153,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
             team_id: targetTeamId,
             assignment_date: effectiveDateStr
           }, {
-            onConflict: 'staff_id,assignment_date'
+            onConflict: 'staff_id,team_id,assignment_date'
           });
 
         if (error) throw error;
@@ -158,7 +161,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         const staffMember = allStaff.find(s => s.id === staffId);
         toast.success(`${staffMember?.name || 'Staff'} assigned to team`);
       } else {
-        // Remove staff assignment
+        // Remove ALL team assignments for this staff/date (full unassign).
         const { error } = await supabase
           .from('staff_assignments')
           .delete()
