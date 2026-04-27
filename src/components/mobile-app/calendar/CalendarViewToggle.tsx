@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 
-export type CalendarViewMode = 'day' | 'week' | 'month';
+export type CalendarViewMode = 'day' | 'week' | 'month' | 'list';
 
 interface Props {
   value: CalendarViewMode;
@@ -14,6 +14,7 @@ const CalendarViewToggle = ({ value, onChange }: Props) => {
     { key: 'day', label: t('calendar.day') },
     { key: 'week', label: t('calendar.week') },
     { key: 'month', label: t('calendar.month') },
+    { key: 'list', label: t('calendar.list') },
   ];
   return (
     <div className="inline-flex w-full p-1 rounded-xl bg-muted border border-border">
