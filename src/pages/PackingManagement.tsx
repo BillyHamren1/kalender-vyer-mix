@@ -11,7 +11,6 @@ import PackingUpdatedBookings from "@/components/packing/PackingUpdatedBookings"
 import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
-import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
