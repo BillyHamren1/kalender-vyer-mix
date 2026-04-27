@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { mobileApi } from '@/services/mobileApiService';
+import { mobileApi, getToken } from '@/services/mobileApiService';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 
 const RANGE_DAYS_BACK = 7;
@@ -17,8 +18,15 @@ const RANGE_DAYS_FWD = 21;
 const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
+  const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
   const [tab, setTab] = useState<'calendar' | 'staffing' | 'messages'>('calendar');
   const dateLocale = locale === 'en' ? enUS : svLocale;
+
+  // Don't issue Overview API calls until the mobile token is actually
+  // present in localStorage. Without this, a brief race during route
+  // mount can fire the request with hasToken=false → server 401 →
+  // silent AbortError → empty list with no error indicator.
+  const hasToken = isAuthenticated && !!getToken();
 
   const range = useMemo(() => {
     const today = startOfDay(new Date());
@@ -30,21 +38,21 @@ const MobileOverview: React.FC = () => {
   const calendarQ = useQuery({
     queryKey: ['mobile-overview-calendar', range.from, range.to],
     queryFn: () => mobileApi.getOverviewCalendar(range),
-    enabled: tab === 'calendar',
+    enabled: hasToken && tab === 'calendar',
     staleTime: 60_000,
   });
 
   const assignmentsQ = useQuery({
     queryKey: ['mobile-overview-assignments', range.from, range.to],
     queryFn: () => mobileApi.getOverviewAssignments(range),
-    enabled: tab === 'staffing',
+    enabled: hasToken && tab === 'staffing',
     staleTime: 60_000,
   });
 
   const threadsQ = useQuery({
     queryKey: ['mobile-overview-threads'],
     queryFn: () => mobileApi.getOverviewThreads(),
-    enabled: tab === 'messages',
+    enabled: hasToken && tab === 'messages',
     staleTime: 30_000,
   });
 
@@ -147,9 +155,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Calendar === */}
         <TabsContent value="calendar" className="mt-4 space-y-4">
-          {calendarQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'calendar') || calendarQ.isLoading) && <ListSkeleton />}
           {calendarQ.isError && <ErrorState text={t('overview.error')} />}
-          {!calendarQ.isLoading && eventsByDay.length === 0 && (
+          {hasToken && !calendarQ.isLoading && !calendarQ.isError && eventsByDay.length === 0 && (
             <EmptyState text={t('overview.empty.calendar')} />
           )}
           {eventsByDay.map(([day, events]) => (
@@ -189,9 +197,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Staffing === */}
         <TabsContent value="staffing" className="mt-4 space-y-4">
-          {assignmentsQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'staffing') || assignmentsQ.isLoading) && <ListSkeleton />}
           {assignmentsQ.isError && <ErrorState text={t('overview.error')} />}
-          {!assignmentsQ.isLoading && staffingByDay.length === 0 && (
+          {hasToken && !assignmentsQ.isLoading && !assignmentsQ.isError && staffingByDay.length === 0 && (
             <EmptyState text={t('overview.empty.staffing')} />
           )}
           {staffingByDay.map(({ date, bookings }) => (
@@ -232,9 +240,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Messages === */}
         <TabsContent value="messages" className="mt-4 space-y-2">
-          {threadsQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'messages') || threadsQ.isLoading) && <ListSkeleton />}
           {threadsQ.isError && <ErrorState text={t('overview.error')} />}
-          {!threadsQ.isLoading && (threadsQ.data?.threads.length ?? 0) === 0 && (
+          {hasToken && !threadsQ.isLoading && !threadsQ.isError && (threadsQ.data?.threads.length ?? 0) === 0 && (
             <EmptyState text={t('overview.empty.messages')} />
           )}
           {threadsQ.data?.threads.map(thread => (
