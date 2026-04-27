@@ -962,17 +962,19 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
       const hasRealAssignment = realBsaBookingIds.has(booking.id)
+      const hasProjectMembership = projectMembershipBookingIds.has(booking.id)
 
       // For project bookings discovered via expansion: only include dates the user is actually scheduled on
       let assignmentDates: string[] = []
-      if (hasRealAssignment) {
-        // Directly assigned: use real assignment dates
-        assignmentDates = bookingAssignments
-          .filter((a: any) => a.team_id !== 'project')
-          .map((a: any) => a.assignment_date)
-        if (assignmentDates.length === 0) {
-          assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
-        }
+      if (hasRealAssignment || hasProjectMembership) {
+        // Directly assigned (real team OR project membership): include ALL BSA dates
+        // for this booking. Previously we filtered out team_id='project' rows, which
+        // meant a staffer who was only project-tagged on a specific date never got a
+        // shift built for that day. We now include them so fallback shifts can be
+        // generated even when no calendar_events row exists yet.
+        assignmentDates = [...new Set(
+          bookingAssignments.map((a: any) => a.assignment_date).filter(Boolean)
+        )]
       } else if (booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
         // Project-expanded booking: intersect project scheduled dates with booking's own dates
         const bookingDates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
