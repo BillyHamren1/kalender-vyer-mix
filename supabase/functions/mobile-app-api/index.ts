@@ -962,17 +962,19 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     bookingsWithAssignments = (bookings || []).map((booking: any) => {
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
       const hasRealAssignment = realBsaBookingIds.has(booking.id)
+      const hasProjectMembership = projectMembershipBookingIds.has(booking.id)
 
       // For project bookings discovered via expansion: only include dates the user is actually scheduled on
       let assignmentDates: string[] = []
-      if (hasRealAssignment) {
-        // Directly assigned: use real assignment dates
-        assignmentDates = bookingAssignments
-          .filter((a: any) => a.team_id !== 'project')
-          .map((a: any) => a.assignment_date)
-        if (assignmentDates.length === 0) {
-          assignmentDates = bookingAssignments.map((a: any) => a.assignment_date)
-        }
+      if (hasRealAssignment || hasProjectMembership) {
+        // Directly assigned (real team OR project membership): include ALL BSA dates
+        // for this booking. Previously we filtered out team_id='project' rows, which
+        // meant a staffer who was only project-tagged on a specific date never got a
+        // shift built for that day. We now include them so fallback shifts can be
+        // generated even when no calendar_events row exists yet.
+        assignmentDates = [...new Set(
+          bookingAssignments.map((a: any) => a.assignment_date).filter(Boolean)
+        )]
       } else if (booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
         // Project-expanded booking: intersect project scheduled dates with booking's own dates
         const bookingDates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
@@ -1060,15 +1062,17 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
-    const realBsaForShifts = (assignments || []).filter(
+    // Seed shift keys from ALL BSA rows on real bookings (including team_id='project').
+    // A staff member who is BSA-tagged on a date is meant to work that day even if
+    // the planner hasn't filed it under a specific team yet.
+    const bsaForShifts = (assignments || []).filter(
       (a: any) =>
-        a.team_id !== 'project' &&
         a.team_id !== 'location' &&
-        !a.booking_id.startsWith('location-')
+        !String(a.booking_id).startsWith('location-')
     )
 
     const shiftDateKeys = new Set<string>(
-      realBsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
+      bsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
     )
 
     for (const booking of bookingsWithAssignments) {
@@ -1183,12 +1187,29 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         }
 
         shifts.sort((a, b) => a.start_time.localeCompare(b.start_time))
+
+        // Per-booking breakdown so we can debug "missing day" reports without
+        // re-running queries by hand.
+        const breakdown: Record<string, { dates: string[]; ce: number; fallback: number }> = {}
+        for (const key of shiftDateKeys) {
+          const [bId, dt] = key.split('|')
+          if (!breakdown[bId]) breakdown[bId] = { dates: [], ce: 0, fallback: 0 }
+          breakdown[bId].dates.push(dt)
+        }
+        for (const s of shifts) {
+          const entry = breakdown[s.booking_id]
+          if (!entry) continue
+          if (String(s.shift_id).startsWith('fallback-')) entry.fallback += 1
+          else entry.ce += 1
+        }
+
         console.log('[get_bookings] shifts summary:', {
           staffId,
           shiftDateKeyCount: shiftDateKeys.size,
           calendarEventRowCount: (ceRows || []).length,
           fallbackShiftCount: shifts.filter((s: any) => String(s.shift_id).startsWith('fallback-')).length,
           returnedShiftCount: shifts.length,
+          perBooking: breakdown,
         })
       }
     }
