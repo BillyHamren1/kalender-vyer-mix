@@ -31,8 +31,8 @@ import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import type { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { toast } from 'sonner';
-import { hasWorkdayEndedToday, markWorkdayEnded } from '@/services/workdayState';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { hasWorkdayEndedToday } from '@/services/workdayState';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 
 const SUPPRESS_KEY_PREFIX = 'eventflow-end-day-home-suppressed-';
 const ASSISTANT_DAILY_KEY_PREFIX = 'eventflow-last-workplace-prompted-';
