@@ -777,12 +777,44 @@ async function reconcileCalendarEvents(
     isExplicitStart: boolean;
   }> = [];
 
-  const rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0
+  let rigDates = bookingData.allRigDates && bookingData.allRigDates.length > 0
     ? bookingData.allRigDates : (bookingData.rigdaydate ? [bookingData.rigdaydate] : []);
-  const eventDates = bookingData.allEventDates && bookingData.allEventDates.length > 0
+  let eventDates = bookingData.allEventDates && bookingData.allEventDates.length > 0
     ? bookingData.allEventDates : (bookingData.eventdate ? [bookingData.eventdate] : []);
-  const rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
+  let rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
     ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
+
+  // ── LARGE PROJECT OVERRIDE ──────────────────────────────────────────────
+  // If this booking belongs to a "Projekt stort" (large_projects), the project
+  // owns the authoritative multi-day schedule (start_date[], event_date[], end_date[]).
+  // Each sub-booking should materialize calendar events for EVERY project day so
+  // the staff calendar shows the full duration per team — not only the single
+  // legacy rigdaydate/eventdate/rigdowndate the Booking system originally sent.
+  try {
+    const { data: parentBooking } = await supabase
+      .from('bookings')
+      .select('large_project_id')
+      .eq('id', bookingData.id)
+      .maybeSingle();
+    const lpId = parentBooking?.large_project_id;
+    if (lpId) {
+      const { data: lp } = await supabase
+        .from('large_projects')
+        .select('start_date, event_date, end_date')
+        .eq('id', lpId)
+        .maybeSingle();
+      const lpRig = Array.isArray(lp?.start_date) ? lp!.start_date.filter(Boolean) : [];
+      const lpEvent = Array.isArray(lp?.event_date) ? lp!.event_date.filter(Boolean) : [];
+      const lpDown = Array.isArray(lp?.end_date) ? lp!.end_date.filter(Boolean) : [];
+      if (lpRig.length > 0) rigDates = [...new Set(lpRig)].sort();
+      if (lpEvent.length > 0) eventDates = [...new Set(lpEvent)].sort();
+      if (lpDown.length > 0) rigdownDates = [...new Set(lpDown)].sort();
+      console.log(`[Calendar Reconcile] LargeProject override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
+    }
+  } catch (lpErr) {
+    console.error(`[Calendar Reconcile] Large project override failed:`, lpErr);
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   const desiredTitle = bookingData.client || 'Bokning';
 
