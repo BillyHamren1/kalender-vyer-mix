@@ -328,14 +328,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = async () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        // Server-first: confirm with backend before flipping local state.
-        const result = await syncWorkDayEnd();
+        // Inga aktiva timers → kör direkt central end-day-rutin.
+        const result = await endWorkdayFlow();
         if (result.ok) {
-          markWorkdayEnded();
-          window.dispatchEvent(new CustomEvent('workday-ended'));
           toast.message(t('workday.noActiveTimers'));
         } else {
-          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
+          toast.error(result.error || t('workday.couldNotEnd'));
         }
         return;
       }
