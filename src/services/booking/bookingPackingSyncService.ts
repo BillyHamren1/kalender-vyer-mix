@@ -14,15 +14,19 @@ import { supabase } from "@/integrations/supabase/client";
 export const syncBookingToPacking = async (
   bookingId: string,
   organizationId: string,
-  opts: { throwOnError?: boolean } = {}
+  opts: { throwOnError?: boolean; targetPackingId?: string } = {}
 ): Promise<void> => {
   try {
-    console.log(`[syncBookingToPacking] Triggering sync for booking ${bookingId}`);
+    console.log(
+      `[syncBookingToPacking] Triggering sync for booking ${bookingId}` +
+        (opts.targetPackingId ? ` → target packing ${opts.targetPackingId}` : '')
+    );
 
     const { data, error } = await supabase.functions.invoke('sync-booking-to-packing', {
       body: {
         booking_id: bookingId,
-        organization_id: organizationId
+        organization_id: organizationId,
+        ...(opts.targetPackingId ? { target_packing_id: opts.targetPackingId } : {}),
       }
     });
 
