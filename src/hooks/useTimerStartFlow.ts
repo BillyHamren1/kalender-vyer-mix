@@ -224,7 +224,17 @@ export function useTimerStartFlow(
         // Gap-baserad restid: härleds från senaste stoppade arbetssegment
         // (se src/lib/lastWorkSegment.ts). Bästa-effort, fire-and-forget.
         const startIso = opts.startedAtIso ?? new Date().toISOString();
-        void maybeCreateGapTravel(startIso, opts.label);
+        const nextTargetId =
+          target.kind === 'booking'
+            ? target.bookingId
+            : target.kind === 'project'
+              ? target.largeProjectId
+              : target.locationId;
+        void maybeCreateGapTravel(startIso, {
+          targetType: target.kind,
+          targetId: nextTargetId,
+          label: opts.label,
+        });
         return 'started';
       }
       toast.message('Timer redan aktiv för platsen');
