@@ -336,10 +336,29 @@ const GlobalActiveTimerBanner: React.FC = () => {
       ) {
         // Server-first end-day via central rutin. Vid fel: lämna dagen
         // tydligt needs-review (lokal cache rörs inte) och toasta.
+        setEndingDay(true);
+        const startedAtIso = currentWorkdayRef.current?.started_at ?? null;
         const result = await endWorkdayFlow();
         if (!result.ok) {
           toast.error(result.error || t('workday.couldNotEnd'));
+          setEndingDay(false);
+        } else {
+          // Build a "Workday ended — total time" confirmation so the user
+          // sees that the press worked even though the UI just collapsed.
+          let totalLabel = '';
+          if (startedAtIso) {
+            const total = Math.max(0, differenceInSeconds(new Date(), parseISO(startedAtIso)));
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            totalLabel = ` — ${t('workday.totalTime')} ${h}h ${m}m`;
+          }
+          toast.success(`${t('workday.dayEnded')}${totalLabel}`);
+          // Brief grace so the "Starta dagen" button doesn't pop in
+          // the same frame as the "Avsluta dagen" disappears.
+          setTimeout(() => setEndingDay(false), 400);
         }
+      } else if (eodCancelledRef.current) {
+        setEndingDay(false);
       }
     }
   }, [handleStop, waitForLocalTimerDrain, t]);
