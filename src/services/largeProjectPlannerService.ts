@@ -44,39 +44,43 @@ export async function moveLargeProjectDay({
   newStartISO,
   newEndISO,
 }: MoveLargeProjectDayInput): Promise<void> {
-  if (fromDate === toDate) return;
+  const dateChanged = fromDate !== toDate;
 
-  // 1. Update large_projects.<phase>_date array
-  const dateColumn = PHASE_TO_DATE_COLUMN[phase];
-  const { data: project, error: projErr } = await supabase
-    .from('large_projects')
-    .select(`id, ${dateColumn}`)
-    .eq('id', largeProjectId)
-    .single();
+  // 1. Update large_projects.<phase>_date array — only if the date changed
+  if (dateChanged) {
+    const dateColumn = PHASE_TO_DATE_COLUMN[phase];
+    const { data: project, error: projErr } = await supabase
+      .from('large_projects')
+      .select(`id, ${dateColumn}`)
+      .eq('id', largeProjectId)
+      .single();
 
-  if (projErr) throw projErr;
+    if (projErr) throw projErr;
 
-  const dates: string[] = Array.isArray((project as any)[dateColumn])
-    ? [...(project as any)[dateColumn]]
-    : [];
+    const dates: string[] = Array.isArray((project as any)[dateColumn])
+      ? [...(project as any)[dateColumn]]
+      : [];
 
-  const idx = dates.indexOf(fromDate);
-  if (idx === -1) {
-    // Add the new date if old not found (defensive)
-    if (!dates.includes(toDate)) dates.push(toDate);
-  } else {
-    dates[idx] = toDate;
+    const idx = dates.indexOf(fromDate);
+    if (idx === -1) {
+      // Add the new date if old not found (defensive)
+      if (!dates.includes(toDate)) dates.push(toDate);
+    } else {
+      dates[idx] = toDate;
+    }
+    // De-dupe + sort
+    const finalDates = Array.from(new Set(dates)).sort();
+
+    const { error: updErr } = await supabase
+      .from('large_projects')
+      .update({ [dateColumn]: finalDates })
+      .eq('id', largeProjectId);
+    if (updErr) throw updErr;
   }
-  // De-dupe + sort
-  const finalDates = Array.from(new Set(dates)).sort();
 
-  const { error: updErr } = await supabase
-    .from('large_projects')
-    .update({ [dateColumn]: finalDates })
-    .eq('id', largeProjectId);
-  if (updErr) throw updErr;
-
-  // 2. Update all linked bookings — only those whose phase date matches fromDate
+  // 2. Update all linked bookings — match by current phase date (fromDate)
+  //    and write new date + new times. Even when only the time changed,
+  //    fromDate === toDate so this still updates the times in place.
   const { data: links, error: linksErr } = await supabase
     .from('large_project_bookings')
     .select('booking_id')
@@ -114,6 +118,9 @@ export async function moveLargeProjectDay({
       .eq('source_date', fromDate);
     if (ceErr) console.warn('[moveLargeProjectDay] calendar_events update warning:', ceErr);
   }
+
+  // Skip team-assignment row move if date didn't change
+  if (!dateChanged) return;
 
   // 4. Move team assignment (if any)
   const { data: existing } = await supabase
