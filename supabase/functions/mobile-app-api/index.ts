@@ -1125,6 +1125,8 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     staffTeamAssignmentCount: (staffTeamAssignments || []).length,
     scheduledProjectCount: Object.keys(scheduledProjectDates).length,
     teamScheduledProjectHits,
+    teamDerivedBookingCount: teamDerivedBookingIds.size,
+    derivedFromTeamCalendarCount,
     returnedBookingCount: bookingsWithAssignments.length,
   })
 
