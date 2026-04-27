@@ -177,7 +177,7 @@ export default function ProjectAddressMapDialog({
       return;
     }
     if (!token) return;
-    if (!containerRef.current) return;
+    if (!containerNode) return;
     if (mapRef.current) return;
 
     setMapStatus('loading-map');
