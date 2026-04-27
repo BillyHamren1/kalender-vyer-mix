@@ -493,6 +493,26 @@ export function useWorkSession(
           console.warn('[WorkSession] closeOpenAnomalies failed (non-fatal):', err);
         });
 
+      // STEP 7 — registrera detta stopp som "senaste arbetssegment" så att
+      // nästa aktivitetsstart kan beräkna gap → restids-candidate. Detta
+      // är gap-modellen för restid (se src/lib/lastWorkSegment.ts).
+      try {
+        const targetId =
+          target.kind === 'booking'
+            ? target.bookingId
+            : target.kind === 'project'
+              ? target.largeProjectId
+              : target.locationId;
+        recordWorkSegmentStop({
+          targetType: target.kind,
+          targetId,
+          targetLabel: contextLabel,
+          stoppedAtIso: stopTime.toISOString(),
+        });
+      } catch (err) {
+        console.warn('[WorkSession] recordWorkSegmentStop failed (non-fatal):', err);
+      }
+
       return { saved: true, hoursWorked };
     },
     [
