@@ -425,18 +425,18 @@ const MobileLocationDetail = () => {
       <TimerConflictDialog
         open={!!conflictEval}
         evaluation={conflictEval}
-        newTargetLabel={pendingStart?.label ?? ''}
+        newTargetLabel={pendingLabel}
         onCancel={cancelConflict}
         onSwitch={confirmSwitch}
       />
       <DistanceWarningDialog
         open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
         onConfirm={() => {
           distanceWarning?.onConfirm();
-          setDistanceWarning(null);
+          dismissDistanceWarning();
         }}
       />
       {dialogs}
