@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
+import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressMapDialog";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
@@ -39,9 +40,7 @@ const LargeProjectLayout = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
-  const [editAddress, setEditAddress] = useState("");
-  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
@@ -129,39 +128,23 @@ const LargeProjectLayout = () => {
     }
   }, [project?.id, project?.address, bookings.length]);
 
-  const handleSaveAddress = async () => {
-    if (!editAddress.trim()) return;
-    setIsGeocodingAddress(true);
-    try {
-      const tokenRes = await supabase.functions.invoke('mapbox-token');
-      const token = tokenRes.data?.token;
-      if (!token) throw new Error('No Mapbox token');
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(editAddress.trim())}.json?access_token=${token}&country=se&language=sv&limit=1`
-      );
-      const json = await res.json();
-      const feature = json.features?.[0];
-      if (!feature) {
-        detail.updateProject({
-          address: editAddress.trim(),
-          address_latitude: null,
-          address_longitude: null,
-        } as any);
-        toast.info('Adress sparad utan koordinater');
-      } else {
-        detail.updateProject({
-          address: feature.place_name || editAddress.trim(),
-          address_latitude: feature.center[1],
-          address_longitude: feature.center[0],
-        } as any);
-        toast.success('Adress och koordinater sparade');
-      }
-      setIsEditingAddress(false);
-    } catch {
-      toast.error('Kunde inte geokoda adressen');
-    } finally {
-      setIsGeocodingAddress(false);
-    }
+  const handleAddressDialogSave = async (data: {
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+    radius_meters: number;
+    geofence_mode: 'circle' | 'polygon';
+    geofence_polygon: GeoJSON.Polygon | null;
+  }) => {
+    detail.updateProject({
+      address: data.address || null,
+      address_latitude: data.latitude,
+      address_longitude: data.longitude,
+      address_radius_meters: data.radius_meters,
+      address_geofence_mode: data.geofence_mode,
+      address_geofence_polygon: data.geofence_polygon as any,
+    } as any);
+    toast.success('Adress och staket sparade');
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
@@ -396,52 +379,52 @@ const LargeProjectLayout = () => {
             {/* Address card */}
             <Card className="border-border/50 shadow-sm">
               <CardContent className="py-3 px-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {isEditingAddress ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={editAddress}
-                          onChange={(e) => setEditAddress(e.target.value)}
-                          placeholder="Ange adress..."
-                          className="h-7 text-sm w-64"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveAddress();
-                            if (e.key === 'Escape') setIsEditingAddress(false);
-                          }}
-                          autoFocus
-                        />
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveAddress} disabled={isGeocodingAddress}>
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingAddress(false)}>
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <button
-                        className="flex items-center gap-1.5 hover:text-foreground transition-colors group"
-                        onClick={() => {
-                          setEditAddress(project.address || '');
-                          setIsEditingAddress(true);
-                        }}
-                      >
-                        <span className={project.address ? 'text-foreground' : 'text-muted-foreground italic'}>
-                          {project.address || 'Ingen adress'}
-                        </span>
-                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddressDialogOpen(true)}
+                    className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group min-w-0"
+                  >
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className={cn(
+                      'truncate',
+                      project.address ? 'text-foreground' : 'text-muted-foreground italic'
+                    )}>
+                      {project.address || 'Ingen adress – klicka för att lägga till'}
+                    </span>
+                    <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {project.address_latitude && project.address_longitude && (
+                      <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                        📍 {project.address_latitude.toFixed(4)}, {project.address_longitude.toFixed(4)}
+                      </Badge>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsAddressDialogOpen(true)}
+                      className="h-7"
+                    >
+                      <MapPin className="h-3.5 w-3.5 mr-1" />
+                      Karta & staket
+                    </Button>
                   </div>
-                  {project.address_latitude && project.address_longitude && (
-                    <Badge variant="secondary" className="text-xs">
-                      📍 {project.address_latitude.toFixed(4)}, {project.address_longitude.toFixed(4)}
-                    </Badge>
-                  )}
                 </div>
               </CardContent>
             </Card>
+
+            <ProjectAddressMapDialog
+              open={isAddressDialogOpen}
+              onOpenChange={setIsAddressDialogOpen}
+              initialAddress={project.address}
+              initialLatitude={project.address_latitude}
+              initialLongitude={project.address_longitude}
+              initialRadiusMeters={(project as any).address_radius_meters ?? 100}
+              initialGeofenceMode={((project as any).address_geofence_mode as 'circle' | 'polygon') ?? 'circle'}
+              initialGeofencePolygon={(project as any).address_geofence_polygon ?? null}
+              onSave={handleAddressDialogSave}
+            />
 
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">

@@ -2251,9 +2251,12 @@ export type Database = {
         Row: {
           address: string | null
           address_city: string | null
+          address_geofence_mode: string
+          address_geofence_polygon: Json | null
           address_latitude: number | null
           address_longitude: number | null
           address_postal_code: string | null
+          address_radius_meters: number
           created_at: string
           deleted_at: string | null
           description: string | null
@@ -2273,9 +2276,12 @@ export type Database = {
         Insert: {
           address?: string | null
           address_city?: string | null
+          address_geofence_mode?: string
+          address_geofence_polygon?: Json | null
           address_latitude?: number | null
           address_longitude?: number | null
           address_postal_code?: string | null
+          address_radius_meters?: number
           created_at?: string
           deleted_at?: string | null
           description?: string | null
@@ -2295,9 +2301,12 @@ export type Database = {
         Update: {
           address?: string | null
           address_city?: string | null
+          address_geofence_mode?: string
+          address_geofence_polygon?: Json | null
           address_latitude?: number | null
           address_longitude?: number | null
           address_postal_code?: string | null
+          address_radius_meters?: number
           created_at?: string
           deleted_at?: string | null
           description?: string | null
