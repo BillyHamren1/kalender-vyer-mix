@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2, LogOut, Play } from 'lucide-react';
+import { Square, Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -11,7 +11,8 @@ import { NextActionDialog } from './NextActionDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
-import { useWorkDay } from '@/hooks/useWorkDay';
+// NOTE: workday start/end controls live in WorkDayStatusPanel — this banner
+// only shows activity rows + dialogs. Do not re-add useWorkDay here.
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
