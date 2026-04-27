@@ -190,6 +190,17 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
         )}
 
         <DialogFooter className="gap-2 flex-col sm:flex-row">
+          {/* Always-present explicit Cancel — guarantees the user can never
+              be left in a state where the dialog disappeared without them
+              actively choosing. Mirrors the "no silent close" rule above. */}
+          <Button
+            variant="ghost"
+            onClick={() => { if (!submitting) onCancel(); }}
+            disabled={submitting}
+            className="w-full sm:w-auto sm:mr-auto"
+          >
+            {t('eod.cancel')}
+          </Button>
           {step === 'ask' ? (
             <>
               <Button
