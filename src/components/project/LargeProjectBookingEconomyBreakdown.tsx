@@ -368,240 +368,278 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
             <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader ({mergedCosts.length})</TabsTrigger>
           </TabsList>
 
-          {/* ─── Per booking view ─── */}
-          <TabsContent value="per-booking" className="space-y-3 mt-0">
-            {Object.entries(bookingEconomyData).map(([bookingId, data]) => {
-              const isExpanded = expandedBookings.has(bookingId);
-              const products = extractProducts(data);
-              const productSummary = data.product_costs?.summary;
-              const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
-              const purchases = Array.isArray(data.purchases) ? data.purchases : [];
-              const invoices = Array.isArray(data.invoices) ? data.invoices : [];
-              const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
+          {/* ─── Per booking view (table) ─── */}
+          <TabsContent value="per-booking" className="mt-0">
+            {Object.keys(bookingEconomyData).length === 0 ? (
+              <p className="text-muted-foreground text-center py-8 text-sm">
+                Inga bokningar i projektet
+              </p>
+            ) : (
+              <div className="rounded-lg border border-border/40 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Bokningsnummer
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Kund
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                        Intäkt
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                        Kostnad
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(bookingEconomyData).map(([bookingId, data]) => {
+                      const isExpanded = expandedBookings.has(bookingId);
+                      const products = extractProducts(data);
+                      const productSummary = data.product_costs?.summary;
+                      const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
+                      const purchases = Array.isArray(data.purchases) ? data.purchases : [];
+                      const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+                      const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
 
-              // Compute local revenue per booking from local booking_products
-              const bookingLocalProducts = localProductsByBooking[bookingId] || [];
-              const localRevenueTotal = bookingLocalProducts
-                .filter(lp => !lp.is_package_component && !lp.parent_product_id)
-                .reduce((s, lp) => s + (lp.total_price || 0), 0);
-              const displayRevenue = (productSummary?.revenue && productSummary.revenue > 0)
-                ? productSummary.revenue
-                : localRevenueTotal;
+                      // Compute local revenue per booking from local booking_products
+                      const bookingLocalProducts = localProductsByBooking[bookingId] || [];
+                      const localRevenueTotal = bookingLocalProducts
+                        .filter(lp => !lp.is_package_component && !lp.parent_product_id)
+                        .reduce((s, lp) => s + (lp.total_price || 0), 0);
+                      const displayRevenue = (productSummary?.revenue && productSummary.revenue > 0)
+                        ? productSummary.revenue
+                        : localRevenueTotal;
 
-              // Compute local costs from local products
-              const localCostsTotal = bookingLocalProducts.reduce((s, lp) => 
-                s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
-              const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
-                ? productSummary.costs
-                : localCostsTotal;
+                      // Compute local costs from local products
+                      const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
+                        s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+                      const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
+                        ? productSummary.costs
+                        : localCostsTotal;
 
-              const totalCost =
-                displayProductCosts +
-                timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0) +
-                purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0) +
-                invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0) +
-                supplierInvoices
-                  .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
-                  .reduce((s: number, si: any) => s + (Number(si.invoice_data?.Total) || 0), 0);
+                      const totalCost =
+                        displayProductCosts +
+                        timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0) +
+                        purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0) +
+                        invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0) +
+                        supplierInvoices
+                          .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
+                          .reduce((s: number, si: any) => s + (Number(si.invoice_data?.Total) || 0), 0);
 
-              return (
-                <div key={bookingId} className="border border-border/40 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleBooking(bookingId)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                      <span className="font-medium text-sm">{getBookingName(bookingId)}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
-                        {fmt(displayRevenue)} intäkt
-                      </Badge>
-                    </div>
-                    <span className="text-sm font-semibold">{fmt(totalCost)} kostnad</span>
-                  </button>
+                      const { bookingNumber, clientName } = getBookingParts(bookingId);
 
-                  {isExpanded && (
-                    <div className="border-t border-border/40 p-3 space-y-4 bg-muted/20">
-                      {/* Products — editable costs */}
-                      {products.length > 0 && (
-                        <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-xs">Produkt</TableHead>
-                                <TableHead className="text-xs text-right">Antal</TableHead>
-                                <TableHead className="text-xs text-right">Intäkt</TableHead>
-                                <TableHead className="text-xs text-right">Montage</TableHead>
-                                <TableHead className="text-xs text-right">Hantering</TableHead>
-                                <TableHead className="text-xs text-right">Inköp</TableHead>
-                                <TableHead className="text-xs text-right">Tot. kostnad</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {products.map((p: any, i: number) => {
-                                const productName = p.product_name || p.name || p.description || '—';
-                                const localMatch = findLocalProduct(bookingId, productName, p.sku);
-                                
-                                // Use local product data for revenue
-                                const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
-                                
-                                // Use local product data for costs (prefer local for editability)
-                                const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
-                                const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
-                                const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                                const totalPCost = assemblyCost + handlingCost + purchaseCost;
-                                
-                                return (
-                                  <TableRow key={i}>
-                                    <TableCell className="text-xs font-medium">{productName}</TableCell>
-                                    <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
-                                    <TableCell className="text-xs text-right">
-                                      {localMatch ? (
-                                        <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v, bookingId)} />
-                                      ) : fmt(assemblyCost)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right">
-                                      {localMatch ? (
-                                        <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v, bookingId)} />
-                                      ) : fmt(handlingCost)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right">
-                                      {localMatch ? (
-                                        <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v, bookingId)} />
-                                      ) : fmt(purchaseCost)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                              <TableRow className="font-semibold border-t">
-                                <TableCell colSpan={2} className="text-xs">Summa</TableCell>
-                                <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
-                                <TableCell colSpan={3}></TableCell>
-                                <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </Section>
-                      )}
+                      return (
+                        <React.Fragment key={bookingId}>
+                          <TableRow
+                            onClick={() => toggleBooking(bookingId)}
+                            className="cursor-pointer hover:bg-muted/40 transition-colors"
+                          >
+                            <TableCell className="w-10">
+                              {isExpanded
+                                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                            </TableCell>
+                            <TableCell className="font-bold text-sm">{bookingNumber}</TableCell>
+                            <TableCell className="font-semibold text-sm">{clientName}</TableCell>
+                            <TableCell className="text-right text-sm font-medium tabular-nums">
+                              {fmt(displayRevenue)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-semibold tabular-nums">
+                              {fmt(totalCost)}
+                            </TableCell>
+                          </TableRow>
 
-                      {/* Staff */}
-                      {timeReports.length > 0 && (
-                        <Section icon={<Users className="h-3.5 w-3.5" />} title="Personal" total={timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0)}>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-xs">Namn</TableHead>
-                                <TableHead className="text-xs text-right">Timmar</TableHead>
-                                <TableHead className="text-xs text-right">Timpris</TableHead>
-                                <TableHead className="text-xs text-right">Kostnad</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {timeReports.map((r: any, i: number) => (
-                                <TableRow key={i}>
-                                  <TableCell className="text-xs font-medium">{r.staff_name || r.staff_id?.slice(0, 8)}</TableCell>
-                                  <TableCell className="text-xs text-right">{r.total_hours || r.hours_worked || 0}h</TableCell>
-                                  <TableCell className="text-xs text-right">{fmt(r.hourly_rate || 0)}</TableCell>
-                                  <TableCell className="text-xs text-right">{fmt(r.total_cost || 0)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </Section>
-                      )}
+                          {isExpanded && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={5} className="p-0">
+                                <div className="border-t border-border/40 p-4 space-y-4 bg-muted/20">
+                                  {/* Products — editable costs */}
+                                  {products.length > 0 && (
+                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="text-xs">Produkt</TableHead>
+                                            <TableHead className="text-xs text-right">Antal</TableHead>
+                                            <TableHead className="text-xs text-right">Intäkt</TableHead>
+                                            <TableHead className="text-xs text-right">Montage</TableHead>
+                                            <TableHead className="text-xs text-right">Hantering</TableHead>
+                                            <TableHead className="text-xs text-right">Inköp</TableHead>
+                                            <TableHead className="text-xs text-right">Tot. kostnad</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {products.map((p: any, i: number) => {
+                                            const productName = p.product_name || p.name || p.description || '—';
+                                            const localMatch = findLocalProduct(bookingId, productName, p.sku);
 
-                      {/* Purchases — always editable, buttons always visible */}
-                      <Section icon={<ShoppingCart className="h-3.5 w-3.5" />} title="Inköp" total={purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0)}>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-xs">Beskrivning</TableHead>
-                              <TableHead className="text-xs">Leverantör</TableHead>
-                              <TableHead className="text-xs text-right">Belopp</TableHead>
-                              <TableHead className="text-xs w-20"></TableHead>
+                                            const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
+
+                                            const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                                            const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                                            const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                                            const totalPCost = assemblyCost + handlingCost + purchaseCost;
+
+                                            return (
+                                              <TableRow key={i}>
+                                                <TableCell className="text-xs font-medium">{productName}</TableCell>
+                                                <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
+                                                <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
+                                                <TableCell className="text-xs text-right">
+                                                  {localMatch ? (
+                                                    <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v, bookingId)} />
+                                                  ) : fmt(assemblyCost)}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-right">
+                                                  {localMatch ? (
+                                                    <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v, bookingId)} />
+                                                  ) : fmt(handlingCost)}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-right">
+                                                  {localMatch ? (
+                                                    <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v, bookingId)} />
+                                                  ) : fmt(purchaseCost)}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                          <TableRow className="font-semibold border-t">
+                                            <TableCell colSpan={2} className="text-xs">Summa</TableCell>
+                                            <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
+                                            <TableCell colSpan={3}></TableCell>
+                                            <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
+                                          </TableRow>
+                                        </TableBody>
+                                      </Table>
+                                    </Section>
+                                  )}
+
+                                  {/* Staff */}
+                                  {timeReports.length > 0 && (
+                                    <Section icon={<Users className="h-3.5 w-3.5" />} title="Personal" total={timeReports.reduce((s: number, r: any) => s + (r.total_cost || 0), 0)}>
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="text-xs">Namn</TableHead>
+                                            <TableHead className="text-xs text-right">Timmar</TableHead>
+                                            <TableHead className="text-xs text-right">Timpris</TableHead>
+                                            <TableHead className="text-xs text-right">Kostnad</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {timeReports.map((r: any, i: number) => (
+                                            <TableRow key={i}>
+                                              <TableCell className="text-xs font-medium">{r.staff_name || r.staff_id?.slice(0, 8)}</TableCell>
+                                              <TableCell className="text-xs text-right">{r.total_hours || r.hours_worked || 0}h</TableCell>
+                                              <TableCell className="text-xs text-right">{fmt(r.hourly_rate || 0)}</TableCell>
+                                              <TableCell className="text-xs text-right">{fmt(r.total_cost || 0)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </Section>
+                                  )}
+
+                                  {/* Purchases — always editable, buttons always visible */}
+                                  <Section icon={<ShoppingCart className="h-3.5 w-3.5" />} title="Inköp" total={purchases.reduce((s: number, p: any) => s + (p.amount || 0), 0)}>
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="text-xs">Beskrivning</TableHead>
+                                          <TableHead className="text-xs">Leverantör</TableHead>
+                                          <TableHead className="text-xs text-right">Belopp</TableHead>
+                                          <TableHead className="text-xs w-20"></TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {purchases.map((p: any) => (
+                                          <EditablePurchaseRow key={p.id} purchase={p} onSaved={invalidate} onDeleted={invalidate} />
+                                        ))}
+                                        <AddPurchaseRow bookingId={bookingId} onAdded={invalidate} />
+                                      </TableBody>
+                                    </Table>
+                                  </Section>
+
+                                  {/* Invoices */}
+                                  {invoices.length > 0 && (
+                                    <Section icon={<FileText className="h-3.5 w-3.5" />} title="Fakturor" total={invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0)}>
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="text-xs">Leverantör</TableHead>
+                                            <TableHead className="text-xs">Fakturanr</TableHead>
+                                            <TableHead className="text-xs text-right">Belopp</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {invoices.map((inv: any, i: number) => (
+                                            <TableRow key={i}>
+                                              <TableCell className="text-xs font-medium">{inv.supplier || '-'}</TableCell>
+                                              <TableCell className="text-xs">{inv.invoice_number || '-'}</TableCell>
+                                              <TableCell className="text-xs text-right">{fmt(Number(inv.invoiced_amount) || 0)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </Section>
+                                  )}
+
+                                  {/* Supplier invoices */}
+                                  {supplierInvoices.length > 0 && (
+                                    <Section icon={<Receipt className="h-3.5 w-3.5" />} title="Leverantörsfakturor" total={
+                                      supplierInvoices
+                                        .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
+                                        .reduce((s: number, si: any) => s + (Number(si.invoice_data?.Total) || 0), 0)
+                                    }>
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="text-xs">Leverantör</TableHead>
+                                            <TableHead className="text-xs">Fakturanr</TableHead>
+                                            <TableHead className="text-xs">Status</TableHead>
+                                            <TableHead className="text-xs text-right">Belopp</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {supplierInvoices.map((si: any, i: number) => {
+                                            const isLinked = si.is_final_link && si.linked_cost_id;
+                                            return (
+                                              <TableRow key={i} className={cn(isLinked && 'opacity-40 line-through')}>
+                                                <TableCell className="text-xs font-medium">{si.invoice_data?.SupplierName || '-'}</TableCell>
+                                                <TableCell className="text-xs">{si.invoice_data?.GivenNumber || si.given_number || '-'}</TableCell>
+                                                <TableCell className="text-xs">
+                                                  {isLinked
+                                                    ? <Badge variant="outline" className="text-[9px] px-1 py-0">Länkad</Badge>
+                                                    : <Badge variant="secondary" className="text-[9px] px-1 py-0">Olänkad</Badge>
+                                                  }
+                                                </TableCell>
+                                                <TableCell className="text-xs text-right">{fmt(Number(si.invoice_data?.Total) || 0)}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </Section>
+                                  )}
+
+                                  {products.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
+                                    <p className="text-xs text-muted-foreground text-center py-4">Ingen detaljerad data tillgänglig</p>
+                                  )}
+                                </div>
+                              </TableCell>
                             </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {purchases.map((p: any) => (
-                              <EditablePurchaseRow key={p.id} purchase={p} onSaved={invalidate} onDeleted={invalidate} />
-                            ))}
-                            <AddPurchaseRow bookingId={bookingId} onAdded={invalidate} />
-                          </TableBody>
-                        </Table>
-                      </Section>
-
-                      {/* Invoices */}
-                      {invoices.length > 0 && (
-                        <Section icon={<FileText className="h-3.5 w-3.5" />} title="Fakturor" total={invoices.reduce((s: number, i: any) => s + (Number(i.invoiced_amount) || 0), 0)}>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-xs">Leverantör</TableHead>
-                                <TableHead className="text-xs">Fakturanr</TableHead>
-                                <TableHead className="text-xs text-right">Belopp</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {invoices.map((inv: any, i: number) => (
-                                <TableRow key={i}>
-                                  <TableCell className="text-xs font-medium">{inv.supplier || '-'}</TableCell>
-                                  <TableCell className="text-xs">{inv.invoice_number || '-'}</TableCell>
-                                  <TableCell className="text-xs text-right">{fmt(Number(inv.invoiced_amount) || 0)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </Section>
-                      )}
-
-                      {/* Supplier invoices */}
-                      {supplierInvoices.length > 0 && (
-                        <Section icon={<Receipt className="h-3.5 w-3.5" />} title="Leverantörsfakturor" total={
-                          supplierInvoices
-                            .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
-                            .reduce((s: number, si: any) => s + (Number(si.invoice_data?.Total) || 0), 0)
-                        }>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-xs">Leverantör</TableHead>
-                                <TableHead className="text-xs">Fakturanr</TableHead>
-                                <TableHead className="text-xs">Status</TableHead>
-                                <TableHead className="text-xs text-right">Belopp</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {supplierInvoices.map((si: any, i: number) => {
-                                const isLinked = si.is_final_link && si.linked_cost_id;
-                                return (
-                                  <TableRow key={i} className={cn(isLinked && 'opacity-40 line-through')}>
-                                    <TableCell className="text-xs font-medium">{si.invoice_data?.SupplierName || '-'}</TableCell>
-                                    <TableCell className="text-xs">{si.invoice_data?.GivenNumber || si.given_number || '-'}</TableCell>
-                                    <TableCell className="text-xs">
-                                      {isLinked
-                                        ? <Badge variant="outline" className="text-[9px] px-1 py-0">Länkad</Badge>
-                                        : <Badge variant="secondary" className="text-[9px] px-1 py-0">Olänkad</Badge>
-                                      }
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right">{fmt(Number(si.invoice_data?.Total) || 0)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </Section>
-                      )}
-
-                      {products.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-4">Ingen detaljerad data tillgänglig</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
 
           {/* ─── Merged view — all costs in one table ─── */}
