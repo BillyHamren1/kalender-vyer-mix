@@ -368,7 +368,7 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
 
     const phaseDates: Array<{ date: string; phase: Phase }> = [
       ...((project.start_date || []).map(d => ({ date: d, phase: 'rig' as Phase }))),
-      ...((project.event_date || []).map(d => ({ date: d, phase: 'event' as Phase }))),
+      // event_date utelämnas medvetet — event-dagen visas inte i personalkalendern.
       ...((project.end_date || []).map(d => ({ date: d, phase: 'rigDown' as Phase }))),
     ].filter(p => p.date && inRange(p.date, startDate, endDate));
 
