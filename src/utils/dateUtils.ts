@@ -1,20 +1,19 @@
 /**
  * ============================================================
- * dateUtils — Europe/Stockholm canonical time
+ * dateUtils — naiv wall-clock-tid (ingen tidszon)
  * ============================================================
  *
- * All planner times (calendar_events.start_time, bookings.*_start_time, …)
- * represent the WALL-CLOCK time in Europe/Stockholm. The database stores
- * them as `timestamptz` so the same instant renders identically regardless
- * of the viewer's timezone.
+ * Princip: "08 = 08". Tider lagras och visas som HH:mm rakt av,
+ * utan UTC- eller DST-konvertering. Databasen kan lagra dem som
+ * `timestamptz` med +00, men vi behandlar timme/minut som ren text.
  *
- * The helpers below intentionally keep the legacy `…UTC…` names so existing
- * callers don't have to change. Internally they now operate in
- * Europe/Stockholm — DST-aware — instead of raw UTC.
+ * Det innebär: ett jobb klockan 08:00 lagras som "...T08:00:00..."
+ * och visas som 08:00 överallt — webb, app, edge functions.
+ *
+ * De gamla namnen (`extractUTCTime`, `extractUTCDate`, `buildUTCDateTime`)
+ * behålls för bakåtkompatibilitet.
  * ============================================================
  */
-
-const STOCKHOLM_TZ = 'Europe/Stockholm';
 
 /**
  * Convert Supabase timestamp format to ISO 8601.
@@ -43,83 +42,62 @@ export const convertToISO8601 = (timestamp: string | null | undefined): string =
 };
 
 /**
- * Format a Date as parts in Europe/Stockholm (DST-aware).
- */
-const stockholmParts = (d: Date): { year: string; month: string; day: string; hour: string; minute: string } => {
-  const fmt = new Intl.DateTimeFormat('en-GB', {
-    timeZone: STOCKHOLM_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = fmt.formatToParts(d).reduce<Record<string, string>>((acc, p) => {
-    if (p.type !== 'literal') acc[p.type] = p.value;
-    return acc;
-  }, {});
-  return {
-    year: parts.year,
-    month: parts.month,
-    day: parts.day,
-    hour: parts.hour === '24' ? '00' : parts.hour,
-    minute: parts.minute,
-  };
-};
-
-const toDate = (value: string | Date): Date => (typeof value === 'string' ? new Date(value) : value);
-
-/**
- * Extract HH:mm from an ISO/Date value, expressed in Europe/Stockholm.
- * (Legacy name kept for backwards compatibility — was previously raw UTC.)
+ * Plocka HH:mm direkt från en ISO/Supabase-tidssträng.
+ * Ingen tidszons-konvertering — vi läser bara siffrorna.
+ *
+ * "2026-04-29T08:00:00.000Z"   → "08:00"
+ * "2026-04-29 08:00:00+00"     → "08:00"
+ * "2026-04-29T08:00:00+02:00"  → "08:00"
  */
 export const extractUTCTime = (value: string | Date): string => {
-  const d = toDate(value);
-  if (isNaN(d.getTime())) return '00:00';
-  const { hour, minute } = stockholmParts(d);
-  return `${hour}:${minute}`;
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return '00:00';
+    // Date-objekt har ingen "naiv" tid — vi tar UTC-tid för att undvika
+    // att lokal systemtidszon påverkar resultatet.
+    const hh = String(value.getUTCHours()).padStart(2, '0');
+    const mm = String(value.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  if (typeof value !== 'string' || !value) return '00:00';
+  // Matcha "T08:00" eller " 08:00"
+  const m = value.match(/[T\s](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}:${m[2]}`;
+  return '00:00';
 };
 
 /**
- * Extract YYYY-MM-DD from an ISO/Date value, expressed in Europe/Stockholm.
+ * Plocka YYYY-MM-DD direkt från en ISO/Supabase-tidssträng.
+ * Ingen tidszons-konvertering.
  */
 export const extractUTCDate = (value: string | Date): string => {
-  const d = toDate(value);
-  if (isNaN(d.getTime())) return '';
-  const { year, month, day } = stockholmParts(d);
-  return `${year}-${month}-${day}`;
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return '';
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof value !== 'string' || !value) return '';
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return '';
 };
 
 /**
- * DST-aware UTC offset (in minutes) for a given Stockholm wall-clock instant.
- * Returns +60 for CET, +120 for CEST.
- */
-const stockholmUtcOffsetMinutes = (year: number, month: number, day: number, hour: number, minute: number): number => {
-  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const wall = stockholmParts(new Date(utcGuess));
-  const wallUtc = Date.UTC(+wall.year, +wall.month - 1, +wall.day, +wall.hour, +wall.minute, 0);
-  return Math.round((wallUtc - utcGuess) / 60000);
-};
-
-/**
- * Build a UTC ISO string from a date-part and a HH:mm time string,
- * interpreting the input as wall-clock time in Europe/Stockholm.
+ * Bygg en ISO-sträng från datum + HH:mm. Naiv: tiden hamnar exakt
+ * som angivet i strängen, suffix +00 så Postgres accepterar det
+ * som timestamptz utan att skifta värdet.
  *
- * Example (CEST):
- *   buildUTCDateTime('2026-05-02', '08:00') → '2026-05-02T06:00:00.000Z'
- * Example (CET):
- *   buildUTCDateTime('2026-01-15', '08:00') → '2026-01-15T07:00:00.000Z'
+ * buildUTCDateTime('2026-05-02', '08:00') → '2026-05-02T08:00:00+00:00'
  */
 export const buildUTCDateTime = (datePart: string, time: string): string => {
   const [y, m, d] = datePart.split('-').map(Number);
   const [hh, mm] = time.split(':').map(Number);
   if ([y, m, d, hh, mm].some((v) => Number.isNaN(v))) {
-    return new Date(`${datePart}T${time}:00Z`).toISOString();
+    return `${datePart}T${time}:00+00:00`;
   }
-  const offsetMin = stockholmUtcOffsetMinutes(y, m, d, hh, mm);
-  const utcMillis = Date.UTC(y, m - 1, d, hh, mm, 0) - offsetMin * 60_000;
-  return new Date(utcMillis).toISOString();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(y)}-${pad(m)}-${pad(d)}T${pad(hh)}:${pad(mm)}:00+00:00`;
 };
 
 /**
