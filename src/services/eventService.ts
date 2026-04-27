@@ -36,6 +36,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { addDays, subDays, format } from 'date-fns';
+import { buildPlannerCalendarEvents } from './plannerCalendarDerivation';
 
 export interface CalendarEventUpdate {
   start?: string;
@@ -89,34 +90,97 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     throw error;
   }
 
-  console.log(`✅ [fetchCalendarEvents] Fetched ${data?.length || 0} events in ${elapsed}ms (HTTP ${status})`);
+  console.log(`✅ [fetchCalendarEvents] Fetched ${data?.length || 0} real calendar rows in ${elapsed}ms (HTTP ${status})`);
 
-  const events: CalendarEvent[] = (data || []).map(event => ({
-    id: event.id,
-    title: event.title,
-    start: convertToISO8601(event.start_time),
-    end: convertToISO8601(event.end_time),
-    resourceId: event.resource_id,
-    bookingId: event.booking_id,
-    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
-    delivery_address: event.delivery_address,
-    booking_number: event.booking_number,
-    extendedProps: {
-      bookingId: event.booking_id,
-      booking_id: event.booking_id,
-      resourceId: event.resource_id,
-      deliveryAddress: event.delivery_address,
-      deliveryCity: null,
-      deliveryPostalCode: null,
-      bookingNumber: event.booking_number,
-      eventType: event.event_type,
-      sourceDate: event.source_date,
-      manuallyAssigned: false
-    }
+  const realRows = data || [];
+  const fromDate = realRows.length > 0
+    ? extractMinDate(realRows.map(event => event.source_date || event.start_time))
+    : format(subDays(new Date(), 14), 'yyyy-MM-dd');
+  const toDate = realRows.length > 0
+    ? extractMaxDate(realRows.map(event => event.source_date || event.start_time))
+    : format(addDays(new Date(), 45), 'yyyy-MM-dd');
+
+  const bookingIds = Array.from(new Set(realRows.map(event => event.booking_id).filter(Boolean))) as string[];
+  const [{ data: bookingsData, error: bookingsError }, { data: projectsData, error: projectsError }] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('id, client, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
+      .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
+    supabase
+      .from('large_projects')
+      .select('id, name, address, start_date, event_date, end_date, deleted_at')
+      .is('deleted_at', null),
+  ]);
+
+  if (bookingsError) {
+    console.error('❌ [fetchCalendarEvents] Failed to fetch booking fallback rows:', bookingsError);
+    throw bookingsError;
+  }
+
+  if (projectsError) {
+    console.error('❌ [fetchCalendarEvents] Failed to fetch large project fallback rows:', projectsError);
+    throw projectsError;
+  }
+
+  const bookingRows = bookingsData || [];
+  const relevantProjectIds = Array.from(new Set(bookingRows.map(booking => booking.large_project_id).filter(Boolean))) as string[];
+
+  const [{ data: largeProjectBookingsData, error: largeProjectBookingsError }, { data: bookingAssignmentsData, error: bookingAssignmentsError }] = await Promise.all([
+    relevantProjectIds.length > 0
+      ? supabase
+          .from('large_project_bookings')
+          .select('large_project_id, booking_id')
+          .in('large_project_id', relevantProjectIds)
+      : Promise.resolve({ data: [], error: null }),
+    bookingIds.length > 0
+      ? supabase
+          .from('booking_staff_assignments')
+          .select('booking_id, team_id, assignment_date')
+          .in('booking_id', bookingIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (largeProjectBookingsError) {
+    console.error('❌ [fetchCalendarEvents] Failed to fetch large_project_bookings fallback rows:', largeProjectBookingsError);
+    throw largeProjectBookingsError;
+  }
+
+  if (bookingAssignmentsError) {
+    console.error('❌ [fetchCalendarEvents] Failed to fetch booking_staff_assignments fallback rows:', bookingAssignmentsError);
+    throw bookingAssignmentsError;
+  }
+
+  const events = buildPlannerCalendarEvents({
+    realEvents: realRows,
+    bookings: bookingRows,
+    largeProjects: (projectsData || []).filter(project => {
+      const allDates = [...(project.start_date || []), ...(project.event_date || []), ...(project.end_date || [])];
+      return allDates.some(date => date >= fromDate && date <= toDate);
+    }),
+    largeProjectBookings: largeProjectBookingsData || [],
+    bookingAssignments: bookingAssignmentsData || [],
+    fromDate,
+    toDate,
+  }).map(event => ({
+    ...event,
+    start: convertToISO8601(event.start),
+    end: convertToISO8601(event.end),
   }));
 
+  console.log(`✅ [fetchCalendarEvents] Returning ${events.length} planner events (${realRows.length} real + fallback)`);
   return events;
 };
+
+const extractMinDate = (values: Array<string | null | undefined>) => values
+  .map(value => String(value || '').slice(0, 10))
+  .filter(Boolean)
+  .sort()[0] || format(subDays(new Date(), 14), 'yyyy-MM-dd');
+
+const extractMaxDate = (values: Array<string | null | undefined>) => values
+  .map(value => String(value || '').slice(0, 10))
+  .filter(Boolean)
+  .sort()
+  .at(-1) || format(addDays(new Date(), 45), 'yyyy-MM-dd');
 
 export const fetchEventsByBookingId = async (bookingId: string): Promise<CalendarEvent[]> => {
   const { data, error } = await supabase
