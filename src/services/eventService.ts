@@ -76,6 +76,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_number,
       source_date
     `)
+    .neq('event_type', 'event')
     .order('start_time', { ascending: true });
 
   const elapsed = Math.round(performance.now() - t0);
