@@ -175,14 +175,12 @@ const WarehouseDashboard = () => {
             </Button>
           </PageHeader>
 
-          {/* Inbox: nya projekt från Planning */}
+          {/* OFFICIELL ENDA INGÅNG: nya projekt från Planning.
+              Gamla IncomingPackingList har flyttats till
+              /admin/legacy-incoming-packing och är inte längre synlig
+              i normal warehouse-UI. */}
           <div className="mb-6">
             <WarehouseProjectInbox />
-          </div>
-
-          {/* Legacy: bokningar utan packlista */}
-          <div className="mb-6">
-            <IncomingPackingList />
           </div>
 
           {/* Recent packnings widgets */}
