@@ -40,12 +40,17 @@ export interface RequestStartOptions {
   startedAtIso?: string;
   /** Optional label for toasts / conflict dialog (defaults to target's own label). */
   label?: string;
+  /** Optional task metadata persisted on the resulting time_report. */
+  taskId?: string;
+  taskTitle?: string;
 }
 
 interface PendingStart {
   target: WorkTarget;
   label: string;
   startedAtIso?: string;
+  taskId?: string;
+  taskTitle?: string;
 }
 
 interface DistanceWarning {
