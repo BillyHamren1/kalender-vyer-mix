@@ -95,6 +95,9 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // Sequential EOD queue: keys waiting to be processed one-by-one
   const eodQueueRef = useRef<string[]>([]);
   const eodProcessingRef = useRef(false);
+  // Set when the user explicitly cancels EOD inside the dialog. Tells the
+  // queue processor to stop draining AND to skip the final endWorkdayFlow.
+  const eodCancelledRef = useRef(false);
 
   const waitForLocalTimerDrain = useCallback(async () => {
     for (let i = 0; i < 12; i += 1) {
