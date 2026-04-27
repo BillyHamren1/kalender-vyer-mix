@@ -2,6 +2,16 @@
  * useGeofencing — GPS SIGNAL LAYER (not a controller).
  * ====================================================
  *
+ * UNIFIED MODEL (Tidappen):
+ *   1. Dagtimer (workday) = HUVUDSPÅR. Startas av manuell "Starta dagen"
+ *      eller riktig geofence/start-action via useTimerStartFlow.
+ *   2. Aktivitetstid (projekt/plats/bokning) = INUTI dagen. Geofence
+ *      enter/exit kan trigga start/stopp av aktivitet — men aktivitet
+ *      definierar aldrig dagen.
+ *   3. "Avsluta dagen" = SEPARAT, explicit handling (useWorkDay.end).
+ *      Geofence får aldrig själv avsluta workday som sidoeffekt.
+ *   4. Geofence = SIGNAL. Central start/stop-logik = ACTION.
+ *
  * Responsibility split — read this before editing:
  *
  *   • useGeofencing  →  SIGNAL.   Detects enter/exit, emits assistant /
@@ -19,6 +29,7 @@
  *
  *   • useWorkSession.stopSession → DECISION/ACTION for STOP. Owns break
  *                         prompt + save-then-stop + time_report write.
+ *                         Stoppar ENBART aktiviteten — aldrig workday.
  *
  *   • useWorkDay / workdays table → SOURCE OF TRUTH for the workday.
  *                         Activity timers are SECONDARY segments on top
