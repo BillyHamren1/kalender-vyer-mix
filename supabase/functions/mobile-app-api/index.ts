@@ -8199,6 +8199,187 @@ async function handleGetRecentBroadcasts(supabase: any, organizationId: string) 
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+/**
+ * handleCreateTravelFromGap — central, idempotent skapelse av restid
+ * från ett gap mellan två arbetsaktiviteter (gap-modellen).
+ *
+ * Modellen (Tidappen):
+ *   • Restid = GAPET mellan föregående stopp och nästa start.
+ *   • Endast riktiga arbetstargets räknas (project | booking | location).
+ *   • Tröskelregler:
+ *       <10 min   → klienten ska inte ens anropa (ignoreras här ändå)
+ *       10–180 min → 'work', skapas direkt
+ *       >180 min  → needs_review=true, skapas men kräver attest
+ *
+ * Idempotens:
+ *   • UNIQUE-index på (staff_id, organization_id, start_time, end_time)
+ *     WHERE source='gap_derived' garanterar att samma gap aldrig
+ *     dubbelregistreras (race-säker).
+ *   • Vi gör en pre-check också så vi kan returnera "redan skapad" snyggt
+ *     utan att klienten ser ett 23505-fel.
+ */
+async function handleCreateTravelFromGap(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const {
+    previous_target_type,
+    previous_target_id,
+    previous_target_label,
+    next_target_type,
+    next_target_id,
+    next_target_label,
+    start_time,
+    end_time,
+  } = data || {}
+
+  // ── Validation ────────────────────────────────────────────────────
+  const ALLOWED_KINDS = ['project', 'booking', 'location']
+  if (!start_time || !end_time) {
+    return new Response(
+      JSON.stringify({ error: 'start_time and end_time are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  if (
+    !ALLOWED_KINDS.includes(previous_target_type) ||
+    !ALLOWED_KINDS.includes(next_target_type)
+  ) {
+    return new Response(
+      JSON.stringify({ error: 'previous_target_type/next_target_type must be project|booking|location' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  if (!previous_target_id || !next_target_id) {
+    return new Response(
+      JSON.stringify({ error: 'previous_target_id/next_target_id are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const startMs = new Date(start_time).getTime()
+  const endMs = new Date(end_time).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return new Response(
+      JSON.stringify({ error: 'invalid time range' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const gapMin = Math.round((endMs - startMs) / 60000)
+
+  // <10 min är klientens ansvar att filtrera bort, men vi vägrar här ändå.
+  if (gapMin < 10) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'gap_too_short', gap_minutes: gapMin }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Cross-day → vi vägrar (gap-modellen rör enbart samma dag).
+  const startDate = new Date(start_time).toISOString().split('T')[0]
+  const endDate = new Date(end_time).toISOString().split('T')[0]
+  if (startDate !== endDate) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'cross_day' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // ── Idempotens-koll ───────────────────────────────────────────────
+  const { data: existing, error: existingErr } = await supabase
+    .from('travel_time_logs')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .eq('source', 'gap_derived')
+    .eq('start_time', new Date(start_time).toISOString())
+    .eq('end_time', new Date(end_time).toISOString())
+    .maybeSingle()
+
+  if (existingErr) {
+    console.error('[handleCreateTravelFromGap] dedupe lookup failed:', existingErr)
+  } else if (existing) {
+    console.log(
+      `[handleCreateTravelFromGap] gap already exists for staff ${staffId} (${gapMin} min) → returning existing`,
+    )
+    return new Response(
+      JSON.stringify({ success: true, deduplicated: true, travel_log: existing }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // ── Beslutsregler för needs_review ────────────────────────────────
+  // 10–180 min  → 'work', auto-godkännbar
+  // >180 min    → needs_review=true, måste granskas innan attest
+  const needsReview = gapMin > 180
+  const classification = needsReview ? 'unclassified' : 'work'
+  const hours = Number((gapMin / 60).toFixed(2))
+
+  const description =
+    `Gap: ${previous_target_label || previous_target_type} → ` +
+    `${next_target_label || next_target_type} (${gapMin} min)`
+
+  const insertPayload: Record<string, unknown> = {
+    staff_id: staffId,
+    organization_id: organizationId,
+    report_date: startDate,
+    start_time: new Date(start_time).toISOString(),
+    end_time: new Date(end_time).toISOString(),
+    hours_worked: hours,
+    description,
+    auto_detected: true,
+    source: 'gap_derived',
+    needs_review: needsReview,
+    classification,
+    previous_target_type,
+    previous_target_id,
+    next_target_type,
+    next_target_id,
+  }
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('travel_time_logs')
+    .insert(insertPayload)
+    .select('*')
+    .single()
+
+  if (insertErr) {
+    // 23505 = unique violation → race med en parallell anropare. Hämta och returnera den existerande raden.
+    if ((insertErr as any)?.code === '23505') {
+      const { data: raceRow } = await supabase
+        .from('travel_time_logs')
+        .select('*')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .eq('source', 'gap_derived')
+        .eq('start_time', new Date(start_time).toISOString())
+        .eq('end_time', new Date(end_time).toISOString())
+        .maybeSingle()
+      if (raceRow) {
+        return new Response(
+          JSON.stringify({ success: true, deduplicated: true, travel_log: raceRow }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+    console.error('[handleCreateTravelFromGap] insert failed:', insertErr)
+    return new Response(
+      JSON.stringify({ error: 'insert_failed', detail: (insertErr as any)?.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  console.log(
+    `[handleCreateTravelFromGap] created ${inserted.id} (${gapMin} min, needs_review=${needsReview}) for staff ${staffId}`,
+  )
+  return new Response(
+    JSON.stringify({ success: true, travel_log: inserted, gap_minutes: gapMin, needs_review: needsReview }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
 
 // ============================================================================
 // Smart-karta — arrival-context handlers
