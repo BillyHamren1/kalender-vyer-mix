@@ -490,16 +490,29 @@ const GlobalActiveTimerBanner: React.FC = () => {
           className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
           style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
         >
-          <Button
-            variant="default"
-            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
+          <button
+            type="button"
             onClick={handleStartDay}
             disabled={startingDay}
             title={t('workday.startDayTitle')}
+            aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
+            className={cn(
+              'pointer-events-auto w-full min-h-[56px] px-5 rounded-2xl',
+              'flex items-center justify-center gap-2.5',
+              'text-base font-bold tracking-tight',
+              'bg-primary text-primary-foreground',
+              'border-2 border-primary',
+              'shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.55)]',
+              'transition-all duration-150 ease-out',
+              'active:scale-[0.98] active:shadow-[0_4px_12px_-4px_hsl(var(--primary)/0.5)]',
+              'hover:brightness-110',
+              'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/40',
+              'disabled:cursor-not-allowed disabled:opacity-70 disabled:active:scale-100 disabled:hover:brightness-100',
+            )}
           >
-            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {startingDay ? t('workday.starting') : t('workday.startDay')}
-          </Button>
+            {startingDay ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+            <span>{startingDay ? t('workday.starting') : t('workday.startDay')}</span>
+          </button>
         </div>
       )}
       {pendingStop && (
