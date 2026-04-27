@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScheduledShift } from '@/services/mobileApiService';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime, parsePlannerDateTime } from '@/utils/dateUtils';
+import {
+  consolidateShifts,
+  getItemEnd,
+  isItemActive,
+  type MobileCalendarItem,
+} from '@/lib/mobileCalendarConsolidation';
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
@@ -21,8 +27,8 @@ const DEFAULT_END_HOUR = 22;
 const PX_PER_HOUR = 64;
 const PX_PER_MINUTE = PX_PER_HOUR / 60;
 
-interface PositionedShift {
-  shift: ScheduledShift;
+interface PositionedItem {
+  item: MobileCalendarItem;
   topPx: number;
   heightPx: number;
   /** Column index within an overlap group. */
@@ -31,15 +37,19 @@ interface PositionedShift {
   cols: number;
 }
 
-/** Assigns column slots so overlapping shifts render side-by-side. */
-function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): PositionedShift[] {
-  const sorted = [...shifts].sort(
-    (a, b) => (parsePlannerDateTime(a.start_time)?.getTime() ?? 0) - (parsePlannerDateTime(b.start_time)?.getTime() ?? 0)
+const itemStartStr = (it: MobileCalendarItem) =>
+  it.kind === 'booking' ? it.shift.start_time : it.start_time;
+
+/** Assigns column slots so overlapping items render side-by-side. */
+function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date): PositionedItem[] {
+  const sorted = [...items].sort(
+    (a, b) =>
+      (parsePlannerDateTime(itemStartStr(a))?.getTime() ?? 0) -
+      (parsePlannerDateTime(itemStartStr(b))?.getTime() ?? 0)
   );
 
-  const positioned: PositionedShift[] = [];
-  // Greedy column packing within an overlap cluster.
-  let cluster: PositionedShift[] = [];
+  const positioned: PositionedItem[] = [];
+  let cluster: PositionedItem[] = [];
   let clusterEnd = 0;
 
   const flushCluster = () => {
@@ -51,9 +61,9 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
     clusterEnd = 0;
   };
 
-  for (const s of sorted) {
-    const startDate = parsePlannerDateTime(s.start_time);
-    const endDate = parsePlannerDateTime(s.end_time);
+  for (const it of sorted) {
+    const startDate = parsePlannerDateTime(itemStartStr(it));
+    const endDate = parsePlannerDateTime(getItemEnd(it));
     if (!startDate || !endDate) continue;
 
     const startMs = Math.max(startDate.getTime(), dayStart.getTime());
@@ -67,16 +77,15 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
       flushCluster();
     }
 
-    // Find the smallest free column index in the current cluster.
     const usedCols = new Set(
       cluster
-        .filter((p) => (parsePlannerDateTime(p.shift.end_time)?.getTime() ?? 0) > startMs)
+        .filter((p) => (parsePlannerDateTime(getItemEnd(p.item))?.getTime() ?? 0) > startMs)
         .map((p) => p.col)
     );
     let col = 0;
     while (usedCols.has(col)) col++;
 
-    cluster.push({ shift: s, topPx, heightPx, col, cols: 1 });
+    cluster.push({ item: it, topPx, heightPx, col, cols: 1 });
     clusterEnd = Math.max(clusterEnd, endMs);
   }
   flushCluster();
@@ -91,8 +100,6 @@ const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
   other: 'bg-muted text-foreground border-border',
 };
 
-// Event-type labels are translated at render time via useLanguage().t().
-// Keep this map only as a key reference if needed elsewhere.
 type EventTypeKey = ScheduledShift['event_type'];
 const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.event' | 'dayTimeline.rigdown' | 'dayTimeline.other'> = {
   rig: 'dayTimeline.rig',
