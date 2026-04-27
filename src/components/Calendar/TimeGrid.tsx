@@ -585,7 +585,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         })}
 
         {/* Row 3: Staff Assignment Areas per team */}
-        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1 }}></div>
+        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, height: `${assignedStaffRowHeight}px` }}></div>
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
@@ -597,7 +597,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 gridColumn: index + 2,
                 gridRow: 3,
                 width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
+                height: `${assignedStaffRowHeight}px`,
+                minHeight: `${assignedStaffRowHeight}px`,
+                maxHeight: `${assignedStaffRowHeight}px`,
               }}
             >
               <div className="staff-header-assignment-area">
