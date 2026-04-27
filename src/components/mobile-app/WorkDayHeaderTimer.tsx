@@ -10,10 +10,19 @@ import { cn } from '@/lib/utils';
  * WorkDayHeaderTimer — small, calm pill in the header showing how long
  * the current workday has been running.
  *
+ * UNIFIED MODEL (Tidappen):
+ *   1. Dagtimer = HUVUDSPÅR. Den här pillen visar dagens längd och inget
+ *      annat. Den startas av manuell "Starta dagen" eller riktig
+ *      geofence/start-action via useTimerStartFlow — aldrig av app-open.
+ *   2. Aktivitetstid = INUTI dagen. Att starta/stoppa en aktivitet
+ *      påverkar inte att dagen finns och visas inte här.
+ *   3. "Avsluta dagen" = SEPARAT handling. Pillen försvinner först när
+ *      workdays-raden faktiskt är ended_at (server-bekräftad).
+ *   4. Geofence = SIGNAL — inget UI-state hämtas från geofence här.
+ *
  * SOURCE OF TRUTH: `useWorkDay()` → `workdays` table (server, realtime).
- * The workday is the PRIMARY signal; activity timers (project/travel/
- * warehouse/location) are SECONDARY segments. This component MUST NOT
- * derive its state from active timers or localStorage.
+ * Komponenten MÅSTE inte härleda state från aktiva timers eller
+ * localStorage.
  *
  * Stale visualisation:
  *   - elapsed > 12h  → orange (warning)

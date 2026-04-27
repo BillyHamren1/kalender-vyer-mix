@@ -2,9 +2,21 @@
  * useTimerStartFlow — UNIFIED START FLOW
  * ======================================
  *
- * THE ONLY sanctioned path to start a timer in the mobile app.
+ * THE ONLY sanctioned path to start an ACTIVITY timer in the mobile app.
  *
- * All start sources (manual button, arrival popup, future geo-prompt acks)
+ * UNIFIED MODEL (Tidappen):
+ *   1. Dagtimer (workday) = HUVUDSPÅR. Säkerställs här via ensureWorkDayActive
+ *      vid första aktivitetsstart. Får också startas explicit av användaren
+ *      via "Starta dagen". App-open startar ALDRIG dagen implicit.
+ *   2. Aktivitetstid (projekt/plats/bokning) = INUTI dagen. Den här hooken
+ *      ansvarar för aktivitetsstart — inte för att äga workday-livscykeln.
+ *   3. "Avsluta dagen" = SEPARAT handling — sker via useWorkDay.end, inte här.
+ *      Att stoppa en aktivitet avslutar ALDRIG dagen.
+ *   4. Geofence = SIGNAL. Den här hooken är ACTION/DECISION-lagret som tar
+ *      emot signaler (manuell knapp, ankomst-popup, geo arrival via
+ *      tryStartFromArrival) och kör dem genom samma startkedja.
+ *
+ * All start sources (manual button, arrival popup, geofence arrival)
  * MUST go through `requestStart()` here. The flow is:
  *
  *   requestStart(target, label, opts?)
