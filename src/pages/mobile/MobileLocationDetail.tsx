@@ -40,7 +40,16 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, geo, startSession, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, geo, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
   const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
@@ -53,16 +62,6 @@ const MobileLocationDetail = () => {
   const [assignToMe, setAssignToMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [, setTick] = useState(0);
-  // Rule-based concurrency replaces the legacy "max one timer total" hard
-  // block. Two timers may coexist (e.g. Lager presence + active booking) —
-  // only incompatible kinds open the switch dialog.
-  const [pendingStart, setPendingStart] = useState<{ label: string; doStart: () => void } | null>(null);
-  const [conflictEval, setConflictEval] = useState<
-    Extract<StartEvaluation, { status: 'switch' }> | null
-  >(null);
-  // Distance-warning dialog state — populated by startSessionWithDistanceCheck
-  // when the user is outside the location's geofence radius.
-  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
