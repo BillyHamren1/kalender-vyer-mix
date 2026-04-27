@@ -301,13 +301,24 @@ export function useTimerStartFlow(
 
       if (evalResult.status === 'switch') {
         // Defer to TimerConflictDialog; arrival caller must NOT mark resolved.
-        setPendingStart({ target, label, startedAtIso: opts.startedAtIso });
+        setPendingStart({
+          target,
+          label,
+          startedAtIso: opts.startedAtIso,
+          taskId: opts.taskId,
+          taskTitle: opts.taskTitle,
+        });
         setConflictEval(evalResult);
         return 'conflict';
       }
 
       // allow → run the real start chain and surface its outcome.
-      return performStart(target, { startedAtIso: opts.startedAtIso, label });
+      return performStart(target, {
+        startedAtIso: opts.startedAtIso,
+        label,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
     },
     [activeTimers, labelFor, performStart],
   );
