@@ -107,19 +107,10 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
   }, [user?.email]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const activeItems = updatedItems.filter(i => !i.excluded);
-    const parentProductIds = new Set<string>();
-    activeItems.forEach(item => {
-      const pid = item.booking_products?.parent_product_id;
-      if (pid) parentProductIds.add(pid);
-    });
-    const countable = activeItems.filter(item => {
-      const productId = item.booking_products?.id;
-      return !productId || !parentProductIds.has(productId);
-    });
-    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
-    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
-    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
+    // Single source of truth — see src/lib/packing/progress.ts.
+    // The helper itself drops `excluded` rows, so no pre-filter is needed:
+    // any local pre-filtering would silently drift from the server again.
+    const { total, verified, percentage } = computePackingProgress(updatedItems);
     setProgress({ total, verified, percentage });
   }, []);
 
