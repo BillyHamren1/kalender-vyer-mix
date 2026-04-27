@@ -198,7 +198,7 @@ export default function ProjectAddressMapDialog({
     let map: mapboxgl.Map;
     try {
       map = new mapboxgl.Map({
-        container: containerRef.current,
+        container: containerNode,
         style: 'mapbox://styles/mapbox/streets-v12',
         center: initialCenter,
         zoom: coords.lat != null ? 14 : 4.5,
