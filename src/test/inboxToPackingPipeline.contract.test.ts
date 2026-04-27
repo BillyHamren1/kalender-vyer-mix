@@ -66,7 +66,8 @@ const matchRow = (row: Row, filters: Filter[]) =>
     const v = row[f.col];
     if (f.op === 'eq') return v === f.val;
     if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(v);
-    if (f.op === 'is') return v === f.val; // null check
+    // Postgres `IS NULL` semantics: missing/undefined columns count as null.
+    if (f.op === 'is') return f.val === null ? v === null || v === undefined : v === f.val;
     return false;
   });
 
