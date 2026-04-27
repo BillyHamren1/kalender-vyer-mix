@@ -347,8 +347,11 @@ const GlobalActiveTimerBanner: React.FC = () => {
         </div>
       )}
       {/* "Avsluta dagen" — fixed ovanför bottennaven (h-16 = 64px) +
-          iOS safe-area så hela knappen alltid syns på alla enheter. */}
-      {timers.size > 0 && location.pathname !== '/m/report' && (
+          iOS safe-area så hela knappen alltid syns på alla enheter.
+          Visas så länge arbetsdagen är öppen — även om alla aktivitets-
+          timers redan är stoppade. Annars går det inte att avsluta dagen
+          efter att man stoppat sin sista aktivitet. */}
+      {workdayOpen && location.pathname !== '/m/report' && (
         <div
           className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
           style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
