@@ -1,71 +1,62 @@
-# Felanalys: Billys tisdag/onsdag visas inte i appen
+## Goal
+Make the mobile calendar reflect the personnel calendar exactly: no extra inferred jobs, no project-wide spillover onto days where the staff member is not actually scheduled. Large projects should appear as one project card per day in the mobile calendar, and only show underlying bookings after opening the project.
 
-## Vad jag hittade i datan
+## What will change
+1. Tighten mobile API visibility so scheduled days come only from actual personnel-calendar scheduling rows.
+2. Stop using project membership or project-wide expansion as a scheduling source for mobile shift cards.
+3. Consolidate large-project shifts in the mobile calendar into one card per project per day.
+4. Keep project detail behavior so tapping the project card opens the project page and shows its individual bookings there.
+5. Add tests covering the “Billy on another job Tuesday” case and large-project consolidation.
 
-Billy har dessa BSA-rader i `booking_staff_assignments`:
+## Implementation plan
+### 1) Fix the scheduling authority in `mobile-app-api`
+Update `handleGetBookings` so the mobile calendar is derived from the same authority as the personnel calendar:
+- Treat only real per-day schedule rows as shift sources for mobile calendar days.
+- Do not let `team_id='project'` create visible scheduled shifts by itself.
+- Do not expand a scheduled date on one booking into all bookings in the large project for shift generation.
+- Keep date filtering strict: if Billy is not scheduled on Tiomila on Tuesday in the personnel calendar, Tiomila must not appear on Tuesday in the mobile app.
 
-| Datum | Bokning | team_id | Roll |
-|-------|---------|---------|------|
-| 2026-04-27 (mån) | 2603-9 | team-2 | field |
-| 2026-04-27 (mån) | 2602-15 | team-2 | field |
-| 2026-04-28 (tis) | 2603-9 | team-3 | field |
-| 2026-04-28 (tis) | 2602-15 | team-3 | field |
-| 2026-04-29 (ons) | 2603-9 | **project** | field |
-| 2026-04-29 (ons) | 2602-15 | team-3 | field |
+### 2) Separate visibility from scheduling
+Preserve project/team membership where needed for navigation or data access, but not for calendar placement:
+- Membership may still help identify which project a booking belongs to.
+- Membership must not create a shift card or a scheduled day.
+- The returned `shifts` payload should represent actual scheduled work only.
 
-Men `calendar_events` finns endast för:
-- 2603-9: 04-29 (rig) + 05-06 (rigDown)
-- 2602-15: 04-30 (rig) + 05-06 (rigDown)
+### 3) Consolidate large projects in the mobile calendar UI
+Update mobile calendar rendering so daily shift cards are grouped by large project:
+- If multiple shifts belong to the same `large_project_id` on the same day, render one project card.
+- Use project name/address on the card.
+- Navigate project cards to `/m/project/:projectId` instead of `/m/job/:bookingId`.
+- Non-project jobs should continue to render as booking cards.
 
-→ **Tisdag (04-28) saknar helt CE-rader.** Och för bokning 2603-9 är onsdagens BSA märkt `team_id='project'` (visibility-only) vilket gör att den filtreras bort innan shifts byggs.
+### 4) Keep drill-down behavior intact
+When opening a large project card:
+- Show the project detail page that already lists the project’s underlying bookings.
+- Ensure this remains the only place where many sub-bookings are exposed, so the calendar stays clean even for very large projects.
 
-## Vad mobile-app-api gör idag
+### 5) Add regression coverage
+Add or update tests to lock in the intended behavior:
+- A staff member scheduled on another job Tuesday must not also see Tiomila Tuesday unless Tiomila has an actual personnel-calendar assignment for that day.
+- `team_id='project'` alone must not create a visible mobile shift.
+- Multiple same-day bookings inside one large project should collapse into one mobile calendar card.
+- Tapping a project card should route to the project detail screen.
 
-`handleGetBookings` har en fallback-väg (`getBookingShiftWindowForDate`) som *ska* generera ett "syntetiskt" shift när det saknas en CE-rad för en BSA-dag. För 04-28 borde den producera shifts åt Billy med rig-tider 08:00–18:00 från bokningens `rig_start_time/rig_end_time`.
+## Technical details
+Files likely involved:
+- `supabase/functions/mobile-app-api/index.ts`
+- `supabase/functions/mobile-app-api/index.test.ts` and/or related edge-function tests
+- `src/hooks/useBookingsByDate.ts` or a new mobile-calendar grouping helper
+- `src/components/mobile-app/DayTimeline.tsx`
+- `src/components/mobile-app/calendar/MobileDayView.tsx`
+- potentially `MobileWeekView.tsx` / `MobileMonthView.tsx` if counts must reflect consolidated project cards instead of raw shifts
 
-Två konkreta brister jag ser:
-
-1. **Onsdag 04-29 / bokning 2603-9 försvinner helt** eftersom raden har `team_id='project'`. Den filtreras bort i `realBsaForShifts` (rad 1063–1068) och datumet läggs aldrig till i `assignment_dates` för bokningen (rad 967–981). Resultat: Billy har faktiskt ett jobb den dagen men appen får ingen shift.
-
-2. **Inga loggar bekräftar att fallback faktiskt körs.** Edge function-loggarna visar inga `get_bookings`-anrop senaste 10 min, så vi vet inte om den nya fallback-koden körs på Billys konto eller om den native-appen är cachad. Vi har just bett användaren bygga om — men vi har ingen synlig logg som bekräftar shift-resultatet per anrop.
-
-## Plan för att fixa det
-
-### 1. Räkna även `team_id='project'` BSA som riktig schema-källa när det finns *ingen* annan riktig BSA på samma bokning+datum
-
-I `handleGetBookings`:
-- Utöka `realBsaForShifts` till att inkludera `team_id='project'` *när* den raden representerar en faktisk arbetsdag (dvs ingen annan team-rad finns). Eller enklare: bygg `shiftDateKeys` från **alla** BSA (förutom `location-`-bokningar), inte bara real-team-rader. Visibility-filtret för bokningar lämnas oförändrat.
-- Justera `assignment_dates`-uträkningen så att även project-rader bidrar med datum när bokningen redan är synlig via en annan riktig BSA i samma stora projekt.
-
-### 2. Härleda shifts från bokningens egna fas-datum när BSA finns men ingen CE matchar
-
-Fallback finns redan men nås bara via `shiftDateKeys`. Säkerställ att alla BSA-datum för en synlig bokning hamnar i `shiftDateKeys`, även om BSA-raden är `team_id='project'`.
-
-### 3. Lägg till strukturerad loggning per anrop
-
-I `handleGetBookings`, logga:
+Expected behavioral rule:
+```text
+Personnel calendar = source of truth
+Mobile calendar = exact mirror of scheduled workdays
+Large project in calendar = one card per project/day
+Project detail = place where underlying bookings are shown
 ```
-[get_bookings] per-booking shift breakdown:
-  bookingId, assignmentDates, shiftKeys, ceMatched, fallbackCreated
-```
-Så att nästa gång användaren rapporterar "tisdag är tom" kan vi öppna loggarna och direkt se om API:t returnerar shiften eller inte (utskillnad mellan server- och klientproblem).
 
-### 4. Verifiera mot live-API
-
-Efter ändring: anropa `mobile-app-api` med `action=get_bookings` för Billy och bekräfta att svaret innehåller shifts för 04-27, 04-28 och 04-29 på båda bokningar (totalt 6 shifts förutom 04-29/2603-9 som är project-only och därmed också ska vara med efter fix 1).
-
-## Tekniska detaljer
-
-**Filer som ändras:**
-- `supabase/functions/mobile-app-api/index.ts` (`handleGetBookings`, ca rad 755–1200)
-
-**Inga UI-ändringar** behövs — `useShiftsByDate` + `MobileDayView` grupperar redan korrekt på `start_time`-datumet.
-
-**Inga DB-ändringar** behövs — bristen är i hur API:t bygger shifts från befintliga BSA-rader.
-
-## Vad användaren kommer märka
-
-Efter att appen byggts om (eller via webbläsare på `/m/login`):
-- Tisdag 28 april: Billy ser sina två jobb (Tiomila 2603-9 + 2602-15) på Team 3.
-- Onsdag 29 april: Billy ser båda jobben (även det project-tilldelade 2603-9).
-- Tider visas som 08:00 (från bokningens rig_start_time, normaliserat till naivt UTC-värde).
+## Result
+After this change, the mobile app will no longer invent extra project days. Staff will only see the job/project they are actually scheduled for that day, and large projects will stay collapsed to a single clean card in the calendar.
