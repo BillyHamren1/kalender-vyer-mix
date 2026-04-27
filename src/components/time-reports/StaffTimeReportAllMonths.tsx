@@ -52,6 +52,7 @@ const StaffTimeReportAllMonths: React.FC<StaffTimeReportAllMonthsProps> = ({ sta
             booking_number
           )
         `)
+        .eq('is_subdivision', false)
         .eq('staff_id', staffId)
         .order('report_date', { ascending: false });
       if (error) throw error;

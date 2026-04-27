@@ -101,6 +101,7 @@ export async function fetchStaffRevenueData(
       report_date,
       staff_members!inner(id, name, role, hourly_rate, overtime_rate)
     `)
+    .eq('is_subdivision', false)
     .gte('report_date', startStr)
     .lte('report_date', endStr);
 

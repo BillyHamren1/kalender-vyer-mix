@@ -62,6 +62,7 @@ const EconomyTimeReports = () => {
             staff_members!inner(name),
             bookings!inner(client, assigned_project_name)
           `)
+          .eq('is_subdivision', false)
           .order("report_date", { ascending: false })
           .limit(500);
 
