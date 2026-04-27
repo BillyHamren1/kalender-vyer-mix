@@ -2,9 +2,15 @@ import { PackingWithBooking, PackingParcel } from "@/types/packing";
 import { getToken, clearAuth } from "@/services/mobileApiService";
 
 export interface ScanResult {
-  type: 'packing_id' | 'product_sku' | 'unknown';
+  type: 'packing_id' | 'product_sku' | 'rfid_tag' | 'serial' | 'unknown';
   value: string;
   packingId?: string;
+  /**
+   * Whether the scanned code identifies a *unique* physical instance
+   * (RFID EPC, serial number) — those must be deduped per session.
+   * SKU/article barcodes are *repeatable* and may be scanned many times.
+   */
+  unique: boolean;
 }
 
 // Helper to call the scanner-api edge function with auth token
@@ -97,20 +103,37 @@ export const getItemAllocations = async (packingId: string): Promise<Record<stri
 
 // Parse a scanned value to determine what type it is (client-side only, no DB)
 // Always trims the input to handle trailing whitespace/newlines from hardware scanners.
+//
+// Classification:
+//   - packing_id  → URL or bare UUID pointing at a packing list (not a product)
+//   - rfid_tag    → long hex string (>=20 hex chars) — UNIQUE EPC, dedup per session
+//   - serial      → mixed alphanum >=14 chars — UNIQUE physical instance, dedup
+//   - product_sku → everything else — REPEATABLE (e.g. same article scanned N times)
 export const parseScanResult = (scannedValue: string): ScanResult => {
   const trimmed = scannedValue.trim();
 
   const packingUrlMatch = trimmed.match(/\/warehouse\/packing\/([a-f0-9-]+)\/verify/);
   if (packingUrlMatch) {
-    return { type: 'packing_id', value: packingUrlMatch[1], packingId: packingUrlMatch[1] };
+    return { type: 'packing_id', value: packingUrlMatch[1], packingId: packingUrlMatch[1], unique: false };
   }
 
   const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
   if (uuidPattern.test(trimmed)) {
-    return { type: 'packing_id', value: trimmed, packingId: trimmed };
+    return { type: 'packing_id', value: trimmed, packingId: trimmed, unique: false };
   }
 
-  return { type: 'product_sku', value: trimmed };
+  // RFID EPC: long pure-hex string (typical Zebra EPC = 24 hex chars)
+  if (trimmed.length >= 20 && /^[0-9a-fA-F]+$/.test(trimmed)) {
+    return { type: 'rfid_tag', value: trimmed, unique: true };
+  }
+
+  // Serial number heuristic: long mixed alphanum (>=14 chars, contains both letters and digits)
+  if (trimmed.length >= 14 && /[A-Za-z]/.test(trimmed) && /[0-9]/.test(trimmed)) {
+    return { type: 'serial', value: trimmed, unique: true };
+  }
+
+  // Default: SKU / article code — repeatable
+  return { type: 'product_sku', value: trimmed, unique: false };
 };
 
 // Fetch active packing projects
