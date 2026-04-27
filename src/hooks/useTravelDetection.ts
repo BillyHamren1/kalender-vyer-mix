@@ -1,34 +1,38 @@
 /**
- * useTravelDetection — LEGACY / ASSIST LAYER
- * ==========================================
+ * useTravelDetection — ASSIST LAYER (deprecated as primary engine)
+ * ================================================================
  *
- * STATUS: secondary. Retained as an *assist signal* only.
+ * STATUS: assist only. NO auto-start of travel from GPS speed.
  *
  * OFFICIAL TIME MODEL (Tidappen):
  *   1. Dagtimer (workday) = hela arbetsdagens tak.
  *   2. Aktivitet (projekt/plats/bokning) = tidsblock inuti dagen.
  *   3. Restid = GAPET mellan två aktiviteter när gapet är rimligt.
- *      Exempel: Projekt A stopp 10:00 + Projekt B start 11:00
- *               → 60 min gap → möjlig restid (rapporteras/justeras
- *               via day-review eller admin-vyn).
+ *      Auktoritativ väg: `create_travel_from_gap` (server) +
+ *      day-review (`adjustTravel` / `createTravelForGap`).
  *
- * Konsekvens för den här hooken:
- *   • Live GPS-travel ÄR INTE LÄNGRE den primära källan för restid.
- *   • Auto-skapade `travel_time_logs` är en *assistent-signal* —
- *     användaren bekräftar/justerar dem i day-review innan de räknas
- *     som arbetstid.
- *   • Manuella starter (knapptryck, day-review `adjustTravel`) och
- *     gap-härledd restid är de auktoritativa källorna framåt.
- *   • Befintlig kod behålls för bakåtkompatibilitet (öppna rader på
- *     enheter, in-flight resor) men ska inte byggas ut. Ny logik runt
- *     restid ska gå via aktivitets-gap, inte via GPS-fart.
+ * Vad denna hook GÖR fortfarande:
+ *   • Exponerar `latestPosition`-driven `lastPositionRef` så att
+ *     downstream-flöden (home-arrival detection, end-of-day prompts)
+ *     kan läsa senaste GPS-koordinat utan en egen GPS-watcher.
+ *   • Stänger eventuella *gamla* öppna `travel_time_logs`-rader när
+ *     `STOP_TRAVEL_EVENT` fires (geofence ENTER / ny activity-timer)
+ *     eller när användaren trycker manuellt stopp i banner.
+ *   • Reconcilar phantom local state mot servern vid mount.
+ *
+ * Vad denna hook INTE LÄNGRE GÖR:
+ *   • Skapar inga `travel_time_logs` automatiskt från GPS-fart.
+ *     Den gamla SPEED_THRESHOLD/START_DEBOUNCE-loopen är borttagen.
+ *   • Är inte längre "huvudmotor" för restid — gap-modellen är.
+ *
+ * Banner/dialog-UI (TravelBanner, TravelCompletedDialog) är därmed
+ * passiva: de visas bara om en legacy-rad fortfarande är öppen.
+ * Ny travel-data ska aldrig längre uppstå härifrån.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
 import { GpsPosition } from '@/hooks/useGeofencing';
 
-const SPEED_THRESHOLD = 2.0; // m/s (~7.2 km/h)
-const START_DEBOUNCE_MS = 15000; // 15s sustained speed
 const MAX_ACCURACY_M = 50;
 
 /**
