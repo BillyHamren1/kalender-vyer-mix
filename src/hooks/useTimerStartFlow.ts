@@ -46,6 +46,82 @@ import {
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import type { MobileBooking } from '@/services/mobileApiService';
+import { mobileApi } from '@/services/mobileApiService';
+import {
+  evaluateGap,
+  readLastWorkSegment,
+  clearLastWorkSegment,
+} from '@/lib/lastWorkSegment';
+
+/**
+ * Gap-baserad restidshärledning.
+ *
+ * När en aktivitet startas tittar vi på det senaste stoppade
+ * arbetssegmentet (lagrat av useWorkSession.stopSession). Är gapet
+ * rimligt skapar vi en candidate `travel_time_logs`-rad som täcker
+ * intervallet [prev_stop, next_start]. Detta är PRIMÄR vägen att skapa
+ * restid framåt — live GPS-travel är legacy/assist.
+ *
+ * Best-effort: fel loggas men blockerar aldrig start-flödet.
+ */
+async function maybeCreateGapTravel(
+  nextStartIso: string,
+  destinationLabel: string,
+): Promise<void> {
+  const prev = readLastWorkSegment();
+  const decision = evaluateGap(nextStartIso, prev);
+
+  if (decision.kind === 'no_previous' || decision.kind === 'cross_day') {
+    // Inget tidigare segment idag — inget att jämföra mot.
+    return;
+  }
+  if (decision.kind === 'too_short') {
+    // <10 min: betraktas som samma plats / kort paus, ingen restid.
+    console.log(`[GapTravel] gap ${decision.gapMin} min → too_short, skipping`);
+    clearLastWorkSegment();
+    return;
+  }
+  if (decision.kind === 'needs_review') {
+    // >180 min: för långt för auto-skapelse. Vi rensar segmentet så att
+    // vi inte fortsätter erbjuda samma jämförelse, men skapar ingen rad.
+    console.log(
+      `[GapTravel] gap ${decision.gapMin} min → needs_review, no auto candidate`,
+    );
+    clearLastWorkSegment();
+    return;
+  }
+
+  // candidate (10–180 min) → skapa travel_time_log och backdatera tider.
+  try {
+    const created = await mobileApi.createTravelLog({
+      auto_detected: true,
+      description: `Gap-candidate: ${prev!.targetLabel} → ${destinationLabel} (${decision.gapMin} min)`,
+    });
+    const travelLogId = created?.travel_log?.id;
+    if (travelLogId) {
+      await mobileApi.setTravelTimes({
+        travel_log_id: travelLogId,
+        start_time: prev!.stoppedAtIso,
+        end_time: nextStartIso,
+      });
+      console.log(
+        `[GapTravel] candidate created (${decision.gapMin} min): ${travelLogId}`,
+      );
+    }
+  } catch (err: any) {
+    // Servern kan blocka (inside_geofence / pre_workday_commute) — då
+    // är det helt OK att hoppa över. Inget user-facing fel.
+    const msg = String(err?.message || '');
+    if (msg.includes('inside_geofence') || msg.includes('pre_workday_commute')) {
+      console.log('[GapTravel] candidate rejected by server:', msg);
+    } else {
+      console.warn('[GapTravel] candidate creation failed (non-fatal):', err);
+    }
+  } finally {
+    // Rensa alltid efter ett beslut — varje gap utvärderas en gång.
+    clearLastWorkSegment();
+  }
+}
 
 export interface RequestStartOptions {
   /** Backdated start (e.g. arrival timestamp from popup). */
