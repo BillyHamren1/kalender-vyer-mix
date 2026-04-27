@@ -225,6 +225,7 @@ const WebRoutes: React.FC = () => {
             <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/staff-management/time-reports" element={<ProtectedRoute><MainSystemLayout><StaffTimeReports /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/staff-management/time-review" element={<ProtectedRoute><MainSystemLayout><AdminTimeReviewDashboard /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
