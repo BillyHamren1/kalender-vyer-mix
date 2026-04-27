@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2, LogOut } from 'lucide-react';
+import { Square, Building2, Loader2, LogOut, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
-import { markWorkdayEnded } from '@/services/workdayState';
+import { markWorkdayEnded, clearWorkdayEnded } from '@/services/workdayState';
 import { syncWorkDayEnd } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
