@@ -190,12 +190,23 @@ export function useTimerStartFlow(
       if (evalResult.status === 'duplicate') return 'duplicate';
 
       if (evalResult.status === 'allow') {
-        checkDistanceAndStart(target, { startedAtIso: opts.startedAtIso, label });
+        checkDistanceAndStart(target, {
+          startedAtIso: opts.startedAtIso,
+          label,
+          taskId: opts.taskId,
+          taskTitle: opts.taskTitle,
+        });
         return 'started';
       }
 
       // switch — defer until user confirms in TimerConflictDialog
-      setPendingStart({ target, label, startedAtIso: opts.startedAtIso });
+      setPendingStart({
+        target,
+        label,
+        startedAtIso: opts.startedAtIso,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
       setConflictEval(evalResult);
       return 'conflict';
     },
@@ -214,14 +225,14 @@ export function useTimerStartFlow(
    */
   const confirmSwitch = useCallback(async () => {
     if (!pendingStart || !conflictEval) return;
-    const { target, label, startedAtIso } = pendingStart;
+    const { target, label, startedAtIso, taskId, taskTitle } = pendingStart;
     const { conflict } = conflictEval;
     setPendingStart(null);
     setConflictEval(null);
 
     const existing = activeTimers.get(conflict.key);
     if (!existing) {
-      checkDistanceAndStart(target, { startedAtIso, label });
+      checkDistanceAndStart(target, { startedAtIso, label, taskId, taskTitle });
       return;
     }
 
@@ -246,7 +257,7 @@ export function useTimerStartFlow(
       toast.error(err?.message || 'Kunde inte stoppa pågående timer');
       return;
     }
-    checkDistanceAndStart(target, { startedAtIso, label });
+    checkDistanceAndStart(target, { startedAtIso, label, taskId, taskTitle });
   }, [
     pendingStart,
     conflictEval,
