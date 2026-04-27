@@ -100,9 +100,23 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
     }
   };
 
+  // The dialog must NEVER close silently. Outside-click and Escape are
+  // intercepted and routed to onCancel so the host always knows whether
+  // the user confirmed or cancelled — no ambiguous "pendingStop" middle
+  // state can survive a backdrop tap.
+  const handleSilentClose = () => {
+    if (submitting) return;
+    onCancel();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleSilentClose(); else onOpenChange(o); }}>
+      <DialogContent
+        className="max-w-md"
+        onPointerDownOutside={(e) => { e.preventDefault(); handleSilentClose(); }}
+        onEscapeKeyDown={(e) => { e.preventDefault(); handleSilentClose(); }}
+        onInteractOutside={(e) => { e.preventDefault(); handleSilentClose(); }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
