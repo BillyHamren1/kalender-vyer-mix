@@ -52,3 +52,21 @@ export const extractUTCDate = (value: string | Date): string => {
 export const buildUTCDateTime = (datePart: string, time: string): string => {
   return new Date(`${datePart}T${time}:00Z`).toISOString();
 };
+
+/**
+ * Build a floating planner datetime string without timezone conversion.
+ * Example: buildPlannerDateTime('2025-06-15', '14:30') → '2025-06-15T14:30:00'
+ */
+export const buildPlannerDateTime = (datePart: string, time: string): string => {
+  return `${datePart}T${time}:00`;
+};
+
+/** Normalize planner event types to the canonical casing used in bookings/planner UI. */
+export const normalizePlannerEventType = (value: string | null | undefined): 'rig' | 'event' | 'rigDown' | undefined => {
+  if (!value) return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'rig') return 'rig';
+  if (normalized === 'event') return 'event';
+  if (normalized === 'rigdown') return 'rigDown';
+  return undefined;
+};
