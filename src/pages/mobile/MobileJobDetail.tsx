@@ -118,24 +118,15 @@ const MobileJobDetail = () => {
         toast.error(err.message || t('time.couldNotSave' as any));
       }
     } else {
-      // START — same engine, only the target descriptor differs.
-      // Distance check is centralized in useWorkSession so all start
-      // surfaces (jobs list, job detail, location detail) behave identically.
+      // START — UNIFIED START FLOW. requestStart guarantees a workday is
+      // active before any activity starts (workday-first), and routes
+      // through the same conflict + distance machinery as every other
+      // surface in the mobile app. Direct startSession is forbidden.
       const target = { kind: 'booking' as const, bookingId: id, client: booking.client };
-      const opts = { taskId: selectedTaskId || undefined, taskTitle: selectedTaskTitle || undefined };
-      const successToast = () => toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
-
-      const started = startSessionWithDistanceCheck(target, opts, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => {
-            confirm();
-            successToast();
-          },
-        });
+      requestStart(target, {
+        taskId: selectedTaskId || undefined,
+        taskTitle: selectedTaskTitle || undefined,
       });
-      if (started) successToast();
     }
   };
 
