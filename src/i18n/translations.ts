@@ -195,6 +195,8 @@ const translations = {
   'calendar.day': { sv: 'Dag', en: 'Day' },
   'calendar.week': { sv: 'Vecka', en: 'Week' },
   'calendar.month': { sv: 'Månad', en: 'Month' },
+  'calendar.list': { sv: 'Lista', en: 'List' },
+  'calendar.noJobsUpcoming': { sv: 'Inga kommande pass', en: 'No upcoming shifts' },
   'calendar.today': { sv: 'Idag', en: 'Today' },
   'calendar.weekShort': { sv: 'v.', en: 'wk' },
   'calendar.noJobsThisDay': { sv: 'Inga pass denna dag', en: 'No shifts this day' },
