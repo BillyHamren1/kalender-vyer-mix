@@ -193,10 +193,9 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           if (!moveResult.success) {
             const conflictCount = moveResult.conflicts?.length || 0;
             throw new Error(
-              moveResult.error ||
-              (conflictCount > 0
+              conflictCount > 0
                 ? `Kunde inte flytta bemanningen till valt team (${conflictCount} konflikter).`
-                : 'Kunde inte flytta bokningen till valt team.')
+                : 'Kunde inte flytta bokningen till valt team.'
             );
           }
         }
