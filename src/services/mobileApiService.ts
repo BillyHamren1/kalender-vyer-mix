@@ -912,6 +912,42 @@ export const mobileApi = {
     resolution_note?: string;
   }) => callApi<{ success: boolean; flag: WorkdayFlag }>('resolve_workday_flag', data),
 
+  // ── Admin day-review actions ──
+  adminSetWorkdayReview: (data: {
+    workday_id: string;
+    status: 'approved' | 'needs_review' | 'returned' | 'ready' | 'draft';
+    note?: string;
+  }) => callApi<{ workday: { id: string; review_status: string; review_note: string | null } }>(
+    'admin_set_workday_review',
+    data,
+  ),
+
+  adminMarkGapBreak: (data: {
+    target_staff_id: string;
+    flag_date: string; // YYYY-MM-DD
+    start_time: string; // ISO
+    end_time: string;   // ISO
+    note?: string;
+  }) => callApi<{ flag: { id: string } }>('admin_mark_gap_break', data),
+
+  adminMarkGapTravel: (data: {
+    target_staff_id: string;
+    previous_target_type: 'project' | 'booking' | 'location';
+    previous_target_id: string;
+    previous_target_label?: string;
+    next_target_type: 'project' | 'booking' | 'location';
+    next_target_id: string;
+    next_target_label?: string;
+    start_time: string;
+    end_time: string;
+  }) => callApi<{
+    success?: boolean;
+    skipped?: boolean;
+    deduplicated?: boolean;
+    needs_review?: boolean;
+    travel_log?: any;
+  }>('admin_mark_gap_travel', data),
+
   // Confirm/correct the end-of-day time after the nightly cron auto-closed
   // an abandoned timer. Adjusts the affected entries and resolves the flag.
   correctStaleDayEnd: (data: { flag_id: string; chosen_end_iso: string }) =>
