@@ -119,6 +119,27 @@ function buildShiftInterval(
   return { startMs, endMs }
 }
 
+function deriveBookingPhaseForDate(booking: any, assignmentDate: string): 'rig' | 'event' | 'rigdown' | 'other' {
+  if (booking?.rigdaydate === assignmentDate) return 'rig'
+  if (booking?.eventdate === assignmentDate) return 'event'
+  if (booking?.rigdowndate === assignmentDate) return 'rigdown'
+  return 'other'
+}
+
+function getBookingShiftWindowForDate(booking: any, assignmentDate: string): { start: string | null; end: string | null; eventType: 'rig' | 'event' | 'rigdown' | 'other' } {
+  const eventType = deriveBookingPhaseForDate(booking, assignmentDate)
+  if (eventType === 'rig') {
+    return { start: booking?.rig_start_time ?? null, end: booking?.rig_end_time ?? null, eventType }
+  }
+  if (eventType === 'event') {
+    return { start: booking?.event_start_time ?? null, end: booking?.event_end_time ?? null, eventType }
+  }
+  if (eventType === 'rigdown') {
+    return { start: booking?.rigdown_start_time ?? null, end: booking?.rigdown_end_time ?? null, eventType }
+  }
+  return { start: null, end: null, eventType }
+}
+
 /** True iff [a) and [b) intervals overlap (touching endpoints are OK). */
 function intervalsOverlap(
   a: { startMs: number; endMs: number },
@@ -745,6 +766,17 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   const realAssignments = (assignments || []).filter((a: any) => a.team_id !== 'project' && a.team_id !== 'location')
   const realBsaBookingIds = new Set(realAssignments.map((a: any) => a.booking_id))
 
+  const { data: staffTeamAssignments, error: staffTeamAssignmentsError } = await supabase
+    .from('staff_assignments')
+    .select('assignment_date, team_id')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .gte('assignment_date', today)
+
+  if (staffTeamAssignmentsError) {
+    console.error('[get_bookings] staff_assignments query error:', staffTeamAssignmentsError)
+  }
+
   // Bookings where the user has a direct project-membership row (team_id='project').
   // These should also be visible in the mobile app — being on a project's team
   // is a valid visibility signal even without a per-day team scheduling row.
@@ -763,7 +795,10 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     }
   }
 
-  // Discover which large projects the user has REAL assignments in
+  // Discover which large projects the user is scheduled on.
+  // Source A: REAL booking_staff_assignments linked to a booking in a large project.
+  // Source B: team-based large_project_team_assignments joined with the staff
+  // member's own staff_assignments for the same date/team.
   const realBsaIds = [...realBsaBookingIds].filter((id: string) => !id.startsWith('location-'))
   let scheduledProjectDates: Record<string, Set<string>> = {} // project_id → Set of dates
 
@@ -780,6 +815,38 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       if (dates) {
         if (!scheduledProjectDates[link.large_project_id]) scheduledProjectDates[link.large_project_id] = new Set()
         for (const d of dates) scheduledProjectDates[link.large_project_id].add(d)
+      }
+    }
+  }
+
+  const staffTeamsByDate: Record<string, Set<string>> = {}
+  for (const row of (staffTeamAssignments || [])) {
+    if (!row?.assignment_date || !row?.team_id) continue
+    if (!staffTeamsByDate[row.assignment_date]) staffTeamsByDate[row.assignment_date] = new Set()
+    staffTeamsByDate[row.assignment_date].add(row.team_id)
+  }
+
+  const uniqueStaffTeamIds = [...new Set((staffTeamAssignments || []).map((row: any) => row.team_id).filter(Boolean))]
+  let teamScheduledProjectHits = 0
+  if (uniqueStaffTeamIds.length > 0) {
+    const { data: projectTeamRows, error: projectTeamError } = await supabase
+      .from('large_project_team_assignments')
+      .select('large_project_id, team_id, assignment_date, phase')
+      .in('team_id', uniqueStaffTeamIds)
+      .eq('organization_id', organizationId)
+      .gte('assignment_date', today)
+
+    if (projectTeamError) {
+      console.error('[get_bookings] large_project_team_assignments query error:', projectTeamError)
+    } else {
+      for (const row of (projectTeamRows || [])) {
+        const teamSet = staffTeamsByDate[row.assignment_date]
+        if (!teamSet?.has(row.team_id)) continue
+        if (!scheduledProjectDates[row.large_project_id]) scheduledProjectDates[row.large_project_id] = new Set()
+        if (!scheduledProjectDates[row.large_project_id].has(row.assignment_date)) {
+          teamScheduledProjectHits += 1
+        }
+        scheduledProjectDates[row.large_project_id].add(row.assignment_date)
       }
     }
   }
@@ -957,10 +1024,20 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     }
   }
 
+  console.log('[get_bookings] visibility summary:', {
+    staffId,
+    assignmentCount: (assignments || []).length,
+    realAssignmentCount: realAssignments.length,
+    staffTeamAssignmentCount: (staffTeamAssignments || []).length,
+    scheduledProjectCount: Object.keys(scheduledProjectDates).length,
+    teamScheduledProjectHits,
+    returnedBookingCount: bookingsWithAssignments.length,
+  })
+
   // ─── SCHEDULED SHIFTS (calendar_events) ────────────────────────────
-  // For each REAL BSA assignment (excluding project/location synthetic ones),
-  // fetch the matching calendar_events rows. These carry the authoritative
-  // per-staff start/end times (rig / event / rigdown phases).
+  // Build shifts from all booking/date pairs that are actually visible to the
+  // staff member: direct REAL BSA rows and large-project dates derived from
+  // large_project_team_assignments + staff_assignments.
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
@@ -971,8 +1048,19 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         !a.booking_id.startsWith('location-')
     )
 
-    if (realBsaForShifts.length > 0) {
-      const shiftBookingIds = [...new Set(realBsaForShifts.map((a: any) => a.booking_id))]
+    const shiftDateKeys = new Set<string>(
+      realBsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
+    )
+
+    for (const booking of bookingsWithAssignments) {
+      if (!booking?.id || String(booking.id).startsWith('location-')) continue
+      for (const assignmentDate of (booking.assignment_dates || [])) {
+        shiftDateKeys.add(`${booking.id}|${assignmentDate}`)
+      }
+    }
+
+    if (shiftDateKeys.size > 0) {
+      const shiftBookingIds = [...new Set(Array.from(shiftDateKeys).map((key) => key.split('|')[0]))]
 
       // Map booking_id → enriched booking from bookingsWithAssignments
       const bookingMap: Record<string, any> = {}
@@ -981,7 +1069,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       }
 
       // Date window: min..max of assignment_dates we care about
-      const dateValues = realBsaForShifts.map((a: any) => a.assignment_date).sort()
+      const dateValues = Array.from(shiftDateKeys).map((key) => key.split('|')[1]).sort()
       const minDate = dateValues[0]
       const maxDate = dateValues[dateValues.length - 1]
 
@@ -996,17 +1084,15 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       if (ceErr) {
         console.error('[get_bookings] calendar_events query error:', ceErr)
       } else {
-        // Index BSA by (booking_id|date) for quick lookup
-        const bsaIndex = new Set(
-          realBsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
-        )
+        const matchedShiftKeys = new Set<string>()
 
         for (const ce of (ceRows || [])) {
           const startDate = (ce.start_time || '').slice(0, 10)
           const key = `${ce.booking_id}|${startDate}`
-          if (!bsaIndex.has(key)) continue
+          if (!shiftDateKeys.has(key)) continue
           const booking = bookingMap[ce.booking_id]
           if (!booking) continue
+          matchedShiftKeys.add(key)
 
           const rawType = (ce.event_type || '').toLowerCase()
           const normalizedType =
@@ -1033,7 +1119,45 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
           })
         }
 
+        for (const key of shiftDateKeys) {
+          if (matchedShiftKeys.has(key)) continue
+          const [bookingId, assignmentDate] = key.split('|')
+          const booking = bookingMap[bookingId]
+          if (!booking) continue
+
+          const fallback = getBookingShiftWindowForDate(booking, assignmentDate)
+          if (!fallback.start || !fallback.end) {
+            console.warn('[get_bookings] missing fallback shift window for key:', { staffId, bookingId, assignmentDate })
+            continue
+          }
+
+          shifts.push({
+            shift_id: `fallback-${bookingId}-${assignmentDate}-${fallback.eventType}`,
+            booking_id: bookingId,
+            booking_number: booking.booking_number ?? null,
+            title: booking.large_project_name || booking.client,
+            event_type: fallback.eventType,
+            start_time: fallback.start,
+            end_time: fallback.end,
+            delivery_address: booking.deliveryaddress ?? null,
+            delivery_latitude: booking.delivery_latitude ?? null,
+            delivery_longitude: booking.delivery_longitude ?? null,
+            client: booking.client,
+            is_internal: !!booking.is_internal,
+            internal_type: booking.internal_type ?? null,
+            large_project_id: booking.large_project_id ?? null,
+            large_project_name: booking.large_project_name ?? null,
+          })
+        }
+
         shifts.sort((a, b) => a.start_time.localeCompare(b.start_time))
+        console.log('[get_bookings] shifts summary:', {
+          staffId,
+          shiftDateKeyCount: shiftDateKeys.size,
+          calendarEventRowCount: (ceRows || []).length,
+          fallbackShiftCount: shifts.filter((s: any) => String(s.shift_id).startsWith('fallback-')).length,
+          returnedShiftCount: shifts.length,
+        })
       }
     }
   } catch (e) {
