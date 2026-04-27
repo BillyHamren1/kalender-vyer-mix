@@ -325,7 +325,13 @@ export const updateCalendarEvent = async (
   console.log('📝 [Planner UI] Updating calendar event:', eventId);
   
   const updateData: any = {};
-  if (updates.start) updateData.start_time = updates.start;
+  if (updates.start) {
+    updateData.start_time = updates.start;
+    // Keep source_date in sync with the new start so the reconciler
+    // doesn't see a date mismatch and recreate / move the event back.
+    // start is an ISO UTC string (e.g. 2026-04-24T08:00:00.000Z) — take the date portion.
+    updateData.source_date = String(updates.start).slice(0, 10);
+  }
   if (updates.end) updateData.end_time = updates.end;
   if (updates.resourceId) updateData.resource_id = updates.resourceId;
   if (updates.title) updateData.title = updates.title;
