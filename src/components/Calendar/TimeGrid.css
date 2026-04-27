@@ -177,8 +177,9 @@
 }
 
 .staff-row-time-cell {
-  min-height: 0;
-  height: auto;
+  min-height: 88px;
+  height: 88px;
+  max-height: 88px;
   align-self: stretch;
 }
 
