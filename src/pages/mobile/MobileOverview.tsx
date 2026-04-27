@@ -18,8 +18,15 @@ const RANGE_DAYS_FWD = 21;
 const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
+  const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
   const [tab, setTab] = useState<'calendar' | 'staffing' | 'messages'>('calendar');
   const dateLocale = locale === 'en' ? enUS : svLocale;
+
+  // Don't issue Overview API calls until the mobile token is actually
+  // present in localStorage. Without this, a brief race during route
+  // mount can fire the request with hasToken=false → server 401 →
+  // silent AbortError → empty list with no error indicator.
+  const hasToken = isAuthenticated && !!getToken();
 
   const range = useMemo(() => {
     const today = startOfDay(new Date());
@@ -31,21 +38,21 @@ const MobileOverview: React.FC = () => {
   const calendarQ = useQuery({
     queryKey: ['mobile-overview-calendar', range.from, range.to],
     queryFn: () => mobileApi.getOverviewCalendar(range),
-    enabled: tab === 'calendar',
+    enabled: hasToken && tab === 'calendar',
     staleTime: 60_000,
   });
 
   const assignmentsQ = useQuery({
     queryKey: ['mobile-overview-assignments', range.from, range.to],
     queryFn: () => mobileApi.getOverviewAssignments(range),
-    enabled: tab === 'staffing',
+    enabled: hasToken && tab === 'staffing',
     staleTime: 60_000,
   });
 
   const threadsQ = useQuery({
     queryKey: ['mobile-overview-threads'],
     queryFn: () => mobileApi.getOverviewThreads(),
-    enabled: tab === 'messages',
+    enabled: hasToken && tab === 'messages',
     staleTime: 30_000,
   });
 
