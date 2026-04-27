@@ -17,31 +17,31 @@ import {
 // ─── convertToISO8601 ──────────────────────────────────────
 
 describe('convertToISO8601', () => {
-  it('converts Supabase format to ISO', () => {
-    expect(convertToISO8601('2025-06-10 14:00:00+00')).toBe('2025-06-10T14:00:00Z');
+  it('converts Supabase format to floating ISO without timezone shift', () => {
+    expect(convertToISO8601('2025-06-10 14:00:00+00')).toBe('2025-06-10T14:00:00');
   });
 
-  it('passes through ISO format with Z', () => {
+  it('normalizes ISO format with Z to floating ISO', () => {
     const iso = '2025-06-10T14:00:00Z';
-    expect(convertToISO8601(iso)).toBe(iso);
+    expect(convertToISO8601(iso)).toBe('2025-06-10T14:00:00');
   });
 
-  it('passes through ISO format with timezone offset', () => {
+  it('normalizes ISO format with timezone offset to floating ISO', () => {
     const iso = '2025-06-10T14:00:00+02:00';
-    expect(convertToISO8601(iso)).toBe(iso);
+    expect(convertToISO8601(iso)).toBe('2025-06-10T14:00:00');
   });
 
-  it('passes through ISO with milliseconds', () => {
+  it('removes timezone suffix from ISO with milliseconds', () => {
     const iso = '2025-06-10T14:00:00.000Z';
-    expect(convertToISO8601(iso)).toBe(iso);
+    expect(convertToISO8601(iso)).toBe('2025-06-10T14:00:00');
   });
 
   it('handles midnight correctly', () => {
-    expect(convertToISO8601('2025-06-10 00:00:00+00')).toBe('2025-06-10T00:00:00Z');
+    expect(convertToISO8601('2025-06-10 00:00:00+00')).toBe('2025-06-10T00:00:00');
   });
 
   it('handles end of day correctly', () => {
-    expect(convertToISO8601('2025-06-10 23:59:59+00')).toBe('2025-06-10T23:59:59Z');
+    expect(convertToISO8601('2025-06-10 23:59:59+00')).toBe('2025-06-10T23:59:59');
   });
 
   it('returns fallback for null', () => {
