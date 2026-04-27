@@ -646,7 +646,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   useEffect(() => {
     if (!isActive) {
       setError(null);
-      setHasStartGesture(false);
+      
       stopCameraRef.current();
       return;
     }
