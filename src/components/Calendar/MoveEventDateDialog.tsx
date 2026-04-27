@@ -103,16 +103,15 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
 
       if (largeProjectId && phase) {
-        if (newDateStr !== currentDateStr) {
-          await moveLargeProjectDay({
-            largeProjectId,
-            phase,
-            fromDate: currentDateStr,
-            toDate: newDateStr,
-            newStartISO,
-            newEndISO,
-          });
-        }
+        // Always run — handles date change, time change, or both.
+        await moveLargeProjectDay({
+          largeProjectId,
+          phase,
+          fromDate: currentDateStr,
+          toDate: newDateStr,
+          newStartISO,
+          newEndISO,
+        });
         if (teamChanged && selectedResourceId) {
           await setLargeProjectDayTeam(largeProjectId, phase, newDateStr, selectedResourceId);
         }
