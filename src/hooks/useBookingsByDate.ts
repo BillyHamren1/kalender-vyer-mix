@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { ScheduledShift } from '@/services/mobileApiService';
 import { extractUTCDate, parsePlannerDateTime } from '@/utils/dateUtils';
+import { consolidateShifts, type MobileCalendarItem } from '@/lib/mobileCalendarConsolidation';
 
 export type DateKey = string; // YYYY-MM-DD
 
@@ -14,7 +15,13 @@ const keyOf = (d: Date | string): DateKey => {
 
 export interface ShiftsByDate {
   map: Map<DateKey, ScheduledShift[]>;
+  /** Raw shifts grouped by day (used by the day timeline). */
   getForDate: (d: Date) => ScheduledShift[];
+  /**
+   * Consolidated calendar item count for a date — large-project shifts that
+   * fall on the same day are collapsed into ONE item, matching what the user
+   * sees in the day timeline. Standalone bookings count as one each.
+   */
   getCountForDate: (d: Date) => number;
   hasAnyInRange: (start: Date, end: Date) => boolean;
 }
@@ -43,7 +50,11 @@ export function useShiftsByDate(shifts: ScheduledShift[]): ShiftsByDate {
     return {
       map,
       getForDate: (d: Date) => map.get(keyOf(d)) || [],
-      getCountForDate: (d: Date) => (map.get(keyOf(d))?.length ?? 0),
+      getCountForDate: (d: Date) => {
+        const day = map.get(keyOf(d));
+        if (!day || day.length === 0) return 0;
+        return consolidateShifts(day).length;
+      },
       hasAnyInRange: (start: Date, end: Date) => {
         for (const k of map.keys()) {
           if (k >= keyOf(start) && k <= keyOf(end)) return true;
@@ -55,3 +66,4 @@ export function useShiftsByDate(shifts: ScheduledShift[]): ShiftsByDate {
 }
 
 export { keyOf as dateKey };
+

@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScheduledShift } from '@/services/mobileApiService';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime, parsePlannerDateTime } from '@/utils/dateUtils';
+import {
+  consolidateShifts,
+  getItemEnd,
+  isItemActive,
+  type MobileCalendarItem,
+} from '@/lib/mobileCalendarConsolidation';
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
@@ -21,8 +27,8 @@ const DEFAULT_END_HOUR = 22;
 const PX_PER_HOUR = 64;
 const PX_PER_MINUTE = PX_PER_HOUR / 60;
 
-interface PositionedShift {
-  shift: ScheduledShift;
+interface PositionedItem {
+  item: MobileCalendarItem;
   topPx: number;
   heightPx: number;
   /** Column index within an overlap group. */
@@ -31,15 +37,19 @@ interface PositionedShift {
   cols: number;
 }
 
-/** Assigns column slots so overlapping shifts render side-by-side. */
-function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): PositionedShift[] {
-  const sorted = [...shifts].sort(
-    (a, b) => (parsePlannerDateTime(a.start_time)?.getTime() ?? 0) - (parsePlannerDateTime(b.start_time)?.getTime() ?? 0)
+const itemStartStr = (it: MobileCalendarItem) =>
+  it.kind === 'booking' ? it.shift.start_time : it.start_time;
+
+/** Assigns column slots so overlapping items render side-by-side. */
+function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date): PositionedItem[] {
+  const sorted = [...items].sort(
+    (a, b) =>
+      (parsePlannerDateTime(itemStartStr(a))?.getTime() ?? 0) -
+      (parsePlannerDateTime(itemStartStr(b))?.getTime() ?? 0)
   );
 
-  const positioned: PositionedShift[] = [];
-  // Greedy column packing within an overlap cluster.
-  let cluster: PositionedShift[] = [];
+  const positioned: PositionedItem[] = [];
+  let cluster: PositionedItem[] = [];
   let clusterEnd = 0;
 
   const flushCluster = () => {
@@ -51,9 +61,9 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
     clusterEnd = 0;
   };
 
-  for (const s of sorted) {
-    const startDate = parsePlannerDateTime(s.start_time);
-    const endDate = parsePlannerDateTime(s.end_time);
+  for (const it of sorted) {
+    const startDate = parsePlannerDateTime(itemStartStr(it));
+    const endDate = parsePlannerDateTime(getItemEnd(it));
     if (!startDate || !endDate) continue;
 
     const startMs = Math.max(startDate.getTime(), dayStart.getTime());
@@ -67,16 +77,15 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
       flushCluster();
     }
 
-    // Find the smallest free column index in the current cluster.
     const usedCols = new Set(
       cluster
-        .filter((p) => (parsePlannerDateTime(p.shift.end_time)?.getTime() ?? 0) > startMs)
+        .filter((p) => (parsePlannerDateTime(getItemEnd(p.item))?.getTime() ?? 0) > startMs)
         .map((p) => p.col)
     );
     let col = 0;
     while (usedCols.has(col)) col++;
 
-    cluster.push({ shift: s, topPx, heightPx, col, cols: 1 });
+    cluster.push({ item: it, topPx, heightPx, col, cols: 1 });
     clusterEnd = Math.max(clusterEnd, endMs);
   }
   flushCluster();
@@ -91,8 +100,6 @@ const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
   other: 'bg-muted text-foreground border-border',
 };
 
-// Event-type labels are translated at render time via useLanguage().t().
-// Keep this map only as a key reference if needed elsewhere.
 type EventTypeKey = ScheduledShift['event_type'];
 const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.event' | 'dayTimeline.rigdown' | 'dayTimeline.other'> = {
   rig: 'dayTimeline.rig',
@@ -140,9 +147,13 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
     [shifts, today]
   );
 
+  // Consolidate same-day large-project shifts into ONE card per project so
+  // the calendar stays readable even for projects with many sub-bookings.
+  const items = useMemo(() => consolidateShifts(todaysShifts), [todaysShifts]);
+
   const positioned = useMemo(
-    () => layoutShifts(todaysShifts, dayStart, dayEnd),
-    [todaysShifts, dayStart, dayEnd]
+    () => layoutItems(items, dayStart, dayEnd),
+    [items, dayStart, dayEnd]
   );
 
   // Now-line tick (per minute) + initial auto-scroll.
@@ -218,20 +229,31 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
           </div>
         )}
 
-        {/* Shift cards */}
+        {/* Calendar cards (project = consolidated, booking = standalone) */}
         <div className="absolute left-12 right-2 top-0 bottom-0 z-10">
-          {positioned.map(({ shift, topPx, heightPx, col, cols }) => {
+          {positioned.map(({ item, topPx, heightPx, col, cols }) => {
             const widthPct = 100 / cols;
             const leftPct = col * widthPct;
-            const isActive = activeBookingIds?.has(shift.booking_id);
+            const isActive = isItemActive(item, activeBookingIds);
+
+            const isProject = item.kind === 'project';
+            const startStr = isProject ? item.start_time : item.shift.start_time;
+            const endStr = isProject ? item.end_time : item.shift.end_time;
+            const eventType = isProject ? item.event_type : item.shift.event_type;
+            const title = isProject ? item.title : item.shift.client;
+            const address = isProject ? item.delivery_address : item.shift.delivery_address;
+            const handleClick = () => {
+              if (isProject) navigate(`/m/project/${item.largeProjectId}`);
+              else navigate(`/m/job/${item.shift.booking_id}`);
+            };
 
             return (
               <button
-                key={shift.shift_id}
-                onClick={() => navigate(`/m/job/${shift.booking_id}`)}
+                key={item.key}
+                onClick={handleClick}
                 className={cn(
                   'absolute rounded-lg border px-2.5 py-1.5 text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
-                  eventTypeStyles[shift.event_type],
+                  eventTypeStyles[eventType],
                   isActive && 'ring-2 ring-primary'
                 )}
                 style={{
@@ -242,24 +264,33 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                 }}
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                    {t(eventTypeI18nKey[shift.event_type])}
-                  </span>
+                  {isProject ? (
+                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
+                      <FolderOpen className="w-2.5 h-2.5" />
+                      {t('project.fallback') || 'PROJEKT'}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                      {t(eventTypeI18nKey[eventType])}
+                    </span>
+                  )}
                   <span className="text-[10px] font-mono opacity-70">
-                    {extractUTCTime(shift.start_time)}–
-                    {extractUTCTime(shift.end_time)}
+                    {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
                   </span>
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                   )}
                 </div>
-                <div className="text-[12px] font-bold leading-tight truncate">
-                  {shift.client}
-                </div>
-                {heightPx > 50 && shift.delivery_address && (
+                <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
+                {heightPx > 50 && address && (
                   <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
                     <MapPin className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{shift.delivery_address}</span>
+                    <span className="truncate">{address}</span>
+                  </div>
+                )}
+                {isProject && heightPx > 64 && (
+                  <div className="text-[10px] opacity-70 mt-0.5">
+                    {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
                   </div>
                 )}
               </button>
