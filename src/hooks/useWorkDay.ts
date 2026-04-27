@@ -111,6 +111,22 @@ export function useWorkDay(): UseWorkDayResult {
     return () => window.removeEventListener('workday-ended', onEnded);
   }, []);
 
+  // Optimistic start: multiple components (header clock, bottom CTA, etc.)
+  // each call useWorkDay() separately. A local setCurrent() inside one hook
+  // instance does NOT update the others until realtime arrives. Broadcast the
+  // freshly started workday so every mounted consumer flips to active
+  // immediately and the day clock appears without requiring an app restart.
+  useEffect(() => {
+    const onStarted = (event: Event) => {
+      const detail = (event as CustomEvent<{ workday?: WorkdayRecord | null }>).detail;
+      if (detail?.workday && !detail.workday.ended_at) {
+        setCurrent(detail.workday);
+      }
+    };
+    window.addEventListener('workday-started', onStarted as EventListener);
+    return () => window.removeEventListener('workday-started', onStarted as EventListener);
+  }, []);
+
   // Realtime subscription — listen for workdays for this staff.
   useEffect(() => {
     if (!staffId) return;
@@ -148,7 +164,10 @@ export function useWorkDay(): UseWorkDayResult {
       const p = (async () => {
         try {
           const res = await workdayApi.start(input);
-          if (res.workday) setCurrent(res.workday);
+          if (res.workday) {
+            setCurrent(res.workday);
+            window.dispatchEvent(new CustomEvent('workday-started', { detail: { workday: res.workday } }));
+          }
           setError(null);
           return res.workday;
         } catch (err: any) {
@@ -200,7 +219,10 @@ export function useWorkDay(): UseWorkDayResult {
           const res = await workdayApi.start(
             startedAtIso ? { startedAtIso } : {}
           );
-          if (res.workday) setCurrent(res.workday);
+          if (res.workday) {
+            setCurrent(res.workday);
+            window.dispatchEvent(new CustomEvent('workday-started', { detail: { workday: res.workday } }));
+          }
           setError(null);
           return res.workday;
         } catch (err: any) {
