@@ -370,6 +370,13 @@ const GlobalActiveTimerBanner: React.FC = () => {
     pendingStopRef.current = pendingStop;
   }, [pendingStop]);
 
+  // Mirror currentWorkday into a ref so the EOD finalizer can read the
+  // started_at without taking a hook-deps dependency on it.
+  const currentWorkdayRef = useRef(currentWorkday);
+  useEffect(() => {
+    currentWorkdayRef.current = currentWorkday;
+  }, [currentWorkday]);
+
   // request-end-day: enqueue ALL active timers and process sequentially.
   // Replaces the legacy "flera timers — välj manuellt" toast.
   useEffect(() => {
