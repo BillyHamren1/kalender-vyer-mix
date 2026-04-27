@@ -75,13 +75,13 @@ export const WorkDayHeaderTimer: React.FC = () => {
 
   const isStale = severity !== 'normal';
 
-  const baseClasses = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-colors';
+  const baseClasses = 'flex items-center justify-center gap-2 min-h-[42px] px-4 py-2 rounded-2xl border-2 transition-colors shadow-sm';
   const stateClasses =
     severity === 'critical'
-      ? 'bg-destructive/20 border-destructive/40 text-destructive-foreground animate-pulse'
+      ? 'bg-destructive/15 border-destructive/50 text-primary-foreground animate-pulse'
       : severity === 'warning'
-        ? 'bg-warning/20 border-warning/40 text-warning-foreground'
-        : 'bg-primary-foreground/10 border-primary-foreground/15 text-primary-foreground';
+        ? 'bg-warning/15 border-warning/50 text-primary-foreground'
+        : 'bg-primary-foreground/14 border-primary-foreground/30 text-primary-foreground';
 
   const title = isStale
     ? 'Arbetsdagen är ovanligt lång — tryck för att kontrollera tidrapporten'
@@ -93,7 +93,7 @@ export const WorkDayHeaderTimer: React.FC = () => {
     <>
       <Icon
         className={cn(
-          'w-3 h-3',
+          'w-4 h-4',
           severity === 'critical'
             ? 'text-destructive'
             : severity === 'warning'
@@ -101,7 +101,7 @@ export const WorkDayHeaderTimer: React.FC = () => {
               : 'text-primary-foreground/80',
         )}
       />
-      <span className="font-mono font-semibold text-[11px] tabular-nums leading-none">
+      <span className="font-mono font-extrabold text-base tabular-nums leading-none tracking-tight">
         {formatHMS(elapsedSeconds)}
       </span>
     </>

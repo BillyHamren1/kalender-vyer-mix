@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2, LogOut, Play } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import WorkDayHeaderTimer from './WorkDayHeaderTimer';
+import { useWorkDay } from '@/hooks/useWorkDay';
+import { clearWorkdayEnded } from '@/services/workdayState';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
@@ -37,10 +40,63 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
   return slot;
 };
 
-/** Wraps header markup with a portal to the slot, falling back to inline.
- *  Always overlays the WorkDayHeaderTimer pill in the top-right corner so
- *  every screen — regardless of header variant — surfaces the day timer.
- */
+const HeaderWorkdayControls: React.FC = () => {
+  const location = useLocation();
+  const { t } = useLanguage();
+  const { current, start } = useWorkDay();
+  const workdayOpen = !!current && !current.ended_at;
+  const [startingDay, setStartingDay] = useState(false);
+
+  const showControls = location.pathname !== '/m/report';
+
+  const handleStartDay = useCallback(async () => {
+    if (startingDay || workdayOpen) return;
+    setStartingDay(true);
+    try {
+      clearWorkdayEnded();
+      await start();
+    } finally {
+      setStartingDay(false);
+    }
+  }, [startingDay, workdayOpen, start]);
+
+  if (!workdayOpen && !showControls) return null;
+
+  return (
+    <div className="px-4 pt-2 pb-1.5 flex flex-col items-center gap-2">
+      {workdayOpen && <WorkDayHeaderTimer />}
+
+      {showControls && (
+        workdayOpen ? (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
+            className="w-full max-w-[240px] min-h-[48px] rounded-2xl px-4 flex items-center justify-center gap-2 bg-destructive text-destructive-foreground border-2 border-destructive shadow-[0_8px_24px_-8px_hsl(var(--destructive)/0.55)] active:scale-[0.98] transition-all font-bold text-sm"
+            title={t('workday.endDayTitle')}
+            aria-label={t('workday.endDay')}
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{t('workday.endDay')}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleStartDay}
+            disabled={startingDay}
+            className="w-full max-w-[240px] min-h-[48px] rounded-2xl px-4 flex items-center justify-center gap-2 bg-primary text-primary-foreground border-2 border-primary-foreground/20 shadow-[0_8px_24px_-8px_hsl(var(--primary-foreground)/0.22)] active:scale-[0.98] transition-all font-bold text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            title={t('workday.startDayTitle')}
+            aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
+          >
+            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            <span>{startingDay ? t('workday.starting') : t('workday.startDay')}</span>
+          </button>
+        )
+      )}
+    </div>
+  );
+};
+
+/** Wraps header markup with a portal to the slot, falling back to inline. */
 export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
   const content = (
@@ -48,13 +104,8 @@ export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children 
       className="relative bg-primary shadow-sm"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
+      <HeaderWorkdayControls />
       {children}
-      <div
-        className="pointer-events-none absolute right-3 z-10"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
-      >
-        <WorkDayHeaderTimer />
-      </div>
     </div>
   );
   if (slot) return createPortal(content, slot);
