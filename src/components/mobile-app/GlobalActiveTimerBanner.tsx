@@ -11,6 +11,7 @@ import { NextActionDialog } from './NextActionDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import { markWorkdayEnded } from '@/services/workdayState';
 import { syncWorkDayEnd } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
