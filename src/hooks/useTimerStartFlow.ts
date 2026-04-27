@@ -147,7 +147,7 @@ export function useTimerStartFlow(
   );
 
   const checkDistanceAndStart = useCallback(
-    (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
+    (target: WorkTarget, opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string }) => {
       const coords = resolveTargetCoords(target);
       const doStart = () => { void performStart(target, opts); };
       if (!userPosition || !coords) {
