@@ -874,6 +874,33 @@ export const mobileApi = {
   setTravelTimes: (data: { travel_log_id: string; start_time: string; end_time?: string }) =>
     callApi<{ success: boolean; travel_log: any }>('set_travel_times', data),
 
+  /**
+   * Skapa restid från ett gap mellan två arbetsaktiviteter.
+   * Servern är idempotent på (staff, start, end, source='gap_derived'),
+   * applicerar tröskelregler (10–180 min = work, >180 min = needs_review)
+   * och vägrar cross-day. Returnerar `deduplicated:true` om gapet redan
+   * fanns sparat.
+   */
+  createTravelFromGap: (data: {
+    previous_target_type: 'project' | 'booking' | 'location';
+    previous_target_id: string;
+    previous_target_label?: string;
+    next_target_type: 'project' | 'booking' | 'location';
+    next_target_id: string;
+    next_target_label?: string;
+    start_time: string;
+    end_time: string;
+  }) =>
+    callApi<{
+      success?: boolean;
+      skipped?: boolean;
+      deduplicated?: boolean;
+      gap_minutes?: number;
+      needs_review?: boolean;
+      reason?: string;
+      travel_log?: any;
+    }>('create_travel_from_gap', data),
+
   // Markera arbetsdagen godkänd. Trigger respekterar approved och skriver
   // inte över statusen vid efterföljande recompute.
   approveWorkday: (workday_id: string) =>
