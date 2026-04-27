@@ -20,6 +20,12 @@ interface EndOfDayStopDialogProps {
   lastExitIso: string;
   locationName?: string | null;
   onConfirm: (result: EndOfDayResult) => Promise<void>;
+  /**
+   * Explicit cancel from user. Required so the host can decide what
+   * "Avbryt" means (e.g. abort end-day queue vs. just close dialog).
+   * Outside-click and Escape are routed here too — never closes silently.
+   */
+  onCancel: () => void;
 }
 
 const COMMENT_THRESHOLD_MIN = 10;
