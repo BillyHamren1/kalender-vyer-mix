@@ -1,6 +1,15 @@
 /**
  * useDayReviewActions — orchestrerar de 7 åtgärderna i review-flödet.
  *
+ * OFFICIELL TIDMODELL (Tidappen):
+ *   • Dagtimer = hela arbetsdagen.
+ *   • Aktivitet = projekt/plats/bokning inuti dagen.
+ *   • Restid = GAPET mellan två aktiviteter när gapet är rimligt.
+ *     Live GPS-travel är legacy/assist (se useTravelDetection) — denna
+ *     hook är PRIMÄR källa för restidsjustering: `adjustTravel` skapar
+ *     eller uppdaterar `travel_time_logs` baserat på det användaren
+ *     bekräftar i day-review (typiskt: gapet mellan stopp och nästa start).
+ *
  * Använder ENBART centrala flöden:
  *   • useTimerStartFlow.requestStart     — säker start (workday-first + conflict)
  *   • useWorkSession.stopSession         — säker stopp (break-prompt + time_report)
@@ -8,6 +17,7 @@
  *   • syncWorkDayEnd                     — server-anchored EOD
  *   • mobileApi.assistantEvents.resolve  — markera event löst / irrelevant
  *   • mobileApi.createTravelLog / stopTravelLog / setTravelTimes — travel
+ *     (auktoritativ när användaren justerar i review; ej GPS-driven)
  *
  * INGEN egen direktskrivning mot time_reports/workdays/travel_time_logs.
  * Sidan (MobileDayReview) konsumerar denna hook och visar feedback via toast.
