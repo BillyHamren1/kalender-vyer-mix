@@ -364,6 +364,55 @@ export function useWorkSession(
             establishment_task_id: timer.establishmentTaskId,
           });
           savedTimeReportId = stopped.timeReportId ?? undefined;
+
+          // ── PER-ADDRESS BREAKDOWN (project targets only) ───────────
+          // While the project timer ran, geofence enter/exit on individual
+          // sub-booking addresses were recorded by useGeofencing into
+          // localStorage. Now that the project-total time_report exists,
+          // flush each visit interval as a subdivision time_report linked
+          // to the parent. Subdivisions are metadata — never summed into
+          // payroll/invoicing — so failures are non-fatal.
+          if (target.kind === 'project' && savedTimeReportId) {
+            try {
+              const visits = takeProjectAddressVisits({
+                largeProjectId: target.largeProjectId,
+                closeOpenAtIso: stopTime.toISOString(),
+              });
+              for (const v of visits) {
+                const enteredAt = new Date(v.enteredAtIso);
+                const exitedAt = new Date(v.exitedAtIso!);
+                const subHours = Number(
+                  ((exitedAt.getTime() - enteredAt.getTime()) / 3_600_000).toFixed(2),
+                );
+                if (subHours <= 0) continue;
+                try {
+                  await mobileApi.createTimeReport({
+                    booking_id: v.bookingId,
+                    large_project_id: target.largeProjectId,
+                    report_date: format(enteredAt, 'yyyy-MM-dd'),
+                    start_time: format(enteredAt, 'HH:mm'),
+                    end_time: format(exitedAt, 'HH:mm'),
+                    hours_worked: subHours,
+                    break_time: 0,
+                    description: v.address
+                      ? `Adress: ${v.address}`
+                      : `Underbokning: ${v.bookingLabel ?? v.bookingId}`,
+                    is_subdivision: true,
+                    parent_time_report_id: savedTimeReportId,
+                  });
+                } catch (subErr) {
+                  console.warn(
+                    '[WorkSession] subdivision write failed (non-fatal):',
+                    v.bookingId,
+                    subErr,
+                  );
+                }
+              }
+            } catch (err) {
+              console.warn('[WorkSession] subdivision flush failed (non-fatal):', err);
+            }
+          }
+
         } else {
           await stopLocationTimerWithoutReport(key);
         }
