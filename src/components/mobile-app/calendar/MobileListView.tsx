@@ -22,12 +22,12 @@ const eventTypeStyles: Record<ScheduledShift['event_type'], string> = {
   other: 'bg-muted text-foreground border-border',
 };
 
-const eventTypeI18nKey: Record<ScheduledShift['event_type'], string> = {
+const eventTypeI18nKey = {
   rig: 'dayTimeline.rig',
   event: 'dayTimeline.event',
   rigdown: 'dayTimeline.rigdown',
   other: 'dayTimeline.other',
-};
+} as const;
 
 const dayKey = (d: Date) => {
   const y = d.getFullYear();
