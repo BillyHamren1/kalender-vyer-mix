@@ -440,6 +440,13 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleListWorkdaysReview(supabase, staffId, data, organizationId)
       case 'resolve_workday_flag':
         return await handleResolveWorkdayFlag(supabase, staffId, data, organizationId)
+      // ── Admin day-review actions ──
+      case 'admin_set_workday_review':
+        return await handleAdminSetWorkdayReview(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_mark_gap_break':
+        return await handleAdminMarkGapBreak(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_mark_gap_travel':
+        return await handleAdminMarkGapTravel(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
