@@ -872,18 +872,31 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // gate uses arrival signals to know that "the day has truly started".
         // Without this call, arriving at the warehouse first wouldn't unlock
         // legitimate auto-travel later in the day.
-        mobileApi.reportArrival({ kind: 'location', target_id: loc.id, arrived_at: new Date().toISOString() })
+        const arrivedAtIso = new Date().toISOString();
+        mobileApi.reportArrival({ kind: 'location', target_id: loc.id, arrived_at: arrivedAtIso })
           .catch(err => console.warn('[Arrival] location register failed:', err?.message || err));
         noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
-        setGeofenceEvent({
-          type: 'enter',
-          distance: dist,
-          locationType: 'fixed',
-          locationId: loc.id,
-          locationName: loc.name,
+
+        // ── AUTO-FIRST: starta activity direkt; prompt endast vid äkta osäkerhet.
+        const startFn = autoActionsRef.start;
+        const fallbackPrompt = () => setGeofenceEvent({
+          type: 'enter', distance: dist,
+          locationType: 'fixed', locationId: loc.id, locationName: loc.name,
           locationAddress: loc.address || undefined,
           arrivalTimestamp: Date.now(),
         });
+        if (startFn) {
+          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso })
+            .then((res) => {
+              if (res.status === 'conflict' || res.status === 'workday-failed') fallbackPrompt();
+            })
+            .catch((err) => {
+              console.warn('[Geofence] auto-start location failed:', err);
+              fallbackPrompt();
+            });
+        } else {
+          fallbackPrompt();
+        }
       }
 
       // Re-entry while timer is active → close any open anomaly for this location
@@ -892,7 +905,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         fireAnomalyStop({ locationId: loc.id });
       }
 
-      // EXIT: hysteresis + accuracy gate; KEEP timer running, fire anomaly
+      // EXIT: hysteresis + accuracy gate; AUTO-STOP activity (Auto-first 2026-04).
       if (
         accuracyOk &&
         evalShouldExit(userPosition.lat, userPosition.lng, target, accuracy) &&
@@ -901,9 +914,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       ) {
         triggeredExitRef.current.add(locKey);
         triggeredEnterRef.current.delete(locKey);
-        fireAnomalyStart({ locationId: loc.id });
         const exitedAtIso = new Date().toISOString();
         maybeReportDeparture(locKey, exitedAtIso);
+        const stopFn = autoActionsRef.stop;
+        if (stopFn) {
+          void stopFn({ key: locKey, exitedAtIso }).catch((err) => {
+            console.warn('[Geofence] auto-stop location failed:', err);
+            fireAnomalyStart({ locationId: loc.id });
+          });
+        } else {
+          fireAnomalyStart({ locationId: loc.id });
+        }
         window.dispatchEvent(new CustomEvent('workplace-exit', {
           detail: {
             kind: 'location',
