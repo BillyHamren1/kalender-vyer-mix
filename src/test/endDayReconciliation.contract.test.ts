@@ -60,7 +60,9 @@ describe('End-of-day reconciliation contract', () => {
     const region = banner.slice(banner.indexOf("'request-end-day'"));
     expect(region).toMatch(/timers/);
     expect(banner).toMatch(/processNextEod/);
-    expect(region).toMatch(/workday-ended/);
+    // Empty-timers branch must call the central end-day routine
+    // (which dispatches 'workday-ended' on success).
+    expect(region).toMatch(/endWorkdayFlow/);
   });
 
   // ────────────────────────────────────────────────────────────────────
