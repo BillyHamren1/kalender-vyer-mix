@@ -224,9 +224,16 @@ export default function MobileDayReview() {
             const total = wd.counts.open_events + wd.counts.stale_review_events + wd.counts.open_travel;
             const reasonChips = (wd.review_reasons || []).filter((r) => REASON_LABELS[r]);
             const isSynthetic = (wd as any).synthetic === true;
+            // Inkludera olösta gap i godkänn-spärren så användaren tvingas
+            // ta ställning till varje osäker restid innan dagen kan stängas.
+            void resolvedTick;
+            const unresolvedGapCount = filterUnresolvedGaps(
+              computeDayGaps(timeReports, wd.travels_for_day, wd.day_key),
+            ).length;
             const canApprove = !isSynthetic
               && (wd.review_status === 'ready' || wd.review_status === 'needs_review')
-              && total === 0;
+              && total === 0
+              && unresolvedGapCount === 0;
             const isHighlighted = highlightedDayKey === wd.day_key;
             return (
               <div
