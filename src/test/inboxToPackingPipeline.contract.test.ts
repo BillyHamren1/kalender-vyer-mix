@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Contract test for the OFFICIAL inbox → packing pipeline.
  *
