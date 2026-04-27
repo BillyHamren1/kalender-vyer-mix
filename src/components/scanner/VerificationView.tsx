@@ -169,54 +169,31 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     await loadData(false);
   }, [exitKolli, loadData]);
 
-  // --- Rendering helpers ---
-  const buildChildrenMap = (itemsList: PackingItem[]) => {
-    const map: Record<string, PackingItem[]> = {};
-    itemsList.forEach(i => {
-      const parentId = i.booking_products?.parent_product_id;
-      if (parentId) {
-        if (!map[parentId]) map[parentId] = [];
-        map[parentId].push(i);
-      }
-    });
-    return map;
-  };
-
-  const getItemDisplayInfo = (item: PackingItem, childrenByParent: Record<string, PackingItem[]>) => {
-    const rawName = item.booking_products?.name || 'Unknown product';
-    const trimmedName = rawName.trimStart();
-    const productId = item.booking_products?.id;
-    
-    const isChildByRelation = !!(
-      item.booking_products?.parent_product_id || 
-      item.booking_products?.parent_package_id || 
-      item.booking_products?.is_package_component
-    );
-    const isChildByPrefix = (
-      trimmedName.startsWith('↳') || trimmedName.startsWith('└') || 
-      trimmedName.startsWith('L,') || trimmedName.startsWith('⦿')
-    );
-    const isChild = isChildByRelation || isChildByPrefix;
-    const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
-    const isParent = !isChild && hasChildren;
-    
-    // Use shared rule for parent-row collapse so VerificationView, the
-    // checklists and the scanner-api status flow agree on what "packed" means.
-    // See src/lib/packing/progress.ts.
+  // --- Rendering helpers (shared with ManualChecklistView via @/lib/packing/displayNames) ---
+  const getItemDisplayInfo = (
+    item: PackingItem,
+    childrenByParent: Record<string, PackingItem[]>,
+  ) => {
+    const cls = classifyAndFormatRow(item, childrenByParent);
+    // Shared parent-collapse rule, see src/lib/packing/progress.ts.
     const display = getDisplayedProgressForRow(item, items);
-    let packed = display.displayedPacked;
-    let total = display.displayedTotal;
-    
-    const cleanName = cleanProductName(rawName);
-    const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
-    const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
-    const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
-    
+    const packed = display.displayedPacked;
+    const total = display.displayedTotal;
     const isOverscan = packed > total && total > 0;
     const isComplete = packed >= total && total > 0 && !isOverscan;
     const isPartial = packed > 0 && packed < total;
-    
-    return { isChild, isParent, packed, total, displayName, prefixIndicator, isOverscan, isComplete, isPartial, isPackageComponent };
+    return {
+      isChild: cls.isChild,
+      isParent: cls.isParent,
+      isPackageComponent: cls.isPackageComponent,
+      prefixIndicator: cls.prefixIndicator,
+      displayName: cls.displayName,
+      packed,
+      total,
+      isOverscan,
+      isComplete,
+      isPartial,
+    };
   };
 
   // --- Loading state ---
@@ -228,7 +205,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
-  const childrenByParent = buildChildrenMap(items);
+  const childrenByParent = buildChildrenByParent(items);
+
 
   // --- Render item row ---
   const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
