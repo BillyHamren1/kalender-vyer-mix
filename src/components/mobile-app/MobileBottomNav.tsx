@@ -13,7 +13,6 @@ const baseTabs: Tab[] = [
   { path: '/m/report', labelKey: 'nav.time', icon: Clock },
   { path: '/m/inbox', labelKey: 'nav.messages', icon: MessageCircle, showBadge: true },
   { path: '/m/tools', labelKey: 'nav.tools', icon: Wrench },
-  { path: '/m/profile', labelKey: 'nav.profile', icon: User },
 ];
 
 const plannerTab: Tab = { path: '/m/overview', labelKey: 'nav.overview', icon: LayoutGrid };
@@ -26,10 +25,8 @@ const MobileBottomNav = () => {
   const { t } = useLanguage();
   const { isPlanner } = useMobileRoles();
 
-  // Planners replace "Verktyg" with "Översikt" — they use tools from web.
-  const tabs: Tab[] = isPlanner
-    ? baseTabs.map(tab => (tab.path === '/m/tools' ? plannerTab : tab))
-    : baseTabs;
+  // Planners get an extra "Översikt" tab in addition to "Verktyg".
+  const tabs: Tab[] = isPlanner ? [...baseTabs, plannerTab] : baseTabs;
 
 
   const isActive = (tab: typeof tabs[0]) => {

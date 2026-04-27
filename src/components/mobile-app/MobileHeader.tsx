@@ -41,7 +41,7 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
  *  Always overlays the WorkDayHeaderTimer pill in the top-right corner so
  *  every screen — regardless of header variant — surfaces the day timer.
  */
-const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
   const content = (
     <div
