@@ -242,6 +242,12 @@ const MobileJobs = () => {
                 shifts={shifts}
               />
             )}
+            {viewMode === 'list' && (
+              <MobileListView
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+              />
+            )}
           </div>
 
           {/* Fixed location jobs (e.g. Lager) */}
