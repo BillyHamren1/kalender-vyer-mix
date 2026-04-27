@@ -1,23 +1,26 @@
 /**
- * useEndDayOnArrivalHome
- * ──────────────────────
- * Listens to travel-completed events from useTravelDetection. When a trip
- * ends inside the user's silently-inferred home location AND the user has
- * an open workplace timer or a recent un-closed location entry, opens a
- * gentle dialog suggesting they end the day at the time they actually
- * left the workplace.
+ * useEndDayOnArrivalHome (Auto-first 2026-04)
+ * ───────────────────────────────────────────
+ * Lyssnar på travel-completed från useTravelDetection. När en resa slutar
+ * inom användarens (tyst inferred) hem-radie OCH en activity-timer eller
+ * öppen workplace-exit finns kvar idag → AUTO-AVSLUTA dagen:
+ *   1. Stoppa öppen activity via stopSession (samma break-pipeline som vanligt).
+ *   2. Avsluta workday på servern via syncWorkDayEnd.
+ *   3. Skriv en workday_flag (severity=info) som audit-spår.
+ *   4. Toast: "Arbetsdag avslutad — du kom hem kl HH:MM. Justera i Översikt
+ *      om något ser fel ut."
  *
- * Hard rules (mirrors the approved plan):
- *   • Never says "hem"/"hemma" to the user — the home location is only
- *     used as a trigger.
- *   • At most one suggestion per day.
- *   • Suppressed if no inferred home exists yet (cold start).
- *   • Decisions:
- *      - Yes → endDay flow via useWorkSession.stopSession with
- *              endOfDayContext + stopAtIso = workplace exit time.
- *      - No  → silenced for the rest of the day.
- *      - Custom → time picker, then same endDay; if > 30 min from
- *              workplace exit, also writes a workday_flags entry.
+ * Hard rules:
+ *   • Säger ALDRIG "hem"/"hemma" till användaren — hemma används bara som trigger.
+ *   • Max ett auto-end per dag.
+ *   • Suppressas om ingen inferred home finns (cold start).
+ *   • Vid fel (server, missing exit, stop misslyckas): exponera `suggestion`
+ *     så MobileGlobalOverlays kan rendera fallback-dialogen där användaren
+ *     bekräftar manuellt. Det är då vi har äkta osäkerhet.
+ *
+ * Returnerar fortfarande `suggestion` / `dismissSuggestion` / `acceptSuggestion`
+ * för att inte bryta MobileGlobalOverlays-kontraktet — men i happy path är
+ * `suggestion` alltid null.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,6 +36,7 @@ import { syncWorkDayEnd } from '@/services/workdayServerSync';
 
 const SUPPRESS_KEY_PREFIX = 'eventflow-end-day-home-suppressed-';
 const ASSISTANT_DAILY_KEY_PREFIX = 'eventflow-last-workplace-prompted-';
+const AUTO_ENDED_KEY_PREFIX = 'eventflow-end-day-home-auto-ended-';
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -62,20 +66,20 @@ export interface EndDayOnHomeSuggestion {
   /** ActiveTimer key, if the open signal is a timer (used for stop). */
   timerKey?: string;
   timer?: ActiveTimer;
+  /** Why the auto-flow couldn't complete (review/audit context). */
+  reason?: 'stop_failed' | 'workday_end_failed' | 'no_open_signal';
 }
 
 async function fetchActiveHome(): Promise<InferredHome | null> {
   const nowIso = new Date().toISOString();
-  // Temporary takes precedence over primary when valid.
   const { data, error } = await supabase
     .from('staff_inferred_home_locations')
     .select('lat, lng, radius_m, kind, valid_until')
     .or(`valid_until.is.null,valid_until.gt.${nowIso}`)
-    .order('kind', { ascending: false }) // 'temporary' < 'primary' alphabetically? Actually 'p' > 't'; force ordering below
+    .order('kind', { ascending: false })
     .limit(5);
   if (error || !data || data.length === 0) return null;
 
-  // Pick temporary first if any is valid, else primary.
   const temp = data.find((r) => r.kind === 'temporary');
   const prim = data.find((r) => r.kind === 'primary');
   const chosen = temp ?? prim;
@@ -104,18 +108,15 @@ export function useEndDayOnArrivalHome(
     handledTravelIdRef.current = completedTravel.travelLogId;
 
     const today = todayKey();
-    const suppressed = localStorage.getItem(SUPPRESS_KEY_PREFIX + today);
-    if (suppressed) return;
+    if (localStorage.getItem(SUPPRESS_KEY_PREFIX + today)) return;
+    if (localStorage.getItem(AUTO_ENDED_KEY_PREFIX + today)) return;
     if (hasWorkdayEndedToday()) return;
-
-    // Suppress if last_workplace_for_day assistant has already prompted today.
-    const assistantPromptedToday = localStorage.getItem(ASSISTANT_DAILY_KEY_PREFIX + today);
-    if (assistantPromptedToday) return;
+    if (localStorage.getItem(ASSISTANT_DAILY_KEY_PREFIX + today)) return;
 
     (async () => {
       try {
         const home = await fetchActiveHome();
-        if (!home) return; // cold start
+        if (!home) return; // cold start — never speak about "hem"
 
         const dist = haversine(
           completedTravel.toLat,
@@ -125,8 +126,7 @@ export function useEndDayOnArrivalHome(
         );
         if (dist > home.radius_m) return;
 
-        // Find an open workplace signal earlier today.
-        // Priority 1: an active timer (booking/project/location).
+        // ── Hitta öppen activity / sista workplace-exit ──────────────────
         let timerKey: string | undefined;
         let timer: ActiveTimer | undefined;
         let workplaceName: string | undefined;
@@ -140,10 +140,7 @@ export function useEndDayOnArrivalHome(
         }
         if (timer && timerKey) {
           workplaceName = timer.locationName || timer.client;
-          // Best-effort: use travel start time as the workplace exit time.
-          // The user left the workplace ⇒ travel began.
           exitedAtIso = new Date(Date.now() - 60_000).toISOString();
-          // Try to pull a more precise exit time:
           try {
             const res = await mobileApi.getLastWorkplaceExit?.();
             if (res?.last_exit?.exited_at) {
@@ -152,7 +149,6 @@ export function useEndDayOnArrivalHome(
             }
           } catch { /* non-fatal */ }
         } else {
-          // Priority 2: most recent location_time_entries row that exited within the last 12h.
           try {
             const res = await mobileApi.getLastWorkplaceExit?.();
             if (res?.last_exit?.exited_at) {
@@ -162,21 +158,93 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
-        if (!exitedAtIso || !workplaceName) return;
+        if (!exitedAtIso || !workplaceName) {
+          // Vi har varken öppen timer eller sista exit på servern → osäkert.
+          // Fallback-dialogen tar över; markera som review.
+          setSuggestion({
+            workplaceName: workplaceName || 'arbetsplatsen',
+            exitedAtIso: exitedAtIso || new Date().toISOString(),
+            timerKey, timer,
+            reason: 'no_open_signal',
+          });
+          return;
+        }
 
-        // Sanity: exit time must be earlier today
         const exitDate = new Date(exitedAtIso);
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        if (exitDate < todayStart) return;
+        if (exitDate < todayStart) return; // gammal exit, hör inte hit
 
-        setSuggestion({ workplaceName, exitedAtIso, timerKey, timer });
+        // ── AUTO-FIRST: kör hela end-of-day-flödet utan dialog ───────────
+        const chosenEndIso = exitedAtIso;
+
+        try {
+          if (timer && timerKey) {
+            const target = timerToTarget(timerKey, timer);
+            const stopRes = await stopSession(target, {
+              stopAtIso: chosenEndIso,
+              breakChoice: { kind: 'no_break' },
+              endOfDayContext: {
+                lastExitIso: exitedAtIso,
+                endedAtIso: chosenEndIso,
+                workDescription:
+                  'Arbetsdagen avslutades automatiskt efter ankomst (sluttid = workplace exit)',
+              },
+            });
+            if (stopRes.cancelled) {
+              // Användaren stängde break-dialogen → vi har bekräftad osäkerhet.
+              setSuggestion({ workplaceName, exitedAtIso, timerKey, timer, reason: 'stop_failed' });
+              return;
+            }
+          }
+
+          const result = await syncWorkDayEnd(chosenEndIso);
+          if (!result.ok) {
+            console.warn('[useEndDayOnArrivalHome] syncWorkDayEnd failed:', result.error);
+            setSuggestion({ workplaceName, exitedAtIso, timerKey, timer, reason: 'workday_end_failed' });
+            return;
+          }
+
+          // Audit: skriv alltid en flag som spår, även när allt funkat.
+          if (staff?.id) {
+            try {
+              await mobileApi.createWorkdayFlag?.({
+                flag_type: 'home_arrival_auto_ended',
+                flag_date: chosenEndIso.slice(0, 10),
+                title: 'Arbetsdag auto-avslutad',
+                description:
+                  `Dagen avslutades automatiskt efter ankomst. Sluttid sattes till workplace exit (${chosenEndIso}).`,
+                severity: 'info',
+                context: {
+                  workplace: workplaceName,
+                  ended_at: chosenEndIso,
+                  source: 'home_arrival_auto',
+                },
+              });
+            } catch { /* non-fatal */ }
+          }
+
+          markWorkdayEnded(chosenEndIso);
+          localStorage.setItem(AUTO_ENDED_KEY_PREFIX + today, '1');
+          try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
+
+          const hhmm = new Date(chosenEndIso).toLocaleTimeString('sv-SE', {
+            hour: '2-digit', minute: '2-digit',
+          });
+          toast.success(
+            `Arbetsdag avslutad kl ${hhmm}. Justera i Översikt om något ser fel ut.`,
+          );
+        } catch (err: any) {
+          console.error('[useEndDayOnArrivalHome] auto-end failed:', err);
+          setSuggestion({ workplaceName, exitedAtIso, timerKey, timer, reason: 'stop_failed' });
+        }
       } catch (err) {
         console.warn('[useEndDayOnArrivalHome] check failed:', err);
       }
     })();
-  }, [completedTravel, staff, activeTimers]);
+  }, [completedTravel, staff, activeTimers, stopSession]);
 
+  // ── Kvar för fallback-dialogen (när auto-end inte kan slutföras) ──────
   const dismissSuggestion = useCallback((silenceForToday: boolean) => {
     if (silenceForToday) {
       localStorage.setItem(SUPPRESS_KEY_PREFIX + todayKey(), '1');
@@ -193,12 +261,10 @@ export function useEndDayOnArrivalHome(
       );
 
       try {
-        // 1) Stop active activity (if any) at the chosen end time.
         if (suggestion.timer && suggestion.timerKey) {
           const target = timerToTarget(suggestion.timerKey, suggestion.timer);
           await stopSession(target, {
             stopAtIso: chosenEndIso,
-            // No break dialog — caller assumes user already accounted for it
             breakChoice: { kind: 'no_break' },
             endOfDayContext:
               driftMin > 1
@@ -212,16 +278,12 @@ export function useEndDayOnArrivalHome(
           });
         }
 
-        // 2) Server-first: end the workday on the server. Source of truth is
-        //    workdays/useWorkDay — local state must NOT mark ended until the
-        //    server has confirmed. Mirrors GlobalActiveTimerBanner.
         const result = await syncWorkDayEnd(chosenEndIso);
         if (!result.ok) {
           toast.error(result.error || 'Kunde inte avsluta arbetsdagen på servern');
           return;
         }
 
-        // 3) Workday flag if user adjusted by > 30 min (post-server, non-fatal).
         if (driftMin > 30 && staff?.id) {
           try {
             await mobileApi.createWorkdayFlag?.({
@@ -240,13 +302,13 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
-        // 4) Only now mark local state — server has confirmed.
         markWorkdayEnded(chosenEndIso);
+        localStorage.setItem(AUTO_ENDED_KEY_PREFIX + todayKey(), '1');
         try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
         toast.success('Arbetsdag avslutad');
         setSuggestion(null);
       } catch (err: any) {
-        console.error('[useEndDayOnArrivalHome] endDay failed:', err);
+        console.error('[useEndDayOnArrivalHome] manual end failed:', err);
         toast.error(err?.message || 'Kunde inte avsluta dagen');
       }
     },
