@@ -25,20 +25,19 @@ export const convertToISO8601 = (timestamp: string | null | undefined): string =
     return new Date().toISOString();
   }
 
-  if (timestamp.includes('T') && (timestamp.includes('Z') || /[+-]\d{2}:?\d{2}$/.test(timestamp))) {
-    return timestamp;
-  }
+  const match = String(timestamp).match(
+    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/
+  );
 
-  // Supabase format: "YYYY-MM-DD HH:MM:SS+00"
-  const converted = timestamp.replace(' ', 'T').replace('+00', 'Z');
-
-  const testDate = new Date(converted);
-  if (isNaN(testDate.getTime())) {
+  if (!match) {
     console.error('convertToISO8601: Invalid date after conversion:', timestamp);
     return new Date().toISOString();
   }
 
-  return converted;
+  // IMPORTANT: plannern använder naiv väggklocka. Vi normaliserar därför till
+  // en "floating" ISO-sträng UTAN Z/offset så att new Date(...) i kvarvarande
+  // äldre kod inte flyttar 08:00 → 10:00 i lokal tidszon.
+  return `${match[1]}T${match[2]}`;
 };
 
 /**
