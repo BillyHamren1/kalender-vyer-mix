@@ -8475,6 +8475,7 @@ async function handleGetOverviewCalendar(
     .from('calendar_events')
     .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address, source_date')
     .eq('organization_id', organizationId)
+    .neq('event_type', 'event')
     .gte('start_time', fromIso)
     .lt('start_time', toIso)
     .order('start_time', { ascending: true })
@@ -8560,14 +8561,12 @@ async function handleGetOverviewCalendar(
     if (b.status && String(b.status).toUpperCase() === 'OFFER') continue
     const title = b.client || 'Bokning'
     if (b.rigdaydate) pushSynthetic(b.id, b.booking_number, `${title} - rig`, b.deliveryaddress, 'rig', b.rigdaydate, b.rig_start_time, b.rig_end_time)
-    if (b.eventdate) pushSynthetic(b.id, b.booking_number, `${title} - event`, b.deliveryaddress, 'event', b.eventdate, b.event_start_time, b.event_end_time)
     if (b.rigdowndate) pushSynthetic(b.id, b.booking_number, `${title} - rigDown`, b.deliveryaddress, 'rigDown', b.rigdowndate, b.rigdown_start_time, b.rigdown_end_time)
   }
 
   for (const p of projects || []) {
     const title = p.name || 'Stort projekt'
     for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null)
-    for (const d of p.event_date || []) pushSynthetic(null, null, `${title} - event`, p.address, 'event', d, null, null)
     for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null)
   }
 

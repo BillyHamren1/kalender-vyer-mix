@@ -2,9 +2,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarEvent, getEventCardClass } from '@/components/Calendar/ResourceData';
-import { format, parseISO, isWithinInterval, addDays, startOfDay } from 'date-fns';
+import { format, isWithinInterval, addDays, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Clock, MapPin } from 'lucide-react';
+import { extractUTCDate, extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
 interface MobileWarehouseEventsListProps {
   events: CalendarEvent[];
@@ -30,30 +31,21 @@ const getEventLabel = (eventType?: string): string => {
 const MobileWarehouseEventsList: React.FC<MobileWarehouseEventsListProps> = ({ events, weekStart }) => {
   const navigate = useNavigate();
   
-  // Parse event date safely
-  const parseEventDate = (dateStr: string): Date => {
-    return parseISO(dateStr);
+  const parseEventDate = (dateStr: string): Date | null => {
+    return parsePlannerDate(extractUTCDate(dateStr));
   };
   
-  // Filter events for the current week
   const weekEnd = addDays(weekStart, 6);
   const weekEvents = events.filter(event => {
-    try {
-      const eventStart = startOfDay(parseEventDate(event.start));
-      return isWithinInterval(eventStart, { 
-        start: startOfDay(weekStart), 
-        end: startOfDay(weekEnd) 
-      });
-    } catch {
-      return false;
-    }
+    const eventStart = parseEventDate(event.start);
+    return !!eventStart && isWithinInterval(eventStart, {
+      start: startOfDay(weekStart),
+      end: startOfDay(weekEnd)
+    });
   });
 
-  // Sort events by start time
   const sortedEvents = [...weekEvents].sort((a, b) => {
-    const dateA = parseEventDate(a.start);
-    const dateB = parseEventDate(b.start);
-    return dateA.getTime() - dateB.getTime();
+    return String(a.start).localeCompare(String(b.start));
   });
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -89,7 +81,7 @@ const MobileWarehouseEventsList: React.FC<MobileWarehouseEventsListProps> = ({ e
             {/* Date Badge */}
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground uppercase">
-                {format(eventDate, 'EEEE d MMM', { locale: sv })}
+                {eventDate ? format(eventDate, 'EEEE d MMM', { locale: sv }) : extractUTCDate(event.start)}
               </span>
               <span className="text-xs font-semibold px-2 py-1 rounded-full bg-muted">
                 {getEventLabel(eventType)}
@@ -104,7 +96,7 @@ const MobileWarehouseEventsList: React.FC<MobileWarehouseEventsListProps> = ({ e
             {/* Time */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Clock className="h-4 w-4" />
-              <span>{format(eventDate, 'HH:mm')}</span>
+              <span>{extractUTCTime(event.start)}</span>
             </div>
             
             {/* Location if available */}
