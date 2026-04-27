@@ -167,6 +167,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       clearTimeout(startingTimeoutRef.current);
       startingTimeoutRef.current = null;
     }
+    if (noPixelsWatchdogRef.current) {
+      clearTimeout(noPixelsWatchdogRef.current);
+      noPixelsWatchdogRef.current = null;
+    }
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
