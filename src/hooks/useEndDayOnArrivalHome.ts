@@ -277,7 +277,7 @@ export function useEndDayOnArrivalHome(
           });
         }
 
-        const result = await syncWorkDayEnd(chosenEndIso);
+        const result = await endWorkdayFlow({ endedAtIso: chosenEndIso });
         if (!result.ok) {
           toast.error(result.error || 'Kunde inte avsluta arbetsdagen på servern');
           return;
@@ -301,9 +301,7 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
-        markWorkdayEnded(chosenEndIso);
         localStorage.setItem(AUTO_ENDED_KEY_PREFIX + todayKey(), '1');
-        try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
         toast.success('Arbetsdag avslutad');
         setSuggestion(null);
       } catch (err: any) {
