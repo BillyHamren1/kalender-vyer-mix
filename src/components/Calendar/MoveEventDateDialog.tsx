@@ -15,7 +15,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
-import { handleBookingMove } from '@/services/unifiedStaffService';
+import { handleBookingMove } from '@/services/staffCalendarService';
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 
 interface MoveEventDateDialogProps {
@@ -190,8 +190,13 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             newDateStr
           );
 
-          if (!moveResult.success && moveResult.error) {
-            throw new Error(moveResult.error);
+          if (!moveResult.success) {
+            const conflictCount = moveResult.conflicts?.length || 0;
+            throw new Error(
+              conflictCount > 0
+                ? `Kunde inte flytta bemanningen till valt team (${conflictCount} konflikter).`
+                : 'Kunde inte flytta bokningen till valt team.'
+            );
           }
         }
       }
