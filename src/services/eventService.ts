@@ -150,6 +150,22 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     throw bookingAssignmentsError;
   }
 
+  const allProjectIds = Array.from(new Set([
+    ...relevantProjectIds,
+    ...((projectsData || []).map(p => p.id)),
+  ]));
+
+  const { data: lptaData, error: lptaError } = allProjectIds.length > 0
+    ? await supabase
+        .from('large_project_team_assignments')
+        .select('large_project_id, phase, assignment_date, team_id')
+        .in('large_project_id', allProjectIds)
+    : { data: [], error: null };
+
+  if (lptaError) {
+    console.warn('⚠️ [fetchCalendarEvents] Failed to fetch large_project_team_assignments:', lptaError);
+  }
+
   const events = buildPlannerCalendarEvents({
     realEvents: realRows,
     bookings: bookingRows,
@@ -159,6 +175,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     }),
     largeProjectBookings: largeProjectBookingsData || [],
     bookingAssignments: bookingAssignmentsData || [],
+    largeProjectTeamAssignments: lptaData || [],
     fromDate,
     toDate,
   }).map(event => ({

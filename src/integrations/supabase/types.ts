@@ -2206,6 +2206,47 @@ export type Database = {
           },
         ]
       }
+      large_project_team_assignments: {
+        Row: {
+          assignment_date: string
+          created_at: string
+          id: string
+          large_project_id: string
+          organization_id: string
+          phase: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_date: string
+          created_at?: string
+          id?: string
+          large_project_id: string
+          organization_id?: string
+          phase: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_date?: string
+          created_at?: string
+          id?: string
+          large_project_id?: string
+          organization_id?: string
+          phase?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_team_assignments_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       large_projects: {
         Row: {
           address: string | null

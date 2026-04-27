@@ -15,6 +15,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
+import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface MoveEventDateDialogProps {
     bookingNumber?: string;
     eventType?: string;
     deliveryAddress?: string;
+    extendedProps?: Record<string, any>;
   };
   resources?: Array<{ id: string; title: string }>;
   onUpdate?: () => void;
@@ -91,6 +93,37 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               }
             : ev
         ));
+      }
+
+      // ── LARGE PROJECT: move whole project day + save team override
+      const largeProjectId: string | undefined = event.extendedProps?.largeProjectId;
+      const phase = event.eventType as LargeProjectPhase | undefined;
+      const currentDateStr = (typeof event.start === 'string' ? event.start : event.start.toISOString()).split('T')[0];
+      const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
+
+      if (largeProjectId && phase) {
+        if (newDateStr !== currentDateStr) {
+          await moveLargeProjectDay({
+            largeProjectId,
+            phase,
+            fromDate: currentDateStr,
+            toDate: newDateStr,
+            newStartISO,
+            newEndISO,
+          });
+        }
+        if (teamChanged && selectedResourceId) {
+          await setLargeProjectDayTeam(largeProjectId, phase, newDateStr, selectedResourceId);
+        }
+
+        const teamName = resources.find(r => r.id === selectedResourceId)?.title;
+        toast.success('Projektdag uppdaterad', {
+          description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${teamChanged && teamName ? ` → ${teamName}` : ''}`,
+        });
+
+        if (onUpdate) await onUpdate();
+        onOpenChange(false);
+        return;
       }
 
       // Warehouse event types live in `warehouse_calendar_events`, not `calendar_events`.

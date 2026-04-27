@@ -137,6 +137,8 @@ const EventWrapper: React.FC<{
       bookingId: event.bookingId,
       eventType: event.eventType,
       resourceId: event.resourceId,
+      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
+      largeProjectId: (event.extendedProps as any)?.largeProjectId,
     };
     e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
     e.dataTransfer.effectAllowed = 'move';
