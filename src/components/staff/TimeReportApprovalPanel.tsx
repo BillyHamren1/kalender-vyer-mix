@@ -190,6 +190,7 @@ export const TimeReportApprovalPanel: React.FC = () => {
             staff_members!inner(name),
             bookings(client, booking_number, assigned_project_name)
           `)
+          .eq('is_subdivision', false)
           .order('report_date', { ascending: false })
           .limit(1000),
         supabase
