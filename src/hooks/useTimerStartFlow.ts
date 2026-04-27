@@ -58,65 +58,57 @@ import {
  *
  * När en aktivitet startas tittar vi på det senaste stoppade
  * arbetssegmentet (lagrat av useWorkSession.stopSession). Är gapet
- * rimligt skapar vi en candidate `travel_time_logs`-rad som täcker
- * intervallet [prev_stop, next_start]. Detta är PRIMÄR vägen att skapa
- * restid framåt — live GPS-travel är legacy/assist.
+ * rimligt (10–180 min) anropar vi den centrala server-funktionen
+ * `create_travel_from_gap`, som är idempotent och tillämpar reglerna:
+ *   • <10 min   → skip (klienten filtrerar)
+ *   • 10–180 min → 'work', skapas direkt
+ *   • >180 min  → needs_review=true, skapas men kräver attest
+ *
+ * Servern dedupliceras på (staff, start, end, source='gap_derived'),
+ * så även parallella anropare hamnar aldrig i dubbletter.
  *
  * Best-effort: fel loggas men blockerar aldrig start-flödet.
  */
 async function maybeCreateGapTravel(
   nextStartIso: string,
-  destinationLabel: string,
+  next: { targetType: 'project' | 'booking' | 'location'; targetId: string; label: string },
 ): Promise<void> {
   const prev = readLastWorkSegment();
   const decision = evaluateGap(nextStartIso, prev);
 
   if (decision.kind === 'no_previous' || decision.kind === 'cross_day') {
-    // Inget tidigare segment idag — inget att jämföra mot.
     return;
   }
   if (decision.kind === 'too_short') {
-    // <10 min: betraktas som samma plats / kort paus, ingen restid.
     console.log(`[GapTravel] gap ${decision.gapMin} min → too_short, skipping`);
     clearLastWorkSegment();
     return;
   }
-  if (decision.kind === 'needs_review') {
-    // >180 min: för långt för auto-skapelse. Vi rensar segmentet så att
-    // vi inte fortsätter erbjuda samma jämförelse, men skapar ingen rad.
-    console.log(
-      `[GapTravel] gap ${decision.gapMin} min → needs_review, no auto candidate`,
-    );
-    clearLastWorkSegment();
-    return;
-  }
 
-  // candidate (10–180 min) → skapa travel_time_log och backdatera tider.
+  // candidate (10–180 min) ELLER needs_review (>180 min) — båda fallen
+  // går till servern; servern avgör needs_review-flaggan.
   try {
-    const created = await mobileApi.createTravelLog({
-      auto_detected: true,
-      description: `Gap-candidate: ${prev!.targetLabel} → ${destinationLabel} (${decision.gapMin} min)`,
+    const res = await mobileApi.createTravelFromGap({
+      previous_target_type: prev!.targetType,
+      previous_target_id: prev!.targetId,
+      previous_target_label: prev!.targetLabel,
+      next_target_type: next.targetType,
+      next_target_id: next.targetId,
+      next_target_label: next.label,
+      start_time: prev!.stoppedAtIso,
+      end_time: nextStartIso,
     });
-    const travelLogId = created?.travel_log?.id;
-    if (travelLogId) {
-      await mobileApi.setTravelTimes({
-        travel_log_id: travelLogId,
-        start_time: prev!.stoppedAtIso,
-        end_time: nextStartIso,
-      });
+    if (res?.deduplicated) {
+      console.log(`[GapTravel] gap already recorded (${decision.gapMin} min) — dedup hit`);
+    } else if (res?.success) {
       console.log(
-        `[GapTravel] candidate created (${decision.gapMin} min): ${travelLogId}`,
+        `[GapTravel] created (${res.gap_minutes ?? decision.gapMin} min, needs_review=${res.needs_review ?? false})`,
       );
+    } else if (res?.skipped) {
+      console.log(`[GapTravel] server skipped: ${res.reason}`);
     }
   } catch (err: any) {
-    // Servern kan blocka (inside_geofence / pre_workday_commute) — då
-    // är det helt OK att hoppa över. Inget user-facing fel.
-    const msg = String(err?.message || '');
-    if (msg.includes('inside_geofence') || msg.includes('pre_workday_commute')) {
-      console.log('[GapTravel] candidate rejected by server:', msg);
-    } else {
-      console.warn('[GapTravel] candidate creation failed (non-fatal):', err);
-    }
+    console.warn('[GapTravel] createTravelFromGap failed (non-fatal):', err);
   } finally {
     // Rensa alltid efter ett beslut — varje gap utvärderas en gång.
     clearLastWorkSegment();
