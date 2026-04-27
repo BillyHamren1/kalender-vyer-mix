@@ -99,7 +99,7 @@ export function useTimerStartFlow(
   const performStart = useCallback(
     async (
       target: WorkTarget,
-      opts: { startedAtIso?: string; label: string },
+      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
     ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
       // This is one of the two sanctioned auto-stop triggers (the other is
@@ -131,7 +131,11 @@ export function useTimerStartFlow(
         return 'workday-failed';
       }
 
-      const ok = startSession(target, { startedAtIso: opts.startedAtIso });
+      const ok = startSession(target, {
+        startedAtIso: opts.startedAtIso,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
         return 'started';
