@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
+import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 // Serializable subset stored in dataTransfer
@@ -95,31 +96,58 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
     const currentDateStr = eventData.start.split('T')[0];
     if (currentDateStr === targetDateStr) return;
 
-    // Guard: large projects manage their own dates via the project page; the
-    // planner's drag flow only knows how to move single-booking events.
-    if (eventData.largeProjectId) {
-      toast.error('Kan inte flytta dagar för stora projekt här.', {
-        description: 'Öppna projektet och justera datumen i projektvyn.',
-      });
-      return;
-    }
-
-    // Guard: synthetic fallback rows do not exist in calendar_events yet.
-    // The backend reconciler must create the real row first; a planner move
-    // would otherwise update nothing and confuse the user.
-    if (eventData.isSyntheticFallback || eventData.id.startsWith('synthetic-')) {
-      toast.error('Den här dagen är inte synkad än.', {
-        description: 'Vänta tills bokningen är fullt synkroniserad och försök igen.',
-      });
-      return;
-    }
-
     setIsMoving(true);
     try {
       const startTimeStr = extractUTCTime(eventData.start);
       const endTimeStr = extractUTCTime(eventData.end);
       const newStartISO = buildUTCDateTime(targetDateStr, startTimeStr);
       const newEndISO = buildUTCDateTime(targetDateStr, endTimeStr);
+
+      // ── Large project: move the whole project-day across all linked bookings
+      if (eventData.largeProjectId && eventData.eventType) {
+        await moveLargeProjectDay({
+          largeProjectId: eventData.largeProjectId,
+          phase: eventData.eventType as LargeProjectPhase,
+          fromDate: currentDateStr,
+          toDate: targetDateStr,
+          newStartISO,
+          newEndISO,
+        });
+        const targetDate = new Date(targetDateStr + 'T12:00:00Z');
+        toast.success('Projektdag flyttad', {
+          description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
+        });
+        if (refreshEvents) await refreshEvents();
+        return;
+      }
+
+      // ── Synthetic single-booking fallback: write to bookings + let reconciler
+      // create the calendar_events row on next sync.
+      if (eventData.isSyntheticFallback || eventData.id.startsWith('synthetic-')) {
+        if (!eventData.bookingId || !eventData.eventType) {
+          toast.error('Kunde inte flytta — saknar bokningsreferens.');
+          return;
+        }
+        const bookingFields: Record<string, { date: string; start: string; end: string }> = {
+          rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+          event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+          rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+        };
+        const fields = bookingFields[eventData.eventType];
+        if (fields) {
+          await supabase.from('bookings').update({
+            [fields.date]: targetDateStr,
+            [fields.start]: newStartISO,
+            [fields.end]: newEndISO,
+          }).eq('id', eventData.bookingId);
+        }
+        const targetDate = new Date(targetDateStr + 'T12:00:00Z');
+        toast.success('Bokning flyttad', {
+          description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
+        });
+        if (refreshEvents) await refreshEvents();
+        return;
+      }
 
       // Update calendar event
       await updateCalendarEvent(eventData.id, {
