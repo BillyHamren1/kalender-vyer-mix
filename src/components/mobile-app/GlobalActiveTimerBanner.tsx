@@ -12,8 +12,8 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
-import { markWorkdayEnded, clearWorkdayEnded } from '@/services/workdayState';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { clearWorkdayEnded } from '@/services/workdayState';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 
@@ -305,19 +305,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
-        // Server-first: close the workdays row BEFORE marking local state.
-        // workdays/useWorkDay is the source of truth — local cache and the
-        // 'workday-ended' event must only fire once the server confirms.
-        const result = await syncWorkDayEnd();
-        if (result.ok) {
-          markWorkdayEnded();
-          window.dispatchEvent(new CustomEvent('workday-ended'));
-        } else {
-          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
+        // Server-first end-day via central rutin. Vid fel: lämna dagen
+        // tydligt needs-review (lokal cache rörs inte) och toasta.
+        const result = await endWorkdayFlow();
+        if (!result.ok) {
+          toast.error(result.error || t('workday.couldNotEnd'));
         }
       }
     }
-  }, [handleStop, waitForLocalTimerDrain]);
+  }, [handleStop, waitForLocalTimerDrain, t]);
 
   // Mirror pendingStop into a ref so the queue processor can poll it
   // without re-creating itself on every state change.
@@ -332,14 +328,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
     const onRequestEndDay = async () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
-        // Server-first: confirm with backend before flipping local state.
-        const result = await syncWorkDayEnd();
+        // Inga aktiva timers → kör direkt central end-day-rutin.
+        const result = await endWorkdayFlow();
         if (result.ok) {
-          markWorkdayEnded();
-          window.dispatchEvent(new CustomEvent('workday-ended'));
           toast.message(t('workday.noActiveTimers'));
         } else {
-          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
+          toast.error(result.error || t('workday.couldNotEnd'));
         }
         return;
       }

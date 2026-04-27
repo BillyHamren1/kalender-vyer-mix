@@ -31,8 +31,8 @@ import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import type { TravelCompletedInfo } from '@/hooks/useTravelDetection';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { toast } from 'sonner';
-import { hasWorkdayEndedToday, markWorkdayEnded } from '@/services/workdayState';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { hasWorkdayEndedToday } from '@/services/workdayState';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 
 const SUPPRESS_KEY_PREFIX = 'eventflow-end-day-home-suppressed-';
 const ASSISTANT_DAILY_KEY_PREFIX = 'eventflow-last-workplace-prompted-';
@@ -198,9 +198,10 @@ export function useEndDayOnArrivalHome(
             }
           }
 
-          const result = await syncWorkDayEnd(chosenEndIso);
+          const result = await endWorkdayFlow({ endedAtIso: chosenEndIso });
           if (!result.ok) {
-            console.warn('[useEndDayOnArrivalHome] syncWorkDayEnd failed:', result.error);
+            console.warn('[useEndDayOnArrivalHome] endWorkdayFlow failed:', result.error);
+            // needsReview → fallback-dialog tar över via suggestion.
             setSuggestion({ workplaceName, exitedAtIso, timerKey, timer, reason: 'workday_end_failed' });
             return;
           }
@@ -224,9 +225,7 @@ export function useEndDayOnArrivalHome(
             } catch { /* non-fatal */ }
           }
 
-          markWorkdayEnded(chosenEndIso);
           localStorage.setItem(AUTO_ENDED_KEY_PREFIX + today, '1');
-          try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
 
           const hhmm = new Date(chosenEndIso).toLocaleTimeString('sv-SE', {
             hour: '2-digit', minute: '2-digit',
@@ -278,7 +277,7 @@ export function useEndDayOnArrivalHome(
           });
         }
 
-        const result = await syncWorkDayEnd(chosenEndIso);
+        const result = await endWorkdayFlow({ endedAtIso: chosenEndIso });
         if (!result.ok) {
           toast.error(result.error || 'Kunde inte avsluta arbetsdagen på servern');
           return;
@@ -302,9 +301,7 @@ export function useEndDayOnArrivalHome(
           } catch { /* non-fatal */ }
         }
 
-        markWorkdayEnded(chosenEndIso);
         localStorage.setItem(AUTO_ENDED_KEY_PREFIX + todayKey(), '1');
-        try { window.dispatchEvent(new CustomEvent('workday-ended')); } catch { /* noop */ }
         toast.success('Arbetsdag avslutad');
         setSuggestion(null);
       } catch (err: any) {

@@ -114,4 +114,70 @@ export function autoStartWorkDay(
 export function __resetWorkDaySyncForTests(): void {
   lastStartAt = 0;
   inFlightStart = null;
+  inFlightEnd = null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CENTRAL END-DAY ROUTINE
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `endWorkdayFlow` är den ENDA sanktionerade vägen att avsluta en arbetsdag.
+// Både manuell "Avsluta dag"-knapp (GlobalActiveTimerBanner) och hemkomst-
+// auto-end (useEndDayOnArrivalHome) ska gå genom denna rutin.
+//
+// Ordning (server-first):
+//   1. Caller har redan stoppat ev. aktiva activity-timers via stopSession
+//      (ger time_reports). Det görs UTANFÖR denna rutin eftersom det kräver
+//      React-hooks (useWorkSession). endWorkdayFlow förutsätter att alla
+//      activity-timers är stoppade när den anropas.
+//   2. Anropa workday edge function -> end (server är source of truth).
+//   3. Vid OK: markera lokal cache, dispatcha 'workday-ended'-event.
+//   4. Vid FEL: returnera { ok:false, needsReview:true } — caller får
+//      visa fallback-UI / toast. Lokal cache rörs INTE; dagen är inte
+//      avslutad.
+//
+// Idempotent och de-dupad: parallella anrop slås ihop.
+
+let inFlightEnd: Promise<EndWorkdayFlowResult> | null = null;
+
+export interface EndWorkdayFlowResult {
+  ok: boolean;
+  /** True när servern misslyckades — UI ska markera dagen som behöver review. */
+  needsReview?: boolean;
+  error?: string;
+}
+
+export interface EndWorkdayFlowOptions {
+  /** ISO-tidpunkt för avslutet. Default: nu. */
+  endedAtIso?: string;
+}
+
+export async function endWorkdayFlow(
+  opts: EndWorkdayFlowOptions = {},
+): Promise<EndWorkdayFlowResult> {
+  if (inFlightEnd) return inFlightEnd;
+
+  const run = (async (): Promise<EndWorkdayFlowResult> => {
+    // Lazy-import för att undvika cykler (workdayState importerar inte
+    // workdayServerSync, men workdayState används bara här på success-path).
+    const { markWorkdayEnded } = await import('./workdayState');
+
+    const result = await syncWorkDayEnd(opts.endedAtIso);
+    if (!result.ok) {
+      // Lämna lokal state orörd — dagen är INTE avslutad.
+      return { ok: false, needsReview: true, error: result.error };
+    }
+    // Server bekräftade. Nu får lokal cache och lyssnare uppdateras.
+    markWorkdayEnded(opts.endedAtIso);
+    // syncWorkDayEnd dispatchar redan 'workday-ended'-eventet vid framgång,
+    // så vi behöver inte göra det igen här.
+    return { ok: true };
+  })();
+
+  inFlightEnd = run;
+  try {
+    return await run;
+  } finally {
+    inFlightEnd = null;
+  }
 }

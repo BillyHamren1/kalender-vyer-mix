@@ -19,7 +19,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { mobileApi } from '@/services/mobileApiService';
 
 export type ReviewEventLite = {
@@ -97,7 +97,7 @@ export function useDayReviewActions(): DayReviewActions {
   const { data: bookings = [] } = useMobileBookings();
   const startFlow = useTimerStartFlow(bookings, staff?.id);
   const { stopSession } = useWorkSession(bookings, staff?.id);
-  const { ensureActive: ensureWorkDay, end: endWorkDay, current: currentWorkday } = useWorkDay();
+  const { ensureActive: ensureWorkDay, current: currentWorkday } = useWorkDay();
 
   const resolveEvent = useCallback(
     async (
@@ -219,12 +219,11 @@ export function useDayReviewActions(): DayReviewActions {
   const endWorkDayAtHomeArrival = useCallback<DayReviewActions['endWorkDayAtHomeArrival']>(
     async (ev) => {
       try {
-        const result = await syncWorkDayEnd(ev.happened_at);
+        const result = await endWorkdayFlow({ endedAtIso: ev.happened_at });
         if (!result.ok) {
           toast.error(`Kunde inte avsluta arbetsdag: ${result.error || 'okänt fel'}`);
           return;
         }
-        await endWorkDay({ endedAtIso: ev.happened_at }).catch(() => null);
         toast.success('Arbetsdag avslutad vid hemkomst');
         await resolveEvent(ev.id, 'applied_from_event_time', {
           linked_workday_id: currentWorkday?.id,
@@ -233,7 +232,7 @@ export function useDayReviewActions(): DayReviewActions {
         toast.error(err?.message || 'Kunde inte avsluta arbetsdag');
       }
     },
-    [endWorkDay, currentWorkday, resolveEvent],
+    [currentWorkday, resolveEvent],
   );
 
   const adjustTravel = useCallback<DayReviewActions['adjustTravel']>(
