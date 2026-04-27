@@ -147,6 +147,38 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
     saveTravelState(newState);
   }, []);
 
+  // ── Phantom-state reconciliation ─────────────────────────────────────
+  // If localStorage claims a trip is active but the server has no open
+  // travel row, clear the phantom local state so the banner doesn't get
+  // stuck after a refresh / app re-install / token rotation.
+  useEffect(() => {
+    if (!enabled) return;
+    if (!travelStateRef.current.activeTravelLogId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await mobileApi.getTravelLogs(10);
+        if (cancelled) return;
+        const localId = travelStateRef.current.activeTravelLogId;
+        if (!localId) return;
+        const logs = (res?.travel_logs || []) as Array<{ id: string; end_time: string | null }>;
+        const matching = logs.find(l => l.id === localId);
+        const stillOpen = !!matching && !matching.end_time;
+        if (!stillOpen) {
+          console.log('[TravelDetection] Phantom local travel state — clearing (no open server row).');
+          clearTravelState();
+        }
+      } catch (err) {
+        // Soft-fail: don't kill banner on a transient network blip.
+        console.warn('[TravelDetection] Phantom reconcile failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Run once when the hook gains a logged-in/enabled session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+
   const startTravel = useCallback(async (lat: number, lng: number) => {
     if (startInFlightRef.current || travelStateRef.current.activeTravelLogId) {
       return;
@@ -237,8 +269,16 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
 
       clearTravelState();
       console.log('[TravelDetection] Travel stopped, classification:', result.travel_log?.classification);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[TravelDetection] Failed to stop travel:', err);
+      // If the server explicitly says the row is gone / not found, clear
+      // the local banner so the user is not stuck. Network errors leave
+      // local state intact so a retry can happen.
+      const msg = String(err?.message || '');
+      if (msg.includes('not found') || msg.includes('404')) {
+        console.log('[TravelDetection] Server reports travel gone — clearing local banner.');
+        clearTravelState();
+      }
     } finally {
       if (stopInFlightRef.current === currentLogId) {
         stopInFlightRef.current = null;
@@ -293,8 +333,12 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       }
 
       clearTravelState();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[TravelDetection] Manual stop failed:', err);
+      // The user explicitly tapped Stop. Whatever the server said, do
+      // NOT leave the banner ticking. Worst case the server still has an
+      // open row — the next geofence ENTER or app reload will reconcile.
+      clearTravelState();
     }
   }, [clearTravelState]);
 
