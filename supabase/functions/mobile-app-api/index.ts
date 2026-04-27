@@ -1652,6 +1652,7 @@ async function handleUpdateTimeReport(supabase: any, staffId: string, data: any,
         .eq('staff_id', staffId)
         .neq('id', time_report_id)
         .in('report_date', [prevDate, existing.report_date, nextDate])
+        .eq('is_subdivision', false)
         .not('start_time', 'is', null)
         .not('end_time', 'is', null)
 
