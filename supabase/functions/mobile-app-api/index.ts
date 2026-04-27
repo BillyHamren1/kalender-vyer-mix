@@ -5790,9 +5790,20 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
   }
 
   if (!targetLog) {
+    // Idempotent success: there is nothing open to stop. The client banner
+    // is showing a phantom — let it clear without error so the user is not
+    // stuck in a "Travelling" state forever.
+    console.log(
+      `[handleStopTravelLog] No open travel for staff ${staffId} (requested ${travel_log_id}). Returning idempotent success so the client can clear local state.`
+    )
     return new Response(
-      JSON.stringify({ error: 'Travel log not found' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        already_stopped: true,
+        no_open_travel: true,
+        travel_log: null,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
