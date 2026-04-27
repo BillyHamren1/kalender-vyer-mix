@@ -35,6 +35,52 @@ const GPS_SETTINGS_KEY = 'eventflow-mobile-gps-settings';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 
+// ─────────────────────────────────────────────────────────────────────
+// AUTO-FIRST CALLBACKS (Auto-first 2026-04)
+//
+// `useGeofencing` mountas på flera ställen i appen och får INTE känna
+// till `useTimerStartFlow` / `useWorkSession` direkt (cirkulära deps).
+// Lösning: en singleton-registry. `MobileGlobalOverlays` registrerar
+// auto-start och auto-stop EN GÅNG vid mount; geofence-effekten anropar
+// dem från ENTER/EXIT-grenarna. Saknas registrering → inga auto-actions
+// (säker default; faller tillbaka på prompten).
+// ─────────────────────────────────────────────────────────────────────
+export interface AutoStartActivityArgs {
+  kind: 'location' | 'project' | 'booking';
+  targetId: string;
+  label: string;
+  /** Useful for assistant_event audit only — server uses arrived_at it stored. */
+  arrivedAtIso: string;
+}
+export interface AutoStartActivityOutcome {
+  status: 'started' | 'duplicate' | 'workday-failed' | 'conflict';
+}
+export type AutoStartActivityFn =
+  (args: AutoStartActivityArgs) => Promise<AutoStartActivityOutcome>;
+export interface AutoStopActivityArgs {
+  /** ActiveTimer key (booking.id, project-<id>, location-<id>). */
+  key: string;
+  exitedAtIso: string;
+}
+export type AutoStopActivityFn = (args: AutoStopActivityArgs) => Promise<void>;
+
+const autoActionsRef: {
+  start: AutoStartActivityFn | null;
+  stop: AutoStopActivityFn | null;
+} = { start: null, stop: null };
+
+export function registerGeofenceAutoActions(actions: {
+  start: AutoStartActivityFn;
+  stop: AutoStopActivityFn;
+}): () => void {
+  autoActionsRef.start = actions.start;
+  autoActionsRef.stop = actions.stop;
+  return () => {
+    autoActionsRef.start = null;
+    autoActionsRef.stop = null;
+  };
+}
+
 export interface ActiveTimer {
   bookingId: string;
   client: string;
