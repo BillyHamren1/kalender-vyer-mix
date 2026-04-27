@@ -70,16 +70,37 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
+  // Quick beep so the user gets immediate feedback at the moment of detection,
+  // independent of any downstream onScan handler. Identical to the
+  // IdentifyScannerOverlay (which is known to work on iOS).
+  const playBeep = useCallback((success: boolean) => {
+    try {
+      const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = success ? 1200 : 400;
+      osc.type = 'square';
+      gain.gain.value = 0.15;
+      osc.start();
+      osc.stop(ctx.currentTime + (success ? 0.1 : 0.25));
+    } catch {/* noop */}
+  }, []);
+
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       lastScanRef.current = value;
       setManualInput(value);
+      playBeep(true);
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
       }, 3000);
     }
-  }, []);
+  }, [playBeep]);
 
   const stopCamera = useCallback(() => {
     if (startingTimeoutRef.current) {
