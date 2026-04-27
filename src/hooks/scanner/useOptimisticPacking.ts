@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import {
   fetchPackingListItems,
   fetchPackingForScanner,
+  type PackingListNotReady,
 } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { scanLog } from './scanLog';
