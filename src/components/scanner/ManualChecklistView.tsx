@@ -16,6 +16,7 @@ import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useManualPackingActions } from '@/hooks/scanner/useManualPackingActions';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { buildChildrenByParent, classifyAndFormatRow } from '@/lib/packing/displayNames';
+import { PackingNotReadyView } from './PackingNotReadyView';
 
 interface ManualChecklistViewProps {
   packingId: string;
@@ -32,7 +33,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
 
   // === Shared state hooks (same as VerificationView) ===
   const {
-    packing, items, progress, isLoading, loadData,
+    packing, items, progress, isLoading, notReady, loadData,
     applyOptimisticIncrement, applyOptimisticDecrement,
   } = useOptimisticPacking(packingId);
 
@@ -122,6 +123,18 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       <div className="flex items-center justify-center min-h-[50vh]">
         <RefreshCw className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // Server explicitly refused: list isn't ready. Show repair UI; never
+  // mount the checklist with a partial list.
+  if (notReady) {
+    return (
+      <PackingNotReadyView
+        notReady={notReady}
+        onBack={onBack}
+        onRepaired={() => loadData(false)}
+      />
     );
   }
 
