@@ -733,7 +733,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          autoStartWorkDay('geofence_enter');
+          // (workday is ensured centrally by autoActionsRef.start →
+          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
           const arrivedAtIso = new Date().toISOString();
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
