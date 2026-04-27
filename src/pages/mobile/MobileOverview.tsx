@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { mobileApi } from '@/services/mobileApiService';
+import { mobileApi, getToken } from '@/services/mobileApiService';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 
 const RANGE_DAYS_BACK = 7;
