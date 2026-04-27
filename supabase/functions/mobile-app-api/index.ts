@@ -1062,15 +1062,17 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
-    const realBsaForShifts = (assignments || []).filter(
+    // Seed shift keys from ALL BSA rows on real bookings (including team_id='project').
+    // A staff member who is BSA-tagged on a date is meant to work that day even if
+    // the planner hasn't filed it under a specific team yet.
+    const bsaForShifts = (assignments || []).filter(
       (a: any) =>
-        a.team_id !== 'project' &&
         a.team_id !== 'location' &&
-        !a.booking_id.startsWith('location-')
+        !String(a.booking_id).startsWith('location-')
     )
 
     const shiftDateKeys = new Set<string>(
-      realBsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
+      bsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
     )
 
     for (const booking of bookingsWithAssignments) {
