@@ -240,9 +240,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Messages === */}
         <TabsContent value="messages" className="mt-4 space-y-2">
-          {threadsQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'messages') || threadsQ.isLoading) && <ListSkeleton />}
           {threadsQ.isError && <ErrorState text={t('overview.error')} />}
-          {!threadsQ.isLoading && (threadsQ.data?.threads.length ?? 0) === 0 && (
+          {hasToken && !threadsQ.isLoading && !threadsQ.isError && (threadsQ.data?.threads.length ?? 0) === 0 && (
             <EmptyState text={t('overview.empty.messages')} />
           )}
           {threadsQ.data?.threads.map(thread => (
