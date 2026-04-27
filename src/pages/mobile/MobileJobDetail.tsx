@@ -211,8 +211,8 @@ const MobileJobDetail = () => {
         </div>
       )}
 
-      {/* Task picker — only shown when timer is NOT running and there are tasks */}
-      {!currentTimer && myPendingTasks.length > 0 && (
+      {/* Task picker — only shown when timer is NOT running, there are tasks, and this isn't a project sub-booking */}
+      {!isProjectBooking && !currentTimer && myPendingTasks.length > 0 && (
         <div className="mx-4 mt-2">
           <button
             onClick={() => setShowTaskPicker(!showTaskPicker)}
