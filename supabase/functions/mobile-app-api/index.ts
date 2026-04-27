@@ -7804,12 +7804,11 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     }
   }
 
-  // ── AUTO-FIRST 2026-04 ──
-  // Klienten startar activity-timern direkt efter detta anrop via
-  // tryStartFromArrival. Server-side autostartar workday här (idempotent),
-  // men vi skapar INGEN time_report — det gör start_*_timer-actions.
-  // arrival_prompt_log skrivs som AUDIT-spegling och driver inte längre
-  // klientens normalflöde; den används bara av push-cron som fallback.
+  // ── ARRIVAL = SIGNAL ONLY (2026-04 cleanup) ──
+  // handleReportArrival loggar arrival och speglar till assistant_events som
+  // audit. Ingen workday-autostart här — frontend äger startkedjan via
+  // tryStartFromArrival → ensureWorkDayActive → startSession. Detta tar bort
+  // dubbla skrivvägar mot workdays-tabellen vid geofence-enter.
 
   // ── prompt-log (alla arrivals — assigned eller ej) ──
   // Dedupe: if there is already an UNRESOLVED log row for the same
@@ -7868,31 +7867,9 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     suggested_action: 'start_activity',
   })
 
-  // ── AUTOSTART WORKDAY (Strategy v2 — primary autostart) ──
-  // Arrival på en känd plats är ett starkt signal att arbetsdagen är igång.
-  // Använd delade reality-actions/applyEnsureWorkday — idempotent, no-op
-  // om en workday redan är öppen idag.
-  try {
-    const { applyEnsureWorkday } = await import('../_shared/reality-actions.ts')
-    const r = await applyEnsureWorkday(supabase, {
-      staffId,
-      organizationId,
-      atIso: arrivedAt,
-    })
-    if (r.changed) {
-      // Stämpla notes så audit visar varför dagen startades.
-      const createdId = (r.detail as any)?.created_workday_id
-      if (createdId) {
-        await supabase
-          .from('workdays')
-          .update({ notes: 'Autostarted: arrival_report' })
-          .eq('id', createdId)
-          .is('ended_at', null)
-      }
-    }
-  } catch (wdErr) {
-    console.warn('[mobile-app-api] arrival autostart workday failed:', (wdErr as any)?.message || wdErr)
-  }
+  // NOTE: No server-side workday autostart here — workday is owned by the
+  // frontend central start chain (tryStartFromArrival → ensureWorkDayActive).
+  // Backend keeps arrival as pure signal/audit to avoid double writes.
 
   return new Response(JSON.stringify({ success: true, arrival: inserted }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
