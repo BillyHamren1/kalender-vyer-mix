@@ -323,7 +323,7 @@ export default function ProjectAddressMapDialog({
       setMapStatus('idle');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, token, retryCounter]);
+  }, [open, token, retryCounter, containerNode]);
 
   // Update marker + radius circle when coords/radius/mode change
   useEffect(() => {
