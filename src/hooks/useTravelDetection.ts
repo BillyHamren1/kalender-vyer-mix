@@ -157,14 +157,13 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
     let cancelled = false;
     (async () => {
       try {
-        const today = new Date().toISOString().split('T')[0];
-        const res = await mobileApi.getTravelLogs({ date_from: today, limit: 5 });
+        const res = await mobileApi.getTravelLogs(10);
         if (cancelled) return;
         const localId = travelStateRef.current.activeTravelLogId;
         if (!localId) return;
-        const logs = (res?.travel_logs || res?.logs || []) as Array<{ id: string; end_time: string | null }>;
+        const logs = (res?.travel_logs || []) as Array<{ id: string; end_time: string | null }>;
         const matching = logs.find(l => l.id === localId);
-        const stillOpen = matching && !matching.end_time;
+        const stillOpen = !!matching && !matching.end_time;
         if (!stillOpen) {
           console.log('[TravelDetection] Phantom local travel state — clearing (no open server row).');
           clearTravelState();
