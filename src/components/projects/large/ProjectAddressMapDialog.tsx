@@ -81,7 +81,15 @@ export default function ProjectAddressMapDialog({
   initialGeofencePolygon,
   onSave,
 }: ProjectAddressMapDialogProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Callback ref — Radix Dialog mounts the content asynchronously, so a plain
+  // useRef will be `null` the first time the init effect runs after `open`
+  // flips true. Storing the node in state forces the effect to re-run the
+  // moment the <div> actually mounts. Without this, the second open of the
+  // dialog hangs on "Laddar karta…" because mapStatus stays at 'idle'.
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    setContainerNode(node);
+  }, []);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
