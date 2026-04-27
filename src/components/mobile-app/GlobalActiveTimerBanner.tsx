@@ -305,19 +305,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
       if (localTimersDrained && !pendingStopRef.current) {
-        // Server-first: close the workdays row BEFORE marking local state.
-        // workdays/useWorkDay is the source of truth — local cache and the
-        // 'workday-ended' event must only fire once the server confirms.
-        const result = await syncWorkDayEnd();
-        if (result.ok) {
-          markWorkdayEnded();
-          window.dispatchEvent(new CustomEvent('workday-ended'));
-        } else {
-          toast.error(result.error || 'Kunde inte avsluta arbetsdagen');
+        // Server-first end-day via central rutin. Vid fel: lämna dagen
+        // tydligt needs-review (lokal cache rörs inte) och toasta.
+        const result = await endWorkdayFlow();
+        if (!result.ok) {
+          toast.error(result.error || t('workday.couldNotEnd'));
         }
       }
     }
-  }, [handleStop, waitForLocalTimerDrain]);
+  }, [handleStop, waitForLocalTimerDrain, t]);
 
   // Mirror pendingStop into a ref so the queue processor can poll it
   // without re-creating itself on every state change.
