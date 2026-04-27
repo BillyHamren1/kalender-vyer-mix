@@ -40,12 +40,17 @@ export interface RequestStartOptions {
   startedAtIso?: string;
   /** Optional label for toasts / conflict dialog (defaults to target's own label). */
   label?: string;
+  /** Optional task metadata persisted on the resulting time_report. */
+  taskId?: string;
+  taskTitle?: string;
 }
 
 interface PendingStart {
   target: WorkTarget;
   label: string;
   startedAtIso?: string;
+  taskId?: string;
+  taskTitle?: string;
 }
 
 interface DistanceWarning {
@@ -94,7 +99,7 @@ export function useTimerStartFlow(
   const performStart = useCallback(
     async (
       target: WorkTarget,
-      opts: { startedAtIso?: string; label: string },
+      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
     ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
       // This is one of the two sanctioned auto-stop triggers (the other is
@@ -126,7 +131,11 @@ export function useTimerStartFlow(
         return 'workday-failed';
       }
 
-      const ok = startSession(target, { startedAtIso: opts.startedAtIso });
+      const ok = startSession(target, {
+        startedAtIso: opts.startedAtIso,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
         return 'started';
@@ -138,7 +147,7 @@ export function useTimerStartFlow(
   );
 
   const checkDistanceAndStart = useCallback(
-    (target: WorkTarget, opts: { startedAtIso?: string; label: string }) => {
+    (target: WorkTarget, opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string }) => {
       const coords = resolveTargetCoords(target);
       const doStart = () => { void performStart(target, opts); };
       if (!userPosition || !coords) {
@@ -181,12 +190,23 @@ export function useTimerStartFlow(
       if (evalResult.status === 'duplicate') return 'duplicate';
 
       if (evalResult.status === 'allow') {
-        checkDistanceAndStart(target, { startedAtIso: opts.startedAtIso, label });
+        checkDistanceAndStart(target, {
+          startedAtIso: opts.startedAtIso,
+          label,
+          taskId: opts.taskId,
+          taskTitle: opts.taskTitle,
+        });
         return 'started';
       }
 
       // switch — defer until user confirms in TimerConflictDialog
-      setPendingStart({ target, label, startedAtIso: opts.startedAtIso });
+      setPendingStart({
+        target,
+        label,
+        startedAtIso: opts.startedAtIso,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
       setConflictEval(evalResult);
       return 'conflict';
     },
@@ -205,14 +225,14 @@ export function useTimerStartFlow(
    */
   const confirmSwitch = useCallback(async () => {
     if (!pendingStart || !conflictEval) return;
-    const { target, label, startedAtIso } = pendingStart;
+    const { target, label, startedAtIso, taskId, taskTitle } = pendingStart;
     const { conflict } = conflictEval;
     setPendingStart(null);
     setConflictEval(null);
 
     const existing = activeTimers.get(conflict.key);
     if (!existing) {
-      checkDistanceAndStart(target, { startedAtIso, label });
+      checkDistanceAndStart(target, { startedAtIso, label, taskId, taskTitle });
       return;
     }
 
@@ -237,7 +257,7 @@ export function useTimerStartFlow(
       toast.error(err?.message || 'Kunde inte stoppa pågående timer');
       return;
     }
-    checkDistanceAndStart(target, { startedAtIso, label });
+    checkDistanceAndStart(target, { startedAtIso, label, taskId, taskTitle });
   }, [
     pendingStart,
     conflictEval,
@@ -281,13 +301,24 @@ export function useTimerStartFlow(
 
       if (evalResult.status === 'switch') {
         // Defer to TimerConflictDialog; arrival caller must NOT mark resolved.
-        setPendingStart({ target, label, startedAtIso: opts.startedAtIso });
+        setPendingStart({
+          target,
+          label,
+          startedAtIso: opts.startedAtIso,
+          taskId: opts.taskId,
+          taskTitle: opts.taskTitle,
+        });
         setConflictEval(evalResult);
         return 'conflict';
       }
 
       // allow → run the real start chain and surface its outcome.
-      return performStart(target, { startedAtIso: opts.startedAtIso, label });
+      return performStart(target, {
+        startedAtIso: opts.startedAtIso,
+        label,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+      });
     },
     [activeTimers, labelFor, performStart],
   );

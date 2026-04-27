@@ -4,6 +4,7 @@ import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Na
 import { mobileApi } from '@/services/mobileApiService';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,6 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
-import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurrency';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
@@ -40,7 +40,16 @@ const MobileLocationDetail = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, geo, startSession, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const { activeTimers, geo, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
   const { orgLocations } = geo;
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
@@ -53,16 +62,6 @@ const MobileLocationDetail = () => {
   const [assignToMe, setAssignToMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [, setTick] = useState(0);
-  // Rule-based concurrency replaces the legacy "max one timer total" hard
-  // block. Two timers may coexist (e.g. Lager presence + active booking) —
-  // only incompatible kinds open the switch dialog.
-  const [pendingStart, setPendingStart] = useState<{ label: string; doStart: () => void } | null>(null);
-  const [conflictEval, setConflictEval] = useState<
-    Extract<StartEvaluation, { status: 'switch' }> | null
-  >(null);
-  // Distance-warning dialog state — populated by startSessionWithDistanceCheck
-  // when the user is outside the location's geofence radius.
-  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
   const locKey = `location-${locationId}`;
@@ -108,85 +107,19 @@ const MobileLocationDetail = () => {
     ? { kind: 'location', locationId: location.id, name: location.name }
     : null;
 
-  /**
-   * Check rule-based concurrency, then either start, ignore, or open the
-   * switch dialog. Used by both the header play button and per-task starts.
-   */
-  const requestStart = (label: string, doStart: () => void) => {
-    if (!locationTarget) return;
-    const evalResult = evaluateStartConflict(locationTarget, activeTimers);
-    if (evalResult.status === 'duplicate') return;
-    if (evalResult.status === 'allow') {
-      doStart();
-      return;
-    }
-    setPendingStart({ label, doStart });
-    setConflictEval(evalResult);
-  };
-
-  const cancelConflict = () => {
-    setPendingStart(null);
-    setConflictEval(null);
-  };
-
-  const confirmSwitch = async () => {
-    if (!pendingStart || !conflictEval) return;
-    const { conflict } = conflictEval;
-    const { doStart } = pendingStart;
-    cancelConflict();
-    const existing = activeTimers.get(conflict.key);
-    if (!existing) {
-      doStart();
-      return;
-    }
-    const stopTarget: WorkTarget = existing.locationId
-      ? {
-          kind: 'location',
-          locationId: existing.locationId,
-          name: existing.locationName || existing.client,
-        }
-      : existing.largeProjectId
-        ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
-        : { kind: 'booking', bookingId: conflict.key, client: existing.client };
-    try {
-      const res = await stopSession(stopTarget);
-      if (res.cancelled) return;
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte stoppa pågående timer');
-      return;
-    }
-    doStart();
-  };
-
   const handleStartTaskTimer = (task: LagerTask) => {
     if (!locationTarget) return;
-    requestStart(task.title, () => {
-      const opts = { taskId: task.id, taskTitle: task.title };
-      const successToast = () => toast.success(`${t('timer.started')}: ${task.title}`);
-      const started = startSessionWithDistanceCheck(locationTarget, opts, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => { confirm(); successToast(); },
-        });
-      });
-      if (started) successToast();
+    // UNIFIED START FLOW — workday-first guarantee, conflict + distance dialogs.
+    requestStart(locationTarget, {
+      label: task.title,
+      taskId: task.id,
+      taskTitle: task.title,
     });
   };
 
   const handleStartGeneralTimer = () => {
     if (!locationTarget) return;
-    requestStart(locationTarget.name, () => {
-      const successToast = () => toast.success(`${t('timer.started')}: ${locationTarget.name}`);
-      const started = startSessionWithDistanceCheck(locationTarget, {}, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => { confirm(); successToast(); },
-        });
-      });
-      if (started) successToast();
-    });
+    requestStart(locationTarget, { label: locationTarget.name });
   };
 
   const handleStopTimer = async () => {
@@ -492,18 +425,18 @@ const MobileLocationDetail = () => {
       <TimerConflictDialog
         open={!!conflictEval}
         evaluation={conflictEval}
-        newTargetLabel={pendingStart?.label ?? ''}
+        newTargetLabel={pendingLabel}
         onCancel={cancelConflict}
         onSwitch={confirmSwitch}
       />
       <DistanceWarningDialog
         open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
         onConfirm={() => {
           distanceWarning?.onConfirm();
-          setDistanceWarning(null);
+          dismissDistanceWarning();
         }}
       />
       {dialogs}

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useWorkSession } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { parseISO, differenceInSeconds } from 'date-fns';
@@ -18,6 +19,7 @@ import JobCostsTab from '@/components/mobile-app/job-tabs/JobCostsTab';
 import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 import { CheckCircle2 } from 'lucide-react';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 const tabs = ['Info', 'Team', 'Photos', 'Costs', 'Time'] as const;
@@ -40,10 +42,20 @@ const MobileJobDetail = () => {
   const [timerElapsed, setTimerElapsed] = useState(0);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  // STOP via useWorkSession (unified engine).
+  // START via useTimerStartFlow (workday-first guarantee + conflict + distance).
+  const { activeTimers, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookingsArr, staff?.id);
 
   // If this booking belongs to a large project, all time is reported on the
   // project total (not per sub-booking). Hide the standalone timer here and
@@ -106,24 +118,15 @@ const MobileJobDetail = () => {
         toast.error(err.message || t('time.couldNotSave' as any));
       }
     } else {
-      // START — same engine, only the target descriptor differs.
-      // Distance check is centralized in useWorkSession so all start
-      // surfaces (jobs list, job detail, location detail) behave identically.
+      // START — UNIFIED START FLOW. requestStart guarantees a workday is
+      // active before any activity starts (workday-first), and routes
+      // through the same conflict + distance machinery as every other
+      // surface in the mobile app. Direct startSession is forbidden.
       const target = { kind: 'booking' as const, bookingId: id, client: booking.client };
-      const opts = { taskId: selectedTaskId || undefined, taskTitle: selectedTaskTitle || undefined };
-      const successToast = () => toast.success(selectedTaskTitle ? `Timer started — ${selectedTaskTitle}` : 'Timer started');
-
-      const started = startSessionWithDistanceCheck(target, opts, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => {
-            confirm();
-            successToast();
-          },
-        });
+      requestStart(target, {
+        taskId: selectedTaskId || undefined,
+        taskTitle: selectedTaskTitle || undefined,
       });
-      if (started) successToast();
     }
   };
 
@@ -344,13 +347,20 @@ const MobileJobDetail = () => {
 
       <DistanceWarningDialog
         open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
         onConfirm={() => {
           distanceWarning?.onConfirm();
-          setDistanceWarning(null);
+          dismissDistanceWarning();
         }}
+      />
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingLabel}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
       />
       {dialogs}
     </div>
