@@ -151,15 +151,6 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   // the calendar stays readable even for projects with many sub-bookings.
   const items = useMemo(() => consolidateShifts(todaysShifts), [todaysShifts]);
 
-  if (typeof window !== 'undefined' && todaysShifts.length > 0) {
-    // eslint-disable-next-line no-console
-    console.log('[DayTimeline] consolidate', {
-      day: today.toDateString(),
-      shifts: todaysShifts.map(s => ({ id: s.shift_id, bid: s.booking_id, lp: s.large_project_id, lpName: s.large_project_name, client: s.client })),
-      itemKinds: items.map(i => i.kind),
-    });
-  }
-
   const positioned = useMemo(
     () => layoutItems(items, dayStart, dayEnd),
     [items, dayStart, dayEnd]
