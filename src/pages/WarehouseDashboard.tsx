@@ -16,7 +16,6 @@ import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dash
 import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
-import { IncomingPackingList } from "@/components/packing/IncomingPackingList";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 import { toast } from "sonner";
 
