@@ -62,8 +62,6 @@ const PackingManagement = () => {
     deleteMutation.mutate(packingId);
   };
 
-  // IncomingPackingList now handles creation internally
-
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
       <div className="relative">
