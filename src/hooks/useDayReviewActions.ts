@@ -97,7 +97,7 @@ export function useDayReviewActions(): DayReviewActions {
   const { data: bookings = [] } = useMobileBookings();
   const startFlow = useTimerStartFlow(bookings, staff?.id);
   const { stopSession } = useWorkSession(bookings, staff?.id);
-  const { ensureActive: ensureWorkDay, end: endWorkDay, current: currentWorkday } = useWorkDay();
+  const { ensureActive: ensureWorkDay, current: currentWorkday } = useWorkDay();
 
   const resolveEvent = useCallback(
     async (
