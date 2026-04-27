@@ -669,6 +669,39 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       const lpId = booking.large_project_id;
       const lpName = booking.large_project_name;
 
+      // ── SUBDIVISION TRACKING ────────────────────────────────────────
+      // When a project timer is active, record per-sub-booking ENTER/EXIT
+      // intervals. These become subdivision time_reports (per-address
+      // breakdown of the project total) when the timer is stopped.
+      // Runs BEFORE the triggeredProjects continue-guard so every
+      // sub-booking gets evaluated, not just the first one we see.
+      if (lpId) {
+        const projectKey = `project-${lpId}`;
+        const hasProjectTimer = activeTimers.has(projectKey);
+        if (hasProjectTimer) {
+          const subKey = `sub:${lpId}:${booking.id}`;
+          const insideSub = dist <= enterRadius;
+          const outsideSub = dist > exitRadius;
+          if (insideSub && !triggeredEnterRef.current.has(subKey)) {
+            triggeredEnterRef.current.add(subKey);
+            triggeredExitRef.current.delete(subKey);
+            recordSubdivisionEnter({
+              largeProjectId: lpId,
+              bookingId: booking.id,
+              bookingLabel: booking.client || null,
+              address: booking.deliveryaddress || null,
+            });
+          } else if (outsideSub && triggeredEnterRef.current.has(subKey) && !triggeredExitRef.current.has(subKey)) {
+            triggeredExitRef.current.add(subKey);
+            triggeredEnterRef.current.delete(subKey);
+            recordSubdivisionExit({
+              largeProjectId: lpId,
+              bookingId: booking.id,
+            });
+          }
+        }
+      }
+
       if (lpId && lpName) {
         // Skip if we already triggered for this project in this cycle
         if (triggeredProjects.has(lpId)) continue;
