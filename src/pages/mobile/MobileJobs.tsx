@@ -197,8 +197,6 @@ const MobileJobs = () => {
           </button>
         </div>
       </HeaderShell>
-      {/* Keep import to satisfy linter for unused var if any */}
-      {false && <MobileHeroHeader title="" />}
       {/* "X aktiv timer"-bannern borttagen — GlobalActiveTimerBanner visar
           redan varje timer som egen rad högst upp, så detta var dubbelinfo. */}
 
