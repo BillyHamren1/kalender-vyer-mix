@@ -19,7 +19,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { mobileApi } from '@/services/mobileApiService';
 
 export type ReviewEventLite = {
