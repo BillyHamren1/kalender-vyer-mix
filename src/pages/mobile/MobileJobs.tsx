@@ -10,13 +10,13 @@ import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
-import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
+import { HeaderShell } from '@/components/mobile-app/MobileHeader';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
-import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck } from 'lucide-react';
+import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -154,12 +154,17 @@ const MobileJobs = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      <MobileHeroHeader
-        eyebrow={t('jobs.eyebrow')}
-        title={staff?.name?.split(' ')[0] || 'Hej'}
-        subtitle={t('jobs.subtitle')}
-        rightAction={
-          <div className="flex items-center gap-1.5">
+      <HeaderShell>
+        <div className="px-5 pt-1.5 pb-2.5 flex items-center justify-between gap-3">
+          {/* LEFT: action buttons (refresh + day-review) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => refetch()}
+              className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+              aria-label="Uppdatera"
+            >
+              <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
+            </button>
             <button
               onClick={() => navigate('/m/day-review')}
               className="relative p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
@@ -172,16 +177,26 @@ const MobileJobs = () => {
                 </span>
               )}
             </button>
-            <button
-              onClick={() => refetch()}
-              className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
-            >
-              <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
-            </button>
           </div>
-        }
-      />
 
+          {/* RIGHT: clickable name → profile */}
+          <button
+            onClick={() => navigate('/m/profile')}
+            className="flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-xl active:bg-primary-foreground/10 active:scale-95 transition-all"
+            aria-label="Min profil"
+          >
+            <div className="text-right min-w-0">
+              <p className="text-primary-foreground/70 text-[10px] font-semibold tracking-widest uppercase leading-none">
+                {t('jobs.eyebrow')}
+              </p>
+              <h1 className="text-base font-extrabold text-primary-foreground tracking-tight leading-tight mt-0.5 truncate">
+                {staff?.name?.split(' ')[0] || 'Hej'}
+              </h1>
+            </div>
+            <UserCircle2 className="w-7 h-7 text-primary-foreground/90 shrink-0" />
+          </button>
+        </div>
+      </HeaderShell>
       {/* "X aktiv timer"-bannern borttagen — GlobalActiveTimerBanner visar
           redan varje timer som egen rad högst upp, så detta var dubbelinfo. */}
 
