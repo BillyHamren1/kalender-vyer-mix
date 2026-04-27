@@ -680,7 +680,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // Only auto-prompt if user is assigned to ANY of this project's
+          // Only auto-start if user is assigned to ANY of this project's
           // bookings today. Otherwise just being near the address shouldn't
           // suggest logging in.
           const assignedToday = bookings.some(
@@ -692,19 +692,47 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
           autoStartWorkDay('geofence_enter');
-          mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: new Date().toISOString() })
+          const arrivedAtIso = new Date().toISOString();
+          mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
           noteEnterForDeparture(projectKey, 'project', lpId, lpName);
-          setGeofenceEvent({
-            type: 'enter',
-            booking,
-            distance: Math.round(dist),
-            locationType: 'project',
-            largeProjectId: lpId,
-            largeProjectName: lpName,
-            largeProjectAddress: booking.deliveryaddress || undefined,
-            arrivalTimestamp: Date.now(),
-          });
+
+          // ── AUTO-FIRST: starta activity direkt. Visa prompt enbart vid
+          // äkta osäkerhet (conflict / workday-failed). ───────────────────
+          const startFn = autoActionsRef.start;
+          if (startFn) {
+            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso })
+              .then((res) => {
+                if (res.status === 'conflict' || res.status === 'workday-failed') {
+                  setGeofenceEvent({
+                    type: 'enter', booking, distance: Math.round(dist),
+                    locationType: 'project', largeProjectId: lpId,
+                    largeProjectName: lpName,
+                    largeProjectAddress: booking.deliveryaddress || undefined,
+                    arrivalTimestamp: Date.now(),
+                  });
+                }
+              })
+              .catch((err) => {
+                console.warn('[Geofence] auto-start project failed:', err);
+                setGeofenceEvent({
+                  type: 'enter', booking, distance: Math.round(dist),
+                  locationType: 'project', largeProjectId: lpId,
+                  largeProjectName: lpName,
+                  largeProjectAddress: booking.deliveryaddress || undefined,
+                  arrivalTimestamp: Date.now(),
+                });
+              });
+          } else {
+            // Auto-actions not registered yet → fall back to prompt.
+            setGeofenceEvent({
+              type: 'enter', booking, distance: Math.round(dist),
+              locationType: 'project', largeProjectId: lpId,
+              largeProjectName: lpName,
+              largeProjectAddress: booking.deliveryaddress || undefined,
+              arrivalTimestamp: Date.now(),
+            });
+          }
         }
 
         // Re-entry: timer is active and we just came back inside → close any open anomaly
@@ -713,13 +741,23 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           fireAnomalyStop({ bookingId: projectKey });
         }
 
-        // Exit while timer is running → start anomaly in background, DO NOT stop timer
+        // EXIT while timer is running → AUTO-STOP activity (Auto-first 2026-04).
+        // Departure-event skickas separat som audit/review-underlag.
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(projectKey)) {
           triggeredExitRef.current.add(projectKey);
           triggeredEnterRef.current.delete(projectKey);
-          fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
           const exitedAtIso = new Date().toISOString();
           maybeReportDeparture(projectKey, exitedAtIso);
+          const stopFn = autoActionsRef.stop;
+          if (stopFn) {
+            void stopFn({ key: projectKey, exitedAtIso }).catch((err) => {
+              // Stop failed → revert to anomaly so reviewer ser att något hände.
+              console.warn('[Geofence] auto-stop project failed:', err);
+              fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+            });
+          } else {
+            fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+          }
           window.dispatchEvent(new CustomEvent('workplace-exit', {
             detail: {
               kind: 'project',
