@@ -6,7 +6,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Mail, User, Clock, Loader2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Mail, User, Clock, Loader2, ChevronDown, FolderOpen } from 'lucide-react';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,11 @@ const MobileJobDetail = () => {
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
   const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
 
+  // If this booking belongs to a large project, all time is reported on the
+  // project total (not per sub-booking). Hide the standalone timer here and
+  // direct the user back to the project card to start/stop.
+  const largeProjectId = (booking as any)?.large_project_id ?? null;
+  const isProjectBooking = Boolean(largeProjectId);
 
   const currentTimer = id ? activeTimers.get(id) : undefined;
 
@@ -156,22 +161,46 @@ const MobileJobDetail = () => {
         subtitle={booking.booking_number ? `#${booking.booking_number}` : undefined}
         backTo="/m"
         rightAction={
-          <button
-            onClick={handleTimerToggle}
-            className={cn(
-              "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
-              currentTimer
-                ? "bg-destructive text-destructive-foreground animate-pulse"
-                : "bg-primary-foreground text-primary"
-            )}
-          >
-            {currentTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-          </button>
+          isProjectBooking ? (
+            <button
+              onClick={() => navigate(`/m/project/${largeProjectId}`)}
+              className="h-9 px-3 rounded-full flex items-center justify-center gap-1.5 bg-primary-foreground text-primary text-xs font-semibold active:scale-95 transition-all shadow-md"
+              title="Tidrapportering sker på projektnivå"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              Projekt
+            </button>
+          ) : (
+            <button
+              onClick={handleTimerToggle}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
+                currentTimer
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : "bg-primary-foreground text-primary"
+              )}
+            >
+              {currentTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            </button>
+          )
         }
       />
 
+      {/* Project info banner — clarifies that time is reported on the project, not the booking */}
+      {isProjectBooking && (
+        <div className="mx-4 mt-3 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-start gap-2.5">
+          <FolderOpen className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-foreground">Del av stort projekt</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              Tidrapportering sker på projektkortet. Den här vyn visar adress, kontakt och leveransinfo.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Timer info bar */}
-      {currentTimer && (
+      {!isProjectBooking && currentTimer && (
         <div className="text-center py-1.5 bg-primary/5">
           <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
             <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
@@ -182,8 +211,8 @@ const MobileJobDetail = () => {
         </div>
       )}
 
-      {/* Task picker — only shown when timer is NOT running and there are tasks */}
-      {!currentTimer && myPendingTasks.length > 0 && (
+      {/* Task picker — only shown when timer is NOT running, there are tasks, and this isn't a project sub-booking */}
+      {!isProjectBooking && !currentTimer && myPendingTasks.length > 0 && (
         <div className="mx-4 mt-2">
           <button
             onClick={() => setShowTaskPicker(!showTaskPicker)}

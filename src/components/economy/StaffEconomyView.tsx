@@ -80,6 +80,7 @@ export const StaffEconomyView: React.FC = () => {
           report_date,
           bookings!inner(client, assigned_project_id)
         `)
+        .eq('is_subdivision', false)
         .gte('report_date', format(monthStart, 'yyyy-MM-dd'))
         .lte('report_date', format(monthEnd, 'yyyy-MM-dd'));
 

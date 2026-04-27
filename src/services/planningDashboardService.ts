@@ -147,7 +147,7 @@ export const fetchPlanningStats = async (): Promise<PlanningStats> => {
     supabase.from('staff_assignments').select('staff_id', { count: 'exact' }).eq('assignment_date', today),
     supabase.from('staff_availability').select('staff_id').eq('availability_type', 'available').lte('start_date', today).gte('end_date', today),
     supabase.from('projects').select('id', { count: 'exact' }).neq('status', 'completed'),
-    supabase.from('time_reports').select('id', { count: 'exact' }).eq('report_date', today),
+    supabase.from('time_reports').select('id', { count: 'exact' }).eq('report_date', today).eq('is_subdivision', false),
     supabase.from('calendar_events').select('id', { count: 'exact' }).eq('event_type', 'Rigg').gte('start_time', todayStart).lte('start_time', endOfDay(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).toISOString())
   ]);
 
@@ -311,7 +311,8 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   const { data: timeReports } = await supabase
     .from('time_reports')
     .select('staff_id, booking_id, created_at')
-    .eq('report_date', today);
+    .eq('report_date', today)
+    .eq('is_subdivision', false);
 
   const workingStaffIds = new Set(timeReports?.map(tr => tr.staff_id) || []);
   const staffReportMap = new Map(timeReports?.map(tr => [tr.staff_id, tr]) || []);
@@ -625,6 +626,7 @@ export const fetchCompletedToday = async (): Promise<CompletedToday[]> => {
       bookings (client)
     `)
     .eq('report_date', today)
+    .eq('is_subdivision', false)
     .order('created_at', { ascending: false });
 
   reports?.forEach(report => {

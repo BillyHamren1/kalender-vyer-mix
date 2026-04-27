@@ -74,6 +74,7 @@ function ClosingItemDetail({ item }: { item: ClosingItem }) {
           staff_members!inner(name)
         `)
         .eq('booking_id', item.bookingId)
+        .eq('is_subdivision', false)
         .order('report_date', { ascending: false });
       return data ?? [];
     },

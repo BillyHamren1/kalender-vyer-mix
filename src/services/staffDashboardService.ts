@@ -109,6 +109,7 @@ export const fetchJobActivity = async (): Promise<JobActivityItem[]> => {
     .from('time_reports')
     .select('id, staff_id, booking_id, hours_worked, report_date, created_at, staff_members!inner(name), bookings!inner(client)')
     .eq('report_date', today)
+    .eq('is_subdivision', false)
     .order('created_at', { ascending: false })
     .limit(20);
 

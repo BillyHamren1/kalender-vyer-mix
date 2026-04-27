@@ -184,6 +184,7 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
       staff_members!inner(name, hourly_rate, overtime_rate)
     `)
     .eq('booking_id', bookingId)
+    .eq('is_subdivision', false)
     .order('report_date', { ascending: true });
   
   if (error) throw error;

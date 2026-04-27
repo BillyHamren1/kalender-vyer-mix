@@ -219,7 +219,8 @@ export const fetchEstablishmentBookingData = async (bookingId: string): Promise<
   const { data: timeReports, error: timeReportsError } = await supabase
     .from('time_reports')
     .select('hours_worked, report_date')
-    .eq('booking_id', bookingId);
+    .eq('booking_id', bookingId)
+    .eq('is_subdivision', false);
   
   if (!timeReportsError && timeReports && timeReports.length > 0) {
     const totalHours = timeReports.reduce((sum, tr) => sum + (tr.hours_worked || 0), 0);

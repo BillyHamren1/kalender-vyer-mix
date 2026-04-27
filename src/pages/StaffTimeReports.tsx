@@ -106,6 +106,7 @@ const StaffTimeReports: React.FC = () => {
           .from('time_reports')
           .select('id, staff_id, booking_id, hours_worked, start_time, end_time, source, source_entry_id')
           .eq('report_date', dateStr)
+          .eq('is_subdivision', false)
           .or('source.is.null,source.neq.location_auto'),
         supabase
           .from('travel_time_logs')

@@ -102,6 +102,7 @@ export const fetchTimeReports = async (bookingId: string): Promise<StaffTimeRepo
       approved_by
     `)
     .eq('booking_id', bookingId)
+    .eq('is_subdivision', false)
     .order('report_date', { ascending: true });
 
   if (error) {

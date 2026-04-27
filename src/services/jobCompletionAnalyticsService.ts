@@ -241,7 +241,8 @@ export async function recordJobCompletion(
         id, staff_id, hours_worked, overtime_hours, report_date, approved,
         staff_members!inner(name, role, hourly_rate, overtime_rate)
       `)
-      .eq('booking_id', bookingId);
+      .eq('booking_id', bookingId)
+      .eq('is_subdivision', false);
 
     const staffMap = new Map<string, StaffAssignmentData>();
     const staffRows: any[] = [];
