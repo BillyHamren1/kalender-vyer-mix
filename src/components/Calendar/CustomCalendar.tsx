@@ -8,90 +8,14 @@ import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
+import { extractUTCDate } from '@/utils/dateUtils';
 import './Carousel3DStyles.css';
-
-interface CustomCalendarProps {
-  events: CalendarEvent[];
-  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
-  resources: Resource[];
-  isLoading: boolean;
-  isMounted: boolean;
-  currentDate: Date;
-  onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void>;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
-  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
-  viewMode: 'weekly' | 'monthly' | 'day';
-  weeklyStaffOperations?: {
-    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
-    forceRefresh: () => void;
-  };
-  getVisibleTeamsForDay?: (date: Date) => string[];
-  onToggleTeamForDay?: (teamId: string, date: Date) => void;
-  allTeams?: Resource[];
-  variant?: 'default' | 'warehouse';
-  isEventReadOnly?: (event: CalendarEvent) => boolean;
-  onEventClick?: (event: CalendarEvent) => void;
-  activatedStaffIds?: string[];
-}
-
-const CustomCalendar: React.FC<CustomCalendarProps> = ({
-  events,
-  setEvents,
-  resources,
-  isLoading,
-  isMounted,
-  currentDate,
-  viewMode,
-  refreshEvents,
-  onStaffDrop,
-  onOpenStaffSelection,
-  weeklyStaffOperations,
-  getVisibleTeamsForDay,
-  onToggleTeamForDay,
-  allTeams,
-  variant = 'default',
-  isEventReadOnly,
-  onEventClick,
-  activatedStaffIds
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const weekStartTime = currentDate.getTime();
-  const [staffExpanded, setStaffExpanded] = useState(false);
-  const days = useWeekDays(currentDate);
-
-  // Drag-and-drop for moving events between days
-  const {
-    isDragging,
-    dragOverDate,
-    isMoving,
-    handleDragOver,
-    handleDragEnter,
-    handleDragLeave,
-    handleDrop,
-  } = useEventDragDrop(refreshEvents);
-
-  // STABILIZATION: Deduplicate and stabilize event array reference
-  const stableEvents = useStableEvents(events);
-
-  const filterByTag = variant === 'warehouse' ? 'Lager' : 'Montage';
-  const { getAvailableStaffForDay } = useAvailableStaffWeek(
-    days, weekStartTime, resources, weeklyStaffOperations, filterByTag, activatedStaffIds
-  );
-
-  const {
-    centerIndex, setCenterIndex,
-    getPositionFromCenter, navigateCarousel, handleDayCardClick
-  } = useCarouselState(days, weekStartTime, containerRef, viewMode === 'day');
-
-  // MEMOIZED: Pre-index events by "date|resourceId" key once per event change
   const eventIndex = useMemo(() => {
     const index = new Map<string, CalendarEvent[]>();
     for (const event of stableEvents) {
       if (!event.start) continue;
-      const eventStart = new Date(event.start);
-      if (isNaN(eventStart.getTime())) continue;
-      const dateStr = format(eventStart, 'yyyy-MM-dd');
+      const dateStr = extractUTCDate(event.start);
+      if (!dateStr) continue;
       const key = `${dateStr}|${event.resourceId}`;
       const arr = index.get(key);
       if (arr) {

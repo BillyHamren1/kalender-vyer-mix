@@ -7,290 +7,31 @@ import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop'
 import StaffItem from './StaffItem';
 import TeamVisibilityControl from './TeamVisibilityControl';
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { extractUTCDate, extractUTCTime } from '@/utils/dateUtils';
 import './TimeGrid.css';
-
-interface TeamVisibilityProps {
-  allTeams: Resource[];
-  visibleTeams: string[];
-  onToggleTeam: (teamId: string) => void;
-}
-
-interface AvailableStaffMember {
-  id: string;
-  name: string;
-  color?: string;
-  assignedTeamId?: string;
-  assignedTeamName?: string;
-}
-
-interface TimeGridProps {
-  day: Date;
-  resources: Resource[];
-  events: CalendarEvent[];
-  getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
-  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
-  dayWidth?: number;
-  weeklyStaffOperations?: {
-    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
-  };
-  onEventResize?: () => Promise<void>;
-  teamVisibilityProps?: TeamVisibilityProps;
-  variant?: 'default' | 'warehouse';
-  isEventReadOnly?: (event: CalendarEvent) => boolean;
-  onEventClick?: (event: CalendarEvent) => void;
-  fullWidth?: boolean;
-  availableStaff?: AvailableStaffMember[];
-  staffExpanded?: boolean;
-  onToggleStaffExpanded?: () => void;
-  carouselNav?: {
-    onNavigateLeft: () => void;
-    onNavigateRight: () => void;
-  };
-  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
-}
-
-// Overlap layout utility — assigns column indices to overlapping events
-interface OverlapInfo { column: number; totalColumns: number; }
-
-function computeOverlapLayout(
-  events: CalendarEvent[],
-  getPos: (e: CalendarEvent) => { top: number; height: number }
-): Map<string, OverlapInfo> {
-  const result = new Map<string, OverlapInfo>();
-  if (events.length === 0) return result;
-
-  const items = events.map(e => ({ id: e.id, ...getPos(e) }));
-  items.sort((a, b) => a.top - b.top || b.height - a.height);
-
-  // Build overlap groups using a sweep-line
-  const groups: typeof items[] = [];
-  const eventGroup = new Map<string, number>();
-
-  for (const item of items) {
-    let placed = false;
-    for (let gi = 0; gi < groups.length; gi++) {
-      const group = groups[gi];
-      const overlaps = group.some(g => item.top < g.top + g.height && item.top + item.height > g.top);
-      if (overlaps) {
-        group.push(item);
-        eventGroup.set(item.id, gi);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      eventGroup.set(item.id, groups.length);
-      groups.push([item]);
-    }
-  }
-
-  // Merge groups that share transitive overlaps
-  for (const group of groups) {
-    const cols: typeof items[] = [];
-    for (const item of group) {
-      let assigned = false;
-      for (let ci = 0; ci < cols.length; ci++) {
-        const canFit = cols[ci].every(c => item.top >= c.top + c.height || item.top + item.height <= c.top);
-        if (canFit) {
-          cols[ci].push(item);
-          result.set(item.id, { column: ci, totalColumns: 0 });
-          assigned = true;
-          break;
-        }
-      }
-      if (!assigned) {
-        cols.push([item]);
-        result.set(item.id, { column: cols.length - 1, totalColumns: 0 });
-      }
-    }
-    for (const item of group) {
-      const info = result.get(item.id)!;
-      info.totalColumns = cols.length;
-    }
-  }
-
-  return result;
-}
-
-// Event Wrapper Component — outer draggable shell sits above Radix popovers
-const EventWrapper: React.FC<{
-  event: CalendarEvent;
-  position: { top: number; height: number };
-  overlapLayout?: OverlapInfo;
-  teamColumnWidth: number;
-  onEventClick: (event: CalendarEvent) => void;
-  onEventResize?: () => Promise<void>;
-  readOnly?: boolean;
-  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
-}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (readOnly) {
-      e.preventDefault();
-      return;
-    }
-    const data: DraggedEventData = {
-      id: event.id,
-      title: event.title,
-      start: typeof event.start === 'string' ? event.start : new Date(event.start).toISOString(),
-      end: typeof event.end === 'string' ? event.end : new Date(event.end).toISOString(),
-      bookingId: event.bookingId,
-      eventType: event.eventType,
-      resourceId: event.resourceId,
-      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
-      largeProjectId: (event.extendedProps as any)?.largeProjectId,
-    };
-    e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
-    e.dataTransfer.effectAllowed = 'move';
-  }, [event, readOnly]);
-
-  const hasOverlap = !!(overlapLayout && overlapLayout.totalColumns > 1);
-  const overlapColumn = overlapLayout?.column ?? 0;
-  const overlapCount = overlapLayout?.totalColumns ?? 1;
-  const overlapWidthPercent = hasOverlap ? 60 : 100;
-  const maxLeftPercent = hasOverlap ? 40 : 0;
-  const leftPercent = hasOverlap && overlapCount > 1
-    ? (overlapColumn / (overlapCount - 1)) * maxLeftPercent
-    : 0;
-  const horizontalInset = 4;
-  const baseZ = hasOverlap ? 25 + overlapColumn : 25;
-
-  return (
-    <div
-      draggable={!readOnly}
-      onDragStart={handleDragStart}
-      className={hasOverlap ? 'cascaded-event' : undefined}
-      style={{
-        position: 'absolute',
-        top: `${position.top}px`,
-        height: `${position.height}px`,
-        left: `${horizontalInset + (leftPercent / 100) * Math.max(teamColumnWidth - horizontalInset * 2, 0)}px`,
-        width: `calc(${overlapWidthPercent}% - ${horizontalInset * 2}px)`,
-        zIndex: baseZ,
-        pointerEvents: 'auto',
-        cursor: readOnly ? 'default' : 'grab',
-      }}
-    >
-      <CustomEvent
-        event={event}
-        resource={{ id: event.resourceId, title: '' } as Resource}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'relative'
-        }}
-        onEventResize={onEventResize}
-        readOnly={readOnly}
-        setEvents={setEvents}
-      />
-    </div>
-  );
-});
-
-// Simple Time Slot Component - no drag-and-drop
-const SimpleTimeSlot: React.FC<{
-  children: React.ReactNode;
-  isLast?: boolean;
-}> = React.memo(({ children, isLast }) => {
-  return (
-    <div
-      className={`time-slot-wrapper ${isLast ? 'is-last' : ''}`}
-      style={{ 
-        width: `100%`,
-        minWidth: `100%`,
-        position: 'relative'
-      }}
-    >
-      {children}
-    </div>
-  );
-});
-
-const TimeGrid: React.FC<TimeGridProps> = ({
-  day,
-  resources,
-  events,
-  getEventsForDayAndResource,
-  onStaffDrop,
-  onOpenStaffSelection,
-  dayWidth = 800,
-  weeklyStaffOperations,
-  onEventResize,
-  teamVisibilityProps,
-  variant = 'default',
-  isEventReadOnly,
-  onEventClick,
-  fullWidth = false,
-  availableStaff = [],
-  staffExpanded: staffExpandedProp = false,
-  onToggleStaffExpanded,
-  carouselNav,
-  setEvents
-}) => {
-  const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
-  const staffContainerRef = useRef<HTMLDivElement>(null);
-  const { handleEventClick } = useEventNavigation();
-
-  // Close staff selection when clicking outside the staff container
-  useEffect(() => {
-    if (!selectingForTeam) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (staffContainerRef.current && !staffContainerRef.current.contains(e.target as Node)) {
-        setSelectingForTeam(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectingForTeam]);
-  // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
-  const generateTimeSlots = () => {
-    const slots = [];
-    
-    // Hours 05:00 to 23:00
-    for (let hour = 5; hour <= 23; hour++) {
-      const time = hour.toString().padStart(2, '0') + ':00';
-      slots.push({ time, displayTime: time });
-    }
-    
-    // Hours 24:00-28:00 (displayed as 00:00-04:00 next day)
-    for (let hour = 24; hour < 29; hour++) {
-      const displayHour = hour - 24;
-      const time = hour.toString();
-      const displayTime = displayHour.toString().padStart(2, '0') + ':00';
-      slots.push({ time, displayTime });
-    }
-    
-    return slots;
-  };
-
-  const timeSlots = generateTimeSlots();
-
-  // Fixed column widths
-  const timeColumnWidth = 50;
-  // availableColumnWidth removed - staff shown in full-width row now
-  const baseTeamColumnWidth = 95;
-  const teamColumnWidth = baseTeamColumnWidth;
-
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
-    const startTime = new Date(event.start);
-    const endTime = new Date(event.end);
-    
-    // CRITICAL: Use UTC hours, not local hours!
-    let startHour = startTime.getUTCHours() + startTime.getUTCMinutes() / 60;
-    let endHour = endTime.getUTCHours() + endTime.getUTCMinutes() / 60;
-    
+    const startClock = extractUTCTime(event.start);
+    const endClock = extractUTCTime(event.end);
+    const startDate = extractUTCDate(event.start);
+    const endDate = extractUTCDate(event.end);
+
+    const [startHH, startMM] = startClock.split(':').map(Number);
+    const [endHH, endMM] = endClock.split(':').map(Number);
+
+    let startHour = (Number.isNaN(startHH) ? 0 : startHH) + (Number.isNaN(startMM) ? 0 : startMM / 60);
+    let endHour = (Number.isNaN(endHH) ? 0 : endHH) + (Number.isNaN(endMM) ? 0 : endMM / 60);
+
     // Handle events that span into next day (convert to 24+ hour format)
-    if (endHour < startHour) {
+    if (endDate > startDate || endHour < startHour) {
       endHour += 24;
     }
-    
+
     // Calculate position in pixels (25px per hour)
     // Offset by 5 hours since we start from 05:00
-    let top = (startHour - 5) * 25;
-    
+    const top = (startHour - 5) * 25;
     const height = Math.max(12, (endHour - startHour) * 25);
-    
+
     return { top, height };
   };
 
