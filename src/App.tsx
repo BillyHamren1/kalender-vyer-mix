@@ -25,6 +25,7 @@ import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import TimeReportApprovals from "./pages/TimeReportApprovals";
 import StaffTimeReports from "./pages/StaffTimeReports";
+import AdminTimeReviewDashboard from "./pages/AdminTimeReviewDashboard";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
