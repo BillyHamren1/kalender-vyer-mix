@@ -615,6 +615,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
         setCameraState('running');
         runScanLoop();
+
+        // No-pixels watchdog: if we are "running" but the video element never
+        // produces real pixel dimensions within 6s, surface a clear error so
+        // the user can retry instead of staring at a black box forever.
+        if (noPixelsWatchdogRef.current) clearTimeout(noPixelsWatchdogRef.current);
+        noPixelsWatchdogRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          const v = videoRef.current;
+          const w = v?.videoWidth ?? 0;
+          const h = v?.videoHeight ?? 0;
+          if (cameraStateRef.current === 'running' && (w === 0 || h === 0)) {
+            console.warn('[QRScanner] No video pixels after 6s — surfacing error');
+            reportDiagnostic({
+              code: 'SCANNER_NO_VIDEO_PIXELS',
+              source: 'scanner.qr',
+              severity: 'error',
+              message: 'Scanner körde i 6s utan att videon levererade några pixlar.',
+              metadata: { isIos, stage: 'running-watchdog', videoWidth: w, videoHeight: h },
+            });
+            setError('Camera started but no video frames received. Tap Try again.');
+            setCameraState('error');
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach((t) => t.stop());
+              streamRef.current = null;
+            }
+          }
+        }, 6000);
       }
     } catch (err: any) {
       if (startingTimeoutRef.current) {
