@@ -15,6 +15,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
+import { handleBookingMove } from '@/services/unifiedStaffService';
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 
 interface MoveEventDateDialogProps {
