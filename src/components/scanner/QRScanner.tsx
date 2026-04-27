@@ -656,11 +656,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       return;
     }
 
-    if (isNativeIos && !hasStartGesture) {
-      stopCameraRef.current();
-      return;
-    }
-
+    // Auto-start kameran direkt när scannern öppnas. Föräldraknappen
+    // ("Kamera") räknas som user gesture, så getUserMedia får tillåtelse
+    // även på iOS WKWebView utan ett extra mellanklick.
     void startCameraRef.current();
 
     return () => {
@@ -670,7 +668,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
     // Intentionally only depend on activation flags — start/stop are read via refs
     // to prevent restart loops when parent re-renders.
-  }, [hasStartGesture, isActive, isNativeIos, shouldSkipCamera]);
+  }, [isActive, shouldSkipCamera]);
 
   if (!isActive) return null;
 
