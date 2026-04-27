@@ -845,6 +845,71 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     staffTeamsByDate[row.assignment_date].add(row.team_id)
   }
 
+  // ─── DERIVED VISIBILITY (1:1 med personalkalendern) ─────────────────
+  // Personalkalendern (desktop) renderar bokningar i en team-kolumn baserat på
+  // calendar_events.resource_id = team-X. En person "ser" en bokning på datum
+  // X om de har en staff_assignments-rad för (X, team-X). Vi speglar exakt
+  // den logiken här så mobilen visar samma bokningar som planeraren ser.
+  // Source of truth: staff_assignments × calendar_events (resource_id=team-Y).
+  // BSA-rader behålls som ytterligare källa (explicit per-person scheduling).
+  // ────────────────────────────────────────────────────────────────────
+  const teamDateKeys = new Set<string>()  // "team_id|date"
+  for (const [date, teamSet] of Object.entries(staffTeamsByDate)) {
+    for (const teamId of teamSet) teamDateKeys.add(`${teamId}|${date}`)
+  }
+
+  const derivedBookingDates: Record<string, Set<string>> = {} // booking_id → Set<date>
+  let derivedFromTeamCalendarCount = 0
+  if (teamDateKeys.size > 0) {
+    const dateValues = [...new Set(
+      Array.from(teamDateKeys).map(k => k.split('|')[1])
+    )].sort()
+    const teamIds = [...new Set(
+      Array.from(teamDateKeys).map(k => k.split('|')[0])
+    )]
+    const minDate = dateValues[0]
+    const maxDate = dateValues[dateValues.length - 1]
+
+    const { data: teamCeRows, error: teamCeErr } = await supabase
+      .from('calendar_events')
+      .select('booking_id, resource_id, start_time')
+      .in('resource_id', teamIds)
+      .eq('organization_id', organizationId)
+      .gte('start_time', `${minDate}T00:00:00`)
+      .lte('start_time', `${maxDate}T23:59:59`)
+
+    if (teamCeErr) {
+      console.error('[get_bookings] team-derived calendar_events query error:', teamCeErr)
+    } else {
+      for (const ce of (teamCeRows || [])) {
+        if (!ce.booking_id) continue
+        const dateStr = (ce.start_time || '').slice(0, 10)
+        const tdKey = `${ce.resource_id}|${dateStr}`
+        if (!teamDateKeys.has(tdKey)) continue // person var inte på det teamet den dagen
+        if (!derivedBookingDates[ce.booking_id]) derivedBookingDates[ce.booking_id] = new Set()
+        if (!derivedBookingDates[ce.booking_id].has(dateStr)) {
+          derivedBookingDates[ce.booking_id].add(dateStr)
+          derivedFromTeamCalendarCount += 1
+        }
+      }
+    }
+  }
+
+  // Slå samman team-härledda datum med BSA-härledda datum till en effektiv
+  // (booking_id → datum)-karta som styr både synlighet OCH skiftbygget.
+  const effectiveBookingDates: Record<string, Set<string>> = {}
+  for (const [bId, dates] of Object.entries(bookingScheduledDates)) {
+    if (!effectiveBookingDates[bId]) effectiveBookingDates[bId] = new Set()
+    for (const d of dates) effectiveBookingDates[bId].add(d)
+  }
+  for (const [bId, dates] of Object.entries(derivedBookingDates)) {
+    if (!effectiveBookingDates[bId]) effectiveBookingDates[bId] = new Set()
+    for (const d of dates) effectiveBookingDates[bId].add(d)
+  }
+
+  // Lägg till team-härledda bokningar i synlighetsmängden så de hämtas nedan.
+  const teamDerivedBookingIds = new Set<string>(Object.keys(derivedBookingDates))
+
   const uniqueStaffTeamIds = [...new Set((staffTeamAssignments || []).map((row: any) => row.team_id).filter(Boolean))]
   let teamScheduledProjectHits = 0
   if (uniqueStaffTeamIds.length > 0) {
