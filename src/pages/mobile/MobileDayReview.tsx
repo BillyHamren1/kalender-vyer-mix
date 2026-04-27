@@ -83,10 +83,16 @@ export default function MobileDayReview() {
   const focusDayKey = searchParams.get('day');
   const { locale } = useLanguage();
   const [workdays, setWorkdays] = useState<ReviewWorkday[]>([]);
+  const [timeReports, setTimeReports] = useState<MobileTimeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [busyDayId, setBusyDayId] = useState<string | null>(null);
+  const [busyGapKey, setBusyGapKey] = useState<string | null>(null);
+  /** key → minutes-input for "Justera minuter" mode. */
+  const [gapMinuteEdits, setGapMinuteEdits] = useState<Record<string, string>>({});
+  /** Force-rerender helper after we mutate localStorage gap-resolutions. */
+  const [resolvedTick, setResolvedTick] = useState(0);
   const [highlightedDayKey, setHighlightedDayKey] = useState<string | null>(null);
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const actions = useDayReviewActions();
@@ -94,8 +100,12 @@ export default function MobileDayReview() {
   const load = async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true); else setRefreshing(true);
     try {
-      const res = await mobileApi.listWorkdaysReview({ days: 7 });
-      setWorkdays(res.workdays || []);
+      const [reviewRes, reportsRes] = await Promise.all([
+        mobileApi.listWorkdaysReview({ days: 7 }),
+        mobileApi.getTimeReports().catch(() => ({ time_reports: [] as MobileTimeReport[] })),
+      ]);
+      setWorkdays(reviewRes.workdays || []);
+      setTimeReports(reportsRes.time_reports || []);
     } catch (err) {
       console.error('[DayReview] load failed:', err);
     } finally {
