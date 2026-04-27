@@ -147,9 +147,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (value && value !== lastScanRef.current) {
       successfulDetectionRef.current = true;
       noPixelsSinceRef.current = null;
+      debugRef.current.lastDetectionAt = Date.now();
+      debugRef.current.noDetectionHint = false;
       lastScanRef.current = value;
       setManualInput(value);
       playBeep(true);
+      // Visual flash so the user gets immediate confirmation
+      setFlashActive(true);
+      setTimeout(() => setFlashActive(false), 140);
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
