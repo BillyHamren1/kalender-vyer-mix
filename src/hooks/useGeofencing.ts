@@ -10,6 +10,13 @@ import {
   isInsideGeofence,
   GEOFENCE_MAX_ACCURACY_M,
 } from '@/lib/geofenceEval';
+// NOTE: 'autoStartWorkDay' import deliberately removed (2026-04).
+// Geofence is a SIGNAL — not a workday/timer controller. Workday-first
+// is enforced centrally by useTimerStartFlow.performStart →
+// ensureWorkDayActive, which runs inside the same tryStartFromArrival
+// call we already invoke via autoActionsRef.start. Letting geofence ALSO
+// fire its own workday/start race-conditions with that path and creates
+// duplicate audit notes. See useTimerStartFlow for the canonical flow.
 import {
   computePlannedDaySignals,
   decideExitAction,
