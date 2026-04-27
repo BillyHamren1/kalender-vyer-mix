@@ -40,7 +40,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  
+
+  // Visible debug overlay flag — enabled via ?debug=scan or localStorage.scanner_debug=1
+  const debugVisible = React.useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (new URLSearchParams(window.location.search).get('debug') === 'scan') return true;
+      return window.localStorage?.getItem('scanner_debug') === '1';
+    } catch { return false; }
+  }, []);
+
+  // Live debug stats (ref + state — ref for hot loop, state for re-render every ~500ms)
+  const debugRef = useRef({
+    frames: 0,
+    videoW: 0,
+    videoH: 0,
+    detectorReady: false,
+    lastDetectionAt: 0 as number,
+    lastError: '' as string,
+    noDetectionHint: false,
+  });
+  const [, forceDebugTick] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,6 +76,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const successfulDetectionRef = useRef(false);
   const noPixelsSinceRef = useRef<number | null>(null);
   const lastNoPixelsReportRef = useRef(0);
+  const noPixelsWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [flashActive, setFlashActive] = useState(false);
 
   useEffect(() => {
     cameraStateRef.current = cameraState;
@@ -71,10 +94,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'codabar'],
       });
       setHasBarcodeDetector(true);
+      debugRef.current.detectorReady = true;
       console.log('[QRScanner] BarcodeDetector ready (native:', 'BarcodeDetector' in window, ')');
     } catch (e) {
       console.warn('[QRScanner] BarcodeDetector init failed:', e);
       setHasBarcodeDetector(false);
+      debugRef.current.detectorReady = false;
       reportDiagnostic({
         code: 'BARCODE_DETECTOR_INIT_FAILED',
         source: 'scanner.qr',
@@ -86,6 +111,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       });
     }
   }, [shouldSkipCamera]);
+
+  // Periodic debug re-render (only when overlay enabled)
+  useEffect(() => {
+    if (!debugVisible) return;
+    const id = setInterval(() => forceDebugTick((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, [debugVisible]);
 
   // Stable ref for onScan to avoid callback chain recreation
   const onScanRef = useRef(onScan);
@@ -115,9 +147,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (value && value !== lastScanRef.current) {
       successfulDetectionRef.current = true;
       noPixelsSinceRef.current = null;
+      debugRef.current.lastDetectionAt = Date.now();
+      debugRef.current.noDetectionHint = false;
       lastScanRef.current = value;
       setManualInput(value);
       playBeep(true);
+      // Visual flash so the user gets immediate confirmation
+      setFlashActive(true);
+      setTimeout(() => setFlashActive(false), 140);
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
@@ -129,6 +166,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (startingTimeoutRef.current) {
       clearTimeout(startingTimeoutRef.current);
       startingTimeoutRef.current = null;
+    }
+    if (noPixelsWatchdogRef.current) {
+      clearTimeout(noPixelsWatchdogRef.current);
+      noPixelsWatchdogRef.current = null;
     }
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -213,6 +254,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       scanningRef.current = true;
       frameCount++;
 
+      // Update live debug stats every frame (cheap)
+      debugRef.current.frames = frameCount;
+      debugRef.current.videoW = video.videoWidth;
+      debugRef.current.videoH = video.videoHeight;
+
       // Periodic diagnostic so we can spot iOS issues where the video
       // never gets actual pixel dimensions (a classic flex-layout bug).
       if (now - lastDiagLog > 5000) {
@@ -248,6 +294,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         } else {
           noPixelsSinceRef.current = null;
           if (frameCount >= 40 && !successfulDetectionRef.current) {
+            // Soft hint, NOT an error — keep scanning.
+            debugRef.current.noDetectionHint = true;
             reportDiagnostic({
               code: 'SCANNER_NO_DETECTIONS',
               source: 'scanner.qr',
@@ -292,11 +340,25 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
               }
             }
 
-            if (barcodes.length === 0 && frameCount % 5 === 0) {
-              barcodes = await detectorRef.current.detect(video);
+            // Full-frame fallback. On iOS we run it EVERY frame the crop missed,
+            // because the iOS BarcodeDetector polyfill performs noticeably better
+            // on the unscaled video element. On other platforms we keep the
+            // 1-in-5 cadence to save CPU.
+            if (barcodes.length === 0) {
+              const runFullFrame = isIos ? true : (frameCount % 5 === 0);
+              if (runFullFrame) {
+                try {
+                  barcodes = await detectorRef.current.detect(video);
+                } catch (e3) {
+                  // Some polyfill builds throw on <video> directly — just swallow,
+                  // we'll keep trying with the cropped canvas next frame.
+                  debugRef.current.lastError = String((e3 as any)?.message || e3);
+                }
+              }
             }
           } catch (e2) {
             console.warn('[QRScanner] detect failed:', e2);
+            debugRef.current.lastError = String((e2 as any)?.message || e2);
             reportDiagnostic({
               code: 'BARCODE_DETECT_LOOP_FAILURE',
               source: 'scanner.qr',
@@ -319,6 +381,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       } catch (err) {
         console.warn('[QRScanner] scan error:', err);
+        debugRef.current.lastError = String((err as any)?.message || err);
         reportDiagnostic({
           code: 'BARCODE_DETECT_LOOP_FAILURE',
           source: 'scanner.qr',
@@ -556,6 +619,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
         setCameraState('running');
         runScanLoop();
+
+        // No-pixels watchdog: if we are "running" but the video element never
+        // produces real pixel dimensions within 6s, surface a clear error so
+        // the user can retry instead of staring at a black box forever.
+        if (noPixelsWatchdogRef.current) clearTimeout(noPixelsWatchdogRef.current);
+        noPixelsWatchdogRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          const v = videoRef.current;
+          const w = v?.videoWidth ?? 0;
+          const h = v?.videoHeight ?? 0;
+          if (cameraStateRef.current === 'running' && (w === 0 || h === 0)) {
+            console.warn('[QRScanner] No video pixels after 6s — surfacing error');
+            reportDiagnostic({
+              code: 'SCANNER_NO_VIDEO_PIXELS',
+              source: 'scanner.qr',
+              severity: 'error',
+              message: 'Scanner körde i 6s utan att videon levererade några pixlar.',
+              metadata: { isIos, stage: 'running-watchdog', videoWidth: w, videoHeight: h },
+            });
+            setError('Camera started but no video frames received. Tap Try again.');
+            setCameraState('error');
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach((t) => t.stop());
+              streamRef.current = null;
+            }
+          }
+        }, 6000);
       }
     } catch (err: any) {
       if (startingTimeoutRef.current) {
@@ -699,7 +789,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             muted
           />
           <canvas ref={canvasRef} className="hidden" />
-          
+
+          {/* Quick visual flash on successful detection */}
+          {flashActive && (
+            <div className="absolute inset-0 bg-white/40 pointer-events-none transition-opacity duration-150" />
+          )}
+
+          {/* Soft hint when camera works but nothing has been detected for a while */}
+          {cameraState === 'running' && debugRef.current.noDetectionHint && !successfulDetectionRef.current && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-amber-500/85 text-black text-xs font-medium pointer-events-none">
+              Centrera koden i ramen — fortsätter att skanna
+            </div>
+          )}
+
+          {/* Debug overlay (?debug=scan or localStorage.scanner_debug=1) */}
+          {debugVisible && (
+            <div className="absolute bottom-2 left-2 right-2 z-10 px-2 py-1.5 rounded bg-black/70 text-[10px] leading-tight text-green-300 font-mono pointer-events-none">
+              <div>state: {cameraState} · detector: {debugRef.current.detectorReady ? 'ok' : 'no'} · ios: {String(isIos)}</div>
+              <div>video: {debugRef.current.videoW}×{debugRef.current.videoH} · frames: {debugRef.current.frames}</div>
+              <div>
+                lastDetect: {debugRef.current.lastDetectionAt
+                  ? `${Math.round((Date.now() - debugRef.current.lastDetectionAt) / 1000)}s sedan`
+                  : 'aldrig'}
+              </div>
+              {debugRef.current.lastError && <div className="text-red-300 truncate">err: {debugRef.current.lastError}</div>}
+            </div>
+          )}
+
 
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
