@@ -137,6 +137,25 @@ function getBookingShiftWindowForDate(booking: any, assignmentDate: string): { s
   if (eventType === 'rigdown') {
     return { start: booking?.rigdown_start_time ?? null, end: booking?.rigdown_end_time ?? null, eventType }
   }
+  // Assignment date doesn't match any explicit booking phase. This is common
+  // for multi-day rigs where staff is scheduled on intermediate days that
+  // aren't stored as separate phases. Fall back to the nearest known phase's
+  // times so the day still shows up as a shift in the mobile calendar.
+  const phaseTimes = [
+    { date: booking?.rigdaydate, start: booking?.rig_start_time, end: booking?.rig_end_time, type: 'rig' as const },
+    { date: booking?.eventdate, start: booking?.event_start_time, end: booking?.event_end_time, type: 'event' as const },
+    { date: booking?.rigdowndate, start: booking?.rigdown_start_time, end: booking?.rigdown_end_time, type: 'rigdown' as const },
+  ].filter(p => p.date)
+
+  if (phaseTimes.length > 0) {
+    const dayMs = (s: string) => Date.parse(`${s}T00:00:00Z`) || 0
+    const target = dayMs(assignmentDate)
+    const nearest = phaseTimes
+      .map(p => ({ ...p, distance: Math.abs(dayMs(p.date) - target) }))
+      .sort((a, b) => a.distance - b.distance)[0]
+    return { start: nearest.start ?? null, end: nearest.end ?? null, eventType: nearest.type }
+  }
+
   return { start: null, end: null, eventType }
 }
 
