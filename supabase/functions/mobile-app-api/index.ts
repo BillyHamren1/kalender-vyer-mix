@@ -5898,11 +5898,33 @@ async function handleStopTravelLog(supabase: any, staffId: string, data: any, or
     .select()
     .maybeSingle()
 
-  if (error || !updated) {
+  if (error) {
     console.error('Stop travel log error:', error)
     return new Response(
       JSON.stringify({ error: 'Failed to stop travel log' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (!updated) {
+    // Race: another caller closed this row between our SELECT and UPDATE.
+    // Re-fetch the now-closed row so the client still gets a consistent
+    // success payload and the banner clears.
+    const { data: refetched } = await supabase
+      .from('travel_time_logs')
+      .select('*')
+      .eq('id', targetLog.id)
+      .maybeSingle()
+    console.log(
+      `[handleStopTravelLog] Update returned no row (race) for ${targetLog.id}; returning refetched closed row as success.`
+    )
+    return new Response(
+      JSON.stringify({
+        success: true,
+        already_stopped: true,
+        travel_log: refetched || targetLog,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
