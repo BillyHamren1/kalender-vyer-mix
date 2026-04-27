@@ -119,6 +119,27 @@ function buildShiftInterval(
   return { startMs, endMs }
 }
 
+function deriveBookingPhaseForDate(booking: any, assignmentDate: string): 'rig' | 'event' | 'rigdown' | 'other' {
+  if (booking?.rigdaydate === assignmentDate) return 'rig'
+  if (booking?.eventdate === assignmentDate) return 'event'
+  if (booking?.rigdowndate === assignmentDate) return 'rigdown'
+  return 'other'
+}
+
+function getBookingShiftWindowForDate(booking: any, assignmentDate: string): { start: string | null; end: string | null; eventType: 'rig' | 'event' | 'rigdown' | 'other' } {
+  const eventType = deriveBookingPhaseForDate(booking, assignmentDate)
+  if (eventType === 'rig') {
+    return { start: booking?.rig_start_time ?? null, end: booking?.rig_end_time ?? null, eventType }
+  }
+  if (eventType === 'event') {
+    return { start: booking?.event_start_time ?? null, end: booking?.event_end_time ?? null, eventType }
+  }
+  if (eventType === 'rigdown') {
+    return { start: booking?.rigdown_start_time ?? null, end: booking?.rigdown_end_time ?? null, eventType }
+  }
+  return { start: null, end: null, eventType }
+}
+
 /** True iff [a) and [b) intervals overlap (touching endpoints are OK). */
 function intervalsOverlap(
   a: { startMs: number; endMs: number },
@@ -1063,12 +1084,15 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       if (ceErr) {
         console.error('[get_bookings] calendar_events query error:', ceErr)
       } else {
+        const matchedShiftKeys = new Set<string>()
+
         for (const ce of (ceRows || [])) {
           const startDate = (ce.start_time || '').slice(0, 10)
           const key = `${ce.booking_id}|${startDate}`
           if (!shiftDateKeys.has(key)) continue
           const booking = bookingMap[ce.booking_id]
           if (!booking) continue
+          matchedShiftKeys.add(key)
 
           const rawType = (ce.event_type || '').toLowerCase()
           const normalizedType =
@@ -1095,11 +1119,43 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
           })
         }
 
+        for (const key of shiftDateKeys) {
+          if (matchedShiftKeys.has(key)) continue
+          const [bookingId, assignmentDate] = key.split('|')
+          const booking = bookingMap[bookingId]
+          if (!booking) continue
+
+          const fallback = getBookingShiftWindowForDate(booking, assignmentDate)
+          if (!fallback.start || !fallback.end) {
+            console.warn('[get_bookings] missing fallback shift window for key:', { staffId, bookingId, assignmentDate })
+            continue
+          }
+
+          shifts.push({
+            shift_id: `fallback-${bookingId}-${assignmentDate}-${fallback.eventType}`,
+            booking_id: bookingId,
+            booking_number: booking.booking_number ?? null,
+            title: booking.large_project_name || booking.client,
+            event_type: fallback.eventType,
+            start_time: fallback.start,
+            end_time: fallback.end,
+            delivery_address: booking.deliveryaddress ?? null,
+            delivery_latitude: booking.delivery_latitude ?? null,
+            delivery_longitude: booking.delivery_longitude ?? null,
+            client: booking.client,
+            is_internal: !!booking.is_internal,
+            internal_type: booking.internal_type ?? null,
+            large_project_id: booking.large_project_id ?? null,
+            large_project_name: booking.large_project_name ?? null,
+          })
+        }
+
         shifts.sort((a, b) => a.start_time.localeCompare(b.start_time))
         console.log('[get_bookings] shifts summary:', {
           staffId,
           shiftDateKeyCount: shiftDateKeys.size,
           calendarEventRowCount: (ceRows || []).length,
+          fallbackShiftCount: shifts.filter((s: any) => String(s.shift_id).startsWith('fallback-')).length,
           returnedShiftCount: shifts.length,
         })
       }
