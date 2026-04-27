@@ -208,64 +208,12 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
   }, [enabled]);
 
 
-  const startTravel = useCallback(async (lat: number, lng: number) => {
-    if (startInFlightRef.current || travelStateRef.current.activeTravelLogId) {
-      return;
-    }
-    startInFlightRef.current = true;
-    console.log('[TravelDetection] Starting travel tracking...');
-    const address = await reverseGeocode(lat, lng);
-    
-    try {
-      const result = await mobileApi.createTravelLog({
-        from_address: address || undefined,
-        from_latitude: lat,
-        from_longitude: lng,
-        auto_detected: true,
-      });
-
-      const newState: TravelState = {
-        isMoving: true,
-        activeTravelLogId: result.travel_log.id,
-        startTime: result.travel_log.start_time,
-        fromAddress: address,
-        fromLat: lat,
-        fromLng: lng,
-      };
-      setTravelState(newState);
-      saveTravelState(newState);
-      // NOTE: travel_start is NEVER allowed to open the workday.
-      // The workday must be opened by a real work-presence signal
-      // (geofence ENTER on a known workplace, arrival report, or
-      // explicit user action). Auto-detected travel before the day
-      // has begun is morning commute and is rejected by the server
-      // with reason='pre_workday_commute'. Do NOT call autoStartWorkDay() here.
-      console.log('[TravelDetection] Travel started:', result.travel_log.id);
-      // Note: open location_time_entries are now closed atomically by the
-      // server inside `handleStartTravelLog` (mobile-app-api). The previous
-      // client-side close attempt was unauthenticated for mobile sessions
-      // and silently failed → two timers ticking. Do NOT re-add it here.
-    } catch (err: any) {
-      // SILENT REJECTION: the server returns 409 in two situations:
-      //   • inside_geofence — user is currently standing inside a known
-      //     workplace; GPS jitter must not spawn a phantom travel row.
-      //   • pre_workday_commute — no real work presence today yet, so
-      //     this auto-detected movement is morning commute and must
-      //     never be auto-logged as travel time.
-      const msg = String(err?.message || '');
-      if (
-        msg.includes('inside_geofence') ||
-        msg.includes('pre_workday_commute') ||
-        msg.includes('blocked')
-      ) {
-        console.log('[TravelDetection] Travel start rejected by server:', msg);
-        return;
-      }
-      console.error('[TravelDetection] Failed to start travel:', err);
-    } finally {
-      startInFlightRef.current = false;
-    }
-  }, []);
+  // ── startTravel REMOVED ─────────────────────────────────────────────
+  // Tidigare auto-startade vi ett travel_time_log när GPS-fart översteg
+  // SPEED_THRESHOLD i START_DEBOUNCE_MS. Det är borttaget — nya restidsrader
+  // skapas via `create_travel_from_gap` (server) eller via day-review när
+  // användaren bekräftar ett aktivitetsgap. Denna hook skapar inte längre
+  // travel_time_logs.
 
 
   const stopTravel = useCallback(async (lat: number, lng: number, opts: { auto?: boolean } = {}) => {
