@@ -227,9 +227,11 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const staffIdRef = useRef(staffId);
   const activeTimersRef = useRef(activeTimers);
 
-  // ── Departure-promotion (Runda 1b) ─────────────────────────────────
-  // Spårar enter-tidpunkt per geofence-target. När user lämnar och varit inne
-  // ≥5 min → rapportera departure-event. Pure signal — ingen auto-stop.
+  // ── Departure-promotion (Auto-first 2026-04) ──────────────────────
+  // Spårar enter-tidpunkt per geofence-target. När user lämnar och varit
+  // inne ≥5 min → rapportera departure-event som AUDIT (assistant_events).
+  // Den faktiska activity-stoppen sker via autoActionsRef.stop i EXIT-
+  // grenarna nedan; departure-eventet är endast review-/audit-underlag.
   const DEPARTURE_DWELL_MS = 5 * 60 * 1000;
   const dwellTrackerRef = useRef<Map<string, {
     enteredAtMs: number;
