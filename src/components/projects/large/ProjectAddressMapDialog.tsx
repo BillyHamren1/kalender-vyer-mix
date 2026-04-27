@@ -69,6 +69,11 @@ const DEFAULT_CENTER: [number, number] = [15.5, 62.0]; // Sweden centroid
 const MAP_LOAD_TIMEOUT_MS = 8000;
 
 type MapStatus = 'idle' | 'loading-token' | 'loading-map' | 'ready' | 'error';
+type MapStyleKey = 'streets' | 'satellite';
+const MAP_STYLES: Record<MapStyleKey, string> = {
+  streets: 'mapbox://styles/mapbox/streets-v12',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+};
 
 export default function ProjectAddressMapDialog({
   open,
