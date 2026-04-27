@@ -397,9 +397,14 @@ const createPackingsForWarehouseProject = async (
       if (linkErr) throw linkErr;
     }
 
-    // BLOCKING sequential product sync for every linked booking.
+    // BLOCKING sequential product sync for every linked booking — explicit
+    // target_packing_id ensures every booking syncs into the SAME consolidated
+    // packing instead of risking creation of separate per-booking packings.
     for (const b of bookings) {
-      await syncBookingToPacking(b.id, b.organization_id, { throwOnError: true });
+      await syncBookingToPacking(b.id, b.organization_id, {
+        throwOnError: true,
+        targetPackingId: packingId,
+      });
     }
 
     // Verify: items synced (unless none of the bookings have any products)
