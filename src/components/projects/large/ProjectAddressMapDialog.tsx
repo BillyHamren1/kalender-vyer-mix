@@ -104,6 +104,7 @@ export default function ProjectAddressMapDialog({
   const [mapStatus, setMapStatus] = useState<MapStatus>('idle');
   const [mapError, setMapError] = useState<string | null>(null);
   const [retryCounter, setRetryCounter] = useState(0);
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>('streets');
 
   const [address, setAddress] = useState(initialAddress ?? '');
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({
