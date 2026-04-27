@@ -768,9 +768,8 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
   const endSS = String(ss || 0).padStart(2, '0');
   const endTime = `${endHH}:${endMM}:${endSS}`;
 
-  // Apply Europe/Stockholm offset so the timestamp lands on the correct instant
-  const offset = formatOffset(stockholmOffsetMinutes(datePart, endTime));
-  return `${datePart}T${endTime}${offset}`;
+  // Naiv: lagra som +00:00 så Postgres inte skiftar wall-clock-värdet.
+  return `${datePart}T${endTime}+00:00`;
 };
 
 /**
