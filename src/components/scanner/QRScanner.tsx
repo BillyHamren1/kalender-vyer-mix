@@ -149,7 +149,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       if (!track?.getCapabilities || !track.applyConstraints) return;
 
-      const capabilities = track.getCapabilities();
+      const capabilities = track.getCapabilities() as Record<string, any>;
       const advanced: Record<string, any>[] = [];
 
       if (Array.isArray(capabilities.focusMode)) {
