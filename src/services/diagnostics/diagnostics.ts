@@ -299,7 +299,9 @@ export function clearDiagnostics() {
 
 export function subscribeDiagnostics(listener: () => void) {
   subscribers.add(listener);
-  return () => subscribers.delete(listener);
+  return () => {
+    subscribers.delete(listener);
+  };
 }
 
 function buildConsoleMessage(args: unknown[]) {
