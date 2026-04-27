@@ -10,7 +10,6 @@ import {
   isInsideGeofence,
   GEOFENCE_MAX_ACCURACY_M,
 } from '@/lib/geofenceEval';
-import { autoStartWorkDay } from '@/services/workdayServerSync';
 import {
   computePlannedDaySignals,
   decideExitAction,
