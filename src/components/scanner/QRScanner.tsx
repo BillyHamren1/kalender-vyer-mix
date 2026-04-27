@@ -343,9 +343,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
-    if (cameraStateRef.current === 'starting' || cameraStateRef.current === 'running') return;
+    if (startInFlightRef.current || cameraStateRef.current === 'starting' || cameraStateRef.current === 'running') return;
 
     try {
+      startInFlightRef.current = true;
       setError(null);
       setCameraState('starting');
 
@@ -609,8 +610,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           metadata: { isIos },
         });
       }
+    } finally {
+      startInFlightRef.current = false;
     }
-  }, [isIos, runScanLoop, shouldSkipCamera]);
+  }, [applyTrackOptimizations, isIos, runScanLoop, shouldSkipCamera]);
 
 
   const handleManualSubmit = useCallback(() => {
