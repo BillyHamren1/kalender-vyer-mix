@@ -116,14 +116,13 @@ const PackingManagement = () => {
             </Button>
           </div>
 
-          {/* Inbox: nya projekt från Planning */}
+          {/* OFFICIELL ENDA INGÅNG: nya projekt från Planning.
+              Den gamla "IncomingPackingList" har flyttats till
+              /admin/legacy-incoming-packing och är inte längre synlig
+              för normala användare — för att eliminera dubbel UX där
+              samma bokning kunde behandlas från två olika listor. */}
           <div className="mb-6">
             <WarehouseProjectInbox />
-          </div>
-
-          {/* Legacy: bokningar utan packlista (gamla flödet, behålls för befintlig data) */}
-          <div className="mb-6">
-            <IncomingPackingList />
           </div>
 
           {/* Packing Calendar */}
