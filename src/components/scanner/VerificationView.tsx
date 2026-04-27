@@ -22,6 +22,7 @@ import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
+import { buildChildrenByParent, classifyAndFormatRow } from '@/lib/packing/displayNames';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 
 interface ScannerStateProps {
