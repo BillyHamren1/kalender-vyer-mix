@@ -33,6 +33,7 @@ interface QRScannerProps {
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
   const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
   const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
+  const isNativeIos = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
   const isIos = (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') || /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
@@ -139,11 +140,51 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     noPixelsSinceRef.current = null;
   }, []);
 
+  const applyTrackOptimizations = useCallback(async (stream: MediaStream) => {
+    try {
+      const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+        getCapabilities?: () => Record<string, any>;
+        applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+      }) | undefined;
+
+      if (!track?.getCapabilities || !track.applyConstraints) return;
+
+      const capabilities = track.getCapabilities();
+      const advanced: Record<string, any>[] = [];
+
+      if (Array.isArray(capabilities.focusMode)) {
+        if (capabilities.focusMode.includes('continuous')) {
+          advanced.push({ focusMode: 'continuous' });
+        } else if (capabilities.focusMode.includes('single-shot')) {
+          advanced.push({ focusMode: 'single-shot' });
+        }
+      }
+
+      if (capabilities.zoom && typeof capabilities.zoom.max === 'number') {
+        const zoom = Math.min(capabilities.zoom.max, isNativeIos ? 2.2 : 1.8);
+        if (zoom > 1) advanced.push({ zoom });
+      }
+
+      const constraints: MediaTrackConstraints = {
+        ...(capabilities.width?.max ? { width: { ideal: Math.min(capabilities.width.max, 1280) } } : {}),
+        ...(capabilities.height?.max ? { height: { ideal: Math.min(capabilities.height.max, 720) } } : {}),
+        ...(capabilities.frameRate?.max ? { frameRate: { ideal: Math.min(capabilities.frameRate.max, 30) } } : {}),
+        ...(advanced.length > 0 ? { advanced } : {}),
+      };
+
+      if (Object.keys(constraints).length > 0) {
+        await track.applyConstraints(constraints);
+      }
+    } catch (err) {
+      console.warn('[QRScanner] track optimization failed:', err);
+    }
+  }, [isNativeIos]);
+
   const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
     let lastDiagLog = 0;
     let frameCount = 0;
-    const SCAN_INTERVAL = 250; // ~4 fps — give polyfill time to process
+    const SCAN_INTERVAL = isNativeIos ? 120 : 160;
 
     const scan = async () => {
       if (!mountedRef.current || !videoRef.current) return;
@@ -218,39 +259,50 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       try {
         if (detectorRef.current && video.videoWidth > 0 && video.videoHeight > 0) {
-          // Try detecting directly from video first
           let barcodes: any[] = [];
+          const canvas = canvasRef.current;
+
           try {
-            barcodes = await detectorRef.current.detect(video);
-          } catch {
-            // Some polyfills need canvas ImageBitmap instead of video element
-            const canvas = canvasRef.current;
             if (canvas) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
+              const cropFactor = isNativeIos ? 0.62 : 0.72;
+              const sourceWidth = video.videoWidth;
+              const sourceHeight = video.videoHeight;
+              const cropWidth = Math.floor(sourceWidth * cropFactor);
+              const cropHeight = Math.floor(sourceHeight * cropFactor);
+              const sx = Math.max(0, Math.floor((sourceWidth - cropWidth) / 2));
+              const sy = Math.max(0, Math.floor((sourceHeight - cropHeight) / 2));
+              const targetWidth = Math.min(960, cropWidth);
+              const targetHeight = Math.min(960, cropHeight);
+
+              canvas.width = targetWidth;
+              canvas.height = targetHeight;
+
               const ctx = canvas.getContext('2d', { willReadFrequently: true });
               if (ctx) {
-                ctx.drawImage(video, 0, 0);
-                try {
-                  barcodes = await detectorRef.current.detect(canvas);
-                } catch (e2) {
-                  console.warn('[QRScanner] detect(canvas) also failed:', e2);
-                  reportDiagnostic({
-                    code: 'BARCODE_DETECT_LOOP_FAILURE',
-                    source: 'scanner.qr',
-                    severity: 'warning',
-                    error: e2,
-                    metadata: {
-                      stage: 'canvas-detect',
-                      videoWidth: video.videoWidth,
-                      videoHeight: video.videoHeight,
-                      isIos,
-                    },
-                  });
-                }
+                ctx.drawImage(video, sx, sy, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
+                barcodes = await detectorRef.current.detect(canvas);
               }
             }
+
+            if (barcodes.length === 0 && frameCount % 5 === 0) {
+              barcodes = await detectorRef.current.detect(video);
+            }
+          } catch (e2) {
+            console.warn('[QRScanner] detect failed:', e2);
+            reportDiagnostic({
+              code: 'BARCODE_DETECT_LOOP_FAILURE',
+              source: 'scanner.qr',
+              severity: 'warning',
+              error: e2,
+              metadata: {
+                stage: 'cropped-detect',
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                isIos,
+              },
+            });
           }
+
           if (barcodes.length > 0) {
             const value = barcodes[0].rawValue;
             console.log('[QRScanner] Detected:', value, 'format:', barcodes[0].format);
@@ -279,7 +331,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
 
     animationFrameRef.current = requestAnimationFrame(scan);
-  }, [handleDetected]);
+  }, [handleDetected, isIos, isNativeIos]);
 
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
