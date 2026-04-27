@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-// Calendar sync imports removed — all sync is backend-driven
-import { cleanupDuplicateCalendarEvents } from "./duplicateCleanupService";
 import { isScannerApp } from "@/config/appMode";
 import { 
   getSyncState, 
@@ -76,10 +74,6 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
     } catch (e) {
       console.warn('Could not resolve organization_id for import:', e);
     }
-    // Clean up duplicates before starting import (silently for background operations)
-    console.log('Cleaning up existing duplicates before import...');
-    await cleanupDuplicateCalendarEvents(true);
-    
     // Handle historical import mode
     const isHistoricalMode = filters.syncMode === 'historical' || filters.includeHistorical || filters.forceHistoricalImport;
     
