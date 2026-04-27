@@ -483,6 +483,9 @@ const translations = {
   'workday.starting': { sv: 'Startar…', en: 'Starting…' },
   'workday.couldNotStart': { sv: 'Kunde inte starta arbetsdagen', en: 'Could not start the workday' },
   'workday.couldNotEnd': { sv: 'Kunde inte avsluta arbetsdagen — försök igen', en: 'Could not end the workday — please try again' },
+  'workday.dayEnded': { sv: 'Arbetsdagen avslutad', en: 'Workday ended' },
+  'workday.totalTime': { sv: 'Total tid', en: 'Total time' },
+  'workday.ending': { sv: 'Avslutar dagen…', en: 'Ending the day…' },
 
   // GPS sync debug
   'gpsSync.title': { sv: 'GPS-synk (debug)', en: 'GPS sync (debug)' },
