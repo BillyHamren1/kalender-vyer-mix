@@ -16,6 +16,7 @@ import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
+import MobileListView from '@/components/mobile-app/calendar/MobileListView';
 import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -211,11 +212,13 @@ const MobileJobs = () => {
           {/* Calendar — toggleable Day/Week/Month */}
           <div className="space-y-3">
             <CalendarViewToggle value={viewMode} onChange={setViewMode} />
-            <CalendarDateNav
-              viewMode={viewMode}
-              selectedDate={selectedDate}
-              onChange={setSelectedDate}
-            />
+            {viewMode !== 'list' && (
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+            )}
             {viewMode === 'day' && (
               <MobileDayView
                 date={selectedDate}
@@ -237,6 +240,12 @@ const MobileJobs = () => {
                 selectedDate={selectedDate}
                 onSelectDate={(d) => { setSelectedDate(d); setViewMode('day'); }}
                 shifts={shifts}
+              />
+            )}
+            {viewMode === 'list' && (
+              <MobileListView
+                shifts={shifts}
+                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
               />
             )}
           </div>
