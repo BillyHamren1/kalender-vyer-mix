@@ -13,7 +13,7 @@ import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { markWorkdayEnded, clearWorkdayEnded } from '@/services/workdayState';
-import { syncWorkDayEnd } from '@/services/workdayServerSync';
+import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 
