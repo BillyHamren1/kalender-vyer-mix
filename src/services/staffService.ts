@@ -254,6 +254,9 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
       throw new Error('Staff member is not available on this date (blocked or unavailable period)');
     }
 
+    // Multi-team allowed: upsert on (staff_id, team_id, assignment_date)
+    // so the staff member can belong to several teams the same day, but
+    // never the same team twice.
     const { data, error } = await supabase
       .from('staff_assignments')
       .upsert({
@@ -261,7 +264,7 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
         team_id: teamId,
         assignment_date: dateStr
       }, {
-        onConflict: 'staff_id,assignment_date'
+        onConflict: 'staff_id,team_id,assignment_date'
       });
 
     if (error) {
@@ -276,17 +279,34 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
   }
 };
 
-// Remove staff assignment for a specific date
-export const removeStaffAssignment = async (staffId: string, date: Date): Promise<void> => {
+// Remove staff assignment for a specific date.
+// If teamId is provided, only that team's assignment row is removed
+// (so other team memberships for the same day are preserved).
+// If teamId is omitted, all team assignments for that date are removed
+// (legacy behaviour, used when fully unassigning a staff member).
+export const removeStaffAssignment = async (
+  staffId: string,
+  date: Date,
+  teamId?: string
+): Promise<void> => {
   try {
     const dateStr = date.toISOString().split('T')[0];
-    console.log(`Removing assignment for staff ${staffId} on date ${dateStr}`);
+    console.log(
+      `Removing assignment for staff ${staffId} on date ${dateStr}` +
+        (teamId ? ` (team ${teamId})` : ' (all teams)')
+    );
 
-    const { error } = await supabase
+    let query = supabase
       .from('staff_assignments')
       .delete()
       .eq('staff_id', staffId)
       .eq('assignment_date', dateStr);
+
+    if (teamId) {
+      query = query.eq('team_id', teamId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error('Error removing staff assignment:', error);

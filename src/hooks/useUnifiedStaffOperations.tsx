@@ -228,7 +228,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       if (resourceId) {
         const { error } = await supabase
           .from('staff_assignments')
-          .upsert({ staff_id: staffId, team_id: resourceId, assignment_date: effectiveDateStr }, { onConflict: 'staff_id,assignment_date' });
+          .upsert({ staff_id: staffId, team_id: resourceId, assignment_date: effectiveDateStr }, { onConflict: 'staff_id,team_id,assignment_date' });
         if (error) throw error;
         toast.success(`Personal tilldelad`);
       } else {

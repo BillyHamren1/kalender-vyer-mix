@@ -321,7 +321,7 @@ async function assignStaffToTeam(supabase: any, staffId: string, teamId: string,
         team_id: teamId,
         assignment_date: date
       }, {
-        onConflict: 'staff_id,assignment_date'
+        onConflict: 'staff_id,team_id,assignment_date'
       })
       .select()
 
