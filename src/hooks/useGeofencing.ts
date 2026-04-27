@@ -622,13 +622,12 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
     };
 
-    // ── PLANNING-AWARE EXIT DECISION ─────────────────────────────────
-    // Compute once per GPS tick; reused by all three EXIT branches
-    // (project / standalone booking / fixed location). The decision is
-    // attached to the `workplace-exit` event so downstream listeners
-    // (timer banner, EOD reconciliation) can choose between auto-stop,
-    // auto-start-travel and "where are you going?" prompts instead of
-    // always defaulting to anomaly-only.
+    // ── PLANNING-AWARE EXIT DECISION (Auto-first 2026-04) ───────────
+    // Compute once per GPS tick; attached to `workplace-exit`-eventet så
+    // downstream listeners (timer banner, EOD reconciliation, last-shift
+    // detection) kan resonera om vad slutet betyder. Själva auto-stop:en
+    // av den löpande activityn körs av autoActionsRef.stop i EXIT-grenarna
+    // — exitDecision driver bara extrasignaler (resa? sista pass?).
     const exitDecision: ExitDecision = (() => {
       const signals = computePlannedDaySignals(bookings, new Date());
       return decideExitAction(signals);
