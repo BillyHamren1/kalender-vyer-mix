@@ -26,7 +26,7 @@ export const convertToISO8601 = (timestamp: string | null | undefined): string =
   }
 
   const match = String(timestamp).match(
-    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/
+    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?$/
   );
 
   if (!match) {
