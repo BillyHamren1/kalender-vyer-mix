@@ -341,7 +341,6 @@ export const buildPlannerCalendarEvents = ({
   for (const project of largeProjects) {
     const dates: Array<{ date: string; phase: PlannerPhase }> = [
       ...((project.start_date || []).map((date) => ({ date, phase: 'rig' as PlannerPhase }))),
-      ...((project.event_date || []).map((date) => ({ date, phase: 'event' as PlannerPhase }))),
       ...((project.end_date || []).map((date) => ({ date, phase: 'rigDown' as PlannerPhase }))),
     ];
 
