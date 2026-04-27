@@ -75,11 +75,12 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { current: currentWorkday, start: startWorkday } = useWorkDay();
   const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
   const [startingDay, setStartingDay] = useState(false);
+  const [endingDay, setEndingDay] = useState(false);
 
   // Should we offer the user an explicit "Starta dag" entry point?
   // Only when logged in as mobile staff, no open workday, and we're inside
   // the mobile app shell (not /m/report which has its own controls).
-  const showStartDay = !!staff?.id && !workdayOpen && !startingDay && location.pathname !== '/m/report';
+  const showStartDay = !!staff?.id && !workdayOpen && !startingDay && !endingDay && location.pathname !== '/m/report';
 
   const handleStartDay = useCallback(async () => {
     if (startingDay || workdayOpen) return;
