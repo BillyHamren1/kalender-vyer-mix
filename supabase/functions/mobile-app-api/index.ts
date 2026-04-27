@@ -2178,7 +2178,9 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       establishment_task_id: establishment_task_id || null,
       large_project_id: resolvedLargeProjectId,
       location_id: resolvedLocationId,
-      organization_id: organizationId
+      organization_id: organizationId,
+      is_subdivision: isSubdivision,
+      parent_time_report_id: isSubdivision ? parentReportId : null,
     })
     .select()
     .single()
