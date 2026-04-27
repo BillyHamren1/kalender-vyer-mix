@@ -45,6 +45,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraStateRef = useRef<'idle' | 'starting' | 'running' | 'error'>('idle');
+  const startInFlightRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
@@ -137,6 +138,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    startInFlightRef.current = false;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
