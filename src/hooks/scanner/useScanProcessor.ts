@@ -78,10 +78,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
-    // Session dedup — give visible feedback instead of silently ignoring
+    // Classify FIRST so dedup applies only to unique codes (RFID / serials).
+    // Repeatable codes (SKU, article barcodes) may be scanned many times.
+    const parsed = parseScanResult(scannedValue);
     const normalised = scannedValue.trim().toLowerCase();
-    if (scannedThisSessionRef.current.has(normalised)) {
-      scanLog('scan_ignored_duplicate_session', { value: scannedValue });
+
+    if (parsed.unique && scannedThisSessionRef.current.has(normalised)) {
+      scanLog('scan_ignored_duplicate_session', { value: scannedValue, type: parsed.type });
       optRef.current.onScanResult({
         value: scannedValue,
         result: `Already scanned this session`,
@@ -98,9 +101,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       if (queueRef.current.length > 0) processNext();
       return;
     }
-    scannedThisSessionRef.current.add(normalised);
+    if (parsed.unique) {
+      scannedThisSessionRef.current.add(normalised);
+    }
 
-    scanLog('scan_received', { value: scannedValue });
+    scanLog('scan_received', { value: scannedValue, type: parsed.type, unique: parsed.unique });
 
     const {
       packingId, verifierName, getItems, getIsMinusMode, getIsKolliMode,
@@ -109,16 +114,14 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } = optRef.current;
 
     const notifyRfid = (value: string, matched: boolean, productName?: string, sku?: string) => {
-      const isRfid = value.length >= 20 && /^[0-9a-fA-F]+$/.test(value);
-      if (isRfid && optRef.current.onRfidTagResult) {
+      if (parsed.type === 'rfid_tag' && optRef.current.onRfidTagResult) {
         optRef.current.onRfidTagResult(value, matched, productName, sku);
       }
     };
 
     try {
-      const scanResult = parseScanResult(scannedValue);
-      if (scanResult.type === 'packing_id') {
-        scanLog('scan_ignored_packing_id', { value: scannedValue, packingId: scanResult.packingId });
+      if (parsed.type === 'packing_id') {
+        scanLog('scan_ignored_packing_id', { value: scannedValue, packingId: parsed.packingId });
         onScanResult({
           value: scannedValue,
           result: 'Packing ID scanned — not a product code',
@@ -126,7 +129,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         });
         addRecentScan({
           value: scannedValue,
-          productName: `Packing ID: ${scanResult.packingId?.slice(0, 8) || scannedValue}`,
+          productName: `Packing ID: ${parsed.packingId?.slice(0, 8) || scannedValue}`,
           success: false,
           timestamp: Date.now(),
           reason: 'packing_id',
