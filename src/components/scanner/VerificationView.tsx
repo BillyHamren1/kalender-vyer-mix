@@ -48,24 +48,6 @@ interface VerificationViewProps {
   rfidControls?: RfidControlsProps;
 }
 
-// Remove prefix symbols from product names
-const cleanProductName = (name: string): string => {
-  return name.replace(/^[↳└⦿\s,L]+/, '').trim();
-};
-
-// Convert UPPERCASE text to Title Case, preserving abbreviations and measurements
-const formatToTitleCase = (text: string): string => {
-  const upperCount = (text.match(/[A-ZÅÄÖ]/g) || []).length;
-  const lowerCount = (text.match(/[a-zåäö]/g) || []).length;
-  if (lowerCount >= upperCount) return text;
-  
-  return text.split(' ').map(word => {
-    if (word.length <= 3 && /^[A-ZÅÄÖ0-9]+$/.test(word)) return word;
-    if (/\d/.test(word)) return word;
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  }).join(' ');
-};
-
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
   onBack,
