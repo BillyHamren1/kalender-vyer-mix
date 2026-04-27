@@ -1,3 +1,34 @@
+/**
+ * useGeofencing — GPS SIGNAL LAYER (not a controller).
+ * ====================================================
+ *
+ * Responsibility split — read this before editing:
+ *
+ *   • useGeofencing  →  SIGNAL.   Detects enter/exit, emits assistant /
+ *                                  audit events (`workplace-exit`, anomaly
+ *                                  open/close, departure reports), and
+ *                                  delegates real action to autoActionsRef.
+ *                                  It MUST NOT call workdayApi/start, must
+ *                                  not write time_reports, must not own
+ *                                  the workday lifecycle.
+ *
+ *   • useTimerStartFlow → DECISION/ACTION for START.  performStart
+ *                         guarantees workday-first via ensureWorkDayActive
+ *                         and routes through evaluateStartConflict +
+ *                         distance check before startSession.
+ *
+ *   • useWorkSession.stopSession → DECISION/ACTION for STOP. Owns break
+ *                         prompt + save-then-stop + time_report write.
+ *
+ *   • useWorkDay / workdays table → SOURCE OF TRUTH for the workday.
+ *                         Activity timers are SECONDARY segments on top
+ *                         of the workday and never define it.
+ *
+ * The three exposed stop verbs (saveAndStopTimer / stopLocationTimerWithoutReport
+ * / cancelPendingTimer) are LOW-LEVEL primitives consumed exclusively by
+ * useWorkSession — feature code must not call them directly (locked by
+ * timerStopApi.contract.test.ts).
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
