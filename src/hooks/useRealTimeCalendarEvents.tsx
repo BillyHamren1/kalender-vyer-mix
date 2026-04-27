@@ -15,6 +15,7 @@ export const useRealTimeCalendarEvents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const activeRef = useRef(true);
+  const reloadTimerRef = useRef<number | null>(null);
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -24,22 +25,20 @@ export const useRealTimeCalendarEvents = () => {
   });
 
   // Enhanced event loading with batch fetching (replaces N+1 queries)
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (force = false) => {
     try {
-      // Load events silently
       setIsLoading(true);
-      
+
       const calendarEvents = await fetchCalendarEvents();
-      
+
       if (activeRef.current) {
         // Collect all booking IDs for batch fetching (instead of N+1 queries)
         const bookingIds = calendarEvents
           .filter(e => e.bookingId)
           .map(e => e.bookingId);
-        
+
         const uniqueBookingIds = [...new Set(bookingIds)];
-        
-        
+
         // Single batch query for all bookings
         let bookingMap = new Map<string, any>();
         if (uniqueBookingIds.length > 0) {
@@ -54,35 +53,35 @@ export const useRealTimeCalendarEvents = () => {
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
-          
+
           if (error) {
             console.error('Error batch fetching bookings:', error);
           } else {
             bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
           }
         }
-        
+
         // Batch-fetch large project names
         const largeProjectIds = [...new Set(
           [...bookingMap.values()]
             .filter(b => b.large_project_id)
             .map(b => b.large_project_id)
         )];
-        
+
         let largeProjectMap = new Map<string, string>();
         if (largeProjectIds.length > 0) {
           const { data: projects, error: lpError } = await supabase
             .from('large_projects')
             .select('id, name')
             .in('id', largeProjectIds);
-          
+
           if (lpError) {
             console.error('Error fetching large projects:', lpError);
           } else {
             largeProjectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
           }
         }
-        
+
         // Enhance events using the pre-fetched booking data (no async, pure map)
         const enhancedEvents = calendarEvents.map(event => {
           if (event.bookingId && bookingMap.has(event.bookingId)) {
@@ -119,17 +118,17 @@ export const useRealTimeCalendarEvents = () => {
         // Consolidate large project events: group by (large_project_id, event_type, source_date)
         const consolidatedEvents: CalendarEvent[] = [];
         const lpGroupMap = new Map<string, CalendarEvent>();
-        
+
         for (const event of enhancedEvents) {
           const lpId = event.extendedProps?.largeProjectId;
           if (!lpId) {
             consolidatedEvents.push(event);
             continue;
           }
-          
+
           const sourceDate = (event.extendedProps as any)?.sourceDate || event.start?.split('T')[0] || '';
           const groupKey = `${lpId}-${event.eventType}-${sourceDate}`;
-          
+
           if (!lpGroupMap.has(groupKey)) {
             const projectName = largeProjectMap.get(lpId) || event.title;
             const consolidated: CalendarEvent = {
@@ -158,20 +157,37 @@ export const useRealTimeCalendarEvents = () => {
           }
         }
 
-        setEvents(consolidatedEvents);
-        
-        
+        setEvents(prev => {
+          if (
+            !force &&
+            prev.length > 0 &&
+            consolidatedEvents.length === 0
+          ) {
+            console.warn(`[useRealTimeCalendarEvents] Ignoring empty reload while ${prev.length} events are already visible`);
+            return prev;
+          }
+
+          if (
+            !force &&
+            prev.length > 0 &&
+            consolidatedEvents.length > 0 &&
+            consolidatedEvents.length < prev.length * 0.5
+          ) {
+            console.warn(`[useRealTimeCalendarEvents] Ignoring suspicious shrink ${prev.length} → ${consolidatedEvents.length}`);
+            return prev;
+          }
+
+          return consolidatedEvents;
+        });
+
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
         if (!sessionStorage.getItem(titleFixKey)) {
-          
-          
           const hasUuidTitles = enhancedEvents.some(event => 
             event.title && event.title.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)
           );
-          
+
           if (hasUuidTitles) {
-            
             try {
               await fixAllEventTitles();
               const updatedEvents = await fetchCalendarEvents();
@@ -182,7 +198,7 @@ export const useRealTimeCalendarEvents = () => {
               console.error('Error fixing event titles:', error);
             }
           }
-          
+
           sessionStorage.setItem(titleFixKey, 'true');
         }
       }
@@ -199,97 +215,32 @@ export const useRealTimeCalendarEvents = () => {
     }
   }, []);
 
-  // Real-time calendar event handler (read-only: reacts to DB changes pushed by backend)
-  const handleCalendarEventChange = useCallback((payload: any) => {
+  // Real-time calendar change handler.
+  // IMPORTANT: The planner view renders CONSOLIDATED large-project rows, so
+  // trying to patch individual INSERT/UPDATE/DELETE payloads into local state
+  // causes identity drift (e.g. several rig-days for one booking collapse into
+  // one row). We therefore debounce to a full reload instead.
+  const handleCalendarEventChange = useCallback(() => {
     if (!activeRef.current) return;
 
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-    
-    setEvents(currentEvents => {
-      let updatedEvents = [...currentEvents];
-      
-      switch (eventType) {
-        case 'INSERT':
-          // Deduplication guard: check by ID AND by booking_id+event_type combo
-          if (newRecord) {
-            const alreadyExistsById = updatedEvents.some(e => e.id === newRecord.id);
-            const alreadyExistsByBooking = newRecord.booking_id && newRecord.event_type
-              ? updatedEvents.some(e => e.bookingId === newRecord.booking_id && e.eventType === newRecord.event_type)
-              : false;
+    if (reloadTimerRef.current !== null) {
+      clearTimeout(reloadTimerRef.current);
+    }
 
-            if (!alreadyExistsById && !alreadyExistsByBooking) {
-              const newEvent: CalendarEvent = {
-                id: newRecord.id,
-                resourceId: newRecord.resource_id,
-                title: newRecord.title,
-                start: convertToISO8601(newRecord.start_time),
-                end: convertToISO8601(newRecord.end_time),
-                eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
-                bookingId: newRecord.booking_id || '',
-                bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-                deliveryAddress: newRecord.delivery_address || 'No address provided',
-                extendedProps: {
-                  bookingId: newRecord.booking_id,
-                  booking_id: newRecord.booking_id,
-                  resourceId: newRecord.resource_id,
-                  deliveryAddress: newRecord.delivery_address,
-                  bookingNumber: newRecord.booking_number,
-                  eventType: newRecord.event_type,
-                  deliveryCity: newRecord.delivery_city
-                }
-              };
-              updatedEvents.push(newEvent);
-            }
-          }
-          break;
-          
-        case 'UPDATE':
-          if (newRecord) {
-            const index = updatedEvents.findIndex(e => e.id === newRecord.id);
-            if (index !== -1) {
-              updatedEvents[index] = {
-                ...updatedEvents[index],
-                id: newRecord.id,
-                resourceId: newRecord.resource_id,
-                title: newRecord.title,
-                start: convertToISO8601(newRecord.start_time),
-                end: convertToISO8601(newRecord.end_time),
-                eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
-                bookingId: newRecord.booking_id || '',
-                bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-                deliveryAddress: newRecord.delivery_address || 'No address provided',
-                extendedProps: {
-                  ...updatedEvents[index].extendedProps,
-                  bookingId: newRecord.booking_id,
-                  booking_id: newRecord.booking_id,
-                  resourceId: newRecord.resource_id,
-                  deliveryAddress: newRecord.delivery_address,
-                  bookingNumber: newRecord.booking_number,
-                  eventType: newRecord.event_type,
-                  deliveryCity: newRecord.delivery_city
-                }
-              };
-            }
-          }
-          break;
-          
-        case 'DELETE':
-          if (oldRecord) {
-            updatedEvents = updatedEvents.filter(e => e.id !== oldRecord.id);
-          }
-          break;
+    reloadTimerRef.current = window.setTimeout(() => {
+      reloadTimerRef.current = null;
+      if (activeRef.current) {
+        void loadEvents(false);
       }
-      
-      return updatedEvents;
-    });
-  }, []);
+    }, 800);
+  }, [loadEvents]);
 
   // Initialize calendar events and set up real-time subscriptions
   useEffect(() => {
     activeRef.current = true;
 
     // Load initial events (read-only — no repair/sync)
-    loadEvents();
+    loadEvents(true);
 
     // Set up real-time subscription for calendar events (read-only reactions to backend changes)
     const calendarChannel = supabase
@@ -307,6 +258,9 @@ export const useRealTimeCalendarEvents = () => {
 
     return () => {
       activeRef.current = false;
+      if (reloadTimerRef.current !== null) {
+        clearTimeout(reloadTimerRef.current);
+      }
       supabase.removeChannel(calendarChannel);
       console.log('Real-time subscriptions cleaned up');
     };
@@ -315,15 +269,15 @@ export const useRealTimeCalendarEvents = () => {
   // Handle date changes
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
-    
+
     const daysDifference = Math.abs(
       (newDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
     );
-    
+
     if (daysDifference < 1) {
       return;
     }
-    
+
     console.log('Calendar date change detected, difference:', daysDifference, 'days');
     setCurrentDate(newDate);
     sessionStorage.setItem('calendarDate', newDate.toISOString());
@@ -333,7 +287,7 @@ export const useRealTimeCalendarEvents = () => {
   // Manual refresh function
   const refreshEvents = useCallback(async () => {
     console.log('Manual refresh requested');
-    await loadEvents();
+    await loadEvents(true);
   }, [loadEvents]);
 
   return {
