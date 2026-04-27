@@ -229,20 +229,31 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
           </div>
         )}
 
-        {/* Shift cards */}
+        {/* Calendar cards (project = consolidated, booking = standalone) */}
         <div className="absolute left-12 right-2 top-0 bottom-0 z-10">
-          {positioned.map(({ shift, topPx, heightPx, col, cols }) => {
+          {positioned.map(({ item, topPx, heightPx, col, cols }) => {
             const widthPct = 100 / cols;
             const leftPct = col * widthPct;
-            const isActive = activeBookingIds?.has(shift.booking_id);
+            const isActive = isItemActive(item, activeBookingIds);
+
+            const isProject = item.kind === 'project';
+            const startStr = isProject ? item.start_time : item.shift.start_time;
+            const endStr = isProject ? item.end_time : item.shift.end_time;
+            const eventType = isProject ? item.event_type : item.shift.event_type;
+            const title = isProject ? item.title : item.shift.client;
+            const address = isProject ? item.delivery_address : item.shift.delivery_address;
+            const handleClick = () => {
+              if (isProject) navigate(`/m/project/${item.largeProjectId}`);
+              else navigate(`/m/job/${item.shift.booking_id}`);
+            };
 
             return (
               <button
-                key={shift.shift_id}
-                onClick={() => navigate(`/m/job/${shift.booking_id}`)}
+                key={item.key}
+                onClick={handleClick}
                 className={cn(
                   'absolute rounded-lg border px-2.5 py-1.5 text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
-                  eventTypeStyles[shift.event_type],
+                  eventTypeStyles[eventType],
                   isActive && 'ring-2 ring-primary'
                 )}
                 style={{
@@ -253,24 +264,33 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                 }}
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                    {t(eventTypeI18nKey[shift.event_type])}
-                  </span>
+                  {isProject ? (
+                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
+                      <FolderOpen className="w-2.5 h-2.5" />
+                      {t('project.fallback') || 'PROJEKT'}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                      {t(eventTypeI18nKey[eventType])}
+                    </span>
+                  )}
                   <span className="text-[10px] font-mono opacity-70">
-                    {extractUTCTime(shift.start_time)}–
-                    {extractUTCTime(shift.end_time)}
+                    {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
                   </span>
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                   )}
                 </div>
-                <div className="text-[12px] font-bold leading-tight truncate">
-                  {shift.client}
-                </div>
-                {heightPx > 50 && shift.delivery_address && (
+                <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
+                {heightPx > 50 && address && (
                   <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
                     <MapPin className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{shift.delivery_address}</span>
+                    <span className="truncate">{address}</span>
+                  </div>
+                )}
+                {isProject && heightPx > 64 && (
+                  <div className="text-[10px] opacity-70 mt-0.5">
+                    {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
                   </div>
                 )}
               </button>
