@@ -366,6 +366,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return availableStaff.filter(staff => !staff.assignedTeamId);
   };
 
+  const availableStaffSectionHeight = staffExpandedProp ? 132 : 78;
+  const availableStaffGridHeight = staffExpandedProp ? 108 : 48;
+  const availableStaffFooterHeight = 18;
+  const assignedStaffRowHeight = 88;
+
   return (
     <>
       {/* Available Staff - rendered ABOVE the day card */}
@@ -378,7 +383,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             : 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
           borderBottom: '1px solid hsl(var(--border) / 0.6)',
           padding: '4px 6px',
-          transition: 'background 0.2s ease',
+          height: `${availableStaffSectionHeight}px`,
+          minHeight: `${availableStaffSectionHeight}px`,
+          maxHeight: `${availableStaffSectionHeight}px`,
+          transition: 'background 0.2s ease, height 0.2s ease',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
         }}
       >
         {(() => {
@@ -388,7 +400,17 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           const hasMore = allStaff.length > maxCollapsed;
           return (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, 1fr)',
+                  gap: '4px',
+                  maxHeight: `${availableStaffGridHeight}px`,
+                  minHeight: `${availableStaffGridHeight}px`,
+                  overflowY: 'auto',
+                  alignContent: 'start',
+                }}
+              >
                 {displayStaff.map((staff) => {
                   const firstName = staff.name.trim().split(' ')[0];
                   return (
@@ -408,27 +430,42 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   );
                 })}
               </div>
-              {hasMore && (
-                <button
-                  onClick={onToggleStaffExpanded}
-                  className="flex items-center gap-1 mt-1 text-[10px] font-medium text-primary hover:text-primary/80 cursor-pointer transition-colors"
-                >
-                  {staffExpandedProp ? (
-                    <>
-                      <ChevronUp className="h-3.5 w-3.5" />
-                      Visa mindre
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-3.5 w-3.5" />
-                      Visa alla ({allStaff.length - maxCollapsed} till)
-                    </>
-                  )}
-                </button>
-              )}
-              {allStaff.length === 0 && (
-                <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
-              )}
+
+              <div
+                style={{
+                  minHeight: `${availableStaffFooterHeight}px`,
+                  height: `${availableStaffFooterHeight}px`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: '2px',
+                }}
+              >
+                {hasMore ? (
+                  <button
+                    onClick={onToggleStaffExpanded}
+                    className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 cursor-pointer transition-colors"
+                  >
+                    {staffExpandedProp ? (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                        Visa mindre
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        Visa alla ({allStaff.length - maxCollapsed} till)
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                {allStaff.length === 0 && (
+                  <span className="text-[9px] text-muted-foreground/60 italic">Inga tillgängliga</span>
+                )}
+              </div>
             </>
           );
         })()}
@@ -436,12 +473,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <button 
             onClick={() => setSelectingForTeam(null)}
             className="text-[9px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground mt-1"
+            style={{ alignSelf: 'flex-start' }}
           >
             Avbryt
           </button>
         )}
       </div>
-
+ 
       <div 
         className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
       >
@@ -547,7 +585,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         })}
 
         {/* Row 3: Staff Assignment Areas per team */}
-        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1 }}></div>
+        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, height: `${assignedStaffRowHeight}px` }}></div>
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
@@ -559,7 +597,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 gridColumn: index + 2,
                 gridRow: 3,
                 width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
-                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
+                height: `${assignedStaffRowHeight}px`,
+                minHeight: `${assignedStaffRowHeight}px`,
+                maxHeight: `${assignedStaffRowHeight}px`,
               }}
             >
               <div className="staff-header-assignment-area">
