@@ -36,7 +36,7 @@ const dayKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-const formatDayHeader = (key: string, t: (k: string) => string): string => {
+const formatDayHeader = (key: string, t: (k: any) => string): string => {
   const [y, m, d] = key.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   const today = new Date();
