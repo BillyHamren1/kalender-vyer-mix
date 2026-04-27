@@ -212,11 +212,13 @@ const MobileJobs = () => {
           {/* Calendar — toggleable Day/Week/Month */}
           <div className="space-y-3">
             <CalendarViewToggle value={viewMode} onChange={setViewMode} />
-            <CalendarDateNav
-              viewMode={viewMode}
-              selectedDate={selectedDate}
-              onChange={setSelectedDate}
-            />
+            {viewMode !== 'list' && (
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+            )}
             {viewMode === 'day' && (
               <MobileDayView
                 date={selectedDate}
