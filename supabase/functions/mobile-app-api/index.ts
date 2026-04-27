@@ -1804,8 +1804,57 @@ async function handleDeleteTimeReport(supabase: any, staffId: string, data: any,
 }
 
 async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description, establishment_task_id, large_project_id } = data
+  const {
+    booking_id, report_date, start_time, end_time, hours_worked, overtime_hours,
+    break_time, description, establishment_task_id, large_project_id,
+    // --- per-address breakdown of a large_project total (geofence-driven) ---
+    // When set, this row is metadata under an existing project-total time_report.
+    // It is NEVER summed into payroll/invoicing totals.
+    is_subdivision, parent_time_report_id,
+  } = data
   let resolvedLocationId: string | null = null
+  const isSubdivision = is_subdivision === true
+  const parentReportId = parent_time_report_id || null
+
+  if (isSubdivision && !parentReportId) {
+    return new Response(
+      JSON.stringify({ error: 'is_subdivision requires parent_time_report_id' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // If subdivision: validate parent exists, belongs to this staff/org, and is a project-total (not itself a subdivision)
+  if (isSubdivision && parentReportId) {
+    const { data: parent, error: parentErr } = await supabase
+      .from('time_reports')
+      .select('id, staff_id, organization_id, large_project_id, is_subdivision')
+      .eq('id', parentReportId)
+      .maybeSingle()
+    if (parentErr || !parent) {
+      return new Response(
+        JSON.stringify({ error: 'Parent time report not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (parent.staff_id !== staffId || parent.organization_id !== organizationId) {
+      return new Response(
+        JSON.stringify({ error: 'Parent time report does not belong to you' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (parent.is_subdivision) {
+      return new Response(
+        JSON.stringify({ error: 'Parent must be a project-total, not another subdivision' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (!parent.large_project_id) {
+      return new Response(
+        JSON.stringify({ error: 'Subdivision is only valid for large-project time reports' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
 
   if (!report_date) {
     return new Response(
