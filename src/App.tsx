@@ -273,6 +273,7 @@ const WebRoutes: React.FC = () => {
             {/* Hidden admin sync tool */}
             <Route path="/admin/sync" element={<ProtectedRoute><MainSystemLayout><SyncReconciliation /></MainSystemLayout></ProtectedRoute>} />
             <Route path="/admin/staff-live" element={<ProtectedRoute><MainSystemLayout><StaffLiveDebug /></MainSystemLayout></ProtectedRoute>} />
+            <Route path="/admin/legacy-incoming-packing" element={<ProtectedRoute><MainSystemLayout><LegacyIncomingPackingDebug /></MainSystemLayout></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
