@@ -14,7 +14,6 @@ import { useLastShiftEndDetection } from '@/hooks/useLastShiftEndDetection';
 import { useUnplannedSiteVisit } from '@/hooks/useUnplannedSiteVisit';
 import { useStaleDayCorrection } from '@/hooks/useStaleDayCorrection';
 import { useStaleDayReminder } from '@/hooks/useStaleDayReminder';
-import { useWorkdayBootstrap } from '@/hooks/useWorkdayBootstrap';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { useTravelDetection } from '@/hooks/useTravelDetection';
@@ -56,10 +55,10 @@ const MobileGlobalOverlays: React.FC = () => {
   const { latestPosition } = useBackgroundLocationReporter(staff?.id);
   const { data: bookings = [] } = useMobileBookings();
 
-  // WORKDAY-FIRST bootstrap: ensure an open workday exists as soon as the
-  // mobile app is opened by a logged-in staff member, even if no activity
-  // timer has been started yet.
-  useWorkdayBootstrap();
+  // NOTE: Workday is NEVER auto-started on app-open. A workday is only created
+  // when the user explicitly starts an activity timer (via useTimerStartFlow).
+  // Opening the app must be a pure read/restore operation — no side effects.
+
 
   // Lugn påminnelse om ofärdig tidigare dag (gårdagen). Throttlas internt.
   useStaleDayReminder(!!staff);
