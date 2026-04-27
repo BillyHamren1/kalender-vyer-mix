@@ -53,6 +53,7 @@ import {
   getGpsSettings,
 } from '@/hooks/useGeofencing';
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
+import { takeVisits as takeProjectAddressVisits } from '@/lib/projectAddressVisits';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
 import { StopBreakDecisionDialog } from '@/components/mobile-app/StopBreakDecisionDialog';
 import React from 'react';
