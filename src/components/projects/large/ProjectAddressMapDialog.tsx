@@ -516,6 +516,10 @@ export default function ProjectAddressMapDialog({
                 </button>
               </div>
             )}
+
+            {showLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/70 text-xs text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 <span>
                   {mapStatus === 'loading-token' ? 'Hämtar Mapbox-token…' : 'Laddar karta…'}
                 </span>
