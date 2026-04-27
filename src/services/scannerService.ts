@@ -65,18 +65,32 @@ export const createParcel = async (
 };
 
 export const assignItemToParcel = async (
-  itemId: string, 
-  parcelId: string | null
+  itemId: string,
+  parcelId: string | null,
+  options?: { quantity?: number; scannedBy?: string; clearAllocations?: boolean }
 ): Promise<void> => {
-  await callScannerApi('assign_item_to_parcel', { itemId, parcelId });
+  await callScannerApi('assign_item_to_parcel', {
+    itemId,
+    parcelId,
+    quantity: options?.quantity,
+    scannedBy: options?.scannedBy,
+    clearAllocations: options?.clearAllocations,
+  });
 };
 
 export const getParcelsByPacking = async (packingId: string): Promise<PackingParcel[]> => {
   return callScannerApi('get_parcels', { packingId });
 };
 
+// LEGACY: returns the highest parcel number per item. Use getItemAllocations for full split.
 export const getItemParcels = async (packingId: string): Promise<Record<string, number>> => {
   return callScannerApi('get_item_parcels', { packingId });
+};
+
+// New: returns full parcel breakdown per item.
+export type ItemAllocation = { parcelId: string; parcelNumber: number; quantity: number };
+export const getItemAllocations = async (packingId: string): Promise<Record<string, ItemAllocation[]>> => {
+  return callScannerApi('get_item_allocations', { packingId });
 };
 
 // ============== EXISTING FUNCTIONS ==============
@@ -185,7 +199,8 @@ const sortPackingItems = (items: any[]) => {
 export const verifyProductBySku = async (
   packingId: string,
   sku: string,
-  verifiedBy: string
+  verifiedBy: string,
+  activeParcelId?: string | null
 ): Promise<{
   success: boolean;
   productName?: string;
@@ -200,7 +215,7 @@ export const verifyProductBySku = async (
   bookingId?: string;
   alreadyScanned?: boolean;
 }> => {
-  return callScannerApi('verify_product', { packingId, sku, verifiedBy });
+  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null });
 };
 
 // Add an unknown product (scanned but not in packing list) to both
@@ -215,14 +230,15 @@ export const addUnknownProduct = async (
   return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy });
 };
 
-// Toggle a packing item manually
+// Toggle a packing item manually (optionally allocate the increment to an active parcel)
 export const togglePackingItemManually = async (
   itemId: string,
   currentlyPacked: boolean,
   quantityToPack: number,
-  verifiedBy: string
+  verifiedBy: string,
+  activeParcelId?: string | null
 ): Promise<{ success: boolean; error?: string }> => {
-  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy });
+  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null });
 };
 
 // Decrement a packing item by 1

@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
       }
 
       case 'verify_product': {
-        const { packingId, sku: serialNumber, verifiedBy } = params
+        const { packingId, sku: serialNumber, verifiedBy, activeParcelId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
         // STATUS FLOW: First scan → set to in_progress
@@ -559,8 +559,23 @@ Deno.serve(async (req) => {
           quantity_packed: newQuantity,
           packed_at: now,
           packed_by: verifiedBy,
-          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
+          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+          ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', (selectedItem as any).id)
+
+        // PARCEL ALLOCATION: log how many units of this scan went into the active parcel
+        if (activeParcelId && incrementBy > 0 && !isAlreadyFull) {
+          const allocQty = Math.min(incrementBy, quantityToPack - currentPacked)
+          if (allocQty > 0) {
+            await supabase.from('packing_list_item_allocations').insert({
+              packing_list_item_id: (selectedItem as any).id,
+              parcel_id: activeParcelId,
+              quantity: allocQty,
+              scanned_by: verifiedBy || null,
+              organization_id: ORG_ID,
+            })
+          }
+        }
 
         // STATUS FLOW: Check if all items are now packed
         await checkIfAllPacked(supabase, packingId, ORG_ID)
@@ -592,8 +607,10 @@ Deno.serve(async (req) => {
 
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
-            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null
+            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
+          // Clear all parcel allocations on full reset
+          await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
         } else {
           // STATUS FLOW: First manual toggle → set to in_progress
           if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
@@ -602,13 +619,25 @@ Deno.serve(async (req) => {
           const currentQty = currentItem?.quantity_packed || 0
           const newQty = Math.min(currentQty + 1, quantityToPack)
           const isFull = newQty >= quantityToPack
+          const activeParcelId = (params as any).activeParcelId
 
           await supabase.from('packing_list_items').update({
             quantity_packed: newQty,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {})
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
           }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+          if (activeParcelId && newQty > currentQty) {
+            await supabase.from('packing_list_item_allocations').insert({
+              packing_list_item_id: itemId,
+              parcel_id: activeParcelId,
+              quantity: newQty - currentQty,
+              scanned_by: verifiedBy || null,
+              organization_id: ORG_ID,
+            })
+          }
         }
 
         // STATUS FLOW: Check if all items are now packed (or reverted)
@@ -636,8 +665,26 @@ Deno.serve(async (req) => {
           quantity_packed: newQty,
           verified_at: null,
           verified_by: null,
-          ...(newQty === 0 ? { packed_at: null, packed_by: null } : {})
+          ...(newQty === 0 ? { packed_at: null, packed_by: null, parcel_id: null } : {})
         }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        // PARCEL ALLOCATION: remove 1 unit from the most-recent allocation
+        const { data: lastAlloc } = await supabase
+          .from('packing_list_item_allocations')
+          .select('id, quantity')
+          .eq('packing_list_item_id', itemId)
+          .eq('organization_id', ORG_ID)
+          .order('scanned_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (lastAlloc) {
+          if ((lastAlloc as any).quantity <= 1) {
+            await supabase.from('packing_list_item_allocations').delete().eq('id', (lastAlloc as any).id)
+          } else {
+            await supabase.from('packing_list_item_allocations').update({ quantity: (lastAlloc as any).quantity - 1 }).eq('id', (lastAlloc as any).id)
+          }
+        }
 
         // STATUS FLOW: Items decremented, may revert from packed → in_progress
         if (currentItem?.packing_id) {
@@ -671,10 +718,104 @@ Deno.serve(async (req) => {
       }
 
       case 'assign_item_to_parcel': {
-        const { itemId, parcelId } = params
-        const { error } = await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
+        // New allocation-based model: a single item can be split across multiple parcels.
+        // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate
+        // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
+        const { itemId, parcelId, quantity, scannedBy, clearAllocations } = params
+
+        if (clearAllocations) {
+          const { error } = await supabase
+            .from('packing_list_item_allocations')
+            .delete()
+            .eq('packing_list_item_id', itemId)
+            .eq('organization_id', ORG_ID)
+          if (error) throw error
+          // Legacy column cleanup
+          await supabase.from('packing_list_items').update({ parcel_id: null }).eq('id', itemId).eq('organization_id', ORG_ID)
+          return json({ success: true })
+        }
+
+        if (!parcelId) return json({ success: false, error: 'parcelId required' })
+
+        const qty = Math.max(1, Number(quantity) || 1)
+
+        // Cap allocation so total allocated never exceeds quantity_to_pack
+        const { data: itemRow } = await supabase
+          .from('packing_list_items')
+          .select('quantity_to_pack')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const { data: existing } = await supabase
+          .from('packing_list_item_allocations')
+          .select('quantity')
+          .eq('packing_list_item_id', itemId)
+          .eq('organization_id', ORG_ID)
+
+        const alreadyAllocated = (existing || []).reduce((s: number, r: any) => s + (r.quantity || 0), 0)
+        const cap = itemRow?.quantity_to_pack ?? qty
+        const remaining = Math.max(0, cap - alreadyAllocated)
+        const finalQty = Math.min(qty, remaining)
+
+        if (finalQty <= 0) {
+          return json({ success: true, skipped: true, reason: 'fully_allocated' })
+        }
+
+        const { error } = await supabase
+          .from('packing_list_item_allocations')
+          .insert({
+            packing_list_item_id: itemId,
+            parcel_id: parcelId,
+            quantity: finalQty,
+            scanned_by: scannedBy || null,
+            organization_id: ORG_ID,
+          })
         if (error) throw error
-        return json({ success: true })
+
+        // Keep legacy parcel_id pointing at the most recent parcel for back-compat consumers.
+        await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        return json({ success: true, quantityAllocated: finalQty })
+      }
+
+      case 'get_item_allocations': {
+        // Returns: { [itemId]: [{ parcelId, parcelNumber, quantity }] }
+        const { packingId } = params
+
+        const { data: items } = await supabase
+          .from('packing_list_items')
+          .select('id')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+
+        const itemIds = (items || []).map((i: any) => i.id)
+        if (itemIds.length === 0) return json({})
+
+        const { data: allocs } = await supabase
+          .from('packing_list_item_allocations')
+          .select('packing_list_item_id, parcel_id, quantity, scanned_at')
+          .in('packing_list_item_id', itemIds)
+          .eq('organization_id', ORG_ID)
+          .order('scanned_at', { ascending: true })
+
+        const parcelIds = [...new Set((allocs || []).map((a: any) => a.parcel_id))]
+        const { data: parcels } = parcelIds.length
+          ? await supabase.from('packing_parcels').select('id, parcel_number').in('id', parcelIds)
+          : { data: [] }
+        const parcelMap: Record<string, number> = {}
+        ;(parcels || []).forEach((p: any) => { parcelMap[p.id] = p.parcel_number })
+
+        const result: Record<string, Array<{ parcelId: string; parcelNumber: number; quantity: number }>> = {}
+        ;(allocs || []).forEach((a: any) => {
+          const arr = result[a.packing_list_item_id] || (result[a.packing_list_item_id] = [])
+          // Merge same parcel rows for compact UI
+          const existing = arr.find(x => x.parcelId === a.parcel_id)
+          if (existing) existing.quantity += a.quantity
+          else arr.push({ parcelId: a.parcel_id, parcelNumber: parcelMap[a.parcel_id] ?? 0, quantity: a.quantity })
+        })
+
+        return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
       case 'get_parcels': {
@@ -691,27 +832,42 @@ Deno.serve(async (req) => {
       }
 
       case 'get_item_parcels': {
+        // LEGACY: returns one parcelNumber per item (the highest parcel_number it appears in).
+        // New code should use 'get_item_allocations' to see full split across parcels.
         const { packingId } = params
 
         const { data: items } = await supabase
           .from('packing_list_items')
-          .select('id, parcel_id')
+          .select('id')
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
-          .not('parcel_id', 'is', null)
 
-        if (!items || items.length === 0) return json({})
+        const itemIds = (items || []).map((i: any) => i.id)
+        if (itemIds.length === 0) return json({})
 
-        const parcelIds = [...new Set(items.map((i: any) => i.parcel_id).filter(Boolean))]
-        const { data: parcels } = await supabase.from('packing_parcels').select('id, parcel_number').in('id', parcelIds)
+        const { data: allocs } = await supabase
+          .from('packing_list_item_allocations')
+          .select('packing_list_item_id, parcel_id')
+          .in('packing_list_item_id', itemIds)
+          .eq('organization_id', ORG_ID)
 
-        const parcelMap: Record<string, number> = {}
-        ;(parcels || []).forEach((p: any) => { parcelMap[p.id] = p.parcel_number })
+        const parcelIds = [...new Set((allocs || []).map((a: any) => a.parcel_id))]
+        if (parcelIds.length === 0) return json({})
+
+        const { data: parcels } = await supabase
+          .from('packing_parcels')
+          .select('id, parcel_number')
+          .in('id', parcelIds)
+
+        const parcelNumber: Record<string, number> = {}
+        ;(parcels || []).forEach((p: any) => { parcelNumber[p.id] = p.parcel_number })
 
         const result: Record<string, number> = {}
-        items.forEach((item: any) => {
-          if (item.parcel_id && parcelMap[item.parcel_id]) {
-            result[item.id] = parcelMap[item.parcel_id]
+        ;(allocs || []).forEach((a: any) => {
+          const num = parcelNumber[a.parcel_id]
+          if (!num) return
+          if (!result[a.packing_list_item_id] || num > result[a.packing_list_item_id]) {
+            result[a.packing_list_item_id] = num
           }
         })
 

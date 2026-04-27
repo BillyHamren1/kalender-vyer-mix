@@ -85,9 +85,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   } = useOptimisticPacking(packingId);
 
   const {
-    isKolliMode, activeParcel, itemParcelMap,
+    isKolliMode, activeParcel, itemParcelMap, itemAllocations,
     startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
   } = useKolliManager(packingId);
+
+  const activeParcelRef = useRef(activeParcel);
+  activeParcelRef.current = activeParcel;
 
   const { lastScanResult, highlightedItemId, setScanResult, highlightRow, cleanup: cleanupFeedback } = useScanFeedback();
 
@@ -122,6 +125,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onOptimisticDecrement: applyOptimisticDecrement,
     onAssignToKolli: assignToKolli,
     getIsKolliMode: () => isKolliMode,
+    getActiveParcelId: () => activeParcelRef.current?.id ?? null,
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
@@ -303,26 +307,47 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           )}
         </div>
         
-        {/* Parcel badge */}
-        {showParcelColumn ? (
-          parcelNumber ? (
-            <div className="shrink-0 flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded">
-              <Package className="h-3 w-3" />
-              <span className="text-[10px] font-bold">#{parcelNumber}</span>
-            </div>
-          ) : info.isComplete ? (
-            <div className="shrink-0 text-[10px] text-muted-foreground">No parcel</div>
-          ) : null
-        ) : (
-          <>
-            {parcelNumber && (
-              <div className="shrink-0 flex items-center gap-0.5 text-primary">
+        {/* Parcel allocation badges (multi-parcel aware) */}
+        {(() => {
+          const allocs = itemAllocations[item.id];
+          if (allocs && allocs.length > 0) {
+            const totalAllocated = allocs.reduce((s, a) => s + a.quantity, 0);
+            const remaining = Math.max(0, info.packed - totalAllocated);
+            return (
+              <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end max-w-[55%]">
+                {allocs.map((a) => (
+                  <div key={a.parcelId} className="flex items-center gap-0.5 bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                    <Package className="h-3 w-3" />
+                    <span className="text-[10px] font-bold">#{a.parcelNumber}</span>
+                    {a.quantity > 1 && <span className="text-[9px] font-semibold">×{a.quantity}</span>}
+                  </div>
+                ))}
+                {remaining > 0 && (
+                  <div className="flex items-center gap-0.5 bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                    <span className="text-[9px] font-semibold">No parcel ×{remaining}</span>
+                  </div>
+                )}
+              </div>
+            );
+          }
+          // Fallback to legacy single badge
+          if (showParcelColumn) {
+            return parcelNumber ? (
+              <div className="shrink-0 flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded">
                 <Package className="h-3 w-3" />
                 <span className="text-[10px] font-bold">#{parcelNumber}</span>
               </div>
-            )}
-          </>
-        )}
+            ) : info.isComplete ? (
+              <div className="shrink-0 text-[10px] text-muted-foreground">No parcel</div>
+            ) : null;
+          }
+          return parcelNumber ? (
+            <div className="shrink-0 flex items-center gap-0.5 text-primary">
+              <Package className="h-3 w-3" />
+              <span className="text-[10px] font-bold">#{parcelNumber}</span>
+            </div>
+          ) : null;
+        })()}
         
         {/* Quantity badge */}
         {!showParcelColumn && (

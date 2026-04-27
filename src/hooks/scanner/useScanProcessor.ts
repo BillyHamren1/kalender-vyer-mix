@@ -32,6 +32,8 @@ interface UseScanProcessorOptions {
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
   getIsKolliMode: () => boolean;
+  /** Returns the currently active parcel id (or null) so allocations can be logged inside the API call. */
+  getActiveParcelId?: () => string | null;
   onScanResult: (result: ScanResult) => void;
   onHighlight: (itemId: string) => void;
   onOptimisticIncrement: (itemId: string) => void;
@@ -157,7 +159,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       } else {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
-        const result = await verifyProductBySku(packingId, scannedValue, verifierName);
+        const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId);
         scanLog('verify_result', result);
 
         // === Special branch: product not in packing list — pause + prompt user ===
@@ -305,7 +308,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
-    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
+    const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName, activeParcelId);
     if (result.success) {
       if (!isCurrentlyPacked) {
         onOptimisticIncrement(itemId);
