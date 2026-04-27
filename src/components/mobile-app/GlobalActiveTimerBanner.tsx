@@ -57,6 +57,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  const { current: currentWorkday } = useWorkDay();
+  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
 
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
   const [, setTick] = useState(0);
