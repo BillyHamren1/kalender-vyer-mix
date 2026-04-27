@@ -5195,10 +5195,12 @@ export type Database = {
           establishment_task_id: string | null
           hours_worked: number
           id: string
+          is_subdivision: boolean
           large_project_id: string | null
           location_id: string | null
           organization_id: string
           overtime_hours: number | null
+          parent_time_report_id: string | null
           rejected_at: string | null
           rejected_by: string | null
           rejection_comment: string | null
@@ -5221,10 +5223,12 @@ export type Database = {
           establishment_task_id?: string | null
           hours_worked?: number
           id?: string
+          is_subdivision?: boolean
           large_project_id?: string | null
           location_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
+          parent_time_report_id?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_comment?: string | null
@@ -5247,10 +5251,12 @@ export type Database = {
           establishment_task_id?: string | null
           hours_worked?: number
           id?: string
+          is_subdivision?: boolean
           large_project_id?: string | null
           location_id?: string | null
           organization_id?: string
           overtime_hours?: number | null
+          parent_time_report_id?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_comment?: string | null
@@ -5302,6 +5308,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_reports_parent_time_report_id_fkey"
+            columns: ["parent_time_report_id"]
+            isOneToOne: false
+            referencedRelation: "time_reports"
             referencedColumns: ["id"]
           },
           {
