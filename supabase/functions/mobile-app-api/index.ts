@@ -7865,6 +7865,8 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     happened_at: arrivedAt,
     source: 'geofence_foreground',
     suggested_action: 'start_activity',
+  })
+
   // NOTE: No server-side workday autostart here — workday is owned by the
   // frontend central start chain (tryStartFromArrival → ensureWorkDayActive).
   // Backend keeps arrival as pure signal/audit to avoid double writes.
