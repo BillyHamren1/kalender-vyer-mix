@@ -232,6 +232,19 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
 
   const getBookingName = (id: string) => resolveBookingName(id, bookings);
 
+  /** Get separate booking number + client name for table columns */
+  const getBookingParts = (id: string): { bookingNumber: string; clientName: string } => {
+    const link = bookings.find((b) => b.booking_id === id);
+    const bookingNumber = link?.booking?.booking_number?.trim() || '';
+    const clientName = link?.booking?.client?.trim()
+      || link?.display_name?.trim()
+      || '';
+    return {
+      bookingNumber: bookingNumber || `${id.slice(0, 8)}`,
+      clientName: clientName || '—',
+    };
+  };
+
   // Build lookup: booking_id -> local products for that booking
   const localProductsByBooking = useMemo(() => {
     const map: Record<string, LocalProduct[]> = {};
