@@ -789,7 +789,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             muted
           />
           <canvas ref={canvasRef} className="hidden" />
-          
+
+          {/* Quick visual flash on successful detection */}
+          {flashActive && (
+            <div className="absolute inset-0 bg-white/40 pointer-events-none transition-opacity duration-150" />
+          )}
+
+          {/* Soft hint when camera works but nothing has been detected for a while */}
+          {cameraState === 'running' && debugRef.current.noDetectionHint && !successfulDetectionRef.current && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-amber-500/85 text-black text-xs font-medium pointer-events-none">
+              Centrera koden i ramen — fortsätter att skanna
+            </div>
+          )}
+
+          {/* Debug overlay (?debug=scan or localStorage.scanner_debug=1) */}
+          {debugVisible && (
+            <div className="absolute bottom-2 left-2 right-2 z-10 px-2 py-1.5 rounded bg-black/70 text-[10px] leading-tight text-green-300 font-mono pointer-events-none">
+              <div>state: {cameraState} · detector: {debugRef.current.detectorReady ? 'ok' : 'no'} · ios: {String(isIos)}</div>
+              <div>video: {debugRef.current.videoW}×{debugRef.current.videoH} · frames: {debugRef.current.frames}</div>
+              <div>
+                lastDetect: {debugRef.current.lastDetectionAt
+                  ? `${Math.round((Date.now() - debugRef.current.lastDetectionAt) / 1000)}s sedan`
+                  : 'aldrig'}
+              </div>
+              {debugRef.current.lastError && <div className="text-red-300 truncate">err: {debugRef.current.lastError}</div>}
+            </div>
+          )}
+
 
           {cameraState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
