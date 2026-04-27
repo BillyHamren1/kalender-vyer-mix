@@ -118,6 +118,8 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
   const handleSubmit = async () => {
     if (!item || !isValid) return;
     setSubmitting(true);
+    // Long-running: creates wp + packing + links bookings + syncs products + verifies.
+    const progress = toast.loading('Skapar lagerprojekt och synkar packlista…');
     try {
       const wp = await createWarehouseProjectFromInbox(item, {
         name: name.trim(),
@@ -126,12 +128,14 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
         returnStart: hasReturn ? returnStart! : null,
         returnEnd: hasReturn ? returnEnd! : null,
       });
-      toast.success(`Lagerprojekt ${wp.project_number} skapat`);
+      toast.success(`Lagerprojekt ${wp.project_number} skapat — packlista klar`, { id: progress });
       onSuccess(wp);
       onOpenChange(false);
     } catch (err) {
       console.error(err);
-      toast.error('Kunde inte skapa lagerprojekt');
+      const msg = err instanceof Error ? err.message : 'Okänt fel';
+      toast.error(`Kunde inte skapa lagerprojekt: ${msg}`, { id: progress });
+      // Dialog stays open so the user can retry without losing input.
     } finally {
       setSubmitting(false);
     }
