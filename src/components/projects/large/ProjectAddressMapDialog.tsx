@@ -205,7 +205,7 @@ export default function ProjectAddressMapDialog({
     try {
       map = new mapboxgl.Map({
         container: containerNode,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: MAP_STYLES[mapStyle],
         center: initialCenter,
         zoom: coords.lat != null ? 14 : 4.5,
         attributionControl: false,
