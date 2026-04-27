@@ -39,6 +39,9 @@ export interface OverviewCalendarEvent {
 export interface OverviewAssignment {
   id: string;
   booking_id: string;
+  booking_number: string | null;
+  booking_title: string | null;
+  client: string | null;
   staff_id: string;
   staff_name: string;
   role: string;

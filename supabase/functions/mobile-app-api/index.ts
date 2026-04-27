@@ -8453,8 +8453,13 @@ async function handleGetOverviewCalendar(
 }
 
 // ── get_overview_assignments ──
-// Returns booking_staff_assignments for given booking_ids (and optional date range)
-// joined with staff_members (name, role, color).
+// Returns booking_staff_assignments for the caller's organization within the
+// given date window, enriched with booking metadata (number, client/title)
+// and staff info (name, role, color).
+//
+// `booking_ids` is OPTIONAL — when omitted the backend returns ALL relevant
+// assignments for the org/window. The mobile overview never knows
+// booking_ids in advance, so we must not require them.
 async function handleGetOverviewAssignments(
   supabase: any,
   callerUserId: string | null,
@@ -8466,22 +8471,30 @@ async function handleGetOverviewAssignments(
   const bookingIds = Array.isArray(data?.booking_ids)
     ? data.booking_ids.filter((s: any) => typeof s === 'string')
     : []
-  if (bookingIds.length === 0) {
-    return new Response(
-      JSON.stringify({ assignments: [] }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+
+  // Default to a sane window if caller didn't pass one.
+  const now = new Date()
+  const defaultFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+  const defaultTo = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+  const fromDate = (typeof data?.from === 'string' && data.from) || defaultFrom
+  const toDate = (typeof data?.to === 'string' && data.to) || defaultTo
 
   let query = supabase
     .from('booking_staff_assignments')
     .select('id, booking_id, staff_id, team_id, assignment_date, role')
     .eq('organization_id', organizationId)
-    .in('booking_id', bookingIds)
+    .gte('assignment_date', fromDate)
+    .lte('assignment_date', toDate)
     .order('assignment_date', { ascending: true })
 
-  if (typeof data?.from === 'string') query = query.gte('assignment_date', data.from)
-  if (typeof data?.to === 'string') query = query.lte('assignment_date', data.to)
+  // booking_ids is an OPTIONAL extra filter — never required.
+  if (bookingIds.length > 0) {
+    query = query.in('booking_id', bookingIds)
+  }
 
   const { data: bsaRows, error: bsaErr } = await query
   if (bsaErr) {
@@ -8492,7 +8505,10 @@ async function handleGetOverviewAssignments(
     )
   }
 
-  const staffIds = [...new Set((bsaRows || []).map((r: any) => r.staff_id).filter(Boolean))]
+  const rows = bsaRows || []
+
+  // Hydrate staff (name/role/color)
+  const staffIds = [...new Set(rows.map((r: any) => r.staff_id).filter(Boolean))]
   const staffMap: Record<string, { id: string; name: string; role: string | null; color: string | null }> = {}
   if (staffIds.length > 0) {
     const { data: staffRows } = await supabase
@@ -8503,13 +8519,38 @@ async function handleGetOverviewAssignments(
     for (const s of staffRows || []) staffMap[s.id] = s
   }
 
-  const enriched = (bsaRows || []).map((r: any) => ({
-    ...r,
-    staff: staffMap[r.staff_id] || null,
-  }))
+  // Hydrate bookings (number/client) — used by the overview UI to label the row
+  const bIds = [...new Set(rows.map((r: any) => r.booking_id).filter(Boolean))]
+  const bookingMap: Record<string, { id: string; client: string | null; booking_number: string | null }> = {}
+  if (bIds.length > 0) {
+    const { data: bookingRows } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number')
+      .in('id', bIds)
+      .eq('organization_id', organizationId)
+    for (const b of bookingRows || []) bookingMap[b.id] = b
+  }
+
+  const enriched = rows.map((r: any) => {
+    const staff = staffMap[r.staff_id] || null
+    const booking = bookingMap[r.booking_id] || null
+    return {
+      id: r.id,
+      booking_id: r.booking_id,
+      booking_number: booking?.booking_number ?? null,
+      booking_title: booking?.client ?? null,
+      client: booking?.client ?? null,
+      staff_id: r.staff_id,
+      staff_name: staff?.name ?? '',
+      role: r.role,
+      assignment_date: r.assignment_date,
+      team_id: r.team_id,
+      staff,
+    }
+  })
 
   return new Response(
-    JSON.stringify({ assignments: enriched }),
+    JSON.stringify({ assignments: enriched, from: fromDate, to: toDate }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
