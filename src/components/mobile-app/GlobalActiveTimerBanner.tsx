@@ -373,48 +373,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
           ))}
         </div>
       )}
-      {/* "Avsluta dagen" — fixed ovanför bottennaven (h-16 = 64px) +
-          iOS safe-area så hela knappen alltid syns på alla enheter.
-          Visas så länge arbetsdagen är öppen — även om alla aktivitets-
-          timers redan är stoppade. Annars går det inte att avsluta dagen
-          efter att man stoppat sin sista aktivitet. */}
-      {workdayOpen && location.pathname !== '/m/report' && (
-        <div
-          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
-          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
-        >
-          <Button
-            variant="default"
-            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
-            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-            disabled={savingKeys.size > 0}
-            title={t('workday.endDayTitle')}
-          >
-            <LogOut className="w-4 h-4" />
-            {t('workday.endDay')}
-          </Button>
-        </div>
-      )}
-      {/* "Starta dagen" — samma fixed slot som Avsluta-knappen, visas när
-          ingen arbetsdag är öppen så användaren alltid kan starta dagen
-          UTAN att först välja projekt/plats. Dagen är huvudspåret. */}
-      {showStartDay && (
-        <div
-          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
-          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
-        >
-          <Button
-            variant="default"
-            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
-            onClick={handleStartDay}
-            disabled={startingDay}
-            title={t('workday.startDayTitle')}
-          >
-            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {startingDay ? t('workday.starting') : t('workday.startDay')}
-          </Button>
-        </div>
-      )}
+      {/* Workday Start/End controls moved to <WorkDayStatusPanel/> at the
+          top of the mobile shell so the active day-timer + buttons live
+          together as one unit. This banner only renders activity rows
+          and EOD dialogs. */}
       {pendingStop && (
         <EndOfDayStopDialog
           open={!!pendingStop}
