@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ScheduledShift } from '@/services/mobileApiService';
 import { Calendar, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, isToday, parseISO, startOfDay } from 'date-fns';
+import { format, isToday, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { extractUTCTime, parsePlannerDateTime } from '@/utils/dateUtils';
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
@@ -33,7 +34,7 @@ interface PositionedShift {
 /** Assigns column slots so overlapping shifts render side-by-side. */
 function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): PositionedShift[] {
   const sorted = [...shifts].sort(
-    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    (a, b) => (parsePlannerDateTime(a.start_time)?.getTime() ?? 0) - (parsePlannerDateTime(b.start_time)?.getTime() ?? 0)
   );
 
   const positioned: PositionedShift[] = [];
@@ -51,8 +52,12 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
   };
 
   for (const s of sorted) {
-    const startMs = Math.max(new Date(s.start_time).getTime(), dayStart.getTime());
-    const endMs = Math.min(new Date(s.end_time).getTime(), dayEnd.getTime());
+    const startDate = parsePlannerDateTime(s.start_time);
+    const endDate = parsePlannerDateTime(s.end_time);
+    if (!startDate || !endDate) continue;
+
+    const startMs = Math.max(startDate.getTime(), dayStart.getTime());
+    const endMs = Math.min(endDate.getTime(), dayEnd.getTime());
     if (endMs <= startMs) continue;
 
     const topPx = ((startMs - dayStart.getTime()) / 60000) * PX_PER_MINUTE;
@@ -65,7 +70,7 @@ function layoutShifts(shifts: ScheduledShift[], dayStart: Date, dayEnd: Date): P
     // Find the smallest free column index in the current cluster.
     const usedCols = new Set(
       cluster
-        .filter((p) => new Date(p.shift.end_time).getTime() > startMs)
+        .filter((p) => (parsePlannerDateTime(p.shift.end_time)?.getTime() ?? 0) > startMs)
         .map((p) => p.col)
     );
     let col = 0;
@@ -108,8 +113,9 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
     let startHour = DEFAULT_START_HOUR;
     let endHour = DEFAULT_END_HOUR;
     for (const s of shifts) {
-      const sd = parseISO(s.start_time);
-      const ed = parseISO(s.end_time);
+      const sd = parsePlannerDateTime(s.start_time);
+      const ed = parsePlannerDateTime(s.end_time);
+      if (!sd || !ed) continue;
       if (sd.toDateString() === today.toDateString()) {
         startHour = Math.min(startHour, sd.getHours());
       }
@@ -127,7 +133,8 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   const todaysShifts = useMemo(
     () =>
       shifts.filter((s) => {
-        const d = parseISO(s.start_time);
+        const d = parsePlannerDateTime(s.start_time);
+        if (!d) return false;
         return d.toDateString() === today.toDateString();
       }),
     [shifts, today]
@@ -239,8 +246,8 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                     {t(eventTypeI18nKey[shift.event_type])}
                   </span>
                   <span className="text-[10px] font-mono opacity-70">
-                    {format(parseISO(shift.start_time), 'HH:mm')}–
-                    {format(parseISO(shift.end_time), 'HH:mm')}
+                    {extractUTCTime(shift.start_time)}–
+                    {extractUTCTime(shift.end_time)}
                   </span>
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />

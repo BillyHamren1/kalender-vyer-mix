@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
 import type { ScheduledShift } from '@/services/mobileApiService';
+import { extractUTCDate, parsePlannerDateTime } from '@/utils/dateUtils';
 
 export type DateKey = string; // YYYY-MM-DD
 
 const keyOf = (d: Date | string): DateKey => {
-  const date = typeof d === 'string' ? parseISO(d) : d;
-  return format(date, 'yyyy-MM-dd');
+  if (typeof d === 'string') return extractUTCDate(d);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 };
 
 export interface ShiftsByDate {
@@ -31,7 +34,11 @@ export function useShiftsByDate(shifts: ScheduledShift[]): ShiftsByDate {
     }
     // Sort each day by start_time ascending
     for (const arr of map.values()) {
-      arr.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+      arr.sort((a, b) => {
+        const aTime = parsePlannerDateTime(a.start_time)?.getTime() ?? 0;
+        const bTime = parsePlannerDateTime(b.start_time)?.getTime() ?? 0;
+        return aTime - bTime;
+      });
     }
     return {
       map,
