@@ -8313,8 +8313,13 @@ function plannerForbidden() {
 }
 
 // ── get_overview_calendar ──
-// Returns ALL calendar_events in the org for the requested date range.
-// Defaults to today−7d / today+14d. Caller passes optional { from, to } ISO dates.
+// Returns calendar_events PLUS synthetic rows derived from bookings and
+// large_projects. The synthetic rows guarantee that the planner overview
+// never drops a job during a transient calendar_events sync gap.
+//
+// Identity for de-dupe: `${booking_id}|${event_type}|${source_date}`.
+// If a real calendar_events row exists for an identity, the synthetic row
+// for the same identity is skipped (real data wins for times/team).
 async function handleGetOverviewCalendar(
   supabase: any,
   callerUserId: string | null,
@@ -8328,7 +8333,10 @@ async function handleGetOverviewCalendar(
   const defaultTo = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
   const fromIso = (typeof data?.from === 'string' && data.from) || defaultFrom.toISOString()
   const toIso = (typeof data?.to === 'string' && data.to) || defaultTo.toISOString()
+  const fromDate = fromIso.slice(0, 10)
+  const toDate = toIso.slice(0, 10)
 
+  // ── 1) Real calendar_events ────────────────────────────────────────────
   const { data: events, error } = await supabase
     .from('calendar_events')
     .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address, source_date')
@@ -8345,8 +8353,101 @@ async function handleGetOverviewCalendar(
     )
   }
 
+  const real = events || []
+  const seen = new Set<string>()
+  for (const ev of real) {
+    const key = `${ev.booking_id || ''}|${ev.event_type || ''}|${ev.source_date || (ev.start_time || '').slice(0, 10)}`
+    seen.add(key)
+  }
+
+  // ── 2) Bookings in window (anti-flicker source of truth) ───────────────
+  const { data: bookings, error: bookErr } = await supabase
+    .from('bookings')
+    .select('id, client, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
+    .eq('organization_id', organizationId)
+    .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`)
+
+  if (bookErr) {
+    console.error('[overview-calendar] booking fallback failed:', bookErr)
+  }
+
+  // ── 3) Large projects in window ────────────────────────────────────────
+  const { data: projects, error: lpErr } = await supabase
+    .from('large_projects')
+    .select('id, name, address, start_date, event_date, end_date, status')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+
+  if (lpErr) {
+    console.error('[overview-calendar] large project fallback failed:', lpErr)
+  }
+
+  const synthetic: any[] = []
+  const phaseDefaults: Record<string, [string, string]> = {
+    rig: ['08:00:00', '12:00:00'],
+    event: ['08:00:00', '17:00:00'],
+    rigDown: ['08:00:00', '12:00:00'],
+  }
+  const buildIso = (date: string, t: string | null | undefined, fallback: string) => {
+    const time = (t && /^\d{2}:\d{2}/.test(t)) ? `${t}${t.length === 5 ? ':00' : ''}` : fallback
+    return `${date}T${time}`
+  }
+  const pushSynthetic = (
+    bookingId: string | null,
+    bookingNumber: string | null,
+    title: string,
+    address: string | null,
+    eventType: 'rig' | 'event' | 'rigDown',
+    date: string,
+    startT: string | null,
+    endT: string | null,
+  ) => {
+    if (!date || date < fromDate || date > toDate) return
+    const key = `${bookingId || ''}|${eventType}|${date}`
+    if (seen.has(key)) return
+    const [defS, defE] = phaseDefaults[eventType]
+    synthetic.push({
+      id: `synthetic-${bookingId || 'lp'}-${eventType}-${date}`,
+      title,
+      start_time: buildIso(date, startT, defS),
+      end_time: buildIso(date, endT, defE),
+      event_type: eventType,
+      resource_id: null,
+      booking_id: bookingId,
+      booking_number: bookingNumber,
+      delivery_address: address,
+      source_date: date,
+      _synthetic: true,
+    })
+    seen.add(key)
+  }
+
+  for (const b of bookings || []) {
+    if (b.status && String(b.status).toUpperCase() === 'OFFER') continue
+    const title = b.client || 'Bokning'
+    if (b.rigdaydate) pushSynthetic(b.id, b.booking_number, `${title} - rig`, b.deliveryaddress, 'rig', b.rigdaydate, b.rig_start_time, b.rig_end_time)
+    if (b.eventdate) pushSynthetic(b.id, b.booking_number, `${title} - event`, b.deliveryaddress, 'event', b.eventdate, b.event_start_time, b.event_end_time)
+    if (b.rigdowndate) pushSynthetic(b.id, b.booking_number, `${title} - rigDown`, b.deliveryaddress, 'rigDown', b.rigdowndate, b.rigdown_start_time, b.rigdown_end_time)
+  }
+
+  for (const p of projects || []) {
+    const title = p.name || 'Stort projekt'
+    for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null)
+    for (const d of p.event_date || []) pushSynthetic(null, null, `${title} - event`, p.address, 'event', d, null, null)
+    for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null)
+  }
+
+  const merged = [...real, ...synthetic].sort((a, b) =>
+    String(a.start_time).localeCompare(String(b.start_time))
+  )
+
   return new Response(
-    JSON.stringify({ events: events || [], from: fromIso, to: toIso }),
+    JSON.stringify({
+      events: merged,
+      from: fromIso,
+      to: toIso,
+      meta: { real: real.length, synthetic: synthetic.length },
+    }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
