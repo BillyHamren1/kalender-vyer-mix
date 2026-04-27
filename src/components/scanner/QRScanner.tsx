@@ -430,30 +430,36 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   startCameraRef.current = startCamera;
   stopCameraRef.current = stopCamera;
 
+  // True mount/unmount tracking — independent of isActive toggles.
+  // Earlier code reset mountedRef in the isActive-effect cleanup, which on
+  // iOS could leave mountedRef=false right when a fresh startCamera() resolved
+  // → the scan loop saw "not mounted" and exited immediately, even though
+  // the component was still on screen and the camera stream was alive.
   useEffect(() => {
     mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopCameraRef.current();
+    };
+  }, []);
 
+  useEffect(() => {
     if (!isActive) {
       setError(null);
       stopCameraRef.current();
-      return () => {
-        mountedRef.current = false;
-        stopCameraRef.current();
-      };
+      return;
     }
 
     if (shouldSkipCamera) {
       stopCameraRef.current();
-      return () => {
-        mountedRef.current = false;
-        stopCameraRef.current();
-      };
+      return;
     }
 
     void startCameraRef.current();
 
     return () => {
-      mountedRef.current = false;
+      // Stop the stream when isActive flips off, but DO NOT touch mountedRef
+      // — the component is still alive.
       stopCameraRef.current();
     };
     // Intentionally only depend on activation flags — start/stop are read via refs
