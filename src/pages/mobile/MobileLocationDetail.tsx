@@ -107,85 +107,19 @@ const MobileLocationDetail = () => {
     ? { kind: 'location', locationId: location.id, name: location.name }
     : null;
 
-  /**
-   * Check rule-based concurrency, then either start, ignore, or open the
-   * switch dialog. Used by both the header play button and per-task starts.
-   */
-  const requestStart = (label: string, doStart: () => void) => {
-    if (!locationTarget) return;
-    const evalResult = evaluateStartConflict(locationTarget, activeTimers);
-    if (evalResult.status === 'duplicate') return;
-    if (evalResult.status === 'allow') {
-      doStart();
-      return;
-    }
-    setPendingStart({ label, doStart });
-    setConflictEval(evalResult);
-  };
-
-  const cancelConflict = () => {
-    setPendingStart(null);
-    setConflictEval(null);
-  };
-
-  const confirmSwitch = async () => {
-    if (!pendingStart || !conflictEval) return;
-    const { conflict } = conflictEval;
-    const { doStart } = pendingStart;
-    cancelConflict();
-    const existing = activeTimers.get(conflict.key);
-    if (!existing) {
-      doStart();
-      return;
-    }
-    const stopTarget: WorkTarget = existing.locationId
-      ? {
-          kind: 'location',
-          locationId: existing.locationId,
-          name: existing.locationName || existing.client,
-        }
-      : existing.largeProjectId
-        ? { kind: 'project', largeProjectId: existing.largeProjectId, name: existing.client }
-        : { kind: 'booking', bookingId: conflict.key, client: existing.client };
-    try {
-      const res = await stopSession(stopTarget);
-      if (res.cancelled) return;
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte stoppa pågående timer');
-      return;
-    }
-    doStart();
-  };
-
   const handleStartTaskTimer = (task: LagerTask) => {
     if (!locationTarget) return;
-    requestStart(task.title, () => {
-      const opts = { taskId: task.id, taskTitle: task.title };
-      const successToast = () => toast.success(`${t('timer.started')}: ${task.title}`);
-      const started = startSessionWithDistanceCheck(locationTarget, opts, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => { confirm(); successToast(); },
-        });
-      });
-      if (started) successToast();
+    // UNIFIED START FLOW — workday-first guarantee, conflict + distance dialogs.
+    requestStart(locationTarget, {
+      label: task.title,
+      taskId: task.id,
+      taskTitle: task.title,
     });
   };
 
   const handleStartGeneralTimer = () => {
     if (!locationTarget) return;
-    requestStart(locationTarget.name, () => {
-      const successToast = () => toast.success(`${t('timer.started')}: ${locationTarget.name}`);
-      const started = startSessionWithDistanceCheck(locationTarget, {}, ({ placeName, distance, confirm }) => {
-        setDistanceWarning({
-          placeName,
-          distance,
-          onConfirm: () => { confirm(); successToast(); },
-        });
-      });
-      if (started) successToast();
-    });
+    requestStart(locationTarget, { label: locationTarget.name });
   };
 
   const handleStopTimer = async () => {
