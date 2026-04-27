@@ -85,9 +85,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   } = useOptimisticPacking(packingId);
 
   const {
-    isKolliMode, activeParcel, itemParcelMap,
+    isKolliMode, activeParcel, itemParcelMap, itemAllocations,
     startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
   } = useKolliManager(packingId);
+
+  const activeParcelRef = useRef(activeParcel);
+  activeParcelRef.current = activeParcel;
 
   const { lastScanResult, highlightedItemId, setScanResult, highlightRow, cleanup: cleanupFeedback } = useScanFeedback();
 
@@ -122,6 +125,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onOptimisticDecrement: applyOptimisticDecrement,
     onAssignToKolli: assignToKolli,
     getIsKolliMode: () => isKolliMode,
+    getActiveParcelId: () => activeParcelRef.current?.id ?? null,
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
