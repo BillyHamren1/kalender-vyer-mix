@@ -5,6 +5,7 @@ import {
 } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { scanLog } from './scanLog';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 export interface PackingItem {
   id: string;
