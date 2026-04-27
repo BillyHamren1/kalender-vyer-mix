@@ -7804,12 +7804,11 @@ async function handleReportArrival(supabase: any, staffId: string, data: any, or
     }
   }
 
-  // ── AUTO-FIRST 2026-04 ──
-  // Klienten startar activity-timern direkt efter detta anrop via
-  // tryStartFromArrival. Server-side autostartar workday här (idempotent),
-  // men vi skapar INGEN time_report — det gör start_*_timer-actions.
-  // arrival_prompt_log skrivs som AUDIT-spegling och driver inte längre
-  // klientens normalflöde; den används bara av push-cron som fallback.
+  // ── ARRIVAL = SIGNAL ONLY (2026-04 cleanup) ──
+  // handleReportArrival loggar arrival och speglar till assistant_events som
+  // audit. Ingen workday-autostart här — frontend äger startkedjan via
+  // tryStartFromArrival → ensureWorkDayActive → startSession. Detta tar bort
+  // dubbla skrivvägar mot workdays-tabellen vid geofence-enter.
 
   // ── prompt-log (alla arrivals — assigned eller ej) ──
   // Dedupe: if there is already an UNRESOLVED log row for the same
