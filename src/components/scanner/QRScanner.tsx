@@ -715,19 +715,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             </div>
           )}
 
-          {cameraState === 'idle' && isNativeIos && !hasStartGesture && (
+          {cameraState === 'idle' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
-              <Camera className="h-14 w-14 mb-4 opacity-60" />
-              <p className="text-center text-base mb-2">Tryck för att starta kameran</p>
-              <p className="text-center text-sm text-white/60 mb-6">Det gör iPhone-scanningen snabbare och stabilare.</p>
-              <Button
-                onClick={() => {
-                  setHasStartGesture(true);
-                  void startCamera();
-                }}
-              >
-                Starta kamera
-              </Button>
+              <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
+              <p className="text-center text-base">Förbereder kamera...</p>
             </div>
           )}
 
