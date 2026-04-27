@@ -128,39 +128,23 @@ const LargeProjectLayout = () => {
     }
   }, [project?.id, project?.address, bookings.length]);
 
-  const handleSaveAddress = async () => {
-    if (!editAddress.trim()) return;
-    setIsGeocodingAddress(true);
-    try {
-      const tokenRes = await supabase.functions.invoke('mapbox-token');
-      const token = tokenRes.data?.token;
-      if (!token) throw new Error('No Mapbox token');
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(editAddress.trim())}.json?access_token=${token}&country=se&language=sv&limit=1`
-      );
-      const json = await res.json();
-      const feature = json.features?.[0];
-      if (!feature) {
-        detail.updateProject({
-          address: editAddress.trim(),
-          address_latitude: null,
-          address_longitude: null,
-        } as any);
-        toast.info('Adress sparad utan koordinater');
-      } else {
-        detail.updateProject({
-          address: feature.place_name || editAddress.trim(),
-          address_latitude: feature.center[1],
-          address_longitude: feature.center[0],
-        } as any);
-        toast.success('Adress och koordinater sparade');
-      }
-      setIsEditingAddress(false);
-    } catch {
-      toast.error('Kunde inte geokoda adressen');
-    } finally {
-      setIsGeocodingAddress(false);
-    }
+  const handleAddressDialogSave = async (data: {
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+    radius_meters: number;
+    geofence_mode: 'circle' | 'polygon';
+    geofence_polygon: GeoJSON.Polygon | null;
+  }) => {
+    detail.updateProject({
+      address: data.address || null,
+      address_latitude: data.latitude,
+      address_longitude: data.longitude,
+      address_radius_meters: data.radius_meters,
+      address_geofence_mode: data.geofence_mode,
+      address_geofence_polygon: data.geofence_polygon as any,
+    } as any);
+    toast.success('Adress och staket sparade');
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
