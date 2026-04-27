@@ -42,10 +42,20 @@ const MobileJobDetail = () => {
   const [timerElapsed, setTimerElapsed] = useState(0);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [distanceWarning, setDistanceWarning] = useState<{ placeName: string; distance: number; onConfirm: () => void } | null>(null);
 
   const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
-  const { activeTimers, startSessionWithDistanceCheck, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  // STOP via useWorkSession (unified engine).
+  // START via useTimerStartFlow (workday-first guarantee + conflict + distance).
+  const { activeTimers, stopSession, dialogs } = useWorkSession(bookingsArr, staff?.id);
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookingsArr, staff?.id);
 
   // If this booking belongs to a large project, all time is reported on the
   // project total (not per sub-booking). Hide the standalone timer here and
