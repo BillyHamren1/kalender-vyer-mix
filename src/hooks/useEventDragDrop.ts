@@ -15,6 +15,8 @@ export interface DraggedEventData {
   bookingId?: string;
   eventType?: string;
   resourceId: string;
+  isSyntheticFallback?: boolean;
+  largeProjectId?: string;
 }
 
 export const DRAG_DATA_TYPE = 'application/x-calendar-event';
@@ -34,6 +36,8 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
       bookingId: event.bookingId,
       eventType: event.eventType,
       resourceId: event.resourceId,
+      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
+      largeProjectId: (event.extendedProps as any)?.largeProjectId,
     };
     e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
     e.dataTransfer.effectAllowed = 'move';
@@ -90,6 +94,25 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
     // Check if dropping on the same date
     const currentDateStr = eventData.start.split('T')[0];
     if (currentDateStr === targetDateStr) return;
+
+    // Guard: large projects manage their own dates via the project page; the
+    // planner's drag flow only knows how to move single-booking events.
+    if (eventData.largeProjectId) {
+      toast.error('Kan inte flytta dagar för stora projekt här.', {
+        description: 'Öppna projektet och justera datumen i projektvyn.',
+      });
+      return;
+    }
+
+    // Guard: synthetic fallback rows do not exist in calendar_events yet.
+    // The backend reconciler must create the real row first; a planner move
+    // would otherwise update nothing and confuse the user.
+    if (eventData.isSyntheticFallback || eventData.id.startsWith('synthetic-')) {
+      toast.error('Den här dagen är inte synkad än.', {
+        description: 'Vänta tills bokningen är fullt synkroniserad och försök igen.',
+      });
+      return;
+    }
 
     setIsMoving(true);
     try {
