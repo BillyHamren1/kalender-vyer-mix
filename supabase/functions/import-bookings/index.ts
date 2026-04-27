@@ -201,11 +201,8 @@ const formatOffset = (offsetMin: number): string => {
 
 /**
  * Build a datetime string from a date and an explicit time value.
- * The result includes the Europe/Stockholm UTC offset (DST-aware) so that
- * Postgres `timestamptz` columns store the correct instant.
- *
- * Returns { dateTime, isExplicit } so callers know whether a real
- * booking time was used or a fallback default.
+ * Naiv strategi: vi appendar +00:00 så Postgres accepterar det som timestamptz
+ * utan att skifta värdet. "08:00" lagras som "08:00:00+00" och visas som 08:00.
  */
 const buildDateTimeFromPartsEx = (
   date: string,
@@ -214,8 +211,7 @@ const buildDateTimeFromPartsEx = (
 ): { dateTime: string; isExplicit: boolean } => {
   const extracted = extractTimePart(explicitTime);
   const time = extracted || fallbackTime;
-  const offset = formatOffset(stockholmOffsetMinutes(date, time));
-  return { dateTime: `${date}T${time}${offset}`, isExplicit: !!extracted };
+  return { dateTime: `${date}T${time}+00:00`, isExplicit: !!extracted };
 };
 
 /** Legacy wrapper — returns just the datetime string */
