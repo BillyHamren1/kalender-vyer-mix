@@ -106,10 +106,6 @@ const StaffManagement: React.FC = () => {
           onClick: () => setIsAddDialogOpen(true)
         }}
       >
-        <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate('/staff-management/time-review')}>
-          <Clock className="h-4 w-4 mr-1" />
-          Dagöversikt
-        </Button>
         <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate('/staff-management/time-reports')}>
           <Clock className="h-4 w-4 mr-1" />
           Tidrapporter

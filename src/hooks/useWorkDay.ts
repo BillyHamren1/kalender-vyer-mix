@@ -100,6 +100,17 @@ export function useWorkDay(): UseWorkDayResult {
     void refresh();
   }, [refresh]);
 
+  // Optimistic end: when endWorkdayFlow / syncWorkDayEnd succeeds it
+  // dispatches 'workday-ended'. Realtime catches up eventually but can
+  // lag a few seconds; clearing locally here gives instant UI feedback
+  // (header timer disappears, "Avsluta dagen" → "Starta dagen") so the
+  // user sees that the press worked.
+  useEffect(() => {
+    const onEnded = () => setCurrent(null);
+    window.addEventListener('workday-ended', onEnded);
+    return () => window.removeEventListener('workday-ended', onEnded);
+  }, []);
+
   // Realtime subscription — listen for workdays for this staff.
   useEffect(() => {
     if (!staffId) return;

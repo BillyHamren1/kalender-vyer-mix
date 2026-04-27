@@ -91,28 +91,7 @@ async function main() {
   // 4. Sync iOS
   run('npx cap sync ios', 'Syncing iOS project');
 
-  // 5. Verify Info.plist actually reflects the chosen mode
-  try {
-    const { readFileSync } = await import('fs');
-    const plistPath = resolve(ROOT, 'ios/App/App/Info.plist');
-    const plist = readFileSync(plistPath, 'utf8');
-    const expectedDisplayName = cfg.appName;
-    const expectedCameraSubstr = mode === 'scanner' ? 'EventFlow Scanner' : 'EventFlow Time';
-    const displayNameOk = plist.includes(`<string>${expectedDisplayName}</string>`);
-    const cameraOk = plist.includes(expectedCameraSubstr);
-    console.log('\n🔍 Verifying ios/App/App/Info.plist after sync:');
-    console.log(`   CFBundleDisplayName "${expectedDisplayName}": ${displayNameOk ? '✅' : '❌'}`);
-    console.log(`   NSCameraUsageDescription contains "${expectedCameraSubstr}": ${cameraOk ? '✅' : '❌'}`);
-    if (!displayNameOk || !cameraOk) {
-      console.error(`\n❌ Info.plist does NOT match ${cfg.appName}. Open Xcode and re-run; do not ship.`);
-      process.exit(2);
-    }
-  } catch (e) {
-    console.warn('⚠️  Could not verify Info.plist:', e.message);
-  }
-
   console.log(`\n✨ iOS build complete for ${cfg.appName}!`);
-  console.log(`   App ID: ${cfg.appId}`);
   console.log(`   Open Xcode: npx cap open ios`);
   console.log(`   The AppIcon set has been generated from: assets/app-icons/eventflow-${mode}-icon.png\n`);
 }

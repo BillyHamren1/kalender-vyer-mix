@@ -1,21 +1,25 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import {
-  ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine,
-} from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine } from 'lucide-react';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { signPacking } from '@/services/scannerService';
+import { supabase } from '@/integrations/supabase/client'; // still used for staff lookup
+import { 
+  fetchPackingListItems, 
+  togglePackingItemManually,
+  decrementPackingItem,
+  createParcel,
+  assignItemToParcel,
+  getItemParcels,
+  fetchPackingForScanner,
+  signPacking
+} from '@/services/scannerService';
+import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
-import { useOptimisticPacking } from '@/hooks/scanner/useOptimisticPacking';
-import { useKolliManager } from '@/hooks/scanner/useKolliManager';
-import { useManualPackingActions } from '@/hooks/scanner/useManualPackingActions';
-import { getDisplayedProgressForRow } from '@/lib/packing/progress';
-import { buildChildrenByParent, classifyAndFormatRow } from '@/lib/packing/displayNames';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 interface ManualChecklistViewProps {
   packingId: string;
@@ -23,33 +27,52 @@ interface ManualChecklistViewProps {
   verifierName?: string;
 }
 
-export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
-  packingId,
+interface PackingItem {
+  id: string;
+  quantity_to_pack: number;
+  quantity_packed: number;
+  verified_at: string | null;
+  verified_by: string | null;
+  parcel_id: string | null;
+  booking_products: {
+    id: string;
+    name: string;
+    quantity: number;
+    sku: string | null;
+    notes: string | null;
+    parent_product_id: string | null;
+    parent_package_id: string | null;
+    is_package_component: boolean | null;
+  } | null;
+}
+
+const cleanProductName = (name: string): string => {
+  return name.replace(/^[↳└⦿\s,L\-–—]+/, '').trim();
+};
+
+const formatToTitleCase = (text: string): string => {
+  const upperCount = (text.match(/[A-ZÅÄÖ]/g) || []).length;
+  const lowerCount = (text.match(/[a-zåäö]/g) || []).length;
+  if (lowerCount >= upperCount) return text;
+  
+  return text.split(' ').map(word => {
+    if (word.length <= 3 && /^[A-ZÅÄÖ0-9]+$/.test(word)) return word;
+    if (/\d/.test(word)) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+};
+
+export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({ 
+  packingId, 
   onBack,
-  verifierName = 'Manual',
+  verifierName = 'Manual' 
 }) => {
   const { user } = useAuth();
-
-  // === Shared state hooks (same as VerificationView) ===
-  const {
-    packing, items, progress, isLoading, loadData,
-    applyOptimisticIncrement, applyOptimisticDecrement,
-  } = useOptimisticPacking(packingId);
-
-  const {
-    isKolliMode, activeParcel, itemParcelMap,
-    startKolli, nextKolli, exitKolli, assignToKolli, loadParcels,
-  } = useKolliManager(packingId);
-
-  const { manualIncrement, manualDecrement } = useManualPackingActions({
-    verifierName,
-    applyOptimisticIncrement,
-    applyOptimisticDecrement,
-    getActiveParcelId: () => (isKolliMode && activeParcel ? activeParcel.id : null),
-    assignToKolli,
-  });
-
-  // === Local-only UI state ===
+  const [packing, setPacking] = useState<PackingWithBooking | null>(null);
+  const [items, setItems] = useState<PackingItem[]>([]);
+  const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const itemOrderRef = useRef<Record<string, number>>({});
   const [tappedItemId, setTappedItemId] = useState<string | null>(null);
   const [staffFirstName, setStaffFirstName] = useState<string>('');
   const [isSigned, setIsSigned] = useState(false);
@@ -64,24 +87,70 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       });
   }, [user?.email]);
 
-  // Sync sign-state from packing metadata
-  useEffect(() => {
-    if (packing?.signed_by && packing?.signed_at) {
-      setIsSigned(true);
-      setSignedInfo({ by: packing.signed_by, at: packing.signed_at });
+  // Kolli mode state
+  const [isKolliMode, setIsKolliMode] = useState(false);
+  const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
+  const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
+  const loadData = useCallback(async (isBackground = false) => {
+    try {
+      if (!isBackground) setIsLoading(true);
+      // Fetch packing + items first (items auto-generates packing_list_items)
+      const [packingData, itemsData] = await Promise.all([
+        fetchPackingForScanner(packingId),
+        fetchPackingListItems(packingId),
+      ]);
+
+      setPacking(packingData);
+      if (packingData?.signed_by && packingData?.signed_at) {
+        setIsSigned(true);
+        setSignedInfo({ by: packingData.signed_by, at: packingData.signed_at });
+      }
+
+      // Now that items exist in DB, fetch parcels
+      const parcelsData = await getItemParcels(packingId);
+
+      const typedItems = itemsData as PackingItem[];
+      let finalItems: PackingItem[];
+      if (Object.keys(itemOrderRef.current).length === 0) {
+        const order: Record<string, number> = {};
+        typedItems.forEach((item, idx) => { order[item.id] = idx; });
+        itemOrderRef.current = order;
+        finalItems = typedItems;
+      } else {
+        const sorted = [...typedItems].sort(
+          (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
+        );
+        
+        if (isBackground) {
+          setItems(prev => {
+            const prevMap = new Map(prev.map(i => [i.id, i]));
+            const merged = sorted.map(serverItem => {
+              const localItem = prevMap.get(serverItem.id);
+              if (localItem && localItem.quantity_packed > serverItem.quantity_packed) {
+                return { ...serverItem, quantity_packed: localItem.quantity_packed };
+              }
+              return serverItem;
+            });
+            recalcProgress(merged);
+            return merged;
+          });
+          setItemParcelMap(parcelsData);
+          return;
+        }
+        finalItems = sorted;
+      }
+      setItems(finalItems);
+      recalcProgress(finalItems);
+      setItemParcelMap(parcelsData);
+    } catch (err) {
+      console.error('Error loading packing data:', err);
+      if (!isBackground) toast.error('Could not load packing list');
+    } finally {
+      if (!isBackground) setIsLoading(false);
     }
-  }, [packing?.signed_by, packing?.signed_at]);
+  }, [packingId]);
 
-  // Initial load + parcels
-  useEffect(() => {
-    const init = async () => {
-      await loadData(false);
-      await loadParcels();
-    };
-    init();
-  }, [loadData, loadParcels]);
-
-  // Realtime sync
+  // Realtime sync: refetch when packing data changes
   const realtimeTables = useMemo(() => ['packing_list_items', 'packing_projects'], []);
   useScannerRealtime({
     tables: realtimeTables,
@@ -89,33 +158,102 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     pollingInterval: 30000,
   });
 
-  // === Action wrappers (visual feedback only) ===
+  useEffect(() => { loadData(false); }, [loadData]);
+
+  const startKolliMode = useCallback(async () => {
+    try {
+      const parcel = await createParcel(packingId, verifierName);
+      setActiveParcel(parcel);
+      setIsKolliMode(true);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
+    } catch (err) {
+      toast.error('Could not create parcel');
+    }
+  }, [packingId, verifierName]);
+
+  const nextParcel = useCallback(async () => {
+    try {
+      const parcel = await createParcel(packingId, verifierName);
+      setActiveParcel(parcel);
+      toast.success(`Parcel #${parcel.parcel_number} started`);
+      const parcelsData = await getItemParcels(packingId);
+      setItemParcelMap(parcelsData);
+    } catch (err) {
+      toast.error('Could not create next parcel');
+    }
+  }, [packingId, verifierName]);
+
+  const exitKolliMode = useCallback(async () => {
+    setIsKolliMode(false);
+    setActiveParcel(null);
+    await loadData(false);
+    toast.info('Parcel mode ended');
+  }, [loadData]);
+
+  // Recalculate progress locally from items array (excluding parent items that have children)
+  const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
+    // Single source of truth — see src/lib/packing/progress.ts.
+    // Server-side checkIfAllPacked uses the same rule via the Deno mirror.
+    const { total, verified, percentage } = computePackingProgress(updatedItems);
+    setProgress({ total, verified, percentage });
+  }, []);
+
+  // Handle increment
   const handleIncrement = useCallback(async (itemId: string, quantityToPack: number, isParent: boolean) => {
     if (isParent) return;
     setTappedItemId(itemId);
     setTimeout(() => setTappedItemId(null), 200);
-    await manualIncrement(itemId, quantityToPack, isParent);
-  }, [manualIncrement]);
 
+    const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
+    if (result.success) {
+      if (isKolliMode && activeParcel) {
+        await assignItemToParcel(itemId, activeParcel.id);
+        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
+      }
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(i =>
+          i.id === itemId
+            ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) }
+            : i
+        );
+        recalcProgress(updated);
+        return updated;
+      });
+    } else {
+      toast.error(result.error || 'Could not update');
+    }
+  }, [verifierName, isKolliMode, activeParcel, recalcProgress]);
+
+  // Handle decrement (subtract 1)
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
-    await manualDecrement(itemId, isParent);
-  }, [manualDecrement]);
+    if (isParent) return;
+    const result = await decrementPackingItem(itemId, verifierName);
+    if (result.success) {
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(i =>
+          i.id === itemId
+            ? { ...i, quantity_packed: Math.max((i.quantity_packed || 0) - 1, 0) }
+            : i
+        );
+        recalcProgress(updated);
+        return updated;
+      });
+    } else {
+      toast.error(result.error || 'Could not update');
+    }
+  }, [verifierName, recalcProgress]);
 
-  const handleStartKolli = useCallback(async () => {
-    await startKolli(verifierName);
-  }, [startKolli, verifierName]);
-
-  const handleNextKolli = useCallback(async () => {
-    await nextKolli(verifierName);
-  }, [nextKolli, verifierName]);
-
-  const handleExitKolli = useCallback(async () => {
-    exitKolli();
-    await loadData(false);
-  }, [exitKolli, loadData]);
-
-  // === Render ===
-  const childrenByParent = useMemo(() => buildChildrenByParent(items), [items]);
+  // Build parent-children map
+  const childrenByParent: Record<string, PackingItem[]> = {};
+  items.forEach(item => {
+    const parentId = item.booking_products?.parent_product_id;
+    if (parentId) {
+      if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
+      childrenByParent[parentId].push(item);
+    }
+  });
 
   if (isLoading) {
     return (
@@ -155,7 +293,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
           {progress.percentage}%
         </span>
         {!isKolliMode && (
-          <Button onClick={handleStartKolli} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
+          <Button onClick={startKolliMode} size="sm" variant="outline" className="h-8 px-2.5 gap-1">
             <Package className="h-3.5 w-3.5" />
             <span className="text-xs">Parcel</span>
           </Button>
@@ -171,23 +309,25 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               <span className="font-semibold text-sm">PARCEL #{activeParcel.parcel_number}</span>
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleNextKolli} size="sm" variant="secondary" className="h-7 text-xs gap-1">
-                <ChevronRight className="h-3 w-3" />
-                Next
+              <Button onClick={nextParcel} size="sm" variant="secondary" className="h-7 text-xs gap-1">
+                 <ChevronRight className="h-3 w-3" />
+                 Next
               </Button>
-              <Button onClick={handleExitKolli} size="sm" variant="secondary" className="h-7 text-xs gap-1">
-                <X className="h-3 w-3" />
-                End
+              <Button onClick={exitKolliMode} size="sm" variant="secondary" className="h-7 text-xs gap-1">
+                 <X className="h-3 w-3" />
+                 End
               </Button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Hint */}
       <p className="text-[10px] text-muted-foreground px-1">
         Use + and − to count up/down each component
       </p>
 
+      {/* No items */}
       {items.length === 0 && (
         <Card className="border-amber-500/50 bg-amber-50">
           <CardContent className="py-3">
@@ -202,64 +342,104 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         </Card>
       )}
 
+      {/* Product list — large touch targets */}
       {items.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
+             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packed</span>
           </div>
-
+          
           <div className="divide-y divide-border/30 max-h-[calc(100vh-280px)] overflow-y-auto">
             {items.map(item => {
-              const cls = classifyAndFormatRow(item, childrenByParent);
-              const display = getDisplayedProgressForRow(item, items);
-              const packed = display.displayedPacked;
-              const total = display.displayedTotal;
-
+              const rawName = item.booking_products?.name || 'Unknown product';
+              const trimmedName = rawName.trimStart();
+              const productId = item.booking_products?.id;
+              
+              const isChildByRelation = !!(
+                item.booking_products?.parent_product_id || 
+                item.booking_products?.parent_package_id || 
+                item.booking_products?.is_package_component
+              );
+              const isChildByPrefix = (
+                trimmedName.startsWith('↳') || 
+                trimmedName.startsWith('└') || 
+                trimmedName.startsWith('L,') ||
+                trimmedName.startsWith('⦿')
+              );
+              const isChild = isChildByRelation || isChildByPrefix;
+              
+              const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
+              const isParent = !isChild && hasChildren;
+              
+              let packed = item.quantity_packed || 0;
+              let total = item.quantity_to_pack;
+              
+              if (isParent && productId) {
+                const children = childrenByParent[productId] || [];
+                const childrenPacked = children.filter(c => (c.quantity_packed || 0) >= c.quantity_to_pack).length;
+                const allChildrenPacked = children.length > 0 && childrenPacked === children.length;
+                total = 1;
+                packed = allChildrenPacked ? 1 : 0;
+              }
+              
+              const cleanName = cleanProductName(rawName);
+              const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+              
               const isComplete = packed >= total && total > 0;
               const isPartial = packed > 0 && packed < total;
               const isTapped = tappedItemId === item.id;
+              
               const parcelNumber = itemParcelMap[item.id];
-
+              
               return (
-                <div
+                <div 
                   key={item.id}
                   className={`w-full flex items-center gap-2 transition-all select-none ${
-                    isComplete ? 'bg-primary/5'
-                      : isPartial ? 'bg-amber-50/50'
-                      : ''
+                    isComplete 
+                      ? 'bg-primary/5' 
+                      : isPartial 
+                        ? 'bg-amber-50/50' 
+                        : ''
                   } ${
-                    cls.isParent ? 'bg-muted border-b border-t border-border' : ''
+                    isParent ? 'bg-muted border-b border-t border-border' : ''
                   } ${
                     isTapped ? 'bg-primary/10' : ''
-                  } ${cls.isChild ? 'pl-3 pr-2 py-2' : 'px-3 py-2.5'}`}
+                  } ${isChild ? 'pl-3 pr-2 py-2' : 'px-3 py-2.5'}`}
                 >
                   {/* Status circle */}
                   <div className={`shrink-0 rounded-full flex items-center justify-center ${
-                    cls.isChild ? 'w-5 h-5' : 'w-6 h-6'
+                    isChild ? 'w-5 h-5' : 'w-6 h-6'
                   } ${
-                    isComplete ? 'bg-primary'
-                      : isPartial ? 'bg-amber-500'
-                      : cls.isParent ? 'border-2 border-dashed border-muted-foreground/30'
-                      : 'border-2 border-muted-foreground/40'
+                    isComplete 
+                      ? 'bg-primary' 
+                      : isPartial 
+                        ? 'bg-amber-500' 
+                        : isParent
+                          ? 'border-2 border-dashed border-muted-foreground/30'
+                          : 'border-2 border-muted-foreground/40'
                   }`}>
                     {isComplete && <Check className="text-white w-3 h-3" />}
                     {isPartial && <span className="text-white text-[10px] font-bold">{packed}</span>}
                   </div>
-
                   {/* Product name */}
                   <div className="flex-1 min-w-0">
                     <span className={`block truncate ${
-                      cls.isChild ? 'text-xs font-normal' : 'text-xs font-semibold tracking-wide'
+                      isChild 
+                        ? 'text-xs font-normal' 
+                        : 'text-xs font-semibold tracking-wide'
                     } ${
-                      isComplete ? 'text-primary'
-                        : isPartial ? 'text-amber-800'
-                        : cls.isChild ? 'text-muted-foreground'
-                        : 'text-foreground'
+                      isComplete 
+                        ? 'text-primary' 
+                        : isPartial 
+                          ? 'text-amber-800'
+                          : isChild 
+                            ? 'text-muted-foreground' 
+                            : 'text-foreground'
                     }`}>
-                      {cls.displayName}
+                      {displayName}
                     </span>
-                    {cls.isParent && (
+                    {isParent && (
                       <span className="text-[9px] text-muted-foreground">
                         Auto when all parts packed
                       </span>
@@ -273,25 +453,27 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                       <span className="text-[10px] font-bold">#{parcelNumber}</span>
                     </div>
                   )}
-
-                  {/* +/- controls */}
-                  {!cls.isParent ? (
+                  
+                  {/* +/- controls and quantity */}
+                  {!isParent ? (
                     <div className="shrink-0 flex items-center gap-1">
                       <button
                         onClick={() => handleDecrement(item.id, false)}
                         disabled={packed === 0}
                         className={`w-9 h-9 rounded-md flex items-center justify-center border transition-colors ${
-                          packed === 0
-                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed'
+                          packed === 0 
+                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed' 
                             : 'border-border text-foreground active:bg-muted hover:bg-muted/60'
                         }`}
                       >
                         <Minus className="h-4 w-4" />
                       </button>
                       <div className={`min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
-                        isComplete ? 'bg-primary/10 text-primary'
-                          : isPartial ? 'bg-amber-100 text-amber-700'
-                          : 'bg-muted/60 text-muted-foreground'
+                        isComplete 
+                          ? 'bg-primary/10 text-primary' 
+                          : isPartial 
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-muted/60 text-muted-foreground'
                       }`}>
                         <span className="font-mono font-bold text-xs">
                           {packed}/{total}
@@ -301,8 +483,8 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                         onClick={() => handleIncrement(item.id, item.quantity_to_pack, false)}
                         disabled={isComplete}
                         className={`w-9 h-9 rounded-md flex items-center justify-center border transition-colors ${
-                          isComplete
-                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed'
+                          isComplete 
+                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed' 
                             : 'border-primary bg-primary/10 text-primary active:bg-primary/20 hover:bg-primary/15'
                         }`}
                       >
@@ -311,7 +493,9 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                     </div>
                   ) : (
                     <div className={`shrink-0 min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
-                      isComplete ? 'bg-primary/10 text-primary' : 'bg-muted/60 text-muted-foreground'
+                      isComplete 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'bg-muted/60 text-muted-foreground'
                     }`}>
                       <span className="font-mono font-bold text-xs">
                         {packed}/{total}
@@ -325,7 +509,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         </div>
       )}
 
-      {/* Sign */}
+      {/* Signed indicator or Sign button */}
       {isSigned && signedInfo ? (
         <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
           <div className="w-full h-12 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-primary font-semibold">

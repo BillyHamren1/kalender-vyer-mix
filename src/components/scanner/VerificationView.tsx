@@ -22,7 +22,6 @@ import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
-import { buildChildrenByParent, classifyAndFormatRow } from '@/lib/packing/displayNames';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 
 interface ScannerStateProps {
@@ -47,6 +46,24 @@ interface VerificationViewProps {
   scannerState?: ScannerStateProps;
   rfidControls?: RfidControlsProps;
 }
+
+// Remove prefix symbols from product names
+const cleanProductName = (name: string): string => {
+  return name.replace(/^[↳└⦿\s,L]+/, '').trim();
+};
+
+// Convert UPPERCASE text to Title Case, preserving abbreviations and measurements
+const formatToTitleCase = (text: string): string => {
+  const upperCount = (text.match(/[A-ZÅÄÖ]/g) || []).length;
+  const lowerCount = (text.match(/[a-zåäö]/g) || []).length;
+  if (lowerCount >= upperCount) return text;
+  
+  return text.split(' ').map(word => {
+    if (word.length <= 3 && /^[A-ZÅÄÖ0-9]+$/.test(word)) return word;
+    if (/\d/.test(word)) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+};
 
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
@@ -169,31 +186,54 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     await loadData(false);
   }, [exitKolli, loadData]);
 
-  // --- Rendering helpers (shared with ManualChecklistView via @/lib/packing/displayNames) ---
-  const getItemDisplayInfo = (
-    item: PackingItem,
-    childrenByParent: Record<string, PackingItem[]>,
-  ) => {
-    const cls = classifyAndFormatRow(item, childrenByParent);
-    // Shared parent-collapse rule, see src/lib/packing/progress.ts.
+  // --- Rendering helpers ---
+  const buildChildrenMap = (itemsList: PackingItem[]) => {
+    const map: Record<string, PackingItem[]> = {};
+    itemsList.forEach(i => {
+      const parentId = i.booking_products?.parent_product_id;
+      if (parentId) {
+        if (!map[parentId]) map[parentId] = [];
+        map[parentId].push(i);
+      }
+    });
+    return map;
+  };
+
+  const getItemDisplayInfo = (item: PackingItem, childrenByParent: Record<string, PackingItem[]>) => {
+    const rawName = item.booking_products?.name || 'Unknown product';
+    const trimmedName = rawName.trimStart();
+    const productId = item.booking_products?.id;
+    
+    const isChildByRelation = !!(
+      item.booking_products?.parent_product_id || 
+      item.booking_products?.parent_package_id || 
+      item.booking_products?.is_package_component
+    );
+    const isChildByPrefix = (
+      trimmedName.startsWith('↳') || trimmedName.startsWith('└') || 
+      trimmedName.startsWith('L,') || trimmedName.startsWith('⦿')
+    );
+    const isChild = isChildByRelation || isChildByPrefix;
+    const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
+    const isParent = !isChild && hasChildren;
+    
+    // Use shared rule for parent-row collapse so VerificationView, the
+    // checklists and the scanner-api status flow agree on what "packed" means.
+    // See src/lib/packing/progress.ts.
     const display = getDisplayedProgressForRow(item, items);
-    const packed = display.displayedPacked;
-    const total = display.displayedTotal;
+    let packed = display.displayedPacked;
+    let total = display.displayedTotal;
+    
+    const cleanName = cleanProductName(rawName);
+    const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
+    const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
+    const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+    
     const isOverscan = packed > total && total > 0;
     const isComplete = packed >= total && total > 0 && !isOverscan;
     const isPartial = packed > 0 && packed < total;
-    return {
-      isChild: cls.isChild,
-      isParent: cls.isParent,
-      isPackageComponent: cls.isPackageComponent,
-      prefixIndicator: cls.prefixIndicator,
-      displayName: cls.displayName,
-      packed,
-      total,
-      isOverscan,
-      isComplete,
-      isPartial,
-    };
+    
+    return { isChild, isParent, packed, total, displayName, prefixIndicator, isOverscan, isComplete, isPartial, isPackageComponent };
   };
 
   // --- Loading state ---
@@ -205,8 +245,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
-  const childrenByParent = buildChildrenByParent(items);
-
+  const childrenByParent = buildChildrenMap(items);
 
   // --- Render item row ---
   const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
