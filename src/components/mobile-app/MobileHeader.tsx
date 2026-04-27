@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import WorkDayHeaderTimer from './WorkDayHeaderTimer';
+// WorkDayHeaderTimer borttagen — klockan visas centrerat i WorkDayStatusPanel.
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
