@@ -136,7 +136,11 @@ const LargeProjectLayout = () => {
     geofence_mode: 'circle' | 'polygon';
     geofence_polygon: GeoJSON.Polygon | null;
   }) => {
-    detail.updateProject({
+    // Await så vi (1) vet om DB-skrivningen lyckades och (2) hinner
+    // invalidera react-query INNAN dialogen stängs. Tidigare fire-and-forget
+    // kunde svälja t.ex. valideringsfel på address_geofence_polygon utan
+    // att användaren såg det → polygonen verkade sparad men var det inte.
+    await detail.updateProject({
       address: data.address || null,
       address_latitude: data.latitude,
       address_longitude: data.longitude,
