@@ -147,9 +147,28 @@ export default function ProjectAddressMapDialog({
     return () => { cancelled = true; };
   }, [open, token, retryCounter]);
 
-  // Init map when dialog open + token ready
+  // Init map when dialog open + token ready.
+  // KRITISKT: Vi måste rensa kartan helt när dialogen stängs. Radix Dialog
+  // kan behålla content-noden mellan open/close, så cleanup-returen från
+  // föregående open-cykel kanske inte hinner köra innan vi öppnar igen.
+  // Då blir vi sittande med en gammal mapRef + mapStatus='idle' → evig spinner.
   useEffect(() => {
-    if (!open || !token) return;
+    if (!open) {
+      // Säkerställ att inget hänger kvar mellan öppningar.
+      if (loadTimeoutRef.current) {
+        window.clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
+      if (mapRef.current) {
+        try { mapRef.current.remove(); } catch { /* noop */ }
+        mapRef.current = null;
+        markerRef.current = null;
+        drawRef.current = null;
+      }
+      setMapStatus('idle');
+      return;
+    }
+    if (!token) return;
     if (!containerRef.current) return;
     if (mapRef.current) return;
 
