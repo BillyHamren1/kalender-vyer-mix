@@ -40,6 +40,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   setEvents,
   resources,
   isLoading,
+  isMounted,
   currentDate,
   viewMode,
   refreshEvents,
@@ -116,7 +117,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     return resources.filter(r => getVisibleTeamsForDay(date).includes(r.id));
   };
 
-  if (isLoading) {
+  if (isLoading && !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-muted-foreground">Loading staff planning calendar...</div>
