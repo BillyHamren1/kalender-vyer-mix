@@ -70,16 +70,37 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
+  // Quick beep so the user gets immediate feedback at the moment of detection,
+  // independent of any downstream onScan handler. Identical to the
+  // IdentifyScannerOverlay (which is known to work on iOS).
+  const playBeep = useCallback((success: boolean) => {
+    try {
+      const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = success ? 1200 : 400;
+      osc.type = 'square';
+      gain.gain.value = 0.15;
+      osc.start();
+      osc.stop(ctx.currentTime + (success ? 0.1 : 0.25));
+    } catch {/* noop */}
+  }, []);
+
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       lastScanRef.current = value;
       setManualInput(value);
+      playBeep(true);
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
       }, 3000);
     }
-  }, []);
+  }, [playBeep]);
 
   const stopCamera = useCallback(() => {
     if (startingTimeoutRef.current) {
@@ -103,6 +124,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
+    let lastDiagLog = 0;
+    let frameCount = 0;
     const SCAN_INTERVAL = 250; // ~4 fps — give polyfill time to process
 
     const scan = async () => {
@@ -122,9 +145,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       lastScanTime = now;
       scanningRef.current = true;
+      frameCount++;
+
+      // Periodic diagnostic so we can spot iOS issues where the video
+      // never gets actual pixel dimensions (a classic flex-layout bug).
+      if (now - lastDiagLog > 5000) {
+        lastDiagLog = now;
+        console.log('[QRScanner] scan diag', {
+          frames: frameCount,
+          videoW: video.videoWidth,
+          videoH: video.videoHeight,
+          readyState: video.readyState,
+          paused: video.paused,
+          hasDetector: !!detectorRef.current,
+        });
+      }
 
       try {
-        if (detectorRef.current) {
+        if (detectorRef.current && video.videoWidth > 0 && video.videoHeight > 0) {
           // Try detecting directly from video first
           let barcodes: any[] = [];
           try {
@@ -434,7 +472,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       </div>
 
       {!shouldSkipCamera && (
-        <div className="flex-1 relative overflow-hidden">
+        // min-h-0 är kritiskt: en `flex-1` child i en `flex flex-col`-container
+        // får annars minHeight=auto vilket på iOS WKWebView kunde lämna videon
+        // med 0 höjd när manuell input-blocket nedanför var aktivt — kameran
+        // verkade köra (scan-linjen rörde sig) men <video> levererade aldrig
+        // pixlar till BarcodeDetector. Explicit minHeight som fallback.
+        <div
+          className="flex-1 min-h-0 relative overflow-hidden bg-black"
+          style={{ minHeight: '50vh' }}
+        >
           <video
             ref={videoRef}
             className={`w-full h-full object-cover ${cameraState === 'running' ? '' : 'invisible absolute inset-0'}`}
