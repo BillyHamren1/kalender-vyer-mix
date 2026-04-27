@@ -785,27 +785,42 @@ Deno.serve(async (req) => {
       }
 
       case 'get_item_parcels': {
+        // LEGACY: returns one parcelNumber per item (the highest parcel_number it appears in).
+        // New code should use 'get_item_allocations' to see full split across parcels.
         const { packingId } = params
 
         const { data: items } = await supabase
           .from('packing_list_items')
-          .select('id, parcel_id')
+          .select('id')
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
-          .not('parcel_id', 'is', null)
 
-        if (!items || items.length === 0) return json({})
+        const itemIds = (items || []).map((i: any) => i.id)
+        if (itemIds.length === 0) return json({})
 
-        const parcelIds = [...new Set(items.map((i: any) => i.parcel_id).filter(Boolean))]
-        const { data: parcels } = await supabase.from('packing_parcels').select('id, parcel_number').in('id', parcelIds)
+        const { data: allocs } = await supabase
+          .from('packing_list_item_allocations')
+          .select('packing_list_item_id, parcel_id')
+          .in('packing_list_item_id', itemIds)
+          .eq('organization_id', ORG_ID)
 
-        const parcelMap: Record<string, number> = {}
-        ;(parcels || []).forEach((p: any) => { parcelMap[p.id] = p.parcel_number })
+        const parcelIds = [...new Set((allocs || []).map((a: any) => a.parcel_id))]
+        if (parcelIds.length === 0) return json({})
+
+        const { data: parcels } = await supabase
+          .from('packing_parcels')
+          .select('id, parcel_number')
+          .in('id', parcelIds)
+
+        const parcelNumber: Record<string, number> = {}
+        ;(parcels || []).forEach((p: any) => { parcelNumber[p.id] = p.parcel_number })
 
         const result: Record<string, number> = {}
-        items.forEach((item: any) => {
-          if (item.parcel_id && parcelMap[item.parcel_id]) {
-            result[item.id] = parcelMap[item.parcel_id]
+        ;(allocs || []).forEach((a: any) => {
+          const num = parcelNumber[a.parcel_id]
+          if (!num) return
+          if (!result[a.packing_list_item_id] || num > result[a.packing_list_item_id]) {
+            result[a.packing_list_item_id] = num
           }
         })
 
