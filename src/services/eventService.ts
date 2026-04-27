@@ -35,6 +35,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { convertToISO8601 } from '@/utils/dateUtils';
+import { addDays, subDays, format } from 'date-fns';
 
 export interface CalendarEventUpdate {
   start?: string;
