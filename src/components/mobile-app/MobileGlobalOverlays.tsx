@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
