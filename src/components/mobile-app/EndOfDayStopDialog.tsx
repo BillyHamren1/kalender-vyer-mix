@@ -36,6 +36,7 @@ export const EndOfDayStopDialog: React.FC<EndOfDayStopDialogProps> = ({
   lastExitIso,
   locationName,
   onConfirm,
+  onCancel,
 }) => {
   const { t } = useLanguage();
   const [step, setStep] = useState<'ask' | 'custom'>('ask');
