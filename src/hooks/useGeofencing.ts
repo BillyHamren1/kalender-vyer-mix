@@ -974,7 +974,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       const locKey = `location-${loc.id}`;
       const hasTimer = activeTimers.has(locKey);
 
-      // ENTER: hysteresis + accuracy gate
+      // ENTER: CONFIDENCE-GATE — hysteresis + GPS accuracy gate (se ENTER-contract).
+      // Låg confidence (dålig accuracy eller utanför hysteresis) → ingen autostart.
       if (
         accuracyOk &&
         evalShouldEnter(userPosition.lat, userPosition.lng, target, accuracy) &&
