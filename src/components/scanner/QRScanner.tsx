@@ -124,6 +124,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
+    let lastDiagLog = 0;
+    let frameCount = 0;
     const SCAN_INTERVAL = 250; // ~4 fps — give polyfill time to process
 
     const scan = async () => {
@@ -143,9 +145,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
       lastScanTime = now;
       scanningRef.current = true;
+      frameCount++;
+
+      // Periodic diagnostic so we can spot iOS issues where the video
+      // never gets actual pixel dimensions (a classic flex-layout bug).
+      if (now - lastDiagLog > 5000) {
+        lastDiagLog = now;
+        console.log('[QRScanner] scan diag', {
+          frames: frameCount,
+          videoW: video.videoWidth,
+          videoH: video.videoHeight,
+          readyState: video.readyState,
+          paused: video.paused,
+          hasDetector: !!detectorRef.current,
+        });
+      }
 
       try {
-        if (detectorRef.current) {
+        if (detectorRef.current && video.videoWidth > 0 && video.videoHeight > 0) {
           // Try detecting directly from video first
           let barcodes: any[] = [];
           try {
