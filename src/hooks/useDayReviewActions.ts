@@ -96,6 +96,28 @@ export interface DayReviewActions {
     start_time: string;
     end_time?: string;
   }) => Promise<void>;
+  /**
+   * 5b. Skapa restid från ett aktivitetsgap (review-flödet).
+   * Detta är det auktoritativa sättet att förvandla ett osäkert gap
+   * (mellan stoppad aktivitet och nästa start) till en travel_time_log.
+   * @param durationMinutesOverride  Om satt: förkorta resan till N min
+   *   räknat från `start_time` (för "Justera minuter"-flödet).
+   */
+  createTravelForGap: (input: {
+    gapKey: string;
+    start_time: string;
+    end_time: string;
+    durationMinutesOverride?: number;
+  }) => Promise<void>;
+  /**
+   * 5c. Markera ett gap som paus/privat eller helt ignorerat.
+   * Skapar ingen travel_time_log. Persisteras lokalt så gapet inte
+   * dyker upp igen i review.
+   */
+  markGapResolved: (input: {
+    gapKey: string;
+    resolution: 'pause' | 'ignored';
+  }) => Promise<void>;
   /** 6. Markera ett event som irrelevant ("ignored_stale"). */
   dismissEvent: (eventId: string, note?: string) => Promise<void>;
   /** 7. Godkänn dagen. */
