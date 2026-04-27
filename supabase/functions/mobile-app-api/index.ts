@@ -9120,3 +9120,154 @@ async function handleGetOverviewThreads(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Admin day-review actions (set workday review status, mark gap as
+// break or travel). All actions are admin/projekt-only and operate on
+// behalf of a target staff member within the same organization.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * admin_set_workday_review — set review_status (+ optional note) for a
+ * workday. Used by Admin Day Review panel for "approve / needs_review /
+ * returned to staff".
+ */
+async function handleAdminSetWorkdayReview(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { workday_id, status, note } = data || {}
+  const ALLOWED = ['approved', 'needs_review', 'returned', 'ready', 'draft']
+  if (!workday_id || !ALLOWED.includes(status)) {
+    return new Response(
+      JSON.stringify({ error: 'workday_id and a valid status are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const update: Record<string, any> = {
+    review_status: status,
+    review_computed_at: new Date().toISOString(),
+  }
+  if (typeof note === 'string') update.review_note = note.slice(0, 2000)
+
+  const { data: row, error } = await supabase
+    .from('workdays')
+    .update(update)
+    .eq('id', workday_id)
+    .eq('organization_id', organizationId)
+    .select('id, review_status, review_note, review_computed_at')
+    .single()
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  return new Response(
+    JSON.stringify({ workday: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
+/**
+ * admin_mark_gap_break — record an admin decision that an unallocated
+ * gap in the staff timeline was a break. Stored as a workday_flag
+ * (flag_type='gap_marked_break') so it shows up in audit/history without
+ * mutating the time_reports themselves.
+ */
+async function handleAdminMarkGapBreak(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { target_staff_id, flag_date, start_time, end_time, note } = data || {}
+  if (!target_staff_id || !flag_date || !start_time || !end_time) {
+    return new Response(
+      JSON.stringify({ error: 'target_staff_id, flag_date, start_time, end_time required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const startMs = new Date(start_time).getTime()
+  const endMs = new Date(end_time).getTime()
+  const minutes = Math.max(0, Math.round((endMs - startMs) / 60000))
+
+  const { data: row, error } = await supabase
+    .from('workday_flags')
+    .insert({
+      organization_id: organizationId,
+      staff_id: target_staff_id,
+      flag_type: 'gap_marked_break',
+      severity: 'info',
+      flag_date,
+      title: `Lucka markerad som rast (${minutes} min)`,
+      description: note || null,
+      needs_user_input: false,
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolution_source: 'admin',
+      resolution_note: note || null,
+      resolved_by: callerUserId,
+      context: { start_time, end_time, minutes },
+    })
+    .select('id, flag_type, flag_date, context')
+    .single()
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  return new Response(
+    JSON.stringify({ flag: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
+/**
+ * admin_mark_gap_travel — wrap handleCreateTravelFromGap so admin can
+ * convert a gap to travel time on behalf of the target staff. Reuses
+ * the central idempotent travel-from-gap pipeline (rules, dedupe,
+ * needs_review thresholds).
+ */
+async function handleAdminMarkGapTravel(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const { target_staff_id, ...rest } = data || {}
+  if (!target_staff_id) {
+    return new Response(
+      JSON.stringify({ error: 'target_staff_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  return await handleCreateTravelFromGap(supabase, target_staff_id, rest, organizationId)
+}
