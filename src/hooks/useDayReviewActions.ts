@@ -232,7 +232,7 @@ export function useDayReviewActions(): DayReviewActions {
         toast.error(err?.message || 'Kunde inte avsluta arbetsdag');
       }
     },
-    [endWorkDay, currentWorkday, resolveEvent],
+    [currentWorkday, resolveEvent],
   );
 
   const adjustTravel = useCallback<DayReviewActions['adjustTravel']>(
