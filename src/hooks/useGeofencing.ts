@@ -16,6 +16,10 @@ import {
   decideExitAction,
   type ExitDecision,
 } from '@/lib/workday/plannedDay';
+import {
+  recordEnter as recordSubdivisionEnter,
+  recordExit as recordSubdivisionExit,
+} from '@/lib/projectAddressVisits';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
