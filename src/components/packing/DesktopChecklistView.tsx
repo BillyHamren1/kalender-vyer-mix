@@ -21,6 +21,7 @@ import {
 } from '@/services/desktopPackingService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 interface DesktopChecklistViewProps {
   packingId: string;
