@@ -1,88 +1,72 @@
-## Vad är fel
+# Plan för att stänga allt som fortfarande står öppet
 
-Personalkalendern (bild 1) och mobilappen (bild 2–4) använder två helt olika datakällor för att avgöra vad en användare ska se:
+## Läget just nu
+Databasen visar inte öppna `time_reports` just nu.
 
-| Vy | Hur den hittar bokningar för en person på datum X |
-|----|---------------------------------------------------|
-| **Personalkalendern (desktop)** | Bokning visas i kolumnen för team-Y om `calendar_events.resource_id = team-Y` på X. Personen är "med" på team-Y om hen har en rad i `staff_assignments` (staff_id, X, team-Y). |
-| **Mobilappen idag** | Bokning visas bara om det finns en `booking_staff_assignments`-rad (staff_id, booking_id, X, team-Y). |
+Det som fortfarande står öppet är i stället:
+- 1 öppen `location_time_entries`-rad
+- 4 öppna `workdays`
 
-Konsekvens: så fort en bokning byter team i kalendern (drag-and-drop) eller en person flyttas mellan teams en specifik dag, så uppdateras inte alltid `booking_staff_assignments` — och då driftar mobilen från personalkalendern. Det matchar exakt det användaren beskrev tidigare: "Tilldelning av personal sker på TEAM-nivå – INTE per projekt!".
+Det är alltså sannolikt dessa som får systemet att se ut som att tidrapporter fortfarande är öppna.
 
-Konkret kontrollerat i databasen:
-- Wed 29: `calendar_events` på team-1 = endast Restaurang Josefina #2604-128. Westmans #2604-17 ligger på team-2. Tiomila #2603-9 ligger på team-3. Personalkalendern (bild 1) visar dock alla i team-1-kolumnen → bilden återspeglar faktiskt `booking_staff_assignments` per person, inte `calendar_events`. Det är i sin tur en annan inkonsistens.
-- Aleksejs har för Wed 29 bara `team_id='project'` i BSA → mobilen visar Tiomila som projektblock men inget annat (korrekt enligt nuvarande regler, men användaren förväntar sig att se det personalkalendern visar).
+## Jag kommer att göra
+1. Stänga alla öppna `workdays` direkt i databasen.
+2. Stänga alla öppna `location_time_entries` direkt i databasen.
+3. Kontrollera att det efteråt finns:
+   - 0 öppna `workdays`
+   - 0 öppna `location_time_entries`
+   - 0 öppna `time_reports`
+4. Gå igenom end-of-day-flödet igen och täppa till glappet så att dagtimer + aktivitetstimer alltid stängs tillsammans.
+5. Lägga till testskydd så samma fel inte kommer tillbaka.
 
-Kort: två vyer, två sanningar. Vi behöver **en sanning**.
+## Kodändringar
+### 1) Akut datastädning
+Jag kör en riktad datarättning som stänger alla kvarvarande öppna sessioner i produktionsdatat:
+- `workdays.ended_at` sätts för alla öppna rader
+- `location_time_entries.exited_at` sätts för alla öppna rader
 
-## Lösning
+Ingen schemaändring behövs för detta.
 
-Gör mobil-API:t (`mobile-app-api → handleGetBookings`) härlett från samma källa som personalkalendern, så att bägge vyerna alltid är 1:1.
-
-**Ny härledningsregel (per staff_id, per datum X):**
-
-1. Läs `staff_assignments` för (staff_id, X) → ger en mängd team-Y som personen är schemalagd på.
-2. Läs `calendar_events` där `resource_id ∈ team-Y` och `start_time::date = X` → ger alla bokningar (regular + large-project) som faktiskt ligger på de teamen den dagen.
-3. Komplettera med direkta `booking_staff_assignments` (där team_id är ett riktigt team) som "explicit override" — backwards compat och för bokningar som scheduleras direkt på en person.
-4. Behåll project-membership-regeln (`team_id='project'`) för synlighet av övriga bokningar i samma stora projekt på dagar då personen är schemalagd på projektet.
-
-Skift (shifts) byggs sedan från unionen ovan, med tider från `calendar_events` (eller fallback från bokningens fas-tider om event saknas).
-
-### Flöde (text-diagram)
+### 2) Härdning av EOD-logiken
+Jag går igenom kedjan:
 
 ```text
-staff_assignments(staff_id, date)        →  team-Y
-                                            │
-                                            ▼
-calendar_events(resource_id=team-Y, date) →  bookings för (staff, date)
-                                            │
-                                            ▼
-union med BSA-rows (team_id ≠ project)   →  shifts + bokningskort
-                                            │
-                                            ▼
-+ project-membership (BSA team_id=project) → övriga bokningar i samma stora projekt
-                                              för datum personen är schemalagd på projektet
+Avsluta dag
+  -> spara time_report
+  -> stoppa active timer
+  -> stäng location_time_entry
+  -> stäng workday
+  -> markera UI som avslutad
 ```
 
-### Effekter
+Jag säkrar att ingen del kan bli kvar öppen om nästa steg lyckas eller om UI tappar synk efter servern.
 
-- Mobilen visar exakt samma bokningar/datum/tider som personalkalendern.
-- När en planerare flyttar en bokning till annat team → mobilen följer med automatiskt (inga BSA-skrivningar krävs).
-- När en planerare byter en persons team för en dag → mobilen uppdateras direkt.
-- Realtidsabonnemanget i `useScheduledShifts` utökas med `staff_assignments` så att UI invalideras direkt när team-tilldelningar ändras.
+### 3) Synk mellan server och UI
+Jag justerar där det behövs så UI inte längre tolkar:
+- öppen `workday`
+- öppen `location_time_entry`
 
-### Risker / kanttyper som hanteras
+som om själva `time_report` fortfarande vore öppen.
 
-- **Personen är på flera team samma dag** (t.ex. team-2 och team-11): hämta union av events.
-- **Bokning ligger i flera team-kolumner samma dag** (rig på team-1, rigdown på team-3): båda dyker upp som separata shifts om personen är på respektive team.
-- **Bokningen är en del av ett stort projekt**: konsolideras fortfarande till ett projektkort i mobilen (oförändrad UI-regel).
-- **Internt Lager-projekt**: oförändrat, läses som idag.
-- **Avbokade bokningar**: filtreras fortfarande på `status='CONFIRMED'`.
-- **Tidszoner / nattskift**: vi använder samma `start_time`-fält som planeringen — ingen TZ-justering läggs till.
+### 4) Testskydd
+Jag uppdaterar kontraktstesterna så de låser följande beteende:
+- EOD lämnar inga öppna workdays
+- EOD lämnar inga öppna location entries
+- time_report + timer + workday blir konsekventa efter avslut
+- dubbla submits / retry ger inte halvt öppet läge
 
-## Tekniskt
+## Tekniska detaljer
+Nuvarande snapshot:
+- `time_reports` med `end_time IS NULL`: 0
+- `location_time_entries` med `exited_at IS NULL`: 1
+- `workdays` med `ended_at IS NULL`: 4
 
-**Ändrade filer**
+Det här tyder på att felet inte är “öppna tidrapporter” i tabellen `time_reports`, utan att avslutskedjan lämnar kvar öppna sessionstabeller.
 
-1. `supabase/functions/mobile-app-api/index.ts` (`handleGetBookings`)
-   - Lägg till hämtning av `calendar_events` filtrerade på `resource_id ∈ staffTeamIdsByDate` och `start_time` inom horisonten (today → today+N).
-   - Bygg `derivedBookingDateKeys = Set<"booking_id|date">` från (a) calendar_events via team×datum, (b) befintliga BSA-rader med riktigt team_id.
-   - Använd `derivedBookingDateKeys` som *både* synlighetsfilter (vilka bookings som returneras) *och* som källa för `shiftDateKeys` i shifts-byggaren.
-   - Bevara nuvarande project-membership-expansion (`team_id='project'`) som tilläggssynlighet (men inte shift-källa).
-   - Bevara fallback-shift-byggaren (`getBookingShiftWindowForDate`) för bokningar utan `calendar_events`-rad.
-   - Uppdatera kommentarsblocket "STRICT SCHEDULING AUTHORITY" → ny dokumentation: "härlett från staff_assignments × calendar_events, samma källa som planeringskalendern".
+## Resultat efter implementation
+När detta är gjort ska systemet ge samma sanning i alla lager:
+- ingen kvarhängande dagtimer
+- ingen kvarhängande aktivitetstimer
+- inga falskt “öppna” rapporter i UI
 
-2. `src/hooks/useScheduledShifts.ts`
-   - Lägg till realtime-subscription på `staff_assignments` (filter: `staff_id=eq.${staff.id}`) så att shifts invalideras direkt när planeraren flyttar personen mellan team.
-
-3. *(Valfritt, backwards-compat)* `staffAssignmentService` rörs ej.
-
-**Inga DB-migrationer** krävs — all logik flyttas i edge-funktionen.
-
-**Test**
-- Manuell verifiering med Aleksejs (Mon 27, Tue 28, Wed 29) och Billy (samma datum) — mobil ska matcha planeringsvyn 1:1.
-- Lägg till en lättviktig sanity-log i `[get_bookings]` som loggar `derivedFromTeamCalendarCount` vs `bsaOnlyCount` för felsökning.
-
-**Migration / utrullning**
-- Edge-funktionsändring deployas automatiskt.
-- Mobilen behöver inte ny build (bara react-query invalidering — sker via realtime-subscriptionen).
+Godkänn så kör jag datastädningen först och därefter koden/testerna direkt.
