@@ -44,6 +44,14 @@ export function useScheduledShifts() {
         { event: '*', schema: 'public', table: 'booking_staff_assignments', filter: `staff_id=eq.${staff.id}` },
         invalidate
       )
+      .on(
+        // Mobilen härleds nu från staff_assignments × calendar_events (samma som
+        // personalkalendern). När planeraren flyttar personen mellan team måste
+        // mobilen invalideras direkt så vyn speglar nya scheduling.
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff_assignments', filter: `staff_id=eq.${staff.id}` },
+        invalidate
+      )
       .subscribe();
 
     return () => {

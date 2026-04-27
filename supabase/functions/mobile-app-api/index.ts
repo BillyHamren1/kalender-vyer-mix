@@ -845,6 +845,71 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     staffTeamsByDate[row.assignment_date].add(row.team_id)
   }
 
+  // ─── DERIVED VISIBILITY (1:1 med personalkalendern) ─────────────────
+  // Personalkalendern (desktop) renderar bokningar i en team-kolumn baserat på
+  // calendar_events.resource_id = team-X. En person "ser" en bokning på datum
+  // X om de har en staff_assignments-rad för (X, team-X). Vi speglar exakt
+  // den logiken här så mobilen visar samma bokningar som planeraren ser.
+  // Source of truth: staff_assignments × calendar_events (resource_id=team-Y).
+  // BSA-rader behålls som ytterligare källa (explicit per-person scheduling).
+  // ────────────────────────────────────────────────────────────────────
+  const teamDateKeys = new Set<string>()  // "team_id|date"
+  for (const [date, teamSet] of Object.entries(staffTeamsByDate)) {
+    for (const teamId of teamSet) teamDateKeys.add(`${teamId}|${date}`)
+  }
+
+  const derivedBookingDates: Record<string, Set<string>> = {} // booking_id → Set<date>
+  let derivedFromTeamCalendarCount = 0
+  if (teamDateKeys.size > 0) {
+    const dateValues = [...new Set(
+      Array.from(teamDateKeys).map(k => k.split('|')[1])
+    )].sort()
+    const teamIds = [...new Set(
+      Array.from(teamDateKeys).map(k => k.split('|')[0])
+    )]
+    const minDate = dateValues[0]
+    const maxDate = dateValues[dateValues.length - 1]
+
+    const { data: teamCeRows, error: teamCeErr } = await supabase
+      .from('calendar_events')
+      .select('booking_id, resource_id, start_time')
+      .in('resource_id', teamIds)
+      .eq('organization_id', organizationId)
+      .gte('start_time', `${minDate}T00:00:00`)
+      .lte('start_time', `${maxDate}T23:59:59`)
+
+    if (teamCeErr) {
+      console.error('[get_bookings] team-derived calendar_events query error:', teamCeErr)
+    } else {
+      for (const ce of (teamCeRows || [])) {
+        if (!ce.booking_id) continue
+        const dateStr = (ce.start_time || '').slice(0, 10)
+        const tdKey = `${ce.resource_id}|${dateStr}`
+        if (!teamDateKeys.has(tdKey)) continue // person var inte på det teamet den dagen
+        if (!derivedBookingDates[ce.booking_id]) derivedBookingDates[ce.booking_id] = new Set()
+        if (!derivedBookingDates[ce.booking_id].has(dateStr)) {
+          derivedBookingDates[ce.booking_id].add(dateStr)
+          derivedFromTeamCalendarCount += 1
+        }
+      }
+    }
+  }
+
+  // Slå samman team-härledda datum med BSA-härledda datum till en effektiv
+  // (booking_id → datum)-karta som styr både synlighet OCH skiftbygget.
+  const effectiveBookingDates: Record<string, Set<string>> = {}
+  for (const [bId, dates] of Object.entries(bookingScheduledDates)) {
+    if (!effectiveBookingDates[bId]) effectiveBookingDates[bId] = new Set()
+    for (const d of dates) effectiveBookingDates[bId].add(d)
+  }
+  for (const [bId, dates] of Object.entries(derivedBookingDates)) {
+    if (!effectiveBookingDates[bId]) effectiveBookingDates[bId] = new Set()
+    for (const d of dates) effectiveBookingDates[bId].add(d)
+  }
+
+  // Lägg till team-härledda bokningar i synlighetsmängden så de hämtas nedan.
+  const teamDerivedBookingIds = new Set<string>(Object.keys(derivedBookingDates))
+
   const uniqueStaffTeamIds = [...new Set((staffTeamAssignments || []).map((row: any) => row.team_id).filter(Boolean))]
   let teamScheduledProjectHits = 0
   if (uniqueStaffTeamIds.length > 0) {
@@ -888,7 +953,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   }
 
   const bsaBookingIds = new Set((assignments || []).map((a: any) => a.booking_id))
-  const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds])]
+  const allBookingIds = [...new Set([...bsaBookingIds, ...projectBookingIds, ...teamDerivedBookingIds])]
 
   // Separate location-based booking IDs from real booking IDs
   const locationBookingIds = allBookingIds.filter(id => id.startsWith('location-'))
@@ -963,24 +1028,29 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       const bookingAssignments = (assignments || []).filter((a: any) => a.booking_id === booking.id)
       const hasRealAssignment = realBsaBookingIds.has(booking.id)
       const hasProjectMembership = projectMembershipBookingIds.has(booking.id)
+      const teamDerivedDates = derivedBookingDates[booking.id]
+      const hasTeamDerived = !!teamDerivedDates && teamDerivedDates.size > 0
 
-      // For project bookings discovered via expansion: only include dates the user is actually scheduled on
-      let assignmentDates: string[] = []
+      // Combine date sources:
+      //  1. BSA rader (riktigt team eller project-membership) → explicit per-person scheduling
+      //  2. Team-härledning (staff_assignments × calendar_events.resource_id=team-Y) → speglar planeringskalendern 1:1
+      //  3. Project-expansion (large_project) → övriga bokningar i samma stora projekt på dagar personen är schemalagd på projektet
+      const dateSet = new Set<string>()
       if (hasRealAssignment || hasProjectMembership) {
-        // Directly assigned (real team OR project membership): include ALL BSA dates
-        // for this booking. Previously we filtered out team_id='project' rows, which
-        // meant a staffer who was only project-tagged on a specific date never got a
-        // shift built for that day. We now include them so fallback shifts can be
-        // generated even when no calendar_events row exists yet.
-        assignmentDates = [...new Set(
-          bookingAssignments.map((a: any) => a.assignment_date).filter(Boolean)
-        )]
-      } else if (booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
-        // Project-expanded booking: intersect project scheduled dates with booking's own dates
+        for (const a of bookingAssignments) {
+          if (a.assignment_date) dateSet.add(a.assignment_date)
+        }
+      }
+      if (hasTeamDerived) {
+        for (const d of teamDerivedDates) dateSet.add(d)
+      }
+      if (dateSet.size === 0 && booking.large_project_id && scheduledProjectDates[booking.large_project_id]) {
         const bookingDates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean)
         const projectDates = scheduledProjectDates[booking.large_project_id]
-        assignmentDates = bookingDates.filter((d: string) => projectDates.has(d))
+        for (const d of bookingDates) if (projectDates.has(d)) dateSet.add(d)
       }
+
+      let assignmentDates: string[] = [...dateSet]
 
       // If no dates matched (shouldn't happen but safety), fall back
       if (assignmentDates.length === 0) {
@@ -1007,9 +1077,12 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     // Filter out project-expanded bookings that have no matching dates
     // (booking dates don't overlap with the user's scheduled project dates).
-    // Always keep bookings the user has a direct BSA on (real team OR project membership).
+    // Always keep bookings the user has a direct BSA on (real team OR project membership)
+    // OR a team-derived assignment (planning calendar parity).
     bookingsWithAssignments = bookingsWithAssignments.filter((b: any) => {
-      if (!b.large_project_id || realBsaBookingIds.has(b.id) || projectMembershipBookingIds.has(b.id)) return true
+      if (!b.large_project_id) return true
+      if (realBsaBookingIds.has(b.id) || projectMembershipBookingIds.has(b.id)) return true
+      if (teamDerivedBookingIds.has(b.id)) return true
       // For expanded bookings: only keep if at least one assignment date is a real scheduled project date
       const projectDates = scheduledProjectDates[b.large_project_id]
       if (!projectDates) return false
@@ -1052,28 +1125,23 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     staffTeamAssignmentCount: (staffTeamAssignments || []).length,
     scheduledProjectCount: Object.keys(scheduledProjectDates).length,
     teamScheduledProjectHits,
+    teamDerivedBookingCount: teamDerivedBookingIds.size,
+    derivedFromTeamCalendarCount,
     returnedBookingCount: bookingsWithAssignments.length,
   })
 
   // ─── SCHEDULED SHIFTS (calendar_events) ────────────────────────────
-  // Build shifts from all booking/date pairs that are actually visible to the
-  // staff member: direct REAL BSA rows and large-project dates derived from
-  // large_project_team_assignments + staff_assignments.
+  // Build shifts from all (booking_id, date) par som mobilen ska visa,
+  // härlett från SAMMA källa som personalkalendern (desktop):
+  //   1. staff_assignments × calendar_events.resource_id=team-Y
+  //      → "personen är på team-Y dag X, så alla bokningar i team-Y-kolumnen
+  //         dag X ska synas på mobilen"
+  //   2. booking_staff_assignments med riktigt team_id (explicit per-person)
+  // Project-membership (team_id='project') ger synlighet för andra bokningar
+  // i samma stora projekt, men skapar inte egna shifts.
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
-    // STRICT SCHEDULING AUTHORITY:
-    // The mobile calendar must mirror the personnel calendar 1:1. Shifts come
-    // ONLY from real per-day team scheduling rows (booking_staff_assignments
-    // with a real team_id). We deliberately DO NOT use:
-    //   - team_id='project' rows (those are visibility/membership only)
-    //   - project-wide expansion (one scheduled date does NOT spill into all
-    //     bookings of the same large project)
-    //   - booking.assignment_dates derived from project membership
-    //
-    // If a staff member is scheduled on another job on a given date, the
-    // mobile calendar must NOT also show another large-project booking on
-    // that date just because they're a member of that project.
     const bsaForShifts = (assignments || []).filter(
       (a: any) =>
         a.team_id !== 'project' &&
@@ -1084,6 +1152,13 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     const shiftDateKeys = new Set<string>(
       bsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
     )
+
+    // Lägg till team-härledda (booking, date)-par så shifts speglar
+    // personalkalendern även när BSA-rad saknas.
+    for (const [bId, dates] of Object.entries(derivedBookingDates)) {
+      if (String(bId).startsWith('location-')) continue
+      for (const d of dates) shiftDateKeys.add(`${bId}|${d}`)
+    }
 
     if (shiftDateKeys.size > 0) {
       const shiftBookingIds = [...new Set(Array.from(shiftDateKeys).map((key) => key.split('|')[0]))]
