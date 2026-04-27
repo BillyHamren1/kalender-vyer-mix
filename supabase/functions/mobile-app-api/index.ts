@@ -1187,12 +1187,29 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         }
 
         shifts.sort((a, b) => a.start_time.localeCompare(b.start_time))
+
+        // Per-booking breakdown so we can debug "missing day" reports without
+        // re-running queries by hand.
+        const breakdown: Record<string, { dates: string[]; ce: number; fallback: number }> = {}
+        for (const key of shiftDateKeys) {
+          const [bId, dt] = key.split('|')
+          if (!breakdown[bId]) breakdown[bId] = { dates: [], ce: 0, fallback: 0 }
+          breakdown[bId].dates.push(dt)
+        }
+        for (const s of shifts) {
+          const entry = breakdown[s.booking_id]
+          if (!entry) continue
+          if (String(s.shift_id).startsWith('fallback-')) entry.fallback += 1
+          else entry.ce += 1
+        }
+
         console.log('[get_bookings] shifts summary:', {
           staffId,
           shiftDateKeyCount: shiftDateKeys.size,
           calendarEventRowCount: (ceRows || []).length,
           fallbackShiftCount: shifts.filter((s: any) => String(s.shift_id).startsWith('fallback-')).length,
           returnedShiftCount: shifts.length,
+          perBooking: breakdown,
         })
       }
     }
