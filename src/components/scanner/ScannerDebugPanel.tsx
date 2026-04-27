@@ -19,6 +19,7 @@ import { getState } from '@/services/scanner/ScannerService';
 import { simulateDataWedgeScan } from '@/services/scanner/DataWedgeBridge';
 import { simulateRfidTag, simulateReaderStatus } from '@/services/scanner/ZebraRfidBridge';
 import { getQueueStats } from '@/services/scanner/ScanQueue';
+import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel';
 
 interface ScannerDebugPanelProps {
   onClose?: () => void;
@@ -185,6 +186,8 @@ export const ScannerDebugPanel: React.FC<ScannerDebugPanelProps> = ({ onClose })
               </pre>
             </div>
           )}
+
+          <DiagnosticsPanel />
 
           {/* Simulation Tools */}
           <div className="space-y-2 border-t pt-2">

@@ -4,6 +4,7 @@ import { Camera, X, Radio, Loader2 } from 'lucide-react';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
+import { reportDiagnostic } from '@/services/diagnostics/diagnostics';
 
 interface QRScannerProps {
   onScan: (result: string) => void;
@@ -47,6 +48,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const mountedRef = useRef(true);
   const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanningRef = useRef(false);
+  const successfulDetectionRef = useRef(false);
+  const noPixelsSinceRef = useRef<number | null>(null);
+  const lastNoPixelsReportRef = useRef(0);
 
   // Initialize BarcodeDetector (native or polyfill) on mount
   useEffect(() => {
@@ -63,6 +67,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     } catch (e) {
       console.warn('[QRScanner] BarcodeDetector init failed:', e);
       setHasBarcodeDetector(false);
+      reportDiagnostic({
+        code: 'BARCODE_DETECTOR_INIT_FAILED',
+        source: 'scanner.qr',
+        error: e,
+        metadata: {
+          nativeDetectorAvailable: 'BarcodeDetector' in window,
+          platform: Capacitor.getPlatform(),
+        },
+      });
     }
   }, [shouldSkipCamera]);
 
@@ -92,6 +105,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
+      successfulDetectionRef.current = true;
+      noPixelsSinceRef.current = null;
       lastScanRef.current = value;
       setManualInput(value);
       playBeep(true);
@@ -120,6 +135,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
     setCameraState('idle');
     lastScanRef.current = '';
+    successfulDetectionRef.current = false;
+    noPixelsSinceRef.current = null;
   }, []);
 
   const runScanLoop = useCallback(() => {
@@ -159,6 +176,44 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           paused: video.paused,
           hasDetector: !!detectorRef.current,
         });
+
+        if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+          if (!noPixelsSinceRef.current) noPixelsSinceRef.current = Date.now();
+          if (Date.now() - noPixelsSinceRef.current > 4000 && Date.now() - lastNoPixelsReportRef.current > 10000) {
+            lastNoPixelsReportRef.current = Date.now();
+            reportDiagnostic({
+              code: 'SCANNER_NO_VIDEO_PIXELS',
+              source: 'scanner.qr',
+              severity: 'error',
+              message: 'Scanner kör men videon levererar inga pixlar.',
+              metadata: {
+                readyState: video.readyState,
+                paused: video.paused,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                hasDetector: !!detectorRef.current,
+                isIos,
+              },
+            });
+          }
+        } else {
+          noPixelsSinceRef.current = null;
+          if (frameCount >= 40 && !successfulDetectionRef.current) {
+            reportDiagnostic({
+              code: 'SCANNER_NO_DETECTIONS',
+              source: 'scanner.qr',
+              severity: 'warning',
+              message: 'Scanner har aktiv videoström men inga QR-detekteringar ännu.',
+              metadata: {
+                frames: frameCount,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                hasDetector: !!detectorRef.current,
+                isIos,
+              },
+            });
+          }
+        }
       }
 
       try {
@@ -180,6 +235,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   barcodes = await detectorRef.current.detect(canvas);
                 } catch (e2) {
                   console.warn('[QRScanner] detect(canvas) also failed:', e2);
+                  reportDiagnostic({
+                    code: 'BARCODE_DETECT_LOOP_FAILURE',
+                    source: 'scanner.qr',
+                    severity: 'warning',
+                    error: e2,
+                    metadata: {
+                      stage: 'canvas-detect',
+                      videoWidth: video.videoWidth,
+                      videoHeight: video.videoHeight,
+                      isIos,
+                    },
+                  });
                 }
               }
             }
@@ -192,6 +259,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       } catch (err) {
         console.warn('[QRScanner] scan error:', err);
+        reportDiagnostic({
+          code: 'BARCODE_DETECT_LOOP_FAILURE',
+          source: 'scanner.qr',
+          severity: 'warning',
+          error: err,
+          metadata: {
+            stage: 'scan-loop',
+            isIos,
+          },
+        });
       } finally {
         scanningRef.current = false;
       }
@@ -217,6 +294,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           setCameraState((prev) => {
             if (prev === 'starting') {
               setError('Camera did not respond. Use hardware scan or manual input.');
+              reportDiagnostic({
+                code: 'CAMERA_START_TIMEOUT',
+                source: 'scanner.qr',
+                severity: 'error',
+                message: 'Kameran svarade inte inom timeout.',
+                metadata: {
+                  isIos,
+                  stage: 'starting-timeout',
+                },
+              });
               if (streamRef.current) {
                 streamRef.current.getTracks().forEach((t) => t.stop());
                 streamRef.current = null;
@@ -244,6 +331,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
               }
               setCameraState('error');
               setError('Camera permission denied. Go to device settings and allow camera access for the app.');
+              reportDiagnostic({
+                code: 'CAMERA_PERMISSION_DENIED',
+                source: 'scanner.qr',
+                severity: 'error',
+                message: 'Kamerabehörighet nekades.',
+                metadata: {
+                  isIos,
+                  stage: 'permissions-query',
+                },
+              });
               return;
             }
           }
@@ -259,6 +356,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
         setCameraState('error');
         setError('Camera is not supported in this web view (getUserMedia missing).');
+        reportDiagnostic({
+          code: 'GET_USER_MEDIA_UNSUPPORTED',
+          source: 'scanner.qr',
+          severity: 'critical',
+          message: 'getUserMedia saknas i aktuell webvy.',
+          metadata: {
+            isIos,
+            native: Capacitor.isNativePlatform(),
+          },
+        });
         return;
       }
 
@@ -405,12 +512,40 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       setCameraState('error');
       if (err.name === 'NotAllowedError') {
         setError('Camera permission denied. Allow camera in device settings.');
+        reportDiagnostic({
+          code: 'CAMERA_PERMISSION_DENIED',
+          source: 'scanner.qr',
+          severity: 'error',
+          error: err,
+          metadata: { isIos, stage: 'getUserMedia' },
+        });
       } else if (err.name === 'NotFoundError') {
         setError('No camera found on device.');
+        reportDiagnostic({
+          code: 'CAMERA_NOT_FOUND',
+          source: 'scanner.qr',
+          severity: 'error',
+          error: err,
+          metadata: { isIos },
+        });
       } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
         setError('Camera could not be started. It may be in use by another app.');
+        reportDiagnostic({
+          code: 'CAMERA_NOT_READABLE',
+          source: 'scanner.qr',
+          severity: 'error',
+          error: err,
+          metadata: { isIos },
+        });
       } else {
         setError(err.message || 'Camera could not be started.');
+        reportDiagnostic({
+          code: 'CAMERA_START_FAILED',
+          source: 'scanner.qr',
+          severity: 'error',
+          error: err,
+          metadata: { isIos },
+        });
       }
     }
   }, [isIos, runScanLoop, shouldSkipCamera]);
