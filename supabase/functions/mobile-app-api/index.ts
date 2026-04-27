@@ -1428,6 +1428,8 @@ async function handleGetTimeReports(supabase: any, staffId: string, organization
       description,
       approved,
       created_at,
+      is_subdivision,
+      parent_time_report_id,
       bookings (
         id,
         client,
