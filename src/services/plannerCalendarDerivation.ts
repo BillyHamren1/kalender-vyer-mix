@@ -53,12 +53,20 @@ interface BookingAssignmentRow {
   assignment_date: string;
 }
 
+interface LargeProjectTeamAssignmentRow {
+  large_project_id: string;
+  phase: string;
+  assignment_date: string;
+  team_id: string;
+}
+
 interface BuildPlannerCalendarEventsInput {
   realEvents: RealCalendarEventRow[];
   bookings: BookingRow[];
   largeProjects: LargeProjectRow[];
   largeProjectBookings: LargeProjectBookingRow[];
   bookingAssignments: BookingAssignmentRow[];
+  largeProjectTeamAssignments?: LargeProjectTeamAssignmentRow[];
   fromDate: string;
   toDate: string;
 }
@@ -149,6 +157,7 @@ export const buildPlannerCalendarEvents = ({
   largeProjects,
   largeProjectBookings,
   bookingAssignments,
+  largeProjectTeamAssignments = [],
   fromDate,
   toDate,
 }: BuildPlannerCalendarEventsInput): CalendarEvent[] => {
@@ -176,6 +185,14 @@ export const buildPlannerCalendarEvents = ({
     const rows = bookingAssignmentsByBooking.get(assignment.booking_id) || [];
     rows.push(assignment);
     bookingAssignmentsByBooking.set(assignment.booking_id, rows);
+  }
+
+  // Project team overrides: project|phase|date → team_id
+  const projectTeamByKey = new Map<string, string>();
+  for (const row of largeProjectTeamAssignments) {
+    const phase = normalizePhase(row.phase);
+    if (!phase) continue;
+    projectTeamByKey.set(`${row.large_project_id}|${phase}|${row.assignment_date}`, row.team_id);
   }
 
   const pickNearestReal = (rows: RealCalendarEventRow[], phase: PlannerPhase, date: string) => {
@@ -257,17 +274,27 @@ export const buildPlannerCalendarEvents = ({
 
   const bookingSeen = new Set<string>();
   const projectSeen = new Set<string>();
-  const events: CalendarEvent[] = realEvents.map((row) => {
+  // Real rows: emit as-is for non-project bookings.
+  // For project-linked bookings we DROP the per-booking real row and instead
+  // emit a single project-level row below. This is what the user asked for:
+  // "projektets datum/tider" — one event per project day, not one per booking.
+  const events: CalendarEvent[] = [];
+  for (const row of realEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
     const phase = normalizePhase(row.event_type);
     const sourceDate = extractDate(row.source_date || row.start_time);
-    if (booking && phase && sourceDate) {
-      if (projectId) projectSeen.add(`${projectId}|${phase}|${sourceDate}`);
-      else bookingSeen.add(`${booking.id}|${phase}|${sourceDate}`);
+
+    if (projectId && phase && sourceDate) {
+      // Skip — project-level event is emitted in the large_projects loop below.
+      continue;
     }
-    return mapRealRowToCalendarEvent(row, booking, projectId ? projectsById.get(projectId) : undefined);
-  });
+
+    if (booking && phase && sourceDate) {
+      bookingSeen.add(`${booking.id}|${phase}|${sourceDate}`);
+    }
+    events.push(mapRealRowToCalendarEvent(row, booking, undefined));
+  }
 
   for (const booking of bookings) {
     if (!booking.id || (booking.status && booking.status.toUpperCase() === 'OFFER')) continue;
@@ -324,14 +351,17 @@ export const buildPlannerCalendarEvents = ({
       if (projectSeen.has(key)) continue;
 
       const inferred = inferProjectSynthetic(project.id, phase, date);
-      if (!inferred.resourceId) continue;
+      // Project-level team override wins over inference.
+      const overrideTeam = projectTeamByKey.get(key);
+      const resourceId = overrideTeam || inferred.resourceId;
+      if (!resourceId) continue;
 
       events.push({
         id: `synthetic-project-${project.id}-${phase}-${date}`,
         title: project.name || inferred.booking?.client || 'Stort projekt',
         start: inferred.start,
         end: inferred.end,
-        resourceId: inferred.resourceId,
+        resourceId,
         bookingId: inferred.booking?.id || undefined,
         bookingNumber: inferred.booking?.booking_number || undefined,
         booking_number: inferred.booking?.booking_number || undefined,
@@ -340,14 +370,16 @@ export const buildPlannerCalendarEvents = ({
         extendedProps: {
           bookingId: inferred.booking?.id || undefined,
           booking_id: inferred.booking?.id || undefined,
-          resourceId: inferred.resourceId,
+          resourceId,
           deliveryAddress: project.address || inferred.booking?.deliveryaddress || undefined,
           bookingNumber: inferred.booking?.booking_number || undefined,
           eventType: phase,
           sourceDate: date,
           largeProjectId: project.id,
           largeProjectName: project.name || undefined,
-          isSyntheticFallback: true,
+          isLargeProject: true,
+          isSyntheticFallback: !overrideTeam && !!inferred && !inferred.booking,
+          phase,
           manuallyAssigned: false,
         },
       });
