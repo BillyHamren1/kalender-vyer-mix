@@ -131,6 +131,40 @@ export const parsePlannerDate = (value: string): Date | null => {
   return result;
 };
 
+/**
+ * Parse a planner datetime string without timezone conversion.
+ * Reads the literal YYYY-MM-DD and HH:mm values from the string and builds
+ * a local Date with those exact wall-clock digits.
+ */
+export const parsePlannerDateTime = (value: string): Date | null => {
+  if (!value) return null;
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6] || '0');
+
+  if ([year, month, day, hour, minute, second].some((v) => Number.isNaN(v))) return null;
+
+  const result = new Date(year, month - 1, day, hour, minute, second, 0);
+  if (
+    result.getFullYear() !== year ||
+    result.getMonth() !== month - 1 ||
+    result.getDate() !== day ||
+    result.getHours() !== hour ||
+    result.getMinutes() !== minute ||
+    result.getSeconds() !== second
+  ) {
+    return null;
+  }
+
+  return result;
+};
+
 /** Normalize planner event types to the canonical casing used in bookings/planner UI. */
 export const normalizePlannerEventType = (value: string | null | undefined): 'rig' | 'event' | 'rigDown' | undefined => {
   if (!value) return undefined;
