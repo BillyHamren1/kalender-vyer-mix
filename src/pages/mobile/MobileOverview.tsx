@@ -197,9 +197,9 @@ const MobileOverview: React.FC = () => {
 
         {/* === Staffing === */}
         <TabsContent value="staffing" className="mt-4 space-y-4">
-          {assignmentsQ.isLoading && <ListSkeleton />}
+          {(authLoading || (!hasToken && tab === 'staffing') || assignmentsQ.isLoading) && <ListSkeleton />}
           {assignmentsQ.isError && <ErrorState text={t('overview.error')} />}
-          {!assignmentsQ.isLoading && staffingByDay.length === 0 && (
+          {hasToken && !assignmentsQ.isLoading && !assignmentsQ.isError && staffingByDay.length === 0 && (
             <EmptyState text={t('overview.empty.staffing')} />
           )}
           {staffingByDay.map(({ date, bookings }) => (
