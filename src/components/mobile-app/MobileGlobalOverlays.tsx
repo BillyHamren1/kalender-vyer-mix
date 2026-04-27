@@ -378,7 +378,11 @@ const MobileGlobalOverlays: React.FC = () => {
 
   return (
     <>
-      {/* Visual banners — render at mount position in the JSX tree */}
+      {/* Visual banners — render at mount position in the JSX tree.
+          WorkDayStatusPanel is the PRIMARY surface for the day timer +
+          start/end controls. GlobalActiveTimerBanner only shows activity
+          rows underneath. */}
+      <WorkDayStatusPanel />
       <GlobalActiveTimerBanner />
       <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
       {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
