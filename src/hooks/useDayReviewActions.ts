@@ -290,6 +290,57 @@ export function useDayReviewActions(): DayReviewActions {
     [],
   );
 
+  /**
+   * Skapa restid från ett aktivitetsgap. Detta är den primära vägen
+   * (gap-modellen) — `adjustTravel` ovan finns kvar för enskilda
+   * travel_edge-events från assistenten.
+   *
+   * Steg: createTravelLog → setTravelTimes med [start, end] eller
+   * [start, start + durationMinutesOverride]. Markerar samtidigt gapet
+   * som lokalt löst så det inte syns i review nästa render.
+   */
+  const createTravelForGap = useCallback<DayReviewActions['createTravelForGap']>(
+    async ({ gapKey, start_time, end_time, durationMinutesOverride }) => {
+      try {
+        const created = await mobileApi.createTravelLog({});
+        const newId = created?.travel_log?.id;
+        if (!newId) {
+          toast.error('Kunde inte skapa restid');
+          return;
+        }
+        const finalEnd =
+          typeof durationMinutesOverride === 'number' && durationMinutesOverride > 0
+            ? new Date(new Date(start_time).getTime() + durationMinutesOverride * 60_000).toISOString()
+            : end_time;
+        await mobileApi.setTravelTimes({
+          travel_log_id: newId,
+          start_time,
+          end_time: finalEnd,
+        });
+        // Lås gapet lokalt så det inte dyker upp igen.
+        const { markGapResolvedLocally } = await import('@/lib/dayGaps');
+        markGapResolvedLocally(gapKey, 'pause'); // återanvänder slot — kan finjusteras senare
+        toast.success('Restid registrerad från gap');
+      } catch (err: any) {
+        toast.error(err?.message || 'Kunde inte skapa restid');
+      }
+    },
+    [],
+  );
+
+  /**
+   * Markera ett gap som paus/privat eller ignorerat — utan att skapa
+   * någon travel_time_log. Persisteras lokalt (se dayGaps.ts).
+   */
+  const markGapResolved = useCallback<DayReviewActions['markGapResolved']>(
+    async ({ gapKey, resolution }) => {
+      const { markGapResolvedLocally } = await import('@/lib/dayGaps');
+      markGapResolvedLocally(gapKey, resolution);
+      toast.success(resolution === 'pause' ? 'Markerad som paus/privat' : 'Gap ignorerat');
+    },
+    [],
+  );
+
   const dismissEvent = useCallback<DayReviewActions['dismissEvent']>(
     async (eventId, note) => {
       await resolveEvent(eventId, 'ignored_stale', { note: note || 'Markerad som irrelevant av användaren' });
@@ -316,6 +367,8 @@ export function useDayReviewActions(): DayReviewActions {
     endActivityAtDeparture,
     endWorkDayAtHomeArrival,
     adjustTravel,
+    createTravelForGap,
+    markGapResolved,
     dismissEvent,
     approveWorkday,
   };
