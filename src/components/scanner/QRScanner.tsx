@@ -40,7 +40,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  const [hasStartGesture, setHasStartGesture] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -646,7 +646,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   useEffect(() => {
     if (!isActive) {
       setError(null);
-      setHasStartGesture(false);
+      
       stopCameraRef.current();
       return;
     }
@@ -656,11 +656,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       return;
     }
 
-    if (isNativeIos && !hasStartGesture) {
-      stopCameraRef.current();
-      return;
-    }
-
+    // Auto-start kameran direkt när scannern öppnas. Föräldraknappen
+    // ("Kamera") räknas som user gesture, så getUserMedia får tillåtelse
+    // även på iOS WKWebView utan ett extra mellanklick.
     void startCameraRef.current();
 
     return () => {
@@ -670,7 +668,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
     // Intentionally only depend on activation flags — start/stop are read via refs
     // to prevent restart loops when parent re-renders.
-  }, [hasStartGesture, isActive, isNativeIos, shouldSkipCamera]);
+  }, [isActive, shouldSkipCamera]);
 
   if (!isActive) return null;
 
@@ -717,19 +715,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
             </div>
           )}
 
-          {cameraState === 'idle' && isNativeIos && !hasStartGesture && (
+          {cameraState === 'idle' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
-              <Camera className="h-14 w-14 mb-4 opacity-60" />
-              <p className="text-center text-base mb-2">Tryck för att starta kameran</p>
-              <p className="text-center text-sm text-white/60 mb-6">Det gör iPhone-scanningen snabbare och stabilare.</p>
-              <Button
-                onClick={() => {
-                  setHasStartGesture(true);
-                  void startCamera();
-                }}
-              >
-                Starta kamera
-              </Button>
+              <Loader2 className="h-12 w-12 mb-4 animate-spin opacity-60" />
+              <p className="text-center text-base">Förbereder kamera...</p>
             </div>
           )}
 
