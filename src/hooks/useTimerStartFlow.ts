@@ -114,8 +114,11 @@ export function useTimerStartFlow(
       opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
     ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
-      // This is one of the two sanctioned auto-stop triggers (the other is
-      // geofence ENTER on a known place). Speed alone never stops travel.
+      // NOTE on the new official model: restid är primärt GAPET mellan två
+      // aktiviteter (Projekt A stopp → Projekt B start). Live GPS-travel är
+      // numera ett LEGACY/ASSIST-spår (se useTravelDetection). Att stänga
+      // en eventuell öppen GPS-travel-rad här är fortsatt korrekt — det
+      // hindrar dubbel-tid när gap-modellen ändå kommer att täcka resan.
       if (userPosition) {
         const detail: StopTravelEventDetail = {
           lat: userPosition.lat,
