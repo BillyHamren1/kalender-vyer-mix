@@ -55,6 +55,10 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
     const err: any = new Error(errorData.error || `API error: ${response.status}`);
     err.debugCode = errorData.debugCode;
     err.status = response.status;
+    // Structured envelope for read-only get_packing_items when list isn't ready.
+    if (response.status === 409 && errorData?.__packingListNotReady) {
+      err.notReadyPayload = errorData;
+    }
     throw err;
   }
 
@@ -160,10 +164,46 @@ export const fetchPackingForScanner = async (id: string): Promise<PackingWithBoo
   return callScannerApi('get_packing', { id });
 };
 
-// Fetch packing list items
-export const fetchPackingListItems = async (packingId: string) => {
-  const data = await callScannerApi('get_packing_items', { packingId });
-  return sortPackingItems(data || []);
+/**
+ * Result envelope returned by `fetchPackingListItems`.
+ * Either an array of items, or a `not_ready` marker the UI can render.
+ */
+export interface PackingListNotReady {
+  __packingListNotReady: true;
+  reason: 'missing_items';
+  bookingProductCount: number;
+  packingId: string;
+  message: string;
+}
+
+export type PackingListItemsResult = any[] | PackingListNotReady;
+
+// Fetch packing list items. READ-ONLY on the server — never mutates.
+// When the list is empty but the source booking has products, returns a
+// `not_ready` envelope so the caller can show a Regenerate button instead
+// of mounting the scanner with a half-broken list.
+export const fetchPackingListItems = async (packingId: string): Promise<PackingListItemsResult> => {
+  try {
+    const data = await callScannerApi('get_packing_items', { packingId });
+    if (data && typeof data === 'object' && (data as any).__packingListNotReady) {
+      return data as PackingListNotReady;
+    }
+    return sortPackingItems(data || []);
+  } catch (err: any) {
+    // Edge function returns HTTP 409 with the not_ready envelope; surface that
+    // payload to the caller instead of bubbling as a generic error.
+    if (err?.status === 409 && err?.notReadyPayload) {
+      return err.notReadyPayload as PackingListNotReady;
+    }
+    throw err;
+  }
+};
+
+// Explicit, operator-triggered repair of an out-of-sync packing list.
+export const repairPackingItems = async (
+  packingId: string,
+): Promise<{ success: boolean; inserted: number; updated: number; deleted: number; error?: string }> => {
+  return callScannerApi('repair_packing_items', { packingId });
 };
 
 // Sort packing items: parents first with children underneath

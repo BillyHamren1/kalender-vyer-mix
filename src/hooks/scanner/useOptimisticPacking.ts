@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import {
   fetchPackingListItems,
   fetchPackingForScanner,
+  type PackingListNotReady,
 } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { scanLog } from './scanLog';
@@ -37,11 +38,17 @@ export const useOptimisticPacking = (packingId: string) => {
   const [items, setItems] = useState<PackingItem[]>([]);
   const [progress, setProgress] = useState<PackingProgress>({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * When the server reports the packing list is empty but the source booking
+   * has products, we expose this envelope so the UI can render a clear
+   * "not ready / regenerate" state instead of mounting the scanner with an
+   * empty list. `null` = normal/loaded.
+   */
+  const [notReady, setNotReady] = useState<PackingListNotReady | null>(null);
   const itemOrderRef = useRef<Record<string, number>>({});
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
     // Single source of truth — see src/lib/packing/progress.ts.
-    // Server-side checkIfAllPacked uses the same rule via the Deno mirror.
     const { total, verified, percentage } = computePackingProgress(updatedItems);
     setProgress({ total, verified, percentage });
   }, []);
@@ -59,8 +66,6 @@ export const useOptimisticPacking = (packingId: string) => {
     scanLog('quantity_updated', { itemId, direction: '+1' });
   }, [recalcProgress]);
 
-  // Set the exact quantity_packed for an item (used when backend reports an authoritative value,
-  // e.g. after over-scan where the server count is the source of truth).
   const applyOptimisticSet = useCallback((itemId: string, quantity: number) => {
     setItems(prev => {
       const updated = prev.map(item =>
@@ -88,17 +93,15 @@ export const useOptimisticPacking = (packingId: string) => {
   }, [recalcProgress]);
 
   const mergeServerData = useCallback((serverItems: PackingItem[]) => {
-    // Sort according to saved order
     const stableSorted = [...serverItems].sort(
       (a, b) => (itemOrderRef.current[a.id] ?? 9999) - (itemOrderRef.current[b.id] ?? 9999)
     );
-    
+
     setItems(prev => {
       const prevMap = new Map(prev.map(i => [i.id, i]));
       return stableSorted.map(serverItem => {
         const localItem = prevMap.get(serverItem.id);
         if (localItem && localItem.quantity_packed > serverItem.quantity_packed) {
-          // NEVER decrease local quantity
           return { ...serverItem, quantity_packed: localItem.quantity_packed };
         }
         return serverItem;
@@ -111,15 +114,28 @@ export const useOptimisticPacking = (packingId: string) => {
     try {
       if (!isBackground) setIsLoading(true);
 
-      // Fetch packing metadata and items first (items auto-generates packing_list_items)
-      const [packingData, itemsData] = await Promise.all([
+      // READ-ONLY fetch — server never mutates on get_packing_items.
+      const [packingData, itemsResult] = await Promise.all([
         fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
       ]);
 
       setPacking(packingData);
 
-      const typedItems = itemsData as PackingItem[];
+      // Not-ready envelope: stop and surface to UI.
+      if (itemsResult && !Array.isArray(itemsResult) && (itemsResult as any).__packingListNotReady) {
+        setNotReady(itemsResult as PackingListNotReady);
+        if (!isBackground) {
+          setItems([]);
+          recalcProgress([]);
+        }
+        return;
+      }
+
+      // Healthy load — clear any stale not-ready flag.
+      setNotReady(null);
+
+      const typedItems = itemsResult as PackingItem[];
       if (Object.keys(itemOrderRef.current).length === 0) {
         const order: Record<string, number> = {};
         typedItems.forEach((item, idx) => { order[item.id] = idx; });
@@ -148,6 +164,7 @@ export const useOptimisticPacking = (packingId: string) => {
     setItems,
     progress,
     isLoading,
+    notReady,
     loadData,
     recalcProgress,
     applyOptimisticIncrement,
