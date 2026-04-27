@@ -1,3 +1,28 @@
+/**
+ * useTravelDetection — LEGACY / ASSIST LAYER
+ * ==========================================
+ *
+ * STATUS: secondary. Retained as an *assist signal* only.
+ *
+ * OFFICIAL TIME MODEL (Tidappen):
+ *   1. Dagtimer (workday) = hela arbetsdagens tak.
+ *   2. Aktivitet (projekt/plats/bokning) = tidsblock inuti dagen.
+ *   3. Restid = GAPET mellan två aktiviteter när gapet är rimligt.
+ *      Exempel: Projekt A stopp 10:00 + Projekt B start 11:00
+ *               → 60 min gap → möjlig restid (rapporteras/justeras
+ *               via day-review eller admin-vyn).
+ *
+ * Konsekvens för den här hooken:
+ *   • Live GPS-travel ÄR INTE LÄNGRE den primära källan för restid.
+ *   • Auto-skapade `travel_time_logs` är en *assistent-signal* —
+ *     användaren bekräftar/justerar dem i day-review innan de räknas
+ *     som arbetstid.
+ *   • Manuella starter (knapptryck, day-review `adjustTravel`) och
+ *     gap-härledd restid är de auktoritativa källorna framåt.
+ *   • Befintlig kod behålls för bakåtkompatibilitet (öppna rader på
+ *     enheter, in-flight resor) men ska inte byggas ut. Ny logik runt
+ *     restid ska gå via aktivitets-gap, inte via GPS-fart.
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
 import { GpsPosition } from '@/hooks/useGeofencing';
