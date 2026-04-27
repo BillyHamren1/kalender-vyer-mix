@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     )
 
     const body = await req.json()
-    const { booking_id, organization_id } = body
+    const { booking_id, organization_id, target_packing_id } = body
 
     if (!booking_id) {
       return new Response(
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`[sync-booking-to-packing] Starting sync for booking ${booking_id}`)
+    console.log(`[sync-booking-to-packing] Starting sync for booking ${booking_id}${target_packing_id ? ` → explicit packing ${target_packing_id}` : ''}`)
 
     // 1. Fetch the booking
     const { data: booking, error: bookingError } = await supabase
@@ -67,8 +67,6 @@ Deno.serve(async (req) => {
 
     const upperStatus = (booking.status || '').toUpperCase()
 
-    // 2. If CANCELLED → remove packing project entirely
-    // Shared sync fields derived from booking
     const clientName = booking.client || 'Okänd kund'
     const eventDate = booking.eventdate
       ? new Date(booking.eventdate).toLocaleDateString('sv-SE')
@@ -83,6 +81,51 @@ Deno.serve(async (req) => {
       delivery_address: booking.deliveryaddress || null,
       notes: booking.internalnotes || null,
       updated_at: new Date().toISOString()
+    }
+
+    // ========================================================================
+    // EXPLICIT TARGET MODE (large project / consolidated packing).
+    // When the caller passes target_packing_id we DO NOT look up by booking_id
+    // and we DO NOT create new packing rows — we just sync items into the
+    // already-existing consolidated packing. This prevents duplicate packings
+    // when several bookings belong to the same consolidated list.
+    // ========================================================================
+    if (target_packing_id) {
+      // Verify the target exists and belongs to the same org.
+      const { data: target, error: targetErr } = await supabase
+        .from('packing_projects')
+        .select('id, organization_id, large_project_id')
+        .eq('id', target_packing_id)
+        .eq('organization_id', organization_id)
+        .maybeSingle()
+
+      if (targetErr || !target) {
+        return new Response(
+          JSON.stringify({ error: 'target_packing_id not found in organization' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Idempotently ensure link row exists in packing_project_bookings.
+      await supabase
+        .from('packing_project_bookings')
+        .upsert(
+          { packing_id: target_packing_id, booking_id, organization_id },
+          { onConflict: 'packing_id,booking_id', ignoreDuplicates: true }
+        )
+
+      const itemsSynced = await syncPackingListItems(supabase, target_packing_id, booking_id, organization_id)
+      console.log(`[sync-booking-to-packing] Explicit target sync done: packing=${target_packing_id} booking=${booking_id} items=${itemsSynced}`)
+
+      return new Response(
+        JSON.stringify({
+          action: 'explicit_target_synced',
+          booking_id,
+          packing_id: target_packing_id,
+          items_synced: itemsSynced
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // 2. If CANCELLED → mark packing project as cancelled (not delete)
@@ -104,14 +147,41 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 3. Check if packing project exists
+    // 3. Check if packing project exists.
+    // First check if this booking is already linked to a CONSOLIDATED packing
+    // via packing_project_bookings. If so, sync into that one — never create
+    // a duplicate single-booking packing alongside the consolidated list.
+    const { data: linkedConsolidated } = await supabase
+      .from('packing_project_bookings')
+      .select('packing_id, packing_projects!inner(id, large_project_id, organization_id)')
+      .eq('booking_id', booking_id)
+      .eq('organization_id', organization_id)
+      .limit(1)
+      .maybeSingle()
+
+    if (linkedConsolidated?.packing_id) {
+      const consolidatedId = linkedConsolidated.packing_id
+      console.log(`[sync-booking-to-packing] Booking ${booking_id} belongs to consolidated packing ${consolidatedId} — syncing items into it`)
+      const itemsSynced = await syncPackingListItems(supabase, consolidatedId, booking_id, organization_id)
+      return new Response(
+        JSON.stringify({
+          action: 'consolidated_synced',
+          booking_id,
+          packing_id: consolidatedId,
+          items_synced: itemsSynced
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const { data: existingPacking } = await supabase
       .from('packing_projects')
       .select('id, name, status')
       .eq('booking_id', booking_id)
       .eq('organization_id', organization_id)
+      .is('large_project_id', null)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     let packingId: string
     let action: string
