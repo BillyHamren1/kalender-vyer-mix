@@ -393,6 +393,26 @@ const GlobalActiveTimerBanner: React.FC = () => {
           </Button>
         </div>
       )}
+      {/* "Starta dagen" — samma fixed slot som Avsluta-knappen, visas när
+          ingen arbetsdag är öppen så användaren alltid kan starta dagen
+          UTAN att först välja projekt/plats. Dagen är huvudspåret. */}
+      {showStartDay && (
+        <div
+          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
+          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
+        >
+          <Button
+            variant="default"
+            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
+            onClick={handleStartDay}
+            disabled={startingDay}
+            title={t('workday.startDayTitle')}
+          >
+            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {startingDay ? t('workday.starting') : t('workday.startDay')}
+          </Button>
+        </div>
+      )}
       {pendingStop && (
         <EndOfDayStopDialog
           open={!!pendingStop}
