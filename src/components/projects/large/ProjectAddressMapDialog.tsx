@@ -378,7 +378,11 @@ export default function ProjectAddressMapDialog({
   }, []);
 
   const handleSave = async () => {
-    if (mode === 'polygon' && !polygon) {
+    // If a polygon was drawn, save it as polygon mode regardless of UI toggle —
+    // it's almost certainly what the user wanted (and prevents silent loss).
+    const effectiveMode: 'circle' | 'polygon' = polygon ? 'polygon' : mode;
+
+    if (effectiveMode === 'polygon' && !polygon) {
       toast.error('Rita ett polygon-staket först, eller välj cirkelläge');
       return;
     }
@@ -389,8 +393,8 @@ export default function ProjectAddressMapDialog({
         latitude: coords.lat,
         longitude: coords.lng,
         radius_meters: Math.round(radius),
-        geofence_mode: mode,
-        geofence_polygon: mode === 'polygon' ? polygon : null,
+        geofence_mode: effectiveMode,
+        geofence_polygon: effectiveMode === 'polygon' ? polygon : null,
       });
       onOpenChange(false);
     } catch (e: any) {
