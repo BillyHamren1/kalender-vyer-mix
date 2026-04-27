@@ -383,6 +383,119 @@ export default function MobileDayReview() {
                   </div>
                 )}
 
+                {/* === Osäkra restidsgap (gap-modellen) ===
+                    Visar gap mellan två aktiviteter samma dag som inte
+                    redan täcks av en travel_time_log. Användaren får 4
+                    explicita val: registrera restid, justera minuter,
+                    markera paus/privat, eller ignorera. */}
+                {(() => {
+                  // resolvedTick i deps via closure tvingar omräkning efter mark.
+                  void resolvedTick;
+                  const allGaps = computeDayGaps(timeReports, wd.travels_for_day, wd.day_key);
+                  const gaps = filterUnresolvedGaps(allGaps);
+                  if (gaps.length === 0) return null;
+                  return (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Osäkra restidsgap ({gaps.length})
+                      </div>
+                      <ul className="space-y-2">
+                        {gaps.map((gap: DayGap) => {
+                          const busy = busyGapKey === gap.key;
+                          const editValue = gapMinuteEdits[gap.key] ?? '';
+                          const minutesNum = Number(editValue);
+                          const editValid = editValue !== '' && Number.isFinite(minutesNum)
+                            && minutesNum >= 1 && minutesNum <= gap.gapMinutes;
+                          return (
+                            <li key={gap.key} className={cn(
+                              'rounded-lg border bg-background/40 p-2.5',
+                              gap.kind === 'needs_review' && 'border-amber-500/40',
+                            )}>
+                              <div className="flex items-center gap-2 text-xs flex-wrap">
+                                <Plane className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                <span className="font-medium truncate max-w-[40%]">{gap.prevLabel}</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {format(new Date(gap.startIso), 'HH:mm')}
+                                </span>
+                                <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                                <span className="font-medium truncate max-w-[40%]">{gap.nextLabel}</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {format(new Date(gap.endIso), 'HH:mm')}
+                                </span>
+                                <span className={cn(
+                                  'ml-auto text-[10px] uppercase px-1.5 py-0.5 rounded',
+                                  gap.kind === 'needs_review'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                    : 'bg-muted text-muted-foreground',
+                                )}>
+                                  {gap.gapMinutes} min
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] text-muted-foreground mt-1.5">
+                                Du avslutade {gap.prevLabel} {format(new Date(gap.startIso), 'HH:mm')}
+                                {' '}och startade {gap.nextLabel} {format(new Date(gap.endIso), 'HH:mm')}.
+                                {gap.kind === 'needs_review' && ' Långt gap — kontrollera att detta verkligen är restid.'}
+                              </p>
+
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <Button
+                                  size="sm" variant="default" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.createTravelForGap({
+                                    gapKey: gap.key,
+                                    start_time: gap.startIso,
+                                    end_time: gap.endIso,
+                                  }), true)}
+                                >
+                                  <Plane className="w-3.5 h-3.5 mr-1" />
+                                  Registrera restid
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline" disabled={busy || !editValid}
+                                  onClick={() => runGapAction(gap.key, () => actions.createTravelForGap({
+                                    gapKey: gap.key,
+                                    start_time: gap.startIso,
+                                    end_time: gap.endIso,
+                                    durationMinutesOverride: minutesNum,
+                                  }), true)}
+                                >
+                                  Justera
+                                </Button>
+                                <Input
+                                  type="number" inputMode="numeric"
+                                  min={1} max={gap.gapMinutes}
+                                  placeholder="min"
+                                  value={editValue}
+                                  onChange={(e) => setGapMinuteEdits((prev) => ({ ...prev, [gap.key]: e.target.value }))}
+                                  className="h-8 w-20 text-xs"
+                                />
+                                <Button
+                                  size="sm" variant="outline" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.markGapResolved({
+                                    gapKey: gap.key, resolution: 'pause',
+                                  }))}
+                                >
+                                  <Coffee className="w-3.5 h-3.5 mr-1" />
+                                  Paus/privat
+                                </Button>
+                                <Button
+                                  size="sm" variant="ghost" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.markGapResolved({
+                                    gapKey: gap.key, resolution: 'ignored',
+                                  }))}
+                                >
+                                  <XIcon className="w-3.5 h-3.5 mr-1" />
+                                  Ignorera
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })()}
+
                 {/* Approve day */}
                 {!isSynthetic && (
                   <div className="mt-3 flex justify-end">
