@@ -883,24 +883,34 @@ async function reconcileCalendarEvents(
 
     if (existing) {
       matchedExistingIds.add(existing.id);
-      const needsUpdate =
+
+      // STABILITY: never move a non-explicit (default 08:00) event that's already
+      // been placed by an earlier reconcile pass. The desired.start_time is just
+      // a preference for *new* events. Only force a time update when the booking
+      // now has an EXPLICIT time and that explicit time differs from existing.
+      const explicitTimeChanged = desired.isExplicitStart && (
         existing.start_time !== desired.start_time ||
-        existing.end_time !== desired.end_time ||
+        existing.end_time !== desired.end_time
+      );
+      const metaChanged =
         existing.title !== desired.title ||
         existing.booking_number !== desired.booking_number ||
         existing.delivery_address !== desired.delivery_address;
 
-      if (needsUpdate) {
-        console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): time/title/address changed`);
+      if (explicitTimeChanged || metaChanged) {
+        console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): ${explicitTimeChanged ? 'explicit time' : 'meta'} changed`);
+        const updatePayload: any = {
+          title: desired.title,
+          booking_number: desired.booking_number,
+          delivery_address: desired.delivery_address,
+        };
+        if (explicitTimeChanged) {
+          updatePayload.start_time = desired.start_time;
+          updatePayload.end_time = desired.end_time;
+        }
         const { error: updateErr } = await supabase
           .from('calendar_events')
-          .update({
-            start_time: desired.start_time,
-            end_time: desired.end_time,
-            title: desired.title,
-            booking_number: desired.booking_number,
-            delivery_address: desired.delivery_address,
-          })
+          .update(updatePayload)
           .eq('id', existing.id);
 
         if (updateErr) {
@@ -912,7 +922,7 @@ async function reconcileCalendarEvents(
         console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
       }
     } else {
-      const assignedTeam = await getNextTeamAssignment(
+      const placement = await assignTeamAndTime(
         supabase,
         desired.event_type,
         desired.date,
@@ -923,11 +933,11 @@ async function reconcileCalendarEvents(
         desired.isExplicitStart
       );
 
-      if (results.team_distribution[assignedTeam] !== undefined) {
-        results.team_distribution[assignedTeam]++;
+      if (results.team_distribution[placement.team] !== undefined) {
+        results.team_distribution[placement.team]++;
       }
 
-      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${assignedTeam}`);
+      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}`);
 
       const { error: insertErr } = await supabase
         .from('calendar_events')
@@ -935,11 +945,11 @@ async function reconcileCalendarEvents(
           booking_id: bookingData.id,
           booking_number: desired.booking_number,
           title: desired.title,
-          start_time: desired.start_time,
-          end_time: desired.end_time,
+          start_time: placement.start_time,
+          end_time: placement.end_time,
           event_type: desired.event_type,
           delivery_address: desired.delivery_address,
-          resource_id: assignedTeam,
+          resource_id: placement.team,
           organization_id: bookingData.organization_id || organizationId,
           source_date: desired.date
         });
@@ -1067,27 +1077,78 @@ async function reconcileCalendarEvents(
  * 3. No explicit start time → round-robin (team with fewest events, lowest number breaks ties);
  *    start time adjusted to after last event on that team for sequential stacking
  */
-const getNextTeamAssignment = async (
+/**
+ * Add minutes to a `YYYY-MM-DDTHH:MM:SS` string without timezone conversion.
+ */
+const addMinutesToDateTime = (dateTime: string, minutes: number): string => {
+  const datePart = dateTime.split('T')[0];
+  const timePart = dateTime.split('T')[1] || '00:00:00';
+  const [hh, mm, ss] = timePart.split(':').map(Number);
+  const total = hh * 60 + mm + minutes;
+  const endHH = String(Math.floor(total / 60) % 24).padStart(2, '0');
+  const endMM = String(Math.floor(total % 60)).padStart(2, '0');
+  const endSS = String(ss || 0).padStart(2, '0');
+  return `${datePart}T${endHH}:${endMM}:${endSS}`;
+};
+
+/**
+ * Calculate the earliest non-overlapping start time on a given team.
+ * Walks through team's events in chronological order and returns the first
+ * gap large enough to fit `durationMin` starting at or after `preferredStart`.
+ */
+const earliestSlotForTeam = (
+  teamEvents: Array<{ start: Date; end: Date }>,
+  preferredStart: Date,
+  durationMin: number
+): Date => {
+  // Sort by start time
+  const sorted = [...teamEvents].sort((a, b) => a.start.getTime() - b.start.getTime());
+  let candidate = new Date(preferredStart);
+  const durationMs = durationMin * 60 * 1000;
+
+  // Walk forward: any event that overlaps the candidate window pushes start to event.end
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const ev of sorted) {
+      const candidateEnd = new Date(candidate.getTime() + durationMs);
+      if (candidate < ev.end && candidateEnd > ev.start) {
+        // overlap → push candidate to ev.end
+        candidate = new Date(ev.end);
+        changed = true;
+      }
+    }
+  }
+  return candidate;
+};
+
+/**
+ * Decide BOTH the team and the actual start/end time for a new calendar event.
+ *
+ * - Explicit start: keep the time, find first team without overlap.
+ * - Default (08:00) start: stack sequentially per team. Choose the team where
+ *   the new event can start earliest. Tie-break: lowest team number.
+ *
+ * Returns `null` if assignment cannot be computed (caller falls back to defaults).
+ */
+const assignTeamAndTime = async (
   supabase: any,
   eventType: string,
   eventDate: string,
   bookingId: string,
   organizationId: string,
-  startTime?: string,
-  endTime?: string,
-  isExplicitStart: boolean = false
-): Promise<string> => {
-  // EVENT type events are no longer scheduled on a team — the Live column has been removed
-  // and eventdate is kept on bookings only. Defensive guard: if anything still tries to
-  // place an EVENT row in calendar_events, fall back to round-robin like rig events.
+  startTime: string,
+  endTime: string,
+  isExplicitStart: boolean
+): Promise<{ team: string; start_time: string; end_time: string }> => {
   if (eventType === 'event') {
     console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
   }
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+  const fallback = { team: 'team-1', start_time: startTime, end_time: endTime };
 
   try {
-    // Fetch all events on same date for these teams
     const { data: existingEvents } = await supabase
       .from('calendar_events')
       .select('resource_id, start_time, end_time')
@@ -1096,70 +1157,70 @@ const getNextTeamAssignment = async (
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
 
-    // Build per-team data: event count and latest end time
-    const teamEventCounts = new Map<string, number>(teams.map(t => [t, 0]));
-    const teamLatestEnd = new Map<string, Date>();
-
-    existingEvents?.forEach((ev: any) => {
+    // Group events per team
+    const perTeam = new Map<string, Array<{ start: Date; end: Date }>>();
+    for (const t of teams) perTeam.set(t, []);
+    (existingEvents || []).forEach((ev: any) => {
       if (!teams.includes(ev.resource_id)) return;
-      teamEventCounts.set(ev.resource_id, (teamEventCounts.get(ev.resource_id) || 0) + 1);
-      
-      const evEnd = new Date(ev.end_time);
-      const currentLatest = teamLatestEnd.get(ev.resource_id);
-      if (!currentLatest || evEnd > currentLatest) {
-        teamLatestEnd.set(ev.resource_id, evEnd);
-      }
+      perTeam.get(ev.resource_id)!.push({
+        start: new Date(ev.start_time),
+        end: new Date(ev.end_time),
+      });
     });
 
-    if (isExplicitStart && startTime && endTime) {
-      // === EXPLICIT START TIME: find team with no overlap at this specific time ===
+    if (isExplicitStart) {
+      // === EXPLICIT START: keep the time, find first team without overlap ===
       const newStart = new Date(startTime);
       const newEnd = new Date(endTime);
-
       for (const team of teams) {
-        let hasOverlap = false;
-        existingEvents?.forEach((ev: any) => {
-          if (ev.resource_id !== team) return;
-          const evStart = new Date(ev.start_time);
-          const evEnd = new Date(ev.end_time);
-          if (newStart < evEnd && newEnd > evStart) {
-            hasOverlap = true;
-          }
-        });
+        const hasOverlap = perTeam.get(team)!.some(ev => newStart < ev.end && newEnd > ev.start);
         if (!hasOverlap) {
-          console.log(`[Team Assignment] Explicit time: booking ${bookingId} → ${team} (no overlap at ${startTime})`);
-          return team;
+          console.log(`[Team Assignment] Explicit ${startTime}: booking ${bookingId} → ${team} (no overlap)`);
+          return { team, start_time: startTime, end_time: endTime };
         }
       }
-
-      // All teams have overlap at this time — use first team (overlap allowed)
-      console.log(`[Team Assignment] Explicit time: all teams busy at ${startTime}, booking ${bookingId} → team-1 (overlap allowed)`);
-      return 'team-1';
-
-    } else {
-      // === NO EXPLICIT START: round-robin by event count, sequential stacking ===
-      // Find minimum event count
-      let minCount = Number.MAX_SAFE_INTEGER;
-      for (const team of teams) {
-        const count = teamEventCounts.get(team) || 0;
-        if (count < minCount) minCount = count;
-      }
-
-      // Pick first team (lowest number) with minimum count
-      let selectedTeam = teams[0];
-      for (const team of teams) {
-        if ((teamEventCounts.get(team) || 0) === minCount) {
-          selectedTeam = team;
-          break;
-        }
-      }
-
-      console.log(`[Team Assignment] Round-robin: booking ${bookingId} → ${selectedTeam} (${minCount} existing events). Counts: ${JSON.stringify(Object.fromEntries(teamEventCounts))}`);
-      return selectedTeam;
+      console.log(`[Team Assignment] Explicit ${startTime}: all teams busy → team-1 (overlap allowed)`);
+      return fallback;
     }
+
+    // === DEFAULT START: sequential stacking — find earliest free slot per team ===
+    const preferredStart = new Date(startTime);
+    const durationMin = Math.max(
+      30,
+      Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000)
+    );
+
+    let bestTeam: string | null = null;
+    let bestStart: Date | null = null;
+    for (const team of teams) {
+      const slot = earliestSlotForTeam(perTeam.get(team)!, preferredStart, durationMin);
+      if (bestStart === null || slot < bestStart) {
+        bestStart = slot;
+        bestTeam = team;
+      }
+    }
+
+    if (!bestTeam || !bestStart) return fallback;
+
+    // Format slot back into the same `YYYY-MM-DDTHH:MM:SS` string shape
+    // (avoid Date.toISOString — it would shift to UTC).
+    const slotMinutesFromMidnight =
+      bestStart.getHours() * 60 + bestStart.getMinutes();
+    const preferredMinutesFromMidnight =
+      preferredStart.getHours() * 60 + preferredStart.getMinutes();
+    const minutesShift = slotMinutesFromMidnight - preferredMinutesFromMidnight;
+
+    const newStartStr = addMinutesToDateTime(startTime, minutesShift);
+    const newEndStr = addMinutesToDateTime(endTime, minutesShift);
+
+    console.log(
+      `[Team Assignment] Stack: booking ${bookingId} → ${bestTeam} ` +
+      `(preferred ${startTime} → assigned ${newStartStr})`
+    );
+    return { team: bestTeam, start_time: newStartStr, end_time: newEndStr };
   } catch (error) {
-    console.error('Error calculating team assignment, falling back to team-1:', error);
-    return 'team-1';
+    console.error('Error calculating team+time assignment, falling back:', error);
+    return fallback;
   }
 };
 
