@@ -1129,24 +1129,17 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   })
 
   // ─── SCHEDULED SHIFTS (calendar_events) ────────────────────────────
-  // Build shifts from all booking/date pairs that are actually visible to the
-  // staff member: direct REAL BSA rows and large-project dates derived from
-  // large_project_team_assignments + staff_assignments.
+  // Build shifts from all (booking_id, date) par som mobilen ska visa,
+  // härlett från SAMMA källa som personalkalendern (desktop):
+  //   1. staff_assignments × calendar_events.resource_id=team-Y
+  //      → "personen är på team-Y dag X, så alla bokningar i team-Y-kolumnen
+  //         dag X ska synas på mobilen"
+  //   2. booking_staff_assignments med riktigt team_id (explicit per-person)
+  // Project-membership (team_id='project') ger synlighet för andra bokningar
+  // i samma stora projekt, men skapar inte egna shifts.
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
-    // STRICT SCHEDULING AUTHORITY:
-    // The mobile calendar must mirror the personnel calendar 1:1. Shifts come
-    // ONLY from real per-day team scheduling rows (booking_staff_assignments
-    // with a real team_id). We deliberately DO NOT use:
-    //   - team_id='project' rows (those are visibility/membership only)
-    //   - project-wide expansion (one scheduled date does NOT spill into all
-    //     bookings of the same large project)
-    //   - booking.assignment_dates derived from project membership
-    //
-    // If a staff member is scheduled on another job on a given date, the
-    // mobile calendar must NOT also show another large-project booking on
-    // that date just because they're a member of that project.
     const bsaForShifts = (assignments || []).filter(
       (a: any) =>
         a.team_id !== 'project' &&
@@ -1157,6 +1150,13 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     const shiftDateKeys = new Set<string>(
       bsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
     )
+
+    // Lägg till team-härledda (booking, date)-par så shifts speglar
+    // personalkalendern även när BSA-rad saknas.
+    for (const [bId, dates] of Object.entries(derivedBookingDates)) {
+      if (String(bId).startsWith('location-')) continue
+      for (const d of dates) shiftDateKeys.add(`${bId}|${d}`)
+    }
 
     if (shiftDateKeys.size > 0) {
       const shiftBookingIds = [...new Set(Array.from(shiftDateKeys).map((key) => key.split('|')[0]))]
