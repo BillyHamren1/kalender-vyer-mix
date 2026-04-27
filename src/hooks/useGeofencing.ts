@@ -1,3 +1,34 @@
+/**
+ * useGeofencing — GPS SIGNAL LAYER (not a controller).
+ * ====================================================
+ *
+ * Responsibility split — read this before editing:
+ *
+ *   • useGeofencing  →  SIGNAL.   Detects enter/exit, emits assistant /
+ *                                  audit events (`workplace-exit`, anomaly
+ *                                  open/close, departure reports), and
+ *                                  delegates real action to autoActionsRef.
+ *                                  It MUST NOT call workdayApi/start, must
+ *                                  not write time_reports, must not own
+ *                                  the workday lifecycle.
+ *
+ *   • useTimerStartFlow → DECISION/ACTION for START.  performStart
+ *                         guarantees workday-first via ensureWorkDayActive
+ *                         and routes through evaluateStartConflict +
+ *                         distance check before startSession.
+ *
+ *   • useWorkSession.stopSession → DECISION/ACTION for STOP. Owns break
+ *                         prompt + save-then-stop + time_report write.
+ *
+ *   • useWorkDay / workdays table → SOURCE OF TRUTH for the workday.
+ *                         Activity timers are SECONDARY segments on top
+ *                         of the workday and never define it.
+ *
+ * The three exposed stop verbs (saveAndStopTimer / stopLocationTimerWithoutReport
+ * / cancelPendingTimer) are LOW-LEVEL primitives consumed exclusively by
+ * useWorkSession — feature code must not call them directly (locked by
+ * timerStopApi.contract.test.ts).
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
@@ -10,7 +41,13 @@ import {
   isInsideGeofence,
   GEOFENCE_MAX_ACCURACY_M,
 } from '@/lib/geofenceEval';
-import { autoStartWorkDay } from '@/services/workdayServerSync';
+// NOTE: 'autoStartWorkDay' import deliberately removed (2026-04).
+// Geofence is a SIGNAL — not a workday/timer controller. Workday-first
+// is enforced centrally by useTimerStartFlow.performStart →
+// ensureWorkDayActive, which runs inside the same tryStartFromArrival
+// call we already invoke via autoActionsRef.start. Letting geofence ALSO
+// fire its own workday/start race-conditions with that path and creates
+// duplicate audit notes. See useTimerStartFlow for the canonical flow.
 import {
   computePlannedDaySignals,
   decideExitAction,
@@ -727,7 +764,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          autoStartWorkDay('geofence_enter');
+          // (workday is ensured centrally by autoActionsRef.start →
+          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
           const arrivedAtIso = new Date().toISOString();
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
@@ -815,7 +853,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          autoStartWorkDay('geofence_enter');
+          // (workday is ensured centrally by autoActionsRef.start →
+          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
           const arrivedAtIso = new Date().toISOString();
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
@@ -903,7 +942,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-        autoStartWorkDay('geofence_enter');
+        // (workday is ensured centrally by autoActionsRef.start →
+        // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
         // Report arrival to the server as well — the pre-workday travel
         // gate uses arrival signals to know that "the day has truly started".
         // Without this call, arriving at the warehouse first wouldn't unlock
