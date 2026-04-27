@@ -43,8 +43,8 @@ const formatDayHeader = (key: string, t: (k: any) => string): string => {
   const todayKey = dayKey(today);
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  if (key === todayKey) return t('calendar.today') || 'Idag';
-  if (key === dayKey(tomorrow)) return t('calendar.tomorrow') || 'Imorgon';
+  if (key === todayKey) return (t as any)('calendar.today') || 'Idag';
+  if (key === dayKey(tomorrow)) return (t as any)('calendar.tomorrow') || 'Imorgon';
   return date.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
