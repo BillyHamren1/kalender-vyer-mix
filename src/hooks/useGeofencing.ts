@@ -780,10 +780,29 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
           autoStartWorkDay('geofence_enter');
-          mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: new Date().toISOString() })
+          const arrivedAtIso = new Date().toISOString();
+          mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
           noteEnterForDeparture(booking.id, 'booking', booking.id, booking.client || null);
-          setGeofenceEvent({ type: 'enter', booking, distance: Math.round(dist), locationType: 'booking', arrivalTimestamp: Date.now() });
+
+          // ── AUTO-FIRST: starta activity direkt; prompt endast vid äkta osäkerhet.
+          const startFn = autoActionsRef.start;
+          const fallbackPrompt = () => setGeofenceEvent({
+            type: 'enter', booking, distance: Math.round(dist),
+            locationType: 'booking', arrivalTimestamp: Date.now(),
+          });
+          if (startFn) {
+            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso })
+              .then((res) => {
+                if (res.status === 'conflict' || res.status === 'workday-failed') fallbackPrompt();
+              })
+              .catch((err) => {
+                console.warn('[Geofence] auto-start booking failed:', err);
+                fallbackPrompt();
+              });
+          } else {
+            fallbackPrompt();
+          }
         }
 
         // Re-entry while timer is active → close any open anomaly
@@ -792,13 +811,21 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           fireAnomalyStop({ bookingId: booking.id });
         }
 
-        // Exit while timer is running → background anomaly, DO NOT stop timer
+        // EXIT while timer is running → AUTO-STOP activity (Auto-first 2026-04).
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(booking.id)) {
           triggeredExitRef.current.add(booking.id);
           triggeredEnterRef.current.delete(booking.id);
-          fireAnomalyStart({ bookingId: booking.id });
           const exitedAtIso = new Date().toISOString();
           maybeReportDeparture(booking.id, exitedAtIso);
+          const stopFn = autoActionsRef.stop;
+          if (stopFn) {
+            void stopFn({ key: booking.id, exitedAtIso }).catch((err) => {
+              console.warn('[Geofence] auto-stop booking failed:', err);
+              fireAnomalyStart({ bookingId: booking.id });
+            });
+          } else {
+            fireAnomalyStart({ bookingId: booking.id });
+          }
           window.dispatchEvent(new CustomEvent('workplace-exit', {
             detail: {
               kind: 'booking',
