@@ -55,6 +55,10 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
     const err: any = new Error(errorData.error || `API error: ${response.status}`);
     err.debugCode = errorData.debugCode;
     err.status = response.status;
+    // Structured envelope for read-only get_packing_items when list isn't ready.
+    if (response.status === 409 && errorData?.__packingListNotReady) {
+      err.notReadyPayload = errorData;
+    }
     throw err;
   }
 
