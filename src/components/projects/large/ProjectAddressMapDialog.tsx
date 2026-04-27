@@ -489,9 +489,33 @@ export default function ProjectAddressMapDialog({
           <div className="relative h-[480px] bg-muted">
             <div ref={containerRef} className="absolute inset-0" />
 
-            {showLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/70 text-xs text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            {/* Stilväxlare: Karta / Satellit */}
+            {mapStatus === 'ready' && (
+              <div className="absolute top-3 left-3 z-10 flex rounded-md overflow-hidden border border-border bg-card/95 backdrop-blur shadow-md text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setMapStyle('streets')}
+                  className={`px-2.5 py-1.5 transition-colors ${
+                    mapStyle === 'streets'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Karta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapStyle('satellite')}
+                  className={`px-2.5 py-1.5 transition-colors border-l border-border ${
+                    mapStyle === 'satellite'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Satellit
+                </button>
+              </div>
+            )}
                 <span>
                   {mapStatus === 'loading-token' ? 'Hämtar Mapbox-token…' : 'Laddar karta…'}
                 </span>
