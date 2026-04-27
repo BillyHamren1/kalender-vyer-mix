@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2, LogOut, Play } from 'lucide-react';
+import { Square, Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -11,7 +11,8 @@ import { NextActionDialog } from './NextActionDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
-import { useWorkDay } from '@/hooks/useWorkDay';
+// NOTE: workday start/end controls live in WorkDayStatusPanel — this banner
+// only shows activity rows + dialogs. Do not re-add useWorkDay here.
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -72,32 +73,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
-  const { current: currentWorkday, start: startWorkday } = useWorkDay();
-  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
-  const [startingDay, setStartingDay] = useState(false);
-
-  // Should we offer the user an explicit "Starta dag" entry point?
-  // Only when logged in as mobile staff, no open workday, and we're inside
-  // the mobile app shell (not /m/report which has its own controls).
-  const showStartDay = !!staff?.id && !workdayOpen && !startingDay && location.pathname !== '/m/report';
-
-  const handleStartDay = useCallback(async () => {
-    if (startingDay || workdayOpen) return;
-    setStartingDay(true);
-    try {
-      // User explicitly opening the day → clear any "ended today" latch
-      // so auto-bootstrap and assistants treat it as a fresh active day.
-      clearWorkdayEnded();
-      const wd = await startWorkday();
-      if (!wd) {
-        toast.error(t('workday.couldNotStart'));
-      }
-    } catch (err: any) {
-      toast.error(err?.message || t('workday.couldNotStart'));
-    } finally {
-      setStartingDay(false);
-    }
-  }, [startingDay, workdayOpen, startWorkday, t]);
+  // Workday start/end UI moved to WorkDayStatusPanel — this banner is
+  // strictly the activity-row + EOD-dialog driver.
 
 
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
@@ -396,48 +373,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
           ))}
         </div>
       )}
-      {/* "Avsluta dagen" — fixed ovanför bottennaven (h-16 = 64px) +
-          iOS safe-area så hela knappen alltid syns på alla enheter.
-          Visas så länge arbetsdagen är öppen — även om alla aktivitets-
-          timers redan är stoppade. Annars går det inte att avsluta dagen
-          efter att man stoppat sin sista aktivitet. */}
-      {workdayOpen && location.pathname !== '/m/report' && (
-        <div
-          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
-          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
-        >
-          <Button
-            variant="default"
-            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
-            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-            disabled={savingKeys.size > 0}
-            title={t('workday.endDayTitle')}
-          >
-            <LogOut className="w-4 h-4" />
-            {t('workday.endDay')}
-          </Button>
-        </div>
-      )}
-      {/* "Starta dagen" — samma fixed slot som Avsluta-knappen, visas när
-          ingen arbetsdag är öppen så användaren alltid kan starta dagen
-          UTAN att först välja projekt/plats. Dagen är huvudspåret. */}
-      {showStartDay && (
-        <div
-          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
-          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
-        >
-          <Button
-            variant="default"
-            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
-            onClick={handleStartDay}
-            disabled={startingDay}
-            title={t('workday.startDayTitle')}
-          >
-            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {startingDay ? t('workday.starting') : t('workday.startDay')}
-          </Button>
-        </div>
-      )}
+      {/* Workday Start/End controls moved to <WorkDayStatusPanel/> at the
+          top of the mobile shell so the active day-timer + buttons live
+          together as one unit. This banner only renders activity rows
+          and EOD dialogs. */}
       {pendingStop && (
         <EndOfDayStopDialog
           open={!!pendingStop}
