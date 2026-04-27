@@ -427,8 +427,10 @@ const GlobalActiveTimerBanner: React.FC = () => {
         <EndOfDayStopDialog
           open={!!pendingStop}
           onOpenChange={(open) => {
-            // Closing without confirming = behåll timer + dialog tills användaren
-            // gör ett aktivt val. Dialogen hindrar själv stängning under save.
+            // Outside-click / Escape are intercepted inside the dialog and
+            // routed to onCancel — this prop is only triggered by an
+            // explicit programmatic close. While saving we ignore it so
+            // the dialog stays mounted until the request settles.
             if (!open && !savingKeys.has(pendingStop.key)) {
               setPendingStop(null);
             }
@@ -436,6 +438,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
           lastExitIso={pendingStop.lastExitIso}
           locationName={pendingStop.locationName}
           onConfirm={handleDialogConfirm}
+          onCancel={() => {
+            // Explicit user cancel = abort the entire end-day flow:
+            //   • close dialog
+            //   • DO NOT stop the active timer
+            //   • drain the EOD queue and skip endWorkdayFlow
+            // The timer keeps running, the workday stays open. The user
+            // is back in a known, safe state.
+            if (savingKeys.has(pendingStop.key)) return;
+            eodCancelledRef.current = true;
+            eodQueueRef.current = [];
+            setPendingStop(null);
+            toast.message(t('workday.endDayCancelled'));
+          }}
         />
       )}
       {nextActionFor && (
