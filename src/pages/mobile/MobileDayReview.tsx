@@ -13,19 +13,21 @@
  *
  * Hittas via knappen i MobileJobs-headern (badge med antal needs_review).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane,
-  PlayCircle, StopCircle, HomeIcon, X as XIcon, Check,
+  PlayCircle, StopCircle, HomeIcon, X as XIcon, Check, Coffee, ArrowRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
-import { mobileApi } from '@/services/mobileApiService';
+import { mobileApi, type MobileTimeReport } from '@/services/mobileApiService';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 import { useDayReviewActions } from '@/hooks/useDayReviewActions';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { computeDayGaps, filterUnresolvedGaps, type DayGap } from '@/lib/dayGaps';
 
 type ReviewWorkday = Awaited<ReturnType<typeof mobileApi.listWorkdaysReview>>['workdays'][number];
 type ReviewEvent = ReviewWorkday['events_for_day'][number];
