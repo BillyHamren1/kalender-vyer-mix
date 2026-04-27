@@ -429,6 +429,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleClassifyTravelLog(supabase, staffId, data, organizationId)
       case 'get_travel_logs':
         return await handleGetTravelLogs(supabase, staffId, data, organizationId)
+      case 'create_travel_from_gap':
+        return await handleCreateTravelFromGap(supabase, staffId, data, organizationId)
       // ── workday_flags (PROMPT 6 — anomaly model v2) ──
       case 'create_workday_flag':
         return await handleCreateWorkdayFlag(supabase, staffId, data, organizationId)
