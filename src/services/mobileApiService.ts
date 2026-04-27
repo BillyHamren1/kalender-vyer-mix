@@ -342,6 +342,10 @@ export const mobileApi = {
     description?: string;
     establishment_task_id?: string;
     large_project_id?: string;
+    /** True when this row is a per-address breakdown of a large_project total. */
+    is_subdivision?: boolean;
+    /** Required when is_subdivision=true. The parent project-total time_report id. */
+    parent_time_report_id?: string;
   }) => callApi<{ success: boolean; time_report: any }>('create_time_report', data),
 
   updateTimeReport: (data: {
