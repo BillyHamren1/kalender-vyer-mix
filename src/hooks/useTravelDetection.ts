@@ -333,8 +333,12 @@ export function useTravelDetection(enabled: boolean = true, gpsPosition: GpsPosi
       }
 
       clearTravelState();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[TravelDetection] Manual stop failed:', err);
+      // The user explicitly tapped Stop. Whatever the server said, do
+      // NOT leave the banner ticking. Worst case the server still has an
+      // open row — the next geofence ENTER or app reload will reconcile.
+      clearTravelState();
     }
   }, [clearTravelState]);
 
