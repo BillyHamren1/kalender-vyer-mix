@@ -475,6 +475,10 @@ const translations = {
   'workday.todayTime': { sv: 'Dagens arbetstid', en: 'Today’s work time' },
   'workday.activityFallback': { sv: 'aktiviteten', en: 'the activity' },
   'workday.noActiveTimers': { sv: 'Inga aktiva timers — arbetsdagen avslutades.', en: 'No active timers — the workday has ended.' },
+  'workday.startDay': { sv: 'Starta dagen', en: 'Start the day' },
+  'workday.startDayTitle': { sv: 'Starta arbetsdagen — du kan börja rapportera projekt/plats senare', en: 'Start the workday — you can report project/location time later' },
+  'workday.starting': { sv: 'Startar…', en: 'Starting…' },
+  'workday.couldNotStart': { sv: 'Kunde inte starta arbetsdagen', en: 'Could not start the workday' },
 
   // GPS sync debug
   'gpsSync.title': { sv: 'GPS-synk (debug)', en: 'GPS sync (debug)' },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2, LogOut } from 'lucide-react';
+import { Square, Building2, Loader2, LogOut, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
-import { markWorkdayEnded } from '@/services/workdayState';
+import { markWorkdayEnded, clearWorkdayEnded } from '@/services/workdayState';
 import { syncWorkDayEnd } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
@@ -57,8 +57,33 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
-  const { current: currentWorkday } = useWorkDay();
+  const { current: currentWorkday, start: startWorkday } = useWorkDay();
   const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
+  const [startingDay, setStartingDay] = useState(false);
+
+  // Should we offer the user an explicit "Starta dag" entry point?
+  // Only when logged in as mobile staff, no open workday, and we're inside
+  // the mobile app shell (not /m/report which has its own controls).
+  const showStartDay = !!staff?.id && !workdayOpen && !startingDay && location.pathname !== '/m/report';
+
+  const handleStartDay = useCallback(async () => {
+    if (startingDay || workdayOpen) return;
+    setStartingDay(true);
+    try {
+      // User explicitly opening the day → clear any "ended today" latch
+      // so auto-bootstrap and assistants treat it as a fresh active day.
+      clearWorkdayEnded();
+      const wd = await startWorkday();
+      if (!wd) {
+        toast.error(t('workday.couldNotStart'));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || t('workday.couldNotStart'));
+    } finally {
+      setStartingDay(false);
+    }
+  }, [startingDay, workdayOpen, startWorkday, t]);
+
 
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
   const [, setTick] = useState(0);
@@ -365,6 +390,26 @@ const GlobalActiveTimerBanner: React.FC = () => {
           >
             <LogOut className="w-4 h-4" />
             {t('workday.endDay')}
+          </Button>
+        </div>
+      )}
+      {/* "Starta dagen" — samma fixed slot som Avsluta-knappen, visas när
+          ingen arbetsdag är öppen så användaren alltid kan starta dagen
+          UTAN att först välja projekt/plats. Dagen är huvudspåret. */}
+      {showStartDay && (
+        <div
+          className="fixed left-0 right-0 z-30 px-5 pointer-events-none"
+          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 0.75rem)' }}
+        >
+          <Button
+            variant="default"
+            className="w-full rounded-2xl h-12 gap-2 text-sm font-semibold shadow-lg pointer-events-auto"
+            onClick={handleStartDay}
+            disabled={startingDay}
+            title={t('workday.startDayTitle')}
+          >
+            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {startingDay ? t('workday.starting') : t('workday.startDay')}
           </Button>
         </div>
       )}
