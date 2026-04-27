@@ -75,7 +75,7 @@ export const WorkDayHeaderTimer: React.FC = () => {
         : 'bg-primary-foreground/10 border-primary-foreground/15 text-primary-foreground';
 
   const title = isStale
-    ? t('workday.staleTooltip') ?? 'Arbetsdagen är ovanligt lång — kontrollera tidrapporten'
+    ? 'Arbetsdagen är ovanligt lång — tryck för att kontrollera tidrapporten'
     : t('workday.lengthTitle');
 
   const Icon = isStale ? AlertTriangle : Sun;
