@@ -274,11 +274,17 @@ const GlobalActiveTimerBanner: React.FC = () => {
   }, [pendingStop, stopSession]);
 
   // Sequential EOD processor — drains the queue one timer at a time.
+  // Honors eodCancelledRef: if the user cancels in the dialog the queue
+  // is dropped and the workday is NOT ended.
   const processNextEod = useCallback(async () => {
     if (eodProcessingRef.current) return;
     eodProcessingRef.current = true;
     try {
       while (eodQueueRef.current.length > 0) {
+        if (eodCancelledRef.current) {
+          eodQueueRef.current = [];
+          break;
+        }
         const key = eodQueueRef.current.shift()!;
         const current = loadTimersFromStorage();
         const timer = current.get(key);
@@ -307,7 +313,11 @@ const GlobalActiveTimerBanner: React.FC = () => {
       // before ending the day. This avoids the header day-timer surviving
       // a just-completed EOD because React/localStorage had not caught up yet.
       const localTimersDrained = await waitForLocalTimerDrain();
-      if (localTimersDrained && !pendingStopRef.current) {
+      if (
+        !eodCancelledRef.current &&
+        localTimersDrained &&
+        !pendingStopRef.current
+      ) {
         // Server-first end-day via central rutin. Vid fel: lämna dagen
         // tydligt needs-review (lokal cache rörs inte) och toasta.
         const result = await endWorkdayFlow();
