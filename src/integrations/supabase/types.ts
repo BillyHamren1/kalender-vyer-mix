@@ -6405,6 +6405,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           review_computed_at: string | null
+          review_note: string | null
           review_reasons: string[]
           review_status: Database["public"]["Enums"]["workday_review_status"]
           staff_id: string
@@ -6420,6 +6421,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           review_computed_at?: string | null
+          review_note?: string | null
           review_reasons?: string[]
           review_status?: Database["public"]["Enums"]["workday_review_status"]
           staff_id: string
@@ -6435,6 +6437,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           review_computed_at?: string | null
+          review_note?: string | null
           review_reasons?: string[]
           review_status?: Database["public"]["Enums"]["workday_review_status"]
           staff_id?: string
@@ -6935,7 +6938,12 @@ export type Database = {
         | "ready_for_handover"
         | "handed_over_to_booking"
         | "invoiced_in_booking"
-      workday_review_status: "draft" | "needs_review" | "ready" | "approved"
+      workday_review_status:
+        | "draft"
+        | "needs_review"
+        | "ready"
+        | "approved"
+        | "returned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7113,7 +7121,13 @@ export const Constants = {
         "handed_over_to_booking",
         "invoiced_in_booking",
       ],
-      workday_review_status: ["draft", "needs_review", "ready", "approved"],
+      workday_review_status: [
+        "draft",
+        "needs_review",
+        "ready",
+        "approved",
+        "returned",
+      ],
     },
   },
 } as const
