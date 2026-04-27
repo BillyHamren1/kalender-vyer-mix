@@ -181,9 +181,12 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
       });
 
       if (refreshEvents) await refreshEvents();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error moving event via drag:', error);
-      toast.error('Kunde inte flytta eventet. Försök igen.');
+      const detail = error?.message || error?.error_description || error?.hint || (typeof error === 'string' ? error : '');
+      toast.error('Kunde inte flytta eventet', {
+        description: detail ? `Detaljer: ${detail}` : 'Försök igen — om felet kvarstår, skicka mig texten i konsolen.',
+      });
       if (refreshEvents) await refreshEvents();
     } finally {
       setIsMoving(false);
