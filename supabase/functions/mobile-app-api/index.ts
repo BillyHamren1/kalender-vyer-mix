@@ -1062,11 +1062,21 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // ──────────────────────────────────────────────────────────────────
   let shifts: any[] = []
   try {
-    // Seed shift keys from ALL BSA rows on real bookings (including team_id='project').
-    // A staff member who is BSA-tagged on a date is meant to work that day even if
-    // the planner hasn't filed it under a specific team yet.
+    // STRICT SCHEDULING AUTHORITY:
+    // The mobile calendar must mirror the personnel calendar 1:1. Shifts come
+    // ONLY from real per-day team scheduling rows (booking_staff_assignments
+    // with a real team_id). We deliberately DO NOT use:
+    //   - team_id='project' rows (those are visibility/membership only)
+    //   - project-wide expansion (one scheduled date does NOT spill into all
+    //     bookings of the same large project)
+    //   - booking.assignment_dates derived from project membership
+    //
+    // If a staff member is scheduled on another job on a given date, the
+    // mobile calendar must NOT also show another large-project booking on
+    // that date just because they're a member of that project.
     const bsaForShifts = (assignments || []).filter(
       (a: any) =>
+        a.team_id !== 'project' &&
         a.team_id !== 'location' &&
         !String(a.booking_id).startsWith('location-')
     )
@@ -1074,13 +1084,6 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     const shiftDateKeys = new Set<string>(
       bsaForShifts.map((a: any) => `${a.booking_id}|${a.assignment_date}`)
     )
-
-    for (const booking of bookingsWithAssignments) {
-      if (!booking?.id || String(booking.id).startsWith('location-')) continue
-      for (const assignmentDate of (booking.assignment_dates || [])) {
-        shiftDateKeys.add(`${booking.id}|${assignmentDate}`)
-      }
-    }
 
     if (shiftDateKeys.size > 0) {
       const shiftBookingIds = [...new Set(Array.from(shiftDateKeys).map((key) => key.split('|')[0]))]
