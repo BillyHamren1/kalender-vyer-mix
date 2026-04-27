@@ -918,9 +918,10 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     })
 
     // Filter out project-expanded bookings that have no matching dates
-    // (booking dates don't overlap with the user's scheduled project dates)
+    // (booking dates don't overlap with the user's scheduled project dates).
+    // Always keep bookings the user has a direct BSA on (real team OR project membership).
     bookingsWithAssignments = bookingsWithAssignments.filter((b: any) => {
-      if (!b.large_project_id || realBsaBookingIds.has(b.id)) return true
+      if (!b.large_project_id || realBsaBookingIds.has(b.id) || projectMembershipBookingIds.has(b.id)) return true
       // For expanded bookings: only keep if at least one assignment date is a real scheduled project date
       const projectDates = scheduledProjectDates[b.large_project_id]
       if (!projectDates) return false
