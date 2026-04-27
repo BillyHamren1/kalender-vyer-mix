@@ -1,21 +1,38 @@
 /**
  * useWorkDay — React hook for the server-anchored workday.
  *
+ * UNIFIED MODEL (Tidappen):
+ *   1. Dagtimer (workday) = HUVUDSPÅR.
+ *      Startas av:
+ *        - manuell "Starta dagen" (start())
+ *        - eller riktig geofence/start-action via central startkedja
+ *          (useTimerStartFlow → ensureActive())
+ *      App-open ska ALDRIG implicit starta arbetsdag.
+ *   2. Aktivitetstid (projekt/plats/bokning) = INUTI dagen.
+ *      Att starta/stoppa en aktivitet skapar/avslutar inte själva dagen.
+ *   3. "Avsluta dagen" = SEPARAT, explicit handling (end()).
+ *   4. Geofence = SIGNAL.
+ *      Central start/stop-logik = ACTION.
+ *
  * Pairs with `workday` edge function. Provides:
  *   - current        the open WorkdayRecord (or null)
- *   - start()        idempotent — explicit start
- *   - end()          idempotent — explicit end
- *   - ensureActive() WORKDAY-FIRST guarantee. Awaitable. Returns the open
- *                    workday (existing or freshly created). De-dupes
- *                    concurrent calls so a burst of timer-starts can all
+ *   - start()        idempotent — explicit start (manuell eller via central action)
+ *   - end()          idempotent — explicit end (separat handling)
+ *   - ensureActive() Awaitable. Returns the open workday (existing or
+ *                    freshly created). De-dupes concurrent calls so a burst
+ *                    of activity-starts via the central start chain can all
  *                    `await ensureActive()` safely.
- *   - restore()      explicit alias for refresh — used at app mount.
+ *                    NOTE: Får anropas BARA från central startkedja eller
+ *                    explicit user-action — aldrig från app-open/bootstrap.
+ *   - restore()      explicit alias for refresh — used at app mount to read
+ *                    existing day from server. Skapar ALDRIG ny workday.
  *   - isLoading
  *
- * Architectural rule (workday-first):
+ * Architectural rule:
  *   The workday is the PRIMARY signal. Activity timers (project/travel/
  *   warehouse/location) are SECONDARY segments on top of the workday.
- *   The frontend MUST NOT derive the workday from active timers.
+ *   The frontend MUST NOT derive the workday from active timers, and
+ *   stopping an activity MUST NOT end the workday.
  *
  * Realtime: subscribes to postgres_changes on the `workdays` table for
  * the current staff so other tabs / devices see updates immediately.
