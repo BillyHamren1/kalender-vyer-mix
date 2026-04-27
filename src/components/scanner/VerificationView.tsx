@@ -24,6 +24,7 @@ import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { buildChildrenByParent, classifyAndFormatRow } from '@/lib/packing/displayNames';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
+import { PackingNotReadyView } from './PackingNotReadyView';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
