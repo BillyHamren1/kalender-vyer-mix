@@ -1,4 +1,4 @@
-import { Briefcase, Clock, Wrench, User, MessageCircle, LayoutGrid } from 'lucide-react';
+import { Briefcase, Clock, Wrench, MessageCircle, LayoutGrid } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
