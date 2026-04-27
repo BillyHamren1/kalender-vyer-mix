@@ -277,6 +277,8 @@ const translations = {
   'eod.yesUse': { sv: 'Ja, använd {time}', en: 'Yes, use {time}' },
   'eod.back': { sv: 'Tillbaka', en: 'Back' },
   'eod.save': { sv: 'Spara tidrapport', en: 'Save time report' },
+  'eod.cancel': { sv: 'Avbryt – fortsätt dagen', en: 'Cancel – keep day open' },
+  'eod.cancelShort': { sv: 'Avbryt', en: 'Cancel' },
 
   // AnomalyClassificationDialog
   'anomaly.title': { sv: 'Klassificera frånvaro', en: 'Classify absence' },
