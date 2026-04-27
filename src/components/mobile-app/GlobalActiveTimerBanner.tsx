@@ -387,11 +387,22 @@ const GlobalActiveTimerBanner: React.FC = () => {
       const entries = Array.from(timers.entries());
       if (entries.length === 0) {
         // Inga aktiva timers → kör direkt central end-day-rutin.
+        setEndingDay(true);
+        const startedAtIso = currentWorkdayRef.current?.started_at ?? null;
         const result = await endWorkdayFlow();
         if (result.ok) {
-          toast.message(t('workday.noActiveTimers'));
+          let totalLabel = '';
+          if (startedAtIso) {
+            const total = Math.max(0, differenceInSeconds(new Date(), parseISO(startedAtIso)));
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            totalLabel = ` — ${t('workday.totalTime')} ${h}h ${m}m`;
+          }
+          toast.success(`${t('workday.dayEnded')}${totalLabel}`);
+          setTimeout(() => setEndingDay(false), 400);
         } else {
           toast.error(result.error || t('workday.couldNotEnd'));
+          setEndingDay(false);
         }
         return;
       }
