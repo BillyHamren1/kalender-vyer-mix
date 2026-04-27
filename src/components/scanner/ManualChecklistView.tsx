@@ -191,22 +191,9 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
 
   // Recalculate progress locally from items array (excluding parent items that have children)
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    // Build parent set: items that have children
-    const parentProductIds = new Set<string>();
-    updatedItems.forEach(item => {
-      const pid = item.booking_products?.parent_product_id;
-      if (pid) parentProductIds.add(pid);
-    });
-
-    // Only count non-parent items (same logic as the server-side progress)
-    const countable = updatedItems.filter(item => {
-      const productId = item.booking_products?.id;
-      return !productId || !parentProductIds.has(productId);
-    });
-
-    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
-    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
-    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
+    // Single source of truth — see src/lib/packing/progress.ts.
+    // Server-side checkIfAllPacked uses the same rule via the Deno mirror.
+    const { total, verified, percentage } = computePackingProgress(updatedItems);
     setProgress({ total, verified, percentage });
   }, []);
 
