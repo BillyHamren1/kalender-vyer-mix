@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
 import { format } from "date-fns";
+import { deriveStaffEvents } from "@/lib/staffCalendar/deriveStaffEvents";
 
 export interface StaffResource {
   id: string;
@@ -126,295 +127,152 @@ const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
   return staffMembers;
 };
 
-// Get calendar events for selected staff members within a date range
-// Includes both normal booking assignments and large-project memberships.
+// Get calendar events for selected staff members within a date range.
+// Visibility is ASSIGNMENT-driven (booking_staff_assignments + large_project_staff
+// + large_projects.start_date/event_date/end_date). calendar_events is used only
+// to enrich timing/team/address — never to decide whether a row should exist.
 export const getStaffCalendarEvents = async (
-  staffIds: string[], 
-  startDate: Date, 
+  staffIds: string[],
+  startDate: Date,
   endDate: Date
 ): Promise<StaffCalendarEvent[]> => {
   try {
-    if (staffIds.length === 0) {
-      return [];
-    }
+    if (staffIds.length === 0) return [];
 
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-    console.log(`Fetching staff calendar events for staff: ${staffIds.join(', ')} from ${startDateStr} to ${endDateStr}`);
+    console.log(`[staffCalendar] Deriving events for staff=${staffIds.join(',')} ${startDateStr}..${endDateStr}`);
 
-    const events: StaffCalendarEvent[] = [];
-
+    // Staff name map
     const allStaff = await getCachedStaffMembers();
-    const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
+    const staffNames = new Map(allStaff.map(s => [s.id, s.name]));
 
-    // =========================
-    // 1) NORMAL BOOKING EVENTS
-    // =========================
-    const bookingStaffAssignments = await getBookingStaffAssignments(startDate, endDate);
-    const filteredBookingAssignments = bookingStaffAssignments.filter(assignment =>
-      staffIds.includes(assignment.staff_id)
-    );
+    // 1) Booking assignments in range
+    const { data: bsa, error: bsaErr } = await supabase
+      .from('booking_staff_assignments')
+      .select('staff_id, booking_id, team_id, assignment_date')
+      .in('staff_id', staffIds)
+      .gte('assignment_date', startDateStr)
+      .lte('assignment_date', endDateStr);
+    if (bsaErr) console.error('[staffCalendar] BSA fetch error:', bsaErr);
+    const bookingAssignments = (bsa || []) as any[];
 
-    const bookingIds = [...new Set(filteredBookingAssignments.map(a => a.booking_id))];
-    const bookingMap = new Map<string, any>();
-
-    if (bookingIds.length > 0) {
-      const { data: bookings, error: bookingError } = await supabase
-        .from('bookings')
-        .select('id, client, booking_number, large_project_id')
-        .in('id', bookingIds);
-
-      if (bookingError) {
-        console.error('Error fetching bookings for staff calendar:', bookingError);
-      } else {
-        (bookings || []).forEach((booking: any) => bookingMap.set(booking.id, booking));
-      }
-    }
-
-    // Important: large project bookings are rendered through large_project_staff below,
-    // so we skip them here to avoid duplicates and disappearing consolidated rows.
-    const normalBookingIds = bookingIds.filter(bookingId => !bookingMap.get(bookingId)?.large_project_id);
-    const bookingEventMap = new Map<string, any[]>();
-
-    if (normalBookingIds.length > 0) {
-      const { data: calendarEvents, error } = await supabase
-        .from('calendar_events')
-        .select('id, booking_id, start_time, end_time, event_type, resource_id, booking_number, delivery_address, source_date')
-        .in('booking_id', normalBookingIds)
-        .gte('start_time', `${startDateStr}T00:00:00`)
-        .lt('start_time', `${endDateStr}T23:59:59`);
-
-      if (error) {
-        console.error('Error fetching normal booking calendar events:', error);
-      } else {
-        for (const calendarEvent of calendarEvents || []) {
-          const eventDate = calendarEvent.source_date || calendarEvent.start_time?.split('T')[0] || '';
-          const key = `${calendarEvent.booking_id}|${calendarEvent.resource_id}|${eventDate}`;
-          if (!bookingEventMap.has(key)) bookingEventMap.set(key, []);
-          bookingEventMap.get(key)!.push(calendarEvent);
-        }
-      }
-    }
-
-    for (const bookingAssignment of filteredBookingAssignments) {
-      const booking = bookingMap.get(bookingAssignment.booking_id);
-      if (booking?.large_project_id) continue;
-
-      const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
-      const clientName = booking?.client || 'Unknown Client';
-      const key = `${bookingAssignment.booking_id}|${bookingAssignment.team_id}|${bookingAssignment.assignment_date}`;
-      const calendarEvents = bookingEventMap.get(key) || [];
-
-      for (const calendarEvent of calendarEvents) {
-        const eventType = calendarEvent.event_type || 'event';
-        events.push({
-          id: `staff-${bookingAssignment.staff_id}-booking-${calendarEvent.id}`,
-          title: `${clientName} - ${eventType}`,
-          start: calendarEvent.start_time,
-          end: calendarEvent.end_time,
-          resourceId: bookingAssignment.staff_id,
-          teamId: bookingAssignment.team_id,
-          bookingId: bookingAssignment.booking_id,
-          staffName,
-          client: clientName,
-          eventType: 'booking_event',
-          backgroundColor: getEventColor(eventType),
-          borderColor: getEventBorderColor(eventType),
-          extendedProps: {
-            bookingId: bookingAssignment.booking_id,
-            booking_id: bookingAssignment.booking_id,
-            deliveryAddress: calendarEvent.delivery_address,
-            bookingNumber: calendarEvent.booking_number || booking?.booking_number,
-            eventType,
-            staffName,
-            client: clientName,
-            teamName: `Team ${bookingAssignment.team_id}`
-          }
-        });
-      }
-    }
-
-    // ======================
-    // 2) LARGE PROJECT EVENTS
-    // ======================
-    const { data: largeProjectAssignments, error: lpAssignmentError } = await supabase
+    // 2) Large project memberships (project-wide visibility)
+    const { data: lps, error: lpsErr } = await supabase
       .from('large_project_staff')
-      .select('large_project_id, staff_id, role')
+      .select('staff_id, large_project_id')
       .in('staff_id', staffIds);
+    if (lpsErr) console.error('[staffCalendar] large_project_staff fetch error:', lpsErr);
+    const largeProjectStaff = (lps || []) as any[];
 
-    if (lpAssignmentError) {
-      console.error('Error fetching large project staff assignments:', lpAssignmentError);
+    // 3) Bookings referenced by assignments
+    const bookingIds = Array.from(new Set(bookingAssignments.map(a => a.booking_id))).filter(Boolean);
+    const bookings = new Map<string, any>();
+    if (bookingIds.length > 0) {
+      const { data: rows, error } = await supabase
+        .from('bookings')
+        .select('id, client, booking_number, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress')
+        .in('id', bookingIds);
+      if (error) console.error('[staffCalendar] bookings fetch error:', error);
+      (rows || []).forEach(b => bookings.set(b.id, b));
     }
 
-    const filteredLargeProjectAssignments = (largeProjectAssignments || []) as LargeProjectStaffAssignment[];
-    const largeProjectIds = [...new Set(filteredLargeProjectAssignments.map(a => a.large_project_id))];
+    // 4) Large projects referenced via memberships OR via bookings
+    const lpIdsFromMembership = largeProjectStaff.map(r => r.large_project_id);
+    const lpIdsFromBookings = Array.from(bookings.values())
+      .map((b: any) => b.large_project_id)
+      .filter(Boolean);
+    const lpIds = Array.from(new Set([...lpIdsFromMembership, ...lpIdsFromBookings]));
 
-    if (largeProjectIds.length > 0) {
-      const [{ data: largeProjects, error: lpError }, { data: largeProjectBookings, error: lpbError }] = await Promise.all([
+    const largeProjects = new Map<string, any>();
+    let largeProjectBookings: Array<{ large_project_id: string; booking_id: string }> = [];
+    if (lpIds.length > 0) {
+      const [{ data: lpRows, error: lpErr }, { data: lpbRows, error: lpbErr }] = await Promise.all([
         supabase
           .from('large_projects')
           .select('id, name, address, start_date, event_date, end_date, deleted_at')
-          .in('id', largeProjectIds)
+          .in('id', lpIds)
           .is('deleted_at', null),
         supabase
           .from('large_project_bookings')
           .select('large_project_id, booking_id')
-          .in('large_project_id', largeProjectIds),
+          .in('large_project_id', lpIds),
       ]);
-
-      if (lpError) {
-        console.error('Error fetching large projects for staff calendar:', lpError);
-      }
-      if (lpbError) {
-        console.error('Error fetching large project bookings for staff calendar:', lpbError);
-      }
-
-      const projectMap = new Map((largeProjects || []).map((project: any) => [project.id, project]));
-      const bookingToLargeProjectId = new Map<string, string>();
-      const bookingsByLargeProjectId = new Map<string, string[]>();
-
-      for (const row of largeProjectBookings || []) {
-        bookingToLargeProjectId.set(row.booking_id, row.large_project_id);
-        if (!bookingsByLargeProjectId.has(row.large_project_id)) bookingsByLargeProjectId.set(row.large_project_id, []);
-        bookingsByLargeProjectId.get(row.large_project_id)!.push(row.booking_id);
-      }
-
-      const linkedBookingIds = [...new Set((largeProjectBookings || []).map(row => row.booking_id))];
-      const eventsByLargeProjectId = new Map<string, any[]>();
-
-      if (linkedBookingIds.length > 0) {
-        const { data: linkedCalendarEvents, error: lpCalendarError } = await supabase
-          .from('calendar_events')
-          .select('id, booking_id, start_time, end_time, event_type, resource_id, booking_number, delivery_address, source_date')
-          .in('booking_id', linkedBookingIds)
-          .gte('start_time', `${startDateStr}T00:00:00`)
-          .lt('start_time', `${endDateStr}T23:59:59`);
-
-        if (lpCalendarError) {
-          console.error('Error fetching large project calendar events:', lpCalendarError);
-        } else {
-          for (const calendarEvent of linkedCalendarEvents || []) {
-            const lpId = bookingToLargeProjectId.get(calendarEvent.booking_id);
-            if (!lpId) continue;
-            if (!eventsByLargeProjectId.has(lpId)) eventsByLargeProjectId.set(lpId, []);
-            eventsByLargeProjectId.get(lpId)!.push(calendarEvent);
-          }
-        }
-      }
-
-      const consolidatedLargeProjectEvents = new Map<string, StaffCalendarEvent>();
-
-      for (const assignment of filteredLargeProjectAssignments) {
-        const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`;
-        const project = projectMap.get(assignment.large_project_id);
-        if (!project) continue;
-
-        const projectName = project.name || 'Stort projekt';
-        const projectAddress = project.address || undefined;
-        const linkedEvents = eventsByLargeProjectId.get(assignment.large_project_id) || [];
-
-        // Preferred path: use the linked booking calendar events and consolidate them
-        // to ONE row per project/day/type for each staff member.
-        for (const calendarEvent of linkedEvents) {
-          const eventType = calendarEvent.event_type || 'event';
-          const eventDate = calendarEvent.source_date || calendarEvent.start_time?.split('T')[0] || '';
-          const key = `${assignment.staff_id}|${assignment.large_project_id}|${eventType}|${eventDate}`;
-          const firstBookingId = calendarEvent.booking_id;
-          const existing = consolidatedLargeProjectEvents.get(key);
-
-          if (!existing) {
-            consolidatedLargeProjectEvents.set(key, {
-              id: `staff-${assignment.staff_id}-large-${assignment.large_project_id}-${eventType}-${eventDate}`,
-              title: `${projectName} - ${eventType}`,
-              start: calendarEvent.start_time,
-              end: calendarEvent.end_time,
-              resourceId: assignment.staff_id,
-              teamId: calendarEvent.resource_id,
-              bookingId: firstBookingId,
-              staffName,
-              client: projectName,
-              eventType: 'booking_event',
-              backgroundColor: getEventColor(eventType),
-              borderColor: getEventBorderColor(eventType),
-              extendedProps: {
-                bookingId: firstBookingId,
-                booking_id: firstBookingId,
-                deliveryAddress: calendarEvent.delivery_address || projectAddress,
-                bookingNumber: calendarEvent.booking_number,
-                eventType,
-                staffName,
-                client: projectName,
-                teamName: calendarEvent.resource_id ? `Team ${calendarEvent.resource_id}` : undefined,
-                largeProjectId: assignment.large_project_id,
-                largeProjectName: projectName,
-                consolidatedBookingIds: firstBookingId ? [firstBookingId] : []
-              }
-            });
-            continue;
-          }
-
-          if (calendarEvent.start_time < existing.start) existing.start = calendarEvent.start_time;
-          if (calendarEvent.end_time > existing.end) existing.end = calendarEvent.end_time;
-
-          const consolidatedIds = existing.extendedProps?.consolidatedBookingIds || [];
-          if (firstBookingId && !consolidatedIds.includes(firstBookingId)) {
-            consolidatedIds.push(firstBookingId);
-          }
-          if (existing.extendedProps) {
-            existing.extendedProps.consolidatedBookingIds = consolidatedIds;
-          }
-        }
-
-        // Fallback path: if a large project temporarily lacks sub-booking calendar_events,
-        // still render its project-level dates so it doesn't vanish from the staff calendar.
-        if (linkedEvents.length === 0) {
-          const fallbackDates: Array<{ date: string; eventType: 'rig' | 'event' | 'rigDown' }> = [
-            ...((project.start_date || []).map((date: string) => ({ date, eventType: 'rig' as const }))),
-            ...((project.event_date || []).map((date: string) => ({ date, eventType: 'event' as const }))),
-            ...((project.end_date || []).map((date: string) => ({ date, eventType: 'rigDown' as const }))),
-          ].filter(item => item.date >= startDateStr && item.date <= endDateStr);
-
-          const fallbackBookingId = bookingsByLargeProjectId.get(assignment.large_project_id)?.[0];
-          for (const fallback of fallbackDates) {
-            const key = `${assignment.staff_id}|${assignment.large_project_id}|${fallback.eventType}|${fallback.date}`;
-            if (consolidatedLargeProjectEvents.has(key)) continue;
-
-            consolidatedLargeProjectEvents.set(key, {
-              id: `staff-${assignment.staff_id}-large-${assignment.large_project_id}-${fallback.eventType}-${fallback.date}`,
-              title: `${projectName} - ${fallback.eventType}`,
-              start: `${fallback.date}T08:00:00`,
-              end: `${fallback.date}T12:00:00`,
-              resourceId: assignment.staff_id,
-              bookingId: fallbackBookingId,
-              staffName,
-              client: projectName,
-              eventType: 'booking_event',
-              backgroundColor: getEventColor(fallback.eventType),
-              borderColor: getEventBorderColor(fallback.eventType),
-              extendedProps: {
-                bookingId: fallbackBookingId,
-                booking_id: fallbackBookingId,
-                deliveryAddress: projectAddress,
-                eventType: fallback.eventType,
-                staffName,
-                client: projectName,
-                largeProjectId: assignment.large_project_id,
-                largeProjectName: projectName,
-                consolidatedBookingIds: fallbackBookingId ? [fallbackBookingId] : []
-              }
-            });
-          }
-        }
-      }
-
-      events.push(...consolidatedLargeProjectEvents.values());
+      if (lpErr) console.error('[staffCalendar] large_projects fetch error:', lpErr);
+      if (lpbErr) console.error('[staffCalendar] large_project_bookings fetch error:', lpbErr);
+      (lpRows || []).forEach((p: any) => largeProjects.set(p.id, p));
+      largeProjectBookings = (lpbRows || []) as any[];
     }
 
-    console.log(`Generated ${events.length} staff calendar events`);
+    // 5) Calendar events used only for enrichment.
+    //    Pull every calendar_event linked to any relevant booking — including
+    //    sub-bookings of large projects we have memberships for — so timing,
+    //    team and address info is preserved when present.
+    const lpLinkedBookingIds = largeProjectBookings.map(r => r.booking_id);
+    const allBookingIdsForEnrichment = Array.from(new Set([
+      ...bookingIds,
+      ...lpLinkedBookingIds,
+    ]));
+
+    let calendarEvents: any[] = [];
+    if (allBookingIdsForEnrichment.length > 0) {
+      const { data: ce, error: ceErr } = await supabase
+        .from('calendar_events')
+        .select('id, booking_id, start_time, end_time, event_type, resource_id, booking_number, delivery_address, source_date')
+        .in('booking_id', allBookingIdsForEnrichment)
+        .gte('start_time', `${startDateStr}T00:00:00`)
+        .lt('start_time', `${endDateStr}T23:59:59`);
+      if (ceErr) console.error('[staffCalendar] calendar_events fetch error:', ceErr);
+      calendarEvents = ce || [];
+    }
+
+    // 6) Derive
+    const derived = deriveStaffEvents({
+      staffIds,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      staffNames,
+      bookingAssignments,
+      largeProjectStaff,
+      bookings,
+      largeProjects,
+      largeProjectBookings,
+      calendarEvents,
+    });
+
+    const events: StaffCalendarEvent[] = derived.map(d => ({
+      id: d.id,
+      title: d.title,
+      start: d.start,
+      end: d.end,
+      resourceId: d.staffId,
+      teamId: d.teamId,
+      bookingId: d.bookingId,
+      staffName: d.staffName,
+      client: d.client,
+      eventType: 'booking_event',
+      backgroundColor: getEventColor(d.phase),
+      borderColor: getEventBorderColor(d.phase),
+      extendedProps: {
+        bookingId: d.bookingId,
+        booking_id: d.bookingId,
+        deliveryAddress: d.deliveryAddress,
+        bookingNumber: d.bookingNumber,
+        eventType: d.phase,
+        staffName: d.staffName,
+        client: d.client,
+        teamName: d.teamId ? `Team ${d.teamId}` : undefined,
+        largeProjectId: d.largeProjectId,
+        largeProjectName: d.largeProjectName,
+        consolidatedBookingIds: d.consolidatedBookingIds,
+      },
+    }));
+
+    console.log(`[staffCalendar] Derived ${events.length} staff calendar events`);
     return events;
   } catch (error) {
-    console.error('Error fetching staff calendar events:', error);
+    console.error('[staffCalendar] derivation failed:', error);
     throw error;
   }
 };

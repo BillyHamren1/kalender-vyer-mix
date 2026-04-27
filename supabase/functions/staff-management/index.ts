@@ -393,110 +393,302 @@ async function getAvailableStaff(supabase: any, date: string, organizationId?: s
 }
 
 // Calendar Operations - FIXED to properly validate staff assignments
-async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDate: string, endDate: string, organizationId?: string): Promise<OperationResponse> {
+// Canonical derivation (mirrors src/lib/staffCalendar/deriveStaffEvents.ts).
+// Visibility is ASSIGNMENT-driven; calendar_events is only used for enrichment.
+async function getStaffCalendarEvents(
+  supabase: any,
+  staffIds: string[],
+  startDate: string,
+  endDate: string,
+  organizationId?: string
+): Promise<OperationResponse> {
   try {
-    if (!staffIds || staffIds.length === 0) {
-      return { success: true, data: [] }
-    }
+    if (!staffIds || staffIds.length === 0) return { success: true, data: [] }
 
-    console.log(`Fetching calendar events for staff: ${staffIds.join(', ')} from ${startDate} to ${endDate}`)
+    console.log(`[staff-management] Deriving events for staff=${staffIds.join(',')} ${startDate}..${endDate}`)
 
-    // Get staff names, filtered by org
+    // 0) Staff names
     let staffQuery = supabase
       .from('staff_members')
       .select('id, name')
       .in('id', staffIds)
     if (organizationId) staffQuery = staffQuery.eq('organization_id', organizationId)
-
     const { data: staffMembers, error: staffError } = await staffQuery
-
     if (staffError) throw staffError
+    const staffNames = new Map<string, string>(
+      (staffMembers || []).map((s: any) => [s.id, s.name])
+    )
 
-    const staffMap = new Map(staffMembers?.map(staff => [staff.id, staff.name]) || [])
-
-    // Read from the active assignment table (booking_staff_assignments).
-    // The legacy `staff_assignments` table is frozen and no longer written to.
-    let assignmentQuery = supabase
+    // 1) Booking assignments in range
+    let bsaQuery = supabase
       .from('booking_staff_assignments')
-      .select('staff_id, team_id, assignment_date, booking_id')
+      .select('staff_id, booking_id, team_id, assignment_date')
       .in('staff_id', staffIds)
       .gte('assignment_date', startDate)
       .lte('assignment_date', endDate)
-    if (organizationId) assignmentQuery = assignmentQuery.eq('organization_id', organizationId)
+    if (organizationId) bsaQuery = bsaQuery.eq('organization_id', organizationId)
+    const { data: bsaRows, error: bsaErr } = await bsaQuery
+    if (bsaErr) throw bsaErr
+    const bookingAssignments = (bsaRows || []) as any[]
 
-    const { data: staffAssignments, error: assignmentError } = await assignmentQuery
+    // 2) Large project memberships
+    let lpsQuery = supabase
+      .from('large_project_staff')
+      .select('staff_id, large_project_id')
+      .in('staff_id', staffIds)
+    if (organizationId) lpsQuery = lpsQuery.eq('organization_id', organizationId)
+    const { data: lpsRows, error: lpsErr } = await lpsQuery
+    if (lpsErr) console.error('[staff-management] large_project_staff fetch error:', lpsErr)
+    const largeProjectStaff = (lpsRows || []) as any[]
 
-    if (assignmentError) throw assignmentError
-
-    if (!staffAssignments || staffAssignments.length === 0) {
-      console.log('No staff assignments found for the selected staff in the date range')
-      return { success: true, data: [] }
+    // 3) Bookings
+    const bookingIds = Array.from(new Set(bookingAssignments.map(a => a.booking_id))).filter(Boolean)
+    const bookings = new Map<string, any>()
+    if (bookingIds.length > 0) {
+      const { data: rows, error } = await supabase
+        .from('bookings')
+        .select('id, client, booking_number, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress')
+        .in('id', bookingIds)
+      if (error) console.error('[staff-management] bookings fetch error:', error)
+      ;(rows || []).forEach((b: any) => bookings.set(b.id, b))
     }
 
-    // Create a map of staff assignments by date and team for quick lookup
-    const assignmentMap = new Map<string, { staffId: string, teamId: string }>()
-    staffAssignments.forEach(assignment => {
-      const key = `${assignment.staff_id}-${assignment.assignment_date}-${assignment.team_id}`
-      assignmentMap.set(key, {
-        staffId: assignment.staff_id,
-        teamId: assignment.team_id
-      })
-    })
+    // 4) Large projects + memberships of bookings
+    const lpIdsFromMembership = largeProjectStaff.map((r: any) => r.large_project_id)
+    const lpIdsFromBookings = Array.from(bookings.values())
+      .map((b: any) => b.large_project_id)
+      .filter(Boolean)
+    const lpIds = Array.from(new Set([...lpIdsFromMembership, ...lpIdsFromBookings]))
 
-    const events: CalendarEvent[] = []
+    const largeProjects = new Map<string, any>()
+    let largeProjectBookings: Array<{ large_project_id: string; booking_id: string }> = []
+    if (lpIds.length > 0) {
+      const [{ data: lpRows, error: lpErr }, { data: lpbRows, error: lpbErr }] = await Promise.all([
+        supabase
+          .from('large_projects')
+          .select('id, name, address, start_date, event_date, end_date, deleted_at')
+          .in('id', lpIds)
+          .is('deleted_at', null),
+        supabase
+          .from('large_project_bookings')
+          .select('large_project_id, booking_id')
+          .in('large_project_id', lpIds),
+      ])
+      if (lpErr) console.error('[staff-management] large_projects fetch error:', lpErr)
+      if (lpbErr) console.error('[staff-management] large_project_bookings fetch error:', lpbErr)
+      ;(lpRows || []).forEach((p: any) => largeProjects.set(p.id, p))
+      largeProjectBookings = (lpbRows || []) as any[]
+    }
 
-    // Process each staff assignment and find corresponding calendar events
-    for (const assignment of staffAssignments) {
-      const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`
-      
-      // Get calendar events for this team on this date
-      const { data: calendarEvents, error: eventsError } = await supabase
+    // 5) Calendar events (enrichment only)
+    const allBookingIdsForEnrichment = Array.from(new Set([
+      ...bookingIds,
+      ...largeProjectBookings.map(r => r.booking_id),
+    ]))
+    let calendarEvents: any[] = []
+    if (allBookingIdsForEnrichment.length > 0) {
+      const { data: ce, error: ceErr } = await supabase
         .from('calendar_events')
-        .select('*')
-        .eq('resource_id', assignment.team_id)
-        .gte('start_time', `${assignment.assignment_date}T00:00:00`)
-        .lt('start_time', `${assignment.assignment_date}T23:59:59`)
+        .select('id, booking_id, start_time, end_time, event_type, resource_id, booking_number, delivery_address, source_date')
+        .in('booking_id', allBookingIdsForEnrichment)
+        .gte('start_time', `${startDate}T00:00:00`)
+        .lt('start_time', `${endDate}T23:59:59`)
+      if (ceErr) console.error('[staff-management] calendar_events fetch error:', ceErr)
+      calendarEvents = ce || []
+    }
 
-      if (eventsError) {
-        console.error(`Error fetching calendar events for team ${assignment.team_id} on ${assignment.assignment_date}:`, eventsError)
+    // ── Inline derivation (kept in lockstep with frontend) ──
+    type Phase = 'rig' | 'event' | 'rigDown'
+    const PHASE_FROM_TYPE: Record<string, Phase | null> = {
+      rig: 'rig', event: 'event', rigDown: 'rigDown', rigdown: 'rigDown',
+    }
+    const DEFAULTS: Record<Phase, [string, string]> = {
+      rig: ['08:00:00', '12:00:00'],
+      event: ['08:00:00', '17:00:00'],
+      rigDown: ['08:00:00', '12:00:00'],
+    }
+    const inRange = (d: string) => d >= startDate && d <= endDate
+    const buildTimes = (date: string, phase: Phase, st?: string | null, et?: string | null) => {
+      const [ds, de] = DEFAULTS[phase]
+      const norm = (v?: string | null, fb?: string) => {
+        if (!v || !/^\d{2}:\d{2}/.test(v)) return fb!
+        return v.length === 5 ? `${v}:00` : v
+      }
+      return { start: `${date}T${norm(st, ds)}`, end: `${date}T${norm(et, de)}` }
+    }
+    const phasesForBookingDate = (b: any, date: string): Phase[] => {
+      const phases: Phase[] = []
+      if (b.rigdaydate === date) phases.push('rig')
+      if (b.eventdate === date) phases.push('event')
+      if (b.rigdowndate === date) phases.push('rigDown')
+      if (phases.length === 0) phases.push('event')
+      return phases
+    }
+
+    const ceByBooking = new Map<string, any[]>()
+    for (const ce of calendarEvents) {
+      if (!ce.booking_id) continue
+      const arr = ceByBooking.get(ce.booking_id) || []
+      arr.push(ce); ceByBooking.set(ce.booking_id, arr)
+    }
+    const findCE = (bid: string, phase: Phase, date: string) => {
+      const list = ceByBooking.get(bid) || []
+      return list.find(ce => {
+        const p = PHASE_FROM_TYPE[ce.event_type || '']
+        const d = ce.source_date || ce.start_time?.split('T')[0] || ''
+        return p === phase && d === date
+      })
+    }
+    const bookingToLP = new Map<string, string>()
+    const bookingsByLP = new Map<string, string[]>()
+    for (const r of largeProjectBookings) {
+      bookingToLP.set(r.booking_id, r.large_project_id)
+      const arr = bookingsByLP.get(r.large_project_id) || []
+      arr.push(r.booking_id); bookingsByLP.set(r.large_project_id, arr)
+    }
+
+    const out = new Map<string, CalendarEvent>()
+    const colorFor = (p: Phase) => getEventColor(p)
+    const borderFor = (p: Phase) => getEventBorderColor(p)
+
+    const upsertNormal = (staffId: string, b: any, phase: Phase, date: string, teamId?: string, ce?: any) => {
+      const key = `${staffId}|${b.id}|${date}|${phase}`
+      if (out.has(key)) return
+      const staffName = staffNames.get(staffId) || `Staff ${staffId}`
+      const client = b.client || 'Bokning'
+      let times, resourceId = teamId, deliveryAddress = b.deliveryaddress || undefined
+      let bookingNumber = b.booking_number || undefined
+      if (ce) {
+        times = { start: ce.start_time, end: ce.end_time }
+        resourceId = ce.resource_id || resourceId
+        deliveryAddress = ce.delivery_address || deliveryAddress
+        bookingNumber = ce.booking_number || bookingNumber
+      } else {
+        const sk = phase === 'rig' ? b.rig_start_time : phase === 'event' ? b.event_start_time : b.rigdown_start_time
+        const ek = phase === 'rig' ? b.rig_end_time : phase === 'event' ? b.event_end_time : b.rigdown_end_time
+        times = buildTimes(date, phase, sk, ek)
+      }
+      out.set(key, {
+        id: `staff-${staffId}-booking-${b.id}-${phase}-${date}`,
+        title: `${client} - ${phase}`,
+        start: times.start, end: times.end,
+        resourceId: staffId, teamId: resourceId, bookingId: b.id,
+        eventType: 'booking_event',
+        backgroundColor: colorFor(phase), borderColor: borderFor(phase),
+        client,
+        extendedProps: {
+          bookingId: b.id, deliveryAddress, bookingNumber,
+          eventType: phase, staffName, client,
+          teamName: resourceId ? `Team ${resourceId}` : undefined,
+        },
+      })
+    }
+    const upsertLP = (staffId: string, project: any, phase: Phase, date: string, teamId?: string, bookingHint?: string, ce?: any) => {
+      const key = `${staffId}|lp-${project.id}|${date}|${phase}`
+      const staffName = staffNames.get(staffId) || `Staff ${staffId}`
+      const projectName = project.name || 'Stort projekt'
+      let times, resourceId = teamId, deliveryAddress = project.address || undefined
+      let bookingNumber: string | undefined, firstBookingId = bookingHint
+      let enriched = false
+      if (ce) {
+        times = { start: ce.start_time, end: ce.end_time }
+        resourceId = ce.resource_id || resourceId
+        deliveryAddress = ce.delivery_address || deliveryAddress
+        bookingNumber = ce.booking_number || bookingNumber
+        firstBookingId = ce.booking_id || firstBookingId
+        enriched = true
+      } else {
+        times = buildTimes(date, phase, null, null)
+      }
+      const existing = out.get(key)
+      if (!existing) {
+        out.set(key, {
+          id: `staff-${staffId}-large-${project.id}-${phase}-${date}`,
+          title: `${projectName} - ${phase}`,
+          start: times.start, end: times.end,
+          resourceId: staffId, teamId: resourceId, bookingId: firstBookingId,
+          eventType: 'booking_event',
+          backgroundColor: colorFor(phase), borderColor: borderFor(phase),
+          client: projectName,
+          extendedProps: {
+            bookingId: firstBookingId, deliveryAddress, bookingNumber,
+            eventType: phase, staffName, client: projectName,
+            teamName: resourceId ? `Team ${resourceId}` : undefined,
+            largeProjectId: project.id, largeProjectName: projectName,
+            consolidatedBookingIds: firstBookingId ? [firstBookingId] : [],
+            __enriched: enriched,
+          },
+        })
+        return
+      }
+      const ext = existing.extendedProps || {}
+      if (!ext.__enriched && enriched) {
+        existing.start = times.start; existing.end = times.end
+        existing.teamId = resourceId || existing.teamId
+        ext.deliveryAddress = deliveryAddress || ext.deliveryAddress
+        ext.bookingNumber = bookingNumber || ext.bookingNumber
+        ext.__enriched = true
+      } else {
+        if (times.start < existing.start) existing.start = times.start
+        if (times.end > existing.end) existing.end = times.end
+      }
+      if (firstBookingId) {
+        const ids: string[] = ext.consolidatedBookingIds || []
+        if (!ids.includes(firstBookingId)) ids.push(firstBookingId)
+        ext.consolidatedBookingIds = ids
+        if (!existing.bookingId) existing.bookingId = firstBookingId
+      }
+    }
+
+    for (const a of bookingAssignments) {
+      if (!inRange(a.assignment_date)) continue
+      const b = bookings.get(a.booking_id); if (!b) continue
+      const lpId = b.large_project_id || bookingToLP.get(b.id)
+      if (lpId) {
+        const project = largeProjects.get(lpId); if (!project) continue
+        for (const phase of phasesForBookingDate(b, a.assignment_date)) {
+          upsertLP(a.staff_id, project, phase, a.assignment_date, a.team_id, b.id, findCE(b.id, phase, a.assignment_date))
+        }
         continue
       }
-
-      if (calendarEvents && calendarEvents.length > 0) {
-        for (const calendarEvent of calendarEvents) {
-          // Only include events that have booking IDs (actual work assignments)
-          if (calendarEvent.booking_id) {
-            events.push({
-              id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
-              title: calendarEvent.title,
-              start: calendarEvent.start_time,
-              end: calendarEvent.end_time,
-              resourceId: assignment.staff_id,
-              teamId: assignment.team_id,
-              bookingId: calendarEvent.booking_id,
-              eventType: 'booking_event',
-              backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
-              borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
-              client: extractClientFromTitle(calendarEvent.title),
-              extendedProps: {
-                bookingId: calendarEvent.booking_id,
-                deliveryAddress: calendarEvent.delivery_address,
-                bookingNumber: calendarEvent.booking_number,
-                eventType: calendarEvent.event_type || 'booking_event',
-                staffName: staffName,
-                client: extractClientFromTitle(calendarEvent.title),
-                teamName: `Team ${assignment.team_id.replace('team-', '')}`
-              }
-            })
-          }
-        }
+      for (const phase of phasesForBookingDate(b, a.assignment_date)) {
+        upsertNormal(a.staff_id, b, phase, a.assignment_date, a.team_id, findCE(b.id, phase, a.assignment_date))
       }
     }
 
-    console.log(`Generated ${events.length} calendar events for staff view`)
+    for (const lps of largeProjectStaff) {
+      const project = largeProjects.get(lps.large_project_id); if (!project) continue
+      const phaseDates: Array<{ date: string; phase: Phase }> = [
+        ...((project.start_date || []).map((d: string) => ({ date: d, phase: 'rig' as Phase }))),
+        ...((project.event_date || []).map((d: string) => ({ date: d, phase: 'event' as Phase }))),
+        ...((project.end_date || []).map((d: string) => ({ date: d, phase: 'rigDown' as Phase }))),
+      ].filter(p => p.date && inRange(p.date))
+      const linked = bookingsByLP.get(lps.large_project_id) || []
+      const firstBooking = linked[0]
+      for (const { date, phase } of phaseDates) {
+        let ce: any | undefined; let hint = firstBooking
+        for (const bid of linked) {
+          const c = findCE(bid, phase, date)
+          if (c) { ce = c; hint = bid; break }
+        }
+        upsertLP(lps.staff_id, project, phase, date, undefined, hint, ce)
+      }
+    }
+
+    // Strip internal flag before returning
+    const events = Array.from(out.values()).map(e => {
+      if (e.extendedProps && '__enriched' in e.extendedProps) {
+        const { __enriched: _drop, ...rest } = e.extendedProps as any
+        e.extendedProps = rest
+      }
+      return e
+    })
+
+    console.log(`[staff-management] Derived ${events.length} events`)
     return { success: true, data: events }
   } catch (error) {
-    return { success: false, error: error.message }
+    console.error('[staff-management] derivation failed:', error)
+    return { success: false, error: (error as Error).message }
   }
 }
 
