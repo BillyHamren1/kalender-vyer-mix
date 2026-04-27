@@ -40,7 +40,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  
+
+  // Visible debug overlay flag — enabled via ?debug=scan or localStorage.scanner_debug=1
+  const debugVisible = React.useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (new URLSearchParams(window.location.search).get('debug') === 'scan') return true;
+      return window.localStorage?.getItem('scanner_debug') === '1';
+    } catch { return false; }
+  }, []);
+
+  // Live debug stats (ref + state — ref for hot loop, state for re-render every ~500ms)
+  const debugRef = useRef({
+    frames: 0,
+    videoW: 0,
+    videoH: 0,
+    detectorReady: false,
+    lastDetectionAt: 0 as number,
+    lastError: '' as string,
+    noDetectionHint: false,
+  });
+  const [, forceDebugTick] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,6 +76,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const successfulDetectionRef = useRef(false);
   const noPixelsSinceRef = useRef<number | null>(null);
   const lastNoPixelsReportRef = useRef(0);
+  const noPixelsWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [flashActive, setFlashActive] = useState(false);
 
   useEffect(() => {
     cameraStateRef.current = cameraState;
