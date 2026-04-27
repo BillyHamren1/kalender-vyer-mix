@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MobileBooking } from '@/services/mobileApiService';
 import { useWorkSession } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { parseISO, differenceInSeconds } from 'date-fns';
@@ -18,6 +19,7 @@ import JobCostsTab from '@/components/mobile-app/job-tabs/JobCostsTab';
 import JobTimeTab from '@/components/mobile-app/job-tabs/JobTimeTab';
 import { CheckCircle2 } from 'lucide-react';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 const tabs = ['Info', 'Team', 'Photos', 'Costs', 'Time'] as const;
