@@ -889,6 +889,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
+          // CONFIDENCE-GATE: assigned-today required (se ENTER-contract).
           if (!isAssignedToday(booking)) continue;
 
           triggeredEnterRef.current.add(booking.id);
