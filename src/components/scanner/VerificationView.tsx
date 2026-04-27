@@ -213,15 +213,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
     const isParent = !isChild && hasChildren;
     
-    let packed = item.quantity_packed || 0;
-    let total = item.quantity_to_pack;
-    
-    if (isParent && productId) {
-      const children = childrenByParent[productId] || [];
-      const allPacked = children.length > 0 && children.every(c => (c.quantity_packed || 0) >= c.quantity_to_pack);
-      total = 1;
-      packed = allPacked ? 1 : 0;
-    }
+    // Use shared rule for parent-row collapse so VerificationView, the
+    // checklists and the scanner-api status flow agree on what "packed" means.
+    // See src/lib/packing/progress.ts.
+    const display = getDisplayedProgressForRow(item, items);
+    let packed = display.displayedPacked;
+    let total = display.displayedTotal;
     
     const cleanName = cleanProductName(rawName);
     const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
