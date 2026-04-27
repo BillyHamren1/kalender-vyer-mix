@@ -254,6 +254,9 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
       throw new Error('Staff member is not available on this date (blocked or unavailable period)');
     }
 
+    // Multi-team allowed: upsert on (staff_id, team_id, assignment_date)
+    // so the staff member can belong to several teams the same day, but
+    // never the same team twice.
     const { data, error } = await supabase
       .from('staff_assignments')
       .upsert({
@@ -261,7 +264,7 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
         team_id: teamId,
         assignment_date: dateStr
       }, {
-        onConflict: 'staff_id,assignment_date'
+        onConflict: 'staff_id,team_id,assignment_date'
       });
 
     if (error) {
