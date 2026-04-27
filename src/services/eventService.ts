@@ -100,7 +100,6 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     ? extractMaxDate(realRows.map(event => event.source_date || event.start_time))
     : format(addDays(new Date(), 45), 'yyyy-MM-dd');
 
-  const bookingIds = Array.from(new Set(realRows.map(event => event.booking_id).filter(Boolean))) as string[];
   const [{ data: bookingsData, error: bookingsError }, { data: projectsData, error: projectsError }] = await Promise.all([
     supabase
       .from('bookings')
@@ -123,6 +122,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   }
 
   const bookingRows = bookingsData || [];
+  const bookingIds = Array.from(new Set(bookingRows.map(booking => booking.id).filter(Boolean))) as string[];
   const relevantProjectIds = Array.from(new Set(bookingRows.map(booking => booking.large_project_id).filter(Boolean))) as string[];
 
   const [{ data: largeProjectBookingsData, error: largeProjectBookingsError }, { data: bookingAssignmentsData, error: bookingAssignmentsError }] = await Promise.all([
