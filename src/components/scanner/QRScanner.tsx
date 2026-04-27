@@ -250,6 +250,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       scanningRef.current = true;
       frameCount++;
 
+      // Update live debug stats every frame (cheap)
+      debugRef.current.frames = frameCount;
+      debugRef.current.videoW = video.videoWidth;
+      debugRef.current.videoH = video.videoHeight;
+
       // Periodic diagnostic so we can spot iOS issues where the video
       // never gets actual pixel dimensions (a classic flex-layout bug).
       if (now - lastDiagLog > 5000) {
@@ -285,6 +290,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         } else {
           noPixelsSinceRef.current = null;
           if (frameCount >= 40 && !successfulDetectionRef.current) {
+            // Soft hint, NOT an error — keep scanning.
+            debugRef.current.noDetectionHint = true;
             reportDiagnostic({
               code: 'SCANNER_NO_DETECTIONS',
               source: 'scanner.qr',
@@ -329,11 +336,25 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
               }
             }
 
-            if (barcodes.length === 0 && frameCount % 5 === 0) {
-              barcodes = await detectorRef.current.detect(video);
+            // Full-frame fallback. On iOS we run it EVERY frame the crop missed,
+            // because the iOS BarcodeDetector polyfill performs noticeably better
+            // on the unscaled video element. On other platforms we keep the
+            // 1-in-5 cadence to save CPU.
+            if (barcodes.length === 0) {
+              const runFullFrame = isIos ? true : (frameCount % 5 === 0);
+              if (runFullFrame) {
+                try {
+                  barcodes = await detectorRef.current.detect(video);
+                } catch (e3) {
+                  // Some polyfill builds throw on <video> directly — just swallow,
+                  // we'll keep trying with the cropped canvas next frame.
+                  debugRef.current.lastError = String((e3 as any)?.message || e3);
+                }
+              }
             }
           } catch (e2) {
             console.warn('[QRScanner] detect failed:', e2);
+            debugRef.current.lastError = String((e2 as any)?.message || e2);
             reportDiagnostic({
               code: 'BARCODE_DETECT_LOOP_FAILURE',
               source: 'scanner.qr',
@@ -356,6 +377,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       } catch (err) {
         console.warn('[QRScanner] scan error:', err);
+        debugRef.current.lastError = String((err as any)?.message || err);
         reportDiagnostic({
           code: 'BARCODE_DETECT_LOOP_FAILURE',
           source: 'scanner.qr',
