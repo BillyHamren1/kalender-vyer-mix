@@ -300,7 +300,7 @@ export const buildPlannerCalendarEvents = ({
     if (!booking.id || (booking.status && booking.status.toUpperCase() === 'OFFER')) continue;
     if (booking.large_project_id) continue;
 
-    const phases: PlannerPhase[] = ['rig', 'event', 'rigDown'];
+    const phases: PlannerPhase[] = ['rig', 'rigDown'];
     for (const phase of phases) {
       const date = getBookingPhaseDate(booking, phase);
       if (!date || date < fromDate || date > toDate) continue;
