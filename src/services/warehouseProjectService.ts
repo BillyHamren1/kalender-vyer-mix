@@ -184,14 +184,24 @@ export const createWarehouseProjectFromInbox = async (
     // Don't throw — project is created, tasks can be added later
   }
 
-  // Auto-create packing_projects for the source booking(s) — non-blocking
+  // ==========================================================================
+  // OFFICIAL PIPELINE STEP: Auto-create packings for the source booking(s).
+  // BLOCKING — must complete before we mark inbox as converted or return to UI.
+  // If this fails we roll back the warehouse_project so the user does not end
+  // up with a half-built lagerprojekt with no packlista.
+  // ==========================================================================
   try {
     await createPackingsForWarehouseProject(wp as WarehouseProject, inboxItem);
   } catch (err) {
-    console.error('Failed to auto-create packings for warehouse project:', err);
+    console.error('[createWarehouseProjectFromInbox] Packing creation failed, rolling back warehouse project:', err);
+    // Best-effort rollback — delete the warehouse project we just created so
+    // the inbox item stays "new" and can be retried cleanly.
+    await supabase.from('warehouse_project_tasks').delete().eq('warehouse_project_id', wp.id);
+    await supabase.from('warehouse_projects').delete().eq('id', wp.id);
+    throw err instanceof Error ? err : new Error(String(err));
   }
 
-  // Mark inbox as converted
+  // Only after packings are confirmed do we mark the inbox as converted.
   await supabase
     .from('warehouse_project_inbox')
     .update({
@@ -206,6 +216,14 @@ export const createWarehouseProjectFromInbox = async (
 
 // ============================================================================
 // Auto-create packings for newly created warehouse project
+// SEQUENTIAL & BLOCKING:
+//   a) resolve source booking(s)
+//   b) create / re-link packing_projects row
+//   c) link bookings (consolidated case)
+//   d) sync products via sync-booking-to-packing edge function (awaited)
+//   e) verify packing_list_items exist
+//   f) only then return — caller can safely show success
+// Throws on any failure so the caller can roll back.
 // ============================================================================
 const createPackingsForWarehouseProject = async (
   wp: WarehouseProject,
@@ -219,14 +237,19 @@ const createPackingsForWarehouseProject = async (
       .maybeSingle();
 
     const bookingId = proj?.booking_id;
-    if (!bookingId) return;
+    if (!bookingId) {
+      // Standalone project without booking — nothing to pack, that's OK.
+      return;
+    }
 
     const { data: booking } = await supabase
       .from('bookings')
       .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, internalnotes, organization_id')
       .eq('id', bookingId)
       .maybeSingle();
-    if (!booking) return;
+    if (!booking) {
+      throw new Error(`Source booking ${bookingId} not found`);
+    }
 
     // Re-use existing packing if one already exists for this booking
     const { data: existing } = await supabase
@@ -236,41 +259,61 @@ const createPackingsForWarehouseProject = async (
       .is('large_project_id', null)
       .maybeSingle();
 
+    let packingId: string;
     if (existing) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('packing_projects')
         .update({ warehouse_project_id: wp.id })
         .eq('id', existing.id);
-      syncBookingToPacking(bookingId, booking.organization_id);
-      return;
+      if (updErr) throw updErr;
+      packingId = existing.id;
+    } else {
+      const dateStr = booking.eventdate
+        ? new Date(booking.eventdate).toISOString().slice(0, 10)
+        : '';
+      const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
+
+      const { data: created, error: insertError } = await supabase
+        .from('packing_projects')
+        .insert({
+          name: packingName,
+          booking_id: bookingId,
+          warehouse_project_id: wp.id,
+          client_name: booking.client,
+          start_date: booking.rigdaydate,
+          end_date: booking.rigdowndate,
+          delivery_address: booking.deliveryaddress,
+          notes: booking.internalnotes,
+          status: 'planning',
+          organization_id: booking.organization_id,
+        } as any)
+        .select('id')
+        .single();
+
+      if (insertError || !created) {
+        throw insertError || new Error('Failed to create packing_project');
+      }
+      packingId = created.id;
     }
 
-    const dateStr = booking.eventdate
-      ? new Date(booking.eventdate).toISOString().slice(0, 10)
-      : '';
-    const packingName = `${booking.client}${dateStr ? ` - ${dateStr}` : ''}`;
+    // BLOCKING product sync — must succeed.
+    await syncBookingToPacking(bookingId, booking.organization_id, { throwOnError: true });
 
-    const { error: insertError } = await supabase
-      .from('packing_projects')
-      .insert({
-        name: packingName,
-        booking_id: bookingId,
-        warehouse_project_id: wp.id,
-        client_name: booking.client,
-        start_date: booking.rigdaydate,
-        end_date: booking.rigdowndate,
-        delivery_address: booking.deliveryaddress,
-        notes: booking.internalnotes,
-        status: 'planning',
-        organization_id: booking.organization_id,
-      } as any);
+    // Verify: packing_list_items should exist (or booking has zero products, which is also OK)
+    const { count: itemCount, error: verifyErr } = await supabase
+      .from('packing_list_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('packing_id', packingId);
+    if (verifyErr) throw verifyErr;
 
-    if (insertError) {
-      console.error('Failed to create packing for booking:', insertError);
-      return;
+    const { count: productCount } = await supabase
+      .from('booking_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId);
+
+    if ((productCount ?? 0) > 0 && (itemCount ?? 0) === 0) {
+      throw new Error('Packing items missing after sync — aborting to avoid empty packlista');
     }
-
-    syncBookingToPacking(bookingId, booking.organization_id);
     return;
   }
 
@@ -287,7 +330,9 @@ const createPackingsForWarehouseProject = async (
       .from('bookings')
       .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, internalnotes, organization_id')
       .in('id', bookingIds);
-    if (!bookings || bookings.length === 0) return;
+    if (!bookings || bookings.length === 0) {
+      throw new Error('Large project bookings not found');
+    }
 
     // Avoid duplicate consolidated packing
     const { data: existingConsolidated } = await supabase
@@ -296,62 +341,81 @@ const createPackingsForWarehouseProject = async (
       .eq('large_project_id', inboxItem.source_id)
       .maybeSingle();
 
+    let packingId: string;
     if (existingConsolidated) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('packing_projects')
         .update({ warehouse_project_id: wp.id })
         .eq('id', existingConsolidated.id);
-      for (const b of bookings) {
-        syncBookingToPacking(b.id, b.organization_id);
+      if (updErr) throw updErr;
+      packingId = existingConsolidated.id;
+    } else {
+      const orgId = bookings[0].organization_id;
+      const rigDates = bookings.map(b => b.rigdaydate).filter(Boolean) as string[];
+      const rigdownDates = bookings.map(b => b.rigdowndate).filter(Boolean) as string[];
+      const startDate = rigDates.length > 0 ? rigDates.sort()[0] : null;
+      const endDate = rigdownDates.length > 0 ? rigdownDates.sort().reverse()[0] : null;
+
+      const { data: lp } = await supabase
+        .from('large_projects')
+        .select('name')
+        .eq('id', inboxItem.source_id)
+        .maybeSingle();
+      const packingName = lp?.name || inboxItem.client_name || 'Lagerprojekt';
+
+      const { data: newPacking, error: insertError } = await supabase
+        .from('packing_projects')
+        .insert({
+          name: packingName,
+          booking_id: bookings[0].id,
+          large_project_id: inboxItem.source_id,
+          warehouse_project_id: wp.id,
+          client_name: bookings[0].client,
+          delivery_address: bookings[0].deliveryaddress,
+          notes: bookings[0].internalnotes,
+          start_date: startDate,
+          end_date: endDate,
+          status: 'planning',
+          organization_id: orgId,
+        } as any)
+        .select('id')
+        .single();
+
+      if (insertError || !newPacking) {
+        throw insertError || new Error('Failed to create consolidated packing');
       }
-      return;
+      packingId = newPacking.id;
+
+      const links = bookings.map(b => ({
+        packing_id: newPacking.id,
+        booking_id: b.id,
+        organization_id: b.organization_id,
+      }));
+      const { error: linkErr } = await supabase
+        .from('packing_project_bookings')
+        .insert(links);
+      if (linkErr) throw linkErr;
     }
 
-    const orgId = bookings[0].organization_id;
-    const rigDates = bookings.map(b => b.rigdaydate).filter(Boolean) as string[];
-    const rigdownDates = bookings.map(b => b.rigdowndate).filter(Boolean) as string[];
-    const startDate = rigDates.length > 0 ? rigDates.sort()[0] : null;
-    const endDate = rigdownDates.length > 0 ? rigdownDates.sort().reverse()[0] : null;
-
-    const { data: lp } = await supabase
-      .from('large_projects')
-      .select('name')
-      .eq('id', inboxItem.source_id)
-      .maybeSingle();
-    const packingName = lp?.name || inboxItem.client_name || 'Lagerprojekt';
-
-    const { data: newPacking, error: insertError } = await supabase
-      .from('packing_projects')
-      .insert({
-        name: packingName,
-        booking_id: bookings[0].id,
-        large_project_id: inboxItem.source_id,
-        warehouse_project_id: wp.id,
-        client_name: bookings[0].client,
-        delivery_address: bookings[0].deliveryaddress,
-        notes: bookings[0].internalnotes,
-        start_date: startDate,
-        end_date: endDate,
-        status: 'planning',
-        organization_id: orgId,
-      } as any)
-      .select('id')
-      .single();
-
-    if (insertError || !newPacking) {
-      console.error('Failed to create consolidated packing:', insertError);
-      return;
-    }
-
-    const links = bookings.map(b => ({
-      packing_id: newPacking.id,
-      booking_id: b.id,
-      organization_id: b.organization_id,
-    }));
-    await supabase.from('packing_project_bookings').insert(links);
-
+    // BLOCKING sequential product sync for every linked booking.
     for (const b of bookings) {
-      syncBookingToPacking(b.id, b.organization_id);
+      await syncBookingToPacking(b.id, b.organization_id, { throwOnError: true });
+    }
+
+    // Verify: items synced (unless none of the bookings have any products)
+    const { count: itemCount, error: verifyErr } = await supabase
+      .from('packing_list_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('packing_id', packingId);
+    if (verifyErr) throw verifyErr;
+
+    const { count: productCount } = await supabase
+      .from('booking_products')
+      .select('id', { count: 'exact', head: true })
+      .in('booking_id', bookingIds);
+
+    if ((productCount ?? 0) > 0 && (itemCount ?? 0) === 0) {
+      throw new Error('Consolidated packing items missing after sync — aborting');
     }
   }
 };
