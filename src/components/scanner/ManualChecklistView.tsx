@@ -19,6 +19,7 @@ import {
 } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 interface ManualChecklistViewProps {
   packingId: string;
