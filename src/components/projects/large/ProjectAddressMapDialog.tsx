@@ -69,6 +69,11 @@ const DEFAULT_CENTER: [number, number] = [15.5, 62.0]; // Sweden centroid
 const MAP_LOAD_TIMEOUT_MS = 8000;
 
 type MapStatus = 'idle' | 'loading-token' | 'loading-map' | 'ready' | 'error';
+type MapStyleKey = 'streets' | 'satellite';
+const MAP_STYLES: Record<MapStyleKey, string> = {
+  streets: 'mapbox://styles/mapbox/streets-v12',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+};
 
 export default function ProjectAddressMapDialog({
   open,
@@ -99,6 +104,7 @@ export default function ProjectAddressMapDialog({
   const [mapStatus, setMapStatus] = useState<MapStatus>('idle');
   const [mapError, setMapError] = useState<string | null>(null);
   const [retryCounter, setRetryCounter] = useState(0);
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>('streets');
 
   const [address, setAddress] = useState(initialAddress ?? '');
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({
@@ -199,7 +205,7 @@ export default function ProjectAddressMapDialog({
     try {
       map = new mapboxgl.Map({
         container: containerNode,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: MAP_STYLES[mapStyle],
         center: initialCenter,
         zoom: coords.lat != null ? 14 : 4.5,
         attributionControl: false,
@@ -324,6 +330,35 @@ export default function ProjectAddressMapDialog({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, token, retryCounter, containerNode]);
+
+  // Byt kartstil utan att återskapa kartan. setStyle() rensar custom sources/layers,
+  // så vi måste återställa radiecirkeln och ev. ritad polygon när style.load fyrar.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapStatus !== 'ready') return;
+    const target = MAP_STYLES[mapStyle];
+    // @ts-ignore — getStyle().sprite/.glyphs varierar; jämför hellre via name.
+    const currentName = (map.getStyle()?.name || '').toLowerCase();
+    const wantSatellite = mapStyle === 'satellite';
+    const isSatellite = currentName.includes('satellite');
+    if (wantSatellite === isSatellite) return;
+
+    map.setStyle(target);
+    map.once('style.load', () => {
+      // Återställ radiecirkeln (markören och NavigationControl bevaras automatiskt).
+      ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
+      // Återinför ritad polygon om någon finns (Draw-kontrollen kan tappa state vid setStyle).
+      try {
+        if (polygon && drawRef.current) {
+          drawRef.current.deleteAll();
+          drawRef.current.add({ type: 'Feature', geometry: polygon, properties: {} } as any);
+        }
+      } catch (e) {
+        console.warn('[ProjectAddressMapDialog] re-add polygon after style change failed:', e);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapStyle, mapStatus]);
 
   // Update marker + radius circle when coords/radius/mode change
   useEffect(() => {
@@ -453,6 +488,34 @@ export default function ProjectAddressMapDialog({
           {/* Map */}
           <div className="relative h-[480px] bg-muted">
             <div ref={containerRef} className="absolute inset-0" />
+
+            {/* Stilväxlare: Karta / Satellit */}
+            {mapStatus === 'ready' && (
+              <div className="absolute top-3 left-3 z-10 flex rounded-md overflow-hidden border border-border bg-card/95 backdrop-blur shadow-md text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setMapStyle('streets')}
+                  className={`px-2.5 py-1.5 transition-colors ${
+                    mapStyle === 'streets'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Karta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapStyle('satellite')}
+                  className={`px-2.5 py-1.5 transition-colors border-l border-border ${
+                    mapStyle === 'satellite'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Satellit
+                </button>
+              </div>
+            )}
 
             {showLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/70 text-xs text-muted-foreground">
