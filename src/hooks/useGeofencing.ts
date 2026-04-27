@@ -795,9 +795,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // Only auto-start if user is assigned to ANY of this project's
-          // bookings today. Otherwise just being near the address shouldn't
-          // suggest logging in.
+          // CONFIDENCE-GATE: assigned-today required (se ENTER-contract högst upp).
+          // Bara att passera adressen räcker inte för autostart.
           const assignedToday = bookings.some(
             (b) => b.large_project_id === lpId && isAssignedToday(b),
           );
