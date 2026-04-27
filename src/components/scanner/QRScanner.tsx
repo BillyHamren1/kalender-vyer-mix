@@ -44,6 +44,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraStateRef = useRef<'idle' | 'starting' | 'running' | 'error'>('idle');
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<string>('');
@@ -53,6 +54,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const successfulDetectionRef = useRef(false);
   const noPixelsSinceRef = useRef<number | null>(null);
   const lastNoPixelsReportRef = useRef(0);
+
+  useEffect(() => {
+    cameraStateRef.current = cameraState;
+  }, [cameraState]);
 
   // Initialize BarcodeDetector (native or polyfill) on mount
   useEffect(() => {
@@ -336,6 +341,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
+    if (cameraStateRef.current === 'starting' || cameraStateRef.current === 'running') return;
 
     try {
       setError(null);
@@ -466,6 +472,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       }
 
       streamRef.current = stream;
+      void applyTrackOptimizations(stream);
 
       if (videoRef.current) {
         const video = videoRef.current;
