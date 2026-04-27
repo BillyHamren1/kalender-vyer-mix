@@ -290,10 +290,13 @@ async function syncPackingListItems(
   )
   const packableProducts = (products || []).filter((p: any) => !parentIds.has(p.id))
 
-  // Fetch current packing list items
-  const { data: existingItems, error: itemsError } = await supabase
+  // Fetch current packing list items for this packing.
+  // NOTE: a consolidated packing (large project) contains items from multiple
+  // bookings. We must scope orphan detection to items belonging to THIS
+  // booking only — otherwise syncing booking B would delete booking A's items.
+  const { data: existingItemsRaw, error: itemsError } = await supabase
     .from('packing_list_items')
-    .select('id, booking_product_id, quantity_to_pack')
+    .select('id, booking_product_id, quantity_to_pack, booking_products!inner(booking_id)')
     .eq('packing_id', packingId)
 
   if (itemsError) {
@@ -301,8 +304,13 @@ async function syncPackingListItems(
     return 0
   }
 
+  // Items currently linked to THIS booking (via booking_product_id → booking_products.booking_id)
+  const itemsForThisBooking = (existingItemsRaw || []).filter(
+    (item: any) => item.booking_products?.booking_id === bookingId
+  )
+
   const existingByProductId = new Map(
-    (existingItems || []).map((item: any) => [item.booking_product_id, item])
+    itemsForThisBooking.map((item: any) => [item.booking_product_id, item])
   )
   const productIds = new Set(packableProducts.map((p: any) => p.id))
 
@@ -334,7 +342,7 @@ async function syncPackingListItems(
 
   // Update quantity_to_pack for existing items where product quantity changed
   for (const product of packableProducts) {
-    const existing = existingByProductId.get(product.id)
+    const existing = existingByProductId.get(product.id) as any
     if (existing && existing.quantity_to_pack !== product.quantity) {
       const { error: updateError } = await supabase
         .from('packing_list_items')
@@ -348,8 +356,8 @@ async function syncPackingListItems(
     }
   }
 
-  // Remove orphaned items (product deleted from booking)
-  const orphanedItems = (existingItems || []).filter(
+  // Remove orphaned items — ONLY among items belonging to this booking.
+  const orphanedItems = itemsForThisBooking.filter(
     (item: any) => item.booking_product_id && !productIds.has(item.booking_product_id)
   )
 
