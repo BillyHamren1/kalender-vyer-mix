@@ -6,9 +6,12 @@
  *   • Aktivitet = projekt/plats/bokning inuti dagen.
  *   • Restid = GAPET mellan två aktiviteter när gapet är rimligt.
  *     Live GPS-travel är legacy/assist (se useTravelDetection) — denna
- *     hook är PRIMÄR källa för restidsjustering: `adjustTravel` skapar
- *     eller uppdaterar `travel_time_logs` baserat på det användaren
- *     bekräftar i day-review (typiskt: gapet mellan stopp och nästa start).
+ *     hook är PRIMÄR källa för restidsjustering. Två vägar:
+ *       • `adjustTravel`        — justerar/skapar runt ett travel_edge-event
+ *       • `createTravelForGap`  — auktoritativ väg för osäkra aktivitetsgap
+ *                                  som visas i dagavstämningen
+ *     Gap som inte är restid (paus/privat/ignorera) hanteras via
+ *     `markGapResolved` och persisteras lokalt (se lib/dayGaps.ts).
  *
  * Använder ENBART centrala flöden:
  *   • useTimerStartFlow.requestStart     — säker start (workday-first + conflict)
@@ -95,6 +98,28 @@ export interface DayReviewActions {
     travel_log_id?: string;
     start_time: string;
     end_time?: string;
+  }) => Promise<void>;
+  /**
+   * 5b. Skapa restid från ett aktivitetsgap (review-flödet).
+   * Detta är det auktoritativa sättet att förvandla ett osäkert gap
+   * (mellan stoppad aktivitet och nästa start) till en travel_time_log.
+   * @param durationMinutesOverride  Om satt: förkorta resan till N min
+   *   räknat från `start_time` (för "Justera minuter"-flödet).
+   */
+  createTravelForGap: (input: {
+    gapKey: string;
+    start_time: string;
+    end_time: string;
+    durationMinutesOverride?: number;
+  }) => Promise<void>;
+  /**
+   * 5c. Markera ett gap som paus/privat eller helt ignorerat.
+   * Skapar ingen travel_time_log. Persisteras lokalt så gapet inte
+   * dyker upp igen i review.
+   */
+  markGapResolved: (input: {
+    gapKey: string;
+    resolution: 'pause' | 'ignored';
   }) => Promise<void>;
   /** 6. Markera ett event som irrelevant ("ignored_stale"). */
   dismissEvent: (eventId: string, note?: string) => Promise<void>;
@@ -268,6 +293,57 @@ export function useDayReviewActions(): DayReviewActions {
     [],
   );
 
+  /**
+   * Skapa restid från ett aktivitetsgap. Detta är den primära vägen
+   * (gap-modellen) — `adjustTravel` ovan finns kvar för enskilda
+   * travel_edge-events från assistenten.
+   *
+   * Steg: createTravelLog → setTravelTimes med [start, end] eller
+   * [start, start + durationMinutesOverride]. Markerar samtidigt gapet
+   * som lokalt löst så det inte syns i review nästa render.
+   */
+  const createTravelForGap = useCallback<DayReviewActions['createTravelForGap']>(
+    async ({ gapKey, start_time, end_time, durationMinutesOverride }) => {
+      try {
+        const created = await mobileApi.createTravelLog({});
+        const newId = created?.travel_log?.id;
+        if (!newId) {
+          toast.error('Kunde inte skapa restid');
+          return;
+        }
+        const finalEnd =
+          typeof durationMinutesOverride === 'number' && durationMinutesOverride > 0
+            ? new Date(new Date(start_time).getTime() + durationMinutesOverride * 60_000).toISOString()
+            : end_time;
+        await mobileApi.setTravelTimes({
+          travel_log_id: newId,
+          start_time,
+          end_time: finalEnd,
+        });
+        // Lås gapet lokalt så det inte dyker upp igen.
+        const { markGapResolvedLocally } = await import('@/lib/dayGaps');
+        markGapResolvedLocally(gapKey, 'pause'); // återanvänder slot — kan finjusteras senare
+        toast.success('Restid registrerad från gap');
+      } catch (err: any) {
+        toast.error(err?.message || 'Kunde inte skapa restid');
+      }
+    },
+    [],
+  );
+
+  /**
+   * Markera ett gap som paus/privat eller ignorerat — utan att skapa
+   * någon travel_time_log. Persisteras lokalt (se dayGaps.ts).
+   */
+  const markGapResolved = useCallback<DayReviewActions['markGapResolved']>(
+    async ({ gapKey, resolution }) => {
+      const { markGapResolvedLocally } = await import('@/lib/dayGaps');
+      markGapResolvedLocally(gapKey, resolution);
+      toast.success(resolution === 'pause' ? 'Markerad som paus/privat' : 'Gap ignorerat');
+    },
+    [],
+  );
+
   const dismissEvent = useCallback<DayReviewActions['dismissEvent']>(
     async (eventId, note) => {
       await resolveEvent(eventId, 'ignored_stale', { note: note || 'Markerad som irrelevant av användaren' });
@@ -294,6 +370,8 @@ export function useDayReviewActions(): DayReviewActions {
     endActivityAtDeparture,
     endWorkDayAtHomeArrival,
     adjustTravel,
+    createTravelForGap,
+    markGapResolved,
     dismissEvent,
     approveWorkday,
   };

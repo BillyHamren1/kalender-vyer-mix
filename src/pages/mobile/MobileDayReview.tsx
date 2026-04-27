@@ -13,19 +13,21 @@
  *
  * Hittas via knappen i MobileJobs-headern (badge med antal needs_review).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Clock, MapPin, Plane,
-  PlayCircle, StopCircle, HomeIcon, X as XIcon, Check,
+  PlayCircle, StopCircle, HomeIcon, X as XIcon, Check, Coffee, ArrowRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
-import { mobileApi } from '@/services/mobileApiService';
+import { mobileApi, type MobileTimeReport } from '@/services/mobileApiService';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 import { useDayReviewActions } from '@/hooks/useDayReviewActions';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { computeDayGaps, filterUnresolvedGaps, type DayGap } from '@/lib/dayGaps';
 
 type ReviewWorkday = Awaited<ReturnType<typeof mobileApi.listWorkdaysReview>>['workdays'][number];
 type ReviewEvent = ReviewWorkday['events_for_day'][number];
@@ -81,10 +83,16 @@ export default function MobileDayReview() {
   const focusDayKey = searchParams.get('day');
   const { locale } = useLanguage();
   const [workdays, setWorkdays] = useState<ReviewWorkday[]>([]);
+  const [timeReports, setTimeReports] = useState<MobileTimeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [busyDayId, setBusyDayId] = useState<string | null>(null);
+  const [busyGapKey, setBusyGapKey] = useState<string | null>(null);
+  /** key → minutes-input for "Justera minuter" mode. */
+  const [gapMinuteEdits, setGapMinuteEdits] = useState<Record<string, string>>({});
+  /** Force-rerender helper after we mutate localStorage gap-resolutions. */
+  const [resolvedTick, setResolvedTick] = useState(0);
   const [highlightedDayKey, setHighlightedDayKey] = useState<string | null>(null);
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const actions = useDayReviewActions();
@@ -92,8 +100,12 @@ export default function MobileDayReview() {
   const load = async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true); else setRefreshing(true);
     try {
-      const res = await mobileApi.listWorkdaysReview({ days: 7 });
-      setWorkdays(res.workdays || []);
+      const [reviewRes, reportsRes] = await Promise.all([
+        mobileApi.listWorkdaysReview({ days: 7 }),
+        mobileApi.getTimeReports().catch(() => ({ time_reports: [] as MobileTimeReport[] })),
+      ]);
+      setWorkdays(reviewRes.workdays || []);
+      setTimeReports(reportsRes.time_reports || []);
     } catch (err) {
       console.error('[DayReview] load failed:', err);
     } finally {
@@ -131,6 +143,23 @@ export default function MobileDayReview() {
       await load(false);
     } finally {
       setBusyEventId(null);
+    }
+  };
+
+  /**
+   * Wrap any gap action with busy-state and force a re-render so locally
+   * resolved gaps disappear immediately. We only re-fetch the server list
+   * when the action actually creates a travel_time_log.
+   */
+  const runGapAction = async (gapKey: string, fn: () => Promise<void>, refetch = false) => {
+    if (busyGapKey) return;
+    setBusyGapKey(gapKey);
+    try {
+      await fn();
+      setResolvedTick((n) => n + 1);
+      if (refetch) await load(false);
+    } finally {
+      setBusyGapKey(null);
     }
   };
 
@@ -195,9 +224,16 @@ export default function MobileDayReview() {
             const total = wd.counts.open_events + wd.counts.stale_review_events + wd.counts.open_travel;
             const reasonChips = (wd.review_reasons || []).filter((r) => REASON_LABELS[r]);
             const isSynthetic = (wd as any).synthetic === true;
+            // Inkludera olösta gap i godkänn-spärren så användaren tvingas
+            // ta ställning till varje osäker restid innan dagen kan stängas.
+            void resolvedTick;
+            const unresolvedGapCount = filterUnresolvedGaps(
+              computeDayGaps(timeReports, wd.travels_for_day, wd.day_key),
+            ).length;
             const canApprove = !isSynthetic
               && (wd.review_status === 'ready' || wd.review_status === 'needs_review')
-              && total === 0;
+              && total === 0
+              && unresolvedGapCount === 0;
             const isHighlighted = highlightedDayKey === wd.day_key;
             return (
               <div
@@ -353,6 +389,119 @@ export default function MobileDayReview() {
                     </ul>
                   </div>
                 )}
+
+                {/* === Osäkra restidsgap (gap-modellen) ===
+                    Visar gap mellan två aktiviteter samma dag som inte
+                    redan täcks av en travel_time_log. Användaren får 4
+                    explicita val: registrera restid, justera minuter,
+                    markera paus/privat, eller ignorera. */}
+                {(() => {
+                  // resolvedTick i deps via closure tvingar omräkning efter mark.
+                  void resolvedTick;
+                  const allGaps = computeDayGaps(timeReports, wd.travels_for_day, wd.day_key);
+                  const gaps = filterUnresolvedGaps(allGaps);
+                  if (gaps.length === 0) return null;
+                  return (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Osäkra restidsgap ({gaps.length})
+                      </div>
+                      <ul className="space-y-2">
+                        {gaps.map((gap: DayGap) => {
+                          const busy = busyGapKey === gap.key;
+                          const editValue = gapMinuteEdits[gap.key] ?? '';
+                          const minutesNum = Number(editValue);
+                          const editValid = editValue !== '' && Number.isFinite(minutesNum)
+                            && minutesNum >= 1 && minutesNum <= gap.gapMinutes;
+                          return (
+                            <li key={gap.key} className={cn(
+                              'rounded-lg border bg-background/40 p-2.5',
+                              gap.kind === 'needs_review' && 'border-amber-500/40',
+                            )}>
+                              <div className="flex items-center gap-2 text-xs flex-wrap">
+                                <Plane className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                <span className="font-medium truncate max-w-[40%]">{gap.prevLabel}</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {format(new Date(gap.startIso), 'HH:mm')}
+                                </span>
+                                <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                                <span className="font-medium truncate max-w-[40%]">{gap.nextLabel}</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {format(new Date(gap.endIso), 'HH:mm')}
+                                </span>
+                                <span className={cn(
+                                  'ml-auto text-[10px] uppercase px-1.5 py-0.5 rounded',
+                                  gap.kind === 'needs_review'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                    : 'bg-muted text-muted-foreground',
+                                )}>
+                                  {gap.gapMinutes} min
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] text-muted-foreground mt-1.5">
+                                Du avslutade {gap.prevLabel} {format(new Date(gap.startIso), 'HH:mm')}
+                                {' '}och startade {gap.nextLabel} {format(new Date(gap.endIso), 'HH:mm')}.
+                                {gap.kind === 'needs_review' && ' Långt gap — kontrollera att detta verkligen är restid.'}
+                              </p>
+
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <Button
+                                  size="sm" variant="default" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.createTravelForGap({
+                                    gapKey: gap.key,
+                                    start_time: gap.startIso,
+                                    end_time: gap.endIso,
+                                  }), true)}
+                                >
+                                  <Plane className="w-3.5 h-3.5 mr-1" />
+                                  Registrera restid
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline" disabled={busy || !editValid}
+                                  onClick={() => runGapAction(gap.key, () => actions.createTravelForGap({
+                                    gapKey: gap.key,
+                                    start_time: gap.startIso,
+                                    end_time: gap.endIso,
+                                    durationMinutesOverride: minutesNum,
+                                  }), true)}
+                                >
+                                  Justera
+                                </Button>
+                                <Input
+                                  type="number" inputMode="numeric"
+                                  min={1} max={gap.gapMinutes}
+                                  placeholder="min"
+                                  value={editValue}
+                                  onChange={(e) => setGapMinuteEdits((prev) => ({ ...prev, [gap.key]: e.target.value }))}
+                                  className="h-8 w-20 text-xs"
+                                />
+                                <Button
+                                  size="sm" variant="outline" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.markGapResolved({
+                                    gapKey: gap.key, resolution: 'pause',
+                                  }))}
+                                >
+                                  <Coffee className="w-3.5 h-3.5 mr-1" />
+                                  Paus/privat
+                                </Button>
+                                <Button
+                                  size="sm" variant="ghost" disabled={busy}
+                                  onClick={() => runGapAction(gap.key, () => actions.markGapResolved({
+                                    gapKey: gap.key, resolution: 'ignored',
+                                  }))}
+                                >
+                                  <XIcon className="w-3.5 h-3.5 mr-1" />
+                                  Ignorera
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })()}
 
                 {/* Approve day */}
                 {!isSynthetic && (
