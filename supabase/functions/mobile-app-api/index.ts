@@ -2130,7 +2130,9 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
   // === Overlap check (CREATE) ===
   // Same robust datetime-interval logic as update — handles night shifts and
   // reports stored on neighboring report_dates that bleed into this day.
-  if (start_time && end_time) {
+  // Subdivisions are per-address breakdowns INSIDE a parent project-total's
+  // window — they are expected to overlap the parent and must be exempted.
+  if (!isSubdivision && start_time && end_time) {
     const newInterval = buildShiftInterval(report_date, start_time, end_time)
     if (newInterval) {
       const baseDate = new Date(`${report_date}T00:00:00Z`)
@@ -2142,6 +2144,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
         .select('id, report_date, start_time, end_time')
         .eq('staff_id', staffId)
         .in('report_date', [prevDate, report_date, nextDate])
+        .eq('is_subdivision', false)
         .not('start_time', 'is', null)
         .not('end_time', 'is', null)
 
