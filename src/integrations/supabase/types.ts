@@ -5546,13 +5546,19 @@ export type Database = {
           hours_worked: number
           id: string
           manual_project_name: string | null
+          needs_review: boolean
+          next_target_id: string | null
+          next_target_type: string | null
           organization_id: string
+          previous_target_id: string | null
+          previous_target_type: string | null
           rejected_at: string | null
           rejected_by: string | null
           rejection_comment: string | null
           related_booking_id: string | null
           related_booking_note: string | null
           report_date: string
+          source: string
           staff_id: string
           start_time: string
           to_address: string | null
@@ -5576,13 +5582,19 @@ export type Database = {
           hours_worked?: number
           id?: string
           manual_project_name?: string | null
+          needs_review?: boolean
+          next_target_id?: string | null
+          next_target_type?: string | null
           organization_id?: string
+          previous_target_id?: string | null
+          previous_target_type?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_comment?: string | null
           related_booking_id?: string | null
           related_booking_note?: string | null
           report_date?: string
+          source?: string
           staff_id: string
           start_time?: string
           to_address?: string | null
@@ -5606,13 +5618,19 @@ export type Database = {
           hours_worked?: number
           id?: string
           manual_project_name?: string | null
+          needs_review?: boolean
+          next_target_id?: string | null
+          next_target_type?: string | null
           organization_id?: string
+          previous_target_id?: string | null
+          previous_target_type?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_comment?: string | null
           related_booking_id?: string | null
           related_booking_note?: string | null
           report_date?: string
+          source?: string
           staff_id?: string
           start_time?: string
           to_address?: string | null
