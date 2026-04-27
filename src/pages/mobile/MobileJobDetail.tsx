@@ -347,13 +347,20 @@ const MobileJobDetail = () => {
 
       <DistanceWarningDialog
         open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) setDistanceWarning(null); }}
+        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
         onConfirm={() => {
           distanceWarning?.onConfirm();
-          setDistanceWarning(null);
+          dismissDistanceWarning();
         }}
+      />
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingLabel}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
       />
       {dialogs}
     </div>
