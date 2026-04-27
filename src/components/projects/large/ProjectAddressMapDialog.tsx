@@ -331,6 +331,35 @@ export default function ProjectAddressMapDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, token, retryCounter, containerNode]);
 
+  // Byt kartstil utan att återskapa kartan. setStyle() rensar custom sources/layers,
+  // så vi måste återställa radiecirkeln och ev. ritad polygon när style.load fyrar.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapStatus !== 'ready') return;
+    const target = MAP_STYLES[mapStyle];
+    // @ts-ignore — getStyle().sprite/.glyphs varierar; jämför hellre via name.
+    const currentName = (map.getStyle()?.name || '').toLowerCase();
+    const wantSatellite = mapStyle === 'satellite';
+    const isSatellite = currentName.includes('satellite');
+    if (wantSatellite === isSatellite) return;
+
+    map.setStyle(target);
+    map.once('style.load', () => {
+      // Återställ radiecirkeln (markören och NavigationControl bevaras automatiskt).
+      ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
+      // Återinför ritad polygon om någon finns (Draw-kontrollen kan tappa state vid setStyle).
+      try {
+        if (polygon && drawRef.current) {
+          drawRef.current.deleteAll();
+          drawRef.current.add({ type: 'Feature', geometry: polygon, properties: {} } as any);
+        }
+      } catch (e) {
+        console.warn('[ProjectAddressMapDialog] re-add polygon after style change failed:', e);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapStyle, mapStatus]);
+
   // Update marker + radius circle when coords/radius/mode change
   useEffect(() => {
     const map = mapRef.current;
