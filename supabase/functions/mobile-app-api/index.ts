@@ -745,6 +745,15 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   const realAssignments = (assignments || []).filter((a: any) => a.team_id !== 'project' && a.team_id !== 'location')
   const realBsaBookingIds = new Set(realAssignments.map((a: any) => a.booking_id))
 
+  // Bookings where the user has a direct project-membership row (team_id='project').
+  // These should also be visible in the mobile app — being on a project's team
+  // is a valid visibility signal even without a per-day team scheduling row.
+  const projectMembershipBookingIds = new Set(
+    (assignments || [])
+      .filter((a: any) => a.team_id === 'project' && !String(a.booking_id).startsWith('location-'))
+      .map((a: any) => a.booking_id)
+  )
+
   // Build a map of booking_id → Set of real scheduled dates
   const bookingScheduledDates: Record<string, Set<string>> = {}
   for (const a of realAssignments) {
