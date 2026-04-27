@@ -15,6 +15,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
+import { handleBookingMove } from '@/services/unifiedStaffService';
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 
 interface MoveEventDateDialogProps {
@@ -146,11 +147,13 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           .eq('id', event.id);
         if (whErr) throw whErr;
       } else {
+        const teamChanged = !!selectedResourceId && selectedResourceId !== event.resourceId;
+
         const updatePayload: any = {
           start: newStartISO,
           end: newEndISO,
         };
-        if (selectedResourceId && selectedResourceId !== event.resourceId) {
+        if (teamChanged) {
           updatePayload.resourceId = selectedResourceId;
         }
         await updateCalendarEvent(event.id, updatePayload);
@@ -172,6 +175,24 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
                 [bookingFields.end]: newEndISO
               })
               .eq('id', event.bookingId);
+          }
+        }
+
+        // IMPORTANT: for normal planner bookings, the authoritative team on refresh
+        // is derived from booking_staff_assignments (and sometimes re-imported real rows),
+        // not only calendar_events.resource_id. So persist a real booking move when the
+        // team changed for the same booking/day.
+        if (event.bookingId && event.eventType && event.resourceId && selectedResourceId && teamChanged) {
+          const moveResult = await handleBookingMove(
+            event.bookingId,
+            event.resourceId,
+            selectedResourceId,
+            currentDateStr,
+            newDateStr
+          );
+
+          if (!moveResult.success && moveResult.error) {
+            throw new Error(moveResult.error);
           }
         }
       }
