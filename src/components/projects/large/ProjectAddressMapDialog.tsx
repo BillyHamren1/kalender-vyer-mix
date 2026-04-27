@@ -259,15 +259,29 @@ export default function ProjectAddressMapDialog({
       setCoords({ lat, lng });
     });
 
-    // Polygon draw events
-    const onDraw = () => {
+    // Polygon draw events — auto-switch mode to 'polygon' when user draws,
+    // otherwise the polygon is silently dropped on save (geofence_mode stays 'circle').
+    const onDrawCreate = () => {
+      const fc = draw.getAll();
+      const poly = fc.features.find((f) => f.geometry.type === 'Polygon');
+      if (poly) {
+        setPolygon(poly.geometry as GeoJSON.Polygon);
+        setMode('polygon');
+      }
+    };
+    const onDrawUpdate = () => {
       const fc = draw.getAll();
       const poly = fc.features.find((f) => f.geometry.type === 'Polygon');
       setPolygon(poly ? (poly.geometry as GeoJSON.Polygon) : null);
     };
-    map.on('draw.create', onDraw);
-    map.on('draw.update', onDraw);
-    map.on('draw.delete', onDraw);
+    const onDrawDelete = () => {
+      const fc = draw.getAll();
+      const poly = fc.features.find((f) => f.geometry.type === 'Polygon');
+      setPolygon(poly ? (poly.geometry as GeoJSON.Polygon) : null);
+    };
+    map.on('draw.create', onDrawCreate);
+    map.on('draw.update', onDrawUpdate);
+    map.on('draw.delete', onDrawDelete);
 
     return () => {
       if (loadTimeoutRef.current) {
