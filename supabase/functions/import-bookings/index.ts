@@ -761,15 +761,20 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
   
   // Parse the start time parts to avoid timezone shifts
   const datePart = startTime.split('T')[0];
-  const timePart = startTime.split('T')[1] || '08:00:00';
+  const timeWithMaybeOffset = startTime.split('T')[1] || '08:00:00';
+  // Strip any trailing offset (+HH:MM, -HH:MM or Z) before arithmetic
+  const timePart = timeWithMaybeOffset.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
   const [hh, mm, ss] = timePart.split(':').map(Number);
-  
+
   const totalMinutes = hh * 60 + mm + (hoursToAdd * 60);
   const endHH = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
   const endMM = String(Math.floor(totalMinutes % 60)).padStart(2, '0');
   const endSS = String(ss || 0).padStart(2, '0');
-  
-  return `${datePart}T${endHH}:${endMM}:${endSS}`;
+  const endTime = `${endHH}:${endMM}:${endSS}`;
+
+  // Apply Europe/Stockholm offset so the timestamp lands on the correct instant
+  const offset = formatOffset(stockholmOffsetMinutes(datePart, endTime));
+  return `${datePart}T${endTime}${offset}`;
 };
 
 /**
