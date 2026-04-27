@@ -14,6 +14,7 @@ import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { markWorkdayEnded } from '@/services/workdayState';
 import { syncWorkDayEnd } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { extractUTCTime } from '@/utils/dateUtils';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
@@ -410,7 +411,7 @@ const TimerRow: React.FC<{
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {format(parseISO(timer.startTime), 'HH:mm')}
+          Startad {extractUTCTime(timer.startTime)}
           {timer.isAutoStarted && ' (automatiskt)'}
         </p>
       </div>

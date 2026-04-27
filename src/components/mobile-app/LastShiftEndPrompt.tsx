@@ -9,6 +9,7 @@ import type { LastShiftExitContext } from '@/hooks/useLastShiftEndDetection';
 import type { GpsPosition } from '@/hooks/useGeofencing';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { extractUTCTime, parsePlannerDateTime } from '@/utils/dateUtils';
 
 interface LastShiftEndPromptProps {
   context: LastShiftExitContext;
@@ -27,7 +28,8 @@ export default function LastShiftEndPrompt({
   const [busy, setBusy] = useState<'end' | 'continue' | 'snooze' | null>(null);
 
   const exitedAt = new Date(context.exitedAtIso);
-  const shiftEnd = context.shiftEndIso ? new Date(context.shiftEndIso) : null;
+  const shiftEnd = context.shiftEndIso ? parsePlannerDateTime(context.shiftEndIso) : null;
+  const shiftEndLabel = context.shiftEndIso ? extractUTCTime(context.shiftEndIso) : null;
 
   const handleEndDay = async () => {
     setBusy('end');
@@ -50,7 +52,7 @@ export default function LastShiftEndPrompt({
           title: 'Day ended after last shift',
           description:
             `Staff confirmed end of day at exit from last planned shift${
-              shiftEnd ? ` (planned end ${format(shiftEnd, 'HH:mm')})` : ''
+               shiftEndLabel ? ` (planned end ${shiftEndLabel})` : ''
             }.`,
           severity: 'info',
           needs_user_input: false,
@@ -94,7 +96,7 @@ export default function LastShiftEndPrompt({
           <DialogDescription>
             {t('lastShift.body', { time: format(exitedAt, 'HH:mm') })}
             {shiftEnd && ' '}
-            {shiftEnd && t('lastShift.plannedEnd', { time: format(shiftEnd, 'HH:mm') })}
+            {shiftEndLabel && t('lastShift.plannedEnd', { time: shiftEndLabel })}
             {t('lastShift.tail')}
           </DialogDescription>
         </DialogHeader>

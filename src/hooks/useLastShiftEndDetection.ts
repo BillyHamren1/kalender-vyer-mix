@@ -21,6 +21,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { scheduleLocalNotification } from '@/services/pushNotificationService';
 import { hasWorkdayEndedToday } from '@/services/workdayState';
+import { extractUTCDate, parsePlannerDateTime } from '@/utils/dateUtils';
 
 const SUPPRESS_KEY = 'eventflow-last-shift-prompt-suppressed';
 const PROMPT_AUTO_DISMISS_MS = 60 * 60 * 1000; // 60 min
@@ -79,22 +80,22 @@ export function useLastShiftEndDetection(enabled: boolean) {
     const today = todayKey();
 
     // Pass that have ended today (incl. ±2h tolerance window).
-    const todaysShifts = allShifts.filter((s) => {
-      const start = new Date(s.start_time);
-      return start.toISOString().slice(0, 10) === today;
-    });
+    const todaysShifts = allShifts.filter((s) => extractUTCDate(s.start_time) === today);
     if (todaysShifts.length === 0) return null;
 
     // Sort by end_time desc — pick the latest pass of the day.
     const sorted = [...todaysShifts].sort(
-      (a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime()
+      (a, b) =>
+        (parsePlannerDateTime(b.end_time)?.getTime() ?? 0) -
+        (parsePlannerDateTime(a.end_time)?.getTime() ?? 0)
     );
     const lastShift = sorted[0];
-    const lastEnd = new Date(lastShift.end_time).getTime();
+    const lastEnd = parsePlannerDateTime(lastShift.end_time)?.getTime();
+    if (!lastEnd) return null;
 
     // No more upcoming shifts after now? (Last shift criterion).
     const hasFutureShift = todaysShifts.some(
-      (s) => new Date(s.start_time).getTime() > now
+      (s) => (parsePlannerDateTime(s.start_time)?.getTime() ?? 0) > now
     );
     if (hasFutureShift) return null;
 
