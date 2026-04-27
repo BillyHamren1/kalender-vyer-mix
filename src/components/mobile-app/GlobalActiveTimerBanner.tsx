@@ -73,32 +73,8 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
   const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
-  const { current: currentWorkday, start: startWorkday } = useWorkDay();
-  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
-  const [startingDay, setStartingDay] = useState(false);
-
-  // Should we offer the user an explicit "Starta dag" entry point?
-  // Only when logged in as mobile staff, no open workday, and we're inside
-  // the mobile app shell (not /m/report which has its own controls).
-  const showStartDay = !!staff?.id && !workdayOpen && !startingDay && location.pathname !== '/m/report';
-
-  const handleStartDay = useCallback(async () => {
-    if (startingDay || workdayOpen) return;
-    setStartingDay(true);
-    try {
-      // User explicitly opening the day → clear any "ended today" latch
-      // so auto-bootstrap and assistants treat it as a fresh active day.
-      clearWorkdayEnded();
-      const wd = await startWorkday();
-      if (!wd) {
-        toast.error(t('workday.couldNotStart'));
-      }
-    } catch (err: any) {
-      toast.error(err?.message || t('workday.couldNotStart'));
-    } finally {
-      setStartingDay(false);
-    }
-  }, [startingDay, workdayOpen, startWorkday, t]);
+  // Workday start/end UI moved to WorkDayStatusPanel — this banner is
+  // strictly the activity-row + EOD-dialog driver.
 
 
   const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
