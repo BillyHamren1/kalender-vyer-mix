@@ -56,6 +56,7 @@ import OpsControlCenter from "./pages/OpsControlCenter";
 import NotFound from "./pages/NotFound";
 import SyncReconciliation from "./pages/SyncReconciliation";
 import StaffLiveDebug from "./pages/admin/StaffLiveDebug";
+import LegacyIncomingPackingDebug from "./pages/admin/LegacyIncomingPackingDebug";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
 import TransportResponse from "./pages/TransportResponse";
