@@ -40,6 +40,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
+  const [hasStartGesture, setHasStartGesture] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -633,11 +634,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   useEffect(() => {
     if (!isActive) {
       setError(null);
+      setHasStartGesture(false);
       stopCameraRef.current();
       return;
     }
 
     if (shouldSkipCamera) {
+      stopCameraRef.current();
+      return;
+    }
+
+    if (isNativeIos && !hasStartGesture) {
       stopCameraRef.current();
       return;
     }
@@ -651,7 +658,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
     // Intentionally only depend on activation flags — start/stop are read via refs
     // to prevent restart loops when parent re-renders.
-  }, [isActive, shouldSkipCamera]);
+  }, [hasStartGesture, isActive, isNativeIos, shouldSkipCamera]);
 
   if (!isActive) return null;
 
@@ -694,6 +701,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 variant="secondary"
               >
                 Try again
+              </Button>
+            </div>
+          )}
+
+          {cameraState === 'idle' && isNativeIos && !hasStartGesture && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
+              <Camera className="h-14 w-14 mb-4 opacity-60" />
+              <p className="text-center text-base mb-2">Tryck för att starta kameran</p>
+              <p className="text-center text-sm text-white/60 mb-6">Det gör iPhone-scanningen snabbare och stabilare.</p>
+              <Button
+                onClick={() => {
+                  setHasStartGesture(true);
+                  void startCamera();
+                }}
+              >
+                Starta kamera
               </Button>
             </div>
           )}
