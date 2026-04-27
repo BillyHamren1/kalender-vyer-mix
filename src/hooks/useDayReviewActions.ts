@@ -6,9 +6,12 @@
  *   • Aktivitet = projekt/plats/bokning inuti dagen.
  *   • Restid = GAPET mellan två aktiviteter när gapet är rimligt.
  *     Live GPS-travel är legacy/assist (se useTravelDetection) — denna
- *     hook är PRIMÄR källa för restidsjustering: `adjustTravel` skapar
- *     eller uppdaterar `travel_time_logs` baserat på det användaren
- *     bekräftar i day-review (typiskt: gapet mellan stopp och nästa start).
+ *     hook är PRIMÄR källa för restidsjustering. Två vägar:
+ *       • `adjustTravel`        — justerar/skapar runt ett travel_edge-event
+ *       • `createTravelForGap`  — auktoritativ väg för osäkra aktivitetsgap
+ *                                  som visas i dagavstämningen
+ *     Gap som inte är restid (paus/privat/ignorera) hanteras via
+ *     `markGapResolved` och persisteras lokalt (se lib/dayGaps.ts).
  *
  * Använder ENBART centrala flöden:
  *   • useTimerStartFlow.requestStart     — säker start (workday-first + conflict)
