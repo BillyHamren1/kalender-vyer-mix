@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, lazy, Suspense, useState, useEffect } from 'react';
 import { PlannerStoreProvider, usePlannerSync } from '@/stores/plannerStore';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,94 +11,99 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 
+
+
+// Main system pages — eager (used immediately after login)
+import PlanningDashboard from "./pages/PlanningDashboard";
+import MyProjects from "./pages/MyProjects";
+import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
+import AuthResetPassword from "./pages/AuthResetPassword";
+import ProjectLayout from "./pages/project/ProjectLayout";
+import LargeProjectLayout from "./pages/project/LargeProjectLayout";
+
+// Main system pages — lazy
+const InvoicingPage = lazy(() => import("./pages/InvoicingPage"));
+const CustomCalendarPage = lazy(() => import("./pages/CustomCalendarPage"));
+const StaffManagement = lazy(() => import("./pages/StaffManagement"));
+const TimeReportApprovals = lazy(() => import("./pages/TimeReportApprovals"));
+const StaffTimeReports = lazy(() => import("./pages/StaffTimeReports"));
+const AdminTimeReview = lazy(() => import("./pages/AdminTimeReview"));
+const StaffDetail = lazy(() => import("./pages/StaffDetail"));
+const BookingDetail = lazy(() => import("./pages/BookingDetail"));
+const BookingList = lazy(() => import("./pages/BookingList"));
+const ProjectManagement = lazy(() => import("./pages/ProjectManagement"));
+const ProjectArchive = lazy(() => import("./pages/ProjectArchive"));
+const ProjectClosing = lazy(() => import("./pages/ProjectClosing"));
+const ProjectViewPage = lazy(() => import("./pages/project/ProjectViewPage"));
+const EstablishmentPage = lazy(() => import("./pages/project/EstablishmentPage"));
+const ProjectEconomyPage = lazy(() => import("./pages/project/ProjectEconomyPage"));
+const LargeProjectViewPage = lazy(() => import("./pages/project/LargeProjectViewPage"));
+const LargeEstablishmentPage = lazy(() => import("./pages/project/LargeEstablishmentPage"));
+const LargeProjectEconomyPage = lazy(() => import("./pages/project/LargeProjectEconomyPage"));
+const LargeCollaborationPage = lazy(() => import("./pages/project/LargeCollaborationPage"));
+const EconomyOverview = lazy(() => import("./pages/EconomyOverview"));
+const AnalyticsDashboard = lazy(() => import("./pages/AnalyticsDashboard"));
+const ProjectEconomyDetail = lazy(() => import("./pages/ProjectEconomyDetail"));
+const StaffRevenueOverview = lazy(() => import("./pages/StaffRevenueOverview"));
+const JobDetail = lazy(() => import("./pages/JobDetail"));
+const APIDocumentation = lazy(() => import("./pages/APIDocumentation"));
+const StaffDashboard = lazy(() => import("./pages/StaffDashboard"));
+const CommunicationPage = lazy(() => import("./pages/CommunicationPage"));
+const OpsControlCenter = lazy(() => import("./pages/OpsControlCenter"));
+const SyncReconciliation = lazy(() => import("./pages/SyncReconciliation"));
+const StaffLiveDebug = lazy(() => import("./pages/admin/StaffLiveDebug"));
+const LegacyIncomingPackingDebug = lazy(() => import("./pages/admin/LegacyIncomingPackingDebug"));
+const TransportResponse = lazy(() => import("./pages/TransportResponse"));
+
+// Logistics pages
+const LogisticsHub = lazy(() => import("./pages/LogisticsHub"));
+
+// Layouts — eager
+import MainSystemLayout from "@/components/layouts/MainSystemLayout";
+import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
+
 // ── App Shells (native-mode wrappers) ──────────────────────────────
 import TimeAppShell from "@/shells/TimeAppShell";
 import ScannerAppShell from "@/shells/ScannerAppShell";
 
-// Layouts
-import MainSystemLayout from "@/components/layouts/MainSystemLayout";
-import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
-
-// Main system pages
-import InvoicingPage from "./pages/InvoicingPage";
-import CustomCalendarPage from "./pages/CustomCalendarPage";
-import StaffManagement from "./pages/StaffManagement";
-import TimeReportApprovals from "./pages/TimeReportApprovals";
-import StaffTimeReports from "./pages/StaffTimeReports";
-import AdminTimeReview from "./pages/AdminTimeReview";
-import StaffDetail from "./pages/StaffDetail";
-import BookingDetail from "./pages/BookingDetail";
-import BookingList from "./pages/BookingList";
-import ProjectManagement from "./pages/ProjectManagement";
-import ProjectArchive from "./pages/ProjectArchive";
-import ProjectClosing from "./pages/ProjectClosing";
-import ProjectLayout from "./pages/project/ProjectLayout";
-import ProjectViewPage from "./pages/project/ProjectViewPage";
-import EstablishmentPage from "./pages/project/EstablishmentPage";
-import ProjectEconomyPage from "./pages/project/ProjectEconomyPage";
-// ProjectExecutionView is now merged into EstablishmentPage
-import LargeProjectLayout from "./pages/project/LargeProjectLayout";
-import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
-import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
-import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
-import LargeCollaborationPage from "./pages/project/LargeCollaborationPage";
-import EconomyOverview from "./pages/EconomyOverview";
-import EconomyTimeReports from "./pages/EconomyTimeReports";
-import AnalyticsDashboard from "./pages/AnalyticsDashboard";
-import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
-import PlanningDashboard from "./pages/PlanningDashboard";
-import MyProjects from "./pages/MyProjects";
-import StaffRevenueOverview from "./pages/StaffRevenueOverview";
-import JobDetail from "./pages/JobDetail";
-import APIDocumentation from "./pages/APIDocumentation";
-import StaffDashboard from "./pages/StaffDashboard";
-import CommunicationPage from "./pages/CommunicationPage";
-import OpsControlCenter from "./pages/OpsControlCenter";
-import NotFound from "./pages/NotFound";
-import SyncReconciliation from "./pages/SyncReconciliation";
-import StaffLiveDebug from "./pages/admin/StaffLiveDebug";
-import LegacyIncomingPackingDebug from "./pages/admin/LegacyIncomingPackingDebug";
-import Auth from "./pages/Auth";
-import AuthResetPassword from "./pages/AuthResetPassword";
-import TransportResponse from "./pages/TransportResponse";
-
-// Logistics pages
-import LogisticsHub from "./pages/LogisticsHub";
-
-// Warehouse system pages
-import WarehouseDashboard from "./pages/WarehouseDashboard";
-import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
-import PackingManagement from "./pages/PackingManagement";
-import PackingDetail from "./pages/PackingDetail";
-import WarehouseProjectDetail from "./pages/WarehouseProjectDetail";
-import PackingVerify from "./pages/PackingVerify";
-import WarehouseEconomy from "./pages/WarehouseEconomy";
-import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
-import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
+// Warehouse system pages — lazy
+const WarehouseDashboard = lazy(() => import("./pages/WarehouseDashboard"));
+const WarehouseCalendarPage = lazy(() => import("./pages/WarehouseCalendarPage"));
+const PackingManagement = lazy(() => import("./pages/PackingManagement"));
+const PackingDetail = lazy(() => import("./pages/PackingDetail"));
+const WarehouseProjectDetail = lazy(() => import("./pages/WarehouseProjectDetail"));
+const PackingVerify = lazy(() => import("./pages/PackingVerify"));
+const WarehouseEconomy = lazy(() => import("./pages/WarehouseEconomy"));
+const WarehouseInventoryPlaceholder = lazy(() => import("./pages/WarehouseInventoryPlaceholder"));
+const WarehouseServicePlaceholder = lazy(() => import("./pages/WarehouseServicePlaceholder"));
 
 // Mobile staff app pages (web mode only — native uses shells)
 import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
 import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
 import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
-import MobileLogin from "./pages/mobile/MobileLogin";
-import MobileJobs from "./pages/mobile/MobileJobs";
-import MobileJobDetail from "./pages/mobile/MobileJobDetail";
-import MobileProjectDetail from "./pages/mobile/MobileProjectDetail";
-import MobileLocationDetail from "./pages/mobile/MobileLocationDetail";
-import MobileTimeReport from "./pages/mobile/MobileTimeReport";
-import MobileEditTimeReport from "./pages/mobile/MobileEditTimeReport";
-import MobileExpenses from "./pages/mobile/MobileExpenses";
-import MobileProfile from "./pages/mobile/MobileProfile";
-import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
-import MobileInbox from "./pages/mobile/MobileInbox";
-import MobileMyFlags from "./pages/mobile/MobileMyFlags";
-import MobileDayReview from "./pages/mobile/MobileDayReview";
-import MobileCompleteJob from "./pages/mobile/MobileCompleteJob";
-import MobileOverview from "./pages/mobile/MobileOverview";
 import PlannerOnlyRoute from "@/components/mobile-app/PlannerOnlyRoute";
-import MobileScannerApp from "./pages/MobileScannerApp";
-import ScannerLogin from "./pages/scanner/ScannerLogin";
+const MobileLogin = lazy(() => import("./pages/mobile/MobileLogin"));
+const MobileJobs = lazy(() => import("./pages/mobile/MobileJobs"));
+const MobileJobDetail = lazy(() => import("./pages/mobile/MobileJobDetail"));
+const MobileProjectDetail = lazy(() => import("./pages/mobile/MobileProjectDetail"));
+const MobileLocationDetail = lazy(() => import("./pages/mobile/MobileLocationDetail"));
+const MobileTimeReport = lazy(() => import("./pages/mobile/MobileTimeReport"));
+const MobileEditTimeReport = lazy(() => import("./pages/mobile/MobileEditTimeReport"));
+const MobileExpenses = lazy(() => import("./pages/mobile/MobileExpenses"));
+const MobileProfile = lazy(() => import("./pages/mobile/MobileProfile"));
+const MobileTimeHistory = lazy(() => import("./pages/mobile/MobileTimeHistory"));
+const MobileInbox = lazy(() => import("./pages/mobile/MobileInbox"));
+const MobileMyFlags = lazy(() => import("./pages/mobile/MobileMyFlags"));
+const MobileDayReview = lazy(() => import("./pages/mobile/MobileDayReview"));
+const MobileCompleteJob = lazy(() => import("./pages/mobile/MobileCompleteJob"));
+const MobileOverview = lazy(() => import("./pages/mobile/MobileOverview"));
+const MobileScannerApp = lazy(() => import("./pages/MobileScannerApp"));
+const ScannerLogin = lazy(() => import("./pages/scanner/ScannerLogin"));
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
+
+// EconomyTimeReports (used inside MainSystemLayout pages)
+const EconomyTimeReports = lazy(() => import("./pages/EconomyTimeReports"));
 
 const queryClient = new QueryClient();
 
@@ -181,9 +186,15 @@ const AppContent = () => {
 const WebRoutes: React.FC = () => {
   const defaultRoute = getDefaultRoute();
 
+  const routeFallback = (
+    <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+      Laddar…
+    </div>
+  );
+
   return (
+    <Suspense fallback={routeFallback}>
     <Routes>
-      {/* Auth Routes - Not Protected */}
       <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
       <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
 
@@ -283,6 +294,7 @@ const WebRoutes: React.FC = () => {
         </AuthProvider>
       } />
     </Routes>
+    </Suspense>
   );
 };
 

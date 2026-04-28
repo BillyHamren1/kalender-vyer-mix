@@ -60,9 +60,31 @@ const hasRecentRecoveryAttempt = () => {
     const raw = window.sessionStorage.getItem(MODULE_RECOVERY_KEY);
     if (!raw) return false;
     const timestamp = Number(raw);
-    return Number.isFinite(timestamp) && Date.now() - timestamp < 15_000;
+    return Number.isFinite(timestamp) && Date.now() - timestamp < 30_000;
   } catch {
     return false;
+  }
+};
+
+const purgeBrowserCaches = async () => {
+  // 1. Clear Cache Storage (covers any SW-cached HTML/JS)
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // Ignore — we'll still reload.
+  }
+
+  // 2. Unregister any service workers so they can't replay old responses
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch {
+    // Ignore.
   }
 };
 
@@ -91,9 +113,18 @@ const cleanupRecoveryQuery = () => {
 };
 
 const reloadWithFreshDocument = () => {
+  // Strip the recovery query param so the new document URL is clean.
   const url = new URL(window.location.href);
-  url.searchParams.set(MODULE_RECOVERY_QUERY, String(Date.now()));
-  window.location.replace(url.toString());
+  url.searchParams.delete(MODULE_RECOVERY_QUERY);
+  const cleanHref = `${url.pathname}${url.search}${url.hash}`;
+  if (cleanHref !== window.location.pathname + window.location.search + window.location.hash) {
+    window.history.replaceState(null, '', cleanHref);
+  }
+
+  void purgeBrowserCaches().finally(() => {
+    // Hard reload — bypasses HTTP cache for the document and forces fresh module URLs.
+    window.location.reload();
+  });
 };
 
 const renderBootError = (message: string) => {
@@ -104,10 +135,14 @@ const renderBootError = (message: string) => {
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
         <button
           type="button"
-          onClick={reloadWithFreshDocument}
+          onClick={() => {
+            // User-initiated retry: bypass cooldown and force a fresh fetch.
+            try { window.sessionStorage.removeItem(MODULE_RECOVERY_KEY); } catch {}
+            reloadWithFreshDocument();
+          }}
           className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
         >
-          Ladda om
+          Töm cache och ladda om
         </button>
       </div>
     </div>
@@ -134,7 +169,7 @@ const handleModuleLoadFailure = (error: unknown, source: 'boot' | 'preload') => 
     return;
   }
 
-  renderBootError('Previewn verkar ha fastnat på en gammal modulversion. Ladda om sidan för att hämta en frisk version.');
+  renderBootError('Previewn verkar ha fastnat på en gammal modulversion. Klicka för att tömma cachen och försöka igen.');
 };
 
 window.addEventListener('vite:preloadError', (event) => {
