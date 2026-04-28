@@ -80,6 +80,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   staffName,
   travelSegments,
   workEntries,
+  reviewRow,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
