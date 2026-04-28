@@ -17,6 +17,8 @@ const corsHeaders = {
 }
 
 const BATCH_SIZE = 10
+const INCREMENTAL_DISCOVERY_BOOKING_ID = '__incremental_discovery__'
+const INCREMENTAL_DISCOVERY_EVENT_TYPE = 'booking.incremental.scan'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -52,6 +54,102 @@ serve(async (req) => {
 
   for (const job of claimedJobs) {
     try {
+      if (job.booking_id === INCREMENTAL_DISCOVERY_BOOKING_ID && String(job.event_type || '').startsWith(INCREMENTAL_DISCOVERY_EVENT_TYPE)) {
+        const [, encodedLastSyncTimestamp = '', encodedNextSyncCursor = ''] = String(job.event_type || '').split('|')
+        const lastSyncTimestamp = decodeURIComponent(encodedLastSyncTimestamp)
+        const nextSyncCursor = decodeURIComponent(encodedNextSyncCursor)
+
+        const discoveryRes = await fetch(`${supabaseUrl}/functions/v1/export_bookings?${new URLSearchParams({
+          organization_id: job.organization_id,
+          ...(lastSyncTimestamp ? { since: new Date(lastSyncTimestamp).toISOString() } : {}),
+        }).toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('IMPORT_API_KEY')!}`,
+            'x-api-key': Deno.env.get('IMPORT_API_KEY')!,
+          },
+        })
+
+        if (!discoveryRes.ok) {
+          const errorBody = await discoveryRes.text().catch(() => 'no body')
+          throw new Error(`export_bookings returned ${discoveryRes.status}: ${errorBody.substring(0, 500)}`)
+        }
+
+        const discoveryBody = await discoveryRes.json()
+        const bookings = Array.isArray(discoveryBody?.data) ? discoveryBody.data : []
+        const uniqueBookingIds = Array.from(new Set(
+          bookings
+            .map((booking: { id?: string }) => typeof booking?.id === 'string' ? booking.id.trim() : '')
+            .filter(Boolean)
+        ))
+
+        if (uniqueBookingIds.length > 0) {
+          const { data: existingActiveJobs, error: existingActiveJobsError } = await supabase
+            .from('booking_sync_jobs')
+            .select('booking_id')
+            .eq('organization_id', job.organization_id)
+            .in('booking_id', uniqueBookingIds)
+            .in('status', ['pending', 'processing'])
+
+          if (existingActiveJobsError) {
+            throw new Error(`Could not inspect incremental queue: ${existingActiveJobsError.message}`)
+          }
+
+          const activeIds = new Set((existingActiveJobs || []).map((row: { booking_id: string }) => row.booking_id))
+          const jobsToInsert = uniqueBookingIds
+            .filter((bookingId) => !activeIds.has(bookingId))
+            .map((bookingId) => ({
+              booking_id: bookingId,
+              organization_id: job.organization_id,
+              event_type: 'booking.incremental',
+              status: 'pending',
+            }))
+
+          if (jobsToInsert.length > 0) {
+            const { error: insertError } = await supabase
+              .from('booking_sync_jobs')
+              .insert(jobsToInsert)
+
+            if (insertError) {
+              throw new Error(`Could not queue incremental sync jobs: ${insertError.message}`)
+            }
+          }
+        }
+
+        await supabase
+          .from('booking_sync_jobs')
+          .update({
+            status: 'completed',
+            processed_at: new Date().toISOString(),
+            error_message: null,
+          })
+          .eq('id', job.id)
+
+        if (nextSyncCursor) {
+          await supabase
+            .from('sync_state')
+            .upsert({
+              sync_type: 'booking_import',
+              organization_id: job.organization_id,
+              last_sync_timestamp: nextSyncCursor,
+              last_sync_mode: 'incremental',
+              last_sync_status: 'success',
+              metadata: {
+                queued_for_worker: true,
+                cursor_advanced_to: nextSyncCursor,
+                discovery_completed_at: new Date().toISOString(),
+                queued_jobs: uniqueBookingIds.length,
+              },
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'sync_type' })
+        }
+
+        console.log(`[process-sync-jobs] Discovery job ${job.id} queued ${uniqueBookingIds.length} incremental booking jobs`)
+        results.push({ job_id: job.id, booking_id: job.booking_id, status: 'completed' })
+        continue
+      }
+
       // ── 2. Call import-bookings ──────────────────────────────────────────
       const importPayload = {
         booking_id: job.booking_id,
