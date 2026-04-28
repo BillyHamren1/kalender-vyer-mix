@@ -263,7 +263,6 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                     )}
                     <TableHead className="h-10 text-xs font-medium uppercase tracking-wide">Projekt</TableHead>
                     <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px]">Eventdatum</TableHead>
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[100px]">Ålder</TableHead>
                     <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[160px]">Status</TableHead>
                     <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Värde</TableHead>
                     <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Kvar att fakturera</TableHead>
@@ -296,13 +295,6 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                         <TableCell className="py-3 font-medium text-sm">{p.name}</TableCell>
                         <TableCell className="py-3 text-sm text-muted-foreground tabular-nums">
                           {p._eventDate ? format(p._eventDate, 'd MMM yyyy', { locale: sv }) : '—'}
-                        </TableCell>
-                        <TableCell className={cn(
-                          'py-3 text-sm tabular-nums',
-                          p._daysSince > 90 ? 'text-destructive font-medium' :
-                          p._daysSince > 30 ? 'text-foreground' : 'text-muted-foreground'
-                        )}>
-                          {p._daysSince > 0 ? `${p._daysSince} d` : '—'}
                         </TableCell>
                         <TableCell className="py-3 text-sm text-muted-foreground">
                           {statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus}
